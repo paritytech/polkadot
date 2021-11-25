@@ -661,7 +661,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				};
 
 				let maybe_authority =
-					authority_discovery_service.get_authority_id_by_peer_id(peer).await;
+					authority_discovery_service.get_authority_ids_by_peer_id(peer).await;
 
 				match peer_set {
 					PeerSet::Validation => {

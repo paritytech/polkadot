@@ -54,7 +54,6 @@
     - [Approval Distribution](node/approval/approval-distribution.md)
   - [Disputes Subsystems](node/disputes/README.md)
     - [Dispute Coordinator](node/disputes/dispute-coordinator.md)
-    - [Dispute Participation](node/disputes/dispute-participation.md)
     - [Dispute Distribution](node/disputes/dispute-distribution.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)

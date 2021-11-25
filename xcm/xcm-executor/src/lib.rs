@@ -96,6 +96,15 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		if let Err(_) =
 			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
 		{
+			log::debug!(
+				target: "xcm::execute_xcm_in_credit",
+				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
+				e,
+				origin,
+				message,
+				weight_limit,
+				weight_credit,
+			);
 			return Outcome::Error(XcmError::Barrier)
 		}
 
@@ -114,24 +123,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			}
 		}
 
-		// We silently drop any error from our attempt to refund the surplus as it's a charitable
-		// thing so best-effort is all we will do.
-		let _ = vm.refund_surplus();
-		drop(vm.trader);
-
-		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
-
-		if !vm.holding.is_empty() {
-			let trap_weight = Config::AssetTrap::drop_assets(&vm.original_origin, vm.holding);
-			weight_used.saturating_accrue(trap_weight);
-		};
-
-		match vm.error {
-			None => Outcome::Complete(weight_used),
-			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
-			// the error which didn't end up being executed.
-			Some((_, e)) => Outcome::Incomplete(weight_used, e),
-		}
+		vm.post_execute(xcm_weight)
 	}
 }
 
@@ -201,6 +193,31 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 		}
 		result
+	}
+
+	/// Execute any final operations after having executed the XCM message.
+	/// This includes refunding surplus weight, trapping extra holding funds, and returning any errors during execution.
+	pub fn post_execute(mut self, xcm_weight: Weight) -> Outcome {
+		self.refund_surplus();
+		drop(self.trader);
+
+		let mut weight_used = xcm_weight.saturating_sub(self.total_surplus);
+
+		if !self.holding.is_empty() {
+			log::trace!(target: "xcm::execute_xcm_in_credit", "Trapping assets in holding register: {:?} (original_origin: {:?})", self.holding, self.original_origin);
+			let trap_weight = Config::AssetTrap::drop_assets(&self.original_origin, self.holding);
+			weight_used.saturating_accrue(trap_weight);
+		};
+
+		match self.error {
+			None => Outcome::Complete(weight_used),
+			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
+			// the error which didn't end up being executed.
+			Some((_i, e)) => {
+				log::debug!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, self.original_origin);
+				Outcome::Incomplete(weight_used, e)
+			},
+		}
 	}
 
 	/// Remove the registered error handler and return it. Do not refund its weight.
@@ -332,7 +349,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
-				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
 				let maybe_actual_weight = match message_call.dispatch(dispatch_origin) {
 					Ok(post_info) => {
 						self.transact_status = MaybeErrorCode::Success;

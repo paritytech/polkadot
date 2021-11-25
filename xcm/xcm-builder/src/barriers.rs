@@ -35,6 +35,11 @@ impl ShouldExecute for TakeWeightCredit {
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"TakeWeightCredit origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			_origin, _message, max_weight, weight_credit,
+		);
 		*weight_credit = weight_credit.checked_sub(max_weight).ok_or(())?;
 		Ok(())
 	}
@@ -53,6 +58,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowTopLevelPaidExecutionFrom origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, message, max_weight, _weight_credit,
+		);
 		ensure!(T::contains(origin), ());
 		let mut iter = message.0.iter_mut();
 		let i = iter.next().ok_or(())?;
@@ -91,6 +101,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowUnpaidExecutionFrom origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, _message, _max_weight, _weight_credit,
+		);
 		ensure!(T::contains(origin), ());
 		Ok(())
 	}
@@ -117,6 +132,11 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowKnownQueryResponses origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, message, _max_weight, _weight_credit,
+		);
 		match message.0.first() {
 			Some(QueryResponse { query_id, .. })
 				if ResponseHandler::expecting_response(origin, *query_id) =>
@@ -136,6 +156,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowSubscriptionsFrom origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, message, _max_weight, _weight_credit,
+		);
 		ensure!(T::contains(origin), ());
 		match (message.0.len(), message.0.first()) {
 			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
