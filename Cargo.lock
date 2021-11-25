@@ -6905,6 +6905,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-runtime-parachains-fuzzer"
+version = "0.9.13"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "honggfuzz",
+ "polkadot-runtime-parachains",
+ "sp-std",
+]
+
+[[package]]
 name = "polkadot-service"
 version = "0.9.13"
 dependencies = [

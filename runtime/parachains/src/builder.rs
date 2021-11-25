@@ -62,7 +62,7 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 }
 
 /// Paras inherent `enter` benchmark scenario builder.
-pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
+pub struct BenchBuilder<T: paras_inherent::Config> {
 	validators: Option<Vec<ValidatorId>>,
 	block_number: T::BlockNumber,
 	session: SessionIndex,
@@ -74,9 +74,9 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 }
 
 /// Paras inherent `enter` benchmark scenario.
-#[cfg(any(feature = "runtime-benchmarks", test))]
-pub(crate) struct Bench<T: paras_inherent::Config> {
-	pub(crate) data: ParachainsInherentData<T::Header>,
+// #[cfg(any(feature = "runtime-benchmarks", test))]
+pub struct Bench<T: paras_inherent::Config> {
+	pub data: ParachainsInherentData<T::Header>,
 	pub(crate) _session: u32,
 	pub(crate) _block_number: T::BlockNumber,
 }
@@ -84,7 +84,7 @@ pub(crate) struct Bench<T: paras_inherent::Config> {
 impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create a new `BenchBuilder` with some opinionated values that should work with the rest
 	/// of the functions in this implementation.
-	pub(crate) fn new() -> Self {
+	pub fn new() -> Self {
 		BenchBuilder {
 			// Validators should be declared prior to all other setup.
 			validators: None,
@@ -134,7 +134,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
+	pub fn set_max_validators(mut self, n: u32) -> Self {
 		self.max_validators = Some(n);
 		self
 	}
@@ -161,7 +161,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Set maximum number of validators per core.
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
+	pub fn set_max_validators_per_core(mut self, n: u32) -> Self {
 		self.max_validators_per_core = Some(n);
 		self
 	}
@@ -172,8 +172,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Minimum number of validity votes in order for a backed candidate to be included.
-	#[cfg(feature = "runtime-benchmarks")]
-	pub(crate) fn fallback_min_validity_votes() -> u32 {
+	#[cfg(any(feature = "runtime-benchmarks", feature = "fuzz"))]
+	pub fn fallback_min_validity_votes() -> u32 {
 		(Self::fallback_max_validators() / 2) + 1
 	}
 
@@ -544,7 +544,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// `backed_and_concluding_cores.len()`, so `dispute_sessions` needs to be left padded by
 	/// `backed_and_concluding_cores.len()` values which effectively get ignored.
 	/// TODO we should fix this.
-	pub(crate) fn build(
+	pub fn build(
 		self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
 		dispute_sessions: &[u32],

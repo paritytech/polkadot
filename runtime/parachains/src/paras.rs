@@ -1169,7 +1169,7 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	#[cfg(any(feature = "runtime-benchmarks", test))]
+	#[cfg(any(feature = "runtime-benchmarks", feature = "fuzz", test))]
 	pub fn heads_insert(para_id: &ParaId, head_data: HeadData) {
 		Heads::<T>::insert(para_id, head_data);
 	}

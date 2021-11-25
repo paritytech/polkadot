@@ -42,10 +42,10 @@ pub mod runtime_api_impl;
 
 mod util;
 
-#[cfg(any(feature = "runtime-benchmarks", test))]
-mod builder;
-#[cfg(test)]
-mod mock;
+#[cfg(any(feature = "runtime-benchmarks", feature = "fuzz", test))]
+pub mod builder;
+#[cfg(any(feature = "fuzz", test))]
+pub mod mock;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;

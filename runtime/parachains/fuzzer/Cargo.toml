@@ -8,9 +8,10 @@ publish = false
 [dependencies]
 polkadot-runtime-parachains = { path = "..", features = ["fuzz"] }
 honggfuzz = "0.5"
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [[bin]]
 name = "paras-inherent"
 path = "src/main.rs"
-
-[workspace]

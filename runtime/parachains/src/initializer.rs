@@ -294,7 +294,7 @@ impl<T: Config> Pallet<T> {
 
 	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
 	// implemented in mock.
-	#[cfg(any(test, feature = "runtime-benchmarks"))]
+	#[cfg(any(test, feature = "runtime-benchmarks", feature = "fuzz"))]
 	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
 		changed: bool,
 		session_index: SessionIndex,

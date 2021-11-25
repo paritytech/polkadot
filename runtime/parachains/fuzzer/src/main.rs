@@ -27,34 +27,22 @@
 //! [here](https://docs.rs/honggfuzz/).
 
 use honggfuzz::fuzz;
-use polkadot-runtime-parachains;
-use std::convert::From;
+use polkadot_runtime_parachains::{
+	builder::BenchBuilder,
+	mock::{new_test_ext, MockGenesisConfig, Test, ParaInherent}
+};
+use sp_std::collections::btree_map::BTreeMap;
+use frame_support::assert_ok;
 
-const CORES: u32 = 10;
-
-/// Actions of a `SortedListProvider` that we fuzz.
-enum Action {
-	Insert,
-	Update,
-	Remove,
-}
-
-impl From<u32> for Action {
-	fn from(v: u32) -> Self {
-		let num_variants = Self::Remove as u32 + 1;
-		match v % num_variants {
-			_x if _x == Action::Insert as u32 => Action::Insert,
-			_x if _x == Action::Update as u32 => Action::Update,
-			_x if _x == Action::Remove as u32 => Action::Remove,
-			_ => unreachable!(),
-		}
-	}
-}
+const CORES: u32 = 15;
+const MAX_VALIDATORS_PER_CORE: u32 = 3;
+const VALIDATOR_COUNT: u32 = CORES * MAX_VALIDATORS_PER_CORE;
+const SESSION_VARIABLILITY: u32 = 5;
 
 fn main() {
-	ExtBuilder::default().build_and_execute(|| loop {
-		fuzz!(|data: (u32, u32, u32)| {
-			let (disputes_seed, backed_seed, signature_seed) = data;
+	loop {
+		fuzz!(|data: (u32, u32, u32, u32)| {
+			let (seed, disputes_seed, backed_seed, votes_seed) = data;
 			// variant over
 			// * number of disputes
 			//  * dispute sessions
@@ -63,8 +51,53 @@ fn main() {
 			// * signature quality
 			// * other stuff
 
-			BenchBuilder::<Test>::new()
+			let disputes_count = disputes_seed % CORES;
+			let backed_and_concluding_count = CORES - disputes_count;
 
-		})
-	});
+			let validator_count
+				= CORES * MAX_VALIDATORS_PER_CORE;
+			let builder = BenchBuilder::<Test>::new()
+				.set_max_validators_per_core(MAX_VALIDATORS_PER_CORE)
+				.set_max_validators(validator_count);
+				// .set_dispute_statements
+
+			let backed_and_concluding: BTreeMap<_, _> = (0..backed_and_concluding_count).map(|i| {
+				let vote_count = (votes_seed % (MAX_VALIDATORS_PER_CORE + 1))
+					// make sure we don't error due to not having enough votes
+					.max(BenchBuilder::<Test>::fallback_min_validity_votes());
+
+				(i, vote_count)
+			})
+			.collect();
+
+			let dispute_sessions: Vec<_> = (0..disputes_count).map(|i|
+				if disputes_seed % 2 == 0 {
+					(i + disputes_seed) % SESSION_VARIABLILITY
+				} else {
+					2
+				}
+			)
+			.collect();
+
+			let code_upgrade = if seed % 2 == 0 {
+						Some(seed)
+					} else {
+						None
+					};
+
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let data = builder.build(
+					backed_and_concluding, dispute_sessions.as_slice(), code_upgrade
+				).data;
+
+				assert_ok!(
+					ParaInherent::enter(
+						frame_system::RawOrigin::None.into(),
+						data
+					)
+				);
+			});
+
+		});
+	}
 }

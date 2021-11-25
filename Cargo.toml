@@ -30,6 +30,7 @@ members = [
 	"runtime/common",
 	"runtime/common/slot_range_helper",
 	"runtime/parachains",
+	"runtime/parachains/fuzzer",
 	"runtime/polkadot",
 	"runtime/kusama",
 	"runtime/rococo",
