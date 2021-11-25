@@ -890,7 +890,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Will return error if either is true:
 	///
-	/// - para is not a stable parachain or parathread.
+	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
 	/// - para has a pending upgrade.
 	///
 	/// No-op if para is not registered at all.
