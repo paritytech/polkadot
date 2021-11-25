@@ -145,7 +145,7 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: Some(keystore),
-			session_cache_lru_size: DISPUTE_WINDOW as usize,
+			session_cache_lru_size: DISPUTE_WINDOW.get() as usize,
 		});
 		let (tx, sender_rx) = mpsc::channel(1);
 		let disputes_sender = DisputeSender::new(tx, metrics.clone());

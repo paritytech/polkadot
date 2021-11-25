@@ -6,7 +6,7 @@
 # setting DEPLOY_TAG will only deploy the tagged image
 #
 # please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-pr-only preset. And "kubernetes-env" with "docker-env" to set a runner
+# &rules-test-and-rococo preset. And "kubernetes-env" with "docker-env" to set a runner
 # which executes the job.
 
 stages:
@@ -14,8 +14,6 @@ stages:
   - build
   - publish
   - deploy
-
-image:                             paritytech/ci-linux:production
 
 workflow:
   rules:
@@ -26,11 +24,14 @@ variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
   CI_SERVER_NAME:                  "GitLab CI"
+  CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
+  ZOMBIENET_IMAGE:                 "docker.io/paritypr/zombienet"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
+  PIPELINE_SCRIPTS_TAG:            "v0.1"
 
 default:
   cache:                           {}
@@ -55,6 +56,7 @@ default:
     - kubernetes-parity-build
 
 .docker-env:                       &docker-env
+  image:                           "${CI_IMAGE}"
   retry:
     max: 2
     when:
@@ -76,16 +78,16 @@ default:
   rules:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
-    - when: always
-
-.pr-only:                          &rules-pr-only
-  # these jobs run only on PRs
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: never
+    - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+
+.rules-test-and-rococo:            &rules-test-and-rococo
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
 
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
@@ -142,7 +144,7 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
@@ -151,20 +153,12 @@ check-runtime:
     - ./scripts/gitlab/check_runtime.sh
   allow_failure:                   true
 
-check-line-width:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  script:
-    - ./scripts/gitlab/check_line_width.sh
-  allow_failure:                   true
-
 cargo-fmt:
   stage:                           test
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
+  <<:                              *docker-env
+  <<:                              *rules-test
   script:
+    - cargo +nightly --version
     - cargo +nightly fmt --all -- --check
   allow_failure:                   true
 
@@ -197,6 +191,7 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
+    # disputes feature is needed for zombie-net parachains malus test
     - time cargo build --release --verbose --bin polkadot --features "disputes"
     - sccache -s
     # pack artifacts
@@ -237,11 +232,12 @@ check-no-default-features:
 spellcheck:
   stage:                           test
   <<:                              *docker-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   script:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - echo "___Spellcheck is going to check your diff___"
     - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
     - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
         $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
@@ -252,11 +248,7 @@ build-adder-collator:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  <<:                              *rules-test-and-rococo
   script:
     - time cargo build --release --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -266,6 +258,26 @@ build-adder-collator:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r scripts/* ./artifacts
+
+build-malus:
+  stage:                           test
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  script:
+    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/malus ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/* ./artifacts
 
 #### stage:                        build
@@ -292,18 +304,19 @@ check-dependent-cumulus:
     DEPENDENT_REPO: cumulus
 
 check-transaction-versions:
-  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
-  image:                           paritytech/contracts-ci-linux:production
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
   <<:                              *vault-secrets
+  image:                           node:15
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
   before_script:
     - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    # Set git config
+    - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
     - git fetch origin release
   script:
     - scripts/gitlab/check_extrinsics_ordering.sh
@@ -332,7 +345,7 @@ build-rustdoc:
     - ./crate-docs/
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
-    - time cargo doc --no-deps --workspace --verbose
+    - time cargo doc --workspace --verbose
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
@@ -401,58 +414,78 @@ publish-polkadot-image:
     - job:                         test-build-linux-stable
       artifacts:                   true
   after_script:
-    # pass artifacts to the simnet-tests job
+    # pass artifacts to the zombienet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
     - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
     - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
   artifacts:
     reports:
-      # this artifact is used in simnet-tests job
+      # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/parachains.env
 
 publish-adder-collator-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
+  <<:                              *rules-test-and-rococo
   variables:
     <<:                            *image-variables
     # scripts/dockerfiles/collator_injected.Dockerfile
     DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         build-adder-collator
       artifacts:                   true
   after_script:
     - buildah logout --all
-    # pass artifacts to the simnet-tests job
+    # pass artifacts to the zombienet-tests job
     - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
   artifacts:
     reports:
-      # this artifact is used in simnet-tests job
+      # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/collator.env
 
-.update_weights:                   &update-weights
+publish-malus-image:
+  # service image for Simnet
+  stage:                           build
+  <<:                              *build-push-image
+  variables:
+    <<:                            *image-variables
+    # scripts/dockerfiles/malus.Dockerfile
+    DOCKERFILE:                    dockerfiles/malus.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/malus
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  needs:
+    - job:                         build-malus
+      artifacts:                   true
+  after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the zombienet-tests job
+    - echo "MALUS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/malus.env
+    - echo "MALUS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/malus.env
+  artifacts:
+    reports:
+      # this artifact is used in zombienet-tests job
+      dotenv: ./artifacts/malus.env
+
+update_polkadot_weights:           &update-weights
   stage:                           build
   when:                            manual
-  tags:
-    - weights
   variables:
     RUNTIME:                       polkadot
   artifacts:
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
-  script: |
-    ./scripts/run_benches_for_runtime.sh $RUNTIME
-    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
-
-update_polkadot_weights:
-  <<:                              *update-weights
+  script:
+    - ./scripts/run_benches_for_runtime.sh $RUNTIME
+    - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  # uses the "shell" executors
+  tags:
+    - weights
 
 update_kusama_weights:
   <<:                              *update-weights
@@ -545,6 +578,7 @@ publish-rustdoc:
     - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
         echo "___Nothing to commit___"
     - git push origin gh-pages --force
+    - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
   after_script:
     - rm -rf .git/ ./*
 
@@ -553,7 +587,6 @@ publish-rustdoc:
 deploy-polkasync-kusama:
   stage:                           deploy
   rules:
-    # former .rules-build
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -564,9 +597,9 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-simnet-tests:
+zombienet-tests-parachains-smoke-test:
   stage:                           deploy
-  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
+  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -575,27 +608,65 @@ simnet-tests:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         publish-polkadot-image
+    - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
-  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG`
-  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
-  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
-  # can be replaced with `master` tag.
 
-  # SIMNET_REF is a gitlab variable
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
+
   before_script:
-    - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
-        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+
   script:
-    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-        --config="simnet_tests/configs/simple_rococo_testnet.toml"
-        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0001-parachains-smoke-test.feature"
   allow_failure:                   true
   retry: 2
   tags:
-    - polkadot-simnet
+    - zombienet-polkadot-integration-test
+
+zombienet-tests-malus-dispute-valid:
+  stage:                           deploy
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  needs:
+    - job:                         publish-polkadot-image
+    - job:                         publish-malus-image
+    - job:                         publish-adder-collator-image
+
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/node/malus/integrationtests'
+
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+
+  script:
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0001-dispute-valid-block.feature"
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test

@@ -48,11 +48,11 @@ pub enum Fatal {
 pub enum NonFatal {
 	/// Some request to the runtime failed.
 	/// For example if we prune a block we're requesting info about.
-	#[error("Runtime API error")]
+	#[error("Runtime API error {0}")]
 	RuntimeRequest(RuntimeApiError),
 
 	/// We tried fetching a session info which was not available.
-	#[error("There was no session with the given index")]
+	#[error("There was no session with the given index {0}")]
 	NoSuchSession(SessionIndex),
 }
 

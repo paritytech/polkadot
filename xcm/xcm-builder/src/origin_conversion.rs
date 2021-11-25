@@ -37,6 +37,11 @@ where
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SovereignSignedViaLocation origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
 		if let OriginKind::SovereignAccount = kind {
 			let location = LocationConverter::convert(origin)?;
 			Ok(Origin::signed(location).into())
@@ -53,6 +58,7 @@ impl<Origin: OriginTrait> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
+		log::trace!(target: "xcm::origin_conversion", "ParentAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
 		if kind == OriginKind::Superuser && origin.contains_parents_only(1) {
 			Ok(Origin::root())
 		} else {
@@ -69,7 +75,9 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		log::trace!(target: "xcm::origin_conversion", "ChildSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
+		match (kind, origin) {
 			(
 				OriginKind::Superuser,
 				MultiLocation { parents: 0, interior: X1(Junction::Parachain(id)) },
@@ -87,7 +95,13 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SiblingSystemParachainAsSuperuser origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
+		match (kind, origin) {
 			(
 				OriginKind::Superuser,
 				MultiLocation { parents: 1, interior: X1(Junction::Parachain(id)) },
@@ -105,7 +119,9 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		log::trace!(target: "xcm::origin_conversion", "ChildParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
+		match (kind, origin) {
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::Parachain(id)) },
@@ -125,7 +141,13 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SiblingParachainAsNative origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
+		match (kind, origin) {
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 1, interior: X1(Junction::Parachain(id)) },
@@ -145,6 +167,7 @@ impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
+		log::trace!(target: "xcm::origin_conversion", "RelayChainAsNative origin: {:?}, kind: {:?}", origin, kind);
 		if kind == OriginKind::Native && origin.contains_parents_only(1) {
 			Ok(RelayOrigin::get())
 		} else {
@@ -163,7 +186,13 @@ where
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SignedAccountId32AsNative origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
+		match (kind, origin) {
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, network }) },
@@ -184,7 +213,13 @@ where
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SignedAccountKey20AsNative origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
+		match (kind, origin) {
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::AccountKey20 { key, network }) },

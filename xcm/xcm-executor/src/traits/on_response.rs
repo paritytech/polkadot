@@ -58,6 +58,9 @@ pub trait VersionChangeNotifier {
 	/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
 	/// notification set up.
 	fn stop(location: &MultiLocation) -> XcmResult;
+
+	/// Return true if a location is subscribed to XCM version changes.
+	fn is_subscribed(location: &MultiLocation) -> bool;
 }
 
 impl VersionChangeNotifier for () {
@@ -66,5 +69,8 @@ impl VersionChangeNotifier for () {
 	}
 	fn stop(_: &MultiLocation) -> XcmResult {
 		Err(XcmError::Unimplemented)
+	}
+	fn is_subscribed(_: &MultiLocation) -> bool {
+		false
 	}
 }

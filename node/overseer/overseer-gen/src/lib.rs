@@ -111,6 +111,8 @@ pub enum ToOverseer {
 	SpawnJob {
 		/// Name of the task to spawn which be shown in jaeger and tracing logs.
 		name: &'static str,
+		/// Subsystem of the task to spawn which be shown in jaeger and tracing logs.
+		subsystem: Option<&'static str>,
 		/// The future to execute.
 		s: BoxFuture<'static, ()>,
 	},
@@ -120,6 +122,8 @@ pub enum ToOverseer {
 	SpawnBlockingJob {
 		/// Name of the task to spawn which be shown in jaeger and tracing logs.
 		name: &'static str,
+		/// Subsystem of the task to spawn which be shown in jaeger and tracing logs.
+		subsystem: Option<&'static str>,
 		/// The future to execute.
 		s: BoxFuture<'static, ()>,
 	},
@@ -128,8 +132,12 @@ pub enum ToOverseer {
 impl fmt::Debug for ToOverseer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::SpawnJob { name, .. } => writeln!(f, "SpawnJob{{ {}, ..}}", name),
-			Self::SpawnBlockingJob { name, .. } => writeln!(f, "SpawnBlockingJob{{ {}, ..}}", name),
+			Self::SpawnJob { name, subsystem, .. } => {
+				writeln!(f, "SpawnJob{{ {}, {} ..}}", name, subsystem.unwrap_or("default"))
+			},
+			Self::SpawnBlockingJob { name, subsystem, .. } => {
+				writeln!(f, "SpawnBlockingJob{{ {}, {} ..}}", name, subsystem.unwrap_or("default"))
+			},
 		}
 	}
 }
