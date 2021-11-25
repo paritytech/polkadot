@@ -559,15 +559,15 @@ impl pallet_staking::Config for Runtime {
 }
 
 #[cfg(feature = "fast-runtime")]
-pub const LAUNCH_PERIOD: BlockNumber = 2 * MINUTES;
+pub const LAUNCH_PERIOD: BlockNumber = 1 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const VOTING_PERIOD: BlockNumber = 2 * MINUTES;
+pub const VOTING_PERIOD: BlockNumber = 1 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 2 * MINUTES;
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 1 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const ENACTMENT_PERIOD: BlockNumber = 2 * MINUTES;
+pub const ENACTMENT_PERIOD: BlockNumber = 1 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const COOLOFF_PERIOD: BlockNumber = 2 * MINUTES;
+pub const COOLOFF_PERIOD: BlockNumber = 1 * MINUTES;
 
 #[cfg(not(feature = "fast-runtime"))]
 pub const LAUNCH_PERIOD: BlockNumber = 7 * DAYS;
