@@ -1360,6 +1360,7 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
 	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
@@ -1399,6 +1400,8 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
+	type PalletInstancesInfo = AllPallets;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 parameter_types! {
