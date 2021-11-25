@@ -32,6 +32,7 @@ fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 
 	let mut host_name = vec![0u8; host_name_max_len];
 	let mut buf = host_name.clone();
+	// Makes a call to FFI which is available on both Linux and MacOS.
 	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
 	let file = match fs::File::open(path) {
