@@ -71,7 +71,7 @@ pub enum InvalidCandidate {
 	/// thrown at it and hopefully the operator notices it by decreased reward performance of the
 	/// validator. On the other hand, if the worker died because of (b) we would have better chances
 	/// to stop the attack.
-	AmbigiousWorkerDeath,
+	AmbiguousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
 }

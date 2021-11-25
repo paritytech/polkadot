@@ -240,7 +240,7 @@ fn handle_job_finish(
 		Outcome::HardTimeout =>
 			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))),
 		Outcome::IoErr =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))),
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))),
 	};
 
 	queue.metrics.execute_finished();
