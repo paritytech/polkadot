@@ -6378,6 +6378,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-consensus-babe",
  "sp-core",
+ "sp-keyring",
  "tracing",
 ]
 
