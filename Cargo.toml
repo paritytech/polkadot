@@ -88,6 +88,7 @@ members = [
 	"node/test/polkadot-simnet/common",
 	"node/test/polkadot-simnet/node",
 	"node/test/polkadot-simnet/test",
+	"node/zombienet-backchannel",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
