@@ -732,6 +732,8 @@ where
 		chain_spec.is_versi() ||
 		chain_spec.is_wococo();
 
+	let pvf_checker_enabled = !is_collator.is_collator() && chain_spec.is_versi();
+
 	let select_chain = if requires_overseer_for_chain_sel {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
@@ -979,6 +981,7 @@ where
 					chain_selection_config,
 					dispute_coordinator_config,
 					disputes_enabled,
+					pvf_checker_enabled,
 				},
 			)
 			.map_err(|e| {

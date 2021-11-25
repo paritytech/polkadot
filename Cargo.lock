@@ -6380,6 +6380,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-pvf-checker"
+version = "0.9.13"
+dependencies = [
+ "futures 0.3.19",
+ "futures-timer",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
+ "sp-keystore",
+ "sp-runtime",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-runtime-api"
 version = "0.9.13"
 dependencies = [
@@ -6962,6 +6985,7 @@ dependencies = [
  "polkadot-node-core-dispute-coordinator",
  "polkadot-node-core-parachains-inherent",
  "polkadot-node-core-provisioner",
+ "polkadot-node-core-pvf-checker",
  "polkadot-node-core-runtime-api",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",

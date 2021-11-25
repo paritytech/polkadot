@@ -84,8 +84,8 @@ use polkadot_node_subsystem_types::messages::{
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, RuntimeApiMessage,
-	StatementDistributionMessage,
+	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
+	RuntimeApiMessage, StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -419,6 +419,9 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage)]
 	candidate_validation: CandidateValidation,
+
+	#[subsystem(no_dispatch, PvfCheckerMessage)]
+	pvf_checker: PvfChecker,
 
 	#[subsystem(no_dispatch, CandidateBackingMessage)]
 	candidate_backing: CandidateBacking,
