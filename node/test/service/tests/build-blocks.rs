@@ -52,7 +52,4 @@ async fn ensure_test_service_build_blocks() {
 			_ = t3 => panic!("service Bob failed"),
 		}
 	}
-
-	alice.task_manager.clean_shutdown().await;
-	bob.task_manager.clean_shutdown().await;
 }

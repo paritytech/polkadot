@@ -22,7 +22,6 @@ const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test]
 async fn collating_using_adder_collator() {
-	use futures::join;
 	use polkadot_primitives::v1::Id as ParaId;
 	use sp_keyring::AccountKeyring::*;
 
@@ -80,10 +79,4 @@ async fn collating_using_adder_collator() {
 
 	// Wait until the collator received `12` seconded statements for its collations.
 	collator.wait_for_seconded_collations(12).await;
-
-	join!(
-		alice.task_manager.clean_shutdown(),
-		bob.task_manager.clean_shutdown(),
-		charlie.task_manager.clean_shutdown(),
-	);
 }

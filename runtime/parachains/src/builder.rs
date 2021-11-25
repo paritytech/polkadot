@@ -1,3 +1,19 @@
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use crate::{
 	configuration, inclusion, initializer, paras,
 	paras_inherent::{self},
@@ -20,6 +36,10 @@ use sp_runtime::{
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+
+fn dummy_validation_code() -> ValidationCode {
+	ValidationCode(vec![1, 2, 3])
+}
 
 /// Grab an account, seeded by a name and index.
 ///
@@ -54,7 +74,7 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 }
 
 /// Paras inherent `enter` benchmark scenario.
-#[allow(dead_code)]
+#[cfg(any(feature = "runtime-benchmarks", test))]
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
 	pub(crate) _session: u32,
@@ -113,7 +133,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
 
-	#[allow(dead_code)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
 		self.max_validators = Some(n);
 		self
@@ -129,7 +149,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// corresponding dispute statement set. Note that if the number of disputes is not specified it fallbacks
 	/// to having a dispute per every validator. Additionally, an entry is not guaranteed to have a dispute - it
 	/// must line up with the cores marked as disputed as defined in `Self::Build`.
-	#[allow(dead_code)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
 		self
@@ -140,7 +160,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Set maximum number of validators per core.
-	#[allow(dead_code)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
 		self.max_validators_per_core = Some(n);
 		self
@@ -152,7 +172,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Minimum number of validity votes in order for a backed candidate to be included.
-	#[allow(dead_code)]
+	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_min_validity_votes() -> u32 {
 		(Self::fallback_max_validators() / 2) + 1
 	}
@@ -239,7 +259,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				para_id,
 				paras::ParaGenesisArgs {
 					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					validation_code: dummy_validation_code(),
 					parachain: true,
 				},
 			)
@@ -302,7 +322,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Default::default(),
 		);
 
-		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), total_cores as usize);
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
 
 		// We need to refetch validators since they have been shuffled.
@@ -394,9 +413,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				.hash();
 
 				let pov_hash = Default::default();
-				// NOTE: we use the default `ValidationCode` when setting it in `setup_para_ids`,
-				// so using the default again here makes sure things line up.
-				let validation_code_hash = ValidationCode::default().hash();
+				let validation_code_hash = dummy_validation_code().hash();
 				let payload = collator_signature_payload(
 					&relay_parent,
 					&para_id,

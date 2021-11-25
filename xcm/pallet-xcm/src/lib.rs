@@ -484,8 +484,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
 		///   `dest` side. May not be empty.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -721,8 +721,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
 		///   `dest` side. May not be empty.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();

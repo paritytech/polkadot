@@ -34,6 +34,7 @@ CLI/MS
 codebase/SM
 codec/SM
 commit/D
+comparator
 computable
 conclude/UD
 config/MS
@@ -51,6 +52,7 @@ decrement
 deduplicated
 deinitializing
 dequeue/SD
+dequeuing
 deregister
 deserialize/G
 DHT
@@ -85,11 +87,13 @@ fungibility
 gameable
 getter/MS
 GiB/S
+GKE
 GNUNet
 GPL/M
 GPLv3/M
 Grafana/MS
 Gurke/MS
+gurke/MS
 Handler/MS
 HMP/SM
 HRMP
@@ -135,7 +139,7 @@ lookahead/MS
 lookup/MS
 LRU
 mainnet/MS
-malus
+malus/MS
 MB/M
 Mbit
 merkle/MS
@@ -143,6 +147,7 @@ Merklized
 metadata/M
 middleware/MS
 Millau
+minimalistic
 misbehavior/SM
 misbehaviors
 misvalidate/D
@@ -180,6 +185,7 @@ ParaId
 parameterization
 parameterize/D
 parathread/MS
+participations
 passthrough
 PDK
 peerset/MS
@@ -258,8 +264,10 @@ teleport/RG
 teleportation/SM
 teleporter/SM
 teleporters
-teleports
+template/GSM
 testnet/MS
+tera/M
+teleports
 timeframe
 timestamp/MS
 tradeoff
