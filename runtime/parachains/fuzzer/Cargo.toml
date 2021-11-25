@@ -1,0 +1,16 @@
+[package]
+name = "polkadot-runtime-parachains-fuzzer"
+version = "0.9.13"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+publish = false
+
+[dependencies]
+polkadot-runtime-parachains = { path = "..", features = ["fuzz"] }
+honggfuzz = "0.5"
+
+[[bin]]
+name = "paras-inherent"
+path = "src/main.rs"
+
+[workspace]
