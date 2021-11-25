@@ -136,10 +136,9 @@ mod tests {
 
 		ParaA::execute_with(|| {
 			use parachain::{Event, System};
-			assert!(System::events().iter().any(|r| matches!(
-				r.event,
-				Event::System(frame_system::Event::Remarked { sender: _, hash: _ })
-			)));
+			assert!(System::events()
+				.iter()
+				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
 		});
 	}
 
@@ -164,10 +163,9 @@ mod tests {
 
 		Relay::execute_with(|| {
 			use relay_chain::{Event, System};
-			assert!(System::events().iter().any(|r| matches!(
-				r.event,
-				Event::System(frame_system::Event::Remarked { sender: _, hash: _ })
-			)));
+			assert!(System::events()
+				.iter()
+				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
 		});
 	}
 
@@ -193,10 +191,9 @@ mod tests {
 
 		ParaB::execute_with(|| {
 			use parachain::{Event, System};
-			assert!(System::events().iter().any(|r| matches!(
-				r.event,
-				Event::System(frame_system::Event::Remarked { sender: _, hash: _ })
-			)));
+			assert!(System::events()
+				.iter()
+				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
 		});
 	}
 
