@@ -70,4 +70,14 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
+	fn on_initialize_periodic_named_resolved(_: u32) -> u64 { todo!() }
+	fn on_initialize_named_resolved(_: u32) -> u64 { todo!() }
+	fn on_initialize_periodic_resolved(_: u32) -> u64 { todo!() }
+	fn on_initialize_resolved(_: u32) -> u64 { todo!() }
+	fn on_initialize_named_aborted(_: u32) -> u64 { todo!() }
+	fn on_initialize_aborted(_: u32) -> u64 { todo!() }
+	fn on_initialize_periodic_named(_: u32) -> u64 { todo!() }
+	fn on_initialize_periodic(_: u32) -> u64 { todo!() }
+	fn on_initialize_named(_: u32) -> u64 { todo!() }
+	fn on_initialize(_: u32) -> u64 { todo!() }
 }
