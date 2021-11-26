@@ -375,7 +375,7 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[enter_inner] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -473,6 +473,12 @@ impl<T: Config> Pallet<T> {
 				freed_disputed.iter().map(|(core_index, _)| core_index),
 			);
 
+			log::debug!(
+				target: LOG_TARGET,
+				"[enter_inner] disputed_bitfield: {:?}",
+				disputed_bitfield,
+			);
+
 			if !freed_disputed.is_empty() {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
@@ -503,6 +509,16 @@ impl<T: Config> Pallet<T> {
 		<scheduler::Pallet<T>>::schedule(freed, now);
 
 		let scheduled = <scheduler::Pallet<T>>::scheduled();
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[enter_inner] scheduled: {:?}",
+			scheduled
+				.iter()
+				.map(|assignment| (assignment.core, assignment.para_id))
+				.collect::<Vec<_>>(),
+		);
+
 		let backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
 			backed_candidates,
@@ -511,6 +527,12 @@ impl<T: Config> Pallet<T> {
 				// `fn process_candidates` does the verification checks
 			},
 			&scheduled[..],
+		);
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[enter_inner](sanitized) backed_candidates.len(): {}",
+			backed_candidates.len(),
 		);
 
 		// Process backed candidates according to scheduled cores.
@@ -645,11 +667,17 @@ impl<T: Config> Pallet<T> {
 						freed_disputed
 					);
 
-					freed_disputed.into_iter().map(|core| (core, FreedReason::Concluded)).collect();
+					freed_disputed.into_iter().map(|core| (core, FreedReason::Concluded)).collect()
 				};
 
 				let disputed_bitfield =
 					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
+
+				log::debug!(
+					target: LOG_TARGET,
+					"[create_inherent] disputed_bitfield: {:?}",
+					disputed_bitfield,
+				);
 
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
