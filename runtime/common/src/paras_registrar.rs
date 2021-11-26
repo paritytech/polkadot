@@ -157,6 +157,8 @@ pub mod pallet {
 		ParaLocked,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
+		/// Registering parachain with empty code is not allowed.
+		EmptyCode,
 	}
 
 	/// Pending swap operations.
@@ -547,6 +549,7 @@ impl<T: Config> Pallet<T> {
 		parachain: bool,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
+		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);
 		ensure!(validation_code.0.len() <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
 		ensure!(
 			genesis_head.0.len() <= config.max_head_data_size as usize,

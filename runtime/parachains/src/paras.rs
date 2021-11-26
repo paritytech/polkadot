@@ -870,8 +870,10 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
 
-		// Make sure parachain isn't already in our system.
+		// Make sure parachain isn't already in our system and that the onboarding parameters are
+		// valid.
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
+		ensure!(!genesis.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
 		UpcomingParasGenesis::<T>::insert(&id, genesis);
@@ -886,10 +888,24 @@ impl<T: Config> Pallet<T> {
 
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
-	/// Will return error if para is not a stable parachain or parathread.
+	/// Will return error if either is true:
+	///
+	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
+	/// - para has a pending upgrade.
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
+		// Disallow offboarding in case there is an upcoming upgrade.
+		//
+		// This is not a fundamential limitation but rather simplification: it allows us to get
+		// away without introducing additional logic for pruning and, more importantly, enacting
+		// ongoing PVF pre-checking votings. It also removes some nasty edge cases.
+		//
+		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
+		if FutureCodeHash::<T>::contains_key(&id) {
+			return Err(Error::<T>::CannotOffboard.into())
+		}
+
 		let lifecycle = ParaLifecycles::<T>::get(&id);
 		match lifecycle {
 			// If para is not registered, nothing to do!
@@ -1178,12 +1194,12 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::assert_ok;
+	use frame_support::{assert_err, assert_ok};
 	use primitives::v1::BlockNumber;
 
 	use crate::{
 		configuration::HostConfiguration,
-		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System},
+		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -1333,6 +1349,32 @@ mod tests {
 			past_code,
 			ParaPastCodeMeta { upgrade_times: Vec::new(), last_pruned: Some(66) }
 		);
+	}
+
+	#[test]
+	fn schedule_para_init_rejects_empty_code() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			assert_err!(
+				Paras::schedule_para_initialize(
+					1000.into(),
+					ParaGenesisArgs {
+						parachain: false,
+						genesis_head: Default::default(),
+						validation_code: ValidationCode(vec![]),
+					}
+				),
+				Error::<Test>::CannotOnboard,
+			);
+
+			assert_ok!(Paras::schedule_para_initialize(
+				1000.into(),
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: Default::default(),
+					validation_code: ValidationCode(vec![1]),
+				}
+			));
+		});
 	}
 
 	#[test]
@@ -1817,55 +1859,51 @@ mod tests {
 				expected_at
 			};
 
+			// Cannot offboard while an upgrade is pending.
+			assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
+
+			// Enact the upgrade.
+			//
+			// For that run to block #7 and submit a new head.
+			assert_eq!(expected_at, 7);
+			run_to_block(7, None);
+			assert_eq!(<frame_system::Pallet<Test>>::block_number(), 7);
+			Paras::note_new_head(para_id, Default::default(), expected_at);
+
 			assert_ok!(Paras::schedule_para_cleanup(para_id));
 
-			// Just scheduling cleanup shouldn't change anything.
-			{
-				assert_eq!(
-					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
-					vec![para_id],
-				);
-				assert_eq!(Paras::parachains(), vec![para_id]);
-
-				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
-				check_code_is_stored(&original_code);
-				check_code_is_stored(&new_code);
-
-				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
-			}
-
-			// run to block #4, with a 2 session changes at the end of the block 2 & 3.
-			run_to_block(4, Some(vec![3, 4]));
+			// run to block #10, with a 2 session changes at the end of the block 7 & 8 (so 8 and 9
+			// observe the new sessions).
+			run_to_block(10, Some(vec![8, 9]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
-			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(3));
-			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, 3)),
-				Some(original_code.hash())
-			);
-			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 3)]);
+			//
+			// Why 7 and 8? See above, the clean up scheduled above was processed at the block 8.
+			// The initial upgrade was enacted at the block 7.
+			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(8));
+			assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)), Some(new_code.hash()));
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 7), (para_id, 8)]);
 			check_code_is_stored(&original_code);
+			check_code_is_stored(&new_code);
 
 			// any future upgrades haven't been used to validate yet, so those
 			// are cleaned up immediately.
 			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
 			assert!(Paras::current_code(&para_id).is_none());
-			check_code_is_not_stored(&new_code);
 
 			// run to do the final cleanup
-			let cleaned_up_at = 3 + code_retention_period + 1;
+			let cleaned_up_at = 8 + code_retention_period + 1;
 			run_to_block(cleaned_up_at, None);
 
 			// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
 			assert_eq!(Paras::past_code_meta(&para_id), Default::default());
-			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 3)).is_none());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 7)).is_none());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)).is_none());
 			assert!(<Paras as Store>::PastCodePruning::get().is_empty());
 			check_code_is_not_stored(&original_code);
+			check_code_is_not_stored(&new_code);
 		});
 	}
 
