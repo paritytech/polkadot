@@ -268,7 +268,10 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			// The actual filtering for weight happens in `create_inherent_inner`
+			// and the resulting `InherentData` fulfilles the weight constraints.
 			let inherent_data = Self::create_inherent_inner(data)?;
+
 			// Sanity check: session changes can invalidate an inherent,
 			// and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
@@ -560,9 +563,12 @@ impl<T: Config> Pallet<T> {
 			},
 		};
 
+		let parent_header_hash = parent_header.hash();
+
 		log::debug!(
 			target: LOG_TARGET,
-			"[create_inherent_inner] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[create_inherent_inner](provisioned) parent_header: {}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			parent_header_hash,
 			bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -570,10 +576,12 @@ impl<T: Config> Pallet<T> {
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
-		if parent_hash != parent_header.hash() {
+		if parent_hash != parent_header_hash {
 			log::warn!(
 				target: LOG_TARGET,
-				"ParachainsInherentData references a different parent header hash than frame"
+				"ParachainsInherentData references a different parent header hash ({}) than frame ({})",
+				parent_header_hash,
+				parent_hash,
 			);
 			return None
 		}
@@ -715,6 +723,16 @@ impl<T: Config> Pallet<T> {
 			max_block_weight,
 			&mut rng,
 		);
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[create_inherent_inner](sanitized) parent_header: {}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			parent_header_hash,
+			bitfields.len(),
+			backed_candidates.len(),
+			disputes.len()
+		);
+
 
 		Some(ParachainsInherentData::<T::Header> {
 			bitfields,
