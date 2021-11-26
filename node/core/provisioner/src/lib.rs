@@ -279,7 +279,7 @@ async fn collect_backed_candidates(
 	relay_parent: Hash,
 	sender: &mut impl SubsystemSender,
 ) -> Result<Vec<BackedCandidate>, Error> {
-	let max_one_candidate_per_para = HashSet::<ParaId>::with_capacity(candidate_receipts.len());
+	let mut max_one_candidate_per_para = HashSet::<ParaId>::with_capacity(candidate_receipts.len());
 	let selected_candidates = candidate_receipts
 		.into_iter()
 		.filter(|candidate_receipt| {
