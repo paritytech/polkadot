@@ -286,13 +286,14 @@ async fn collect_backed_candidates(
 			// assure the follow up query `GetBackedCandidate` succeeds
 			candidate_receipt.descriptor().relay_parent == relay_parent
 		})
-		.scan(max_one_candidate_per_para, |unique, candidate_receipt| {
+		.scan(&mut max_one_candidate_per_para, |unique, candidate_receipt| {
 			let para_id = candidate_receipt.descriptor().para_id;
 			if unique.insert(para_id) {
 				Some(candidate_receipt.hash())
 			} else {
 				tracing::debug!(
 					target: LOG_TARGET,
+					relay_parent = ?candidate_receipt.descriptor().relay_parent,
 					?para_id,
 					"Duplicate candidate detected for para, only submitting one",
 				);
@@ -300,6 +301,15 @@ async fn collect_backed_candidates(
 			}
 		})
 		.collect::<Vec<CandidateHash>>();
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		?relay_parent,
+		"Pre-selected candidates down to {} from {}, unique per ParaId {:?}",
+		selected_candidates.len(),
+		max_one_candidate_per_para.len(),
+		max_one_candidate_per_para,
+	);
 
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
@@ -317,6 +327,7 @@ async fn collect_backed_candidates(
 
 	tracing::debug!(
 		target: LOG_TARGET,
+		?relay_parent,
 		"Selected {} backed candidates ready to be sanitized by the runtime",
 		backed_candidates.len(),
 	);
