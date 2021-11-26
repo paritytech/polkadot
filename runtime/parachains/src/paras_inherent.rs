@@ -634,11 +634,15 @@ impl<T: Config> Pallet<T> {
 					})
 					.collect::<BTreeSet<CandidateHash>>();
 
-				let mut freed_disputed: Vec<_> =
-					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
-						.into_iter()
+				let mut freed_disputed: Vec<_> = {
+					let freed_disputed = <inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes);
+
+					log::debug!(target: LOG_TARGET, "Freed cores (concluded disputes): {:?}", freed_disputed);
+
+					freed_disputed.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
 						.collect();
+				};
 
 				let disputed_bitfield =
 					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
@@ -662,6 +666,8 @@ impl<T: Config> Pallet<T> {
 					FullCheck::Skip,
 				);
 
+				log::debug!(target: LOG_TARGET, "Sanitized bitfields: {}", bitfields.len());
+
 				let freed_concluded =
 					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
 						_,
@@ -680,6 +686,8 @@ impl<T: Config> Pallet<T> {
 				<scheduler::Pallet<T>>::schedule(freed, now);
 
 				let scheduled = <scheduler::Pallet<T>>::scheduled();
+
+				log::debug!(target: LOG_TARGET, "Scheduled: {:?}", scheduled.iter().map(|assignment| (assignment.core, assignment.para_id)).collect::<Vec<_>>());
 
 				let relay_parent_number = now - One::one();
 
@@ -702,6 +710,8 @@ impl<T: Config> Pallet<T> {
 					},
 					&scheduled[..],
 				);
+
+				log::debug!(target: LOG_TARGET, "Sanitized backed_candidates: {}", backed_candidates.len());
 
 				frame_support::storage::TransactionOutcome::Rollback((
 					// filtered backed candidates
