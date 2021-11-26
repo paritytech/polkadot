@@ -26,13 +26,13 @@
 //! More information about `honggfuzz` can be found
 //! [here](https://docs.rs/honggfuzz/).
 
+use frame_support::assert_ok;
 use honggfuzz::fuzz;
 use polkadot_runtime_parachains::{
 	builder::BenchBuilder,
-	mock::{new_test_ext, MockGenesisConfig, Test, ParaInherent}
+	mock::{new_test_ext, MockGenesisConfig, ParaInherent, Test},
 };
 use sp_std::collections::btree_map::BTreeMap;
-use frame_support::assert_ok;
 
 const CORES: u32 = 15;
 const MAX_VALIDATORS_PER_CORE: u32 = 3;
@@ -54,50 +54,46 @@ fn main() {
 			let disputes_count = disputes_seed % CORES;
 			let backed_and_concluding_count = CORES - disputes_count;
 
-			let validator_count
-				= CORES * MAX_VALIDATORS_PER_CORE;
+			let validator_count = CORES * MAX_VALIDATORS_PER_CORE;
 			let builder = BenchBuilder::<Test>::new()
 				.set_max_validators_per_core(MAX_VALIDATORS_PER_CORE)
 				.set_max_validators(validator_count);
-				// .set_dispute_statements
+			// .set_dispute_statements
 
-			let backed_and_concluding: BTreeMap<_, _> = (0..backed_and_concluding_count).map(|i| {
-				let vote_count = (votes_seed % (MAX_VALIDATORS_PER_CORE + 1))
-					// make sure we don't error due to not having enough votes
-					.max(BenchBuilder::<Test>::fallback_min_validity_votes());
+			let backed_and_concluding: BTreeMap<_, _> = (0..backed_and_concluding_count)
+				.map(|i| {
+					let vote_count = (votes_seed % (MAX_VALIDATORS_PER_CORE + 1))
+						// make sure we don't error due to not having enough votes
+						.max(BenchBuilder::<Test>::fallback_min_validity_votes());
 
-				(i, vote_count)
-			})
-			.collect();
+					(i, vote_count)
+				})
+				.collect();
 
-			let dispute_sessions: Vec<_> = (0..disputes_count).map(|i|
-				if disputes_seed % 2 == 0 {
-					(i + disputes_seed) % SESSION_VARIABLILITY
-				} else {
-					2
-				}
-			)
-			.collect();
+			let dispute_sessions: Vec<_> = (0..disputes_count)
+				.map(|i| {
+					if disputes_seed % 2 == 0 {
+						(i + disputes_seed) % SESSION_VARIABLILITY
+					} else {
+						2
+					}
+				})
+				.collect();
 
 			let code_upgrade = if seed % 2 == 0 {
-						Some(seed)
-					} else {
-						None
-					};
+				let max_code_size = crate::configuration::Pallet::<T>::config().max_code_size;
+				Some(seed % max_code_size)
+			} else {
+				None
+			};
 
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-				let data = builder.build(
-					backed_and_concluding, dispute_sessions.as_slice(), code_upgrade
-				).data;
+				let data = builder
+					.build(backed_and_concluding, dispute_sessions.as_slice(), code_upgrade)
+					.data;
 
-				assert_ok!(
-					ParaInherent::enter(
-						frame_system::RawOrigin::None.into(),
-						data
-					)
-				);
+				assert_ok!(ParaInherent::enter(frame_system::RawOrigin::None.into(), data));
 			});
-
 		});
 	}
 }
