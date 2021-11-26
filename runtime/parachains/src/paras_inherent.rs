@@ -589,7 +589,7 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[create_inherent_inner](provisioned) parent_header: {}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[create_inherent_inner](provisioned) parent_header: {:?}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
 			parent_header_hash,
 			bitfields.len(),
 			backed_candidates.len(),
@@ -601,7 +601,7 @@ impl<T: Config> Pallet<T> {
 		if parent_hash != parent_header_hash {
 			log::warn!(
 				target: LOG_TARGET,
-				"ParachainsInherentData references a different parent header hash ({}) than frame ({})",
+				"ParachainsInherentData references a different parent header hash ({:?}) than frame ({:?})",
 				parent_header_hash,
 				parent_hash,
 			);
@@ -779,7 +779,7 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[create_inherent_inner](sanitized) parent_header: {}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[create_inherent_inner](sanitized) parent_header: {:?}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
 			parent_header_hash,
 			bitfields.len(),
 			backed_candidates.len(),

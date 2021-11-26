@@ -99,8 +99,8 @@ pub enum FreedReason {
 }
 
 /// The assignment type.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum AssignmentKind {
 	/// A parachain.
 	Parachain,
@@ -109,8 +109,8 @@ pub enum AssignmentKind {
 }
 
 /// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
