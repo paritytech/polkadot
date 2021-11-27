@@ -476,7 +476,9 @@ impl parachains_disputes::Config for Runtime {
 	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = parachains_paras_inherent::TestWeightInfo;
+}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -799,6 +801,16 @@ sp_api::impl_runtime_apis! {
 			-> Option<PersistedValidationData<Hash, BlockNumber>>
 		{
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			runtime_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(

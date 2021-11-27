@@ -135,7 +135,7 @@ async fn parallel_execution() {
 #[async_std::test]
 async fn execute_queue_doesnt_stall_if_workers_died() {
 	let host = TestHost::new_with_config(|cfg| {
-		assert_eq!(cfg.execute_workers_max_num, 5);
+		cfg.execute_workers_max_num = 5;
 	});
 
 	// Here we spawn 8 validation jobs for the `halt` PVF and share those between 5 workers. The

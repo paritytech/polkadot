@@ -54,6 +54,15 @@ pub(crate) async fn test_voter_bags_migration<
 		// set the ss58 prefix so addresses printed below are human friendly.
 		sp_core::crypto::set_default_ss58_version(Runtime::SS58Prefix::get().try_into().unwrap());
 
+		// clear anything that may have existed before.
+		if <Runtime as pallet_staking::Config>::SortedListProvider::count() != 0 {
+			log::warn!(
+				target: LOG_TARGET,
+				"some data already seem to exist in the bags-list pallet.."
+			);
+		}
+		<Runtime as pallet_staking::Config>::SortedListProvider::clear(None);
+
 		// get the nominator & validator count prior to migrating; these should be invariant.
 		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
 		log::info!(target: LOG_TARGET, "Nominator count: {}", pre_migrate_nominator_count);
@@ -99,7 +108,7 @@ pub(crate) async fn test_voter_bags_migration<
 				(*vote_weight_thresh).try_into().map_err(|_| "should not fail").unwrap();
 			if vote_weight_as_balance <= min_nominator_bond {
 				for id in bag.std_iter().map(|node| node.std_id().clone()) {
-					log::trace!(
+					log::error!(
 						target: LOG_TARGET,
 						"{} Account found below min bond: {:?}.",
 						pretty_thresh,

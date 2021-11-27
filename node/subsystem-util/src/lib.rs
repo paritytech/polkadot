@@ -53,7 +53,7 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
 	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
-	ValidatorId, ValidatorIndex,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, Public};
@@ -206,8 +206,10 @@ specialize_requests! {
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
 	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
+	fn request_assumed_validation_data(para_id: ParaId, expected_persisted_validation_data_hash: Hash) -> Option<(PersistedValidationData, ValidationCodeHash)>; AssumedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_validation_code_by_hash(validation_code_hash: ValidationCodeHash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
@@ -484,7 +486,7 @@ pub trait JobTrait: Unpin + Sized {
 	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
-	/// Name of the job, i.e. `CandidateBackingJob`
+	/// Name of the job, i.e. `candidate-backing-job`
 	const NAME: &'static str;
 
 	/// Run a job for the given relay `parent`.
@@ -576,7 +578,11 @@ where
 			Ok(())
 		});
 
-		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
+		self.spawner.spawn(
+			Job::NAME,
+			Some(Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME)),
+			future.map(drop).boxed(),
+		);
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };
@@ -624,13 +630,13 @@ where
 }
 
 /// Parameters to a job subsystem.
-struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
+pub struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 	/// A spawner for sub-tasks.
 	spawner: Spawner,
 	/// Arguments to each job.
 	run_args: RunArgs,
 	/// Metrics for the subsystem.
-	metrics: Metrics,
+	pub metrics: Metrics,
 }
 
 /// A subsystem which wraps jobs.
@@ -642,7 +648,8 @@ struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 ///   include a hash, then they're forwarded to the appropriate individual job.
 /// - On outgoing messages from the jobs, it forwards them to the overseer.
 pub struct JobSubsystem<Job: JobTrait, Spawner> {
-	params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
+	#[allow(missing_docs)]
+	pub params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
 	_marker: std::marker::PhantomData<Job>,
 }
 
@@ -749,6 +756,6 @@ where
 			Ok(())
 		});
 
-		SpawnedSubsystem { name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME), future }
+		SpawnedSubsystem { name: Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME), future }
 	}
 }

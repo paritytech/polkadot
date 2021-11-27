@@ -14,6 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use parity_scale_codec::{Decode, Encode};
+
+/// Result of PVF preparation performed by the validation host.
+pub type PrepareResult = Result<(), PrepareError>;
+
+/// An error that occurred during the prepare part of the PVF pipeline.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum PrepareError {
+	/// During the prevalidation stage of preparation an issue was found with the PVF.
+	Prevalidation(String),
+	/// Compilation failed for the given PVF.
+	Preparation(String),
+	/// An unexpected panic has occured in the preparation worker.
+	Panic(String),
+	/// Failed to prepare the PVF due to the time limit.
+	TimedOut,
+	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
+	/// or were killed. This state is reported by the validation host (not by the worker).
+	DidNotMakeIt,
+}
+
 /// A error raised during validation of the candidate.
 #[derive(Debug, Clone)]
 pub enum ValidationError {
@@ -53,4 +74,17 @@ pub enum InvalidCandidate {
 	AmbigiousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
+}
+
+impl From<PrepareError> for ValidationError {
+	fn from(error: PrepareError) -> Self {
+		let error_str = match error {
+			PrepareError::Prevalidation(err) => format!("prevalidation: {}", err),
+			PrepareError::Preparation(err) => format!("preparation: {}", err),
+			PrepareError::Panic(err) => format!("panic: {}", err),
+			PrepareError::TimedOut => "preparation timeout".to_owned(),
+			PrepareError::DidNotMakeIt => "communication error".to_owned(),
+		};
+		ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(error_str))
+	}
 }

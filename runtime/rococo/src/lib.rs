@@ -81,13 +81,13 @@ pub use pallet_balances::Call as BalancesCall;
 use polkadot_parachain::primitives::Id as ParaId;
 
 use constants::{currency::*, fee::*, time::*};
-use frame_support::traits::InstanceFilter;
+use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
-	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, UsingComponents,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, LocationInverter,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -104,9 +104,9 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 /// Runtime version (Rococo).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
-	impl_name: create_runtime_str!("parity-rococo-v1.8"),
+	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9106,
+	spec_version: 9130,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -158,10 +158,31 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	(SessionHistoricalModulePrefixMigration,),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalModulePrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalModulePrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+}
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -255,7 +276,7 @@ construct_runtime! {
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 
 	}
 }
@@ -644,7 +665,7 @@ parameter_types! {
 	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(100).into());
 	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(110).into());
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
-	pub const RococoForRockmine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
+	pub const RococoForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1000).into());
 	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
 	pub const MaxInstructions: u32 = 100;
 }
@@ -652,7 +673,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
 	xcm_builder::Case<RococoForTrick>,
 	xcm_builder::Case<RococoForTrack>,
-	xcm_builder::Case<RococoForRockmine>,
+	xcm_builder::Case<RococoForStatemine>,
 	xcm_builder::Case<RococoForCanvas>,
 );
 
@@ -662,7 +683,7 @@ parameter_types! {
 			Parachain(100).into(),
 			Parachain(110).into(),
 			Parachain(120).into(),
-			Parachain(1001).into(),
+			Parachain(1000).into(),
 			Parachain(1002).into(),
 		];
 }
@@ -672,6 +693,10 @@ pub type Barrier = (
 	TakeWeightCredit,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
+	// Expected responses are OK.
+	AllowKnownQueryResponses<XcmPallet>,
+	// Subscriptions for version tracking are OK.
+	AllowSubscriptionsFrom<Everything>,
 );
 
 pub struct XcmConfig;
@@ -746,7 +771,9 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
+}
 
 impl parachains_scheduler::Config for Runtime {}
 
@@ -1037,6 +1064,7 @@ impl validator_manager::Config for Runtime {
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type PalletsOrigin = OriginCaller;
 	type WeightInfo = ();
 }
 
@@ -1236,6 +1264,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
@@ -1601,6 +1639,7 @@ sp_api::impl_runtime_apis! {
 
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			list_benchmark!(list, extra, runtime_parachains::disputes, ParasDisputes);
+			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
@@ -1633,6 +1672,7 @@ sp_api::impl_runtime_apis! {
 
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::disputes, ParasDisputes);
+			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

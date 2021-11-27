@@ -22,9 +22,9 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, BlockHashCount,
-	BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
+	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
 };
 
 use runtime_parachains::{
@@ -39,9 +39,12 @@ use runtime_parachains::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
-	weights::{constants::WEIGHT_PER_MILLIS, Weight},
+	construct_runtime, match_type, parameter_types,
+	traits::{
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
+		OnRuntimeUpgrade, PrivilegeCmp,
+	},
+	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
@@ -73,11 +76,20 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use xcm::latest::prelude::*;
+use xcm_builder::{
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, BackingToPlurality, ChildParachainAsNative,
+	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
+	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
+};
+use xcm_executor::XcmExecutor;
 
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
@@ -90,10 +102,11 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{currency::*, fee::*, time::*};
-use frame_support::traits::InstanceFilter;
 
 // Weights used in the runtime.
 mod weights;
+
+mod bag_thresholds;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -105,7 +118,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9120,
+	spec_version: 9130,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -170,7 +183,9 @@ impl Contains<Call> for BaseFilter {
 			Call::Slots(_) |
 			Call::Registrar(_) |
 			Call::Auctions(_) |
-			Call::Crowdloan(_) => true,
+			Call::Crowdloan(_) |
+			Call::BagsList(_) |
+			Call::XcmPallet(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -226,6 +241,29 @@ type ScheduleOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 >;
 
+/// Used the compare the privilege of an origin inside the scheduler.
+pub struct OriginPrivilegeCmp;
+
+impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
+	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
+		if left == right {
+			return Some(Ordering::Equal)
+		}
+
+		match (left, right) {
+			// Root is greater than anything.
+			(OriginCaller::system(frame_system::RawOrigin::Root), _) => Some(Ordering::Greater),
+			// Check which one has more yes votes.
+			(
+				OriginCaller::Council(pallet_collective::RawOrigin::Members(l_yes_votes, l_count)),
+				OriginCaller::Council(pallet_collective::RawOrigin::Members(r_yes_votes, r_count)),
+			) => Some((l_yes_votes * r_count).cmp(&(r_yes_votes * l_count))),
+			// For every other origin we don't care, as they are not used for `ScheduleOrigin`.
+			_ => None,
+		}
+	}
+}
+
 impl pallet_scheduler::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
@@ -235,6 +273,7 @@ impl pallet_scheduler::Config for Runtime {
 	type ScheduleOrigin = ScheduleOrigin;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
+	type OriginPrivilegeCmp = OriginPrivilegeCmp;
 }
 
 parameter_types! {
@@ -438,6 +477,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
 }
 
+parameter_types! {
+	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
+}
+
+impl pallet_bags_list::Config for Runtime {
+	type Event = Event;
+	type VoteWeightProvider = Staking;
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
+	type BagThresholds = BagThresholds;
+}
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -498,9 +548,8 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
-	// to bags-list is a no-op, but the storage version will be updated.
-	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
+	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -915,6 +964,7 @@ impl pallet_vesting::Config for Runtime {
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type PalletsOrigin = OriginCaller;
 	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
 }
 
@@ -1050,7 +1100,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Registrar(paras_registrar::Call::reserve {..}) |
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
-				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
+				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
+				Call::BagsList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1143,7 +1194,9 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
+}
 
 impl parachains_scheduler::Config for Runtime {}
 
@@ -1239,6 +1292,154 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	/// The location of the DOT token, from the context of this chain. Since this token is native to this
+	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
+	/// the context".
+	pub const DotLocation: MultiLocation = Here.into();
+	/// The Polkadot network ID. This is named.
+	pub const PolkadotNetwork: NetworkId = NetworkId::Polkadot;
+	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
+	/// Polkadot is a top-level relay-chain, there is no ancestry.
+	pub const Ancestry: MultiLocation = Here.into();
+	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
+	pub CheckAccount: AccountId = XcmPallet::check_account();
+}
+
+/// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
+/// the sovereign account controlled by a location.
+pub type SovereignAccountOf = (
+	// We can convert a child parachain using the standard `AccountId` conversion.
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	// We can directly alias an `AccountId32` into a local account.
+	AccountId32Aliases<PolkadotNetwork, AccountId>,
+);
+
+/// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
+/// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
+///
+/// Ours is only aware of the Balances pallet, which is mapped to `DotLocation`.
+pub type LocalAssetTransactor = XcmCurrencyAdapter<
+	// Use this currency:
+	Balances,
+	// Use this currency when it is a fungible asset matching the given location or name:
+	IsConcrete<DotLocation>,
+	// We can convert the MultiLocations with our converter above:
+	SovereignAccountOf,
+	// Our chain's account ID type (we can't get away without mentioning it explicitly):
+	AccountId,
+	// We track our teleports in/out to keep total issuance correct.
+	CheckAccount,
+>;
+
+/// The means that we convert an the XCM message origin location into a local dispatch origin.
+type LocalOriginConverter = (
+	// A `Signed` origin of the sovereign account that the original location controls.
+	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	// A child parachain, natively expressed, has the `Parachain` origin.
+	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	// The AccountId32 location type can be expressed natively as a `Signed` origin.
+	SignedAccountId32AsNative<PolkadotNetwork, Origin>,
+);
+
+parameter_types! {
+	/// The amount of weight an XCM operation takes. This is a safe overestimate.
+	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
+	/// calculations getting too crazy.
+	pub const MaxInstructions: u32 = 100;
+}
+
+/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
+/// individual routers.
+pub type XcmRouter = (
+	// Only one router so far - use DMP to communicate with child parachains.
+	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
+);
+
+parameter_types! {
+	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
+	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
+}
+
+pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
+
+match_type! {
+	pub type OnlyParachains: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+}
+
+/// The barriers one of which must be passed for an XCM message to be executed.
+pub type Barrier = (
+	// Weight that is paid for may be consumed.
+	TakeWeightCredit,
+	// If the message is one that immediately attemps to pay for execution, then allow it.
+	AllowTopLevelPaidExecutionFrom<Everything>,
+	// Expected responses are OK.
+	AllowKnownQueryResponses<XcmPallet>,
+	// Subscriptions for version tracking are OK.
+	AllowSubscriptionsFrom<OnlyParachains>,
+);
+
+pub struct XcmConfig;
+impl xcm_executor::Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = XcmRouter;
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	type IsReserve = ();
+	type IsTeleporter = TrustedTeleporters;
+	type LocationInverter = LocationInverter<Ancestry>;
+	type Barrier = Barrier;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	// The weight trader piggybacks on the existing transaction-fee conversion logic.
+	type Trader = UsingComponents<WeightToFee, DotLocation, AccountId, Balances, ToAuthor<Runtime>>;
+	type ResponseHandler = XcmPallet;
+	type AssetTrap = XcmPallet;
+	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
+}
+
+parameter_types! {
+	pub const CouncilBodyId: BodyId = BodyId::Executive;
+	// We are conservative with the XCM version we advertize.
+	pub const AdvertisedXcmVersion: u32 = 2;
+}
+
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+pub type LocalOriginToLocation = (
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
+	BackingToPlurality<
+		Origin,
+		pallet_collective::Origin<Runtime, CouncilCollective>,
+		CouncilBodyId,
+	>,
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<Origin, AccountId, PolkadotNetwork>,
+);
+
+impl pallet_xcm::Config for Runtime {
+	type Event = Event;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type XcmRouter = XcmRouter;
+	// Anyone can execute XCM messages locally...
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// ...but they must match our filter, which rejects all.
+	type XcmExecuteFilter = Nothing;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = AdvertisedXcmVersion;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1300,6 +1501,9 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
+		// Provides a semi-sorted list of nominators for staking.
+		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1311,7 +1515,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 60,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
@@ -1319,6 +1523,9 @@ construct_runtime! {
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 71,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 72,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
+
+		// Pallet for sending XCM.
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
 }
 
@@ -1352,107 +1559,47 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	(StakingBagsListMigrationV8, SessionHistoricalPalletPrefixMigration),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// Set the initial host configuration for Polkadot.
-pub struct SetInitialHostConfiguration;
-impl OnRuntimeUpgrade for SetInitialHostConfiguration {
+// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
+pub struct StakingBagsListMigrationV8;
+
+impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use parachains_configuration::HostConfiguration;
-
-		let active_config: HostConfiguration<BlockNumber> = HostConfiguration {
-			max_code_size: 10_485_760,
-			max_head_data_size: 20_480,
-			max_upward_queue_count: 10,
-			max_upward_queue_size: 51_200,
-			max_upward_message_size: 51_200,
-			max_upward_message_num_per_candidate: 10,
-			hrmp_max_message_num_per_candidate: 10,
-			validation_upgrade_frequency: 14_400,
-			validation_upgrade_delay: 600,
-			max_pov_size: 5_242_880,
-			max_downward_message_size: 51_200,
-			ump_service_total_weight: 100_000_000_000,
-			hrmp_max_parachain_outbound_channels: 10,
-			hrmp_max_parathread_outbound_channels: 0,
-			hrmp_sender_deposit: deposit(1004, 100 * 1024),
-			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
-			hrmp_channel_max_capacity: 1_000,
-			hrmp_channel_max_total_size: 102_400,
-			hrmp_max_parachain_inbound_channels: 10,
-			hrmp_max_parathread_inbound_channels: 0,
-			hrmp_channel_max_message_size: 102_400,
-			code_retention_period: EPOCH_DURATION_IN_SLOTS * 6,
-			parathread_cores: 0,
-			parathread_retries: 0,
-			group_rotation_frequency: 10,
-			chain_availability_period: 10,
-			thread_availability_period: 10,
-			scheduling_lookahead: 1,
-			max_validators_per_core: Some(5),
-			max_validators: Some(200),
-			dispute_period: 6,
-			dispute_post_conclusion_acceptance_period: 600,
-			dispute_max_spam_slots: 2,
-			dispute_conclusion_by_time_out_period: 600,
-			no_show_slots: 2,
-			n_delay_tranches: 89,
-			zeroth_delay_tranche_width: 0,
-			needed_approvals: 30,
-			relay_vrf_modulo_samples: 40,
-			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
-		};
-
-		// Only set the config if it's needed to be set explicitly.
-		if Configuration::config() == Default::default() {
-			Configuration::force_set_active_config(active_config);
-		}
-
-		{
-			// At the moment, the `parachains_configuration` crate has already had one runtime
-			// storage migration (performed as part of [#3575]). As the result a call to
-			// `StorageVersion::get::<Configuration>` will return `Some(1)`
-			//
-			// However, Polkadot is just about to have its first version of parachains runtime
-			// pallets and thus there is no existing storage which needs to be migrated. Above
-			// we just have set the active configuration of the actual version, i.e. the same as the
-			// version 1 on Kusama.
-			//
-			// The caveat here is when we deploy a module for the first time, it's runtime version
-			// will be empty and thus it will be considered as version 0. Since we want to avoid
-			// the situation where the same storage structure has version 0 on Polkadot and
-			// version 1 on Kusama we need to set the storage version explicitly.
-			//
-			// [#3575]: https://github.com/paritytech/polkadot/pull/3575
-			use frame_support::traits::StorageVersion;
-			StorageVersion::new(1).put::<Configuration>();
-		}
-
-		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
-	}
-}
-
-const TIPS_OLD_PREFIX: &str = "Treasury";
-/// Migrate pallet-tips from `Treasury` to the new pallet prefix `Tips`
-pub struct MigrateTipsPalletPrefix;
-
-impl OnRuntimeUpgrade for MigrateTipsPalletPrefix {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_tips::migrations::v4::migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX)
+		pallet_staking::migrations::v8::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::pre_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
+		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_staking::migrations::v8::post_migrate::<Runtime>()
+	}
+}
+
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalPalletPrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::post_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
 		Ok(())
 	}
 }
@@ -1532,6 +1679,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			parachains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
@@ -1784,7 +1941,9 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
+			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			// Substrate
+			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
 			list_benchmark!(list, extra, pallet_collective, Council);
@@ -1859,7 +2018,9 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
+			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			// Substrate
+			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
