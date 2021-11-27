@@ -647,8 +647,8 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 }
 
 /// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(Encode, Decode, Default, Debug, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {

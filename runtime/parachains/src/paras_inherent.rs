@@ -268,7 +268,10 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			// The actual filtering for weight happens in `create_inherent_inner`
+			// and the resulting `InherentData` fulfilles the weight constraints.
 			let inherent_data = Self::create_inherent_inner(data)?;
+
 			// Sanity check: session changes can invalidate an inherent,
 			// and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
@@ -372,7 +375,7 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[enter_inner] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -470,6 +473,12 @@ impl<T: Config> Pallet<T> {
 				freed_disputed.iter().map(|(core_index, _)| core_index),
 			);
 
+			log::debug!(
+				target: LOG_TARGET,
+				"[enter_inner] disputed_bitfield: {:?}",
+				disputed_bitfield,
+			);
+
 			if !freed_disputed.is_empty() {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
@@ -500,6 +509,16 @@ impl<T: Config> Pallet<T> {
 		<scheduler::Pallet<T>>::schedule(freed, now);
 
 		let scheduled = <scheduler::Pallet<T>>::scheduled();
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[enter_inner] scheduled: {:?}",
+			scheduled
+				.iter()
+				.map(|assignment| (assignment.core, assignment.para_id))
+				.collect::<Vec<_>>(),
+		);
+
 		let backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
 			backed_candidates,
@@ -508,6 +527,12 @@ impl<T: Config> Pallet<T> {
 				// `fn process_candidates` does the verification checks
 			},
 			&scheduled[..],
+		);
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[enter_inner](sanitized) backed_candidates.len(): {}",
+			backed_candidates.len(),
 		);
 
 		// Process backed candidates according to scheduled cores.
@@ -560,12 +585,25 @@ impl<T: Config> Pallet<T> {
 			},
 		};
 
+		let parent_header_hash = parent_header.hash();
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[create_inherent_inner](provisioned) parent_header: {:?}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			parent_header_hash,
+			bitfields.len(),
+			backed_candidates.len(),
+			disputes.len()
+		);
+
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
-		if parent_hash != parent_header.hash() {
+		if parent_hash != parent_header_hash {
 			log::warn!(
 				target: LOG_TARGET,
-				"ParachainsInherentData references a different parent header hash than frame"
+				"ParachainsInherentData references a different parent header hash ({:?}) than frame ({:?})",
+				parent_header_hash,
+				parent_hash,
 			);
 			return None
 		}
@@ -618,14 +656,28 @@ impl<T: Config> Pallet<T> {
 					})
 					.collect::<BTreeSet<CandidateHash>>();
 
-				let mut freed_disputed: Vec<_> =
-					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
-						.into_iter()
-						.map(|core| (core, FreedReason::Concluded))
-						.collect();
+				let mut freed_disputed: Vec<_> = {
+					let freed_disputed = <inclusion::Pallet<T>>::collect_disputed(
+						&current_concluded_invalid_disputes,
+					);
+
+					log::debug!(
+						target: LOG_TARGET,
+						"Freed cores (concluded disputes): {:?}",
+						freed_disputed
+					);
+
+					freed_disputed.into_iter().map(|core| (core, FreedReason::Concluded)).collect()
+				};
 
 				let disputed_bitfield =
 					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
+
+				log::debug!(
+					target: LOG_TARGET,
+					"[create_inherent] disputed_bitfield: {:?}",
+					disputed_bitfield,
+				);
 
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
@@ -646,6 +698,8 @@ impl<T: Config> Pallet<T> {
 					FullCheck::Skip,
 				);
 
+				log::debug!(target: LOG_TARGET, "Sanitized bitfields: {}", bitfields.len());
+
 				let freed_concluded =
 					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
 						_,
@@ -664,6 +718,15 @@ impl<T: Config> Pallet<T> {
 				<scheduler::Pallet<T>>::schedule(freed, now);
 
 				let scheduled = <scheduler::Pallet<T>>::scheduled();
+
+				log::debug!(
+					target: LOG_TARGET,
+					"Scheduled: {:?}",
+					scheduled
+						.iter()
+						.map(|assignment| (assignment.core, assignment.para_id))
+						.collect::<Vec<_>>()
+				);
 
 				let relay_parent_number = now - One::one();
 
@@ -687,6 +750,12 @@ impl<T: Config> Pallet<T> {
 					&scheduled[..],
 				);
 
+				log::debug!(
+					target: LOG_TARGET,
+					"Sanitized backed_candidates: {}",
+					backed_candidates.len()
+				);
+
 				frame_support::storage::TransactionOutcome::Rollback((
 					// filtered backed candidates
 					backed_candidates,
@@ -706,6 +775,15 @@ impl<T: Config> Pallet<T> {
 			&mut disputes,
 			max_block_weight,
 			&mut rng,
+		);
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[create_inherent_inner](sanitized) parent_header: {:?}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			parent_header_hash,
+			bitfields.len(),
+			backed_candidates.len(),
+			disputes.len()
 		);
 
 		Some(ParachainsInherentData::<T::Header> {

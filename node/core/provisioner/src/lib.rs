@@ -433,6 +433,15 @@ async fn select_candidates(
 		}
 	}
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		?relay_parent,
+		"Pre-selected candidates down to {} from {}, unique per ParaId {:?}",
+		selected_candidates.len(),
+		max_one_candidate_per_para.len(),
+		max_one_candidate_per_para,
+	);
+
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -481,9 +490,9 @@ async fn select_candidates(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Selected {} candidates for {} cores",
-		candidates.len(),
-		availability_cores.len(),
+		?relay_parent,
+		"Selected {} backed candidates ready to be sanitized by the runtime",
+		backed_candidates.len(),
 	);
 
 	Ok(candidates)
