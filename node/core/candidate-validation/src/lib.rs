@@ -455,9 +455,9 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) =>
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
-				"ambigious worker death".to_string(),
+				"ambiguous worker death".to_string(),
 			))),
 
 		Ok(res) =>

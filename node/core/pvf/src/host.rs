@@ -1039,27 +1039,27 @@ mod tests {
 		);
 
 		result_tx_pvf_1_1
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_1.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 
 		result_tx_pvf_1_2
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 
 		result_tx_pvf_2
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 	}
 

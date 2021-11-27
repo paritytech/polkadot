@@ -422,7 +422,7 @@ fn candidate_validation_bad_return_is_invalid() {
 
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::AmbigiousWorkerDeath,
+			WasmInvalidCandidate::AmbiguousWorkerDeath,
 		))),
 		validation_data,
 		validation_code,
