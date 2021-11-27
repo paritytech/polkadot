@@ -76,6 +76,7 @@ impl frame_system::Config for TestRuntime {
 	type BlockLength = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {

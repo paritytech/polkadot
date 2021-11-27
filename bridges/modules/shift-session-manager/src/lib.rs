@@ -146,6 +146,7 @@ mod tests {
 		type DbWeight = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = ConstU32<16>;
 	}
 
 	parameter_types! {
