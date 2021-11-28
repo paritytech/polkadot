@@ -41,7 +41,7 @@ pub use frame_support::weights::constants::{
 };
 use frame_support::{
 	parameter_types,
-	traits::{Currency, OneSessionHandler, ConstU32},
+	traits::{ConstU32, Currency, OneSessionHandler},
 	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, Weight},
 };
 use frame_system::limits;
