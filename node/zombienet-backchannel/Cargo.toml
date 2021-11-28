@@ -8,8 +8,6 @@ edition = "2018"
 readme = "README.md"
 publish = false
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 tokio = { version = "1.0.0", default-features = false, features = ["macros", "net", "rt-multi-thread"] }
 url = "2.0.0"
