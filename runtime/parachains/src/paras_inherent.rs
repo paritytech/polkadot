@@ -442,7 +442,8 @@ impl<T: Config> Pallet<T> {
 		let total_weight = {
 			if candidate_weight
 				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight) >
+				.saturating_add(disputes_weight)
+				.saturating_add(max_enact_candidates_weight) >
 				max_block_weight
 			{
 				// if the total weight is over the max block weight, first try clearing backed
@@ -451,6 +452,7 @@ impl<T: Config> Pallet<T> {
 				candidate_weight = 0;
 				signed_bitfields.clear();
 				bitfields_weight = 0;
+				max_enact_candidates_weight = 0;
 			}
 
 			if disputes_weight > max_block_weight {
@@ -467,6 +469,7 @@ impl<T: Config> Pallet<T> {
 				candidate_weight
 					.saturating_add(bitfields_weight)
 					.saturating_add(disputes_weight)
+					.saturating_add(max_enact_candidates_weight)
 			}
 		};
 
