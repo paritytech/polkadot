@@ -345,6 +345,7 @@ impl pallet_staking::Config for Runtime {
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = ();
 }
 
