@@ -49,7 +49,7 @@ use primitives::v1::{
 use rand::{seq::SliceRandom, SeedableRng};
 
 use scale_info::TypeInfo;
-use sp_runtime::traits::{Header as HeaderT, One};
+use sp_runtime::traits::{Header as HeaderT, One, Zero};
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -115,16 +115,37 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
+// Count the ones of the first bitfield in a slice. Careful, since this only counts the ones of
+// the first bitfield, it may be misleading as to how many ones the other bitfields contain. It
+// should only be used in circumstances where an estimate is ok.
+fn bitfields_count_ones(bitfields: &[UncheckedSignedAvailabilityBitfield]) -> usize {
+	if bitfields.len().is_zero() {
+		0
+	} else {
+		bitfields
+			.get(0)
+			.expect("checked for empty bitfield. qed.")
+			.unchecked_payload()
+			.0
+			.count_ones()
+	}
+}
+
 // Note that this does a storage read.
 fn paras_inherent_total_weight<T: Config>(
 	backed_candidates: &[BackedCandidate<<T as frame_system::Config>::Hash>],
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	disputes: &[DisputeStatementSet],
-	config: HostConfiguration<T::BlockNumber>,
+	config: &HostConfiguration<T::BlockNumber>,
 ) -> Weight {
-	backed_candidates_weight::<T>(backed_candidates, config)
+	backed_candidates_weight::<T>(backed_candidates)
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
 		.saturating_add(dispute_statements_weight::<T>(disputes))
+		// in order to get a constant time calculation we get the votes in the first bitfield
+		// and assume the worst case for enacting that many candidates. This may not always be
+		// perfect but should be close enough most of the time for getting an estimate when queuing
+		// extrinsics for block authoring.
+		.saturating_add(enact_candidates_weight::<T>(bitfields_count_ones(bitfields), config))
 }
 
 fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
@@ -143,19 +164,6 @@ fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 		.saturating_mul(bitfields_len as Weight)
 }
 
-// Inner function of `backed_candidate_weight_fn`.
-fn backed_candidate_weight_inner<T: frame_system::Config + Config>(
-	candidate: &BackedCandidate<T::Hash>,
-) -> Weight {
-	if candidate.candidate.commitments.new_validation_code.is_some() {
-		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
-	} else {
-		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
-			candidate.validity_votes.len() as u32,
-		)
-	}
-}
-
 // Calculate the worst case weight for enacting the given number of candidates.
 fn enact_candidates_weight<T: frame_system::Config + Config>(
 	candidate_count: usize,
@@ -170,18 +178,14 @@ fn enact_candidates_weight<T: frame_system::Config + Config>(
 	.saturating_mul(candidate_count as Weight)
 }
 
-// Returns a function that calculates the max weight of a candidate.
-fn backed_candidate_weight_fn<T: frame_system::Config + Config>(
-	config: HostConfiguration<T::BlockNumber>,
-) -> impl Fn(&BackedCandidate<T::Hash>) -> Weight {
-	move |candidate: &BackedCandidate<T::Hash>| -> Weight {
-		backed_candidate_weight_inner::<T>(candidate).saturating_add(
-			<inclusion::Pallet<T>>::enact_candidate_weight(
-				config.hrmp_max_parathread_inbound_channels,
-				config.hrmp_max_parachain_inbound_channels,
-				config.max_upward_message_num_per_candidate,
-				config.hrmp_max_message_num_per_candidate,
-			),
+fn backed_candidate_weight<T: frame_system::Config + Config>(
+	candidate: &BackedCandidate<T::Hash>,
+) -> Weight {
+	if candidate.candidate.commitments.new_validation_code.is_some() {
+		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
+	} else {
+		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
+			candidate.validity_votes.len() as u32,
 		)
 	}
 }
@@ -189,12 +193,10 @@ fn backed_candidate_weight_fn<T: frame_system::Config + Config>(
 // Calculate the max weight of the given candidates.
 fn backed_candidates_weight<T: frame_system::Config + Config>(
 	candidates: &[BackedCandidate<T::Hash>],
-	config: HostConfiguration<T::BlockNumber>,
 ) -> Weight {
-	let backed_candidate_weight = backed_candidate_weight_fn::<T>(config);
 	candidates
 		.iter()
-		.map(|c| backed_candidate_weight(c))
+		.map(|c| backed_candidate_weight::<T>(c))
 		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
@@ -373,13 +375,13 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Enter the paras inherent. This will process bitfields and backed candidates.
+		/// Enter the paras inherent. This will process disputes, bitfields and backed candidates.
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
 				data.bitfields.as_slice(),
 				data.disputes.as_slice(),
-				<configuration::Pallet<T>>::config(),
+				&<configuration::Pallet<T>>::config(),
 			),
 			DispatchClass::Mandatory,
 		))]
@@ -425,11 +427,14 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let now = <frame_system::Pallet<T>>::block_number();
-		let config = <configuration::Pallet<T>>::config();
 
-		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates, config.clone());
+		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
+		let max_enact_candidates_weight = enact_candidates_weight::<T>(
+			bitfields_count_ones(&signed_bitfields),
+			&<configuration::Pallet<T>>::config(),
+		);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
@@ -551,8 +556,6 @@ impl<T: Config> Pallet<T> {
 			&scheduled[..],
 		);
 
-		let backed_candidates_count = backed_candidates.len();
-
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
@@ -582,8 +585,6 @@ impl<T: Config> Pallet<T> {
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
 		let actual_total_weight = {
-			let max_enact_candidates_weight =
-				enact_candidates_weight::<T>(backed_candidates_count, &config);
 			total_weight
 				// subtract the max enact candidate weight,
 				.saturating_sub(max_enact_candidates_weight)
@@ -767,7 +768,6 @@ impl<T: Config> Pallet<T> {
 			&mut disputes,
 			max_block_weight,
 			&mut rng,
-			<configuration::Pallet<T>>::config(),
 		);
 
 		Some(ParachainsInherentData::<T::Header> {
@@ -873,13 +873,11 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	disputes: &mut MultiDisputeStatementSet,
 	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
-	config: HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	// include as many disputes as possible, always
 	let remaining_weight = limit_disputes::<T>(disputes, max_block_weight, rng);
 
-	let total_candidates_weight =
-		backed_candidates_weight::<T>(candidates.as_slice(), config.clone());
+	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
 
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
@@ -903,13 +901,12 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = remaining_weight.checked_sub(total_bitfields_weight) {
-		let backed_candidate_weight = backed_candidate_weight_fn::<T>(config);
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
 				candidates.clone(),
 				preferred_indices,
-				|c| backed_candidate_weight(c),
+				|c| backed_candidate_weight::<T>(c),
 				remaining_weight,
 			);
 		candidates.indexed_retain(|idx, _backed_candidate| indices.binary_search(&idx).is_ok());
@@ -927,6 +924,9 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		rng,
 		bitfields.clone(),
 		vec![],
+		// bitfields can lead to enacting a candidate; however we don't have a good way of
+		// accounting for that when tracking individual bitfield weight, thus the weight here likely
+		// ends up being an underestimate.
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
 		remaining_weight,
 	);
