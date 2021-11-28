@@ -18,5 +18,5 @@ futures-util = "0.3.18"
 parity-scale-codec = { version = "2.3.1", features = ["derive"] }
 reqwest = "0.11"
 thiserror = "1.0.30"
-log = "0.4.13"
 lazy_static = "1.4.0"
+tracing = "0.1.26"

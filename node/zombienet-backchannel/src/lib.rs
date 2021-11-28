@@ -14,15 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-/// Provides a backchannel to zombienet test runner.
+/// Provides the possibility to coordination between malicious actors and 
+/// the zombienet test-runner, allowing to reference runtime's generated
+/// values in the test specifications, through a bidirectional message passing
+/// implemented as a `backchannel`.
 use std::env;
 use futures_util::{StreamExt, stream::SplitStream};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
-use parity_scale_codec as scale_codec;
-
-#[macro_use]
-extern crate lazy_static;
+use parity_scale_codec as codec;
+use lazy_static::lazy_static;
 
 mod errors;
 use errors::BackchannelError;
@@ -31,6 +32,8 @@ use errors::BackchannelError;
 pub struct ZombienetBackchannel {
     pub inner: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>
 }
+
+pub const ZOMBIENET: &str = "ZOMBIENET_BACKCHANNEL🧟🧟🧟";
 
 lazy_static! {
     static ref BACKCHANNEL_HOST: String = env::var("BACKCHANNEL_HOST").unwrap_or_else(|_| "backchannel".to_string());
@@ -41,7 +44,7 @@ lazy_static! {
 impl ZombienetBackchannel {
     pub async fn connect() -> Result<ZombienetBackchannel,BackchannelError> {
         let ws_url = format!("ws://{}:{}/ws", *BACKCHANNEL_HOST, *BACKCHANNEL_PORT);
-        log::debug!("Connecting to : {}",&ws_url);
+        tracing::debug!(target = ZOMBIENET, "Connecting to : {}", &ws_url);
         let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| BackchannelError::CantConnectToWS)?;
         let (_write, read) = ws_stream.split();
 
@@ -50,18 +53,18 @@ impl ZombienetBackchannel {
         })
     }
 
-    pub async fn send(key: &'static str, val: impl scale_codec::Encode) -> Result<(),BackchannelError> {
+    pub async fn send(key: &'static str, val: impl codec::Encode) -> Result<(),BackchannelError> {
         let client = reqwest::Client::new();
         let encoded = val.encode();
         let body = String::from_utf8_lossy(&encoded);
         let zombienet_endpoint = format!("http://{}:{}/{}", *BACKCHANNEL_HOST, *BACKCHANNEL_PORT, key);
 
-        log::debug!("Sending to : {}",&zombienet_endpoint);
+        tracing::debug!(target = ZOMBIENET, "Sending to: {}",&zombienet_endpoint);
         let _res = client.post(zombienet_endpoint)
             .body(body.to_string())
             .send()
             .await.map_err(|e| {
-                log::error!("Error sending new item: {}",e);
+                tracing::error!(target = ZOMBIENET, "Error sending new item: {}",e);
                 BackchannelError::SendItemFail
             })?;
 
