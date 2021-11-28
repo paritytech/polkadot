@@ -584,13 +584,11 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		let actual_total_weight = {
-			total_weight
-				// subtract the max enact candidate weight,
-				.saturating_sub(max_enact_candidates_weight)
-				// and add back the actual enact candidate weight
-				.saturating_add(actual_enact_candidates_weight)
-		};
+		let actual_total_weight = total_weight
+			// subtract the max enact candidate weight,
+			.saturating_sub(max_enact_candidates_weight)
+			// and add back the actual enact candidate weight
+			.saturating_add(actual_enact_candidates_weight);
 
 		Ok(Some(actual_total_weight).into())
 	}
