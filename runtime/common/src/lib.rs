@@ -41,7 +41,7 @@ pub use frame_support::weights::constants::{
 };
 use frame_support::{
 	parameter_types,
-	traits::{Currency, OneSessionHandler},
+	traits::{ConstU32, Currency, OneSessionHandler},
 	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, Weight},
 };
 use frame_system::limits;
@@ -180,6 +180,13 @@ impl<T: pallet_session::Config> OneSessionHandler<T::AccountId>
 	}
 
 	fn on_disabled(_: u32) {}
+}
+
+/// A reasonable benchmarking config for staking pallet.
+pub struct StakingBenchmarkingConfig;
+impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
+	type MaxValidators = ConstU32<1000>;
+	type MaxNominators = ConstU32<1000>;
 }
 
 #[cfg(test)]
