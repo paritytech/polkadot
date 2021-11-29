@@ -118,13 +118,19 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		}
 	}
 
-	/// Set `self.dispute_sessions`.
+	/// Set the session index for each dispute statement set (in other words, set the session the
+	/// the dispute statement set's relay chain block is from). Indexes of `dispute_sessions`
+	/// correspond to a core, which is offset by the number of entries for
+	/// `backed_and_concluding_cores`. I.E. if `backed_and_concluding_cores` cores has 3 entries,
+	/// the first index of `dispute_sessions` will correspond to core index 3.
+	///
+	/// Note that there must be an entry for each core with a dispute statement set.
 	pub(crate) fn set_dispute_sessions(mut self, dispute_sessions: &[u32]) -> Self {
 		self.dispute_sessions = dispute_sessions.to_vec();
 		self
 	}
 
-	/// Set `self.backed_and_concluding_cores`.
+	/// Set a map from core/para id seed to number of validity votes.
 	pub(crate) fn set_backed_and_concluding_cores(
 		mut self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
@@ -133,6 +139,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
+	/// Set to include a code upgrade for all backed candidates. The value will be the byte length
+	/// of the code.
 	pub(crate) fn set_code_upgrade(mut self, code_upgrade: impl Into<Option<u32>>) -> Self {
 		self.code_upgrade = code_upgrade.into();
 		self
@@ -180,10 +188,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
-	/// Specify a mapping of core index, para id, group index seed to the number of dispute statements for the
-	/// corresponding dispute statement set. Note that if the number of disputes is not specified it fallbacks
-	/// to having a dispute per every validator. Additionally, an entry is not guaranteed to have a dispute - it
-	/// must line up with the cores marked as disputed as defined in `Self::Build`.
+	/// Specify a mapping of core index/ para id eed to the number of dispute statements for the
+	/// corresponding dispute statement set. Note that if the number of disputes is not specified
+	/// it fallbacks to having a dispute per every validator. Additionally, an entry is not
+	/// guaranteed to have a dispute - it must line up with the cores marked as disputed as defined
+	/// in `Self::Build`.
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
@@ -598,18 +607,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// are mutually exclusive with the cores for disputes. So
 	/// `backed_and_concluding_cores.len() + dispute_sessions.len()` must be less than the max
 	/// number of cores.
-	///
-	/// Some methods for configuring the builder:
-	///
-	/// * `set_backed_and_concluding_cores`: Set a map from core/para id seed to number of validity
-	/// votes.
-	/// * `set_dispute_sessions`: Set the session index of for each dispute. Index of slice
-	/// corresponds to a core, which is offset by the number of entries for
-	/// `backed_and_concluding_cores`. I.E. if `backed_and_concluding_cores` cores has 3 entries,
-	/// the first index of `dispute_sessions` will correspond to core index 3. There must be an
-	/// entry for each core with a dispute statement set.
-	/// *`set_code_upgrade`: Set to `Some` to include a code upgrade for all backed candidates.
-	/// The value within `Some` will be the byte length of the code.
 	pub(crate) fn build(self) -> Bench<T> {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
