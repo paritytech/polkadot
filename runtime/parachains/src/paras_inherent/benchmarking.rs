@@ -160,7 +160,7 @@ benchmarks! {
 
 		let scenario = BenchBuilder::<T>::new()
 			.set_backed_and_concluding_cores(cores_with_backed.clone())
-			.set_code_upgrade(Some(v))
+			.set_code_upgrade(v)
 			.build();
 
 		let mut benchmark = scenario.data.clone();

@@ -1164,7 +1164,7 @@ mod tests {
 				code_upgrade,
 			}: TestConfig,
 		) -> Bench<Test> {
-			BenchBuilder::<Test>::new()
+			let builder = BenchBuilder::<Test>::new()
 				.set_max_validators(
 					(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
 						num_validators_per_core,
@@ -1172,9 +1172,13 @@ mod tests {
 				.set_max_validators_per_core(num_validators_per_core)
 				.set_dispute_statements(dispute_statements)
 				.set_backed_and_concluding_cores(backed_and_concluding)
-				.set_dispute_sessions(backed_and_concluding)
-				.set_code_upgrade(code_upgrade)
-				.build()
+				.set_dispute_sessions(dispute_sessions);
+
+			if let Some(code_size) = code_upgrade {
+				builder.set_code_upgrade(code_size).build()
+			} else {
+				builder.build()
+			}
 		}
 
 		#[test]
@@ -1194,7 +1198,7 @@ mod tests {
 					dispute_sessions: vec![], // No disputes
 					backed_and_concluding,
 					num_validators_per_core: 1,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
@@ -1262,7 +1266,7 @@ mod tests {
 					],
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1333,7 +1337,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1400,7 +1404,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1446,7 +1450,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 4,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1524,7 +1528,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 4,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1585,7 +1589,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1665,7 +1669,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1724,7 +1728,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1795,7 +1799,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: None,
+					code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();

@@ -133,8 +133,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-	pub(crate) fn set_code_upgrade(mut self, code_upgrade: Option<u32>) -> Self {
-		self.code_upgrade = code_upgrade;
+	pub(crate) fn set_code_upgrade(mut self, code_upgrade: impl Into<Option<u32>>) -> Self {
+		self.code_upgrade = code_upgrade.into();
 		self
 	}
 
