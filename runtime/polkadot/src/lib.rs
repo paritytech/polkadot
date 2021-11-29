@@ -599,28 +599,28 @@ impl pallet_democracy::Config for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = frame_system::EnsureOneOf<
+	type ExternalOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = frame_system::EnsureOneOf<
+	type ExternalMajorityOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = frame_system::EnsureOneOf<
+	type ExternalDefaultOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// Two thirds of the technical committee can have an `ExternalMajority/ExternalDefault` vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = frame_system::EnsureOneOf<
+	type FastTrackOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
-	type InstantOrigin = frame_system::EnsureOneOf<
+	type InstantOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
