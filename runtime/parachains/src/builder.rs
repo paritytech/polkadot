@@ -119,8 +119,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Set `self.dispute_sessions`.
-	pub(crate) fn set_dispute_sessions(mut self, dispute_sessions: Vec<u32>) -> Self {
-		self.dispute_sessions = dispute_sessions;
+	pub(crate) fn set_dispute_sessions(mut self, dispute_sessions: &[u32]) -> Self {
+		self.dispute_sessions = dispute_sessions.to_vec();
 		self
 	}
 
