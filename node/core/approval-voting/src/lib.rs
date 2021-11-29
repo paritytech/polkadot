@@ -529,21 +529,28 @@ impl CurrentlyCheckingSet {
 		relay_block: Hash,
 		launch_work: impl Future<Output = SubsystemResult<RemoteHandle<ApprovalState>>>,
 	) -> SubsystemResult<()> {
-		let val = self.candidate_hash_map.entry(candidate_hash).or_insert(Default::default());
-
-		if let Err(k) = val.binary_search_by_key(&relay_block, |v| *v) {
-			let _ = val.insert(k, relay_block);
-			let work = launch_work.await?;
-			self.currently_checking.push(Box::pin(async move {
-				match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
-					None => ApprovalState {
-						candidate_hash,
-						validator_index,
-						approval_outcome: ApprovalOutcome::TimedOut,
-					},
-					Some(approval_state) => approval_state,
+		match self.candidate_hash_map.entry(candidate_hash) {
+			Entry::Occupied(mut entry) => {
+				// validation already undergoing. just add the relay hash if unknown.
+				if !entry.get().contains(&relay_block) {
+					entry.get_mut().push(relay_block);
 				}
-			}));
+			}
+			Entry::Vacant(mut entry) => {
+				// validation not ongoing. launch work and time out the remote handle.
+				let _ = entry.insert(vec![relay_block]);
+				let work = launch_work.await?;
+				self.currently_checking.push(Box::pin(async move {
+					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
+						None => ApprovalState {
+							candidate_hash,
+							validator_index,
+							approval_outcome: ApprovalOutcome::TimedOut,
+						},
+						Some(approval_state) => approval_state,
+					}
+				}));
+			}
 		}
 
 		Ok(())
