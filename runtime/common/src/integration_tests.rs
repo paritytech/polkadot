@@ -32,7 +32,9 @@ use frame_system::EnsureRoot;
 use primitives::v1::{
 	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
 };
-use runtime_parachains::{configuration, paras, shared, Origin as ParaOrigin, ParaLifecycle, origin};
+use runtime_parachains::{
+	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
+};
 use sp_core::{crypto::KeyTypeId, H256};
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
