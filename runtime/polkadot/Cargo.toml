@@ -192,6 +192,7 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 	"frame-election-provider-support/runtime-benchmarks",
+	"runtime-parachains/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
