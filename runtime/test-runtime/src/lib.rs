@@ -27,7 +27,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, paras as parachains_paras,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v1 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
@@ -490,7 +490,6 @@ impl parachains_initializer::Config for Runtime {
 impl parachains_session_info::Config for Runtime {}
 
 impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = parachains_paras::TestWeightInfo;
 }
@@ -544,6 +543,8 @@ impl parachains_hrmp::Config for Runtime {
 impl parachains_scheduler::Config for Runtime {}
 
 impl paras_sudo_wrapper::Config for Runtime {}
+
+impl parachains_origin::Config for Runtime {}
 
 impl pallet_test_notifier::Config for Runtime {
 	type Event = Event;
@@ -668,10 +669,11 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		Scheduler: parachains_scheduler::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},

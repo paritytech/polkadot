@@ -32,7 +32,9 @@ use frame_system::EnsureRoot;
 use primitives::v1::{
 	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
 };
-use runtime_parachains::{configuration, paras, shared, Origin as ParaOrigin, ParaLifecycle};
+use runtime_parachains::{
+	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
+};
 use sp_core::{crypto::KeyTypeId, H256};
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
@@ -59,8 +61,9 @@ frame_support::construct_runtime!(
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
+		Paras: paras::{Pallet, Call, Storage, Event, Config},
 		ParasShared: shared::{Pallet, Call, Storage},
+		ParachainsOrigin: origin::{Pallet, Origin},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -164,8 +167,9 @@ impl configuration::Config for Test {
 
 impl shared::Config for Test {}
 
+impl origin::Config for Test {}
+
 impl paras::Config for Test {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = paras::TestWeightInfo;
 }
