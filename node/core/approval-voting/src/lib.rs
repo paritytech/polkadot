@@ -68,7 +68,9 @@ use futures::{
 };
 
 use std::{
-	collections::{btree_map::Entry, BTreeMap, HashMap, HashSet},
+	collections::{
+		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
+	},
 	sync::Arc,
 	time::Duration,
 };
@@ -400,7 +402,7 @@ impl Wakeups {
 			}
 
 			// we are replacing previous wakeup with an earlier one.
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(*prev) {
+			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(*prev) {
 				if let Some(pos) =
 					entry.get().iter().position(|x| x == &(block_hash, candidate_hash))
 				{
@@ -436,7 +438,7 @@ impl Wakeups {
 		});
 
 		for (tick, pruned) in pruned_wakeups {
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(tick) {
 				entry.get_mut().retain(|wakeup| !pruned.contains(wakeup));
 				if entry.get().is_empty() {
 					let _ = entry.remove();
@@ -457,10 +459,10 @@ impl Wakeups {
 			Some(tick) => {
 				clock.wait(tick).await;
 				match self.wakeups.entry(tick) {
-					Entry::Vacant(_) => {
+					BTMEntry::Vacant(_) => {
 						panic!("entry is known to exist since `first` was `Some`; qed")
 					},
-					Entry::Occupied(mut entry) => {
+					BTMEntry::Occupied(mut entry) => {
 						let (hash, candidate_hash) = entry.get_mut().pop()
 							.expect("empty entries are removed here and in `schedule`; no other mutation of this map; qed");
 
@@ -530,13 +532,13 @@ impl CurrentlyCheckingSet {
 		launch_work: impl Future<Output = SubsystemResult<RemoteHandle<ApprovalState>>>,
 	) -> SubsystemResult<()> {
 		match self.candidate_hash_map.entry(candidate_hash) {
-			Entry::Occupied(mut entry) => {
+			HMEntry::Occupied(mut entry) => {
 				// validation already undergoing. just add the relay hash if unknown.
 				if !entry.get().contains(&relay_block) {
 					entry.get_mut().push(relay_block);
 				}
 			},
-			Entry::Vacant(mut entry) => {
+			HMEntry::Vacant(entry) => {
 				// validation not ongoing. launch work and time out the remote handle.
 				let _ = entry.insert(vec![relay_block]);
 				let work = launch_work.await?;
