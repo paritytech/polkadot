@@ -14,7 +14,7 @@ lru = "0.7"
 merlin = "2.0"
 schnorrkel = "0.9.1"
 kvdb = "0.10.0"
-derive_more = "0.99.14"
+derive_more = "0.99.17"
 
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

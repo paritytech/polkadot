@@ -18,7 +18,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] 
 sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
 thiserror = "1.0.30"
 rand = "0.8.3"
-derive_more = "0.99.11"
+derive_more = "0.99.17"
 lru = "0.7.0"
 
 [dev-dependencies]
