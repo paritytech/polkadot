@@ -327,18 +327,18 @@ fn check_does_not_match() {
 	executor::block_on(test_fut);
 }
 
-struct MockValidatorBackend {
+struct MockValidateCandidateBackend {
 	result: Result<WasmValidationResult, ValidationError>,
 }
 
-impl MockValidatorBackend {
+impl MockValidateCandidateBackend {
 	fn with_hardcoded_result(result: Result<WasmValidationResult, ValidationError>) -> Self {
 		Self { result }
 	}
 }
 
 #[async_trait]
-impl ValidationBackend for MockValidatorBackend {
+impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
 		_raw_validation_code: Vec<u8>,
@@ -385,7 +385,7 @@ fn candidate_validation_ok_is_ok() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		validation_code,
 		descriptor,
@@ -426,9 +426,9 @@ fn candidate_validation_bad_return_is_invalid() {
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::AmbiguousWorkerDeath,
-		))),
+		MockValidateCandidateBackend::with_hardcoded_result(Err(
+			ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath),
+		)),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -462,9 +462,9 @@ fn candidate_validation_timeout_is_internal_error() {
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::HardTimeout,
-		))),
+		MockValidateCandidateBackend::with_hardcoded_result(Err(
+			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+		)),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -497,9 +497,9 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::HardTimeout,
-		))),
+		MockValidateCandidateBackend::with_hardcoded_result(Err(
+			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+		)),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -539,7 +539,7 @@ fn compressed_code_works() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -579,7 +579,7 @@ fn code_decompression_failure_is_invalid() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -620,7 +620,7 @@ fn pov_decompression_failure_is_invalid() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		descriptor,
