@@ -94,7 +94,7 @@ impl BoundToRelayParent for CandidateBackingMessage {
 pub struct ValidationFailed(pub String);
 
 /// The outcome of the candidate-validation's PVF pre-check request.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PreCheckOutcome {
 	/// The PVF has been compiled successfully within the given constraints.
 	Valid,

@@ -631,3 +631,166 @@ fn pov_decompression_failure_is_invalid() {
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
 }
+
+struct MockPreCheckBackend {
+	result: Result<(), PrepareError>,
+}
+
+impl MockPreCheckBackend {
+	fn with_hardcoded_result(result: Result<(), PrepareError>) -> Self {
+		Self { result }
+	}
+}
+
+#[async_trait]
+impl ValidationBackend for MockPreCheckBackend {
+	async fn validate_candidate(
+		&mut self,
+		_raw_validation_code: Vec<u8>,
+		_timeout: Duration,
+		_params: ValidationParams,
+	) -> Result<WasmValidationResult, ValidationError> {
+		unreachable!()
+	}
+
+	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+		self.result.clone()
+	}
+}
+
+#[test]
+fn precheck_works() {
+	let relay_parent = [3; 32].into();
+	let validation_code = ValidationCode(vec![3; 16]);
+	let validation_code_hash = validation_code.hash();
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+	let (check_fut, check_result) = precheck_pvf(
+		ctx.sender(),
+		MockPreCheckBackend::with_hardcoded_result(Ok(())),
+		relay_parent,
+		validation_code_hash,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				rp,
+				RuntimeApiRequest::ValidationCodeByHash(
+					vch,
+					tx
+				),
+			)) => {
+				assert_eq!(vch, validation_code_hash);
+				assert_eq!(rp, relay_parent);
+
+				let _ = tx.send(Ok(Some(validation_code.clone())));
+			}
+		);
+		assert_matches!(check_result.await, PreCheckOutcome::Valid);
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
+}
+
+#[test]
+fn precheck_invalid_pvf_blob_compression() {
+	let relay_parent = [3; 32].into();
+
+	let raw_code = vec![2u8; VALIDATION_CODE_BOMB_LIMIT + 1];
+	let validation_code =
+		sp_maybe_compressed_blob::compress(&raw_code, VALIDATION_CODE_BOMB_LIMIT + 1)
+			.map(ValidationCode)
+			.unwrap();
+	let validation_code_hash = validation_code.hash();
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+	let (check_fut, check_result) = precheck_pvf(
+		ctx.sender(),
+		MockPreCheckBackend::with_hardcoded_result(Ok(())),
+		relay_parent,
+		validation_code_hash,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				rp,
+				RuntimeApiRequest::ValidationCodeByHash(
+					vch,
+					tx
+				),
+			)) => {
+				assert_eq!(vch, validation_code_hash);
+				assert_eq!(rp, relay_parent);
+
+				let _ = tx.send(Ok(Some(validation_code.clone())));
+			}
+		);
+		assert_matches!(check_result.await, PreCheckOutcome::Invalid);
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
+}
+
+#[test]
+fn precheck_properly_classifies_outcomes() {
+	let inner = |prepare_result, precheck_outcome| {
+		let relay_parent = [3; 32].into();
+		let validation_code = ValidationCode(vec![3; 16]);
+		let validation_code_hash = validation_code.hash();
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut ctx_handle) =
+			test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+		let (check_fut, check_result) = precheck_pvf(
+			ctx.sender(),
+			MockPreCheckBackend::with_hardcoded_result(prepare_result),
+			relay_parent,
+			validation_code_hash,
+		)
+		.remote_handle();
+
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCodeByHash(
+						vch,
+						tx
+					),
+				)) => {
+					assert_eq!(vch, validation_code_hash);
+					assert_eq!(rp, relay_parent);
+
+					let _ = tx.send(Ok(Some(validation_code.clone())));
+				}
+			);
+			assert_eq!(check_result.await, precheck_outcome);
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	};
+
+	inner(Err(PrepareError::Prevalidation("foo".to_owned())), PreCheckOutcome::Invalid);
+	inner(Err(PrepareError::Preparation("bar".to_owned())), PreCheckOutcome::Invalid);
+	inner(Err(PrepareError::Panic("baz".to_owned())), PreCheckOutcome::Invalid);
+
+	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
+	inner(Err(PrepareError::DidNotMakeIt), PreCheckOutcome::Failed);
+}
