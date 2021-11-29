@@ -459,6 +459,8 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambigious worker death".to_string(),
 			))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 
 		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
