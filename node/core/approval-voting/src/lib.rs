@@ -511,7 +511,7 @@ impl ApprovalState {
 struct CurrentlyCheckingSet {
 	/// Invariant: The contained `Vec` needs to stay sorted as we are using `binary_search_by_key`
 	/// on it.
-	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
+	candidate_hash_map: HashMap<CandidateHash, HashSet<Hash>>,
 	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }
 
@@ -534,13 +534,11 @@ impl CurrentlyCheckingSet {
 		match self.candidate_hash_map.entry(candidate_hash) {
 			HMEntry::Occupied(mut entry) => {
 				// validation already undergoing. just add the relay hash if unknown.
-				if !entry.get().contains(&relay_block) {
-					entry.get_mut().push(relay_block);
-				}
+				entry.get_mut().insert(relay_block);
 			},
 			HMEntry::Vacant(entry) => {
 				// validation not ongoing. launch work and time out the remote handle.
-				let _ = entry.insert(vec![relay_block]);
+				entry.insert(HashSet::new()).insert(relay_block);
 				let work = launch_work.await?;
 				self.currently_checking.push(Box::pin(async move {
 					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
@@ -561,7 +559,7 @@ impl CurrentlyCheckingSet {
 	pub async fn next(
 		&mut self,
 		approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
-	) -> (Vec<Hash>, ApprovalState) {
+	) -> (HashSet<Hash>, ApprovalState) {
 		if !self.currently_checking.is_empty() {
 			if let Some(approval_state) = self.currently_checking.next().await {
 				let out = self
