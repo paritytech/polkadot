@@ -535,7 +535,7 @@ impl CurrentlyCheckingSet {
 				if !entry.get().contains(&relay_block) {
 					entry.get_mut().push(relay_block);
 				}
-			}
+			},
 			Entry::Vacant(mut entry) => {
 				// validation not ongoing. launch work and time out the remote handle.
 				let _ = entry.insert(vec![relay_block]);
@@ -550,7 +550,7 @@ impl CurrentlyCheckingSet {
 						Some(approval_state) => approval_state,
 					}
 				}));
-			}
+			},
 		}
 
 		Ok(())
