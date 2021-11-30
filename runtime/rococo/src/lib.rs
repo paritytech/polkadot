@@ -202,54 +202,54 @@ construct_runtime! {
 		NodeBlock = primitives::v1::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		System: frame_system,
 
 		// Must be before session.
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		Babe: pallet_babe,
 
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+		Timestamp: pallet_timestamp,
+		Indices: pallet_indices,
+		Balances: pallet_balances,
+		TransactionPayment: pallet_transaction_payment,
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Pallet, Call, Storage},
-		Offences: pallet_offences::{Pallet, Storage, Event},
-		Historical: session_historical::{Pallet},
-		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
-		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
+		Authorship: pallet_authorship,
+		Offences: pallet_offences,
+		Historical: session_historical,
+		Session: pallet_session,
+		Grandpa: pallet_grandpa,
+		ImOnline: pallet_im_online,
+		AuthorityDiscovery: pallet_authority_discovery,
 
 		// Parachains modules.
-		ParachainsOrigin: parachains_origin::{Pallet, Origin},
-		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
-		ParasShared: parachains_shared::{Pallet, Call, Storage},
-		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
-		ParaScheduler: parachains_scheduler::{Pallet, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
-		Initializer: parachains_initializer::{Pallet, Call, Storage},
-		Dmp: parachains_dmp::{Pallet, Call, Storage},
-		Ump: parachains_ump::{Pallet, Call, Storage, Event},
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
-		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
-		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>},
+		ParachainsOrigin: parachains_origin,
+		Configuration: parachains_configuration,
+		ParasShared: parachains_shared,
+		ParaInclusion: parachains_inclusion,
+		ParaInherent: parachains_paras_inherent,
+		ParaScheduler: parachains_scheduler,
+		Paras: parachains_paras,
+		Initializer: parachains_initializer,
+		Dmp: parachains_dmp,
+		Ump: parachains_ump,
+		Hrmp: parachains_hrmp,
+		ParaSessionInfo: parachains_session_info,
+		ParasDisputes: parachains_disputes,
 
 		// Parachain Onboarding Pallets
-		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config},
-		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
-		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
-		Slots: slots::{Pallet, Call, Storage, Event<T>},
-		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		Registrar: paras_registrar,
+		Auctions: auctions,
+		Crowdloan: crowdloan,
+		Slots: slots,
+		ParasSudoWrapper: paras_sudo_wrapper,
 
 		// Sudo
-		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
+		Sudo: pallet_sudo,
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Storage},
-		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
-		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage},
+		Mmr: pallet_mmr,
+		Beefy: pallet_beefy,
+		MmrLeaf: pallet_beefy_mmr,
 
 		// It might seem strange that we add both sides of the bridge to the same runtime. We do this because this
 		// runtime as shared by both the Rococo and Wococo chains. When running as Rococo we only use
@@ -258,7 +258,7 @@ construct_runtime! {
 		// BridgeWococoGrandpa: pallet_bridge_grandpa::<Instance1>::{Pallet, Call, Storage, Config<T>} = 41,
 
 		// Validator Manager pallet.
-		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
+		ValidatorManager: validator_manager,
 
 		// Bridge messages support. The same story as with the bridge grandpa pallet above ^^^ - when we're
 		// running as Rococo we only use `BridgeWococoMessages`/`BridgeWococoMessagesDispatch`, and vice versa.
@@ -268,15 +268,15 @@ construct_runtime! {
 		// BridgeWococoMessagesDispatch: pallet_bridge_dispatch::<Instance1>::{Pallet, Event<T>} = 46,
 
 		// A "council"
-		Collective: pallet_collective::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 80,
-		Membership: pallet_membership::{Pallet, Call, Storage, Event<T>, Config<T>} = 81,
+		Collective: pallet_collective = 80,
+		Membership: pallet_membership = 81,
 
-		Utility: pallet_utility::{Pallet, Call, Event} = 90,
-		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
-		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
+		Utility: pallet_utility = 90,
+		Proxy: pallet_proxy = 91,
+		Multisig: pallet_multisig,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+		XcmPallet: pallet_xcm = 99,
 
 	}
 }
@@ -614,7 +614,6 @@ impl parachains_inclusion::Config for Runtime {
 }
 
 impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 }

@@ -1378,6 +1378,31 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub parent_header: HDR,
 }
 
+/// A statement from the specified validator whether the given validation code passes PVF
+/// pre-checking or not anchored to the given session index.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	/// `true` if the subject passed pre-checking and `false` otherwise.
+	pub accept: bool,
+	/// The validation code hash that was checked.
+	pub subject: ValidationCodeHash,
+	/// The index of a session during which this statement is considered valid.
+	pub session_index: SessionIndex,
+	/// The index of the validator from which this statement originates.
+	pub validator_index: ValidatorIndex,
+}
+
+impl PvfCheckStatement {
+	/// Produce the payload used for signing this type of statement.
+	///
+	/// It is expected that it will be signed by the validator at `validator_index` in the
+	/// `session_index`.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
+}
+
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
