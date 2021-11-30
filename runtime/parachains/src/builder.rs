@@ -125,8 +125,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// the first index of `dispute_sessions` will correspond to core index 3.
 	///
 	/// Note that there must be an entry for each core with a dispute statement set.
-	pub(crate) fn set_dispute_sessions(mut self, dispute_sessions: &[u32]) -> Self {
-		self.dispute_sessions = dispute_sessions.to_vec();
+	pub(crate) fn set_dispute_sessions(mut self, dispute_sessions: impl AsRef<[u32]>) -> Self {
+		self.dispute_sessions = dispute_sessions.as_ref().to_vec();
 		self
 	}
 
@@ -550,11 +550,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		&self,
 		start: u32,
 		last: u32,
-		dispute_sessions: &[u32],
+		dispute_sessions: impl AsRef<[u32]>,
 	) -> Vec<DisputeStatementSet> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 
+		let dispute_sessions = dispute_sessions.as_ref();
 		(start..last)
 			.map(|seed| {
 				let dispute_session_idx = (seed - start) as usize;
