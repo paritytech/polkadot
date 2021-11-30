@@ -31,7 +31,7 @@ use crate::{
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
 };
-use bitvec::prelude::BitVec;
+use bitvec::{order::Lsb0 as BitOrderLsb0, prelude::BitVec};
 use frame_support::{
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
 	pallet_prelude::*,
@@ -49,7 +49,7 @@ use primitives::v1::{
 use rand::{seq::SliceRandom, SeedableRng};
 
 use scale_info::TypeInfo;
-use sp_runtime::traits::{Header as HeaderT, One, Zero};
+use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -61,6 +61,7 @@ use sp_std::{
 mod benchmarking;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
+const MAX_UNCHECKED_BITFIELD_ITERATIONS: usize = 1_000;
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -115,20 +116,21 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
-// Count the ones of the first bitfield in a slice. Careful, since this only counts the ones of
-// the first bitfield, it may be misleading as to how many ones the other bitfields contain. It
-// should only be used in circumstances where an estimate is ok.
-fn bitfields_count_ones(bitfields: &[UncheckedSignedAvailabilityBitfield]) -> usize {
-	if bitfields.len().is_zero() {
-		0
-	} else {
-		bitfields
-			.get(0)
-			.expect("checked for empty bitfield. qed.")
-			.unchecked_payload()
-			.0
-			.count_ones()
-	}
+// OR together all bitfields and count the ones from the result.
+// Note that this will only OR together the first `MAX_UNCHECKED_BITFIELD_ITERATIONS` to avoid
+// excessive iteration.
+fn bitfields_count_ones(
+	bitfields: &[UncheckedSignedAvailabilityBitfield],
+	expected_bits: usize,
+) -> usize {
+	bitfields
+		.iter()
+		.take(MAX_UNCHECKED_BITFIELD_ITERATIONS)
+		.fold(
+			BitVec::<BitOrderLsb0, u8>::repeat(false, expected_bits),
+			|acc: BitVec<BitOrderLsb0, u8>, cur| acc | cur.unchecked_payload().0.clone(),
+		)
+		.count_ones()
 }
 
 // Note that this does a storage read.
@@ -136,16 +138,16 @@ fn paras_inherent_total_weight<T: Config>(
 	backed_candidates: &[BackedCandidate<<T as frame_system::Config>::Hash>],
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	disputes: &[DisputeStatementSet],
+	expected_bits: usize,
 	config: &HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	backed_candidates_weight::<T>(backed_candidates)
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
 		.saturating_add(dispute_statements_weight::<T>(disputes))
-		// in order to get a constant time calculation we get the votes in the first bitfield
-		// and assume the worst case for enacting that many candidates. This may not always be
-		// perfect but should be close enough most of the time for getting an estimate when queuing
-		// extrinsics for block authoring.
-		.saturating_add(enact_candidates_weight::<T>(bitfields_count_ones(bitfields), config))
+		.saturating_add(enact_candidates_weight::<T>(
+			bitfields_count_ones(bitfields, expected_bits),
+			config,
+		))
 }
 
 fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
@@ -381,6 +383,7 @@ pub mod pallet {
 				data.backed_candidates.as_slice(),
 				data.bitfields.as_slice(),
 				data.disputes.as_slice(),
+				<scheduler::Pallet<T>>::availability_cores().len(),
 				&<configuration::Pallet<T>>::config(),
 			),
 			DispatchClass::Mandatory,
@@ -427,12 +430,13 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let now = <frame_system::Pallet<T>>::block_number();
+		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
 		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
-		let max_enact_candidates_weight = enact_candidates_weight::<T>(
-			bitfields_count_ones(&signed_bitfields),
+		let mut max_enact_candidates_weight = enact_candidates_weight::<T>(
+			bitfields_count_ones(&signed_bitfields, expected_bits),
 			&<configuration::Pallet<T>>::config(),
 		);
 
@@ -472,8 +476,6 @@ impl<T: Config> Pallet<T> {
 					.saturating_add(max_enact_candidates_weight)
 			}
 		};
-
-		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
 		// Handle disputes logic.
 		let current_session = <shared::Pallet<T>>::session_index();
