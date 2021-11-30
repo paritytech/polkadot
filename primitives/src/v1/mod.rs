@@ -327,8 +327,8 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -407,8 +407,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -509,8 +509,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -534,6 +534,8 @@ impl CandidateCommitments {
 }
 
 /// A bitfield concerning availability of backed candidates.
+///
+/// Every bit refers to an availability core index.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 
@@ -945,6 +947,22 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
+/// Scraped runtime backing votes and resolved disputes.
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
+	/// The session in which the block was included.
+	pub session: SessionIndex,
+	/// Set of backing validators for each candidate, represented by its candidate
+	/// receipt.
+	pub backing_validators_per_candidate:
+		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
+	/// On-chain-recorded set of disputes.
+	/// Note that the above `backing_validators` are
+	/// unrelated to the backers of the disputes candidates.
+	pub disputes: MultiDisputeStatementSet,
+}
+
 /// A vote of approval on a candidate.
 #[derive(Clone, RuntimeDebug)]
 pub struct ApprovalVote(pub CandidateHash);
@@ -960,7 +978,7 @@ impl ApprovalVote {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
+	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
@@ -980,6 +998,14 @@ sp_api::decl_runtime_apis! {
 		/// and the para already occupies a core.
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<H, N>>;
+
+		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
+		/// validation code hash. Instead of accepting assumption about the para, matches the validation
+		/// data hash against an expected one and yields `None` if they're not equal.
+		fn assumed_validation_data(
+			para_id: Id,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
@@ -1017,6 +1043,9 @@ sp_api::decl_runtime_apis! {
 
 		/// Get the validation code from its hash.
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
+
+		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
+		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
 	}
 }
 
@@ -1161,8 +1190,8 @@ pub enum ConsensusLog {
 
 impl ConsensusLog {
 	/// Attempt to convert a reference to a generic digest item into a consensus log.
-	pub fn from_digest_item<H>(
-		digest_item: &runtime_primitives::DigestItem<H>,
+	pub fn from_digest_item(
+		digest_item: &runtime_primitives::DigestItem,
 	) -> Result<Option<Self>, parity_scale_codec::Error> {
 		match digest_item {
 			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
@@ -1172,8 +1201,8 @@ impl ConsensusLog {
 	}
 }
 
-impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
-	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+impl From<ConsensusLog> for runtime_primitives::DigestItem {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem {
 		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
 	}
 }
@@ -1182,6 +1211,7 @@ impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
 ///
 /// Statements are either in favor of the candidate's validity or against it.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum DisputeStatement {
 	/// A valid statement, of the given kind.
 	#[codec(index = 0)]
@@ -1251,6 +1281,7 @@ impl DisputeStatement {
 
 /// Different kinds of statements of validity on  a candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1268,6 +1299,7 @@ pub enum ValidDisputeStatementKind {
 
 /// Different kinds of statements of invalidity on a candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1296,6 +1328,7 @@ impl ExplicitDisputeStatement {
 
 /// A set of statements about a specific candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct DisputeStatementSet {
 	/// The candidate referenced by this set.
 	pub candidate_hash: CandidateHash,

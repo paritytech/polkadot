@@ -28,12 +28,12 @@ use sp_std::prelude::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-pub mod weights;
 
 pub use pallet::*;
 
 pub mod migration;
 
+#[allow(dead_code)]
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
@@ -276,6 +276,28 @@ pub trait WeightInfo {
 	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn set_config_with_block_number() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_u32() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_option_u32() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_weight() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_balance() -> Weight {
+		Weight::MAX
+	}
+	fn set_hrmp_open_request_ttl() -> Weight {
+		Weight::MAX
+	}
 }
 
 #[frame_support::pallet]

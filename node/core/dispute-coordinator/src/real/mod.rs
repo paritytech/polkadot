@@ -31,6 +31,9 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
+use futures::{channel::oneshot, prelude::*};
+use kvdb::KeyValueDB;
+use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
@@ -39,7 +42,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		DisputeParticipationMessage, ImportStatementsResult,
+		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
@@ -47,13 +50,10 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
-	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
-
-use futures::{channel::oneshot, prelude::*};
-use kvdb::KeyValueDB;
-use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
 use crate::metrics::Metrics;
@@ -350,6 +350,8 @@ where
 					&mut overlay_db,
 					&mut state,
 					update.activated.into_iter().map(|a| a.hash),
+					clock.now(),
+					&metrics,
 				)
 				.await?;
 				if !state.recovery_state.complete() {
@@ -419,7 +421,7 @@ where
 				tracing::warn!(
 					target: LOG_TARGET,
 					session,
-					"Missing info for session which has an active dispute",
+					"Recovering lacks info for session which has an active dispute",
 				);
 				continue
 			},
@@ -478,6 +480,8 @@ async fn handle_new_activations(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
 	new_activations: impl IntoIterator<Item = Hash>,
+	now: u64,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
 		match state.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
@@ -487,7 +491,6 @@ async fn handle_new_activations(
 					err = ?e,
 					"Failed to update session cache for disputes",
 				);
-
 				continue
 			},
 			Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
@@ -502,10 +505,217 @@ async fn handle_new_activations(
 					db::v1::note_current_session(overlay_db, session)?;
 				}
 			},
-			_ => {},
+			Ok(SessionWindowUpdate::Unchanged) => {},
+		};
+		scrape_on_chain_votes(ctx, overlay_db, state, new_leaf, now, metrics).await?;
+	}
+
+	Ok(())
+}
+
+/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the relay chain.
+async fn scrape_on_chain_votes(
+	ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
+	          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+	state: &mut State,
+	new_leaf: Hash,
+	now: u64,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	// obtain the concluded disputes as well as the candidate backing votes
+	// from the new leaf
+	let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			new_leaf,
+			RuntimeApiRequest::FetchOnChainVotes(tx),
+		))
+		.await;
+		match rx.await {
+			Ok(Ok(Some(val))) => val,
+			Ok(Ok(None)) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					"No on chain votes stored for relay chain leaf");
+				return Ok(())
+			},
+			Ok(Err(e)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					error = ?e,
+					"Could not retrieve on chain votes due to an API error");
+				return Ok(())
+			},
+			Err(e) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					error = ?e,
+					"Could not retrieve onchain votes due to oneshot cancellation");
+				return Ok(())
+			},
+		}
+	};
+
+	if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
+		return Ok(())
+	}
+
+	// Obtain the session info, for sake of `ValidatorId`s
+	// either from the rolling session window.
+	// Must be called _after_ `fn cache_session_info_for_head`
+	// which guarantees that the session info is available
+	// for the current session.
+	let session_info: SessionInfo =
+		if let Some(session_info) = state.rolling_session_window.session_info(session) {
+			session_info.clone()
+		} else {
+			tracing::warn!(
+				target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				"Could not retrieve session info from rolling session window");
+			return Ok(())
+		};
+
+	// Scraped on-chain backing votes for the candidates with
+	// the new active leaf as if we received them via gossip.
+	for (candidate_receipt, backers) in backing_validators_per_candidate {
+		let candidate_hash = candidate_receipt.hash();
+		let statements = backers.into_iter().filter_map(|(validator_index, attestation)| {
+			let validator_public: ValidatorId = session_info
+				.validators
+				.get(validator_index.0 as usize)
+				.or_else(|| {
+					tracing::error!(
+						target: LOG_TARGET,
+						relay_parent = ?new_leaf,
+						"Missing public key for validator {:?}",
+						&validator_index);
+					None
+				})
+				.cloned()?;
+			let validator_signature = attestation.signature().clone();
+			let valid_statement_kind = match attestation.to_compact_statement(candidate_hash) {
+				CompactStatement::Seconded(_) =>
+					ValidDisputeStatementKind::BackingSeconded(new_leaf),
+				CompactStatement::Valid(_) => ValidDisputeStatementKind::BackingValid(new_leaf),
+			};
+			let signed_dispute_statement =
+				SignedDisputeStatement::new_unchecked_from_trusted_source(
+					DisputeStatement::Valid(valid_statement_kind),
+					candidate_hash,
+					session,
+					validator_public,
+					validator_signature,
+				);
+			Some((signed_dispute_statement, validator_index))
+		});
+		let import_result = handle_import_statements(
+			ctx,
+			overlay_db,
+			state,
+			candidate_hash,
+			MaybeCandidateReceipt::Provides(candidate_receipt),
+			session,
+			statements,
+			now,
+			metrics,
+		)
+		.await?;
+		match import_result {
+			ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				?session,
+				"Imported backing vote from on-chain"),
+			ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				?session,
+				"Attempted import of on-chain backing votes failed"),
 		}
 	}
 
+	if disputes.is_empty() {
+		return Ok(())
+	}
+
+	// Import concluded disputes from on-chain, this already went through a vote so it's assumed
+	// as verified. This will only be stored, gossiping it is not necessary.
+
+	// First try to obtain all the backings which ultimately contain the candidate
+	// receipt which we need.
+
+	for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+		let statements = statements
+			.into_iter()
+			.filter_map(|(dispute_statement, validator_index, validator_signature)| {
+				let session_info: SessionInfo = if let Some(session_info) =
+					state.rolling_session_window.session_info(session)
+				{
+					session_info.clone()
+				} else {
+					tracing::warn!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					?session,
+					"Could not retrieve session info from rolling session window for recently concluded dispute");
+					return None
+				};
+
+				let validator_public: ValidatorId = session_info
+					.validators
+					.get(validator_index.0 as usize)
+					.or_else(|| {
+						tracing::error!(
+						target: LOG_TARGET,
+						relay_parent = ?new_leaf,
+						?session,
+						"Missing public key for validator {:?} that participated in concluded dispute",
+						&validator_index);
+						None
+					})
+					.cloned()?;
+
+				Some((
+					SignedDisputeStatement::new_unchecked_from_trusted_source(
+						dispute_statement,
+						candidate_hash,
+						session,
+						validator_public,
+						validator_signature,
+					),
+					validator_index,
+				))
+			})
+			.collect::<Vec<_>>();
+		let import_result = handle_import_statements(
+			ctx,
+			overlay_db,
+			state,
+			candidate_hash,
+			// TODO <https://github.com/paritytech/polkadot/issues/4011>
+			MaybeCandidateReceipt::AssumeBackingVotePresent,
+			session,
+			statements,
+			now,
+			metrics,
+		)
+		.await?;
+		match import_result {
+			ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				?candidate_hash,
+				?session,
+				"Imported statement of conlcuded dispute from on-chain"),
+			ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				?candidate_hash,
+				?session,
+				"Attempted import of on-chain statement of concluded dispute failed"),
+		}
+	}
 	Ok(())
 }
 
@@ -530,7 +740,7 @@ async fn handle_incoming(
 				overlay_db,
 				state,
 				candidate_hash,
-				candidate_receipt,
+				MaybeCandidateReceipt::Provides(candidate_receipt),
 				session,
 				statements,
 				now,
@@ -648,14 +858,22 @@ fn insert_into_statement_vec<T>(
 	vec.insert(pos, (tag, val_index, val_signature));
 }
 
+#[derive(Debug, Clone)]
+enum MaybeCandidateReceipt {
+	/// Directly provides the candiate receipt.
+	Provides(CandidateReceipt),
+	/// Assumes it was seen before by means of seconded message.
+	AssumeBackingVotePresent,
+}
+
 async fn handle_import_statements(
 	ctx: &mut impl SubsystemContext,
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
 	candidate_hash: CandidateHash,
-	candidate_receipt: CandidateReceipt,
+	candidate_receipt: MaybeCandidateReceipt,
 	session: SessionIndex,
-	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	statements: impl IntoIterator<Item = (SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
 	metrics: &Metrics,
 ) -> Result<ImportStatementsResult, Error> {
@@ -664,40 +882,50 @@ async fn handle_import_statements(
 		return Ok(ImportStatementsResult::InvalidImport)
 	}
 
-	let validators = match state.rolling_session_window.session_info(session) {
+	let session_info = match state.rolling_session_window.session_info(session) {
 		None => {
 			tracing::debug!(
 				target: LOG_TARGET,
 				session,
-				"Missing info for session which has an active dispute candidate_hash={:?}",
-				candidate_hash,
+				"Importing statement lacks info for session which has an active dispute",
 			);
 
 			return Ok(ImportStatementsResult::InvalidImport)
 		},
-		Some(info) => {
-			tracing::debug!(
-				target: DEBUG_LOG_TARGET,
-				"SessionInfo received for SessionIndex {:?} CandidateHash {:?}.",
-				session,
-				candidate_hash,
-			);
-			info.validators.clone()
-		},
+		Some(info) => info,
 	};
+	let validators = session_info.validators.clone();
 
 	let n_validators = validators.len();
 
 	let supermajority_threshold = polkadot_primitives::v1::supermajority_threshold(n_validators);
 
-	let mut votes = overlay_db
+	// In case we are not provided with a candidate receipt
+	// we operate under the assumption, that a previous vote
+	// which included a `CandidateReceipt` was seen.
+	// This holds since every block is preceeded by the `Backing`-phase.
+	//
+	// There is one exception: A sufficiently sophisticated attacker could prevent
+	// us from seeing the backing votes by witholding arbitrary blocks, and hence we do
+	// not have a `CandidateReceipt` available.
+	let mut votes = match overlay_db
 		.load_candidate_votes(session, &candidate_hash)?
 		.map(CandidateVotes::from)
-		.unwrap_or_else(|| CandidateVotes {
-			candidate_receipt: candidate_receipt.clone(),
-			valid: Vec::new(),
-			invalid: Vec::new(),
-		});
+	{
+		Some(votes) => votes,
+		None =>
+			if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
+				CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() }
+			} else {
+				tracing::warn!(
+					target: LOG_TARGET,
+					session,
+					"Not seen backing vote for candidate which has an active dispute",
+				);
+				return Ok(ImportStatementsResult::InvalidImport)
+			},
+	};
+	let candidate_receipt = votes.candidate_receipt.clone();
 
 	// Update candidate votes.
 	for (statement, val_index) in statements {
@@ -941,7 +1169,7 @@ async fn issue_local_statement(
 			overlay_db,
 			state,
 			candidate_hash,
-			candidate_receipt,
+			MaybeCandidateReceipt::Provides(candidate_receipt),
 			session,
 			statements,
 			now,
@@ -962,7 +1190,7 @@ async fn issue_local_statement(
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,
-					"handle_import_statements` considers our own votes invalid!"
+					"`handle_import_statements` considers our own votes invalid!"
 				);
 			},
 			Ok(ImportStatementsResult::ValidImport) => {
@@ -970,7 +1198,7 @@ async fn issue_local_statement(
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,
-					"handle_import_statements` successfully imported our vote!"
+					"`handle_import_statements` successfully imported our vote!"
 				);
 			},
 		}

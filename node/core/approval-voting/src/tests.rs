@@ -1610,7 +1610,7 @@ fn subsystem_process_wakeup_schedules_wakeup() {
 		futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 		// The wakeup should have been rescheduled.
-		assert!(clock.inner.lock().current_wakeup_is(20));
+		assert!(clock.inner.lock().current_wakeup_is(30));
 
 		virtual_overseer
 	});
@@ -2235,8 +2235,8 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 
 		futures_timer::Delay::new(Duration::from_millis(200)).await;
 
-		assert!(clock.inner.lock().current_wakeup_is(slot_to_tick(slot + 1)));
-		clock.inner.lock().wakeup_all(slot_to_tick(slot + 1));
+		assert!(clock.inner.lock().current_wakeup_is(slot_to_tick(slot + 2)));
+		clock.inner.lock().wakeup_all(slot_to_tick(slot + 2));
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -2468,7 +2468,7 @@ fn subsystem_assignment_triggered_by_all_with_less_than_threshold() {
 		approvals_to_import: vec![2, 4],
 		ticks: vec![
 			2,  // APPROVAL_DELAY
-			20, // Check for no shows
+			21, // Check for no shows
 		],
 		should_be_triggered: |t| t == 20,
 	});
@@ -2484,7 +2484,7 @@ fn subsystem_assignment_not_triggered_by_all_with_threshold() {
 		approvals_to_import: vec![1, 3, 5],
 		ticks: vec![
 			2,  // APPROVAL_DELAY
-			20, // Check no shows
+			21, // Check no shows
 		],
 		should_be_triggered: |_| false,
 	});
@@ -2499,8 +2499,8 @@ fn subsystem_assignment_triggered_if_below_maximum_and_clock_is_equal() {
 		assignments_to_import: vec![1],
 		approvals_to_import: vec![],
 		ticks: vec![
-			20, // Check no shows
-			21, // Alice wakeup, assignment triggered
+			21, // Check no shows
+			23, // Alice wakeup, assignment triggered
 		],
 		should_be_triggered: |tick| tick >= 21,
 	});
@@ -2517,7 +2517,7 @@ fn subsystem_assignment_not_triggered_more_than_maximum() {
 		ticks: vec![
 			2,  // APPROVAL_DELAY
 			13, // Alice wakeup
-			20, // Check no shows
+			30, // Check no shows
 		],
 		should_be_triggered: |_| false,
 	});
@@ -2525,16 +2525,15 @@ fn subsystem_assignment_not_triggered_more_than_maximum() {
 
 #[test]
 fn subsystem_assignment_triggered_if_at_maximum() {
-	// TODO(ladi): is this possible?
 	triggers_assignment_test(TriggersAssignmentConfig {
-		our_assigned_tranche: 11,
+		our_assigned_tranche: 21,
 		assign_validator_tranche: |_| Ok(2),
 		no_show_slots: 2,
 		assignments_to_import: vec![1],
 		approvals_to_import: vec![],
 		ticks: vec![
 			12, // Bob wakeup
-			20, // Check no shows
+			30, // Check no shows
 		],
 		should_be_triggered: |_| false,
 	});
@@ -2584,7 +2583,7 @@ fn subsystem_assignment_not_triggered_if_at_maximum_but_clock_is_before_with_dri
 			12, // Charlie wakeup
 			13, // Dave wakeup
 			15, // Alice wakeup, noop
-			20, // Check no shows
+			30, // Check no shows
 			34, // Eve wakeup
 		],
 		should_be_triggered: |_| false,
@@ -2756,7 +2755,7 @@ fn pre_covers_dont_stall_approval() {
 
 		// Wait for the no-show timer to observe the approval from
 		// tranche 0 and set a wakeup for tranche 1.
-		clock.inner.lock().set_tick(20);
+		clock.inner.lock().set_tick(30);
 
 		// Sleep to ensure we get a consistent read on the database.
 		futures_timer::Delay::new(Duration::from_millis(100)).await;

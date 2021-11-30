@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf"
-version = "0.9.11"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -15,27 +15,27 @@ async-process = "1.1.0"
 assert_matches = "1.4.0"
 futures = "0.3.17"
 futures-timer = "3.0.2"
-libc = "0.2.103"
+libc = "0.2.107"
 slotmap = "1.0"
-tracing = "0.1.28"
+tracing = "0.1.29"
 pin-project = "1.0.8"
 rand = "0.8.3"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 tempfile = "3.2.0"

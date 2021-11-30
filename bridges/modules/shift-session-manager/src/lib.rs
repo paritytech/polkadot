@@ -162,7 +162,6 @@ mod tests {
 		type SessionManager = ();
 		type SessionHandler = TestSessionHandler;
 		type Keys = UintAuthorityId;
-		type DisabledValidatorsThreshold = ();
 		type WeightInfo = ();
 	}
 
@@ -176,7 +175,7 @@ mod tests {
 
 		fn on_new_session<Ks: sp_runtime::traits::OpaqueKeys>(_: bool, _: &[(AccountId, Ks)], _: &[(AccountId, Ks)]) {}
 
-		fn on_disabled(_: usize) {}
+		fn on_disabled(_: u32) {}
 	}
 
 	fn new_test_ext() -> TestExternalities {

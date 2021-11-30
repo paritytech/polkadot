@@ -294,7 +294,7 @@ impl<T: Config> Pallet<T> {
 
 	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
 	// implemented in mock.
-	#[cfg(test)]
+	#[cfg(any(test, feature = "runtime-benchmarks"))]
 	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
 		changed: bool,
 		session_index: SessionIndex,
@@ -329,7 +329,7 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 		<Pallet<T>>::on_new_session(changed, session_index, validators, Some(queued));
 	}
 
-	fn on_disabled(_i: usize) {}
+	fn on_disabled(_i: u32) {}
 }
 
 #[cfg(test)]

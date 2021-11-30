@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.11"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
@@ -11,7 +11,7 @@ futures-timer = "3.0.2"
 
 metered-channel = { path = "../metered-channel" }
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
 
 [features]
 default = []

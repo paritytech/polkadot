@@ -87,8 +87,12 @@ pub enum NonFatal {
 	#[error("Relay parent could not be found in active heads")]
 	NoSuchHead(Hash),
 
+	/// Received message from actually disconnected peer.
+	#[error("Message from not connected peer")]
+	NoSuchPeer(PeerId),
+
 	/// Peer requested statement data for candidate that was never announced to it.
-	#[error("Peer requested data for candidate it never received a notification for")]
+	#[error("Peer requested data for candidate it never received a notification for (malicious?)")]
 	RequestedUnannouncedCandidate(PeerId, CandidateHash),
 
 	/// A large statement status was requested, which could not be found.
@@ -112,7 +116,11 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
 		Err(Error::NonFatal(error)) => {
-			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			match error {
+				NonFatal::RequestedUnannouncedCandidate(_, _) =>
+					tracing::warn!(target: LOG_TARGET, error = %error, ctx),
+				_ => tracing::debug!(target: LOG_TARGET, error = %error, ctx),
+			}
 			Ok(())
 		},
 		Ok(()) => Ok(()),
