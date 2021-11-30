@@ -17,10 +17,11 @@
 use crate::cli::{Cli, Subcommand};
 use futures::future::TryFutureExt;
 use log::info;
-use sc_cli::{CliConfiguration, Role, RuntimeVersion, SubstrateCli};
+use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
+use std::path::Path;
 
 pub use crate::error::{Error, PerfCheckError};
 
@@ -206,7 +207,7 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 /// Runs a performance check via compiling sample wasm code with a timeout.
 /// Should only be run in release build since the check would take too much time otherwise.
 /// Returns `Ok` immediately if the check has been passed previously.
-fn host_perf_check(_result_cache_path: Option<BasePath>) -> Result<()> {
+fn host_perf_check(_result_cache_path: &Path) -> Result<()> {
 	#[cfg(not(build_type = "release"))]
 	{
 		Err(PerfCheckError::WrongBuildType.into())
@@ -270,10 +271,7 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
-	let mut cli = Cli::from_args();
-	// Set the base path.
-	let base_path = BasePath::from_project("", "", &Cli::executable_name());
-	cli.run.base.shared_params.base_path = Some(base_path.path().to_owned());
+	let cli = Cli::from_args();
 
 	match &cli.subcommand {
 		None => run_node_inner(cli, service::RealOverseerGen),
@@ -421,12 +419,16 @@ pub fn run() -> Result<()> {
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
-		Some(Subcommand::HostPerfCheck) => {
+		Some(Subcommand::HostPerfCheck(cmd)) => {
 			let mut builder = sc_cli::LoggerBuilder::new("info");
 			builder.with_colors(true);
 			let _ = builder.init();
 
-			host_perf_check(cli.run.base.base_path()?)
+			let cache_path = cmd.cache_path.clone().unwrap_or_else(|| {
+				BasePath::from_project("", "", &Cli::executable_name()).path().to_owned()
+			});
+
+			host_perf_check(&cache_path)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]

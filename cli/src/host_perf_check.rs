@@ -18,7 +18,6 @@ use crate::error::PerfCheckError;
 use log::info;
 use nix::unistd;
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
-use sc_service::BasePath;
 use service::kusama_runtime;
 use std::{
 	fs::{self, OpenOptions},
@@ -59,20 +58,17 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 	Ok(())
 }
 
-pub fn host_perf_check(result_cache_path: Option<BasePath>) -> Result<(), PerfCheckError> {
+pub fn host_perf_check(result_cache_path: &Path) -> Result<(), PerfCheckError> {
 	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
 	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 	let wasm_code = kusama_runtime::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
-	let check_passed_file_path =
-		result_cache_path.map(|path| path.path().join(CHECK_PASSED_FILE_NAME));
+	let check_passed_file_path = result_cache_path.join(CHECK_PASSED_FILE_NAME);
 
-	if let Some(ref path) = check_passed_file_path {
-		if let Ok(true) = is_perf_check_done(path) {
-			info!("Performance check skipped: already passed");
-			return Ok(())
-		}
+	if let Ok(true) = is_perf_check_done(&check_passed_file_path) {
+		info!("Performance check skipped: already passed (cached at {:?})", check_passed_file_path);
+		return Ok(())
 	}
 
 	info!("Running the performance check...");
@@ -87,8 +83,16 @@ pub fn host_perf_check(result_cache_path: Option<BasePath>) -> Result<(), PerfCh
 	let elapsed = start.elapsed();
 	if elapsed <= PERF_CHECK_TIME_LIMIT {
 		info!("Performance check passed, elapsed: {:?}", start.elapsed());
+
 		// Persist successful result.
-		check_passed_file_path.map(|path| save_check_passed_file(&path));
+		if let Err(err) = save_check_passed_file(&check_passed_file_path) {
+			info!(
+				"Couldn't persist check result at {:?}: {}",
+				check_passed_file_path,
+				err.to_string()
+			);
+		}
+
 		Ok(())
 	} else {
 		Err(PerfCheckError::TimeOut { elapsed, limit: PERF_CHECK_TIME_LIMIT })
