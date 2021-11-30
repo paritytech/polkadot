@@ -1598,6 +1598,10 @@ sp_api::impl_runtime_apis! {
 					Some(Westmint::get())
 				}
 
+				fn subscribe_origin() -> Option<MultiLocation> {
+					Some(Westmint::get())
+				}
+
 				fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)> {
 					let origin = Westmint::get();
 					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();

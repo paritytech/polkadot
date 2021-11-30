@@ -20,6 +20,8 @@ pub mod pallet {
 
 		fn transact_origin() -> Option<MultiLocation>;
 
+		fn subscribe_origin() -> Option<MultiLocation>;
+
 		// Return an origin, ticket, and assets that can be trapped and claimed.
 		fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)>;
 	}

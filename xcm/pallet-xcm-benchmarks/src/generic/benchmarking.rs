@@ -48,7 +48,7 @@ benchmarks! {
 	} : {
 		executor.execute(xcm)?;
 	} verify {
-		// The assert above is enough to validate this is completed.
+		// The completion of execution above is enough to validate this is completed.
 	}
 
 	// This benchmark does not use any additional orders or instructions. This should be managed
@@ -133,7 +133,9 @@ benchmarks! {
 	}
 
 	refund_surplus {
+		let holding = worst_case_holding();
 		let mut executor = new_executor::<T>(Default::default());
+		executor.holding = holding;
 		executor.total_surplus = 1337;
 		executor.total_refunded = 0;
 
@@ -221,14 +223,17 @@ benchmarks! {
 	}
 
 	claim_asset {
+		use xcm_executor::traits::DropAssets;
+
 		let (origin, ticket, assets) = T::claimable_asset()
 			.ok_or(BenchmarkError::Skip)?;
 
 		// We place some items into the asset trap to claim.
-		let mut executor = new_executor::<T>(origin.clone());
-		executor.holding = assets.clone().into();
-		executor.execute(Xcm(vec![]))?;
-		executor.post_execute(0);
+		<T::XcmConfig as xcm_executor::Config>::AssetTrap::drop_assets(
+			&origin,
+			assets.clone().into(),
+		);
+
 		// Assets should be in the trap now.
 
 		let mut executor = new_executor::<T>(origin);
@@ -253,13 +258,13 @@ benchmarks! {
 			Err(error) if error.xcm_error == XcmError::Trap(10) => {
 				// This is the success condition
 			},
-			_ => panic!("xcm trap did not return the expected error")
+			_ => Err("xcm trap did not return the expected error")?
 		};
 	}
 
 	subscribe_version {
 		use xcm_executor::traits::VersionChangeNotifier;
-		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
+		let origin = T::subscribe_origin().ok_or(BenchmarkError::Skip)?;
 		let query_id = Default::default();
 		let max_response_weight = Default::default();
 		let mut executor = new_executor::<T>(origin.clone());
@@ -277,10 +282,11 @@ benchmarks! {
 		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
 		let query_id = Default::default();
 		let max_response_weight = Default::default();
-		let mut executor = new_executor::<T>(origin.clone());
-		let instruction = Instruction::SubscribeVersion { query_id, max_response_weight };
-		let xcm = Xcm(vec![instruction]);
-		executor.execute(xcm)?;
+		<T::XcmConfig as xcm_executor::Config>::SubscriptionService::start(
+			&origin,
+			query_id,
+			max_response_weight
+		).map_err(|_| "Could not start subscription")?;
 		assert!(<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
 
 		let mut executor = new_executor::<T>(origin.clone());
@@ -305,6 +311,7 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 		// The execute completing successfully is as good as we can check.
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message.
 	}
 
 	impl_benchmark_test_suite!(

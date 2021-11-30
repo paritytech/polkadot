@@ -136,6 +136,10 @@ impl generic::Config for Test {
 		Some(Default::default())
 	}
 
+	fn subscribe_origin() -> Option<MultiLocation> {
+		Some(Default::default())
+	}
+
 	fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)> {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
