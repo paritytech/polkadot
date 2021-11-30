@@ -204,7 +204,7 @@ impl TestState {
 					overseer_signal(update_tx.clone(), OverseerSignal::ActiveLeaves(update)).await;
 					// We need to give the subsystem a little time to do its job, otherwise it will
 					// cancel jobs as obsolete:
-					Delay::new(Duration::from_millis(40)).await;
+					Delay::new(Duration::from_millis(100)).await;
 				}
 			}
 			.boxed(),
