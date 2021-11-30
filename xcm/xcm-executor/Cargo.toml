@@ -21,7 +21,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-
 [features]
 default = ["std"]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 ]
 std = [
 	"parity-scale-codec/std",

@@ -57,5 +57,5 @@ std = [
 ]
 runtime-benchmarks = [
 	"bp-test-utils",
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 ]
