@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+<<<<<<< HEAD
 use super::{Weight, BackedCandidate, UncheckedSignedAvailabilityBitfield, DisputeStatementSet, Config   };
+=======
+use super::*;
+>>>>>>> f1226520f3 (separate parachains runtime tests)
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -95,7 +99,11 @@ pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 		.saturating_mul(bitfields_len as Weight)
 }
 
+<<<<<<< HEAD
 pub fn backed_candidate_weight<T: frame_system::Config + Config>(
+=======
+fn backed_candidate_weight<T: frame_system::Config + Config>(
+>>>>>>> f1226520f3 (separate parachains runtime tests)
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
 	if candidate.candidate.commitments.new_validation_code.is_some() {

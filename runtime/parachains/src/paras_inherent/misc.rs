@@ -16,7 +16,11 @@
 
 /// A helper trait to allow calling retain while getting access
 /// to the index of the item in the `vec`.
+<<<<<<< HEAD
 pub trait IndexedRetain<T> {
+=======
+pub(crate) trait IndexedRetain<T> {
+>>>>>>> f1226520f3 (separate parachains runtime tests)
 	/// Retains only the elements specified by the predicate.
 	///
 	/// In other words, remove all elements `e` residing at
