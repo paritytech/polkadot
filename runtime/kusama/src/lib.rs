@@ -558,35 +558,33 @@ impl pallet_staking::Config for Runtime {
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const LAUNCH_PERIOD: BlockNumber = 1;
-#[cfg(feature = "fast-runtime")]
-pub const VOTING_PERIOD: BlockNumber = 1 * MINUTES;
-#[cfg(feature = "fast-runtime")]
-pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 1 * MINUTES;
-#[cfg(feature = "fast-runtime")]
-pub const ENACTMENT_PERIOD: BlockNumber = 1;
-#[cfg(feature = "fast-runtime")]
-pub const COOLOFF_PERIOD: BlockNumber = 1 * MINUTES;
-
-#[cfg(not(feature = "fast-runtime"))]
-pub const LAUNCH_PERIOD: BlockNumber = 7 * DAYS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const VOTING_PERIOD: BlockNumber = 7 * DAYS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 3 * HOURS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const ENACTMENT_PERIOD: BlockNumber = 8 * DAYS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const COOLOFF_PERIOD: BlockNumber = 7 * DAYS;
+macro_rules! prod_or_test {
+	($prod:expr, $test:expr) => {
+		if cfg!(feature = "fast-runtime") {
+			$test
+		} else {
+			$prod
+		}
+	};
+	($prod:expr, $test:expr, $env:expr) => {
+		if cfg!(feature = "fast-runtime") {
+			core::option_env!($env)
+				.map(|s| s.parse().ok())
+				.flatten()
+				.unwrap_or($test)
+		} else {
+			$prod
+		}
+	}
+}
 
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = LAUNCH_PERIOD;
-	pub const VotingPeriod: BlockNumber = VOTING_PERIOD;
-	pub const FastTrackVotingPeriod: BlockNumber = FAST_TRACK_VOTING_PERIOD;
+	pub LaunchPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
+	pub VotingPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
+	pub FastTrackVotingPeriod: BlockNumber = prod_or_test!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub const EnactmentPeriod: BlockNumber = ENACTMENT_PERIOD;
-	pub const CooloffPeriod: BlockNumber = COOLOFF_PERIOD;
+	pub EnactmentPeriod: BlockNumber = prod_or_test!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
+	pub CooloffPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
