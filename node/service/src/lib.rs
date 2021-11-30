@@ -888,7 +888,7 @@ where
 	let active_leaves =
 		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
+	let authority_discovery_service = if auth_or_collator {
 		use futures::StreamExt;
 		use sc_network::Event;
 
