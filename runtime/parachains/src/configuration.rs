@@ -177,6 +177,31 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The maximum amount of weight any individual upward message may consume. Messages above this
 	/// weight go into the overweight queue and may only be serviced explicitly.
 	pub ump_max_individual_weight: Weight,
+	/// This flag controls whether PVF pre-checking is enabled.
+	///
+	/// If the flag is false, the behavior should be exactly the same as prior. Specifically, the
+	/// upgrade procedure is time-based and parachains that do not look at the go-ahead signal
+	/// should still work.
+	pub pvf_checking_enabled: bool,
+	/// If an active PVF pre-checking vote observes this many number of sessions it gets automatically
+	/// rejected.
+	///
+	/// 0 means PVF pre-checking will be rejected on the first observed session unless the voting
+	/// gained supermajority before that the session change.
+	pub pvf_voting_ttl: SessionIndex,
+	/// The lower bound number of blocks an upgrade can be scheduled.
+	///
+	/// Typically, upgrade gets scheduled [`validation_upgrade_delay`] relay-chain blocks after
+	/// the relay-parent of the parablock that signalled the validation code upgrade. However,
+	/// in the case a pre-checking voting was concluded in a longer duration the upgrade will be
+	/// scheduled to the next block.
+	///
+	/// That can disrupt parachain inclusion. Specifically, it will make the blocks that were
+	/// already backed invalid.
+	///
+	/// To prevent that, we introduce the minimum number of blocks after which the upgrade can be
+	/// scheduled. This number is controlled by this field.
+	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -222,6 +247,9 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+			pvf_checking_enabled: false,
+			pvf_voting_ttl: 2u32.into(),
+			minimum_validation_upgrade_delay: 0.into(),
 		}
 	}
 }
@@ -947,6 +975,50 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
+		#[pallet::weight((
+			// Using u32 here is a little bit of cheating, but that should be fine.
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_checking_enabled(origin: OriginFor<T>, new: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_checking_enabled, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of session changes after which a PVF pre-checking voting is rejected.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_voting_ttl(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_voting_ttl, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the minimum delay between announcing the upgrade block for a parachain until the
+		/// upgrade taking place.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_minimum_validation_upgrade_delay(
+			origin: OriginFor<T>,
+			new: T::BlockNumber,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.minimum_validation_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -1086,6 +1158,9 @@ mod tests {
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
 				ump_max_individual_weight: 909,
+				pvf_checking_enabled: true,
+				pvf_voting_ttl: 3,
+				minimum_validation_upgrade_delay: 20,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
@@ -1250,6 +1325,17 @@ mod tests {
 			Configuration::set_ump_max_individual_weight(
 				Origin::root(),
 				new_config.ump_max_individual_weight,
+			)
+			.unwrap();
+			Configuration::set_pvf_checking_enabled(
+				Origin::root(),
+				new_config.pvf_checking_enabled,
+			)
+			.unwrap();
+			Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
+			Configuration::set_minimum_validation_upgrade_delay(
+				Origin::root(),
+				new_config.minimum_validation_upgrade_delay,
 			)
 			.unwrap();
 
