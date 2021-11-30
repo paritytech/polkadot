@@ -170,7 +170,7 @@ std = [
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
