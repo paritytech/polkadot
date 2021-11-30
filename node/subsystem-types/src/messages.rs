@@ -275,25 +275,6 @@ pub enum ImportStatementsResult {
 	ValidImport,
 }
 
-/// Messages received by the dispute participation subsystem.
-#[derive(Debug)]
-pub enum DisputeParticipationMessage {
-	/// Validate a candidate for the purposes of participating in a dispute.
-	Participate {
-		/// The hash of the candidate
-		candidate_hash: CandidateHash,
-		/// The candidate receipt itself.
-		candidate_receipt: CandidateReceipt,
-		/// The session the candidate appears in.
-		session: SessionIndex,
-		/// The number of validators in the session.
-		n_validators: u32,
-		/// Give immediate feedback on whether the candidate was available or
-		/// not.
-		report_availability: oneshot::Sender<bool>,
-	},
-}
-
 /// Messages going to the dispute distribution subsystem.
 #[derive(Debug)]
 pub enum DisputeDistributionMessage {
@@ -355,7 +336,7 @@ pub enum NetworkBridgeMessage {
 	/// connected to.
 	ConnectToResolvedValidators {
 		/// Each entry corresponds to the addresses of an already resolved validator.
-		validator_addrs: Vec<Vec<Multiaddr>>,
+		validator_addrs: Vec<HashSet<Multiaddr>>,
 		/// The peer set we want the connection on.
 		peer_set: PeerSet,
 	},

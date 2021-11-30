@@ -56,3 +56,4 @@ std = [
 	"bitvec/std",
 	"frame-system/std",
 ]
+runtime-benchmarks = []

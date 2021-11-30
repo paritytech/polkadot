@@ -90,6 +90,7 @@ impl ParathreadClaimQueue {
 }
 
 /// Reasons a core might be freed
+#[derive(Clone, Copy)]
 pub enum FreedReason {
 	/// The core's work concluded and the parablock assigned to it is considered available.
 	Concluded,
@@ -776,7 +777,7 @@ mod tests {
 			id,
 			ParaGenesisArgs {
 				genesis_head: Vec::new().into(),
-				validation_code: Vec::new().into(),
+				validation_code: vec![1, 2, 3].into(),
 				parachain: is_chain,
 			}
 		));

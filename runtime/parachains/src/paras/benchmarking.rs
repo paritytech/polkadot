@@ -47,7 +47,7 @@ fn generate_disordered_pruning<T: Config>() {
 	<Pallet<T> as Store>::PastCodePruning::put(needs_pruning);
 }
 
-fn generate_disordered_upgrades<T: Config>() {
+pub(crate) fn generate_disordered_upgrades<T: Config>() {
 	let mut upgrades = Vec::new();
 	let mut cooldowns = Vec::new();
 

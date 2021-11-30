@@ -45,13 +45,39 @@ PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
 All failed checks should lead to an unrecoverable error making the block invalid.
 
 * `process_bitfields(expected_bits, Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
-  1. check that there is at most 1 bitfield per validator and that the number of bits in each bitfield is equal to `expected_bits`.
-  1. check that there are no duplicates
-  1. check all validator signatures.
+  1. call `sanitize_bitfields<true>` and use the sanitized `signed_bitfields` from now on.
+  1. call `sanitize_backed_candidates<true>` and use the sanitized `backed_candidates` from now on.
   1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
   1. Return a list of `(CoreIndex, CandidateHash)` from freed cores consisting of the cores where candidates have become available.
+* `sanitize_bitfields<T: crate::inclusion::Config>(
+    unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
+    disputed_bitfield: DisputedBitfield,
+    expected_bits: usize,
+    parent_hash: T::Hash,
+    session_index: SessionIndex,
+    validators: &[ValidatorId],
+    full_check: FullCheck,
+  )`:
+  1. check that `disputed_bitfield` has the same number of bits as the `expected_bits`, iff not return early with an empty vec.
+  1. each of the below checks is for each bitfield. If a check does not pass the bitfield will be skipped.
+  1. check that there are no bits set that reference a disputed candidate.
+  1. check that the number of bits is equal to `expected_bits`.
+  1. check that the validator index is strictly increasing (and thus also unique).
+  1. check that the validator bit index is not out of bounds.
+  1. check the validators signature, iff `full_check=FullCheck::Yes`.
+
+* `sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
+    relay_parent: T::Hash,
+    mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
+    candidate_has_concluded_invalid_dispute: F,
+    scheduled: &[CoreAssignment],
+  ) `
+  1. filter out any backed candidates that have concluded invalid.
+  1. filter out backed candidates that don't have a matching `relay_parent`.
+  1. filters backed candidates whom's paraid was scheduled by means of the provided `scheduled` parameter.
+
 * `process_candidates(parent_storage_root, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
@@ -78,6 +104,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. call `Hrmp::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
   1. call `Hrmp::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
+
 * `collect_pending`:
 
   ```rust
