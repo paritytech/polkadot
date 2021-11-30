@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::BTreeMap;
 /// A helper trait to allow calling retain while getting access
 /// to the index of the item in the `vec`.
 pub trait IndexedRetain<T> {
@@ -27,6 +28,17 @@ pub trait IndexedRetain<T> {
 }
 
 impl<T> IndexedRetain<T> for Vec<T> {
+	fn indexed_retain(&mut self, mut f: impl FnMut(usize, &T) -> bool) {
+		let mut idx = 0_usize;
+		self.retain(move |item| {
+			let ret = f(idx, item);
+			idx += 1_usize;
+			ret
+		})
+	}
+}
+
+impl<T> IndexedRetain<T> for BTreeMap<T> {
 	fn indexed_retain(&mut self, mut f: impl FnMut(usize, &T) -> bool) {
 		let mut idx = 0_usize;
 		self.retain(move |item| {
