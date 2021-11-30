@@ -92,7 +92,7 @@ tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.22.3"
-serde_json = "1.0.71"
+serde_json = "1.0.72"
 separator = "0.4.1"
 
 [build-dependencies]

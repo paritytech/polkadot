@@ -22,7 +22,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield, VERIFY_SIGS},
+	paras_inherent::{sanitize_bitfields, DisputedBitfield},
 	scheduler::CoreAssignment,
 	shared, ump,
 };
@@ -54,6 +54,19 @@ pub use pallet::*;
 pub struct AvailabilityBitfieldRecord<N> {
 	bitfield: AvailabilityBitfield, // one bit per core.
 	submitted_at: N,                // for accounting, as meaning of bits may change over time.
+}
+
+/// Determines if all checks should be applied or if a subset was already completed
+/// in a code path that will be executed afterwards or was already executed before.
+#[derive(Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub(crate) enum FullCheck {
+	/// Yes, do a full check, skip nothing.
+	Yes,
+	/// Skip a subset of checks that are already completed before.
+	///
+	/// Attention: Should only be used when absolutely sure that the required
+	/// checks are completed before.
+	Skip,
 }
 
 /// A backed candidate pending availability.
@@ -403,13 +416,14 @@ impl<T: Config> Pallet<T> {
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, VERIFY_SIGS>(
+		let checked_bitfields = sanitize_bitfields::<T>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
 			parent_hash,
 			session_index,
 			&validators[..],
+			FullCheck::Yes,
 		);
 
 		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
@@ -427,12 +441,16 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
-	pub(crate) fn process_candidates(
+	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
-		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	) -> Result<ProcessedCandidates<T::Hash>, DispatchError> {
+		group_validators: GV,
+		full_check: FullCheck,
+	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
+	where
+		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
+	{
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
@@ -446,7 +464,7 @@ impl<T: Config> Pallet<T> {
 		// before of the block where we include a candidate (i.e. this code path).
 		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now - One::one();
-		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// Collect candidate receipts with backers.
 		let mut candidate_receipt_with_backing_validator_indices =
@@ -481,53 +499,19 @@ impl<T: Config> Pallet<T> {
 			//
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
-			'a: for (candidate_idx, backed_candidate) in candidates.iter().enumerate() {
+			'next_backed_candidate: for (candidate_idx, backed_candidate) in
+				candidates.iter().enumerate()
+			{
+				if let FullCheck::Yes = full_check {
+					check_ctx.verify_backed_candidate(
+						parent_hash,
+						candidate_idx,
+						backed_candidate,
+					)?;
+				}
+
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
-
-				// we require that the candidate is in the context of the parent block.
-				ensure!(
-					backed_candidate.descriptor().relay_parent == parent_hash,
-					Error::<T>::CandidateNotInParentContext,
-				);
-				ensure!(
-					backed_candidate.descriptor().check_collator_signature().is_ok(),
-					Error::<T>::NotCollatorSigned,
-				);
-
-				let validation_code_hash =
-					<paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
-						// A candidate for a parachain without current validation code is not scheduled.
-						.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
-				ensure!(
-					backed_candidate.descriptor().validation_code_hash == validation_code_hash,
-					Error::<T>::InvalidValidationCodeHash,
-				);
-
-				ensure!(
-					backed_candidate.descriptor().para_head ==
-						backed_candidate.candidate.commitments.head_data.hash(),
-					Error::<T>::ParaHeadMismatch,
-				);
-
-				if let Err(err) = check_cx.check_validation_outputs(
-					para_id,
-					&backed_candidate.candidate.commitments.head_data,
-					&backed_candidate.candidate.commitments.new_validation_code,
-					backed_candidate.candidate.commitments.processed_downward_messages,
-					&backed_candidate.candidate.commitments.upward_messages,
-					T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
-					&backed_candidate.candidate.commitments.horizontal_messages,
-				) {
-					log::debug!(
-						target: LOG_TARGET,
-						"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
-						candidate_idx,
-						u32::from(para_id),
-						err,
-					);
-					Err(err.strip_into_dispatch_err::<T>())?;
-				};
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -631,7 +615,7 @@ impl<T: Config> Pallet<T> {
 							backers,
 							assignment.group_idx,
 						));
-						continue 'a
+						continue 'next_backed_candidate
 					}
 				}
 
@@ -682,7 +666,7 @@ impl<T: Config> Pallet<T> {
 					availability_votes,
 					relay_parent_number,
 					backers: backers.to_bitvec(),
-					backed_in_number: check_cx.now,
+					backed_in_number: check_ctx.now,
 					backing_group: group,
 				},
 			);
@@ -704,9 +688,9 @@ impl<T: Config> Pallet<T> {
 		// `relay_parent_number` is equal to `now`.
 		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now;
-		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
-		if let Err(err) = check_cx.check_validation_outputs(
+		if let Err(err) = check_ctx.check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
@@ -941,15 +925,76 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 }
 
 /// A collection of data required for checking a candidate.
-struct CandidateCheckContext<T: Config> {
+pub(crate) struct CandidateCheckContext<T: Config> {
 	config: configuration::HostConfiguration<T::BlockNumber>,
 	now: T::BlockNumber,
 	relay_parent_number: T::BlockNumber,
 }
 
 impl<T: Config> CandidateCheckContext<T> {
-	fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
+	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
+	}
+
+	/// Execute verification of the candidate.
+	///
+	/// Assures:
+	///  * correct expected relay parent reference
+	///  * collator signature check passes
+	///  * code hash of commitments matches current code hash
+	///  * para head in the descriptor and commitments match
+	pub(crate) fn verify_backed_candidate(
+		&self,
+		parent_hash: <T as frame_system::Config>::Hash,
+		candidate_idx: usize,
+		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
+	) -> Result<(), Error<T>> {
+		let para_id = backed_candidate.descriptor().para_id;
+		let now = self.now;
+
+		// we require that the candidate is in the context of the parent block.
+		ensure!(
+			backed_candidate.descriptor().relay_parent == parent_hash,
+			Error::<T>::CandidateNotInParentContext,
+		);
+		ensure!(
+			backed_candidate.descriptor().check_collator_signature().is_ok(),
+			Error::<T>::NotCollatorSigned,
+		);
+
+		let validation_code_hash = <paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
+			// A candidate for a parachain without current validation code is not scheduled.
+			.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
+		ensure!(
+			backed_candidate.descriptor().validation_code_hash == validation_code_hash,
+			Error::<T>::InvalidValidationCodeHash,
+		);
+
+		ensure!(
+			backed_candidate.descriptor().para_head ==
+				backed_candidate.candidate.commitments.head_data.hash(),
+			Error::<T>::ParaHeadMismatch,
+		);
+
+		if let Err(err) = self.check_validation_outputs(
+			para_id,
+			&backed_candidate.candidate.commitments.head_data,
+			&backed_candidate.candidate.commitments.new_validation_code,
+			backed_candidate.candidate.commitments.processed_downward_messages,
+			&backed_candidate.candidate.commitments.upward_messages,
+			T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+			&backed_candidate.candidate.commitments.horizontal_messages,
+		) {
+			log::debug!(
+				target: LOG_TARGET,
+				"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
+				candidate_idx,
+				u32::from(para_id),
+				err,
+			);
+			Err(err.strip_into_dispatch_err::<T>())?;
+		};
+		Ok(())
 	}
 
 	/// Check the given outputs after candidate validation on whether it passes the acceptance
@@ -1935,6 +1980,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_b_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::UnscheduledCandidate
 				);
@@ -1990,6 +2036,7 @@ pub(crate) mod tests {
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::UnscheduledCandidate
 				);
@@ -2023,6 +2070,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::InsufficientBacking
 				);
@@ -2058,6 +2106,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::CandidateNotInParentContext
 				);
@@ -2097,6 +2146,7 @@ pub(crate) mod tests {
 							thread_a_assignment.clone(),
 						],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::WrongCollator,
 				);
@@ -2135,6 +2185,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![thread_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::NotCollatorSigned
 				);
@@ -2185,6 +2236,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::CandidateScheduledBeforeParaFree
 				);
@@ -2228,6 +2280,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::CandidateScheduledBeforeParaFree
 				);
@@ -2279,6 +2332,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::PrematureCodeUpgrade
 				);
@@ -2313,6 +2367,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Err(Error::<Test>::ValidationDataHashMismatch.into()),
 				);
@@ -2348,6 +2403,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::InvalidValidationCodeHash
 				);
@@ -2383,6 +2439,7 @@ pub(crate) mod tests {
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::ParaHeadMismatch
 				);
@@ -2552,6 +2609,7 @@ pub(crate) mod tests {
 					thread_a_assignment.clone(),
 				],
 				&group_validators,
+				FullCheck::Yes,
 			)
 			.expect("candidates scheduled, in order, and backed");
 
@@ -2742,6 +2800,7 @@ pub(crate) mod tests {
 					vec![backed_a],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
+					FullCheck::Yes,
 				)
 				.expect("candidates scheduled, in order, and backed");
 
