@@ -74,7 +74,7 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 }
 
 /// Paras inherent `enter` benchmark scenario.
-#[allow(dead_code)]
+#[cfg(any(feature = "runtime-benchmarks", test))]
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
 	pub(crate) _session: u32,
@@ -133,7 +133,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
 
-	#[allow(dead_code)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
 		self.max_validators = Some(n);
 		self
@@ -149,7 +149,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// corresponding dispute statement set. Note that if the number of disputes is not specified it fallbacks
 	/// to having a dispute per every validator. Additionally, an entry is not guaranteed to have a dispute - it
 	/// must line up with the cores marked as disputed as defined in `Self::Build`.
-	#[allow(dead_code)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
 		self
@@ -160,7 +160,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Set maximum number of validators per core.
-	#[allow(dead_code)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
 		self.max_validators_per_core = Some(n);
 		self
@@ -172,7 +172,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Minimum number of validity votes in order for a backed candidate to be included.
-	#[allow(dead_code)]
+	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_min_validity_votes() -> u32 {
 		(Self::fallback_max_validators() / 2) + 1
 	}
@@ -322,7 +322,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Default::default(),
 		);
 
-		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), total_cores as usize);
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
 
 		// We need to refetch validators since they have been shuffled.

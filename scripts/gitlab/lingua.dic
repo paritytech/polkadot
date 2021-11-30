@@ -34,6 +34,7 @@ CLI/MS
 codebase/SM
 codec/SM
 commit/D
+comparator
 computable
 conclude/UD
 config/MS
@@ -51,6 +52,7 @@ decrement
 deduplicated
 deinitializing
 dequeue/SD
+dequeuing
 deregister
 deserialize/G
 DHT
@@ -145,7 +147,6 @@ Merklized
 metadata/M
 middleware/MS
 Millau
-minimalistic
 misbehavior/SM
 misbehaviors
 misvalidate/D
@@ -183,6 +184,7 @@ ParaId
 parameterization
 parameterize/D
 parathread/MS
+participations
 passthrough
 PDK
 peerset/MS

@@ -41,8 +41,6 @@ use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub use crate::Origin as ParachainOrigin;
-
 /// Whether the dispute is local or remote.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum DisputeLocation {
@@ -344,9 +342,6 @@ pub mod pallet {
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
 	}
-
-	#[pallet::origin]
-	pub type Origin = ParachainOrigin;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
