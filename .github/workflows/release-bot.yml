@@ -2,7 +2,7 @@ name: Send new release notification to matrix channels
 on:
   release:
     types:
-      - published
+      - released
 jobs:
   ping_matrix:
     strategy:
