@@ -995,6 +995,7 @@ impl<T: Config> Pallet<T> {
 					.ok_or(Error::<T>::ValidatorIndexOutOfBounds)?;
 
 				// Check signature before importing.
+				log::info!(target: "disputes-temp", "DISPUTE IMPORT START CHECK SIG");
 				check_signature(
 					&validator_public,
 					set.candidate_hash,
@@ -1003,6 +1004,7 @@ impl<T: Config> Pallet<T> {
 					signature,
 				)
 				.map_err(|()| Error::<T>::InvalidSignature)?;
+				log::info!(target: "disputes-temp", "DISPUTE IMPORT FINISH CHECK SIG");
 
 				let valid = statement.indicates_validity();
 
