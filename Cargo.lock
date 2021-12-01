@@ -765,6 +765,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "hash-db",
+ "hex-literal",
  "num-traits",
  "parity-scale-codec",
  "scale-info",
