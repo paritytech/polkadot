@@ -17,7 +17,7 @@ color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.2"
+assert_cmd = "2.0.2"
 nix = "0.20.0"
 tempfile = "3.2.0"
 
