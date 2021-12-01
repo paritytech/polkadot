@@ -66,12 +66,8 @@ const COST_APPARENT_FLOOD: Rep =
 ///
 /// This is to protect from a single slow validator preventing collations from happening.
 ///
-/// With a collation size of 5MB and bandwidth of 500Mbit/s (requirement for Kusama validators),
-/// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
-/// plenty and should be low enough for later validators to still be able to finish on time.
-///
-/// There is debug logging output, so we can adjust this value based on production results.
-const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(400);
+/// For considerations on this value, see: https://github.com/paritytech/polkadot/issues/4386
+const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);

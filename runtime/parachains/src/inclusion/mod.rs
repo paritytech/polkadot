@@ -580,10 +580,8 @@ impl<T: Config> Pallet<T> {
 							);
 
 							match maybe_amount_validated {
-								Ok(amount_validated) => ensure!(
-									amount_validated * 2 > group_vals.len(),
-									Error::<T>::InsufficientBacking,
-								),
+								Ok(amount_validated) =>
+									ensure!(amount_validated >= 1, Error::<T>::InsufficientBacking,),
 								Err(()) => {
 									Err(Error::<T>::InvalidBacking)?;
 								},

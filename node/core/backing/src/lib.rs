@@ -190,6 +190,7 @@ struct AttestingData {
 	backing: Vec<ValidatorIndex>,
 }
 
+/// How many votes we need to consider a candidate backed.
 const fn group_quorum(n_validators: usize) -> usize {
 	(n_validators / 2) + 1
 }
