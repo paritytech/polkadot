@@ -105,6 +105,7 @@ const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
 const LOG_TARGET: &str = "parachain::approval-voting";
 const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
+
 const MALICIOUS_BASE_MIN: u64 = 10_000u64;
 const MALICIOUS_BASE_MAX: u64 = 20_000u64;
 const MALICIOUS_MEAN: f64 = 10_000f64;
