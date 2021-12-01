@@ -37,9 +37,9 @@ use sp_core::u32_trait::{_1, _2, _3, _5};
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
-	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
@@ -555,6 +555,7 @@ impl pallet_staking::Config for Runtime {
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
 	type SortedListProvider = BagsList;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -1172,12 +1173,11 @@ impl parachains_session_info::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
-	type DisputesHandler = ();
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 }
@@ -1211,6 +1211,13 @@ impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_parachains_initializer::WeightInfo<Runtime>;
+}
+
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
+	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1474,7 +1481,7 @@ construct_runtime! {
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
@@ -1483,6 +1490,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session and era
+		// for im-online and staking.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
@@ -1555,6 +1564,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
@@ -1595,7 +1605,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 	(SessionHistoricalPalletPrefixMigration,),
 >;
 /// The payload being signed in the transactions.
@@ -1956,6 +1966,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
+			list_benchmark!(list, extra, runtime_parachains::disputes, ParasDisputes);
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
 			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
@@ -2034,6 +2045,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
+			add_benchmark!(params, batches, runtime_parachains::disputes, ParasDisputes);
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);

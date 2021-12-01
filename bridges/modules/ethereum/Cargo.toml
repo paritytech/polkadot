@@ -44,6 +44,6 @@ std = [
 	"sp-std/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"libsecp256k1",
 ]
