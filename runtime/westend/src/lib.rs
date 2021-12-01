@@ -42,6 +42,7 @@ use runtime_parachains::{
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	disputes as parachains_disputes,
 };
 
 use xcm::latest::prelude::*;
@@ -112,6 +113,14 @@ mod tests;
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+
+// just to make this example to compile
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
+	type WeightInfo = parachains_disputes::TestWeightInfo;
+}
 
 /// Runtime version (Westend).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -1110,6 +1119,9 @@ construct_runtime! {
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
+
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 65,
+
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,

@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{inclusion, ParaId};
+use crate::{inclusion, ParaId, disputes};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
 use sp_std::collections::btree_map::BTreeMap;
@@ -38,10 +38,25 @@ benchmarks! {
 		benchmark.backed_candidates.clear();
 		benchmark.disputes.clear();
 
-		benchmark.disputes.push(dispute);
+		benchmark.disputes.push(dispute.clone());
 		benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
+
+		assert!(!disputes::Disputes::<T>::contains_key(
+			SessionIndex::from(scenario._session),
+			dispute.candidate_hash
+		));
+
+		assert_eq!(disputes::Disputes::<T>::iter().count(), 0);
+
 	}: enter(RawOrigin::None, benchmark)
 	verify {
+		assert!(disputes::Disputes::<T>::contains_key(
+			SessionIndex::from(scenario._session),
+			dispute.candidate_hash
+		));
+
+		assert_eq!(disputes::Disputes::<T>::iter().count(), 1);
+
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped
