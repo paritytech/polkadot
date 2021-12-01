@@ -308,6 +308,10 @@ fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
 }
 
+fn contains_event(event: Event) -> bool {
+	System::events().iter().any(|x| x.event == event)
+}
+
 // Runs an end to end test of the auction, crowdloan, slots, and onboarding process over varying
 // lease period offsets.
 #[test]
@@ -388,10 +392,9 @@ fn basic_end_to_end_works() {
 
 			// Auction ends at block 110 + offset
 			run_to_block(109 + offset);
-			assert_eq!(
-				last_event(),
-				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
-			);
+			assert!(contains_event(
+				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into()
+			));
 			run_to_block(110 + offset);
 			assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
 
