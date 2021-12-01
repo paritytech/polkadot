@@ -1564,6 +1564,13 @@ sp_api::impl_runtime_apis! {
 				fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
 					Ok(Westmint::get())
 				}
+				fn worst_case_holding() -> MultiAssets {
+					// Westend only knows about WND.
+					vec![MultiAsset{
+						id: Concrete(WndLocation::get()),
+						fun: Fungible(1_000_000 * UNITS),
+					}].into()
+				}
 			}
 
 			parameter_types! {

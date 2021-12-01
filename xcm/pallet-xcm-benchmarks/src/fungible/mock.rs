@@ -151,6 +151,9 @@ impl crate::Config for Test {
 
 		Ok(valid_destination)
 	}
+	fn worst_case_holding() -> MultiAssets {
+		crate::mock_worst_case_holding()
+	}
 }
 
 pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);

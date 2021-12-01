@@ -28,7 +28,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::{
-	test_utils::{TestAssetTrap, TestSubscriptionService},
+	test_utils::{TestAssetTrap, TestSubscriptionService, Assets},
 	AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
@@ -121,6 +121,9 @@ impl crate::Config for Test {
 			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
 
 		Ok(valid_destination)
+	}
+	fn worst_case_holding() -> MultiAssets {
+		crate::mock_worst_case_holding()
 	}
 }
 

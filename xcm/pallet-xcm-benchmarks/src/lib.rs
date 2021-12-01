@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_benchmarking::account;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::Convert, Assets};
+use xcm_executor::traits::Convert;
 
 pub mod fungible;
 pub mod generic;
@@ -44,6 +44,9 @@ pub trait Config: frame_system::Config {
 	/// Does any necessary setup to create a valid destination for XCM messages.
 	/// Returns that destination's multi-location to be used in benchmarks.
 	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError>;
+
+	/// Worst case scenario for a holding account in this runtime.
+	fn worst_case_holding() -> MultiAssets;
 }
 
 const SEED: u32 = 0;
@@ -57,12 +60,10 @@ pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Confi
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
 pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
 
-/// The worst case number of assets in the holding.
-const HOLDING_FUNGIBLES: u32 = 99;
-const HOLDING_NON_FUNGIBLES: u32 = 99;
-
-pub fn worst_case_holding() -> Assets {
-	let fungibles_amount: u128 = 100; // TODO probably update
+pub fn mock_worst_case_holding() -> MultiAssets {
+	const HOLDING_FUNGIBLES: u32 = 99;
+	const HOLDING_NON_FUNGIBLES: u32 = 99;
+	let fungibles_amount: u128 = 100;
 	(0..HOLDING_FUNGIBLES)
 		.map(|i| {
 			MultiAsset {
@@ -76,8 +77,7 @@ pub fn worst_case_holding() -> Assets {
 			id: Concrete(GeneralIndex(i as u128).into()),
 			fun: NonFungible(asset_instance_from(i)),
 		}))
-		.collect::<Vec<_>>()
-		.into()
+		.collect::<Vec<_>>().into()
 }
 
 pub fn asset_instance_from(x: u32) -> AssetInstance {

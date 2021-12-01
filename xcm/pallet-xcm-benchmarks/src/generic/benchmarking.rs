@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{new_executor, worst_case_holding, XcmCallOf};
+use crate::{new_executor, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
@@ -25,21 +25,18 @@ use xcm::{
 	DoubleEncoded,
 };
 
-const MAX_ASSETS: u32 = 100;
-
 benchmarks! {
 	query_holding {
-		let holding = worst_case_holding();
-		let assets: MultiAssets = holding.clone().into();
+		let holding = T::worst_case_holding();
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
+		executor.holding = holding.clone().into();
 
 		let instruction = Instruction::<XcmCallOf<T>>::QueryHolding {
 			query_id: Default::default(),
 			dest: T::valid_destination()?,
 			// Worst case is looking through all holdings for every asset explicitly.
-			assets: Definite(assets),
+			assets: Definite(holding),
 			max_response_weight: u64::MAX,
 		};
 
@@ -54,7 +51,7 @@ benchmarks! {
 	// This benchmark does not use any additional orders or instructions. This should be managed
 	// by the `deep` and `shallow` implementation.
 	buy_execution {
-		let holding = worst_case_holding();
+		let holding = T::worst_case_holding().into();
 
 		let mut executor = new_executor::<T>(Default::default());
 		executor.holding = holding;
@@ -76,8 +73,8 @@ benchmarks! {
 	// Worst case scenario for this benchmark is a large number of assets to
 	// filter through the reserve.
 	reserve_asset_deposited {
+		const MAX_ASSETS: u32 = 100; // TODO when executor has a built in limit, use it here. #4426
 		let mut executor = new_executor::<T>(Default::default());
-		// TODO real max assets
 		let assets = (0..MAX_ASSETS).map(|i| MultiAsset {
 			id: Abstract(i.encode()),
 			fun: Fungible(i as u128),
@@ -127,13 +124,13 @@ benchmarks! {
 	}: {
 		executor.execute(xcm)?;
 	} verify {
-		// TODO make better assertion?
+		// TODO make better assertion? #4426
 		let num_events2 = frame_system::Pallet::<T>::events().len();
 		assert_eq!(num_events + 1, num_events2);
 	}
 
 	refund_surplus {
-		let holding = worst_case_holding();
+		let holding = T::worst_case_holding().into();
 		let mut executor = new_executor::<T>(Default::default());
 		executor.holding = holding;
 		executor.total_surplus = 1337;
@@ -299,19 +296,18 @@ benchmarks! {
 	}
 
 	initiate_reserve_withdraw {
-		let holding = worst_case_holding();
-		let assets: MultiAssets = holding.clone().into();
-		let assets_filter = MultiAssetFilter::Definite(assets);
+		let holding = T::worst_case_holding();
+		let assets_filter = MultiAssetFilter::Definite(holding.clone());
 		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
+		executor.holding = holding.into();
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
 	}:{
 		executor.execute(xcm)?;
 	} verify {
 		// The execute completing successfully is as good as we can check.
-		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message.
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
 
 	impl_benchmark_test_suite!(
