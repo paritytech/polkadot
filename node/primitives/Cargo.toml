@@ -17,7 +17,7 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-parachain = { path = "../../parachain", default-features = false }
-schnorrkel = "0.9.1"
+schnorrkel = "0.10.2"
 thiserror = "1.0.30"
 serde = { version = "1.0.130", features = ["derive"] }
 

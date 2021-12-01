@@ -21,7 +21,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 
 assert_matches = "1.4.0"
-schnorrkel = { version = "0.9.1", default-features = false }
+schnorrkel = { version = "0.10.2", default-features = false }
 rand_core = "0.5.1" # should match schnorrkel
 env_logger = "0.9.0"
 log = "0.4.13"
