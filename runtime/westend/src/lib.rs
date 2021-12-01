@@ -1563,7 +1563,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
-				fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
 				}
 				fn worst_case_holding() -> MultiAssets {
@@ -1603,19 +1603,19 @@ sp_api::impl_runtime_apis! {
 					(0u64, Response::Version(Default::default()))
 				}
 
-				fn transact_origin() -> Option<MultiLocation> {
-					Some(Westmint::get())
+				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
 				}
 
-				fn subscribe_origin() -> Option<MultiLocation> {
-					Some(Westmint::get())
+				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
 				}
 
-				fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)> {
+				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 					let origin = Westmint::get();
 					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
-					Some((origin, ticket, assets))
+					Ok((origin, ticket, assets))
 				}
 			}
 

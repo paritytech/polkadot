@@ -26,6 +26,7 @@ use sp_runtime::{
 };
 use xcm::latest::prelude::*;
 use xcm_builder::AllowUnpaidExecutionFrom;
+use frame_benchmarking::BenchmarkError;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -145,7 +146,7 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
-	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
 			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
 

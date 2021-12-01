@@ -116,7 +116,7 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
-	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
 			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
 
@@ -135,18 +135,18 @@ impl generic::Config for Test {
 		(0, Response::Assets(assets))
 	}
 
-	fn transact_origin() -> Option<MultiLocation> {
-		Some(Default::default())
+	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+		Ok(Default::default())
 	}
 
-	fn subscribe_origin() -> Option<MultiLocation> {
-		Some(Default::default())
+	fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+		Ok(Default::default())
 	}
 
-	fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)> {
+	fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
-		Some((Default::default(), ticket, assets))
+		Ok((Default::default(), ticket, assets))
 	}
 }
 

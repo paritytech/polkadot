@@ -106,7 +106,7 @@ benchmarks! {
 	// and included in the final weight calculation. So this is just the overhead of submitting
 	// a noop call.
 	transact {
-		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
+		let origin = T::transact_origin()?;
 		let mut executor = new_executor::<T>(origin);
 		let noop_call: <T as Config>::Call = frame_system::Call::remark_with_event {
 			remark: Default::default()
@@ -222,8 +222,7 @@ benchmarks! {
 	claim_asset {
 		use xcm_executor::traits::DropAssets;
 
-		let (origin, ticket, assets) = T::claimable_asset()
-			.ok_or(BenchmarkError::Skip)?;
+		let (origin, ticket, assets) = T::claimable_asset()?;
 
 		// We place some items into the asset trap to claim.
 		<T::XcmConfig as xcm_executor::Config>::AssetTrap::drop_assets(
@@ -261,7 +260,7 @@ benchmarks! {
 
 	subscribe_version {
 		use xcm_executor::traits::VersionChangeNotifier;
-		let origin = T::subscribe_origin().ok_or(BenchmarkError::Skip)?;
+		let origin = T::subscribe_origin()?;
 		let query_id = Default::default();
 		let max_response_weight = Default::default();
 		let mut executor = new_executor::<T>(origin.clone());
@@ -276,7 +275,7 @@ benchmarks! {
 	unsubscribe_version {
 		use xcm_executor::traits::VersionChangeNotifier;
 		// First we need to subscribe to notifications.
-		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
+		let origin = T::transact_origin()?;
 		let query_id = Default::default();
 		let max_response_weight = Default::default();
 		<T::XcmConfig as xcm_executor::Config>::SubscriptionService::start(
