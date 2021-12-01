@@ -159,7 +159,7 @@ where
 			})?
 	};
 
-	// submit external_propose call through council collective
+	// submit `external_propose` call through council collective
 	{
 		let external_propose = DemocracyCall::external_propose_majority {
 			proposal_hash: proposal_hash.clone().into(),
@@ -387,7 +387,7 @@ where
 	use structopt::StructOpt;
 
 	let tokio_runtime = build_runtime()?;
-	// parse cli args
+	// parse CLI args
 	let cmd = <polkadot_cli::Cli as StructOpt>::from_args();
 	// set up logging
 	let filters = cmd.run.base.log_filters()?;
