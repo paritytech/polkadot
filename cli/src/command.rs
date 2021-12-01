@@ -204,7 +204,7 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
-/// Runs a performance check via compiling sample wasm code with a timeout.
+/// Runs performance checks.
 /// Should only be run in release build since the check would take too much time otherwise.
 /// Returns `Ok` immediately if the check has been passed previously.
 fn host_perf_check(_result_cache_path: &Path) -> Result<()> {

@@ -89,43 +89,57 @@ pub fn host_perf_check(result_cache_path: &Path) -> Result<(), PerfCheckError> {
 	Ok(())
 }
 
+fn green_threshold(duration: Duration) -> Duration {
+	duration * 4 / 5
+}
+
+fn perf_check(
+	test_name: &str,
+	time_limit: Duration,
+	test: impl Fn() -> Result<(), PerfCheckError>,
+) -> Result<(), PerfCheckError> {
+	let start = Instant::now();
+
+	test()?;
+
+	let elapsed = start.elapsed();
+	if elapsed < green_threshold(time_limit) {
+		info!("🟢 {} performance check passed, elapsed: {:?}", test_name, elapsed);
+		Ok(())
+	} else if elapsed <= time_limit {
+		info!(
+			"🟡 {} performance check passed, {:?} limit almost exceeded, elapsed: {:?}",
+			test_name, time_limit, elapsed
+		);
+		Ok(())
+	} else {
+		Err(PerfCheckError::TimeOut { elapsed, limit: time_limit })
+	}
+}
+
 fn pvf_perf_check(code: &[u8]) -> Result<(), PerfCheckError> {
 	const PREPARE_TIME_LIMIT: Duration = Duration::from_secs(20);
 
-	let start = Instant::now();
-
-	// Recreate the pipeline from the pvf prepare worker.
-	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
-
-	let elapsed = start.elapsed();
-	if elapsed <= PREPARE_TIME_LIMIT {
-		info!("PVF performance check passed, elapsed: {:?}", elapsed);
-
+	perf_check("PVF-prepare", PREPARE_TIME_LIMIT, || {
+		// Recreate the pipeline from the pvf prepare worker.
+		let blob =
+			polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
+		polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
 		Ok(())
-	} else {
-		Err(PerfCheckError::TimeOut { elapsed, limit: PREPARE_TIME_LIMIT })
-	}
+	})
 }
 
 fn erasure_coding_perf_check(data: &[u8]) -> Result<(), PerfCheckError> {
 	const ERASURE_CODING_TIME_LIMIT: Duration = Duration::from_secs(1);
 	const N: usize = 1024;
 
-	let start = Instant::now();
+	perf_check("Erasure-coding", ERASURE_CODING_TIME_LIMIT, || {
+		let chunks = obtain_chunks(N, &data).expect("The payload is not empty; qed");
+		let indexed_chunks = chunks.iter().enumerate().map(|(i, chunk)| (chunk.as_slice(), i));
 
-	let chunks = obtain_chunks(N, &data).expect("The payload is not empty; qed");
-	let indexed_chunks = chunks.iter().enumerate().map(|(i, chunk)| (chunk.as_slice(), i));
-
-	let _: Vec<u8> =
-		reconstruct(N, indexed_chunks).expect("Chunks were obtained above, cannot fail; qed");
-
-	let elapsed = start.elapsed();
-	if elapsed <= ERASURE_CODING_TIME_LIMIT {
-		info!("Erasure-coding performance check passed, elapsed: {:?}", elapsed);
+		let _: Vec<u8> =
+			reconstruct(N, indexed_chunks).expect("Chunks were obtained above, cannot fail; qed");
 
 		Ok(())
-	} else {
-		Err(PerfCheckError::TimeOut { elapsed, limit: ERASURE_CODING_TIME_LIMIT })
-	}
+	})
 }

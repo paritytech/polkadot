@@ -55,8 +55,8 @@ pub enum Subcommand {
 	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-	/// Compiles a sample wasm code in order to measure the machine capabilities
-	/// of running PVF host.
+	/// Runs performance checks such as PVF compilation in order to measure machine
+	/// capabilities of running a validator.
 	HostPerfCheck(HostPerfCheckCommand),
 
 	/// Try some command against runtime state.
