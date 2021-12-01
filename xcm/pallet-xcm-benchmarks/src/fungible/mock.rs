@@ -17,6 +17,7 @@
 //! A mock runtime for XCM benchmarking.
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
+use frame_benchmarking::BenchmarkError;
 use frame_support::{parameter_types, traits::Everything};
 use sp_core::H256;
 use sp_runtime::{
@@ -26,7 +27,6 @@ use sp_runtime::{
 };
 use xcm::latest::prelude::*;
 use xcm_builder::AllowUnpaidExecutionFrom;
-use frame_benchmarking::BenchmarkError;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
