@@ -122,13 +122,28 @@ impl WeightInfo for TestWeightInfo {
 fn bitfields_count_ones(
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	expected_bits: usize,
+	validator_count: usize,
 ) -> usize {
+	let mut last_index = None;
 	bitfields
 		.iter()
 		.take(MAX_UNCHECKED_BITFIELD_ITERATIONS)
 		.fold(
 			BitVec::<BitOrderLsb0, u8>::repeat(false, expected_bits),
-			|acc: BitVec<BitOrderLsb0, u8>, cur| acc | cur.unchecked_payload().0.clone(),
+			|acc: BitVec<BitOrderLsb0, u8>, cur| {
+				if cheap_bitfield_checks(
+					cur,
+					expected_bits,
+					validator_count,
+					last_index,
+					&FullCheck::Skip,
+				) {
+					last_index = Some(cur.unchecked_validator_index());
+					acc | cur.unchecked_payload().0.clone()
+				} else {
+					acc
+				}
+			},
 		)
 		.count_ones()
 }
@@ -139,13 +154,14 @@ fn paras_inherent_total_weight<T: Config>(
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	disputes: &[DisputeStatementSet],
 	expected_bits: usize,
+	validator_count: usize,
 	config: &HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	backed_candidates_weight::<T>(backed_candidates)
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
 		.saturating_add(dispute_statements_weight::<T>(disputes))
 		.saturating_add(enact_candidates_weight::<T>(
-			bitfields_count_ones(bitfields, expected_bits),
+			bitfields_count_ones(bitfields, expected_bits, validator_count),
 			config,
 		))
 }
@@ -383,7 +399,8 @@ pub mod pallet {
 				data.backed_candidates.as_slice(),
 				data.bitfields.as_slice(),
 				data.disputes.as_slice(),
-				<scheduler::Pallet<T>>::availability_cores().len(),
+				scheduler::Pallet::<T>::availability_cores().len(),
+				shared::Pallet::<T>::active_validator_keys().len(),
 				&<configuration::Pallet<T>>::config(),
 			),
 			DispatchClass::Mandatory,
@@ -436,7 +453,11 @@ impl<T: Config> Pallet<T> {
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
 		let mut max_enact_candidates_weight = enact_candidates_weight::<T>(
-			bitfields_count_ones(&signed_bitfields, expected_bits),
+			bitfields_count_ones(
+				&signed_bitfields,
+				expected_bits,
+				shared::Pallet::<T>::active_validator_keys().len(),
+			),
 			&<configuration::Pallet<T>>::config(),
 		);
 
@@ -765,6 +786,7 @@ impl<T: Config> Pallet<T> {
 
 		// Assure the maximum block weight is adhered.
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+		// TODO subtract enactment weight - return sanitized bitfields from enactment
 		let _consumed_weight = apply_weight_limit::<T>(
 			&mut backed_candidates,
 			&mut bitfields,
@@ -957,6 +979,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 ///
 /// `full_check` determines if validator signatures are checked. If `::Yes`,
 /// bitfields that have an invalid signature will be filtered out.
+// TODO also return all bitfields OR'ed together
 pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
@@ -981,14 +1004,13 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
 		// Find and skip invalid bitfields.
-		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
-			log::trace!(
-				target: LOG_TARGET,
-				"[{:?}] bad bitfield length: {} != {:?}",
-				full_check,
-				unchecked_bitfield.unchecked_payload().0.len(),
-				expected_bits,
-			);
+		if !cheap_bitfield_checks(
+			&unchecked_bitfield,
+			expected_bits,
+			validators.len(),
+			last_index,
+			&full_check,
+		) {
 			continue
 		}
 
@@ -1005,29 +1027,6 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 		}
 
 		let validator_index = unchecked_bitfield.unchecked_validator_index();
-
-		if !last_index.map_or(true, |last_index: ValidatorIndex| last_index < validator_index) {
-			log::trace!(
-				target: LOG_TARGET,
-				"[{:?}] bitfield validator index is not greater than last: !({:?} < {})",
-				full_check,
-				last_index.as_ref().map(|x| x.0),
-				validator_index.0
-			);
-			continue
-		}
-
-		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
-			log::trace!(
-				target: LOG_TARGET,
-				"[{:?}] bitfield validator index is out of bounds: {} >= {}",
-				full_check,
-				validator_index.0,
-				validators.len(),
-			);
-			continue
-		}
-
 		let validator_public = &validators[validator_index.0 as usize];
 
 		if let FullCheck::Yes = full_check {
@@ -1045,6 +1044,54 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 		last_index = Some(validator_index);
 	}
 	bitfields
+}
+
+// Returns `true` iff the checks pass.
+fn cheap_bitfield_checks(
+	unchecked_bitfield: &UncheckedSignedAvailabilityBitfield,
+	expected_bits: usize,
+	validator_count: usize,
+	last_index: Option<ValidatorIndex>,
+	full_check: &FullCheck,
+) -> bool {
+	if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
+		log::trace!(
+			target: LOG_TARGET,
+			"[{:?}] bad bitfield length: {} != {:?}",
+			full_check,
+			unchecked_bitfield.unchecked_payload().0.len(),
+			expected_bits,
+		);
+
+		return false
+	}
+
+	let validator_index = unchecked_bitfield.unchecked_validator_index();
+	if !last_index.map_or(true, |last_index: ValidatorIndex| last_index < validator_index) {
+		log::trace!(
+			target: LOG_TARGET,
+			"[{:?}] bitfield validator index is not greater than last: !({:?} < {})",
+			full_check,
+			last_index.as_ref().map(|x| x.0),
+			validator_index.0
+		);
+
+		return false
+	}
+
+	if unchecked_bitfield.unchecked_validator_index().0 as usize >= validator_count {
+		log::trace!(
+			target: LOG_TARGET,
+			"[{:?}] bitfield validator index is out of bounds: {} >= {}",
+			full_check,
+			validator_index.0,
+			validator_count,
+		);
+
+		return false
+	}
+
+	true
 }
 
 /// Filter out any candidates that have a concluded invalid dispute.
