@@ -1,0 +1,20 @@
+[package]
+name = "relay-westend-client"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.2.0" }
+relay-substrate-client = { path = "../client-substrate" }
+relay-utils = { path = "../utils" }
+
+# Bridge dependencies
+
+bp-westend = { path = "../../primitives/chain-westend" }
+
+# Substrate Dependencies
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

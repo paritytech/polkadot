@@ -1,0 +1,16 @@
+{
+	"Address": "RococoAddress",
+	"LookupSource": "RococoLookupSource",
+	"Fee": "RococoBalance",
+	"Balance": "RococoBalance",
+	"BlockHash": "RococoBlockHash",
+	"BlockNumber": "RococoBlockNumber",
+	"BridgedBlockHash": "WococoBlockHash",
+	"BridgedBlockNumber": "WococoBlockNumber",
+	"BridgedHeader": "WococoHeader",
+	"Parameter": {
+		"_enum": {
+			"RococoToWococoConversionRate": "u128"
+		}
+	}
+}
