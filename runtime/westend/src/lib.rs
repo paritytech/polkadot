@@ -1591,7 +1591,7 @@ sp_api::impl_runtime_apis! {
 				type Call = Call;
 
 				fn worst_case_response() -> (u64, Response) {
-					(0u64, Default::default())
+					(0u64, Response::Version(Default::default()))
 				}
 
 				fn transact_origin() -> Option<MultiLocation> {
