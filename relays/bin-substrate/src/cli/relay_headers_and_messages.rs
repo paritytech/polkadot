@@ -34,8 +34,7 @@ use relay_substrate_client::{
 use relay_utils::metrics::MetricsParams;
 use sp_core::{Bytes, Pair};
 use substrate_relay_helper::{
-	messages_lane::{MessagesRelayParams, SubstrateMessageLane},
-	on_demand_headers::OnDemandHeadersRelay,
+	messages_lane::MessagesRelayParams, on_demand_headers::OnDemandHeadersRelay,
 };
 
 use crate::{
@@ -129,11 +128,6 @@ macro_rules! select_bridge {
 				type RightToLeftFinality =
 					crate::chains::rialto_headers_to_millau::RialtoFinalityToMillau;
 
-				type LeftToRightMessages =
-					crate::chains::millau_messages_to_rialto::MillauMessagesToRialto;
-				type RightToLeftMessages =
-					crate::chains::rialto_messages_to_millau::RialtoMessagesToMillau;
-
 				type LeftAccountIdConverter = bp_millau::AccountIdConverter;
 				type RightAccountIdConverter = bp_rialto::AccountIdConverter;
 
@@ -144,12 +138,11 @@ macro_rules! select_bridge {
 
 				use crate::chains::{
 					millau_messages_to_rialto::{
-						add_standalone_metrics as add_left_to_right_standalone_metrics,
+						standalone_metrics as left_to_right_standalone_metrics,
 						run as left_to_right_messages,
 						update_rialto_to_millau_conversion_rate as update_right_to_left_conversion_rate,
 					},
 					rialto_messages_to_millau::{
-						add_standalone_metrics as add_right_to_left_standalone_metrics,
 						run as right_to_left_messages,
 						update_millau_to_rialto_conversion_rate as update_left_to_right_conversion_rate,
 					},
@@ -184,11 +177,6 @@ macro_rules! select_bridge {
 				type RightToLeftFinality =
 					crate::chains::wococo_headers_to_rococo::WococoFinalityToRococo;
 
-				type LeftToRightMessages =
-					crate::chains::rococo_messages_to_wococo::RococoMessagesToWococo;
-				type RightToLeftMessages =
-					crate::chains::wococo_messages_to_rococo::WococoMessagesToRococo;
-
 				type LeftAccountIdConverter = bp_rococo::AccountIdConverter;
 				type RightAccountIdConverter = bp_wococo::AccountIdConverter;
 
@@ -199,11 +187,10 @@ macro_rules! select_bridge {
 
 				use crate::chains::{
 					rococo_messages_to_wococo::{
-						add_standalone_metrics as add_left_to_right_standalone_metrics,
+						standalone_metrics as left_to_right_standalone_metrics,
 						run as left_to_right_messages,
 					},
 					wococo_messages_to_rococo::{
-						add_standalone_metrics as add_right_to_left_standalone_metrics,
 						run as right_to_left_messages,
 					},
 				};
@@ -253,11 +240,6 @@ macro_rules! select_bridge {
 				type RightToLeftFinality =
 					crate::chains::polkadot_headers_to_kusama::PolkadotFinalityToKusama;
 
-				type LeftToRightMessages =
-					crate::chains::kusama_messages_to_polkadot::KusamaMessagesToPolkadot;
-				type RightToLeftMessages =
-					crate::chains::polkadot_messages_to_kusama::PolkadotMessagesToKusama;
-
 				type LeftAccountIdConverter = bp_kusama::AccountIdConverter;
 				type RightAccountIdConverter = bp_polkadot::AccountIdConverter;
 
@@ -268,12 +250,11 @@ macro_rules! select_bridge {
 
 				use crate::chains::{
 					kusama_messages_to_polkadot::{
-						add_standalone_metrics as add_left_to_right_standalone_metrics,
+						standalone_metrics as left_to_right_standalone_metrics,
 						run as left_to_right_messages,
 						update_polkadot_to_kusama_conversion_rate as update_right_to_left_conversion_rate,
 					},
 					polkadot_messages_to_kusama::{
-						add_standalone_metrics as add_right_to_left_standalone_metrics,
 						run as right_to_left_messages,
 						update_kusama_to_polkadot_conversion_rate as update_left_to_right_conversion_rate,
 					},
@@ -378,31 +359,39 @@ impl RelayHeadersAndMessages {
 			let relayer_mode = params.shared.relayer_mode.into();
 			let relay_strategy = MixStrategy::new(relayer_mode);
 
-			const METRIC_IS_SOME_PROOF: &str =
-				"it is `None` when metric has been already registered; \
-				this is the command entrypoint, so nothing has been registered yet; \
-				qed";
-
+			// create metrics registry and register standalone metrics
 			let metrics_params: MetricsParams = params.shared.prometheus_params.into();
-			let metrics_params = relay_utils::relay_metrics(None, metrics_params).into_params();
-			let (metrics_params, left_to_right_metrics) =
-				add_left_to_right_standalone_metrics(None, metrics_params, left_client.clone())?;
-			let (metrics_params, right_to_left_metrics) =
-				add_right_to_left_standalone_metrics(None, metrics_params, right_client.clone())?;
+			let metrics_params = relay_utils::relay_metrics(metrics_params).into_params();
+			let left_to_right_metrics =
+				left_to_right_standalone_metrics(left_client.clone(), right_client.clone())?;
+			let right_to_left_metrics = left_to_right_metrics.clone().reverse();
+
+			// start conversion rate update loops for left/right chains
 			if let Some(left_messages_pallet_owner) = left_messages_pallet_owner {
 				let left_client = left_client.clone();
+				let format_err = || {
+					anyhow::format_err!(
+						"Cannon run conversion rate updater: {} -> {}",
+						Right::NAME,
+						Left::NAME
+					)
+				};
 				substrate_relay_helper::conversion_rate_update::run_conversion_rate_update_loop(
 					left_to_right_metrics
 						.target_to_source_conversion_rate
-						.expect(METRIC_IS_SOME_PROOF),
+						.as_ref()
+						.ok_or_else(format_err)?
+						.shared_value_ref(),
 					left_to_right_metrics
 						.target_to_base_conversion_rate
-						.clone()
-						.expect(METRIC_IS_SOME_PROOF),
+						.as_ref()
+						.ok_or_else(format_err)?
+						.shared_value_ref(),
 					left_to_right_metrics
 						.source_to_base_conversion_rate
-						.clone()
-						.expect(METRIC_IS_SOME_PROOF),
+						.as_ref()
+						.ok_or_else(format_err)?
+						.shared_value_ref(),
 					CONVERSION_RATE_ALLOWED_DIFFERENCE_RATIO,
 					move |new_rate| {
 						log::info!(
@@ -423,16 +412,29 @@ impl RelayHeadersAndMessages {
 			}
 			if let Some(right_messages_pallet_owner) = right_messages_pallet_owner {
 				let right_client = right_client.clone();
+				let format_err = || {
+					anyhow::format_err!(
+						"Cannon run conversion rate updater: {} -> {}",
+						Left::NAME,
+						Right::NAME
+					)
+				};
 				substrate_relay_helper::conversion_rate_update::run_conversion_rate_update_loop(
 					right_to_left_metrics
 						.target_to_source_conversion_rate
-						.expect(METRIC_IS_SOME_PROOF),
+						.as_ref()
+						.ok_or_else(format_err)?
+						.shared_value_ref(),
 					left_to_right_metrics
 						.source_to_base_conversion_rate
-						.expect(METRIC_IS_SOME_PROOF),
+						.as_ref()
+						.ok_or_else(format_err)?
+						.shared_value_ref(),
 					left_to_right_metrics
 						.target_to_base_conversion_rate
-						.expect(METRIC_IS_SOME_PROOF),
+						.as_ref()
+						.ok_or_else(format_err)?
+						.shared_value_ref(),
 					CONVERSION_RATE_ALLOWED_DIFFERENCE_RATIO,
 					move |new_rate| {
 						log::info!(
@@ -452,6 +454,7 @@ impl RelayHeadersAndMessages {
 				);
 			}
 
+			// optionally, create relayers fund account
 			if params.shared.create_relayers_fund_accounts {
 				let relayer_fund_acount_id = pallet_bridge_messages::relayer_fund_account_id::<
 					AccountIdOf<Left>,
@@ -490,6 +493,7 @@ impl RelayHeadersAndMessages {
 				}
 			}
 
+			// start on-demand header relays
 			let left_to_right_on_demand_headers = OnDemandHeadersRelay::new(
 				left_client.clone(),
 				right_client.clone(),
@@ -521,11 +525,8 @@ impl RelayHeadersAndMessages {
 					source_to_target_headers_relay: Some(left_to_right_on_demand_headers.clone()),
 					target_to_source_headers_relay: Some(right_to_left_on_demand_headers.clone()),
 					lane_id: lane,
-					metrics_params: metrics_params.clone().disable().metrics_prefix(
-						messages_relay::message_lane_loop::metrics_prefix::<
-							<LeftToRightMessages as SubstrateMessageLane>::MessageLane,
-						>(&lane),
-					),
+					metrics_params: metrics_params.clone().disable(),
+					standalone_metrics: Some(left_to_right_metrics.clone()),
 					relay_strategy: relay_strategy.clone(),
 				})
 				.map_err(|e| anyhow::format_err!("{}", e))
@@ -540,11 +541,8 @@ impl RelayHeadersAndMessages {
 					source_to_target_headers_relay: Some(right_to_left_on_demand_headers.clone()),
 					target_to_source_headers_relay: Some(left_to_right_on_demand_headers.clone()),
 					lane_id: lane,
-					metrics_params: metrics_params.clone().disable().metrics_prefix(
-						messages_relay::message_lane_loop::metrics_prefix::<
-							<RightToLeftMessages as SubstrateMessageLane>::MessageLane,
-						>(&lane),
-					),
+					metrics_params: metrics_params.clone().disable(),
+					standalone_metrics: Some(right_to_left_metrics.clone()),
 					relay_strategy: relay_strategy.clone(),
 				})
 				.map_err(|e| anyhow::format_err!("{}", e))
@@ -554,7 +552,7 @@ impl RelayHeadersAndMessages {
 				message_relays.push(right_to_left_messages);
 			}
 
-			relay_utils::relay_metrics(None, metrics_params)
+			relay_utils::relay_metrics(metrics_params)
 				.expose()
 				.await
 				.map_err(|e| anyhow::format_err!("{}", e))?;

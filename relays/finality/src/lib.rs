@@ -28,6 +28,7 @@ use std::fmt::Debug;
 
 mod finality_loop;
 mod finality_loop_tests;
+mod sync_loop_metrics;
 
 /// Finality proofs synchronization pipeline.
 pub trait FinalitySyncPipeline: 'static + Clone + Debug + Send + Sync {

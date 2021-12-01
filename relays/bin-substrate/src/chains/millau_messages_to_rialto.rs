@@ -33,7 +33,6 @@ use relay_rialto_client::{
 	HeaderId as RialtoHeaderId, Rialto, SigningParams as RialtoSigningParams,
 };
 use relay_substrate_client::{Chain, Client, IndexOf, TransactionSignScheme, UnsignedTransaction};
-use relay_utils::metrics::MetricsParams;
 use substrate_relay_helper::{
 	messages_lane::{
 		select_delivery_transaction_limits, MessagesRelayParams, StandaloneMessagesMetrics,
@@ -193,12 +192,13 @@ pub async fn run(
 
 	let lane_id = params.lane_id;
 	let source_client = params.source_client;
+	let target_client = params.target_client;
 	let lane = MillauMessagesToRialto {
 		message_lane: SubstrateMessageLaneToSubstrate {
 			source_client: source_client.clone(),
 			source_sign: params.source_sign,
 			source_transactions_mortality: params.source_transactions_mortality,
-			target_client: params.target_client.clone(),
+			target_client: target_client.clone(),
 			target_sign: params.target_sign,
 			target_transactions_mortality: params.target_transactions_mortality,
 			relayer_id_at_source: relayer_id_at_millau,
@@ -234,13 +234,10 @@ pub async fn run(
 		stall_timeout,
 	);
 
-	let (metrics_params, metrics_values) = add_standalone_metrics(
-		Some(messages_relay::message_lane_loop::metrics_prefix::<
-			<MillauMessagesToRialto as SubstrateMessageLane>::MessageLane,
-		>(&lane_id)),
-		params.metrics_params,
-		source_client.clone(),
-	)?;
+	let standalone_metrics = params
+		.standalone_metrics
+		.map(Ok)
+		.unwrap_or_else(|| standalone_metrics(source_client.clone(), target_client.clone()))?;
 	messages_relay::message_lane_loop::run(
 		messages_relay::message_lane_loop::Params {
 			lane: lane_id,
@@ -266,37 +263,31 @@ pub async fn run(
 			params.target_to_source_headers_relay,
 		),
 		RialtoTargetClient::new(
-			params.target_client,
+			target_client,
 			lane,
 			lane_id,
-			metrics_values,
+			standalone_metrics.clone(),
 			params.source_to_target_headers_relay,
 		),
-		metrics_params,
+		standalone_metrics.register_and_spawn(params.metrics_params)?,
 		futures::future::pending(),
 	)
 	.await
 	.map_err(Into::into)
 }
 
-/// Add standalone metrics for the Millau -> Rialto messages loop.
-pub(crate) fn add_standalone_metrics(
-	metrics_prefix: Option<String>,
-	metrics_params: MetricsParams,
+/// Create standalone metrics for the Millau -> Rialto messages loop.
+pub(crate) fn standalone_metrics(
 	source_client: Client<Millau>,
-) -> anyhow::Result<(MetricsParams, StandaloneMessagesMetrics)> {
-	substrate_relay_helper::messages_lane::add_standalone_metrics::<MillauMessagesToRialto>(
-		metrics_prefix,
-		metrics_params,
+	target_client: Client<Rialto>,
+) -> anyhow::Result<StandaloneMessagesMetrics<Millau, Rialto>> {
+	substrate_relay_helper::messages_lane::standalone_metrics(
 		source_client,
-		Some(crate::chains::MILLAU_ASSOCIATED_TOKEN_ID),
-		Some(crate::chains::RIALTO_ASSOCIATED_TOKEN_ID),
-		Some((
-			sp_core::storage::StorageKey(
-				millau_runtime::rialto_messages::RialtoToMillauConversionRate::key().to_vec(),
-			),
-			millau_runtime::rialto_messages::INITIAL_RIALTO_TO_MILLAU_CONVERSION_RATE,
-		)),
+		target_client,
+		Some(crate::chains::millau::ASSOCIATED_TOKEN_ID),
+		Some(crate::chains::rialto::ASSOCIATED_TOKEN_ID),
+		Some(crate::chains::rialto::millau_to_rialto_conversion_rate_params()),
+		Some(crate::chains::millau::rialto_to_millau_conversion_rate_params()),
 	)
 }
 

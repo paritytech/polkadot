@@ -64,10 +64,7 @@ impl SubstrateFinalitySyncPipeline for PolkadotFinalityToKusama {
 	type TargetChain = Kusama;
 
 	fn customize_metrics(params: MetricsParams) -> anyhow::Result<MetricsParams> {
-		crate::chains::add_polkadot_kusama_price_metrics::<Self::FinalitySyncPipeline>(
-			Some(finality_relay::metrics_prefix::<Self::FinalitySyncPipeline>()),
-			params,
-		)
+		crate::chains::add_polkadot_kusama_price_metrics::<Self::FinalitySyncPipeline>(params)
 	}
 
 	fn start_relay_guards(&self) {

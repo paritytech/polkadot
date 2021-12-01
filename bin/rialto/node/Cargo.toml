@@ -28,10 +28,15 @@ rialto-runtime = { path = "../runtime" }
 
 # Substrate Dependencies
 
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 node-inspect = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -70,6 +75,10 @@ sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "mast
 substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
+# Polkadot Dependencies
+
+polkadot-client = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+
 # Polkadot (parachain) Dependencies
 
 polkadot-approval-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
@@ -88,7 +97,6 @@ polkadot-node-core-bitfield-signing = { git = "https://github.com/paritytech/pol
 polkadot-node-core-candidate-validation = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-node-core-chain-api = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-node-core-chain-selection = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-dispute-participation = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-node-core-parachains-inherent = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-node-core-provisioner = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-node-core-pvf = { git = "https://github.com/paritytech/polkadot", branch = "master" }

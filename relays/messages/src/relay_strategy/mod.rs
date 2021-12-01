@@ -52,7 +52,7 @@ pub trait RelayStrategy: 'static + Clone + Send + Sync {
 		SourceClient: MessageLaneSourceClient<P>,
 		TargetClient: MessageLaneTargetClient<P>,
 	>(
-		&self,
+		&mut self,
 		reference: &mut RelayReference<P, SourceClient, TargetClient>,
 	) -> bool;
 }

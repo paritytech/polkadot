@@ -204,8 +204,6 @@ build:
     - mv -v ./target/release/rialto-parachain-collator ./artifacts/
     - strip ./target/release/millau-bridge-node
     - mv -v ./target/release/millau-bridge-node ./artifacts/
-    - strip ./target/release/ethereum-poa-relay
-    - mv -v ./target/release/ethereum-poa-relay ./artifacts/
     - strip ./target/release/substrate-relay
     - mv -v ./target/release/substrate-relay ./artifacts/
     - mv -v ./deployments/local-scripts/bridge-entrypoint.sh ./artifacts/
@@ -283,10 +281,6 @@ rialto-parachain-collator:
   <<:                              *build-push-image
 
 millau-bridge-node:
-  stage:                           publish
-  <<:                              *build-push-image
-
-ethereum-poa-relay:
   stage:                           publish
   <<:                              *build-push-image
 

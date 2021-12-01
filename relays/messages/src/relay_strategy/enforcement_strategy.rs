@@ -49,7 +49,7 @@ impl<Strategy: RelayStrategy> EnforcementStrategy<Strategy> {
 		SourceClient: MessageLaneSourceClient<P>,
 		TargetClient: MessageLaneTargetClient<P>,
 	>(
-		&self,
+		&mut self,
 		reference: RelayMessagesBatchReference<P, SourceClient, TargetClient>,
 	) -> Option<MessageNonce> {
 		let mut hard_selected_count = 0;

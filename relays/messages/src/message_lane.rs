@@ -21,6 +21,7 @@
 
 use num_traits::{SaturatingAdd, Zero};
 use relay_utils::{BlockNumberBase, HeaderId};
+use sp_arithmetic::traits::AtLeast32BitUnsigned;
 use std::{fmt::Debug, ops::Sub};
 
 /// One-way message lane.
@@ -40,7 +41,8 @@ pub trait MessageLane: 'static + Clone + Send + Sync {
 	/// 1) pay transaction fees;
 	/// 2) pay message delivery and dispatch fee;
 	/// 3) pay relayer rewards.
-	type SourceChainBalance: Clone
+	type SourceChainBalance: AtLeast32BitUnsigned
+		+ Clone
 		+ Copy
 		+ Debug
 		+ PartialOrd

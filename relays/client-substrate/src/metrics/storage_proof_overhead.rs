@@ -18,7 +18,7 @@ use crate::{chain::Chain, client::Client, error::Error};
 
 use async_trait::async_trait;
 use relay_utils::metrics::{
-	metric_name, register, Gauge, PrometheusError, Registry, StandaloneMetrics, U64,
+	metric_name, register, Gauge, Metric, PrometheusError, Registry, StandaloneMetric, U64,
 };
 use sp_core::storage::StorageKey;
 use sp_runtime::traits::Header as HeaderT;
@@ -46,16 +46,10 @@ impl<C: Chain> Clone for StorageProofOverheadMetric<C> {
 
 impl<C: Chain> StorageProofOverheadMetric<C> {
 	/// Create new metric instance with given name and help.
-	pub fn new(
-		registry: &Registry,
-		prefix: Option<&str>,
-		client: Client<C>,
-		name: String,
-		help: String,
-	) -> Result<Self, PrometheusError> {
+	pub fn new(client: Client<C>, name: String, help: String) -> Result<Self, PrometheusError> {
 		Ok(StorageProofOverheadMetric {
 			client,
-			metric: register(Gauge::new(metric_name(prefix, &name), help)?, registry)?,
+			metric: Gauge::new(metric_name(None, &name), help)?,
 		})
 	}
 
@@ -84,8 +78,14 @@ impl<C: Chain> StorageProofOverheadMetric<C> {
 	}
 }
 
+impl<C: Chain> Metric for StorageProofOverheadMetric<C> {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.metric.clone(), registry).map(drop)
+	}
+}
+
 #[async_trait]
-impl<C: Chain> StandaloneMetrics for StorageProofOverheadMetric<C> {
+impl<C: Chain> StandaloneMetric for StorageProofOverheadMetric<C> {
 	fn update_interval(&self) -> Duration {
 		C::AVERAGE_BLOCK_INTERVAL * UPDATE_INTERVAL_IN_BLOCKS
 	}

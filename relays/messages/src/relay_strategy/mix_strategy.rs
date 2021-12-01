@@ -47,7 +47,7 @@ impl RelayStrategy for MixStrategy {
 		SourceClient: MessageLaneSourceClient<P>,
 		TargetClient: MessageLaneTargetClient<P>,
 	>(
-		&self,
+		&mut self,
 		reference: &mut RelayReference<P, SourceClient, TargetClient>,
 	) -> bool {
 		match self.relayer_mode {

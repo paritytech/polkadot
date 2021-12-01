@@ -17,16 +17,11 @@
 //! Rialto chain node service.
 //!
 //! The code is mostly copy of `service/src/lib.rs` file from Polkadot repository
-//! without optional functions.
-
-// this warning comes from Error enum (sc_cli::Error in particular) && it isn't easy to use box
-// there
-#![allow(clippy::large_enum_variant)]
-// this warning comes from `sc_service::PartialComponents` type
-#![allow(clippy::type_complexity)]
+//! without optional functions, and with BEEFY added on top.
 
 use crate::overseer::{OverseerGen, OverseerGenArgs};
 
+use polkadot_client::RuntimeApiCollection;
 use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
@@ -43,7 +38,7 @@ use sc_service::{config::PrometheusConfig, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::{ConstructRuntimeApi, HeaderT};
 use sp_consensus::SelectChain;
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use sp_runtime::traits::Block as BlockT;
 use std::{sync::Arc, time::Duration};
 use substrate_prometheus_endpoint::Registry;
 
@@ -115,52 +110,6 @@ type FullBabeBlockImport =
 type FullBabeLink = sc_consensus_babe::BabeLink<Block>;
 type FullGrandpaLink = sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>;
 
-/// A set of APIs that polkadot-like runtimes must implement.
-///
-/// This is the copy of `polkadot_service::RuntimeApiCollection` with some APIs removed
-/// (right now - MMR and BEEFY).
-pub trait RequiredApiCollection:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block>
-	+ sp_consensus_babe::BabeApi<Block>
-	+ sp_finality_grandpa::GrandpaApi<Block>
-	+ polkadot_primitives::v1::ParachainHost<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ frame_system_rpc_runtime_api::AccountNonceApi<
-		Block,
-		bp_rialto::AccountId,
-		rialto_runtime::Index,
-	> + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, bp_rialto::Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{
-}
-
-impl<Api> RequiredApiCollection for Api
-where
-	Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-		+ sp_api::ApiExt<Block>
-		+ sp_consensus_babe::BabeApi<Block>
-		+ sp_finality_grandpa::GrandpaApi<Block>
-		+ polkadot_primitives::v1::ParachainHost<Block>
-		+ sp_block_builder::BlockBuilder<Block>
-		+ frame_system_rpc_runtime_api::AccountNonceApi<
-			Block,
-			bp_rialto::AccountId,
-			rialto_runtime::Index,
-		> + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, bp_rialto::Balance>
-		+ sp_api::Metadata<Block>
-		+ sp_offchain::OffchainWorkerApi<Block>
-		+ sp_session::SessionKeys<Block>
-		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{
-}
-
 // If we're using prometheus, use a registry with a prefix of `polkadot`.
 fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
@@ -170,6 +119,8 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 	Ok(())
 }
 
+// Needed here for complex return type while `impl Trait` in type aliases is unstable.
+#[allow(clippy::type_complexity)]
 pub fn new_partial(
 	config: &mut Configuration,
 ) -> Result<
@@ -184,7 +135,12 @@ pub fn new_partial(
 				sc_rpc::DenyUnsafe,
 				sc_rpc::SubscriptionTaskExecutor,
 			) -> Result<jsonrpc_core::IoHandler<sc_service::RpcMetadata>, sc_service::Error>,
-			(FullBabeBlockImport, FullGrandpaLink, FullBabeLink),
+			(
+				FullBabeBlockImport,
+				FullGrandpaLink,
+				FullBabeLink,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
+			),
 			sc_finality_grandpa::SharedVoterState,
 			std::time::Duration,
 			Option<Telemetry>,
@@ -195,7 +151,7 @@ pub fn new_partial(
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient> + Send + Sync + 'static,
 	<RuntimeApi as ConstructRuntimeApi<Block, FullClient>>::RuntimeApi:
-		RequiredApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
@@ -226,7 +182,7 @@ where
 	let client = Arc::new(client);
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
-		task_manager.spawn_handle().spawn("telemetry", worker.run());
+		task_manager.spawn_handle().spawn("telemetry", None, worker.run());
 		telemetry
 	});
 
@@ -282,7 +238,10 @@ where
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = sc_finality_grandpa::SharedVoterState::empty();
 
-	let import_setup = (block_import, grandpa_link, babe_link);
+	let (signed_commitment_sender, signed_commitment_stream) =
+		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+
+	let import_setup = (block_import, grandpa_link, babe_link, signed_commitment_sender);
 	let rpc_setup = shared_voter_state.clone();
 
 	let slot_duration = babe_config.slot_duration();
@@ -316,14 +275,23 @@ where
 				pool,
 				deny_unsafe,
 			)));
-			io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client)));
+			io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(
+				client.clone(),
+			)));
 			io.extend_with(GrandpaApi::to_delegate(GrandpaRpcHandler::new(
 				shared_authority_set.clone(),
 				shared_voter_state,
 				justification_stream.clone(),
-				subscription_executor,
+				subscription_executor.clone(),
 				finality_proof_provider,
 			)));
+			io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
+				beefy_gadget_rpc::BeefyRpcHandler::new(
+					signed_commitment_stream.clone(),
+					subscription_executor,
+				),
+			));
+			io.extend_with(pallet_mmr_rpc::MmrApi::to_delegate(pallet_mmr_rpc::Mmr::new(client)));
 
 			Ok(io)
 		}
@@ -361,7 +329,7 @@ async fn active_leaves(
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient> + Send + Sync + 'static,
 	<RuntimeApi as ConstructRuntimeApi<Block, FullClient>>::RuntimeApi:
-		RequiredApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
 	let best_block = select_chain.best_chain().await?;
@@ -406,7 +374,7 @@ pub fn new_full(
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient> + Send + Sync + 'static,
 	<RuntimeApi as ConstructRuntimeApi<Block, FullClient>>::RuntimeApi:
-		RequiredApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
 	let is_collator = false;
@@ -442,6 +410,8 @@ where
 	// Substrate nodes.
 	config.network.extra_sets.push(sc_finality_grandpa::grandpa_peers_set_config());
 
+	config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
@@ -474,7 +444,6 @@ where
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: None,
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
@@ -533,13 +502,11 @@ where
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
-		on_demand: None,
-		remote_blockchain: None,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, link_half, babe_link) = import_setup;
+	let (block_import, link_half, babe_link, signed_commitment_sender) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
@@ -574,7 +541,9 @@ where
 			prometheus_registry.clone(),
 		);
 
-		task_manager.spawn_handle().spawn("authority-discovery-worker", worker.run());
+		task_manager
+			.spawn_handle()
+			.spawn("authority-discovery-worker", None, worker.run());
 		Some(service)
 	} else {
 		None
@@ -619,6 +588,7 @@ where
 			let handle = handle.clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
+				None,
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
@@ -705,13 +675,30 @@ where
 		};
 
 		let babe = sc_consensus_babe::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
+		task_manager.spawn_essential_handle().spawn_blocking("babe", None, babe);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore_opt =
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
+
+	let beefy_params = beefy_gadget::BeefyParams {
+		client: client.clone(),
+		backend: backend.clone(),
+		key_store: keystore_opt.clone(),
+		network: network.clone(),
+		signed_commitment_sender,
+		min_block_delta: 2,
+		prometheus_registry: prometheus_registry.clone(),
+	};
+
+	// Start the BEEFY bridge gadget.
+	task_manager.spawn_essential_handle().spawn_blocking(
+		"beefy-gadget",
+		None,
+		beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params),
+	);
 
 	let config = sc_finality_grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
@@ -751,6 +738,7 @@ where
 
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"grandpa-voter",
+			None,
 			sc_finality_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
 	}

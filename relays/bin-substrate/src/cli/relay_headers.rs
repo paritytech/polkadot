@@ -17,6 +17,7 @@
 use structopt::StructOpt;
 use strum::{EnumString, EnumVariantNames, VariantNames};
 
+use relay_utils::metrics::{GlobalMetrics, StandaloneMetric};
 use substrate_relay_helper::finality_pipeline::SubstrateFinalitySyncPipeline;
 
 use crate::cli::{
@@ -121,6 +122,8 @@ impl RelayHeaders {
 			let target_transactions_mortality = self.target_sign.target_transactions_mortality;
 			let target_sign = self.target_sign.to_keypair::<Target>()?;
 			let metrics_params = Finality::customize_metrics(self.prometheus_params.into())?;
+			GlobalMetrics::new()?.register_and_spawn(&metrics_params.registry)?;
+
 			let finality = Finality::new(target_client.clone(), target_sign);
 			finality.start_relay_guards();
 

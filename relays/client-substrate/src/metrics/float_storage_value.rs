@@ -20,7 +20,8 @@ use async_std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use codec::Decode;
 use relay_utils::metrics::{
-	metric_name, register, F64SharedRef, Gauge, PrometheusError, Registry, StandaloneMetrics, F64,
+	metric_name, register, F64SharedRef, Gauge, Metric, PrometheusError, Registry,
+	StandaloneMetric, F64,
 };
 use sp_core::storage::StorageKey;
 use sp_runtime::{traits::UniqueSaturatedInto, FixedPointNumber};
@@ -42,8 +43,6 @@ pub struct FloatStorageValueMetric<C: Chain, T: Clone> {
 impl<C: Chain, T: Decode + FixedPointNumber> FloatStorageValueMetric<C, T> {
 	/// Create new metric.
 	pub fn new(
-		registry: &Registry,
-		prefix: Option<&str>,
 		client: Client<C>,
 		storage_key: StorageKey,
 		maybe_default_value: Option<T>,
@@ -55,7 +54,7 @@ impl<C: Chain, T: Decode + FixedPointNumber> FloatStorageValueMetric<C, T> {
 			client,
 			storage_key,
 			maybe_default_value,
-			metric: register(Gauge::new(metric_name(prefix, &name), help)?, registry)?,
+			metric: Gauge::new(metric_name(None, &name), help)?,
 			shared_value_ref,
 		})
 	}
@@ -66,8 +65,17 @@ impl<C: Chain, T: Decode + FixedPointNumber> FloatStorageValueMetric<C, T> {
 	}
 }
 
+impl<C: Chain, T> Metric for FloatStorageValueMetric<C, T>
+where
+	T: 'static + Decode + Send + Sync + FixedPointNumber,
+{
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.metric.clone(), registry).map(drop)
+	}
+}
+
 #[async_trait]
-impl<C: Chain, T> StandaloneMetrics for FloatStorageValueMetric<C, T>
+impl<C: Chain, T> StandaloneMetric for FloatStorageValueMetric<C, T>
 where
 	T: 'static + Decode + Send + Sync + FixedPointNumber,
 {

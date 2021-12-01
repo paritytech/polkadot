@@ -401,7 +401,8 @@ impl SwapTokens {
 				.await?;
 				if token_swap_state != None {
 					return Err(anyhow::format_err!(
-						"Confirmed token swap state has been changed to {:?} unexpectedly"
+						"Confirmed token swap state has been changed to {:?} unexpectedly",
+						token_swap_state
 					))
 				}
 			} else {

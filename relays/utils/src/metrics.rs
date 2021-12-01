@@ -46,27 +46,37 @@ pub struct MetricsParams {
 	/// Interface and TCP port to be used when exposing Prometheus metrics.
 	pub address: Option<MetricsAddress>,
 	/// Metrics registry. May be `Some(_)` if several components share the same endpoint.
-	pub registry: Option<Registry>,
-	/// Prefix that must be used in metric names.
-	pub metrics_prefix: Option<String>,
+	pub registry: Registry,
 }
 
-/// Metrics API.
-pub trait Metrics: Clone + Send + Sync + 'static {}
+/// Metric API.
+pub trait Metric: Clone + Send + Sync + 'static {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError>;
+}
 
-impl<T: Clone + Send + Sync + 'static> Metrics for T {}
-
-/// Standalone metrics API.
+/// Standalone metric API.
 ///
 /// Metrics of this kind know how to update themselves, so we may just spawn and forget the
 /// asynchronous self-update task.
 #[async_trait]
-pub trait StandaloneMetrics: Metrics {
+pub trait StandaloneMetric: Metric {
 	/// Update metric values.
 	async fn update(&self);
 
 	/// Metrics update interval.
 	fn update_interval(&self) -> Duration;
+
+	/// Register and spawn metric. Metric is only spawned if it is registered for the first time.
+	fn register_and_spawn(self, registry: &Registry) -> Result<(), PrometheusError> {
+		match self.register(registry) {
+			Ok(()) => {
+				self.spawn();
+				Ok(())
+			},
+			Err(PrometheusError::AlreadyReg) => Ok(()),
+			Err(e) => Err(e),
+		}
+	}
 
 	/// Spawn the self update task that will keep update metric value at given intervals.
 	fn spawn(self) {
@@ -89,7 +99,7 @@ impl Default for MetricsAddress {
 impl MetricsParams {
 	/// Creates metrics params so that metrics are not exposed.
 	pub fn disabled() -> Self {
-		MetricsParams { address: None, registry: None, metrics_prefix: None }
+		MetricsParams { address: None, registry: Registry::new() }
 	}
 
 	/// Do not expose metrics.
@@ -97,17 +107,11 @@ impl MetricsParams {
 		self.address = None;
 		self
 	}
-
-	/// Set prefix to use in metric names.
-	pub fn metrics_prefix(mut self, prefix: String) -> Self {
-		self.metrics_prefix = Some(prefix);
-		self
-	}
 }
 
 impl From<Option<MetricsAddress>> for MetricsParams {
 	fn from(address: Option<MetricsAddress>) -> Self {
-		MetricsParams { address, registry: None, metrics_prefix: None }
+		MetricsParams { address, registry: Registry::new() }
 	}
 }
 

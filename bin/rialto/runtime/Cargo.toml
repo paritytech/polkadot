@@ -17,8 +17,6 @@ serde = { version = "1.0", optional = true, features = ["derive"] }
 
 # Bridge dependencies
 
-bp-currency-exchange = { path = "../../../primitives/currency-exchange", default-features = false }
-bp-eth-poa = { path = "../../../primitives/ethereum-poa", default-features = false }
 bp-header-chain = { path = "../../../primitives/header-chain", default-features = false }
 bp-message-dispatch = { path = "../../../primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../../primitives/messages", default-features = false }
@@ -26,15 +24,14 @@ bp-millau = { path = "../../../primitives/chain-millau", default-features = fals
 bp-rialto = { path = "../../../primitives/chain-rialto", default-features = false }
 bp-runtime = { path = "../../../primitives/runtime", default-features = false }
 bridge-runtime-common = { path = "../../runtime-common", default-features = false }
-pallet-bridge-currency-exchange = { path = "../../../modules/currency-exchange", default-features = false }
 pallet-bridge-dispatch = { path = "../../../modules/dispatch", default-features = false }
-pallet-bridge-eth-poa = { path = "../../../modules/ethereum", default-features = false }
 pallet-bridge-grandpa = { path = "../../../modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../../modules/messages", default-features = false }
 pallet-shift-session-manager = { path = "../../../modules/shift-session-manager", default-features = false }
 
 # Substrate Dependencies
 
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -43,7 +40,11 @@ frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate"
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-beefy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -80,8 +81,7 @@ substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", bran
 [features]
 default = ["std"]
 std = [
-	"bp-currency-exchange/std",
-	"bp-eth-poa/std",
+	"beefy-primitives/std",
 	"bp-header-chain/std",
 	"bp-message-dispatch/std",
 	"bp-messages/std",
@@ -99,12 +99,14 @@ std = [
 	"pallet-authority-discovery/std",
 	"pallet-babe/std",
 	"pallet-balances/std",
-	"pallet-bridge-currency-exchange/std",
+	"pallet-beefy/std",
+	"pallet-beefy-mmr/std",
 	"pallet-bridge-dispatch/std",
-	"pallet-bridge-eth-poa/std",
 	"pallet-bridge-grandpa/std",
 	"pallet-bridge-messages/std",
 	"pallet-grandpa/std",
+	"pallet-mmr/std",
+	"pallet-mmr-primitives/std",
 	"pallet-shift-session-manager/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
@@ -137,8 +139,6 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"libsecp256k1",
-	"pallet-bridge-currency-exchange/runtime-benchmarks",
-	"pallet-bridge-eth-poa/runtime-benchmarks",
 	"pallet-bridge-messages/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]

@@ -37,7 +37,7 @@ impl RelayStrategy for AltruisticStrategy {
 		SourceClient: MessageLaneSourceClient<P>,
 		TargetClient: MessageLaneTargetClient<P>,
 	>(
-		&self,
+		&mut self,
 		_reference: &mut RelayReference<P, SourceClient, TargetClient>,
 	) -> bool {
 		true

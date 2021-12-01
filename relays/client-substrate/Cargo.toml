@@ -22,7 +22,6 @@ thiserror = "1.0.26"
 bp-header-chain = { path = "../../primitives/header-chain" }
 bp-runtime = { path = "../../primitives/runtime" }
 finality-relay = { path = "../finality" }
-headers-relay = { path = "../headers" }
 relay-utils = { path = "../utils" }
 
 # Substrate Dependencies

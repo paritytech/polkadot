@@ -57,10 +57,7 @@ impl SubstrateFinalitySyncPipeline for WestendFinalityToMillau {
 	type TargetChain = Millau;
 
 	fn customize_metrics(params: MetricsParams) -> anyhow::Result<MetricsParams> {
-		crate::chains::add_polkadot_kusama_price_metrics::<Self::FinalitySyncPipeline>(
-			Some(finality_relay::metrics_prefix::<Self::FinalitySyncPipeline>()),
-			params,
-		)
+		crate::chains::add_polkadot_kusama_price_metrics::<Self::FinalitySyncPipeline>(params)
 	}
 
 	fn transactions_author(&self) -> bp_millau::AccountId {

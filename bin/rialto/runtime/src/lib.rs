@@ -30,22 +30,20 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-pub mod exchange;
-
-#[cfg(feature = "runtime-benchmarks")]
-pub mod benches;
-pub mod kovan;
 pub mod millau_messages;
 pub mod parachains;
-pub mod rialto_poa;
 
 use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
 
+use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion, ValidatorSet};
 use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+};
+use pallet_mmr_primitives::{
+	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider, Proof as MmrProof,
 };
 use pallet_transaction_payment::{FeeDetails, Multiplier, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
@@ -53,7 +51,7 @@ use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{AccountIdLookup, Block as BlockT, NumberFor, OpaqueKeys},
+	traits::{AccountIdLookup, Block as BlockT, Keccak256, NumberFor, OpaqueKeys},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, MultiSigner, Perquintill,
 };
@@ -72,8 +70,6 @@ pub use frame_support::{
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
-pub use pallet_bridge_currency_exchange::Call as BridgeCurrencyExchangeCall;
-pub use pallet_bridge_eth_poa::Call as BridgeEthPoACall;
 pub use pallet_bridge_grandpa::Call as BridgeGrandpaMillauCall;
 pub use pallet_bridge_messages::Call as MessagesCall;
 pub use pallet_sudo::Call as SudoCall;
@@ -109,9 +105,6 @@ pub type Hash = bp_rialto::Hash;
 /// Hashing algorithm used by the chain.
 pub type Hashing = bp_rialto::Hasher;
 
-/// Digest item type.
-pub type DigestItem = generic::DigestItem<Hash>;
-
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
 /// of data like extrinsics, allowing for them to continue syncing the network through upgrades
@@ -133,6 +126,7 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub babe: Babe,
 		pub grandpa: Grandpa,
+		pub beefy: Beefy,
 		pub para_validator: Initializer,
 		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
@@ -253,46 +247,8 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 }
 
-type RialtoPoA = pallet_bridge_eth_poa::Instance1;
-impl pallet_bridge_eth_poa::Config<RialtoPoA> for Runtime {
-	type AuraConfiguration = rialto_poa::BridgeAuraConfiguration;
-	type FinalityVotesCachingInterval = rialto_poa::FinalityVotesCachingInterval;
-	type ValidatorsConfiguration = rialto_poa::BridgeValidatorsConfiguration;
-	type PruningStrategy = rialto_poa::PruningStrategy;
-	type ChainTime = rialto_poa::ChainTime;
-	type OnHeadersSubmitted = ();
-}
-
-type Kovan = pallet_bridge_eth_poa::Instance2;
-impl pallet_bridge_eth_poa::Config<Kovan> for Runtime {
-	type AuraConfiguration = kovan::BridgeAuraConfiguration;
-	type FinalityVotesCachingInterval = kovan::FinalityVotesCachingInterval;
-	type ValidatorsConfiguration = kovan::BridgeValidatorsConfiguration;
-	type PruningStrategy = kovan::PruningStrategy;
-	type ChainTime = kovan::ChainTime;
-	type OnHeadersSubmitted = ();
-}
-
-type RialtoCurrencyExchange = pallet_bridge_currency_exchange::Instance1;
-impl pallet_bridge_currency_exchange::Config<RialtoCurrencyExchange> for Runtime {
-	type OnTransactionSubmitted = ();
-	type PeerBlockchain = rialto_poa::RialtoBlockchain;
-	type PeerMaybeLockFundsTransaction = exchange::EthTransaction;
-	type RecipientsMap = bp_currency_exchange::IdentityRecipients<AccountId>;
-	type Amount = Balance;
-	type CurrencyConverter = bp_currency_exchange::IdentityCurrencyConverter<Balance>;
-	type DepositInto = DepositInto;
-}
-
-type KovanCurrencyExchange = pallet_bridge_currency_exchange::Instance2;
-impl pallet_bridge_currency_exchange::Config<KovanCurrencyExchange> for Runtime {
-	type OnTransactionSubmitted = ();
-	type PeerBlockchain = kovan::KovanBlockchain;
-	type PeerMaybeLockFundsTransaction = exchange::EthTransaction;
-	type RecipientsMap = bp_currency_exchange::IdentityRecipients<AccountId>;
-	type Amount = Balance;
-	type CurrencyConverter = bp_currency_exchange::IdentityCurrencyConverter<Balance>;
-	type DepositInto = DepositInto;
+impl pallet_beefy::Config for Runtime {
+	type BeefyId = BeefyId;
 }
 
 impl pallet_bridge_dispatch::Config for Runtime {
@@ -305,68 +261,6 @@ impl pallet_bridge_dispatch::Config for Runtime {
 	type TargetChainAccountPublic = MultiSigner;
 	type TargetChainSignature = MultiSignature;
 	type AccountIdConverter = bp_rialto::AccountIdConverter;
-}
-
-pub struct DepositInto;
-
-impl bp_currency_exchange::DepositInto for DepositInto {
-	type Recipient = AccountId;
-	type Amount = Balance;
-
-	fn deposit_into(
-		recipient: Self::Recipient,
-		amount: Self::Amount,
-	) -> bp_currency_exchange::Result<()> {
-		// let balances module make all checks for us (it won't allow depositing lower than
-		// existential deposit, balance overflow, ...)
-		let deposited = <pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(
-			&recipient, amount,
-		);
-
-		// I'm dropping deposited here explicitly to illustrate the fact that it'll update
-		// `TotalIssuance` on drop
-		let deposited_amount = deposited.peek();
-		drop(deposited);
-
-		// we have 3 cases here:
-		// - deposited == amount: success
-		// - deposited == 0: deposit has failed and no changes to storage were made
-		// - deposited != 0: (should never happen in practice) deposit has been partially completed
-		match deposited_amount {
-			_ if deposited_amount == amount => {
-				log::trace!(
-					target: "runtime",
-					"Deposited {} to {:?}",
-					amount,
-					recipient,
-				);
-
-				Ok(())
-			},
-			_ if deposited_amount == 0 => {
-				log::error!(
-					target: "runtime",
-					"Deposit of {} to {:?} has failed",
-					amount,
-					recipient,
-				);
-
-				Err(bp_currency_exchange::Error::DepositFailed)
-			},
-			_ => {
-				log::error!(
-					target: "runtime",
-					"Deposit of {} to {:?} has partially competed. {} has been deposited",
-					amount,
-					recipient,
-					deposited_amount,
-				);
-
-				// we can't return DepositFailed error here, because storage changes were made
-				Err(bp_currency_exchange::Error::DepositPartiallyFailed)
-			},
-		}
-	}
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -383,6 +277,38 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
+}
+
+impl pallet_mmr::Config for Runtime {
+	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	type Hashing = Keccak256;
+	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
+	type WeightInfo = ();
+	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
+}
+
+parameter_types! {
+	/// Version of the produced MMR leaf.
+	///
+	/// The version consists of two parts;
+	/// - `major` (3 bits)
+	/// - `minor` (5 bits)
+	///
+	/// `major` should be updated only if decoding the previous MMR Leaf format from the payload
+	/// is not possible (i.e. backward incompatible change).
+	/// `minor` should be updated if fields are added to the previous MMR Leaf, which given SCALE
+	/// encoding does not prevent old leafs from being decoded.
+	///
+	/// Hence we expect `major` to be changed really rarely (think never).
+	/// See [`MmrLeafVersion`] type documentation for more details.
+	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
+}
+
+impl pallet_beefy_mmr::Config for Runtime {
+	type LeafVersion = LeafVersion;
+	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
+	type ParachainHeads = ();
 }
 
 parameter_types! {
@@ -578,11 +504,10 @@ construct_runtime!(
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
 		ShiftSessionManager: pallet_shift_session_manager::{Pallet},
 
-		// Eth-PoA chains bridge modules.
-		BridgeRialtoPoa: pallet_bridge_eth_poa::<Instance1>::{Pallet, Call, Config, Storage, ValidateUnsigned},
-		BridgeKovan: pallet_bridge_eth_poa::<Instance2>::{Pallet, Call, Config, Storage, ValidateUnsigned},
-		BridgeRialtoCurrencyExchange: pallet_bridge_currency_exchange::<Instance1>::{Pallet, Call},
-		BridgeKovanCurrencyExchange: pallet_bridge_currency_exchange::<Instance2>::{Pallet, Call},
+		// BEEFY Bridges support.
+		Beefy: pallet_beefy::{Pallet, Storage, Config<T>},
+		Mmr: pallet_mmr::{Pallet, Storage},
+		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage},
 
 		// Millau bridge modules.
 		BridgeMillauGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage},
@@ -693,43 +618,42 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl bp_eth_poa::RialtoPoAHeaderApi<Block> for Runtime {
-		fn best_block() -> (u64, bp_eth_poa::H256) {
-			let best_block = BridgeRialtoPoa::best_block();
-			(best_block.number, best_block.hash)
-		}
-
-		fn finalized_block() -> (u64, bp_eth_poa::H256) {
-			let finalized_block = BridgeRialtoPoa::finalized_block();
-			(finalized_block.number, finalized_block.hash)
-		}
-
-		fn is_import_requires_receipts(header: bp_eth_poa::AuraHeader) -> bool {
-			BridgeRialtoPoa::is_import_requires_receipts(header)
-		}
-
-		fn is_known_block(hash: bp_eth_poa::H256) -> bool {
-			BridgeRialtoPoa::is_known_block(hash)
+	impl beefy_primitives::BeefyApi<Block> for Runtime {
+		fn validator_set() -> ValidatorSet<BeefyId> {
+			Beefy::validator_set()
 		}
 	}
 
-	impl bp_eth_poa::KovanHeaderApi<Block> for Runtime {
-		fn best_block() -> (u64, bp_eth_poa::H256) {
-			let best_block = BridgeKovan::best_block();
-			(best_block.number, best_block.hash)
+	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
+		fn generate_proof(leaf_index: u64)
+			-> Result<(EncodableOpaqueLeaf, MmrProof<Hash>), MmrError>
+		{
+			Mmr::generate_proof(leaf_index)
+				.map(|(leaf, proof)| (EncodableOpaqueLeaf::from_leaf(&leaf), proof))
 		}
 
-		fn finalized_block() -> (u64, bp_eth_poa::H256) {
-			let finalized_block = BridgeKovan::finalized_block();
-			(finalized_block.number, finalized_block.hash)
+		fn verify_proof(leaf: EncodableOpaqueLeaf, proof: MmrProof<Hash>)
+			-> Result<(), MmrError>
+		{
+			pub type Leaf = <
+				<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider
+			>::LeafData;
+
+			let leaf: Leaf = leaf
+				.into_opaque_leaf()
+				.try_decode()
+				.ok_or(MmrError::Verify)?;
+			Mmr::verify_leaf(leaf, proof)
 		}
 
-		fn is_import_requires_receipts(header: bp_eth_poa::AuraHeader) -> bool {
-			BridgeKovan::is_import_requires_receipts(header)
-		}
-
-		fn is_known_block(hash: bp_eth_poa::H256) -> bool {
-			BridgeKovan::is_known_block(hash)
+		fn verify_proof_stateless(
+			root: Hash,
+			leaf: EncodableOpaqueLeaf,
+			proof: MmrProof<Hash>
+		) -> Result<(), MmrError> {
+			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
+			let node = DataOrHash::Data(leaf.into_opaque_leaf());
+			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
 		}
 	}
 
@@ -741,18 +665,6 @@ impl_runtime_apis! {
 
 		fn is_known_header(hash: bp_millau::Hash) -> bool {
 			BridgeMillauGrandpa::is_known_header(hash)
-		}
-	}
-
-	impl bp_currency_exchange::RialtoCurrencyExchangeApi<Block, exchange::EthereumTransactionInclusionProof> for Runtime {
-		fn filter_transaction_proof(proof: exchange::EthereumTransactionInclusionProof) -> bool {
-			BridgeRialtoCurrencyExchange::filter_transaction_proof(&proof)
-		}
-	}
-
-	impl bp_currency_exchange::KovanCurrencyExchangeApi<Block, exchange::EthereumTransactionInclusionProof> for Runtime {
-		fn filter_transaction_proof(proof: exchange::EthereumTransactionInclusionProof) -> bool {
-			BridgeKovanCurrencyExchange::filter_transaction_proof(&proof)
 		}
 	}
 
@@ -843,6 +755,13 @@ impl_runtime_apis! {
 		)
 			-> Option<polkadot_primitives::v1::PersistedValidationData<Hash, BlockNumber>> {
 			polkadot_runtime_parachains::runtime_api_impl::v1::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: polkadot_primitives::v1::Id,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(polkadot_primitives::v1::PersistedValidationData<Hash, BlockNumber>, polkadot_primitives::v1::ValidationCodeHash)> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::assumed_validation_data::<Runtime>(para_id, expected_persisted_validation_data_hash)
 		}
 
 		fn check_validation_outputs(
@@ -1028,17 +947,10 @@ impl_runtime_apis! {
 			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
-			use pallet_bridge_currency_exchange::benchmarking::Pallet as BridgeCurrencyExchangeBench;
 			use pallet_bridge_messages::benchmarking::Pallet as MessagesBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
 
-			list_benchmark!(list, extra, pallet_bridge_eth_poa, BridgeRialtoPoa);
-			list_benchmark!(
-				list,
-				extra,
-				pallet_bridge_currency_exchange, BridgeCurrencyExchangeBench::<Runtime, KovanCurrencyExchange>
-			);
 			list_benchmark!(list, extra, pallet_bridge_messages, MessagesBench::<Runtime, WithMillauMessagesInstance>);
 			list_benchmark!(list, extra, pallet_bridge_grandpa, BridgeMillauGrandpa);
 
@@ -1067,46 +979,6 @@ impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
-
-			use pallet_bridge_currency_exchange::benchmarking::{
-				Pallet as BridgeCurrencyExchangeBench,
-				Config as BridgeCurrencyExchangeConfig,
-				ProofParams as BridgeCurrencyExchangeProofParams,
-			};
-
-			impl BridgeCurrencyExchangeConfig<KovanCurrencyExchange> for Runtime {
-				fn make_proof(
-					proof_params: BridgeCurrencyExchangeProofParams<AccountId>,
-				) -> crate::exchange::EthereumTransactionInclusionProof {
-					use bp_currency_exchange::DepositInto;
-
-					if proof_params.recipient_exists {
-						<Runtime as pallet_bridge_currency_exchange::Config<KovanCurrencyExchange>>::DepositInto::deposit_into(
-							proof_params.recipient.clone(),
-							ExistentialDeposit::get(),
-						).unwrap();
-					}
-
-					let (transaction, receipt) = crate::exchange::prepare_ethereum_transaction(
-						&proof_params.recipient,
-						|tx| {
-							// our runtime only supports transactions where data is exactly 32 bytes long
-							// (receiver key)
-							// => we are ignoring `transaction_size_factor` here
-							tx.value = (ExistentialDeposit::get() * 10).into();
-						},
-					);
-					let transactions = sp_std::iter::repeat((transaction, receipt))
-						.take(1 + proof_params.proof_size_factor as usize)
-						.collect::<Vec<_>>();
-					let block_hash = crate::exchange::prepare_environment_for_claim::<Runtime, Kovan>(&transactions);
-					crate::exchange::EthereumTransactionInclusionProof {
-						block: block_hash,
-						index: 0,
-						proof: transactions,
-					}
-				}
-			}
 
 			use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
 			use bp_runtime::messages::DispatchFeePayment;
@@ -1274,13 +1146,6 @@ impl_runtime_apis! {
 				}
 			}
 
-			add_benchmark!(params, batches, pallet_bridge_eth_poa, BridgeRialtoPoa);
-			add_benchmark!(
-				params,
-				batches,
-				pallet_bridge_currency_exchange,
-				BridgeCurrencyExchangeBench::<Runtime, KovanCurrencyExchange>
-			);
 			add_benchmark!(
 				params,
 				batches,
@@ -1322,47 +1187,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use bp_currency_exchange::DepositInto;
 	use bridge_runtime_common::messages;
-
-	fn run_deposit_into_test(test: impl Fn(AccountId) -> Balance) {
-		let mut ext: sp_io::TestExternalities =
-			SystemConfig::default().build_storage::<Runtime>().unwrap().into();
-		ext.execute_with(|| {
-			// initially issuance is zero
-			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
-				0,
-			);
-
-			// create account
-			let account: AccountId = [1u8; 32].into();
-			let initial_amount = ExistentialDeposit::get();
-			let deposited =
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(
-					&account,
-					initial_amount,
-				);
-			drop(deposited);
-			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
-				initial_amount,
-			);
-			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&account),
-				initial_amount,
-			);
-
-			// run test
-			let total_issuance_change = test(account);
-
-			// check that total issuance has changed by `run_deposit_into_test`
-			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
-				initial_amount + total_issuance_change,
-			);
-		});
-	}
 
 	#[test]
 	fn ensure_rialto_message_lane_weights_are_correct() {
@@ -1406,52 +1231,11 @@ mod tests {
 	}
 
 	#[test]
-	fn deposit_into_existing_account_works() {
-		run_deposit_into_test(|existing_account| {
-			let initial_amount =
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
-					&existing_account,
-				);
-			let additional_amount = 10_000;
-			<Runtime as pallet_bridge_currency_exchange::Config<KovanCurrencyExchange>>::DepositInto::deposit_into(
-				existing_account.clone(),
-				additional_amount,
-			)
-			.unwrap();
-			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
-					&existing_account
-				),
-				initial_amount + additional_amount,
-			);
-			additional_amount
-		});
-	}
-
-	#[test]
-	fn deposit_into_new_account_works() {
-		run_deposit_into_test(|_| {
-			let initial_amount = 0;
-			let additional_amount = ExistentialDeposit::get() + 10_000;
-			let new_account: AccountId = [42u8; 32].into();
-			<Runtime as pallet_bridge_currency_exchange::Config<KovanCurrencyExchange>>::DepositInto::deposit_into(
-				new_account.clone(),
-				additional_amount,
-			)
-			.unwrap();
-			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
-					&new_account
-				),
-				initial_amount + additional_amount,
-			);
-			additional_amount
-		});
-	}
-
-	#[test]
 	fn call_size() {
-		const MAX_CALL_SIZE: usize = 230; // value from polkadot-runtime tests
-		assert!(core::mem::size_of::<Call>() <= MAX_CALL_SIZE);
+		const DOT_MAX_CALL_SZ: usize = 230;
+		assert!(core::mem::size_of::<pallet_bridge_grandpa::Call<Runtime>>() <= DOT_MAX_CALL_SZ);
+		// FIXME: get this down to 230. https://github.com/paritytech/grandpa-bridge-gadget/issues/359
+		const BEEFY_MAX_CALL_SZ: usize = 232;
+		assert!(core::mem::size_of::<pallet_bridge_messages::Call<Runtime>>() <= BEEFY_MAX_CALL_SZ);
 	}
 }

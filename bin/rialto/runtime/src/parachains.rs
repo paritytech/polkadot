@@ -71,7 +71,9 @@ impl parachains_paras::Config for Runtime {
 	type WeightInfo = parachains_paras::TestWeightInfo;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = parachains_paras_inherent::TestWeightInfo;
+}
 
 impl parachains_scheduler::Config for Runtime {}
 

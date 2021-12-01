@@ -28,7 +28,16 @@ use bp_message_dispatch::{CallOrigin, MessagePayload};
 use codec::Decode;
 use frame_support::weights::{DispatchInfo, GetDispatchInfo, Weight};
 use relay_millau_client::Millau;
+use sp_core::storage::StorageKey;
+use sp_runtime::FixedU128;
 use sp_version::RuntimeVersion;
+
+// Millau/Rialto tokens have no any real value, so the conversion rate we use is always 1:1. But we
+// want to test our code that is intended to work with real-value chains. So to keep it close to
+// 1:1, we'll be treating Rialto as BTC and Millau as wBTC (only in relayer).
+
+/// The identifier of token, which value is associated with Millau token value by relayer.
+pub(crate) const ASSOCIATED_TOKEN_ID: &str = crate::chains::kusama::TOKEN_ID;
 
 impl CliEncodeCall for Millau {
 	fn max_extrinsic_size() -> u32 {
@@ -122,4 +131,12 @@ impl CliChain for Millau {
 			},
 		}
 	}
+}
+
+/// Storage key and initial value of Rialto -> Millau conversion rate.
+pub(crate) fn rialto_to_millau_conversion_rate_params() -> (StorageKey, FixedU128) {
+	(
+		StorageKey(millau_runtime::rialto_messages::RialtoToMillauConversionRate::key().to_vec()),
+		millau_runtime::rialto_messages::INITIAL_RIALTO_TO_MILLAU_CONVERSION_RATE,
+	)
 }
