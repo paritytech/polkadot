@@ -36,16 +36,18 @@ function show_help () {
   echo " "
   echo "Options:"
   echo "  --no-monitoring                            Disable monitoring"
+  echo "  --no-ui                                    Disable UI"
   echo " "
   echo "You can start multiple bridges at once by passing several bridge names:"
   echo "  ./run.sh poa-rialto rialto-millau westend-millau [stop|update]"
   exit 1
 }
 
-RIALTO=' -f ./networks/rialto.yml'
+RIALTO=' -f ./networks/rialto.yml -f ./networks/rialto-parachain.yml'
 MILLAU=' -f ./networks/millau.yml'
 ETH_POA=' -f ./networks/eth-poa.yml'
 MONITORING=' -f ./monitoring/docker-compose.yml'
+UI=' -f ./ui/docker-compose.yml'
 
 BRIDGES=()
 NETWORKS=''
@@ -55,6 +57,11 @@ do
   case $i in
     --no-monitoring)
       MONITORING=" -f ./monitoring/disabled.yml"
+      shift
+      continue
+      ;;
+    --no-ui)
+      UI=""
       shift
       continue
       ;;
@@ -94,7 +101,7 @@ if [ ${#BRIDGES[@]} -eq 0 ]; then
   show_help "Missing bridge name."
 fi
 
-COMPOSE_FILES=$NETWORKS$MONITORING
+COMPOSE_FILES=$NETWORKS$MONITORING$UI
 
 # Compose looks for .env files in the the current directory by default, we don't want that
 COMPOSE_ARGS="--project-directory ."

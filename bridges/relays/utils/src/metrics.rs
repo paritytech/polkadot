@@ -21,11 +21,15 @@ pub use substrate_prometheus_endpoint::{
 	register, Counter, CounterVec, Gauge, GaugeVec, Opts, PrometheusError, Registry, F64, U64,
 };
 
+use async_std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use std::{fmt::Debug, time::Duration};
 
 mod float_json_value;
 mod global;
+
+/// Shared reference to `f64` value that is updated by the metric.
+pub type F64SharedRef = Arc<RwLock<Option<f64>>>;
 
 /// Unparsed address that needs to be used to expose Prometheus metrics.
 #[derive(Debug, Clone)]
@@ -78,21 +82,14 @@ pub trait StandaloneMetrics: Metrics {
 
 impl Default for MetricsAddress {
 	fn default() -> Self {
-		MetricsAddress {
-			host: "127.0.0.1".into(),
-			port: 9616,
-		}
+		MetricsAddress { host: "127.0.0.1".into(), port: 9616 }
 	}
 }
 
 impl MetricsParams {
 	/// Creates metrics params so that metrics are not exposed.
 	pub fn disabled() -> Self {
-		MetricsParams {
-			address: None,
-			registry: None,
-			metrics_prefix: None,
-		}
+		MetricsParams { address: None, registry: None, metrics_prefix: None }
 	}
 
 	/// Do not expose metrics.
@@ -110,11 +107,7 @@ impl MetricsParams {
 
 impl From<Option<MetricsAddress>> for MetricsParams {
 	fn from(address: Option<MetricsAddress>) -> Self {
-		MetricsParams {
-			address,
-			registry: None,
-			metrics_prefix: None,
-		}
+		MetricsParams { address, registry: None, metrics_prefix: None }
 	}
 }
 
@@ -130,7 +123,10 @@ pub fn metric_name(prefix: Option<&str>, name: &str) -> String {
 /// Set value of gauge metric.
 ///
 /// If value is `Ok(None)` or `Err(_)`, metric would have default value.
-pub fn set_gauge_value<T: Default + Debug, V: Atomic<T = T>, E: Debug>(gauge: &Gauge<V>, value: Result<Option<T>, E>) {
+pub fn set_gauge_value<T: Default + Debug, V: Atomic<T = T>, E: Debug>(
+	gauge: &Gauge<V>,
+	value: Result<Option<T>, E>,
+) {
 	gauge.set(match value {
 		Ok(Some(value)) => {
 			log::trace!(
@@ -140,7 +136,7 @@ pub fn set_gauge_value<T: Default + Debug, V: Atomic<T = T>, E: Debug>(gauge: &G
 				value,
 			);
 			value
-		}
+		},
 		Ok(None) => {
 			log::warn!(
 				target: "bridge-metrics",
@@ -148,7 +144,7 @@ pub fn set_gauge_value<T: Default + Debug, V: Atomic<T = T>, E: Debug>(gauge: &G
 				gauge.desc().first().map(|d| &d.fq_name),
 			);
 			Default::default()
-		}
+		},
 		Err(error) => {
 			log::warn!(
 				target: "bridge-metrics",
@@ -157,6 +153,6 @@ pub fn set_gauge_value<T: Default + Debug, V: Atomic<T = T>, E: Debug>(gauge: &G
 				error,
 			);
 			Default::default()
-		}
+		},
 	})
 }

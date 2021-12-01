@@ -21,8 +21,8 @@ use bp_header_chain::InclusionProofVerifier;
 use frame_support::RuntimeDebug;
 use hex_literal::hex;
 use pallet_bridge_eth_poa::{
-	AuraConfiguration, ChainTime as TChainTime, PruningStrategy as BridgePruningStrategy, ValidatorsConfiguration,
-	ValidatorsSource,
+	AuraConfiguration, ChainTime as TChainTime, PruningStrategy as BridgePruningStrategy,
+	ValidatorsConfiguration, ValidatorsSource,
 };
 use sp_std::prelude::*;
 
@@ -34,8 +34,8 @@ frame_support::parameter_types! {
 		kovan_validators_configuration();
 }
 
-/// Max number of finalized headers to keep. It is equivalent of approximately
-/// 24 hours of finalized blocks on current Kovan chain.
+/// Max number of finalized headers to keep. It is equivalent of around 24 hours of
+/// finalized blocks on current Kovan chain.
 const FINALIZED_HEADERS_TO_KEEP: u64 = 20_000;
 
 /// Aura engine configuration for Kovan chain.
@@ -102,11 +102,14 @@ pub fn genesis_header() -> AuraHeader {
 		timestamp: 0,
 		number: 0,
 		author: Default::default(),
-		transactions_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").into(),
-		uncles_hash: hex!("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347").into(),
+		transactions_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+			.into(),
+		uncles_hash: hex!("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
+			.into(),
 		extra_data: vec![],
 		state_root: hex!("2480155b48a1cea17d67dbfdfaafe821c1d19cdd478c5358e8ec56dec24502b2").into(),
-		receipts_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").into(),
+		receipts_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+			.into(),
 		log_bloom: Default::default(),
 		gas_used: Default::default(),
 		gas_limit: 6000000.into(),
@@ -114,8 +117,9 @@ pub fn genesis_header() -> AuraHeader {
 		seal: vec![
 			vec![128],
 			vec![
-				184, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				184, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			],
 		],
 	}
@@ -153,12 +157,17 @@ impl InclusionProofVerifier for KovanBlockchain {
 	type Transaction = RawTransaction;
 	type TransactionInclusionProof = EthereumTransactionInclusionProof;
 
-	fn verify_transaction_inclusion_proof(proof: &Self::TransactionInclusionProof) -> Option<Self::Transaction> {
-		let is_transaction_finalized =
-			crate::BridgeKovan::verify_transaction_finalized(proof.block, proof.index, &proof.proof);
+	fn verify_transaction_inclusion_proof(
+		proof: &Self::TransactionInclusionProof,
+	) -> Option<Self::Transaction> {
+		let is_transaction_finalized = crate::BridgeKovan::verify_transaction_finalized(
+			proof.block,
+			proof.index,
+			&proof.proof,
+		);
 
 		if !is_transaction_finalized {
-			return None;
+			return None
 		}
 
 		proof.proof.get(proof.index as usize).map(|(tx, _)| tx.clone())

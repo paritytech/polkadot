@@ -18,38 +18,52 @@
 
 use crate::types::U256;
 
-use jsonrpsee_ws_client::Error as RpcError;
+use jsonrpsee_ws_client::types::Error as RpcError;
 use relay_utils::MaybeConnectionError;
+use thiserror::Error;
 
 /// Result type used by Ethereum client.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors that can occur only when interacting with
 /// an Ethereum node through RPC.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+	/// IO error.
+	#[error("IO error: {0}")]
+	Io(#[from] std::io::Error),
 	/// An error that can occur when making an HTTP request to
 	/// an JSON-RPC client.
-	RpcError(RpcError),
+	#[error("RPC error: {0}")]
+	RpcError(#[from] RpcError),
 	/// Failed to parse response.
+	#[error("Response parse failed: {0}")]
 	ResponseParseFailed(String),
 	/// We have received a header with missing fields.
+	#[error("Incomplete Ethereum Header Received (missing some of required fields - hash, number, logs_bloom).")]
 	IncompleteHeader,
 	/// We have received a transaction missing a `raw` field.
+	#[error("Incomplete Ethereum Transaction (missing required field - raw).")]
 	IncompleteTransaction,
 	/// An invalid Substrate block number was received from
 	/// an Ethereum node.
+	#[error("Received an invalid Substrate block from Ethereum Node.")]
 	InvalidSubstrateBlockNumber,
 	/// An invalid index has been received from an Ethereum node.
+	#[error("Received an invalid incomplete index from Ethereum Node.")]
 	InvalidIncompleteIndex,
 	/// The client we're connected to is not synced, so we can't rely on its state. Contains
 	/// number of unsynced headers.
+	#[error("Ethereum client is not synced: syncing {0} headers.")]
 	ClientNotSynced(U256),
+	/// Custom logic error.
+	#[error("{0}")]
+	Custom(String),
 }
 
-impl From<RpcError> for Error {
-	fn from(error: RpcError) -> Self {
-		Error::RpcError(error)
+impl From<tokio::task::JoinError> for Error {
+	fn from(error: tokio::task::JoinError) -> Self {
+		Error::Custom(format!("Failed to wait tokio task: {}", error))
 	}
 }
 
@@ -57,30 +71,12 @@ impl MaybeConnectionError for Error {
 	fn is_connection_error(&self) -> bool {
 		matches!(
 			*self,
-			Error::RpcError(RpcError::TransportError(_))
+			Error::RpcError(RpcError::Transport(_))
 				// right now if connection to the ws server is dropped (after it is already established),
 				// we're getting this error
 				| Error::RpcError(RpcError::Internal(_))
+				| Error::RpcError(RpcError::RestartNeeded(_))
 				| Error::ClientNotSynced(_),
 		)
-	}
-}
-
-impl ToString for Error {
-	fn to_string(&self) -> String {
-		match self {
-			Self::RpcError(e) => e.to_string(),
-			Self::ResponseParseFailed(e) => e.to_string(),
-			Self::IncompleteHeader => {
-				"Incomplete Ethereum Header Received (missing some of required fields - hash, number, logs_bloom)"
-					.to_string()
-			}
-			Self::IncompleteTransaction => "Incomplete Ethereum Transaction (missing required field - raw)".to_string(),
-			Self::InvalidSubstrateBlockNumber => "Received an invalid Substrate block from Ethereum Node".to_string(),
-			Self::InvalidIncompleteIndex => "Received an invalid incomplete index from Ethereum Node".to_string(),
-			Self::ClientNotSynced(missing_headers) => {
-				format!("Ethereum client is not synced: syncing {} headers", missing_headers)
-			}
-		}
 	}
 }

@@ -21,6 +21,7 @@
 
 #![warn(missing_docs)]
 
+pub mod error;
 pub mod exchange;
 pub mod exchange_loop;
 pub mod exchange_loop_metrics;

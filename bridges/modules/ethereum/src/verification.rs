@@ -14,11 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error;
-use crate::validators::{Validators, ValidatorsConfiguration};
-use crate::{AuraConfiguration, AuraScheduledChange, ChainTime, ImportContext, PoolConfiguration, Storage};
+use crate::{
+	error::Error,
+	validators::{Validators, ValidatorsConfiguration},
+	AuraConfiguration, AuraScheduledChange, ChainTime, ImportContext, PoolConfiguration, Storage,
+};
 use bp_eth_poa::{
-	public_to_address, step_validator, Address, AuraHeader, HeaderId, Receipt, SealedEmptyStep, H256, H520, U128, U256,
+	public_to_address, step_validator, Address, AuraHeader, HeaderId, Receipt, SealedEmptyStep,
+	H256, H520, U128, U256,
 };
 use codec::Encode;
 use sp_io::crypto::secp256k1_ecdsa_recover;
@@ -28,22 +31,25 @@ use sp_std::{vec, vec::Vec};
 /// Pre-check to see if should try and import this header.
 /// Returns error if we should not try to import this block.
 /// Returns ID of passed header and best finalized header.
-pub fn is_importable_header<S: Storage>(storage: &S, header: &AuraHeader) -> Result<(HeaderId, HeaderId), Error> {
+pub fn is_importable_header<S: Storage>(
+	storage: &S,
+	header: &AuraHeader,
+) -> Result<(HeaderId, HeaderId), Error> {
 	// we never import any header that competes with finalized header
 	let finalized_id = storage.finalized_block();
 	if header.number <= finalized_id.number {
-		return Err(Error::AncientHeader);
+		return Err(Error::AncientHeader)
 	}
 	// we never import any header with known hash
 	let id = header.compute_id();
 	if storage.header(&id.hash).is_some() {
-		return Err(Error::KnownHeader);
+		return Err(Error::KnownHeader)
 	}
 
 	Ok((id, finalized_id))
 }
 
-/// Try accept unsigned aura header into transaction pool.
+/// Try to accept unsigned aura header into transaction pool.
 ///
 /// Returns required and provided tags.
 pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
@@ -64,7 +70,8 @@ pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
 	// we want to avoid having same headers twice in the pool
 	// => we're strict about receipts here - if we need them, we require receipts to be Some,
 	// otherwise we require receipts to be None
-	let receipts_required = Validators::new(validators_config).maybe_signals_validators_change(header);
+	let receipts_required =
+		Validators::new(validators_config).maybe_signals_validators_change(header);
 	match (receipts_required, receipts.is_some()) {
 		(true, false) => return Err(Error::MissingTransactionsReceipts),
 		(false, true) => return Err(Error::RedundantTransactionsReceipts),
@@ -78,7 +85,7 @@ pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
 	let (best_id, _) = storage.best_block();
 	let difference = header.number.saturating_sub(best_id.number);
 	if difference > pool_config.max_future_number_difference {
-		return Err(Error::UnsignedTooFarInTheFuture);
+		return Err(Error::UnsignedTooFarInTheFuture)
 	}
 
 	// TODO: only accept new headers when we're at the tip of PoA chain
@@ -104,11 +111,8 @@ pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
 
 			// since our parent is already in the storage, we do not require it
 			// to be in the transaction pool
-			(
-				vec![],
-				vec![provides_number_and_authority_tag, provides_header_number_and_hash_tag],
-			)
-		}
+			(vec![], vec![provides_number_and_authority_tag, provides_header_number_and_hash_tag])
+		},
 		None => {
 			// we know nothing about parent header
 			// => the best thing we can do is to believe that there are no forks in
@@ -119,34 +123,38 @@ pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
 				"import context is None only when header is missing from the storage;\
 							best header is always in the storage; qed",
 			);
-			let validators_check_result =
-				validator_checks(config, &best_context.validators_set().validators, header, header_step);
+			let validators_check_result = validator_checks(
+				config,
+				&best_context.validators_set().validators,
+				header,
+				header_step,
+			);
 			if let Err(error) = validators_check_result {
-				find_next_validators_signal(storage, &best_context)
-					.ok_or(error)
-					.and_then(|next_validators| validator_checks(config, &next_validators, header, header_step))?;
+				find_next_validators_signal(storage, &best_context).ok_or(error).and_then(
+					|next_validators| {
+						validator_checks(config, &next_validators, header, header_step)
+					},
+				)?;
 			}
 
 			// since our parent is missing from the storage, we **DO** require it
 			// to be in the transaction pool
 			// (- 1 can't underflow because there's always best block in the header)
-			let requires_header_number_and_hash_tag = HeaderId {
-				number: header.number - 1,
-				hash: header.parent_hash,
-			}
-			.encode();
+			let requires_header_number_and_hash_tag =
+				HeaderId { number: header.number - 1, hash: header.parent_hash }.encode();
 			(
 				vec![requires_header_number_and_hash_tag],
 				vec![provides_number_and_authority_tag, provides_header_number_and_hash_tag],
 			)
-		}
+		},
 	};
 
 	// the heaviest, but rare operation - we do not want invalid receipts in the pool
 	if let Some(receipts) = receipts {
 		log::trace!(target: "runtime", "Got receipts! {:?}", receipts);
+		#[allow(clippy::question_mark)]
 		if header.check_receipts_root(receipts).is_err() {
-			return Err(Error::TransactionsReceiptsMismatch);
+			return Err(Error::TransactionsReceiptsMismatch)
 		}
 	}
 
@@ -189,32 +197,32 @@ fn contextless_checks<CT: ChainTime>(
 ) -> Result<(), Error> {
 	let expected_seal_fields = expected_header_seal_fields(config, header);
 	if header.seal.len() != expected_seal_fields {
-		return Err(Error::InvalidSealArity);
+		return Err(Error::InvalidSealArity)
 	}
-	if header.number >= u64::MAX {
-		return Err(Error::RidiculousNumber);
+	if header.number >= u64::max_value() {
+		return Err(Error::RidiculousNumber)
 	}
 	if header.gas_used > header.gas_limit {
-		return Err(Error::TooMuchGasUsed);
+		return Err(Error::TooMuchGasUsed)
 	}
 	if header.gas_limit < config.min_gas_limit {
-		return Err(Error::InvalidGasLimit);
+		return Err(Error::InvalidGasLimit)
 	}
 	if header.gas_limit > config.max_gas_limit {
-		return Err(Error::InvalidGasLimit);
+		return Err(Error::InvalidGasLimit)
 	}
 	if header.number != 0 && header.extra_data.len() as u64 > config.maximum_extra_data_size {
-		return Err(Error::ExtraDataOutOfBounds);
+		return Err(Error::ExtraDataOutOfBounds)
 	}
 
 	// we can't detect if block is from future in runtime
 	// => let's only do an overflow check
-	if header.timestamp > i32::MAX as u64 {
-		return Err(Error::TimestampOverflow);
+	if header.timestamp > i32::max_value() as u64 {
+		return Err(Error::TimestampOverflow)
 	}
 
 	if chain_time.is_timestamp_ahead(header.timestamp) {
-		return Err(Error::HeaderTimestampIsAhead);
+		return Err(Error::HeaderTimestampIsAhead)
 	}
 
 	Ok(())
@@ -233,15 +241,16 @@ fn contextual_checks<Submitter>(
 
 	// Ensure header is from the step after context.
 	if header_step == parent_step {
-		return Err(Error::DoubleVote);
+		return Err(Error::DoubleVote)
 	}
 	#[allow(clippy::suspicious_operation_groupings)]
 	if header.number >= config.validate_step_transition && header_step < parent_step {
-		return Err(Error::DoubleVote);
+		return Err(Error::DoubleVote)
 	}
 
-	// If empty step messages are enabled we will validate the messages in the seal, missing messages are not
-	// reported as there's no way to tell whether the empty step message was never sent or simply not included.
+	// If empty step messages are enabled we will validate the messages in the seal, missing
+	// messages are not reported as there's no way to tell whether the empty step message was never
+	// sent or simply not included.
 	let empty_steps_len = match header.number >= config.empty_steps_transition {
 		true => {
 			let strict_empty_steps = header.number >= config.strict_empty_steps_transition;
@@ -251,16 +260,16 @@ fn contextual_checks<Submitter>(
 
 			for empty_step in empty_steps {
 				if empty_step.step <= parent_step || empty_step.step >= header_step {
-					return Err(Error::InsufficientProof);
+					return Err(Error::InsufficientProof)
 				}
 
 				if !verify_empty_step(&header.parent_hash, &empty_step, validators) {
-					return Err(Error::InsufficientProof);
+					return Err(Error::InsufficientProof)
 				}
 
 				if strict_empty_steps {
 					if empty_step.step <= prev_empty_step {
-						return Err(Error::InsufficientProof);
+						return Err(Error::InsufficientProof)
 					}
 
 					prev_empty_step = empty_step.step;
@@ -268,7 +277,7 @@ fn contextual_checks<Submitter>(
 			}
 
 			empty_steps_len
-		}
+		},
 		false => 0,
 	};
 
@@ -276,7 +285,7 @@ fn contextual_checks<Submitter>(
 	if header.number >= config.validate_score_transition {
 		let expected_difficulty = calculate_score(parent_step, header_step, empty_steps_len as _);
 		if header.difficulty != expected_difficulty {
-			return Err(Error::InvalidDifficulty);
+			return Err(Error::InvalidDifficulty)
 		}
 	}
 
@@ -292,16 +301,17 @@ fn validator_checks(
 ) -> Result<(), Error> {
 	let expected_validator = *step_validator(validators, header_step);
 	if header.author != expected_validator {
-		return Err(Error::NotValidator);
+		return Err(Error::NotValidator)
 	}
 
 	let validator_signature = header.signature().ok_or(Error::MissingSignature)?;
 	let header_seal_hash = header
 		.seal_hash(header.number >= config.empty_steps_transition)
 		.ok_or(Error::MissingEmptySteps)?;
-	let is_invalid_proposer = !verify_signature(&expected_validator, &validator_signature, &header_seal_hash);
+	let is_invalid_proposer =
+		!verify_signature(&expected_validator, &validator_signature, &header_seal_hash);
 	if is_invalid_proposer {
-		return Err(Error::NotValidator);
+		return Err(Error::NotValidator)
 	}
 
 	Ok(())
@@ -323,9 +333,14 @@ fn verify_empty_step(parent_hash: &H256, step: &SealedEmptyStep, validators: &[A
 	verify_signature(&expected_validator, &step.signature, &message)
 }
 
-/// Chain scoring: total weight is sqrt(U256::MAX)*height - step
-pub(crate) fn calculate_score(parent_step: u64, current_step: u64, current_empty_steps: usize) -> U256 {
-	U256::from(U128::MAX) + U256::from(parent_step) - U256::from(current_step) + U256::from(current_empty_steps)
+/// Chain scoring: total `weight is sqrt(U256::max_value())*height - step`.
+pub(crate) fn calculate_score(
+	parent_step: u64,
+	current_step: u64,
+	current_empty_steps: usize,
+) -> U256 {
+	U256::from(U128::max_value()) + U256::from(parent_step) - U256::from(current_step) +
+		U256::from(current_empty_steps)
 }
 
 /// Verify that the signature over message has been produced by given validator.
@@ -337,7 +352,10 @@ fn verify_signature(expected_validator: &Address, signature: &H520, message: &H2
 }
 
 /// Find next unfinalized validators set change after finalized set.
-fn find_next_validators_signal<S: Storage>(storage: &S, context: &ImportContext<S::Submitter>) -> Option<Vec<Address>> {
+fn find_next_validators_signal<S: Storage>(
+	storage: &S,
+	context: &ImportContext<S::Submitter>,
+) -> Option<Vec<Address>> {
 	// that's the earliest block number we may met in following loop
 	// it may be None if that's the first set
 	let best_set_signal_block = context.validators_set().signal_block;
@@ -352,14 +370,15 @@ fn find_next_validators_signal<S: Storage>(storage: &S, context: &ImportContext<
 		// next_current_block_hash points to the block that schedules next
 		// change
 		let current_scheduled_set = match current_set_signal_block {
-			Some(current_set_signal_block) if Some(&current_set_signal_block) == best_set_signal_block.as_ref() => {
-				return next_scheduled_set.map(|scheduled_set| scheduled_set.validators)
-			}
+			Some(current_set_signal_block)
+				if Some(&current_set_signal_block) == best_set_signal_block.as_ref() =>
+				return next_scheduled_set.map(|scheduled_set| scheduled_set.validators),
 			None => return next_scheduled_set.map(|scheduled_set| scheduled_set.validators),
-			Some(current_set_signal_block) => storage.scheduled_change(&current_set_signal_block.hash).expect(
-				"header that is associated with this change is not pruned;\
+			Some(current_set_signal_block) =>
+				storage.scheduled_change(&current_set_signal_block.hash).expect(
+					"header that is associated with this change is not pruned;\
 					scheduled changes are only removed when header is pruned; qed",
-			),
+				),
 		};
 
 		current_set_signal_block = current_scheduled_set.prev_signal_block;
@@ -370,20 +389,20 @@ fn find_next_validators_signal<S: Storage>(storage: &S, context: &ImportContext<
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{
-		insert_header, run_test_with_genesis, test_aura_config, validator, validator_address, validators_addresses,
-		validators_change_receipt, AccountId, ConstChainTime, HeaderBuilder, TestRuntime, GAS_LIMIT,
-	};
-	use crate::validators::ValidatorsSource;
-	use crate::DefaultInstance;
 	use crate::{
-		pool_configuration, BridgeStorage, FinalizedBlock, Headers, HeadersByNumber, NextValidatorsSetId,
+		mock::{
+			insert_header, run_test_with_genesis, test_aura_config, validator, validator_address,
+			validators_addresses, validators_change_receipt, AccountId, ConstChainTime,
+			HeaderBuilder, TestRuntime, GAS_LIMIT,
+		},
+		pool_configuration,
+		validators::ValidatorsSource,
+		BridgeStorage, FinalizedBlock, Headers, HeadersByNumber, NextValidatorsSetId,
 		ScheduledChanges, ValidatorsSet, ValidatorsSets,
 	};
 	use bp_eth_poa::{compute_merkle_root, rlp_encode, TransactionOutcome, H520, U256};
-	use frame_support::{StorageMap, StorageValue};
 	use hex_literal::hex;
-	use secp256k1::SecretKey;
+	use libsecp256k1::SecretKey;
 	use sp_runtime::transaction_validity::TransactionTag;
 
 	const GENESIS_STEP: u64 = 42;
@@ -393,7 +412,10 @@ mod tests {
 		HeaderBuilder::genesis().step(GENESIS_STEP).sign_by(&validator(0))
 	}
 
-	fn verify_with_config(config: &AuraConfiguration, header: &AuraHeader) -> Result<ImportContext<AccountId>, Error> {
+	fn verify_with_config(
+		config: &AuraConfiguration,
+		header: &AuraHeader,
+	) -> Result<ImportContext<AccountId>, Error> {
 		run_test_with_genesis(genesis(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
 			verify_aura_header(&storage, config, None, header, &ConstChainTime::default())
@@ -418,10 +440,12 @@ mod tests {
 			let block3 = HeaderBuilder::with_parent_number(2).sign_by_set(&validators);
 			insert_header(&mut storage, block3);
 
-			FinalizedBlock::<DefaultInstance>::put(block2_id);
+			FinalizedBlock::<TestRuntime, ()>::put(block2_id);
 
-			let validators_config =
-				ValidatorsConfiguration::Single(ValidatorsSource::Contract(Default::default(), Vec::new()));
+			let validators_config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(
+				Default::default(),
+				Vec::new(),
+			));
 			let (header, receipts) = make_header(&validators);
 			accept_aura_header_into_pool(
 				&storage,
@@ -435,22 +459,26 @@ mod tests {
 		})
 	}
 
-	fn change_validators_set_at(number: u64, finalized_set: Vec<Address>, signalled_set: Option<Vec<Address>>) {
-		let set_id = NextValidatorsSetId::<DefaultInstance>::get();
-		NextValidatorsSetId::<DefaultInstance>::put(set_id + 1);
-		ValidatorsSets::<DefaultInstance>::insert(
+	fn change_validators_set_at(
+		number: u64,
+		finalized_set: Vec<Address>,
+		signalled_set: Option<Vec<Address>>,
+	) {
+		let set_id = NextValidatorsSetId::<TestRuntime, ()>::get();
+		NextValidatorsSetId::<TestRuntime, ()>::put(set_id + 1);
+		ValidatorsSets::<TestRuntime, ()>::insert(
 			set_id,
 			ValidatorsSet {
 				validators: finalized_set,
 				signal_block: None,
 				enact_block: HeaderId {
 					number: 0,
-					hash: HeadersByNumber::<DefaultInstance>::get(&0).unwrap()[0],
+					hash: HeadersByNumber::<TestRuntime, ()>::get(&0).unwrap()[0],
 				},
 			},
 		);
 
-		let header_hash = HeadersByNumber::<DefaultInstance>::get(&number).unwrap()[0];
+		let header_hash = HeadersByNumber::<TestRuntime, ()>::get(&number).unwrap()[0];
 		let mut header = Headers::<TestRuntime>::get(&header_hash).unwrap();
 		header.next_validators_set_id = set_id;
 		if let Some(signalled_set) = signalled_set {
@@ -458,12 +486,9 @@ mod tests {
 				number: header.header.number - 1,
 				hash: header.header.parent_hash,
 			});
-			ScheduledChanges::<DefaultInstance>::insert(
+			ScheduledChanges::<TestRuntime, ()>::insert(
 				header.header.parent_hash,
-				AuraScheduledChange {
-					validators: signalled_set,
-					prev_signal_block: None,
-				},
+				AuraScheduledChange { validators: signalled_set, prev_signal_block: None },
 			);
 		}
 
@@ -522,21 +547,15 @@ mod tests {
 		config.max_gas_limit = 200.into();
 
 		// when limit is lower than expected
-		let header = HeaderBuilder::with_number(1)
-			.gas_limit(50.into())
-			.sign_by(&validator(0));
+		let header = HeaderBuilder::with_number(1).gas_limit(50.into()).sign_by(&validator(0));
 		assert_eq!(verify_with_config(&config, &header), Err(Error::InvalidGasLimit));
 
 		// when limit is larger than expected
-		let header = HeaderBuilder::with_number(1)
-			.gas_limit(250.into())
-			.sign_by(&validator(0));
+		let header = HeaderBuilder::with_number(1).gas_limit(250.into()).sign_by(&validator(0));
 		assert_eq!(verify_with_config(&config, &header), Err(Error::InvalidGasLimit));
 
 		// when limit is within expected range
-		let header = HeaderBuilder::with_number(1)
-			.gas_limit(150.into())
-			.sign_by(&validator(0));
+		let header = HeaderBuilder::with_number(1).gas_limit(150.into()).sign_by(&validator(0));
 		assert_ne!(verify_with_config(&config, &header), Err(Error::InvalidGasLimit));
 	}
 
@@ -564,9 +583,8 @@ mod tests {
 		assert_eq!(default_verify(&header), Err(Error::TimestampOverflow));
 
 		// when timestamp doesn't overflow i32
-		let header = HeaderBuilder::with_number(1)
-			.timestamp(i32::MAX as u64)
-			.sign_by(&validator(0));
+		let header =
+			HeaderBuilder::with_number(1).timestamp(i32::MAX as u64).sign_by(&validator(0));
 		assert_ne!(default_verify(&header), Err(Error::TimestampOverflow));
 	}
 
@@ -575,7 +593,8 @@ mod tests {
 		// expected import context after verification
 		let expect = ImportContext::<AccountId> {
 			submitter: None,
-			parent_hash: hex!("6e41bff05578fc1db17f6816117969b07d2217f1f9039d8116a82764335991d3").into(),
+			parent_hash: hex!("6e41bff05578fc1db17f6816117969b07d2217f1f9039d8116a82764335991d3")
+				.into(),
 			parent_header: genesis(),
 			parent_total_difficulty: U256::zero(),
 			parent_scheduled_change: None,
@@ -589,7 +608,8 @@ mod tests {
 				signal_block: None,
 				enact_block: HeaderId {
 					number: 0,
-					hash: hex!("6e41bff05578fc1db17f6816117969b07d2217f1f9039d8116a82764335991d3").into(),
+					hash: hex!("6e41bff05578fc1db17f6816117969b07d2217f1f9039d8116a82764335991d3")
+						.into(),
 				},
 			},
 			last_signal_block: None,
@@ -731,7 +751,10 @@ mod tests {
 	fn pool_verifies_known_blocks() {
 		// when header is known
 		assert_eq!(
-			default_accept_into_pool(|validators| (HeaderBuilder::with_parent_number(2).sign_by_set(validators), None)),
+			default_accept_into_pool(|validators| (
+				HeaderBuilder::with_parent_number(2).sign_by_set(validators),
+				None
+			)),
 			Err(Error::KnownHeader),
 		);
 	}
@@ -787,7 +810,10 @@ mod tests {
 	fn pool_verifies_future_block_number() {
 		// when header is too far from the future
 		assert_eq!(
-			default_accept_into_pool(|validators| (HeaderBuilder::with_number(100).sign_by_set(validators), None),),
+			default_accept_into_pool(|validators| (
+				HeaderBuilder::with_number(100).sign_by_set(validators),
+				None
+			),),
 			Err(Error::UnsignedTooFarInTheFuture),
 		);
 	}
@@ -813,7 +839,10 @@ mod tests {
 		// (even if header will be considered invalid/duplicate later, we can use this signature
 		// as a proof of malicious action by this validator)
 		assert_eq!(
-			default_accept_into_pool(|_| (HeaderBuilder::with_number(8).step(8).sign_by(&validator(1)), None,)),
+			default_accept_into_pool(|_| (
+				HeaderBuilder::with_number(8).step(8).sign_by(&validator(1)),
+				None,
+			)),
 			Err(Error::NotValidator),
 		);
 	}
@@ -831,10 +860,7 @@ mod tests {
 				// no tags are required
 				vec![],
 				// header provides two tags
-				vec![
-					(4u64, validators_addresses(3)[1]).encode(),
-					(4u64, hash.unwrap()).encode(),
-				],
+				vec![(4u64, validators_addresses(3)[1]).encode(), (4u64, hash.unwrap()).encode(),],
 			)),
 		);
 	}
@@ -845,9 +871,8 @@ mod tests {
 		let mut parent_id = None;
 		assert_eq!(
 			default_accept_into_pool(|validators| {
-				let header = HeaderBuilder::with_number(5)
-					.step(GENESIS_STEP + 5)
-					.sign_by_set(validators);
+				let header =
+					HeaderBuilder::with_number(5).step(GENESIS_STEP + 5).sign_by_set(validators);
 				id = Some(header.compute_id());
 				parent_id = header.parent_id();
 				(header, None)
@@ -883,7 +908,11 @@ mod tests {
 		assert_eq!(
 			default_accept_into_pool(|actual_validators| {
 				// change finalized set at parent header + signal valid set at parent block
-				change_validators_set_at(3, validators_addresses(10), Some(validators_addresses(3)));
+				change_validators_set_at(
+					3,
+					validators_addresses(10),
+					Some(validators_addresses(3)),
+				);
 
 				// header is signed using wrong set
 				let header = HeaderBuilder::with_number(5)
@@ -935,10 +964,7 @@ mod tests {
 				// no tags are required
 				vec![],
 				// header provides two tags
-				vec![
-					(4u64, validators_addresses(3)[1]).encode(),
-					(4u64, hash.unwrap()).encode(),
-				],
+				vec![(4u64, validators_addresses(3)[1]).encode(), (4u64, hash.unwrap()).encode(),],
 			)),
 		);
 	}

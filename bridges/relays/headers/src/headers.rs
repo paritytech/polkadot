@@ -20,22 +20,33 @@
 //! may stay until source/target chain state isn't updated. When a header reaches the
 //! `ready` sub-queue, it may be submitted to the target chain.
 
-use crate::sync_types::{HeaderIdOf, HeaderStatus, HeadersSyncPipeline, QueuedHeader, SourceHeader};
+use crate::sync_types::{
+	HeaderIdOf, HeaderStatus, HeadersSyncPipeline, QueuedHeader, SourceHeader,
+};
 
 use linked_hash_map::LinkedHashMap;
 use num_traits::{One, Zero};
 use relay_utils::HeaderId;
 use std::{
-	collections::{btree_map::Entry as BTreeMapEntry, hash_map::Entry as HashMapEntry, BTreeMap, HashMap, HashSet},
+	collections::{
+		btree_map::Entry as BTreeMapEntry, hash_map::Entry as HashMapEntry, BTreeMap, HashMap,
+		HashSet,
+	},
 	time::{Duration, Instant},
 };
 
-type HeadersQueue<P> =
-	BTreeMap<<P as HeadersSyncPipeline>::Number, HashMap<<P as HeadersSyncPipeline>::Hash, QueuedHeader<P>>>;
-type SyncedChildren<P> =
-	BTreeMap<<P as HeadersSyncPipeline>::Number, HashMap<<P as HeadersSyncPipeline>::Hash, HashSet<HeaderIdOf<P>>>>;
-type KnownHeaders<P> =
-	BTreeMap<<P as HeadersSyncPipeline>::Number, HashMap<<P as HeadersSyncPipeline>::Hash, HeaderStatus>>;
+type HeadersQueue<P> = BTreeMap<
+	<P as HeadersSyncPipeline>::Number,
+	HashMap<<P as HeadersSyncPipeline>::Hash, QueuedHeader<P>>,
+>;
+type SyncedChildren<P> = BTreeMap<
+	<P as HeadersSyncPipeline>::Number,
+	HashMap<<P as HeadersSyncPipeline>::Hash, HashSet<HeaderIdOf<P>>>,
+>;
+type KnownHeaders<P> = BTreeMap<
+	<P as HeadersSyncPipeline>::Number,
+	HashMap<<P as HeadersSyncPipeline>::Hash, HeaderStatus>,
+>;
 
 /// We're trying to fetch completion data for single header at this interval.
 const RETRY_FETCH_COMPLETION_INTERVAL: Duration = Duration::from_secs(20);
@@ -65,7 +76,7 @@ pub struct QueuedHeaders<P: HeadersSyncPipeline> {
 	/// Headers that are (we believe) currently submitted to target node by our,
 	/// not-yet mined transactions.
 	submitted: HeadersQueue<P>,
-	/// Synced headers childrens. We need it to support case when header is synced, but some of
+	/// Synced headers children. We need it to support case when header is synced, but some of
 	/// its parents are incomplete.
 	synced_children: SyncedChildren<P>,
 	/// Pointers to all headers that we ever seen and we believe we can touch in the future.
@@ -80,15 +91,6 @@ pub struct QueuedHeaders<P: HeadersSyncPipeline> {
 	/// Pruned blocks border. We do not store or accept any blocks with number less than
 	/// this number.
 	prune_border: P::Number,
-}
-
-/// Header completion data.
-#[derive(Debug)]
-struct HeaderCompletion<Completion> {
-	/// Last time when we tried to upload completion data to target node, if ever.
-	pub last_upload_time: Option<Instant>,
-	/// Completion data.
-	pub completion: Completion,
 }
 
 impl<P: HeadersSyncPipeline> Default for QueuedHeaders<P> {
@@ -122,35 +124,31 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 	pub fn headers_in_status(&self, status: HeaderStatus) -> usize {
 		match status {
 			HeaderStatus::Unknown | HeaderStatus::Synced => 0,
-			HeaderStatus::MaybeOrphan => self
-				.maybe_orphan
-				.values()
-				.fold(0, |total, headers| total + headers.len()),
-			HeaderStatus::Orphan => self.orphan.values().fold(0, |total, headers| total + headers.len()),
-			HeaderStatus::MaybeExtra => self
-				.maybe_extra
-				.values()
-				.fold(0, |total, headers| total + headers.len()),
-			HeaderStatus::Extra => self.extra.values().fold(0, |total, headers| total + headers.len()),
-			HeaderStatus::Ready => self.ready.values().fold(0, |total, headers| total + headers.len()),
-			HeaderStatus::Incomplete => self.incomplete.values().fold(0, |total, headers| total + headers.len()),
-			HeaderStatus::Submitted => self.submitted.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::MaybeOrphan =>
+				self.maybe_orphan.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::Orphan =>
+				self.orphan.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::MaybeExtra =>
+				self.maybe_extra.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::Extra =>
+				self.extra.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::Ready =>
+				self.ready.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::Incomplete =>
+				self.incomplete.values().fold(0, |total, headers| total + headers.len()),
+			HeaderStatus::Submitted =>
+				self.submitted.values().fold(0, |total, headers| total + headers.len()),
 		}
 	}
 
 	/// Returns number of headers that are currently in the queue.
 	pub fn total_headers(&self) -> usize {
-		self.maybe_orphan
-			.values()
-			.fold(0, |total, headers| total + headers.len())
-			+ self.orphan.values().fold(0, |total, headers| total + headers.len())
-			+ self
-				.maybe_extra
-				.values()
-				.fold(0, |total, headers| total + headers.len())
-			+ self.extra.values().fold(0, |total, headers| total + headers.len())
-			+ self.ready.values().fold(0, |total, headers| total + headers.len())
-			+ self.incomplete.values().fold(0, |total, headers| total + headers.len())
+		self.maybe_orphan.values().fold(0, |total, headers| total + headers.len()) +
+			self.orphan.values().fold(0, |total, headers| total + headers.len()) +
+			self.maybe_extra.values().fold(0, |total, headers| total + headers.len()) +
+			self.extra.values().fold(0, |total, headers| total + headers.len()) +
+			self.ready.values().fold(0, |total, headers| total + headers.len()) +
+			self.incomplete.values().fold(0, |total, headers| total + headers.len())
 	}
 
 	/// Returns number of best block in the queue.
@@ -166,8 +164,16 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 						std::cmp::max(
 							self.ready.keys().next_back().cloned().unwrap_or_else(Zero::zero),
 							std::cmp::max(
-								self.incomplete.keys().next_back().cloned().unwrap_or_else(Zero::zero),
-								self.submitted.keys().next_back().cloned().unwrap_or_else(Zero::zero),
+								self.incomplete
+									.keys()
+									.next_back()
+									.cloned()
+									.unwrap_or_else(Zero::zero),
+								self.submitted
+									.keys()
+									.next_back()
+									.cloned()
+									.unwrap_or_else(Zero::zero),
 							),
 						),
 					),
@@ -191,7 +197,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 			.unwrap_or(HeaderStatus::Unknown)
 	}
 
-	/// Get oldest header from given queue.
+	/// Get the oldest header from given queue.
 	pub fn header(&self, status: HeaderStatus) -> Option<&QueuedHeader<P>> {
 		match status {
 			HeaderStatus::Unknown | HeaderStatus::Synced => None,
@@ -205,7 +211,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 		}
 	}
 
-	/// Get oldest headers from given queue until functor will return false.
+	/// Get the oldest headers from given queue until functor will return false.
 	pub fn headers(
 		&self,
 		status: HeaderStatus,
@@ -235,7 +241,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 				id,
 				status,
 			);
-			return;
+			return
 		}
 
 		if id.0 < self.prune_border {
@@ -245,7 +251,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 				P::SOURCE_NAME,
 				id,
 			);
-			return;
+			return
 		}
 
 		let parent_id = header.parent_id();
@@ -256,20 +262,20 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 			HeaderStatus::Unknown | HeaderStatus::MaybeOrphan => {
 				insert_header(&mut self.maybe_orphan, id, header);
 				HeaderStatus::MaybeOrphan
-			}
+			},
 			HeaderStatus::Orphan => {
 				insert_header(&mut self.orphan, id, header);
 				HeaderStatus::Orphan
-			}
-			HeaderStatus::MaybeExtra
-			| HeaderStatus::Extra
-			| HeaderStatus::Ready
-			| HeaderStatus::Incomplete
-			| HeaderStatus::Submitted
-			| HeaderStatus::Synced => {
+			},
+			HeaderStatus::MaybeExtra |
+			HeaderStatus::Extra |
+			HeaderStatus::Ready |
+			HeaderStatus::Incomplete |
+			HeaderStatus::Submitted |
+			HeaderStatus::Synced => {
 				insert_header(&mut self.maybe_extra, id, header);
 				HeaderStatus::MaybeExtra
-			}
+			},
 		};
 
 		self.known_headers.entry(id.0).or_default().insert(id.1, status);
@@ -282,7 +288,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 		);
 	}
 
-	/// Receive best header from the target node.
+	/// Receive the best header from the target node.
 	pub fn target_best_header_response(&mut self, id: &HeaderIdOf<P>) {
 		self.header_synced(id)
 	}
@@ -297,7 +303,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 				HeaderStatus::Orphan,
 				id,
 			);
-			return;
+			return
 		}
 
 		move_header_descendants::<P>(
@@ -360,8 +366,8 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 					id,
 				);
 
-				return;
-			}
+				return
+			},
 		};
 
 		// do not remove from `incomplete_headers` here, because otherwise we'll miss
@@ -423,14 +429,20 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 	}
 
 	/// Marks given headers incomplete.
-	pub fn add_incomplete_headers(&mut self, make_header_incomplete: bool, new_incomplete_headers: Vec<HeaderIdOf<P>>) {
+	pub fn add_incomplete_headers(
+		&mut self,
+		make_header_incomplete: bool,
+		new_incomplete_headers: Vec<HeaderIdOf<P>>,
+	) {
 		for new_incomplete_header in new_incomplete_headers {
 			if make_header_incomplete {
 				self.header_synced(&new_incomplete_header);
 			}
 
-			let move_origins = select_synced_children::<P>(&self.synced_children, &new_incomplete_header);
-			let move_origins = move_origins.into_iter().chain(std::iter::once(new_incomplete_header));
+			let move_origins =
+				select_synced_children::<P>(&self.synced_children, &new_incomplete_header);
+			let move_origins =
+				move_origins.into_iter().chain(std::iter::once(new_incomplete_header));
 			for move_origin in move_origins {
 				move_header_descendants::<P>(
 					&mut [&mut self.ready, &mut self.submitted],
@@ -453,13 +465,15 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 		}
 	}
 
-	/// When incomplete headers ids are receved from target node.
+	/// When incomplete headers ids are received from target node.
 	pub fn incomplete_headers_response(&mut self, ids: HashSet<HeaderIdOf<P>>) {
 		// all new incomplete headers are marked Synced and all their descendants
 		// are moved from Ready/Submitted to Incomplete queue
 		let new_incomplete_headers = ids
 			.iter()
-			.filter(|id| !self.incomplete_headers.contains_key(id) && !self.completion_data.contains_key(id))
+			.filter(|id| {
+				!self.incomplete_headers.contains_key(id) && !self.completion_data.contains_key(id)
+			})
 			.cloned()
 			.collect::<Vec<_>>();
 		self.add_incomplete_headers(true, new_incomplete_headers);
@@ -477,8 +491,10 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 			// sub2eth rejects H if H.Parent is incomplete
 			// sub2sub allows 'syncing' headers like that
 			// => let's check if there are some synced children of just completed header
-			let move_origins = select_synced_children::<P>(&self.synced_children, &just_completed_header);
-			let move_origins = move_origins.into_iter().chain(std::iter::once(just_completed_header));
+			let move_origins =
+				select_synced_children::<P>(&self.synced_children, &just_completed_header);
+			let move_origins =
+				move_origins.into_iter().chain(std::iter::once(just_completed_header));
 			for move_origin in move_origins {
 				move_header_descendants::<P>(
 					&mut [&mut self.incomplete],
@@ -509,7 +525,8 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 	pub fn incomplete_header(&mut self) -> Option<HeaderIdOf<P>> {
 		queued_incomplete_header(&mut self.incomplete_headers, |last_fetch_time| {
 			let retry = match *last_fetch_time {
-				Some(last_fetch_time) => last_fetch_time.elapsed() > RETRY_FETCH_COMPLETION_INTERVAL,
+				Some(last_fetch_time) =>
+					last_fetch_time.elapsed() > RETRY_FETCH_COMPLETION_INTERVAL,
 				None => true,
 			};
 
@@ -530,7 +547,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 	/// Prune and never accept headers before this block.
 	pub fn prune(&mut self, prune_border: P::Number) {
 		if prune_border <= self.prune_border {
-			return;
+			return
 		}
 
 		prune_queue(&mut self.maybe_orphan, prune_border);
@@ -579,10 +596,10 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 		match header {
 			Some(header) => {
 				let parent_id = header.header().parent_id();
-				self.incomplete_headers.contains_key(&parent_id)
-					|| self.completion_data.contains_key(&parent_id)
-					|| self.status(&parent_id) == HeaderStatus::Incomplete
-			}
+				self.incomplete_headers.contains_key(&parent_id) ||
+					self.completion_data.contains_key(&parent_id) ||
+					self.status(&parent_id) == HeaderStatus::Incomplete
+			},
 			None => false,
 		}
 	}
@@ -612,12 +629,8 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 			.expect("header has a given status; given queue has the header; qed");
 
 			// remember ids of all the children of the current header
-			let synced_children_entry = self
-				.synced_children
-				.entry(current.0)
-				.or_default()
-				.entry(current.1)
-				.or_default();
+			let synced_children_entry =
+				self.synced_children.entry(current.0).or_default().entry(current.1).or_default();
 			let all_queues = [
 				&self.maybe_orphan,
 				&self.orphan,
@@ -633,7 +646,9 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 					.map(|potential_children| {
 						potential_children
 							.values()
-							.filter(|potential_child| potential_child.header().parent_id() == current)
+							.filter(|potential_child| {
+								potential_child.header().parent_id() == current
+							})
 							.map(|child| child.id())
 							.collect::<Vec<_>>()
 					})
@@ -670,12 +685,19 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 }
 
 /// Insert header to the queue.
-fn insert_header<P: HeadersSyncPipeline>(queue: &mut HeadersQueue<P>, id: HeaderIdOf<P>, header: QueuedHeader<P>) {
+fn insert_header<P: HeadersSyncPipeline>(
+	queue: &mut HeadersQueue<P>,
+	id: HeaderIdOf<P>,
+	header: QueuedHeader<P>,
+) {
 	queue.entry(id.0).or_default().insert(id.1, header);
 }
 
 /// Remove header from the queue.
-fn remove_header<P: HeadersSyncPipeline>(queue: &mut HeadersQueue<P>, id: &HeaderIdOf<P>) -> Option<QueuedHeader<P>> {
+fn remove_header<P: HeadersSyncPipeline>(
+	queue: &mut HeadersQueue<P>,
+	id: &HeaderIdOf<P>,
+) -> Option<QueuedHeader<P>> {
 	let mut headers_at = match queue.entry(id.0) {
 		BTreeMapEntry::Occupied(headers_at) => headers_at,
 		BTreeMapEntry::Vacant(_) => return None,
@@ -689,7 +711,10 @@ fn remove_header<P: HeadersSyncPipeline>(queue: &mut HeadersQueue<P>, id: &Heade
 }
 
 /// Get header from the queue.
-fn header<'a, P: HeadersSyncPipeline>(queue: &'a HeadersQueue<P>, id: &HeaderIdOf<P>) -> Option<&'a QueuedHeader<P>> {
+fn header<'a, P: HeadersSyncPipeline>(
+	queue: &'a HeadersQueue<P>,
+	id: &HeaderIdOf<P>,
+) -> Option<&'a QueuedHeader<P>> {
 	queue.get(&id.0).and_then(|by_hash| by_hash.get(&id.1))
 }
 
@@ -808,11 +833,7 @@ fn oldest_headers<P: HeadersSyncPipeline>(
 	queue: &HeadersQueue<P>,
 	mut f: impl FnMut(&QueuedHeader<P>) -> bool,
 ) -> Option<Vec<&QueuedHeader<P>>> {
-	let result = queue
-		.values()
-		.flat_map(|h| h.values())
-		.take_while(|h| f(h))
-		.collect::<Vec<_>>();
+	let result = queue.values().flat_map(|h| h.values()).take_while(|h| f(h)).collect::<Vec<_>>();
 	if result.is_empty() {
 		None
 	} else {
@@ -826,7 +847,10 @@ fn prune_queue<P: HeadersSyncPipeline>(queue: &mut HeadersQueue<P>, prune_border
 }
 
 /// Forget all known headers with number less than given.
-fn prune_known_headers<P: HeadersSyncPipeline>(known_headers: &mut KnownHeaders<P>, prune_border: P::Number) {
+fn prune_known_headers<P: HeadersSyncPipeline>(
+	known_headers: &mut KnownHeaders<P>,
+	prune_border: P::Number,
+) {
 	let new_known_headers = known_headers.split_off(&prune_border);
 	for (pruned_number, pruned_headers) in &*known_headers {
 		for pruned_hash in pruned_headers.keys() {
@@ -857,8 +881,8 @@ fn queued_incomplete_header<Id: Clone + Eq + std::hash::Hash, T>(
 	map: &mut LinkedHashMap<Id, T>,
 	filter: impl FnMut(&mut T) -> bool,
 ) -> Option<(Id, &T)> {
-	// TODO (#84): headers that have been just appended to the end of the queue would have to wait until
-	// all previous headers will be retried
+	// TODO (#84): headers that have been just appended to the end of the queue would have to wait
+	// until all previous headers will be retried
 
 	let retry_old_header = map
 		.front()
@@ -866,9 +890,10 @@ fn queued_incomplete_header<Id: Clone + Eq + std::hash::Hash, T>(
 		.and_then(|key| map.get_mut(&key).map(filter))
 		.unwrap_or(false);
 	if retry_old_header {
-		let (header_key, header) = map.pop_front().expect("we have checked that front() exists; qed");
+		let (header_key, header) =
+			map.pop_front().expect("we have checked that front() exists; qed");
 		map.insert(header_key, header);
-		return map.back().map(|(id, data)| (id.clone(), data));
+		return map.back().map(|(id, data)| (id.clone(), data))
 	}
 
 	None
@@ -877,15 +902,15 @@ fn queued_incomplete_header<Id: Clone + Eq + std::hash::Hash, T>(
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::sync_loop_tests::{TestHash, TestHeader, TestHeaderId, TestHeadersSyncPipeline, TestNumber};
-	use crate::sync_types::QueuedHeader;
+	use crate::{
+		sync_loop_tests::{
+			TestHash, TestHeader, TestHeaderId, TestHeadersSyncPipeline, TestNumber,
+		},
+		sync_types::QueuedHeader,
+	};
 
 	pub(crate) fn header(number: TestNumber) -> QueuedHeader<TestHeadersSyncPipeline> {
-		QueuedHeader::new(TestHeader {
-			number,
-			hash: hash(number),
-			parent_hash: hash(number - 1),
-		})
+		QueuedHeader::new(TestHeader { number, hash: hash(number), parent_hash: hash(number - 1) })
 	}
 
 	pub(crate) fn hash(number: TestNumber) -> TestHash {
@@ -900,34 +925,41 @@ pub(crate) mod tests {
 	fn total_headers_works() {
 		// total headers just sums up number of headers in every queue
 		let mut queue = QueuedHeaders::<TestHeadersSyncPipeline>::default();
-		queue.maybe_orphan.entry(1).or_default().insert(
-			hash(1),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.maybe_orphan.entry(1).or_default().insert(
-			hash(2),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.maybe_orphan.entry(2).or_default().insert(
-			hash(3),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.orphan.entry(3).or_default().insert(
-			hash(4),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.maybe_extra.entry(4).or_default().insert(
-			hash(5),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.ready.entry(5).or_default().insert(
-			hash(6),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.incomplete.entry(6).or_default().insert(
-			hash(7),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.maybe_orphan
+			.entry(1)
+			.or_default()
+			.insert(hash(1), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.maybe_orphan
+			.entry(1)
+			.or_default()
+			.insert(hash(2), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.maybe_orphan
+			.entry(2)
+			.or_default()
+			.insert(hash(3), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.orphan
+			.entry(3)
+			.or_default()
+			.insert(hash(4), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.maybe_extra
+			.entry(4)
+			.or_default()
+			.insert(hash(5), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.ready
+			.entry(5)
+			.or_default()
+			.insert(hash(6), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.incomplete
+			.entry(6)
+			.or_default()
+			.insert(hash(7), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.total_headers(), 7);
 	}
 
@@ -935,48 +967,56 @@ pub(crate) mod tests {
 	fn best_queued_number_works() {
 		// initially there are headers in MaybeOrphan queue only
 		let mut queue = QueuedHeaders::<TestHeadersSyncPipeline>::default();
-		queue.maybe_orphan.entry(1).or_default().insert(
-			hash(1),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.maybe_orphan.entry(1).or_default().insert(
-			hash(2),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
-		queue.maybe_orphan.entry(3).or_default().insert(
-			hash(3),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.maybe_orphan
+			.entry(1)
+			.or_default()
+			.insert(hash(1), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.maybe_orphan
+			.entry(1)
+			.or_default()
+			.insert(hash(2), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
+		queue
+			.maybe_orphan
+			.entry(3)
+			.or_default()
+			.insert(hash(3), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.best_queued_number(), 3);
 		// and then there's better header in Orphan
-		queue.orphan.entry(10).or_default().insert(
-			hash(10),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.orphan
+			.entry(10)
+			.or_default()
+			.insert(hash(10), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.best_queued_number(), 10);
 		// and then there's better header in MaybeExtra
-		queue.maybe_extra.entry(20).or_default().insert(
-			hash(20),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.maybe_extra
+			.entry(20)
+			.or_default()
+			.insert(hash(20), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.best_queued_number(), 20);
 		// and then there's better header in Ready
-		queue.ready.entry(30).or_default().insert(
-			hash(30),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.ready
+			.entry(30)
+			.or_default()
+			.insert(hash(30), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.best_queued_number(), 30);
 		// and then there's better header in MaybeOrphan again
-		queue.maybe_orphan.entry(40).or_default().insert(
-			hash(40),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.maybe_orphan
+			.entry(40)
+			.or_default()
+			.insert(hash(40), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.best_queued_number(), 40);
 		// and then there's some header in Incomplete
-		queue.incomplete.entry(50).or_default().insert(
-			hash(50),
-			QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()),
-		);
+		queue
+			.incomplete
+			.entry(50)
+			.or_default()
+			.insert(hash(50), QueuedHeader::<TestHeadersSyncPipeline>::new(Default::default()));
 		assert_eq!(queue.best_queued_number(), 50);
 	}
 
@@ -986,11 +1026,7 @@ pub(crate) mod tests {
 		let mut queue = QueuedHeaders::<TestHeadersSyncPipeline>::default();
 		assert_eq!(queue.status(&id(10)), HeaderStatus::Unknown);
 		// and status is read from the KnownHeaders
-		queue
-			.known_headers
-			.entry(10)
-			.or_default()
-			.insert(hash(10), HeaderStatus::Ready);
+		queue.known_headers.entry(10).or_default().insert(hash(10), HeaderStatus::Ready);
 		assert_eq!(queue.status(&id(10)), HeaderStatus::Ready);
 	}
 
@@ -999,22 +1035,13 @@ pub(crate) mod tests {
 		// initially we have oldest header #10
 		let mut queue = QueuedHeaders::<TestHeadersSyncPipeline>::default();
 		queue.maybe_orphan.entry(10).or_default().insert(hash(1), header(100));
-		assert_eq!(
-			queue.header(HeaderStatus::MaybeOrphan).unwrap().header().hash,
-			hash(100)
-		);
+		assert_eq!(queue.header(HeaderStatus::MaybeOrphan).unwrap().header().hash, hash(100));
 		// inserting #20 changes nothing
 		queue.maybe_orphan.entry(20).or_default().insert(hash(1), header(101));
-		assert_eq!(
-			queue.header(HeaderStatus::MaybeOrphan).unwrap().header().hash,
-			hash(100)
-		);
+		assert_eq!(queue.header(HeaderStatus::MaybeOrphan).unwrap().header().hash, hash(100));
 		// inserting #5 makes it oldest
 		queue.maybe_orphan.entry(5).or_default().insert(hash(1), header(102));
-		assert_eq!(
-			queue.header(HeaderStatus::MaybeOrphan).unwrap().header().hash,
-			hash(102)
-		);
+		assert_eq!(queue.header(HeaderStatus::MaybeOrphan).unwrap().header().hash, hash(102));
 	}
 
 	#[test]
@@ -1100,11 +1127,7 @@ pub(crate) mod tests {
 			.entry(100)
 			.or_default()
 			.insert(hash(100), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(100)
-			.or_default()
-			.insert(hash(100), header(100));
+		queue.maybe_orphan.entry(100).or_default().insert(hash(100), header(100));
 		queue
 			.known_headers
 			.entry(99)
@@ -1117,17 +1140,9 @@ pub(crate) mod tests {
 			.or_default()
 			.insert(hash(98), HeaderStatus::MaybeExtra);
 		queue.maybe_extra.entry(98).or_default().insert(hash(98), header(98));
-		queue
-			.known_headers
-			.entry(97)
-			.or_default()
-			.insert(hash(97), HeaderStatus::Extra);
+		queue.known_headers.entry(97).or_default().insert(hash(97), HeaderStatus::Extra);
 		queue.extra.entry(97).or_default().insert(hash(97), header(97));
-		queue
-			.known_headers
-			.entry(96)
-			.or_default()
-			.insert(hash(96), HeaderStatus::Ready);
+		queue.known_headers.entry(96).or_default().insert(hash(96), HeaderStatus::Ready);
 		queue.ready.entry(96).or_default().insert(hash(96), header(96));
 		queue.target_best_header_response(&id(100));
 
@@ -1146,31 +1161,19 @@ pub(crate) mod tests {
 		// children of synced headers are stored
 		assert_eq!(
 			vec![id(97)],
-			queue.synced_children[&96][&hash(96)]
-				.iter()
-				.cloned()
-				.collect::<Vec<_>>()
+			queue.synced_children[&96][&hash(96)].iter().cloned().collect::<Vec<_>>()
 		);
 		assert_eq!(
 			vec![id(98)],
-			queue.synced_children[&97][&hash(97)]
-				.iter()
-				.cloned()
-				.collect::<Vec<_>>()
+			queue.synced_children[&97][&hash(97)].iter().cloned().collect::<Vec<_>>()
 		);
 		assert_eq!(
 			vec![id(99)],
-			queue.synced_children[&98][&hash(98)]
-				.iter()
-				.cloned()
-				.collect::<Vec<_>>()
+			queue.synced_children[&98][&hash(98)].iter().cloned().collect::<Vec<_>>()
 		);
 		assert_eq!(
 			vec![id(100)],
-			queue.synced_children[&99][&hash(99)]
-				.iter()
-				.cloned()
-				.collect::<Vec<_>>()
+			queue.synced_children[&99][&hash(99)].iter().cloned().collect::<Vec<_>>()
 		);
 		assert_eq!(0, queue.synced_children[&100][&hash(100)].len());
 	}
@@ -1194,11 +1197,7 @@ pub(crate) mod tests {
 			.entry(102)
 			.or_default()
 			.insert(hash(102), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(102)
-			.or_default()
-			.insert(hash(102), header(102));
+		queue.maybe_orphan.entry(102).or_default().insert(hash(102), header(102));
 		queue
 			.known_headers
 			.entry(103)
@@ -1230,11 +1229,7 @@ pub(crate) mod tests {
 			.entry(100)
 			.or_default()
 			.insert(hash(100), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(100)
-			.or_default()
-			.insert(hash(100), header(100));
+		queue.maybe_orphan.entry(100).or_default().insert(hash(100), header(100));
 		queue
 			.known_headers
 			.entry(101)
@@ -1246,11 +1241,7 @@ pub(crate) mod tests {
 			.entry(102)
 			.or_default()
 			.insert(hash(102), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(102)
-			.or_default()
-			.insert(hash(102), header(102));
+		queue.maybe_orphan.entry(102).or_default().insert(hash(102), header(102));
 		queue.maybe_orphan_response(&id(99), true);
 
 		// then all headers (#100..#103) are moved to the MaybeExtra queue
@@ -1275,21 +1266,13 @@ pub(crate) mod tests {
 			.entry(100)
 			.or_default()
 			.insert(hash(100), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(100)
-			.or_default()
-			.insert(hash(100), header(100));
+		queue.maybe_orphan.entry(100).or_default().insert(hash(100), header(100));
 		queue
 			.known_headers
 			.entry(101)
 			.or_default()
 			.insert(hash(101), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(101)
-			.or_default()
-			.insert(hash(101), header(101));
+		queue.maybe_orphan.entry(101).or_default().insert(hash(101), header(101));
 		queue.maybe_orphan_response(&id(99), false);
 
 		// then all headers (#100..#101) are moved to the Orphan queue
@@ -1404,7 +1387,9 @@ pub(crate) mod tests {
 		queue.incomplete_headers.clear();
 		queue.incomplete_headers.insert(
 			id(100),
-			Some(Instant::now() - RETRY_FETCH_COMPLETION_INTERVAL - RETRY_FETCH_COMPLETION_INTERVAL),
+			Some(
+				Instant::now() - RETRY_FETCH_COMPLETION_INTERVAL - RETRY_FETCH_COMPLETION_INTERVAL,
+			),
 		);
 		assert_eq!(queue.incomplete_header(), Some(id(100)));
 	}
@@ -1560,11 +1545,7 @@ pub(crate) mod tests {
 			.entry(104)
 			.or_default()
 			.insert(hash(104), HeaderStatus::MaybeOrphan);
-		queue
-			.maybe_orphan
-			.entry(104)
-			.or_default()
-			.insert(hash(104), header(104));
+		queue.maybe_orphan.entry(104).or_default().insert(hash(104), header(104));
 		queue
 			.known_headers
 			.entry(103)
@@ -1633,7 +1614,8 @@ pub(crate) mod tests {
 	fn incomplete_headers_are_still_incomplete_after_advance() {
 		let mut queue = QueuedHeaders::<TestHeadersSyncPipeline>::default();
 
-		// relay#1 knows that header#100 is incomplete && it has headers 101..104 in incomplete queue
+		// relay#1 knows that header#100 is incomplete && it has headers 101..104 in incomplete
+		// queue
 		queue.incomplete_headers.insert(id(100), None);
 		queue.incomplete.entry(101).or_default().insert(hash(101), header(101));
 		queue.incomplete.entry(102).or_default().insert(hash(102), header(102));
@@ -1665,8 +1647,8 @@ pub(crate) mod tests {
 			.or_default()
 			.insert(hash(104), HeaderStatus::Incomplete);
 
-		// let's say relay#2 completes header#100 and then submits header#101+header#102 and it turns
-		// out that header#102 is also incomplete
+		// let's say relay#2 completes header#100 and then submits header#101+header#102 and it
+		// turns out that header#102 is also incomplete
 		queue.incomplete_headers_response(vec![id(102)].into_iter().collect());
 
 		// then the header#103 and the header#104 must have Incomplete status

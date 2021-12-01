@@ -19,17 +19,14 @@
 #![allow(clippy::large_enum_variant)]
 
 use crate::finality::{CachedFinalityVotes, FinalityVotes};
-use bp_eth_poa::{Address, AuraHeader, HeaderId, RawTransaction, RawTransactionReceipt, Receipt, H256, U256};
-use codec::{Decode, Encode};
-use frame_support::{decl_module, decl_storage, traits::Get};
-use sp_runtime::{
-	transaction_validity::{
-		InvalidTransaction, TransactionLongevity, TransactionPriority, TransactionSource, TransactionValidity,
-		UnknownTransaction, ValidTransaction,
-	},
-	RuntimeDebug,
+use bp_eth_poa::{
+	Address, AuraHeader, HeaderId, RawTransaction, RawTransactionReceipt, Receipt, H256, U256,
 };
-use sp_std::{cmp::Ord, collections::btree_map::BTreeMap, prelude::*};
+use codec::{Decode, Encode};
+use frame_support::traits::Get;
+use scale_info::TypeInfo;
+use sp_runtime::RuntimeDebug;
+use sp_std::{boxed::Box, cmp::Ord, collections::btree_map::BTreeMap, prelude::*};
 
 pub use validators::{ValidatorsConfiguration, ValidatorsSource};
 
@@ -85,7 +82,7 @@ pub struct PoolConfiguration {
 }
 
 /// Block header as it is stored in the runtime storage.
-#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct StoredHeader<Submitter> {
 	/// Submitter of this header. May be `None` if header has been submitted
 	/// using unsigned transaction.
@@ -106,19 +103,19 @@ pub struct StoredHeader<Submitter> {
 }
 
 /// Validators set as it is stored in the runtime storage.
-#[derive(Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(test, derive(Clone))]
 pub struct ValidatorsSet {
 	/// Validators of this set.
 	pub validators: Vec<Address>,
-	/// Hash of the block where this set has been signalled. None if this is the first set.
+	/// Hash of the block where this set has been signaled. None if this is the first set.
 	pub signal_block: Option<HeaderId>,
 	/// Hash of the block where this set has been enacted.
 	pub enact_block: HeaderId,
 }
 
 /// Validators set change as it is stored in the runtime storage.
-#[derive(Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(test, derive(Clone))]
 pub struct AuraScheduledChange {
 	/// Validators of this set.
@@ -162,15 +159,15 @@ pub struct ChangeToEnact {
 }
 
 /// Blocks range that we want to prune.
-#[derive(Encode, Decode, Default, RuntimeDebug, Clone, PartialEq)]
+#[derive(Encode, Decode, Default, RuntimeDebug, Clone, PartialEq, TypeInfo)]
 struct PruningRange {
 	/// Number of the oldest unpruned block(s). This might be the block that we do not
 	/// want to prune now (then it is equal to `oldest_block_to_keep`), or block that we
 	/// were unable to prune for whatever reason (i.e. if it isn't finalized yet and has
 	/// scheduled validators set change).
 	pub oldest_unpruned_block: u64,
-	/// Number of oldest block(s) that we want to keep. We want to prune blocks in range
-	/// [`oldest_unpruned_block`; `oldest_block_to_keep`).
+	/// Number of the oldest block(s) that we want to keep. We want to prune blocks in range
+	/// [ `oldest_unpruned_block`; `oldest_block_to_keep` ).
 	pub oldest_block_to_keep: u64,
 }
 
@@ -224,14 +221,11 @@ impl<Submitter> ImportContext<Submitter> {
 		&self.validators_set
 	}
 
-	/// Returns reference to the latest block which has signalled change of validators set.
-	/// This may point to parent if parent has signalled change.
+	/// Returns reference to the latest block which has signaled change of validators set.
+	/// This may point to parent if parent has signaled change.
 	pub fn last_signal_block(&self) -> Option<HeaderId> {
 		match self.parent_scheduled_change {
-			Some(_) => Some(HeaderId {
-				number: self.parent_header.number,
-				hash: self.parent_hash,
-			}),
+			Some(_) => Some(HeaderId { number: self.parent_header.number, hash: self.parent_hash }),
 			None => self.last_signal_block,
 		}
 	}
@@ -316,11 +310,11 @@ pub trait PruningStrategy: Default {
 	/// Pallet may prune both finalized and unfinalized blocks. But it can't give any
 	/// guarantees on when it will happen. Example: if some unfinalized block at height N
 	/// has scheduled validators set change, then the module won't prune any blocks with
-	/// number >= N even if strategy allows that.
+	/// number greater than or equal to N even if strategy allows that.
 	///
 	/// If your strategy allows pruning unfinalized blocks, this could lead to switch
-	/// between finalized forks (only if authorities are misbehaving). But since 50%+1 (or 2/3)
-	/// authorities are able to do whatever they want with the chain, this isn't considered
+	/// between finalized forks (only if authorities are misbehaving). But since 50 percent plus one
+	/// (or 2/3) authorities are able to do whatever they want with the chain, this isn't considered
 	/// fatal. If your strategy only prunes finalized blocks, we'll never be able to finalize
 	/// header that isn't descendant of current best finalized block.
 	fn pruning_upper_bound(&mut self, best_number: u64, best_finalized_number: u64) -> u64;
@@ -349,10 +343,10 @@ impl ChainTime for () {
 pub trait OnHeadersSubmitted<AccountId> {
 	/// Called when valid headers have been submitted.
 	///
-	/// The submitter **must not** be rewarded for submitting valid headers, because greedy authority
-	/// could produce and submit multiple valid headers (without relaying them to other peers) and
-	/// get rewarded. Instead, the provider could track submitters and stop rewarding if too many
-	/// headers have been submitted without finalization.
+	/// The submitter **must not** be rewarded for submitting valid headers, because greedy
+	/// authority could produce and submit multiple valid headers (without relaying them to other
+	/// peers) and get rewarded. Instead, the provider could track submitters and stop rewarding if
+	/// too many headers have been submitted without finalization.
 	fn on_valid_headers_submitted(submitter: AccountId, useful: u64, useless: u64);
 	/// Called when invalid headers have been submitted.
 	fn on_invalid_headers_submitted(submitter: AccountId);
@@ -369,34 +363,53 @@ impl<AccountId> OnHeadersSubmitted<AccountId> for () {
 	fn on_valid_headers_finalized(_submitter: AccountId, _finalized: u64) {}
 }
 
-/// The module configuration trait.
-pub trait Config<I = DefaultInstance>: frame_system::Config {
-	/// Aura configuration.
-	type AuraConfiguration: Get<AuraConfiguration>;
-	/// Validators configuration.
-	type ValidatorsConfiguration: Get<validators::ValidatorsConfiguration>;
+pub use pallet::*;
 
-	/// Interval (in blocks) for for finality votes caching.
-	/// If None, cache is disabled.
-	///
-	/// Ideally, this should either be None (when we are sure that there won't
-	/// be any significant finalization delays), or something that is bit larger
-	/// than average finalization delay.
-	type FinalityVotesCachingInterval: Get<Option<u64>>;
-	/// Headers pruning strategy.
-	type PruningStrategy: PruningStrategy;
-	/// Header timestamp verification against current on-chain time.
-	type ChainTime: ChainTime;
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
 
-	/// Handler for headers submission result.
-	type OnHeadersSubmitted: OnHeadersSubmitted<Self::AccountId>;
-}
+	#[pallet::config]
+	pub trait Config<I: 'static = ()>: frame_system::Config {
+		/// Aura configuration.
+		type AuraConfiguration: Get<AuraConfiguration>;
+		/// Validators configuration.
+		type ValidatorsConfiguration: Get<validators::ValidatorsConfiguration>;
 
-decl_module! {
-	pub struct Module<T: Config<I>, I: Instance = DefaultInstance> for enum Call where origin: T::Origin {
+		/// Interval (in blocks) for for finality votes caching.
+		/// If None, cache is disabled.
+		///
+		/// Ideally, this should either be None (when we are sure that there won't
+		/// be any significant finalization delays), or something that is bit larger
+		/// than average finalization delay.
+		type FinalityVotesCachingInterval: Get<Option<u64>>;
+		/// Headers pruning strategy.
+		type PruningStrategy: PruningStrategy;
+		/// Header timestamp verification against current on-chain time.
+		type ChainTime: ChainTime;
+
+		/// Handler for headers submission result.
+		type OnHeadersSubmitted: OnHeadersSubmitted<Self::AccountId>;
+	}
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T, I = ()>(PhantomData<(T, I)>);
+
+	#[pallet::hooks]
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {}
+
+	#[pallet::call]
+	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Import single Aura header. Requires transaction to be **UNSIGNED**.
-		#[weight = 0] // TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
-		pub fn import_unsigned_header(origin, header: AuraHeader, receipts: Option<Vec<Receipt>>) {
+		#[pallet::weight(0)] // TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
+		pub fn import_unsigned_header(
+			origin: OriginFor<T>,
+			header: Box<AuraHeader>,
+			receipts: Option<Vec<Receipt>>,
+		) -> DispatchResult {
 			frame_system::ensure_none(origin)?;
 
 			import::import_header(
@@ -405,10 +418,13 @@ decl_module! {
 				&T::AuraConfiguration::get(),
 				&T::ValidatorsConfiguration::get(),
 				None,
-				header,
+				*header,
 				&T::ChainTime::default(),
 				receipts,
-			).map_err(|e| e.msg())?;
+			)
+			.map_err(|e| e.msg())?;
+
+			Ok(())
 		}
 
 		/// Import Aura chain headers in a single **SIGNED** transaction.
@@ -417,8 +433,11 @@ decl_module! {
 		///
 		/// This should be used with caution - passing too many headers could lead to
 		/// enormous block production/import time.
-		#[weight = 0] // TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
-		pub fn import_signed_headers(origin, headers_with_receipts: Vec<(AuraHeader, Option<Vec<Receipt>>)>) {
+		#[pallet::weight(0)] // TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
+		pub fn import_signed_headers(
+			origin: OriginFor<T>,
+			headers_with_receipts: Vec<(AuraHeader, Option<Vec<Receipt>>)>,
+		) -> DispatchResult {
 			let submitter = frame_system::ensure_signed(origin)?;
 			let mut finalized_headers = BTreeMap::new();
 			let import_result = import::import_headers(
@@ -435,10 +454,7 @@ decl_module! {
 			// if we have finalized some headers, we will reward their submitters even
 			// if current submitter has provided some invalid headers
 			for (f_submitter, f_count) in finalized_headers {
-				T::OnHeadersSubmitted::on_valid_headers_finalized(
-					f_submitter,
-					f_count,
-				);
+				T::OnHeadersSubmitted::on_valid_headers_finalized(f_submitter, f_count);
 			}
 
 			// now track/penalize current submitter for providing new headers
@@ -449,63 +465,138 @@ decl_module! {
 					// even though we may have accept some headers, we do not want to reward someone
 					// who provides invalid headers
 					T::OnHeadersSubmitted::on_invalid_headers_submitted(submitter);
-					return Err(error.msg().into());
+					return Err(error.msg().into())
 				},
 			}
+
+			Ok(())
+		}
+	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config<I>, I: 'static> ValidateUnsigned for Pallet<T, I> {
+		type Call = Call<T, I>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			match *call {
+				Self::Call::import_unsigned_header { ref header, ref receipts } => {
+					let accept_result = verification::accept_aura_header_into_pool(
+						&BridgeStorage::<T, I>::new(),
+						&T::AuraConfiguration::get(),
+						&T::ValidatorsConfiguration::get(),
+						&pool_configuration(),
+						header,
+						&T::ChainTime::default(),
+						receipts.as_ref(),
+					);
+
+					match accept_result {
+						Ok((requires, provides)) => Ok(ValidTransaction {
+							priority: TransactionPriority::max_value(),
+							requires,
+							provides,
+							longevity: TransactionLongevity::max_value(),
+							propagate: true,
+						}),
+						// UnsignedTooFarInTheFuture is the special error code used to limit
+						// number of transactions in the pool - we do not want to ban transaction
+						// in this case (see verification.rs for details)
+						Err(error::Error::UnsignedTooFarInTheFuture) => UnknownTransaction::Custom(
+							error::Error::UnsignedTooFarInTheFuture.code(),
+						)
+						.into(),
+						Err(error) => InvalidTransaction::Custom(error.code()).into(),
+					}
+				},
+				_ => InvalidTransaction::Call.into(),
+			}
+		}
+	}
+
+	/// Best known block.
+	#[pallet::storage]
+	pub(super) type BestBlock<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, (HeaderId, U256), ValueQuery>;
+
+	/// Best finalized block.
+	#[pallet::storage]
+	pub(super) type FinalizedBlock<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, HeaderId, ValueQuery>;
+
+	/// Range of blocks that we want to prune.
+	#[pallet::storage]
+	pub(super) type BlocksToPrune<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, PruningRange, ValueQuery>;
+
+	/// Map of imported headers by hash.
+	#[pallet::storage]
+	pub(super) type Headers<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Identity, H256, StoredHeader<T::AccountId>>;
+
+	/// Map of imported header hashes by number.
+	#[pallet::storage]
+	pub(super) type HeadersByNumber<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Blake2_128Concat, u64, Vec<H256>>;
+
+	/// Map of cached finality data by header hash.
+	#[pallet::storage]
+	pub(super) type FinalityCache<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Identity, H256, FinalityVotes<T::AccountId>>;
+
+	/// The ID of next validator set.
+	#[pallet::storage]
+	pub(super) type NextValidatorsSetId<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, u64, ValueQuery>;
+
+	/// Map of validators sets by their id.
+	#[pallet::storage]
+	pub(super) type ValidatorsSets<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Twox64Concat, u64, ValidatorsSet>;
+
+	/// Validators sets reference count. Each header that is authored by this set increases
+	/// the reference count. When we prune this header, we decrease the reference count.
+	/// When it reaches zero, we are free to prune validator set as well.
+	#[pallet::storage]
+	pub(super) type ValidatorsSetsRc<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Twox64Concat, u64, u64>;
+
+	/// Map of validators set changes scheduled by given header.
+	#[pallet::storage]
+	pub(super) type ScheduledChanges<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Identity, H256, AuraScheduledChange>;
+
+	#[pallet::genesis_config]
+	#[cfg_attr(feature = "std", derive(Default))]
+	pub struct GenesisConfig {
+		/// PoA header to start with.
+		pub initial_header: AuraHeader,
+		/// Initial PoA chain difficulty.
+		pub initial_difficulty: U256,
+		/// Initial PoA validators set.
+		pub initial_validators: Vec<Address>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
+		fn build(&self) {
+			// the initial blocks should be selected so that:
+			// 1) it doesn't signal validators changes;
+			// 2) there are no scheduled validators changes from previous blocks;
+			// 3) (implied) all direct children of initial block are authored by the same validators
+			// set.
+
+			assert!(!self.initial_validators.is_empty(), "Initial validators set can't be empty",);
+
+			initialize_storage::<T, I>(
+				&self.initial_header,
+				self.initial_difficulty,
+				&self.initial_validators,
+			);
 		}
 	}
 }
 
-decl_storage! {
-	trait Store for Pallet<T: Config<I>, I: Instance = DefaultInstance> as Bridge {
-		/// Best known block.
-		BestBlock: (HeaderId, U256);
-		/// Best finalized block.
-		FinalizedBlock: HeaderId;
-		/// Range of blocks that we want to prune.
-		BlocksToPrune: PruningRange;
-		/// Map of imported headers by hash.
-		Headers: map hasher(identity) H256 => Option<StoredHeader<T::AccountId>>;
-		/// Map of imported header hashes by number.
-		HeadersByNumber: map hasher(blake2_128_concat) u64 => Option<Vec<H256>>;
-		/// Map of cached finality data by header hash.
-		FinalityCache: map hasher(identity) H256 => Option<FinalityVotes<T::AccountId>>;
-		/// The ID of next validator set.
-		NextValidatorsSetId: u64;
-		/// Map of validators sets by their id.
-		ValidatorsSets: map hasher(twox_64_concat) u64 => Option<ValidatorsSet>;
-		/// Validators sets reference count. Each header that is authored by this set increases
-		/// the reference count. When we prune this header, we decrease the reference count.
-		/// When it reaches zero, we are free to prune validator set as well.
-		ValidatorsSetsRc: map hasher(twox_64_concat) u64 => Option<u64>;
-		/// Map of validators set changes scheduled by given header.
-		ScheduledChanges: map hasher(identity) H256 => Option<AuraScheduledChange>;
-	}
-	add_extra_genesis {
-		config(initial_header): AuraHeader;
-		config(initial_difficulty): U256;
-		config(initial_validators): Vec<Address>;
-		build(|config| {
-			// the initial blocks should be selected so that:
-			// 1) it doesn't signal validators changes;
-			// 2) there are no scheduled validators changes from previous blocks;
-			// 3) (implied) all direct children of initial block are authored by the same validators set.
-
-			assert!(
-				!config.initial_validators.is_empty(),
-				"Initial validators set can't be empty",
-			);
-
-			initialize_storage::<T, I>(
-				&config.initial_header,
-				config.initial_difficulty,
-				&config.initial_validators,
-			);
-		})
-	}
-}
-
-impl<T: Config<I>, I: Instance> Pallet<T, I> {
+impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	/// Returns number and hash of the best block known to the bridge module.
 	/// The caller should only submit `import_header` transaction that makes
 	/// (or leads to making) other header the best one.
@@ -542,49 +633,11 @@ impl<T: Config<I>, I: Instance> Pallet<T, I> {
 	}
 }
 
-impl<T: Config<I>, I: Instance> frame_support::unsigned::ValidateUnsigned for Pallet<T, I> {
-	type Call = Call<T, I>;
-
-	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-		match *call {
-			Self::Call::import_unsigned_header(ref header, ref receipts) => {
-				let accept_result = verification::accept_aura_header_into_pool(
-					&BridgeStorage::<T, I>::new(),
-					&T::AuraConfiguration::get(),
-					&T::ValidatorsConfiguration::get(),
-					&pool_configuration(),
-					header,
-					&T::ChainTime::default(),
-					receipts.as_ref(),
-				);
-
-				match accept_result {
-					Ok((requires, provides)) => Ok(ValidTransaction {
-						priority: TransactionPriority::max_value(),
-						requires,
-						provides,
-						longevity: TransactionLongevity::max_value(),
-						propagate: true,
-					}),
-					// UnsignedTooFarInTheFuture is the special error code used to limit
-					// number of transactions in the pool - we do not want to ban transaction
-					// in this case (see verification.rs for details)
-					Err(error::Error::UnsignedTooFarInTheFuture) => {
-						UnknownTransaction::Custom(error::Error::UnsignedTooFarInTheFuture.code()).into()
-					}
-					Err(error) => InvalidTransaction::Custom(error.code()).into(),
-				}
-			}
-			_ => InvalidTransaction::Call.into(),
-		}
-	}
-}
-
 /// Runtime bridge storage.
 #[derive(Default)]
-pub struct BridgeStorage<T, I = DefaultInstance>(sp_std::marker::PhantomData<(T, I)>);
+pub struct BridgeStorage<T, I: 'static = ()>(sp_std::marker::PhantomData<(T, I)>);
 
-impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
+impl<T: Config<I>, I: 'static> BridgeStorage<T, I> {
 	/// Create new BridgeStorage.
 	pub fn new() -> Self {
 		BridgeStorage(sp_std::marker::PhantomData::<(T, I)>::default())
@@ -592,7 +645,7 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 
 	/// Prune old blocks.
 	fn prune_blocks(&self, mut max_blocks_to_prune: u64, finalized_number: u64, prune_end: u64) {
-		let pruning_range = BlocksToPrune::<I>::get();
+		let pruning_range = BlocksToPrune::<T, I>::get();
 		let mut new_pruning_range = pruning_range.clone();
 
 		// update oldest block we want to keep
@@ -607,11 +660,11 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 		for number in begin..end {
 			// if we can't prune anything => break
 			if max_blocks_to_prune == 0 {
-				break;
+				break
 			}
 
 			// read hashes of blocks with given number and try to prune these blocks
-			let blocks_at_number = HeadersByNumber::<I>::take(number);
+			let blocks_at_number = HeadersByNumber::<T, I>::take(number);
 			if let Some(mut blocks_at_number) = blocks_at_number {
 				self.prune_blocks_by_hashes(
 					&mut max_blocks_to_prune,
@@ -622,8 +675,8 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 
 				// if we haven't pruned all blocks, remember unpruned
 				if !blocks_at_number.is_empty() {
-					HeadersByNumber::<I>::insert(number, blocks_at_number);
-					break;
+					HeadersByNumber::<T, I>::insert(number, blocks_at_number);
+					break
 				}
 			}
 
@@ -638,7 +691,7 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 
 		// update pruning range in storage
 		if pruning_range != new_pruning_range {
-			BlocksToPrune::<I>::put(new_pruning_range);
+			BlocksToPrune::<T, I>::put(new_pruning_range);
 		}
 	}
 
@@ -651,8 +704,10 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 		blocks_at_number: &mut Vec<H256>,
 	) {
 		// ensure that unfinalized headers we want to prune do not have scheduled changes
-		if number > finalized_number && blocks_at_number.iter().any(ScheduledChanges::<I>::contains_key) {
-			return;
+		if number > finalized_number &&
+			blocks_at_number.iter().any(ScheduledChanges::<T, I>::contains_key)
+		{
+			return
 		}
 
 		// physically remove headers and (probably) obsolete validators sets
@@ -665,10 +720,10 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 				hash,
 			);
 
-			ScheduledChanges::<I>::remove(hash);
+			ScheduledChanges::<T, I>::remove(hash);
 			FinalityCache::<T, I>::remove(hash);
 			if let Some(header) = header {
-				ValidatorsSetsRc::<I>::mutate(header.next_validators_set_id, |rc| match *rc {
+				ValidatorsSetsRc::<T, I>::mutate(header.next_validators_set_id, |rc| match *rc {
 					Some(rc) if rc > 1 => Some(rc - 1),
 					_ => None,
 				});
@@ -677,21 +732,21 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 			// check if we have already pruned too much headers in this call
 			*max_blocks_to_prune -= 1;
 			if *max_blocks_to_prune == 0 {
-				return;
+				return
 			}
 		}
 	}
 }
 
-impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
+impl<T: Config<I>, I: 'static> Storage for BridgeStorage<T, I> {
 	type Submitter = T::AccountId;
 
 	fn best_block(&self) -> (HeaderId, U256) {
-		BestBlock::<I>::get()
+		BestBlock::<T, I>::get()
 	}
 
 	fn finalized_block(&self) -> HeaderId {
-		FinalizedBlock::<I>::get()
+		FinalizedBlock::<T, I>::get()
 	}
 
 	fn header(&self, hash: &H256) -> Option<(AuraHeader, Option<Self::Submitter>)> {
@@ -708,21 +763,22 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 		let mut current_id = *parent;
 		loop {
 			// if we have reached finalized block's sibling => stop with special signal
-			if current_id.number == best_finalized.number && current_id.hash != best_finalized.hash {
+			if current_id.number == best_finalized.number && current_id.hash != best_finalized.hash
+			{
 				votes.stopped_at_finalized_sibling = true;
-				return votes;
+				return votes
 			}
 
 			// if we have reached target header => stop
 			if stop_at(&current_id.hash) {
-				return votes;
+				return votes
 			}
 
 			// if we have found cached votes => stop
 			let cached_votes = FinalityCache::<T, I>::get(&current_id.hash);
 			if let Some(cached_votes) = cached_votes {
 				votes.votes = Some(cached_votes);
-				return votes;
+				return votes
 			}
 
 			// read next parent header id
@@ -750,9 +806,11 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 		parent_hash: &H256,
 	) -> Option<ImportContext<Self::Submitter>> {
 		Headers::<T, I>::get(parent_hash).map(|parent_header| {
-			let validators_set = ValidatorsSets::<I>::get(parent_header.next_validators_set_id)
-				.expect("validators set is only pruned when last ref is pruned; there is a ref; qed");
-			let parent_scheduled_change = ScheduledChanges::<I>::get(parent_hash);
+			let validators_set = ValidatorsSets::<T, I>::get(parent_header.next_validators_set_id)
+				.expect(
+					"validators set is only pruned when last ref is pruned; there is a ref; qed",
+				);
+			let parent_scheduled_change = ScheduledChanges::<T, I>::get(parent_hash);
 			ImportContext {
 				submitter,
 				parent_hash: *parent_hash,
@@ -767,15 +825,15 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 	}
 
 	fn scheduled_change(&self, hash: &H256) -> Option<AuraScheduledChange> {
-		ScheduledChanges::<I>::get(hash)
+		ScheduledChanges::<T, I>::get(hash)
 	}
 
 	fn insert_header(&mut self, header: HeaderToImport<Self::Submitter>) {
 		if header.is_best {
-			BestBlock::<I>::put((header.id, header.total_difficulty));
+			BestBlock::<T, I>::put((header.id, header.total_difficulty));
 		}
 		if let Some(scheduled_change) = header.scheduled_change {
-			ScheduledChanges::<I>::insert(
+			ScheduledChanges::<T, I>::insert(
 				&header.id.hash,
 				AuraScheduledChange {
 					validators: scheduled_change,
@@ -785,12 +843,12 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 		}
 		let next_validators_set_id = match header.enacted_change {
 			Some(enacted_change) => {
-				let next_validators_set_id = NextValidatorsSetId::<I>::mutate(|set_id| {
+				let next_validators_set_id = NextValidatorsSetId::<T, I>::mutate(|set_id| {
 					let next_set_id = *set_id;
 					*set_id += 1;
 					next_set_id
 				});
-				ValidatorsSets::<I>::insert(
+				ValidatorsSets::<T, I>::insert(
 					next_validators_set_id,
 					ValidatorsSet {
 						validators: enacted_change.validators,
@@ -798,21 +856,22 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 						signal_block: enacted_change.signal_block,
 					},
 				);
-				ValidatorsSetsRc::<I>::insert(next_validators_set_id, 1);
+				ValidatorsSetsRc::<T, I>::insert(next_validators_set_id, 1);
 				next_validators_set_id
-			}
+			},
 			None => {
-				ValidatorsSetsRc::<I>::mutate(header.context.validators_set_id, |rc| {
+				ValidatorsSetsRc::<T, I>::mutate(header.context.validators_set_id, |rc| {
 					*rc = Some(rc.map(|rc| rc + 1).unwrap_or(1));
 					*rc
 				});
 				header.context.validators_set_id
-			}
+			},
 		};
 
 		let finality_votes_caching_interval = T::FinalityVotesCachingInterval::get();
 		if let Some(finality_votes_caching_interval) = finality_votes_caching_interval {
-			let cache_entry_required = header.id.number != 0 && header.id.number % finality_votes_caching_interval == 0;
+			let cache_entry_required =
+				header.id.number != 0 && header.id.number % finality_votes_caching_interval == 0;
 			if cache_entry_required {
 				FinalityCache::<T, I>::insert(header.id.hash, header.finality_votes);
 			}
@@ -826,7 +885,7 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 		);
 
 		let last_signal_block = header.context.last_signal_block();
-		HeadersByNumber::<I>::append(header.id.number, header.id.hash);
+		HeadersByNumber::<T, I>::append(header.id.number, header.id.hash);
 		Headers::<T, I>::insert(
 			&header.id.hash,
 			StoredHeader {
@@ -844,7 +903,7 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 		let finalized_number = finalized
 			.as_ref()
 			.map(|f| f.number)
-			.unwrap_or_else(|| FinalizedBlock::<I>::get().number);
+			.unwrap_or_else(|| FinalizedBlock::<T, I>::get().number);
 		if let Some(finalized) = finalized {
 			log::trace!(
 				target: "runtime",
@@ -853,7 +912,7 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 				finalized.hash,
 			);
 
-			FinalizedBlock::<I>::put(finalized);
+			FinalizedBlock::<T, I>::put(finalized);
 		}
 
 		// and now prune headers if we need to
@@ -863,7 +922,7 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 
 /// Initialize storage.
 #[cfg(any(feature = "std", feature = "runtime-benchmarks"))]
-pub(crate) fn initialize_storage<T: Config<I>, I: Instance>(
+pub(crate) fn initialize_storage<T: Config<I>, I: 'static>(
 	initial_header: &AuraHeader,
 	initial_difficulty: U256,
 	initial_validators: &[Address],
@@ -876,17 +935,14 @@ pub(crate) fn initialize_storage<T: Config<I>, I: Instance>(
 		initial_hash,
 	);
 
-	let initial_id = HeaderId {
-		number: initial_header.number,
-		hash: initial_hash,
-	};
-	BestBlock::<I>::put((initial_id, initial_difficulty));
-	FinalizedBlock::<I>::put(initial_id);
-	BlocksToPrune::<I>::put(PruningRange {
+	let initial_id = HeaderId { number: initial_header.number, hash: initial_hash };
+	BestBlock::<T, I>::put((initial_id, initial_difficulty));
+	FinalizedBlock::<T, I>::put(initial_id);
+	BlocksToPrune::<T, I>::put(PruningRange {
 		oldest_unpruned_block: initial_header.number,
 		oldest_block_to_keep: initial_header.number,
 	});
-	HeadersByNumber::<I>::insert(initial_header.number, vec![initial_hash]);
+	HeadersByNumber::<T, I>::insert(initial_header.number, vec![initial_hash]);
 	Headers::<T, I>::insert(
 		initial_hash,
 		StoredHeader {
@@ -897,8 +953,8 @@ pub(crate) fn initialize_storage<T: Config<I>, I: Instance>(
 			last_signal_block: None,
 		},
 	);
-	NextValidatorsSetId::<I>::put(1);
-	ValidatorsSets::<I>::insert(
+	NextValidatorsSetId::<T, I>::put(1);
+	ValidatorsSets::<T, I>::insert(
 		0,
 		ValidatorsSet {
 			validators: initial_validators.to_vec(),
@@ -906,7 +962,7 @@ pub(crate) fn initialize_storage<T: Config<I>, I: Instance>(
 			enact_block: initial_id,
 		},
 	);
-	ValidatorsSetsRc::<I>::insert(0, 1);
+	ValidatorsSetsRc::<T, I>::insert(0, 1);
 }
 
 /// Verify that transaction is included into given finalized block.
@@ -924,7 +980,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			proof.len(),
 		);
 
-		return false;
+		return false
 	}
 
 	let header = match storage.header(&block) {
@@ -936,8 +992,8 @@ pub fn verify_transaction_finalized<S: Storage>(
 				block,
 			);
 
-			return false;
-		}
+			return false
+		},
 	};
 	let finalized = storage.finalized_block();
 
@@ -951,7 +1007,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			finalized.number,
 		);
 
-		return false;
+		return false
 	}
 
 	// check if header is actually finalized
@@ -969,7 +1025,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			finalized.hash,
 		);
 
-		return false;
+		return false
 	}
 
 	// verify that transaction is included in the block
@@ -981,7 +1037,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			computed_root,
 		);
 
-		return false;
+		return false
 	}
 
 	// verify that transaction receipt is included in the block
@@ -993,7 +1049,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			computed_root,
 		);
 
-		return false;
+		return false
 	}
 
 	// check that transaction has completed successfully
@@ -1007,7 +1063,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			);
 
 			false
-		}
+		},
 		Err(err) => {
 			log::trace!(
 				target: "runtime",
@@ -1016,23 +1072,24 @@ pub fn verify_transaction_finalized<S: Storage>(
 			);
 
 			false
-		}
+		},
 	}
 }
 
 /// Transaction pool configuration.
 fn pool_configuration() -> PoolConfiguration {
-	PoolConfiguration {
-		max_future_number_difference: 10,
-	}
+	PoolConfiguration { max_future_number_difference: 10 }
 }
 
 /// Return iterator of given header ancestors.
-fn ancestry<S: Storage>(storage: &'_ S, mut parent_hash: H256) -> impl Iterator<Item = (H256, AuraHeader)> + '_ {
+fn ancestry<S: Storage>(
+	storage: &'_ S,
+	mut parent_hash: H256,
+) -> impl Iterator<Item = (H256, AuraHeader)> + '_ {
 	sp_std::iter::from_fn(move || {
 		let (header, _) = storage.header(&parent_hash)?;
 		if header.number == 0 {
-			return None;
+			return None
 		}
 
 		let hash = parent_hash;
@@ -1044,12 +1101,14 @@ fn ancestry<S: Storage>(storage: &'_ S, mut parent_hash: H256) -> impl Iterator<
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::finality::FinalityAncestor;
-	use crate::mock::{
-		genesis, insert_header, run_test, run_test_with_genesis, validators_addresses, HeaderBuilder, TestRuntime,
-		GAS_LIMIT,
+	use crate::{
+		finality::FinalityAncestor,
+		mock::{
+			genesis, insert_header, run_test, run_test_with_genesis, validators_addresses,
+			HeaderBuilder, TestRuntime, GAS_LIMIT,
+		},
+		test_utils::validator_utils::*,
 	};
-	use crate::test_utils::validator_utils::*;
 	use bp_eth_poa::compute_merkle_root;
 
 	const TOTAL_VALIDATORS: usize = 3;
@@ -1112,7 +1171,7 @@ pub(crate) mod tests {
 					);
 
 					if i == 7 && j == 1 {
-						ScheduledChanges::<DefaultInstance>::insert(
+						ScheduledChanges::<TestRuntime, ()>::insert(
 							hash,
 							AuraScheduledChange {
 								validators: validators_addresses(5),
@@ -1121,7 +1180,7 @@ pub(crate) mod tests {
 						);
 					}
 				}
-				HeadersByNumber::<DefaultInstance>::insert(i, headers_by_number);
+				HeadersByNumber::<TestRuntime, ()>::insert(i, headers_by_number);
 			}
 
 			f(BridgeStorage::new())
@@ -1131,20 +1190,17 @@ pub(crate) mod tests {
 	#[test]
 	fn blocks_are_not_pruned_if_range_is_empty() {
 		with_headers_to_prune(|storage| {
-			BlocksToPrune::<DefaultInstance>::put(PruningRange {
+			BlocksToPrune::<TestRuntime, ()>::put(PruningRange {
 				oldest_unpruned_block: 5,
 				oldest_block_to_keep: 5,
 			});
 
 			// try to prune blocks [5; 10)
 			storage.prune_blocks(0xFFFF, 10, 5);
-			assert_eq!(HeadersByNumber::<DefaultInstance>::get(&5).unwrap().len(), 5);
+			assert_eq!(HeadersByNumber::<TestRuntime, ()>::get(&5).unwrap().len(), 5);
 			assert_eq!(
-				BlocksToPrune::<DefaultInstance>::get(),
-				PruningRange {
-					oldest_unpruned_block: 5,
-					oldest_block_to_keep: 5,
-				},
+				BlocksToPrune::<TestRuntime, ()>::get(),
+				PruningRange { oldest_unpruned_block: 5, oldest_block_to_keep: 5 },
 			);
 		});
 	}
@@ -1152,7 +1208,7 @@ pub(crate) mod tests {
 	#[test]
 	fn blocks_to_prune_never_shrinks_from_the_end() {
 		with_headers_to_prune(|storage| {
-			BlocksToPrune::<DefaultInstance>::put(PruningRange {
+			BlocksToPrune::<TestRuntime, ()>::put(PruningRange {
 				oldest_unpruned_block: 0,
 				oldest_block_to_keep: 5,
 			});
@@ -1160,11 +1216,8 @@ pub(crate) mod tests {
 			// try to prune blocks [5; 10)
 			storage.prune_blocks(0xFFFF, 10, 3);
 			assert_eq!(
-				BlocksToPrune::<DefaultInstance>::get(),
-				PruningRange {
-					oldest_unpruned_block: 5,
-					oldest_block_to_keep: 5,
-				},
+				BlocksToPrune::<TestRuntime, ()>::get(),
+				PruningRange { oldest_unpruned_block: 5, oldest_block_to_keep: 5 },
 			);
 		});
 	}
@@ -1174,16 +1227,13 @@ pub(crate) mod tests {
 		with_headers_to_prune(|storage| {
 			// try to prune blocks [0; 10)
 			storage.prune_blocks(0, 10, 10);
-			assert!(HeadersByNumber::<DefaultInstance>::get(&0).is_some());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&1).is_some());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&2).is_some());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&3).is_some());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&0).is_some());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&1).is_some());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&2).is_some());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&3).is_some());
 			assert_eq!(
-				BlocksToPrune::<DefaultInstance>::get(),
-				PruningRange {
-					oldest_unpruned_block: 0,
-					oldest_block_to_keep: 10,
-				},
+				BlocksToPrune::<TestRuntime, ()>::get(),
+				PruningRange { oldest_unpruned_block: 0, oldest_block_to_keep: 10 },
 			);
 		});
 	}
@@ -1194,33 +1244,27 @@ pub(crate) mod tests {
 			// try to prune blocks [0; 10)
 			storage.prune_blocks(7, 10, 10);
 			// 1 headers with number = 0 is pruned (1 total)
-			assert!(HeadersByNumber::<DefaultInstance>::get(&0).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&0).is_none());
 			// 5 headers with number = 1 are pruned (6 total)
-			assert!(HeadersByNumber::<DefaultInstance>::get(&1).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&1).is_none());
 			// 1 header with number = 2 are pruned (7 total)
-			assert_eq!(HeadersByNumber::<DefaultInstance>::get(&2).unwrap().len(), 4);
+			assert_eq!(HeadersByNumber::<TestRuntime, ()>::get(&2).unwrap().len(), 4);
 			assert_eq!(
-				BlocksToPrune::<DefaultInstance>::get(),
-				PruningRange {
-					oldest_unpruned_block: 2,
-					oldest_block_to_keep: 10,
-				},
+				BlocksToPrune::<TestRuntime, ()>::get(),
+				PruningRange { oldest_unpruned_block: 2, oldest_block_to_keep: 10 },
 			);
 
 			// try to prune blocks [2; 10)
 			storage.prune_blocks(11, 10, 10);
 			// 4 headers with number = 2 are pruned (4 total)
-			assert!(HeadersByNumber::<DefaultInstance>::get(&2).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&2).is_none());
 			// 5 headers with number = 3 are pruned (9 total)
-			assert!(HeadersByNumber::<DefaultInstance>::get(&3).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&3).is_none());
 			// 2 headers with number = 4 are pruned (11 total)
-			assert_eq!(HeadersByNumber::<DefaultInstance>::get(&4).unwrap().len(), 3);
+			assert_eq!(HeadersByNumber::<TestRuntime, ()>::get(&4).unwrap().len(), 3);
 			assert_eq!(
-				BlocksToPrune::<DefaultInstance>::get(),
-				PruningRange {
-					oldest_unpruned_block: 4,
-					oldest_block_to_keep: 10,
-				},
+				BlocksToPrune::<TestRuntime, ()>::get(),
+				PruningRange { oldest_unpruned_block: 4, oldest_block_to_keep: 10 },
 			);
 		});
 	}
@@ -1233,20 +1277,17 @@ pub(crate) mod tests {
 			// and one of blocks#7 has scheduled change
 			// => we won't prune any block#7 at all
 			storage.prune_blocks(0xFFFF, 5, 10);
-			assert!(HeadersByNumber::<DefaultInstance>::get(&0).is_none());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&1).is_none());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&2).is_none());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&3).is_none());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&4).is_none());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&5).is_none());
-			assert!(HeadersByNumber::<DefaultInstance>::get(&6).is_none());
-			assert_eq!(HeadersByNumber::<DefaultInstance>::get(&7).unwrap().len(), 5);
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&0).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&1).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&2).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&3).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&4).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&5).is_none());
+			assert!(HeadersByNumber::<TestRuntime, ()>::get(&6).is_none());
+			assert_eq!(HeadersByNumber::<TestRuntime, ()>::get(&7).unwrap().len(), 5);
 			assert_eq!(
-				BlocksToPrune::<DefaultInstance>::get(),
-				PruningRange {
-					oldest_unpruned_block: 7,
-					oldest_block_to_keep: 10,
-				},
+				BlocksToPrune::<TestRuntime, ()>::get(),
+				PruningRange { oldest_unpruned_block: 7, oldest_block_to_keep: 10 },
 			);
 		});
 	}
@@ -1266,13 +1307,14 @@ pub(crate) mod tests {
 			}
 
 			// for header with number = interval, cache entry is created
-			let header_with_entry = HeaderBuilder::with_parent_number(interval - 1).sign_by_set(&ctx.validators);
+			let header_with_entry =
+				HeaderBuilder::with_parent_number(interval - 1).sign_by_set(&ctx.validators);
 			let header_with_entry_hash = header_with_entry.compute_hash();
 			insert_header(&mut storage, header_with_entry);
 			assert!(FinalityCache::<TestRuntime>::get(&header_with_entry_hash).is_some());
 
 			// when we later prune this header, cache entry is removed
-			BlocksToPrune::<DefaultInstance>::put(PruningRange {
+			BlocksToPrune::<TestRuntime, ()>::put(PruningRange {
 				oldest_unpruned_block: interval - 1,
 				oldest_block_to_keep: interval - 1,
 			});
@@ -1313,10 +1355,7 @@ pub(crate) mod tests {
 			let votes_at_3 = FinalityVotes {
 				votes: vec![([42; 20].into(), 21)].into_iter().collect(),
 				ancestry: vec![FinalityAncestor {
-					id: HeaderId {
-						number: 100,
-						hash: Default::default(),
-					},
+					id: HeaderId { number: 100, hash: Default::default() },
 					..Default::default()
 				}]
 				.into_iter()
@@ -1359,7 +1398,7 @@ pub(crate) mod tests {
 			insert_header(&mut storage, header1s);
 
 			// header1 is finalized
-			FinalizedBlock::<DefaultInstance>::put(header1_id);
+			FinalizedBlock::<TestRuntime, ()>::put(header1_id);
 
 			// trying to get finality votes when importing header2 -> header1 succeeds
 			assert!(

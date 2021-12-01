@@ -20,14 +20,14 @@
 //! Used for testing and benchmarking.
 
 // reexport to avoid direct secp256k1 deps by other crates
-pub use secp256k1::SecretKey;
+pub use libsecp256k1::SecretKey;
 
 use crate::{
-	public_to_address, rlp_encode, step_validator, Address, AuraHeader, RawTransaction, UnsignedTransaction, H256,
-	H520, U256,
+	public_to_address, rlp_encode, step_validator, Address, AuraHeader, RawTransaction,
+	UnsignedTransaction, H256, H520, U256,
 };
 
-use secp256k1::{Message, PublicKey};
+use libsecp256k1::{Message, PublicKey};
 
 /// Utilities for signing headers.
 pub trait SignHeader {
@@ -80,7 +80,8 @@ impl SignTransaction for UnsignedTransaction {
 
 /// Return author's signature over given message.
 pub fn sign(author: &SecretKey, message: H256) -> H520 {
-	let (signature, recovery_id) = secp256k1::sign(&Message::parse(message.as_fixed_bytes()), author);
+	let (signature, recovery_id) =
+		libsecp256k1::sign(&Message::parse(message.as_fixed_bytes()), author);
 	let mut raw_signature = [0u8; 65];
 	raw_signature[..64].copy_from_slice(&signature.serialize());
 	raw_signature[64] = recovery_id.serialize();
@@ -116,10 +117,7 @@ mod tests {
 		let raw_tx = unsigned.clone().sign_by(&signer, Some(42));
 		assert_eq!(
 			transaction_decode_rlp(&raw_tx),
-			Ok(Transaction {
-				sender: signer_address,
-				unsigned,
-			}),
+			Ok(Transaction { sender: signer_address, unsigned }),
 		);
 
 		// case2: without chain_id replay protection + contract creation
@@ -134,10 +132,7 @@ mod tests {
 		let raw_tx = unsigned.clone().sign_by(&signer, None);
 		assert_eq!(
 			transaction_decode_rlp(&raw_tx),
-			Ok(Transaction {
-				sender: signer_address,
-				unsigned,
-			}),
+			Ok(Transaction { sender: signer_address, unsigned }),
 		);
 	}
 }

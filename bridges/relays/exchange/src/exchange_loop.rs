@@ -16,12 +16,16 @@
 
 //! Relaying proofs of exchange transactions.
 
-use crate::exchange::{
-	relay_block_transactions, BlockNumberOf, RelayedBlockTransactions, SourceClient, TargetClient,
-	TransactionProofPipeline,
+use crate::{
+	error::Error,
+	exchange::{
+		relay_block_transactions, BlockNumberOf, RelayedBlockTransactions, SourceClient,
+		TargetClient, TransactionProofPipeline,
+	},
+	exchange_loop_metrics::ExchangeLoopMetrics,
 };
-use crate::exchange_loop_metrics::ExchangeLoopMetrics;
 
+use crate::error::ErrorOf;
 use backoff::backoff::Backoff;
 use futures::{future::FutureExt, select};
 use num_traits::One;
@@ -58,13 +62,13 @@ pub struct InMemoryStorage<BlockNumber> {
 impl<BlockNumber> InMemoryStorage<BlockNumber> {
 	/// Created new in-memory storage with given best processed block number.
 	pub fn new(best_processed_header_number: BlockNumber) -> Self {
-		InMemoryStorage {
-			best_processed_header_number,
-		}
+		InMemoryStorage { best_processed_header_number }
 	}
 }
 
-impl<BlockNumber: 'static + Clone + Copy + Send + Sync> TransactionProofsRelayStorage for InMemoryStorage<BlockNumber> {
+impl<BlockNumber: 'static + Clone + Copy + Send + Sync> TransactionProofsRelayStorage
+	for InMemoryStorage<BlockNumber>
+{
 	type BlockNumber = BlockNumber;
 
 	fn state(&self) -> TransactionProofsRelayState<BlockNumber> {
@@ -90,13 +94,13 @@ pub async fn run<P: TransactionProofPipeline>(
 	target_client: impl TargetClient<P>,
 	metrics_params: MetricsParams,
 	exit_signal: impl Future<Output = ()> + 'static + Send,
-) -> Result<(), String> {
+) -> Result<(), ErrorOf<P>> {
 	let exit_signal = exit_signal.shared();
 
 	relay_utils::relay_loop(source_client, target_client)
 		.with_metrics(Some(metrics_prefix::<P>()), metrics_params)
-		.loop_metric(|registry, prefix| ExchangeLoopMetrics::new(registry, prefix))?
-		.standalone_metric(|registry, prefix| GlobalMetrics::new(registry, prefix))?
+		.loop_metric(ExchangeLoopMetrics::new)?
+		.standalone_metric(GlobalMetrics::new)?
 		.expose()
 		.await?
 		.run(metrics_prefix::<P>(), move |source_client, target_client, metrics| {
@@ -109,6 +113,7 @@ pub async fn run<P: TransactionProofPipeline>(
 			)
 		})
 		.await
+		.map_err(Error::Utils)
 }
 
 /// Run proofs synchronization.
@@ -140,12 +145,11 @@ async fn run_until_connection_lost<P: TransactionProofPipeline>(
 
 		if let Err((is_connection_error, failed_client)) = iteration_result {
 			if is_connection_error {
-				return Err(failed_client);
+				return Err(failed_client)
 			}
 
-			let retry_timeout = retry_backoff
-				.next_backoff()
-				.unwrap_or(relay_utils::relay_loop::RECONNECT_DELAY);
+			let retry_timeout =
+				retry_backoff.next_backoff().unwrap_or(relay_utils::relay_loop::RECONNECT_DELAY);
 			select! {
 				_ = async_std::task::sleep(retry_timeout).fuse() => {},
 				_ = exit_signal => return Ok(()),
@@ -181,7 +185,7 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 			);
 
 			best_finalized_header_id
-		}
+		},
 		Err(err) => {
 			log::error!(
 				target: "bridge",
@@ -191,14 +195,20 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 				err,
 			);
 
-			return Err((err.is_connection_error(), FailedClient::Target));
-		}
+			return Err((err.is_connection_error(), FailedClient::Target))
+		},
 	};
 
 	loop {
 		// if we already have some finalized block body, try to relay its transactions
 		if let Some((block, relayed_transactions)) = current_finalized_block.take() {
-			let result = relay_block_transactions(source_client, target_client, &block, relayed_transactions).await;
+			let result = relay_block_transactions(
+				source_client,
+				target_client,
+				&block,
+				relayed_transactions,
+			)
+			.await;
 
 			match result {
 				Ok(relayed_transactions) => {
@@ -212,7 +222,8 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 						relayed_transactions.failed,
 					);
 
-					state.best_processed_header_number = state.best_processed_header_number + One::one();
+					state.best_processed_header_number =
+						state.best_processed_header_number + One::one();
 					storage.set_state(state);
 
 					if let Some(exchange_loop_metrics) = exchange_loop_metrics {
@@ -224,11 +235,11 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 					}
 
 					// we have just updated state => proceed to next block retrieval
-				}
+				},
 				Err((failed_client, relayed_transactions)) => {
 					*current_finalized_block = Some((block, relayed_transactions));
-					return Err((true, failed_client));
-				}
+					return Err((true, failed_client))
+				},
 			}
 		}
 
@@ -242,8 +253,8 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 					*current_finalized_block = Some((block, RelayedBlockTransactions::default()));
 
 					// we have received new finalized block => go back to relay its transactions
-					continue;
-				}
+					continue
+				},
 				Err(err) => {
 					log::error!(
 						target: "bridge",
@@ -253,13 +264,13 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 						err,
 					);
 
-					return Err((err.is_connection_error(), FailedClient::Source));
-				}
+					return Err((err.is_connection_error(), FailedClient::Source))
+				},
 			}
 		}
 
 		// there are no any transactions we need to relay => wait for new data
-		return Ok(());
+		return Ok(())
 	}
 }
 
@@ -267,17 +278,16 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 mod tests {
 	use super::*;
 	use crate::exchange::tests::{
-		test_next_block, test_next_block_id, test_transaction_hash, TestTransactionProof, TestTransactionsSource,
-		TestTransactionsTarget,
+		test_next_block, test_next_block_id, test_transaction_hash, TestTransactionProof,
+		TestTransactionsSource, TestTransactionsTarget,
 	};
 	use futures::{future::FutureExt, stream::StreamExt};
 
 	#[test]
 	fn exchange_loop_is_able_to_relay_proofs() {
-		let storage = InMemoryStorage {
-			best_processed_header_number: 0,
-		};
-		let target = TestTransactionsTarget::new(Box::new(|_| unreachable!("no target ticks allowed")));
+		let storage = InMemoryStorage { best_processed_header_number: 0 };
+		let target =
+			TestTransactionsTarget::new(Box::new(|_| unreachable!("no target ticks allowed")));
 		let target_data = target.data.clone();
 		let (exit_sender, exit_receiver) = futures::channel::mpsc::unbounded();
 
@@ -295,11 +305,8 @@ mod tests {
 				(true, false) => {
 					data.block = Ok(test_next_block());
 					target_data.lock().best_finalized_header_id = Ok(test_next_block_id());
-					target_data
-						.lock()
-						.transactions_to_accept
-						.insert(test_transaction_hash(1));
-				}
+					target_data.lock().transactions_to_accept.insert(test_transaction_hash(1));
+				},
 				_ => (),
 			}
 		}));

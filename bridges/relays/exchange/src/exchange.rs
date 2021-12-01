@@ -16,10 +16,11 @@
 
 //! Relaying proofs of exchange transaction.
 
+use crate::error::{Error, ErrorOf};
+
+use anyhow::anyhow;
 use async_trait::async_trait;
-use relay_utils::{
-	relay_loop::Client as RelayClient, FailedClient, MaybeConnectionError, StringifiedMaybeConnectionError,
-};
+use relay_utils::{relay_loop::Client as RelayClient, FailedClient, MaybeConnectionError};
 use std::{
 	fmt::{Debug, Display},
 	string::ToString,
@@ -66,7 +67,7 @@ pub trait SourceBlock: 'static + Send + Sync {
 /// Transaction that is participating in exchange.
 pub trait SourceTransaction: 'static + Send {
 	/// Transaction hash type.
-	type Hash: Debug + Display;
+	type Hash: Debug + Display + Clone;
 
 	/// Return transaction hash.
 	fn hash(&self) -> Self::Hash;
@@ -96,12 +97,18 @@ pub trait SourceClient<P: TransactionProofPipeline>: RelayClient {
 	async fn block_by_hash(&self, hash: BlockHashOf<P>) -> Result<P::Block, Self::Error>;
 	/// Get canonical block by number.
 	async fn block_by_number(&self, number: BlockNumberOf<P>) -> Result<P::Block, Self::Error>;
-	/// Return block + index where transaction has been **mined**. May return `Ok(None)` if transaction
-	/// is unknown to the source node.
-	async fn transaction_block(&self, hash: &TransactionHashOf<P>)
-		-> Result<Option<(HeaderId<P>, usize)>, Self::Error>;
+	/// Return block + index where transaction has been **mined**. May return `Ok(None)` if
+	/// transaction is unknown to the source node.
+	async fn transaction_block(
+		&self,
+		hash: &TransactionHashOf<P>,
+	) -> Result<Option<(HeaderId<P>, usize)>, Self::Error>;
 	/// Prepare transaction proof.
-	async fn transaction_proof(&self, block: &P::Block, tx_index: usize) -> Result<P::TransactionProof, Self::Error>;
+	async fn transaction_proof(
+		&self,
+		block: &P::Block,
+		tx_index: usize,
+	) -> Result<P::TransactionProof, Self::Error>;
 }
 
 /// Target client API.
@@ -110,15 +117,19 @@ pub trait TargetClient<P: TransactionProofPipeline>: RelayClient {
 	/// Sleep until exchange-related data is (probably) updated.
 	async fn tick(&self);
 	/// Returns `Ok(true)` if header is known to the target node.
-	async fn is_header_known(&self, id: &HeaderId<P>) -> Result<bool, Self::Error>;
+	async fn is_header_known(&self, id: &HeaderId<P>) -> std::result::Result<bool, Self::Error>;
 	/// Returns `Ok(true)` if header is finalized by the target node.
 	async fn is_header_finalized(&self, id: &HeaderId<P>) -> Result<bool, Self::Error>;
 	/// Returns best finalized header id.
 	async fn best_finalized_header_id(&self) -> Result<HeaderId<P>, Self::Error>;
 	/// Returns `Ok(true)` if transaction proof is need to be relayed.
-	async fn filter_transaction_proof(&self, proof: &P::TransactionProof) -> Result<bool, Self::Error>;
+	async fn filter_transaction_proof(
+		&self,
+		proof: &P::TransactionProof,
+	) -> Result<bool, Self::Error>;
 	/// Submits transaction proof to the target node.
-	async fn submit_transaction_proof(&self, proof: P::TransactionProof) -> Result<(), Self::Error>;
+	async fn submit_transaction_proof(&self, proof: P::TransactionProof)
+		-> Result<(), Self::Error>;
 }
 
 /// Block transaction statistics.
@@ -154,27 +165,28 @@ pub async fn relay_block_transactions<P: TransactionProofPipeline>(
 	for (source_tx_index, source_tx) in transactions_to_process {
 		let result = async {
 			let source_tx_id = format!("{}/{}", source_block.id().1, source_tx_index);
-			let source_tx_proof =
-				prepare_transaction_proof(source_client, &source_tx_id, source_block, source_tx_index)
-					.await
-					.map_err(|e| (FailedClient::Source, e))?;
+			let source_tx_proof = prepare_transaction_proof(
+				source_client,
+				&source_tx_id,
+				source_block,
+				source_tx_index,
+			)
+			.await
+			.map_err(|e| (FailedClient::Source, e))?;
 
 			let needs_to_be_relayed =
-				target_client
-					.filter_transaction_proof(&source_tx_proof)
-					.await
-					.map_err(|err| {
-						(
-							FailedClient::Target,
-							StringifiedMaybeConnectionError::new(
-								err.is_connection_error(),
-								format!("Transaction filtering has failed with {:?}", err),
-							),
-						)
-					})?;
+				target_client.filter_transaction_proof(&source_tx_proof).await.map_err(|err| {
+					(
+						FailedClient::Target,
+						Error::TransactionFiltering(
+							anyhow!("{:?}", err),
+							err.is_connection_error(),
+						),
+					)
+				})?;
 
 			if !needs_to_be_relayed {
-				return Ok(false);
+				return Ok(false)
 			}
 
 			relay_ready_transaction_proof(target_client, &source_tx_id, source_tx_proof)
@@ -191,13 +203,14 @@ pub async fn relay_block_transactions<P: TransactionProofPipeline>(
 		// Option#1 may seems better, but:
 		// 1) we do not track if transaction is mined (without an error) by the target node;
 		// 2) error could be irrecoverable (e.g. when block is already pruned by bridge module or tx
-		//    has invalid format) && we'll end up in infinite loop of retrying the same transaction proof.
+		//    has invalid format) && we'll end up in infinite loop of retrying the same transaction
+		// proof.
 		//
 		// So we're going with option#2 here (the only exception are connection errors).
 		match result {
 			Ok(false) => {
 				relayed_transactions.processed += 1;
-			}
+			},
 			Ok(true) => {
 				log::info!(
 					target: "bridge",
@@ -209,7 +222,7 @@ pub async fn relay_block_transactions<P: TransactionProofPipeline>(
 
 				relayed_transactions.processed += 1;
 				relayed_transactions.relayed += 1;
-			}
+			},
 			Err((failed_client, err)) => {
 				log::error!(
 					target: "bridge",
@@ -226,12 +239,12 @@ pub async fn relay_block_transactions<P: TransactionProofPipeline>(
 				);
 
 				if err.is_connection_error() {
-					return Err((failed_client, relayed_transactions));
+					return Err((failed_client, relayed_transactions))
 				}
 
 				relayed_transactions.processed += 1;
 				relayed_transactions.failed += 1;
-			}
+			},
 		}
 	}
 
@@ -243,19 +256,14 @@ pub async fn relay_single_transaction_proof<P: TransactionProofPipeline>(
 	source_client: &impl SourceClient<P>,
 	target_client: &impl TargetClient<P>,
 	source_tx_hash: TransactionHashOf<P>,
-) -> Result<(), String> {
+) -> Result<(), ErrorOf<P>> {
 	// wait for transaction and header on source node
-	let (source_header_id, source_tx_index) = wait_transaction_mined(source_client, &source_tx_hash).await?;
+	let (source_header_id, source_tx_index) =
+		wait_transaction_mined(source_client, &source_tx_hash).await?;
 	let source_block = source_client.block_by_hash(source_header_id.1.clone()).await;
 	let source_block = source_block.map_err(|err| {
-		format!(
-			"Error retrieving block {} from {} node: {:?}",
-			source_header_id.1,
-			P::SOURCE_NAME,
-			err,
-		)
+		Error::RetrievingBlock(source_header_id.1.clone(), P::SOURCE_NAME, anyhow!("{:?}", err))
 	})?;
-
 	// wait for transaction and header on target node
 	wait_header_imported(target_client, &source_header_id).await?;
 	wait_header_finalized(target_client, &source_header_id).await?;
@@ -266,11 +274,10 @@ pub async fn relay_single_transaction_proof<P: TransactionProofPipeline>(
 		target_client,
 		&source_tx_id,
 		prepare_transaction_proof(source_client, &source_tx_id, &source_block, source_tx_index)
-			.await
-			.map_err(|err| err.to_string())?,
+			.await?,
 	)
 	.await
-	.map_err(|err| err.to_string())
+	.map_err(Into::into)
 }
 
 /// Prepare transaction proof.
@@ -279,19 +286,16 @@ async fn prepare_transaction_proof<P: TransactionProofPipeline>(
 	source_tx_id: &str,
 	source_block: &P::Block,
 	source_tx_index: usize,
-) -> Result<P::TransactionProof, StringifiedMaybeConnectionError> {
+) -> Result<P::TransactionProof, ErrorOf<P>> {
 	source_client
 		.transaction_proof(source_block, source_tx_index)
 		.await
 		.map_err(|err| {
-			StringifiedMaybeConnectionError::new(
+			Error::BuildTransactionProof(
+				source_tx_id.to_owned(),
+				P::SOURCE_NAME,
+				anyhow!("{:?}", err),
 				err.is_connection_error(),
-				format!(
-					"Error building transaction {} proof on {} node: {:?}",
-					source_tx_id,
-					P::SOURCE_NAME,
-					err,
-				),
 			)
 		})
 }
@@ -301,37 +305,31 @@ async fn relay_ready_transaction_proof<P: TransactionProofPipeline>(
 	target_client: &impl TargetClient<P>,
 	source_tx_id: &str,
 	source_tx_proof: P::TransactionProof,
-) -> Result<(), StringifiedMaybeConnectionError> {
-	target_client
-		.submit_transaction_proof(source_tx_proof)
-		.await
-		.map_err(|err| {
-			StringifiedMaybeConnectionError::new(
-				err.is_connection_error(),
-				format!(
-					"Error submitting transaction {} proof to {} node: {:?}",
-					source_tx_id,
-					P::TARGET_NAME,
-					err,
-				),
-			)
-		})
+) -> Result<(), ErrorOf<P>> {
+	target_client.submit_transaction_proof(source_tx_proof).await.map_err(|err| {
+		Error::SubmitTransactionProof(
+			source_tx_id.to_owned(),
+			P::TARGET_NAME,
+			anyhow!("{:?}", err),
+			err.is_connection_error(),
+		)
+	})
 }
 
 /// Wait until transaction is mined by source node.
 async fn wait_transaction_mined<P: TransactionProofPipeline>(
 	source_client: &impl SourceClient<P>,
 	source_tx_hash: &TransactionHashOf<P>,
-) -> Result<(HeaderId<P>, usize), String> {
+) -> Result<(HeaderId<P>, usize), ErrorOf<P>> {
 	loop {
-		let source_header_and_tx = source_client.transaction_block(source_tx_hash).await.map_err(|err| {
-			format!(
-				"Error retrieving transaction {} from {} node: {:?}",
-				source_tx_hash,
-				P::SOURCE_NAME,
-				err,
-			)
-		})?;
+		let source_header_and_tx =
+			source_client.transaction_block(source_tx_hash).await.map_err(|err| {
+				Error::RetrievingTransaction(
+					source_tx_hash.clone(),
+					P::SOURCE_NAME,
+					anyhow!("{:?}", err),
+				)
+			})?;
 		match source_header_and_tx {
 			Some((source_header_id, source_tx)) => {
 				log::info!(
@@ -341,8 +339,8 @@ async fn wait_transaction_mined<P: TransactionProofPipeline>(
 					P::SOURCE_NAME,
 				);
 
-				return Ok((source_header_id, source_tx));
-			}
+				return Ok((source_header_id, source_tx))
+			},
 			None => {
 				log::info!(
 					target: "bridge",
@@ -352,7 +350,7 @@ async fn wait_transaction_mined<P: TransactionProofPipeline>(
 				);
 
 				source_client.tick().await;
-			}
+			},
 		}
 	}
 }
@@ -361,17 +359,17 @@ async fn wait_transaction_mined<P: TransactionProofPipeline>(
 async fn wait_header_imported<P: TransactionProofPipeline>(
 	target_client: &impl TargetClient<P>,
 	source_header_id: &HeaderId<P>,
-) -> Result<(), String> {
+) -> Result<(), ErrorOf<P>> {
 	loop {
-		let is_header_known = target_client.is_header_known(source_header_id).await.map_err(|err| {
-			format!(
-				"Failed to check existence of header {}/{} on {} node: {:?}",
-				source_header_id.0,
-				source_header_id.1,
-				P::TARGET_NAME,
-				err,
-			)
-		})?;
+		let is_header_known =
+			target_client.is_header_known(source_header_id).await.map_err(|err| {
+				Error::CheckHeaderExistence(
+					source_header_id.0,
+					source_header_id.1.clone(),
+					P::TARGET_NAME,
+					anyhow!("{:?}", err),
+				)
+			})?;
 		match is_header_known {
 			true => {
 				log::info!(
@@ -382,8 +380,8 @@ async fn wait_header_imported<P: TransactionProofPipeline>(
 					P::TARGET_NAME,
 				);
 
-				return Ok(());
-			}
+				return Ok(())
+			},
 			false => {
 				log::info!(
 					target: "bridge",
@@ -394,7 +392,7 @@ async fn wait_header_imported<P: TransactionProofPipeline>(
 				);
 
 				target_client.tick().await;
-			}
+			},
 		}
 	}
 }
@@ -403,18 +401,15 @@ async fn wait_header_imported<P: TransactionProofPipeline>(
 async fn wait_header_finalized<P: TransactionProofPipeline>(
 	target_client: &impl TargetClient<P>,
 	source_header_id: &HeaderId<P>,
-) -> Result<(), String> {
+) -> Result<(), ErrorOf<P>> {
 	loop {
-		let is_header_finalized = target_client
-			.is_header_finalized(source_header_id)
-			.await
-			.map_err(|err| {
-				format!(
-					"Failed to check finality of header {}/{} on {} node: {:?}",
+		let is_header_finalized =
+			target_client.is_header_finalized(source_header_id).await.map_err(|err| {
+				Error::Finality(
 					source_header_id.0,
-					source_header_id.1,
+					source_header_id.1.clone(),
 					P::TARGET_NAME,
-					err,
+					anyhow!("{:?}", err),
 				)
 			})?;
 		match is_header_finalized {
@@ -427,8 +422,8 @@ async fn wait_header_finalized<P: TransactionProofPipeline>(
 					P::TARGET_NAME,
 				);
 
-				return Ok(());
-			}
+				return Ok(())
+			},
 			false => {
 				log::info!(
 					target: "bridge",
@@ -439,7 +434,7 @@ async fn wait_header_finalized<P: TransactionProofPipeline>(
 				);
 
 				target_client.tick().await;
-			}
+			},
 		}
 	}
 }
@@ -582,15 +577,22 @@ pub(crate) mod tests {
 			self.data.lock().block.clone()
 		}
 
-		async fn transaction_block(&self, _: &TestTransactionHash) -> Result<Option<(TestHeaderId, usize)>, TestError> {
+		async fn transaction_block(
+			&self,
+			_: &TestTransactionHash,
+		) -> Result<Option<(TestHeaderId, usize)>, TestError> {
 			self.data.lock().transaction_block.clone()
 		}
 
-		async fn transaction_proof(&self, block: &TestBlock, index: usize) -> Result<TestTransactionProof, TestError> {
+		async fn transaction_proof(
+			&self,
+			block: &TestBlock,
+			index: usize,
+		) -> Result<TestTransactionProof, TestError> {
 			let tx_hash = block.1[index].hash();
 			let proof_error = self.data.lock().proofs_to_fail.get(&tx_hash).cloned();
 			if let Some(err) = proof_error {
-				return Err(err);
+				return Err(err)
 			}
 
 			Ok(TestTransactionProof(tx_hash))
@@ -653,21 +655,32 @@ pub(crate) mod tests {
 			self.data.lock().best_finalized_header_id.clone()
 		}
 
-		async fn filter_transaction_proof(&self, proof: &TestTransactionProof) -> Result<bool, TestError> {
+		async fn filter_transaction_proof(
+			&self,
+			proof: &TestTransactionProof,
+		) -> Result<bool, TestError> {
 			Ok(self.data.lock().transactions_to_accept.contains(&proof.0))
 		}
 
-		async fn submit_transaction_proof(&self, proof: TestTransactionProof) -> Result<(), TestError> {
+		async fn submit_transaction_proof(
+			&self,
+			proof: TestTransactionProof,
+		) -> Result<(), TestError> {
 			self.data.lock().submitted_proofs.push(proof);
 			Ok(())
 		}
 	}
 
-	fn ensure_relay_single_success(source: &TestTransactionsSource, target: &TestTransactionsTarget) {
-		assert_eq!(
-			async_std::task::block_on(relay_single_transaction_proof(source, target, test_transaction_hash(0),)),
-			Ok(()),
-		);
+	fn ensure_relay_single_success(
+		source: &TestTransactionsSource,
+		target: &TestTransactionsTarget,
+	) {
+		assert!(async_std::task::block_on(relay_single_transaction_proof(
+			source,
+			target,
+			test_transaction_hash(0)
+		))
+		.is_ok());
 		assert_eq!(
 			target.data.lock().submitted_proofs,
 			vec![TestTransactionProof(test_transaction_hash(0))],
@@ -782,11 +795,7 @@ pub(crate) mod tests {
 		let source = TestTransactionsSource::new(Box::new(|_| unreachable!("no ticks allowed")));
 		let target = TestTransactionsTarget::new(Box::new(|_| unreachable!("no ticks allowed")));
 
-		target
-			.data
-			.lock()
-			.transactions_to_accept
-			.remove(&test_transaction_hash(0));
+		target.data.lock().transactions_to_accept.remove(&test_transaction_hash(0));
 
 		ensure_relay_single_success(&source, &target)
 	}
@@ -814,25 +823,14 @@ pub(crate) mod tests {
 		let target = TestTransactionsTarget::new(Box::new(|_| unreachable!("no ticks allowed")));
 
 		// let's only accept tx#1
-		target
-			.data
-			.lock()
-			.transactions_to_accept
-			.remove(&test_transaction_hash(0));
-		target
-			.data
-			.lock()
-			.transactions_to_accept
-			.insert(test_transaction_hash(1));
+		target.data.lock().transactions_to_accept.remove(&test_transaction_hash(0));
+		target.data.lock().transactions_to_accept.insert(test_transaction_hash(1));
 
-		let relayed_transactions = test_relay_block_transactions(&source, &target, Default::default());
+		let relayed_transactions =
+			test_relay_block_transactions(&source, &target, Default::default());
 		assert_eq!(
 			relayed_transactions,
-			Ok(RelayedBlockTransactions {
-				processed: 3,
-				relayed: 1,
-				failed: 0,
-			}),
+			Ok(RelayedBlockTransactions { processed: 3, relayed: 1, failed: 0 }),
 		);
 		assert_eq!(
 			target.data.lock().submitted_proofs,
@@ -852,14 +850,11 @@ pub(crate) mod tests {
 			.proofs_to_fail
 			.insert(test_transaction_hash(0), TestError(false));
 
-		let relayed_transactions = test_relay_block_transactions(&source, &target, Default::default());
+		let relayed_transactions =
+			test_relay_block_transactions(&source, &target, Default::default());
 		assert_eq!(
 			relayed_transactions,
-			Ok(RelayedBlockTransactions {
-				processed: 3,
-				relayed: 0,
-				failed: 1,
-			}),
+			Ok(RelayedBlockTransactions { processed: 3, relayed: 0, failed: 1 }),
 		);
 		assert_eq!(target.data.lock().submitted_proofs, vec![]);
 	}
@@ -876,14 +871,11 @@ pub(crate) mod tests {
 			.proofs_to_fail
 			.insert(test_transaction_hash(1), TestError(true));
 
-		let relayed_transactions = test_relay_block_transactions(&source, &target, Default::default());
+		let relayed_transactions =
+			test_relay_block_transactions(&source, &target, Default::default());
 		assert_eq!(
 			relayed_transactions,
-			Err(RelayedBlockTransactions {
-				processed: 1,
-				relayed: 1,
-				failed: 0,
-			}),
+			Err(RelayedBlockTransactions { processed: 1, relayed: 1, failed: 0 }),
 		);
 		assert_eq!(
 			target.data.lock().submitted_proofs,
@@ -893,20 +885,13 @@ pub(crate) mod tests {
 		// now do not fail on tx#2
 		source.data.lock().proofs_to_fail.clear();
 		// and also relay tx#3
-		target
-			.data
-			.lock()
-			.transactions_to_accept
-			.insert(test_transaction_hash(2));
+		target.data.lock().transactions_to_accept.insert(test_transaction_hash(2));
 
-		let relayed_transactions = test_relay_block_transactions(&source, &target, relayed_transactions.unwrap_err());
+		let relayed_transactions =
+			test_relay_block_transactions(&source, &target, relayed_transactions.unwrap_err());
 		assert_eq!(
 			relayed_transactions,
-			Ok(RelayedBlockTransactions {
-				processed: 3,
-				relayed: 2,
-				failed: 0,
-			}),
+			Ok(RelayedBlockTransactions { processed: 3, relayed: 2, failed: 0 }),
 		);
 		assert_eq!(
 			target.data.lock().submitted_proofs,

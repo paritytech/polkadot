@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::rpc_errors::RpcError;
-use crate::substrate_sync_loop::QueuedRialtoHeader;
+use crate::{rpc_errors::RpcError, substrate_sync_loop::QueuedRialtoHeader};
 
 use async_trait::async_trait;
 use bp_eth_poa::signatures::secret_to_address;
@@ -41,7 +40,7 @@ type RpcResult<T> = std::result::Result<T, RpcError>;
 /// interactions involving, for example, an Ethereum contract.
 #[async_trait]
 pub trait EthereumHighLevelRpc {
-	/// Returns best Substrate block that PoA chain knows of.
+	/// Returns the best Substrate block that PoA chain knows of.
 	async fn best_substrate_block(&self, contract_address: Address) -> RpcResult<RialtoHeaderId>;
 
 	/// Returns true if Substrate header is known to Ethereum node.
@@ -60,7 +59,10 @@ pub trait EthereumHighLevelRpc {
 	) -> SubmittedHeaders<RialtoHeaderId, RpcError>;
 
 	/// Returns ids of incomplete Substrate headers.
-	async fn incomplete_substrate_headers(&self, contract_address: Address) -> RpcResult<HashSet<RialtoHeaderId>>;
+	async fn incomplete_substrate_headers(
+		&self,
+		contract_address: Address,
+	) -> RpcResult<HashSet<RialtoHeaderId>>;
 
 	/// Complete Substrate header.
 	async fn complete_substrate_header(
@@ -104,7 +106,7 @@ impl EthereumHighLevelRpc for EthereumClient {
 		let hash = rialto_runtime::Hash::decode(&mut &raw_hash[..])?;
 
 		if number != number.low_u32().into() {
-			return Err(RpcError::Ethereum(EthereumNodeError::InvalidSubstrateBlockNumber));
+			return Err(RpcError::Ethereum(EthereumNodeError::InvalidSubstrateBlockNumber))
 		}
 
 		Ok(HeaderId(number.low_u32(), hash))
@@ -138,31 +140,28 @@ impl EthereumHighLevelRpc for EthereumClient {
 		let address: Address = secret_to_address(&params.signer);
 		let nonce = match self.account_nonce(address).await {
 			Ok(nonce) => nonce,
-			Err(error) => {
+			Err(error) =>
 				return SubmittedHeaders {
 					submitted: Vec::new(),
 					incomplete: Vec::new(),
 					rejected: headers.iter().rev().map(|header| header.id()).collect(),
 					fatal_error: Some(error.into()),
-				}
-			}
+				},
 		};
 
 		// submit headers. Note that we're cloning self here. It is ok, because
 		// cloning `jsonrpsee::Client` only clones reference to background threads
 		submit_substrate_headers(
-			EthereumHeadersSubmitter {
-				client: self.clone(),
-				params,
-				contract_address,
-				nonce,
-			},
+			EthereumHeadersSubmitter { client: self.clone(), params, contract_address, nonce },
 			headers,
 		)
 		.await
 	}
 
-	async fn incomplete_substrate_headers(&self, contract_address: Address) -> RpcResult<HashSet<RialtoHeaderId>> {
+	async fn incomplete_substrate_headers(
+		&self,
+		contract_address: Address,
+	) -> RpcResult<HashSet<RialtoHeaderId>> {
 		let (encoded_call, call_decoder) = bridge_contract::functions::incomplete_headers::call();
 		let call_request = CallRequest {
 			to: Some(contract_address),
@@ -173,13 +172,14 @@ impl EthereumHighLevelRpc for EthereumClient {
 		let call_result = self.eth_call(call_request).await?;
 
 		// Q: Is is correct to call these "incomplete_ids"?
-		let (incomplete_headers_numbers, incomplete_headers_hashes) = call_decoder.decode(&call_result.0)?;
+		let (incomplete_headers_numbers, incomplete_headers_hashes) =
+			call_decoder.decode(&call_result.0)?;
 		let incomplete_ids = incomplete_headers_numbers
 			.into_iter()
 			.zip(incomplete_headers_hashes)
 			.filter_map(|(number, hash)| {
 				if number != number.low_u32().into() {
-					return None;
+					return None
 				}
 
 				Some(HeaderId(number.low_u32(), hash))
@@ -202,7 +202,11 @@ impl EthereumHighLevelRpc for EthereumClient {
 				Some(contract_address),
 				None,
 				false,
-				bridge_contract::functions::import_finality_proof::encode_input(id.0, id.1, justification),
+				bridge_contract::functions::import_finality_proof::encode_input(
+					id.0,
+					id.1,
+					justification,
+				),
 			)
 			.await?;
 
@@ -263,7 +267,7 @@ impl HeadersBatch {
 	) -> Result<(Self, Vec<RialtoHeaderId>), ()> {
 		if headers.len() != ids.len() {
 			log::error!(target: "bridge", "Collection size mismatch ({} vs {})", headers.len(), ids.len());
-			return Err(());
+			return Err(())
 		}
 
 		let header1 = headers.pop().ok_or(())?;
@@ -276,27 +280,14 @@ impl HeadersBatch {
 			submitting_ids.extend(ids.pop().iter());
 		}
 
-		Ok((
-			Self {
-				header1,
-				header2,
-				header3,
-				header4,
-			},
-			submitting_ids,
-		))
+		Ok((Self { header1, header2, header3, header4 }, submitting_ids))
 	}
 
 	/// Returns unified array of headers.
 	///
 	/// The first element is always `Some`.
 	fn headers(&self) -> [Option<&QueuedRialtoHeader>; HEADERS_BATCH] {
-		[
-			Some(&self.header1),
-			self.header2.as_ref(),
-			self.header3.as_ref(),
-			self.header4.as_ref(),
-		]
+		[Some(&self.header1), self.header2.as_ref(), self.header3.as_ref(), self.header4.as_ref()]
 	}
 
 	/// Encodes all headers. If header is not present an empty vector will be returned.
@@ -323,9 +314,10 @@ impl HeadersBatch {
 	/// or when `idx > HEADERS_BATCH`.
 	pub fn split_off(&mut self, idx: usize) -> Result<(), ()> {
 		if idx == 0 || idx > HEADERS_BATCH {
-			return Err(());
+			return Err(())
 		}
-		let mut vals: [_; HEADERS_BATCH] = [&mut None, &mut self.header2, &mut self.header3, &mut self.header4];
+		let mut vals: [_; HEADERS_BATCH] =
+			[&mut None, &mut self.header2, &mut self.header3, &mut self.header4];
 		for val in vals.iter_mut().skip(idx) {
 			**val = None;
 		}
@@ -359,7 +351,8 @@ struct EthereumHeadersSubmitter {
 impl HeadersSubmitter for EthereumHeadersSubmitter {
 	async fn is_headers_incomplete(&self, headers: &HeadersBatch) -> RpcResult<usize> {
 		let [h1, h2, h3, h4] = headers.encode();
-		let (encoded_call, call_decoder) = bridge_contract::functions::is_incomplete_headers::call(h1, h2, h3, h4);
+		let (encoded_call, call_decoder) =
+			bridge_contract::functions::is_incomplete_headers::call(h1, h2, h3, h4);
 		let call_request = CallRequest {
 			to: Some(self.contract_address),
 			data: Some(encoded_call.into()),
@@ -369,7 +362,7 @@ impl HeadersSubmitter for EthereumHeadersSubmitter {
 		let call_result = self.client.eth_call(call_request).await?;
 		let incomplete_index: U256 = call_decoder.decode(&call_result.0)?;
 		if incomplete_index > HEADERS_BATCH.into() {
-			return Err(RpcError::Ethereum(EthereumNodeError::InvalidIncompleteIndex));
+			return Err(RpcError::Ethereum(EthereumNodeError::InvalidIncompleteIndex))
 		}
 
 		Ok(incomplete_index.low_u32() as _)
@@ -407,17 +400,21 @@ async fn submit_substrate_headers(
 	headers.reverse();
 
 	while !headers.is_empty() {
-		let (headers, submitting_ids) =
-			HeadersBatch::pop_from(&mut headers, &mut ids).expect("Headers and ids are not empty; qed");
+		let (headers, submitting_ids) = HeadersBatch::pop_from(&mut headers, &mut ids)
+			.expect("Headers and ids are not empty; qed");
 
-		submitted_headers.fatal_error =
-			submit_substrate_headers_batch(&mut header_submitter, &mut submitted_headers, submitting_ids, headers)
-				.await;
+		submitted_headers.fatal_error = submit_substrate_headers_batch(
+			&mut header_submitter,
+			&mut submitted_headers,
+			submitting_ids,
+			headers,
+		)
+		.await;
 
 		if submitted_headers.fatal_error.is_some() {
 			ids.reverse();
 			submitted_headers.rejected.extend(ids);
-			break;
+			break
 		}
 	}
 
@@ -436,9 +433,11 @@ async fn submit_substrate_headers_batch(
 	// if parent of first header is either incomplete, or rejected, we assume that contract
 	// will reject this header as well
 	let parent_id = headers.header1.parent_id();
-	if submitted_headers.rejected.contains(&parent_id) || submitted_headers.incomplete.contains(&parent_id) {
+	if submitted_headers.rejected.contains(&parent_id) ||
+		submitted_headers.incomplete.contains(&parent_id)
+	{
 		submitted_headers.rejected.extend(ids);
-		return None;
+		return None
 	}
 
 	// check if headers are incomplete
@@ -450,11 +449,11 @@ async fn submit_substrate_headers_batch(
 			// contract has rejected all headers => we do not want to submit it
 			submitted_headers.rejected.extend(ids);
 			if error.is_connection_error() {
-				return Some(error);
+				return Some(error)
 			} else {
-				return None;
+				return None
 			}
-		}
+		},
 	};
 
 	// Modify `ids` and `headers` to only contain values that are going to be accepted.
@@ -477,12 +476,12 @@ async fn submit_substrate_headers_batch(
 			submitted_headers.submitted.extend(submitted);
 			submitted_headers.rejected.extend(rejected);
 			None
-		}
+		},
 		Err(error) => {
 			submitted_headers.rejected.extend(submitted);
 			submitted_headers.rejected.extend(rejected);
 			Some(error)
-		}
+		},
 	}
 }
 
@@ -521,11 +520,7 @@ mod tests {
 				number,
 				Default::default(),
 				Default::default(),
-				if number == 0 {
-					Default::default()
-				} else {
-					header(number - 1).id().1
-				},
+				if number == 0 { Default::default() } else { header(number - 1).id().1 },
 				Default::default(),
 			)
 			.into(),
@@ -535,10 +530,7 @@ mod tests {
 	#[test]
 	fn descendants_of_incomplete_headers_are_not_submitted() {
 		let submitted_headers = async_std::task::block_on(submit_substrate_headers(
-			TestHeadersSubmitter {
-				incomplete: vec![header(5).id()],
-				failed: vec![],
-			},
+			TestHeadersSubmitter { incomplete: vec![header(5).id()], failed: vec![] },
 			vec![header(5), header(6)],
 		));
 		assert_eq!(submitted_headers.submitted, vec![header(5).id()]);
@@ -550,19 +542,8 @@ mod tests {
 	#[test]
 	fn headers_after_fatal_error_are_not_submitted() {
 		let submitted_headers = async_std::task::block_on(submit_substrate_headers(
-			TestHeadersSubmitter {
-				incomplete: vec![],
-				failed: vec![header(9).id()],
-			},
-			vec![
-				header(5),
-				header(6),
-				header(7),
-				header(8),
-				header(9),
-				header(10),
-				header(11),
-			],
+			TestHeadersSubmitter { incomplete: vec![], failed: vec![header(9).id()] },
+			vec![header(5), header(6), header(7), header(8), header(9), header(10), header(11)],
 		));
 		assert_eq!(
 			submitted_headers.submitted,
@@ -583,10 +564,7 @@ mod tests {
 		let (headers, ids) = HeadersBatch::pop_from(&mut init_headers, &mut init_ids).unwrap();
 		assert_eq!(init_headers, vec![header(5)]);
 		assert_eq!(init_ids, vec![header(5).id()]);
-		assert_eq!(
-			ids,
-			vec![header(1).id(), header(2).id(), header(3).id(), header(4).id()]
-		);
+		assert_eq!(ids, vec![header(1).id(), header(2).id(), header(3).id(), header(4).id()]);
 		headers
 	}
 

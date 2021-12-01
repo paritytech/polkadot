@@ -23,16 +23,18 @@ mod error;
 mod rpc;
 mod sign;
 
-pub use crate::client::Client;
-pub use crate::error::{Error, Result};
-pub use crate::sign::{sign_and_submit_transaction, SigningParams};
+pub use crate::{
+	client::Client,
+	error::{Error, Result},
+	sign::{sign_and_submit_transaction, SigningParams},
+};
 
 pub mod types;
 
 /// Ethereum-over-websocket connection params.
 #[derive(Debug, Clone)]
 pub struct ConnectionParams {
-	/// Websocket server hostname.
+	/// Websocket server host name.
 	pub host: String,
 	/// Websocket server TCP port.
 	pub port: u16,
@@ -40,9 +42,6 @@ pub struct ConnectionParams {
 
 impl Default for ConnectionParams {
 	fn default() -> Self {
-		ConnectionParams {
-			host: "localhost".into(),
-			port: 8546,
-		}
+		ConnectionParams { host: "localhost".into(), port: 8546 }
 	}
 }

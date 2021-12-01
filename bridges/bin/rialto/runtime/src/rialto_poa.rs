@@ -23,8 +23,8 @@ use bp_header_chain::InclusionProofVerifier;
 use frame_support::RuntimeDebug;
 use hex_literal::hex;
 use pallet_bridge_eth_poa::{
-	AuraConfiguration, ChainTime as TChainTime, PruningStrategy as TPruningStrategy, ValidatorsConfiguration,
-	ValidatorsSource,
+	AuraConfiguration, ChainTime as TChainTime, PruningStrategy as TPruningStrategy,
+	ValidatorsConfiguration, ValidatorsSource,
 };
 use sp_std::prelude::*;
 
@@ -79,11 +79,14 @@ pub fn genesis_header() -> AuraHeader {
 		timestamp: 0,
 		number: 0,
 		author: Default::default(),
-		transactions_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").into(),
-		uncles_hash: hex!("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347").into(),
+		transactions_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+			.into(),
+		uncles_hash: hex!("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
+			.into(),
 		extra_data: vec![],
 		state_root: hex!("a992d04c791620ed7ed96555a80cf0568355bb4bee2656f46899a4372f25f248").into(),
-		receipts_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").into(),
+		receipts_root: hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+			.into(),
 		log_bloom: Default::default(),
 		gas_used: Default::default(),
 		gas_limit: 0x222222.into(),
@@ -128,12 +131,17 @@ impl InclusionProofVerifier for RialtoBlockchain {
 	type Transaction = RawTransaction;
 	type TransactionInclusionProof = EthereumTransactionInclusionProof;
 
-	fn verify_transaction_inclusion_proof(proof: &Self::TransactionInclusionProof) -> Option<Self::Transaction> {
-		let is_transaction_finalized =
-			crate::BridgeRialtoPoa::verify_transaction_finalized(proof.block, proof.index, &proof.proof);
+	fn verify_transaction_inclusion_proof(
+		proof: &Self::TransactionInclusionProof,
+	) -> Option<Self::Transaction> {
+		let is_transaction_finalized = crate::BridgeRialtoPoa::verify_transaction_finalized(
+			proof.block,
+			proof.index,
+			&proof.proof,
+		);
 
 		if !is_transaction_finalized {
-			return None;
+			return None
 		}
 
 		proof.proof.get(proof.index as usize).map(|(tx, _)| tx.clone())

@@ -28,6 +28,7 @@ use codec::{Decode, Encode};
 use ethbloom::{Bloom as EthBloom, Input as BloomInput};
 use fixed_hash::construct_fixed_hash;
 use rlp::{Decodable, DecoderError, Rlp, RlpStream};
+use scale_info::TypeInfo;
 use sp_io::hashing::keccak_256;
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
@@ -57,7 +58,7 @@ pub type Address = H160;
 pub mod signatures;
 
 /// Complete header id.
-#[derive(Encode, Decode, Default, RuntimeDebug, PartialEq, Clone, Copy)]
+#[derive(Encode, Decode, Default, RuntimeDebug, PartialEq, Clone, Copy, TypeInfo)]
 pub struct HeaderId {
 	/// Header number.
 	pub number: u64,
@@ -66,7 +67,7 @@ pub struct HeaderId {
 }
 
 /// An Aura header.
-#[derive(Clone, Default, Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Clone, Default, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct AuraHeader {
 	/// Parent block hash.
@@ -129,7 +130,7 @@ pub struct UnsignedTransaction {
 }
 
 /// Information describing execution of a transaction.
-#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Receipt {
 	/// The total gas used in the block following execution of the transaction.
 	pub gas_used: U256,
@@ -142,7 +143,7 @@ pub struct Receipt {
 }
 
 /// Transaction outcome store in the receipt.
-#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum TransactionOutcome {
 	/// Status and state root are unknown under EIP-98 rules.
 	Unknown,
@@ -153,7 +154,7 @@ pub enum TransactionOutcome {
 }
 
 /// A record of execution for a `LOG` operation.
-#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct LogEntry {
 	/// The address of the contract executing at the point of the `LOG` operation.
 	pub address: Address,
@@ -164,7 +165,7 @@ pub struct LogEntry {
 }
 
 /// Logs bloom.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Bloom(#[cfg_attr(feature = "std", serde(with = "BigArray"))] [u8; 256]);
 
@@ -185,10 +186,7 @@ pub struct SealedEmptyStep {
 impl AuraHeader {
 	/// Compute id of this header.
 	pub fn compute_id(&self) -> HeaderId {
-		HeaderId {
-			number: self.number,
-			hash: self.compute_hash(),
-		}
+		HeaderId { number: self.number, hash: self.compute_hash() }
 	}
 
 	/// Compute hash of this header (keccak of the RLP with seal).
@@ -198,10 +196,9 @@ impl AuraHeader {
 
 	/// Get id of this header' parent. Returns None if this is genesis header.
 	pub fn parent_id(&self) -> Option<HeaderId> {
-		self.number.checked_sub(1).map(|parent_number| HeaderId {
-			number: parent_number,
-			hash: self.parent_hash,
-		})
+		self.number
+			.checked_sub(1)
+			.map(|parent_number| HeaderId { number: parent_number, hash: self.parent_hash })
 	}
 
 	/// Check if passed transactions receipts are matching receipts root in this header.
@@ -238,7 +235,7 @@ impl AuraHeader {
 				let mut message = self.compute_hash().as_bytes().to_vec();
 				message.extend_from_slice(self.seal.get(2)?);
 				keccak_256(&message).into()
-			}
+			},
 			false => keccak_256(&self.rlp(false)).into(),
 		})
 	}
@@ -255,9 +252,7 @@ impl AuraHeader {
 
 	/// Extracts the empty steps from the header seal.
 	pub fn empty_steps(&self) -> Option<Vec<SealedEmptyStep>> {
-		self.seal
-			.get(2)
-			.and_then(|x| Rlp::new(x).as_list::<SealedEmptyStep>().ok())
+		self.seal.get(2).and_then(|x| Rlp::new(x).as_list::<SealedEmptyStep>().ok())
 	}
 
 	/// Returns header RLP with or without seals.
@@ -323,7 +318,7 @@ impl UnsignedTransaction {
 		stream.out().to_vec()
 	}
 
-	/// Encode to given rlp stream.
+	/// Encode to given RLP stream.
 	pub fn rlp_to(&self, chain_id: Option<u64>, stream: &mut RlpStream) {
 		stream.append(&self.nonce);
 		stream.append(&self.gas_price);
@@ -368,15 +363,15 @@ impl Receipt {
 		match self.outcome {
 			TransactionOutcome::Unknown => {
 				s.begin_list(3);
-			}
+			},
 			TransactionOutcome::StateRoot(ref root) => {
 				s.begin_list(4);
 				s.append(root);
-			}
+			},
 			TransactionOutcome::StatusCode(ref status_code) => {
 				s.begin_list(4);
 				s.append(status_code);
-			}
+			},
 		}
 		s.append(&self.gas_used);
 		s.append(&EthBloom::from(self.log_bloom.0));
@@ -405,7 +400,7 @@ impl SealedEmptyStep {
 		keccak_256(&message.out()).into()
 	}
 
-	/// Returns rlp for the vector of empty steps (we only do encoding in tests).
+	/// Returns RLP for the vector of empty steps (we only do encoding in tests).
 	pub fn rlp_of(empty_steps: &[SealedEmptyStep]) -> Bytes {
 		let mut s = RlpStream::new();
 		s.begin_list(empty_steps.len());
@@ -428,13 +423,13 @@ impl Decodable for SealedEmptyStep {
 impl LogEntry {
 	/// Calculates the bloom of this log entry.
 	pub fn bloom(&self) -> Bloom {
-		let eth_bloom =
-			self.topics
-				.iter()
-				.fold(EthBloom::from(BloomInput::Raw(self.address.as_bytes())), |mut b, t| {
-					b.accrue(BloomInput::Raw(t.as_bytes()));
-					b
-				});
+		let eth_bloom = self.topics.iter().fold(
+			EthBloom::from(BloomInput::Raw(self.address.as_bytes())),
+			|mut b, t| {
+				b.accrue(BloomInput::Raw(t.as_bytes()));
+				b
+			},
+		);
 		Bloom(*eth_bloom.data())
 	}
 }
@@ -458,6 +453,8 @@ impl PartialEq<Bloom> for Bloom {
 	}
 }
 
+// there's no default for [_; 256], but clippy still complains
+#[allow(clippy::derivable_impls)]
 impl Default for Bloom {
 	fn default() -> Self {
 		Bloom([0; 256])
@@ -496,14 +493,12 @@ pub fn transaction_decode_rlp(raw_tx: &[u8]) -> Result<Transaction, DecoderError
 	let message = unsigned.message(chain_id);
 
 	// recover tx sender
-	let sender_public = sp_io::crypto::secp256k1_ecdsa_recover(&signature, message.as_fixed_bytes())
-		.map_err(|_| rlp::DecoderError::Custom("Failed to recover transaction sender"))?;
+	let sender_public =
+		sp_io::crypto::secp256k1_ecdsa_recover(&signature, message.as_fixed_bytes())
+			.map_err(|_| rlp::DecoderError::Custom("Failed to recover transaction sender"))?;
 	let sender_address = public_to_address(&sender_public);
 
-	Ok(Transaction {
-		sender: sender_address,
-		unsigned,
-	})
+	Ok(Transaction { sender: sender_address, unsigned })
 }
 
 /// Convert public key into corresponding ethereum address.
@@ -517,7 +512,10 @@ pub fn public_to_address(public: &[u8; 64]) -> Address {
 /// Check ethereum merkle proof.
 /// Returns Ok(computed-root) if check succeeds.
 /// Returns Err(computed-root) if check fails.
-fn check_merkle_proof<T: AsRef<[u8]>>(expected_root: H256, items: impl Iterator<Item = T>) -> Result<H256, H256> {
+fn check_merkle_proof<T: AsRef<[u8]>>(
+	expected_root: H256,
+	items: impl Iterator<Item = T>,
+) -> Result<H256, H256> {
 	let computed_root = compute_merkle_root(items);
 	if computed_root == expected_root {
 		Ok(computed_root)

@@ -16,17 +16,18 @@
 
 //! Substrate-to-Substrate headers sync entrypoint.
 
-use crate::finality_target::SubstrateFinalityTarget;
+use crate::{finality_target::SubstrateFinalityTarget, STALL_TIMEOUT};
 
 use bp_header_chain::justification::GrandpaJustification;
+use bp_runtime::AccountIdOf;
 use finality_relay::{FinalitySyncParams, FinalitySyncPipeline};
-use relay_substrate_client::{finality_source::FinalitySource, BlockNumberOf, Chain, Client, HashOf, SyncHeader};
+use relay_substrate_client::{
+	finality_source::FinalitySource, BlockNumberOf, Chain, Client, HashOf, SyncHeader,
+};
 use relay_utils::{metrics::MetricsParams, BlockNumberBase};
 use sp_core::Bytes;
-use std::{fmt::Debug, marker::PhantomData, time::Duration};
+use std::{fmt::Debug, marker::PhantomData};
 
-/// Default synchronization loop timeout.
-pub(crate) const STALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// Default limit of recent finality proofs.
 ///
 /// Finality delay of 4096 blocks is unlikely to happen in practice in
@@ -34,7 +35,10 @@ pub(crate) const STALL_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const RECENT_FINALITY_PROOFS_LIMIT: usize = 4096;
 
 /// Headers sync pipeline for Substrate <-> Substrate relays.
-pub trait SubstrateFinalitySyncPipeline: FinalitySyncPipeline {
+pub trait SubstrateFinalitySyncPipeline: 'static + Clone + Debug + Send + Sync {
+	/// Pipeline for syncing finalized Source chain headers to Target chain.
+	type FinalitySyncPipeline: FinalitySyncPipeline;
+
 	/// Name of the runtime method that returns id of best finalized source header at target chain.
 	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str;
 
@@ -49,19 +53,20 @@ pub trait SubstrateFinalitySyncPipeline: FinalitySyncPipeline {
 	/// Start finality relay guards.
 	///
 	/// Different finality bridges may have different set of guards - e.g. on ephemeral chains we
-	/// don't need version guards, on test chains we don't care that much about relayer account
+	/// don't need a version guards, on test chains we don't care that much about relayer account
 	/// balance, ... So the implementation is left to the specific bridges.
 	fn start_relay_guards(&self) {}
 
 	/// Returns id of account that we're using to sign transactions at target chain.
-	fn transactions_author(&self) -> <Self::TargetChain as Chain>::AccountId;
+	fn transactions_author(&self) -> AccountIdOf<Self::TargetChain>;
 
 	/// Make submit header transaction.
 	fn make_submit_finality_proof_transaction(
 		&self,
-		transaction_nonce: <Self::TargetChain as Chain>::Index,
-		header: Self::Header,
-		proof: Self::FinalityProof,
+		era: bp_runtime::TransactionEraOf<Self::TargetChain>,
+		transaction_nonce: bp_runtime::IndexOf<Self::TargetChain>,
+		header: <Self::FinalitySyncPipeline as FinalitySyncPipeline>::Header,
+		proof: <Self::FinalitySyncPipeline as FinalitySyncPipeline>::FinalityProof,
 	) -> Bytes;
 }
 
@@ -69,9 +74,9 @@ pub trait SubstrateFinalitySyncPipeline: FinalitySyncPipeline {
 #[derive(Clone)]
 pub struct SubstrateFinalityToSubstrate<SourceChain, TargetChain: Chain, TargetSign> {
 	/// Client for the target chain.
-	pub(crate) target_client: Client<TargetChain>,
+	pub target_client: Client<TargetChain>,
 	/// Data required to sign target chain transactions.
-	pub(crate) target_sign: TargetSign,
+	pub target_sign: TargetSign,
 	/// Unused generic arguments dump.
 	_marker: PhantomData<SourceChain>,
 }
@@ -86,14 +91,12 @@ impl<SourceChain, TargetChain: Chain, TargetSign> Debug
 	}
 }
 
-impl<SourceChain, TargetChain: Chain, TargetSign> SubstrateFinalityToSubstrate<SourceChain, TargetChain, TargetSign> {
+impl<SourceChain, TargetChain: Chain, TargetSign>
+	SubstrateFinalityToSubstrate<SourceChain, TargetChain, TargetSign>
+{
 	/// Create new Substrate-to-Substrate headers pipeline.
 	pub fn new(target_client: Client<TargetChain>, target_sign: TargetSign) -> Self {
-		SubstrateFinalityToSubstrate {
-			target_client,
-			target_sign,
-			_marker: Default::default(),
-		}
+		SubstrateFinalityToSubstrate { target_client, target_sign, _marker: Default::default() }
 	}
 }
 
@@ -120,15 +123,16 @@ pub async fn run<SourceChain, TargetChain, P>(
 	source_client: Client<SourceChain>,
 	target_client: Client<TargetChain>,
 	only_mandatory_headers: bool,
+	transactions_mortality: Option<u32>,
 	metrics_params: MetricsParams,
 ) -> anyhow::Result<()>
 where
-	P: SubstrateFinalitySyncPipeline<
+	P: SubstrateFinalitySyncPipeline<TargetChain = TargetChain>,
+	P::FinalitySyncPipeline: FinalitySyncPipeline<
 		Hash = HashOf<SourceChain>,
 		Number = BlockNumberOf<SourceChain>,
 		Header = SyncHeader<SourceChain::Header>,
 		FinalityProof = GrandpaJustification<SourceChain::Header>,
-		TargetChain = TargetChain,
 	>,
 	SourceChain: Clone + Chain,
 	BlockNumberOf<SourceChain>: BlockNumberBase,
@@ -143,11 +147,18 @@ where
 
 	finality_relay::run(
 		FinalitySource::new(source_client, None),
-		SubstrateFinalityTarget::new(target_client, pipeline),
+		SubstrateFinalityTarget::new(target_client, pipeline, transactions_mortality),
 		FinalitySyncParams {
-			tick: std::cmp::max(SourceChain::AVERAGE_BLOCK_INTERVAL, TargetChain::AVERAGE_BLOCK_INTERVAL),
+			tick: std::cmp::max(
+				SourceChain::AVERAGE_BLOCK_INTERVAL,
+				TargetChain::AVERAGE_BLOCK_INTERVAL,
+			),
 			recent_finality_proofs_limit: RECENT_FINALITY_PROOFS_LIMIT,
-			stall_timeout: STALL_TIMEOUT,
+			stall_timeout: relay_substrate_client::transaction_stall_timeout(
+				transactions_mortality,
+				TargetChain::AVERAGE_BLOCK_INTERVAL,
+				STALL_TIMEOUT,
+			),
 			only_mandatory_headers,
 		},
 		metrics_params,

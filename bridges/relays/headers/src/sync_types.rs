@@ -50,7 +50,14 @@ pub trait HeadersSyncPipeline: 'static + Clone + Send + Sync {
 	const TARGET_NAME: &'static str;
 
 	/// Headers we're syncing are identified by this hash.
-	type Hash: Eq + Clone + Copy + Send + Sync + std::fmt::Debug + std::fmt::Display + std::hash::Hash;
+	type Hash: Eq
+		+ Clone
+		+ Copy
+		+ Send
+		+ Sync
+		+ std::fmt::Debug
+		+ std::fmt::Display
+		+ std::hash::Hash;
 	/// Headers we're syncing are identified by this number.
 	type Number: relay_utils::BlockNumberBase;
 	/// Type of header that we're syncing.
@@ -77,7 +84,8 @@ pub trait HeadersSyncPipeline: 'static + Clone + Send + Sync {
 }
 
 /// A HeaderId for `HeaderSyncPipeline`.
-pub type HeaderIdOf<P> = HeaderId<<P as HeadersSyncPipeline>::Hash, <P as HeadersSyncPipeline>::Number>;
+pub type HeaderIdOf<P> =
+	HeaderId<<P as HeadersSyncPipeline>::Hash, <P as HeadersSyncPipeline>::Number>;
 
 /// Header that we're receiving from source node.
 pub trait SourceHeader<Hash, Number>: Clone + std::fmt::Debug + PartialEq + Send + Sync {
@@ -153,13 +161,13 @@ impl<P: HeadersSyncPipeline> QueuedHeader<P> {
 pub struct SubmittedHeaders<Id, Error> {
 	/// IDs of headers that have been submitted to target node.
 	pub submitted: Vec<Id>,
-	/// IDs of incomplete headers. These headers were submitted (so this id is also in `submitted` vec),
-	/// but all descendants are not.
+	/// IDs of incomplete headers. These headers were submitted (so this id is also in `submitted`
+	/// vec), but all descendants are not.
 	pub incomplete: Vec<Id>,
-	/// IDs of ignored headers that we have decided not to submit (they're either rejected by
-	/// target node immediately, or they're descendants of incomplete headers).
+	/// IDs of ignored headers that we have decided not to submit (they are either rejected by
+	/// target node immediately, or their descendants of incomplete headers).
 	pub rejected: Vec<Id>,
-	/// Fatal target node error, if it has occured during submission.
+	/// Fatal target node error, if it has occurred during submission.
 	pub fatal_error: Option<Error>,
 }
 
@@ -180,10 +188,6 @@ impl<Id: std::fmt::Debug, Error> std::fmt::Display for SubmittedHeaders<Id, Erro
 		let incomplete = format_ids(self.incomplete.iter());
 		let rejected = format_ids(self.rejected.iter());
 
-		write!(
-			f,
-			"Submitted: {}, Incomplete: {}, Rejected: {}",
-			submitted, incomplete, rejected
-		)
+		write!(f, "Submitted: {}, Incomplete: {}, Rejected: {}", submitted, incomplete, rejected)
 	}
 }

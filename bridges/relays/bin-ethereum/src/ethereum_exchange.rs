@@ -16,28 +16,34 @@
 
 //! Relaying proofs of PoA -> Substrate exchange transactions.
 
-use crate::instances::BridgeInstance;
-use crate::rialto_client::{SubmitEthereumExchangeTransactionProof, SubstrateHighLevelRpc};
-use crate::rpc_errors::RpcError;
-use crate::substrate_types::into_substrate_ethereum_receipt;
+use crate::{
+	instances::BridgeInstance,
+	rialto_client::{SubmitEthereumExchangeTransactionProof, SubstrateHighLevelRpc},
+	rpc_errors::RpcError,
+	substrate_types::into_substrate_ethereum_receipt,
+};
 
 use async_trait::async_trait;
 use bp_currency_exchange::MaybeLockFundsTransaction;
-use exchange_relay::exchange::{
-	relay_single_transaction_proof, SourceBlock, SourceClient, SourceTransaction, TargetClient,
-	TransactionProofPipeline,
+use exchange_relay::{
+	exchange::{
+		relay_single_transaction_proof, SourceBlock, SourceClient, SourceTransaction, TargetClient,
+		TransactionProofPipeline,
+	},
+	exchange_loop::{run as run_loop, InMemoryStorage},
 };
-use exchange_relay::exchange_loop::{run as run_loop, InMemoryStorage};
 use relay_ethereum_client::{
 	types::{
 		HeaderId as EthereumHeaderId, HeaderWithTransactions as EthereumHeaderWithTransactions,
-		Transaction as EthereumTransaction, TransactionHash as EthereumTransactionHash, H256, HEADER_ID_PROOF,
+		Transaction as EthereumTransaction, TransactionHash as EthereumTransactionHash, H256,
+		HEADER_ID_PROOF,
 	},
 	Client as EthereumClient, ConnectionParams as EthereumConnectionParams,
 };
 use relay_rialto_client::{Rialto, SigningParams as RialtoSigningParams};
 use relay_substrate_client::{
-	Chain as SubstrateChain, Client as SubstrateClient, ConnectionParams as SubstrateConnectionParams,
+	Chain as SubstrateChain, Client as SubstrateClient,
+	ConnectionParams as SubstrateConnectionParams,
 };
 use relay_utils::{metrics::MetricsParams, relay_loop::Client as RelayClient, HeaderId};
 use rialto_runtime::exchange::EthereumTransactionInclusionProof;
@@ -111,12 +117,7 @@ impl SourceBlock for EthereumSourceBlock {
 	}
 
 	fn transactions(&self) -> Vec<Self::Transaction> {
-		self.0
-			.transactions
-			.iter()
-			.cloned()
-			.map(EthereumSourceTransaction)
-			.collect()
+		self.0.transactions.iter().cloned().map(EthereumSourceTransaction).collect()
 	}
 }
 
@@ -178,13 +179,12 @@ impl SourceClient<EthereumToSubstrateExchange> for EthereumTransactionsSource {
 		};
 
 		// we need transaction to be mined => check if it is included in the block
-		let (eth_header_id, eth_tx_index) = match (eth_tx.block_number, eth_tx.block_hash, eth_tx.transaction_index) {
-			(Some(block_number), Some(block_hash), Some(transaction_index)) => (
-				HeaderId(block_number.as_u64(), block_hash),
-				transaction_index.as_u64() as _,
-			),
-			_ => return Ok(None),
-		};
+		let (eth_header_id, eth_tx_index) =
+			match (eth_tx.block_number, eth_tx.block_hash, eth_tx.transaction_index) {
+				(Some(block_number), Some(block_hash), Some(transaction_index)) =>
+					(HeaderId(block_number.as_u64(), block_hash), transaction_index.as_u64() as _),
+				_ => return Ok(None),
+			};
 
 		Ok(Some((eth_header_id, eth_tx_index)))
 	}
@@ -194,9 +194,11 @@ impl SourceClient<EthereumToSubstrateExchange> for EthereumTransactionsSource {
 		block: &EthereumSourceBlock,
 		tx_index: usize,
 	) -> Result<EthereumTransactionInclusionProof, RpcError> {
-		const TRANSACTION_HAS_RAW_FIELD_PROOF: &str = "RPC level checks that transactions from Ethereum\
+		const TRANSACTION_HAS_RAW_FIELD_PROOF: &str =
+			"RPC level checks that transactions from Ethereum\
 			node are having `raw` field; qed";
-		const BLOCK_HAS_HASH_FIELD_PROOF: &str = "RPC level checks that block has `hash` field; qed";
+		const BLOCK_HAS_HASH_FIELD_PROOF: &str =
+			"RPC level checks that block has `hash` field; qed";
 
 		let mut transaction_proof = Vec::with_capacity(block.0.transactions.len());
 		for tx in &block.0.transactions {
@@ -266,12 +268,15 @@ impl TargetClient<EthereumToSubstrateExchange> for SubstrateTransactionsTarget {
 		self.client.best_ethereum_finalized_block().await
 	}
 
-	async fn filter_transaction_proof(&self, proof: &EthereumTransactionInclusionProof) -> Result<bool, RpcError> {
+	async fn filter_transaction_proof(
+		&self,
+		proof: &EthereumTransactionInclusionProof,
+	) -> Result<bool, RpcError> {
 		// let's try to parse transaction locally
 		let (raw_tx, raw_tx_receipt) = &proof.proof[proof.index as usize];
 		let parse_result = rialto_runtime::exchange::EthTransaction::parse(raw_tx);
 		if parse_result.is_err() {
-			return Ok(false);
+			return Ok(false)
 		}
 
 		// now let's check if transaction is successful
@@ -285,8 +290,12 @@ impl TargetClient<EthereumToSubstrateExchange> for SubstrateTransactionsTarget {
 		self.client.verify_exchange_transaction_proof(proof.clone()).await
 	}
 
-	async fn submit_transaction_proof(&self, proof: EthereumTransactionInclusionProof) -> Result<(), RpcError> {
-		let (sign_params, bridge_instance) = (self.sign_params.clone(), self.bridge_instance.clone());
+	async fn submit_transaction_proof(
+		&self,
+		proof: EthereumTransactionInclusionProof,
+	) -> Result<(), RpcError> {
+		let (sign_params, bridge_instance) =
+			(self.sign_params.clone(), self.bridge_instance.clone());
 		self.client
 			.submit_exchange_transaction_proof(sign_params, bridge_instance, proof)
 			.await
@@ -311,9 +320,10 @@ pub async fn run(params: EthereumExchangeParams) {
 					err,
 				),
 			}
-		}
+		},
 		ExchangeRelayMode::Auto(eth_start_with_block_number) => {
-			let result = run_auto_transactions_relay_loop(params, eth_start_with_block_number).await;
+			let result =
+				run_auto_transactions_relay_loop(params, eth_start_with_block_number).await;
 			if let Err(err) = result {
 				log::error!(
 					target: "bridge",
@@ -321,23 +331,18 @@ pub async fn run(params: EthereumExchangeParams) {
 					err,
 				);
 			}
-		}
+		},
 	}
 }
 
 /// Run single transaction proof relay and stop.
-async fn run_single_transaction_relay(params: EthereumExchangeParams, eth_tx_hash: H256) -> Result<(), String> {
-	let EthereumExchangeParams {
-		eth_params,
-		sub_params,
-		sub_sign,
-		instance,
-		..
-	} = params;
+async fn run_single_transaction_relay(
+	params: EthereumExchangeParams,
+	eth_tx_hash: H256,
+) -> anyhow::Result<()> {
+	let EthereumExchangeParams { eth_params, sub_params, sub_sign, instance, .. } = params;
 
-	let eth_client = EthereumClient::try_connect(eth_params)
-		.await
-		.map_err(RpcError::Ethereum)?;
+	let eth_client = EthereumClient::try_connect(eth_params).await.map_err(RpcError::Ethereum)?;
 	let sub_client = SubstrateClient::<Rialto>::try_connect(sub_params)
 		.await
 		.map_err(RpcError::Substrate)?;
@@ -349,20 +354,17 @@ async fn run_single_transaction_relay(params: EthereumExchangeParams, eth_tx_has
 		bridge_instance: instance,
 	};
 
-	relay_single_transaction_proof(&source, &target, eth_tx_hash).await
+	relay_single_transaction_proof(&source, &target, eth_tx_hash)
+		.await
+		.map_err(Into::into)
 }
 
 async fn run_auto_transactions_relay_loop(
 	params: EthereumExchangeParams,
 	eth_start_with_block_number: Option<u64>,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
 	let EthereumExchangeParams {
-		eth_params,
-		sub_params,
-		sub_sign,
-		metrics_params,
-		instance,
-		..
+		eth_params, sub_params, sub_sign, metrics_params, instance, ..
 	} = params;
 
 	let eth_client = EthereumClient::new(eth_params).await;
@@ -370,18 +372,17 @@ async fn run_auto_transactions_relay_loop(
 
 	let eth_start_with_block_number = match eth_start_with_block_number {
 		Some(eth_start_with_block_number) => eth_start_with_block_number,
-		None => {
+		None =>
 			sub_client
 				.best_ethereum_finalized_block()
 				.await
 				.map_err(|err| {
-					format!(
+					anyhow::format_err!(
 						"Error retrieving best finalized Ethereum block from Substrate node: {:?}",
 						err
 					)
 				})?
-				.0
-		}
+				.0,
 	};
 
 	run_loop(

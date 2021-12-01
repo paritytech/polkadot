@@ -14,18 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error;
-use crate::Storage;
+use crate::{error::Error, Storage};
 use bp_eth_poa::{public_to_address, Address, AuraHeader, HeaderId, SealedEmptyStep, H256};
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sp_io::crypto::secp256k1_ecdsa_recover;
 use sp_runtime::RuntimeDebug;
-use sp_std::collections::{
-	btree_map::{BTreeMap, Entry},
-	btree_set::BTreeSet,
-	vec_deque::VecDeque,
+use sp_std::{
+	collections::{
+		btree_map::{BTreeMap, Entry},
+		btree_set::BTreeSet,
+		vec_deque::VecDeque,
+	},
+	prelude::*,
 };
-use sp_std::prelude::*;
 
 /// Cached finality votes for given block.
 #[derive(RuntimeDebug)]
@@ -36,7 +38,7 @@ pub struct CachedFinalityVotes<Submitter> {
 	/// best finalized.
 	pub stopped_at_finalized_sibling: bool,
 	/// Header ancestors that were read while we have been searching for
-	/// cached votes entry. Newest header has index 0.
+	/// cached votes entry. The newest header has index 0.
 	pub unaccounted_ancestry: VecDeque<(HeaderId, Option<Submitter>, AuraHeader)>,
 	/// Cached finality votes, if they have been found. The associated
 	/// header is not included into `unaccounted_ancestry`.
@@ -54,18 +56,18 @@ pub struct FinalityEffects<Submitter> {
 }
 
 /// Finality votes for given block.
-#[derive(RuntimeDebug, Decode, Encode)]
+#[derive(RuntimeDebug, Decode, Encode, TypeInfo)]
 #[cfg_attr(test, derive(Clone, PartialEq))]
 pub struct FinalityVotes<Submitter> {
 	/// Number of votes per each validator.
 	pub votes: BTreeMap<Address, u64>,
-	/// Ancestry blocks with oldest ancestors at the beginning and newest at the
+	/// Ancestry blocks with the oldest ancestors at the beginning and newest at the
 	/// end of the queue.
 	pub ancestry: VecDeque<FinalityAncestor<Submitter>>,
 }
 
 /// Information about block ancestor that is used in computations.
-#[derive(RuntimeDebug, Decode, Encode)]
+#[derive(RuntimeDebug, Decode, Encode, TypeInfo)]
 #[cfg_attr(test, derive(Clone, Default, PartialEq))]
 pub struct FinalityAncestor<Submitter> {
 	/// Bock id.
@@ -116,17 +118,14 @@ pub fn finalize_blocks<S: Storage>(
 			&current_votes,
 			ancestor.id.number >= two_thirds_majority_transition,
 		) {
-			break;
+			break
 		}
 
 		remove_signers_votes(&ancestor.signers, &mut current_votes);
 		finalized_headers.push((ancestor.id, ancestor.submitter.clone()));
 	}
 
-	Ok(FinalityEffects {
-		finalized_headers,
-		votes,
-	})
+	Ok(FinalityEffects { finalized_headers, votes })
 }
 
 /// Returns true if there are enough votes to treat this header as finalized.
@@ -135,8 +134,8 @@ fn is_finalized(
 	votes: &BTreeMap<Address, u64>,
 	requires_two_thirds_majority: bool,
 ) -> bool {
-	(!requires_two_thirds_majority && votes.len() * 2 > validators.len())
-		|| (requires_two_thirds_majority && votes.len() * 3 > validators.len() * 2)
+	(!requires_two_thirds_majority && votes.len() * 2 > validators.len()) ||
+		(requires_two_thirds_majority && votes.len() * 3 > validators.len() * 2)
 }
 
 /// Prepare 'votes' of header and its ancestors' signers.
@@ -151,12 +150,12 @@ pub(crate) fn prepare_votes<Submitter>(
 	// if we have reached finalized block sibling, then we're trying
 	// to switch finalized blocks
 	if cached_votes.stopped_at_finalized_sibling {
-		return Err(Error::TryingToFinalizeSibling);
+		return Err(Error::TryingToFinalizeSibling)
 	}
 
 	// this fn can only work with single validators set
 	if !validators.contains(&header.author) {
-		return Err(Error::NotValidator);
+		return Err(Error::NotValidator)
 	}
 
 	// now we have votes that were valid when some block B has been inserted
@@ -171,7 +170,7 @@ pub(crate) fn prepare_votes<Submitter>(
 	while let Some(old_ancestor) = votes.ancestry.pop_front() {
 		if old_ancestor.id.number > best_finalized.number {
 			votes.ancestry.push_front(old_ancestor);
-			break;
+			break
 		}
 
 		remove_signers_votes(&old_ancestor.signers, &mut votes.votes);
@@ -180,7 +179,9 @@ pub(crate) fn prepare_votes<Submitter>(
 	// add votes from new blocks
 	let mut parent_empty_step_signers = empty_steps_signers(header);
 	let mut unaccounted_ancestry = VecDeque::new();
-	while let Some((ancestor_id, ancestor_submitter, ancestor)) = cached_votes.unaccounted_ancestry.pop_front() {
+	while let Some((ancestor_id, ancestor_submitter, ancestor)) =
+		cached_votes.unaccounted_ancestry.pop_front()
+	{
 		let mut signers = empty_steps_signers(&ancestor);
 		sp_std::mem::swap(&mut signers, &mut parent_empty_step_signers);
 		signers.insert(ancestor.author);
@@ -199,11 +200,9 @@ pub(crate) fn prepare_votes<Submitter>(
 	let mut header_signers = BTreeSet::new();
 	header_signers.insert(header.author);
 	*votes.votes.entry(header.author).or_insert(0) += 1;
-	votes.ancestry.push_back(FinalityAncestor {
-		id,
-		submitter,
-		signers: header_signers,
-	});
+	votes
+		.ancestry
+		.push_back(FinalityAncestor { id, submitter, signers: header_signers });
 
 	Ok(votes)
 }
@@ -217,7 +216,7 @@ fn add_signers_votes(
 ) -> Result<(), Error> {
 	for signer in signers_to_add {
 		if !validators.contains(signer) {
-			return Err(Error::NotValidator);
+			return Err(Error::NotValidator)
 		}
 
 		*votes.entry(*signer).or_insert(0) += 1;
@@ -230,13 +229,12 @@ fn add_signers_votes(
 fn remove_signers_votes(signers_to_remove: &BTreeSet<Address>, votes: &mut BTreeMap<Address, u64>) {
 	for signer in signers_to_remove {
 		match votes.entry(*signer) {
-			Entry::Occupied(mut entry) => {
+			Entry::Occupied(mut entry) =>
 				if *entry.get() <= 1 {
 					entry.remove();
 				} else {
 					*entry.get_mut() -= 1;
-				}
-			}
+				},
 			Entry::Vacant(_) => unreachable!("we only remove signers that have been added; qed"),
 		}
 	}
@@ -272,19 +270,19 @@ impl<Submitter> Default for CachedFinalityVotes<Submitter> {
 
 impl<Submitter> Default for FinalityVotes<Submitter> {
 	fn default() -> Self {
-		FinalityVotes {
-			votes: BTreeMap::new(),
-			ancestry: VecDeque::new(),
-		}
+		FinalityVotes { votes: BTreeMap::new(), ancestry: VecDeque::new() }
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{insert_header, run_test, validator, validators_addresses, HeaderBuilder, TestRuntime};
-	use crate::{BridgeStorage, FinalityCache, HeaderToImport};
-	use frame_support::StorageMap;
+	use crate::{
+		mock::{
+			insert_header, run_test, validator, validators_addresses, HeaderBuilder, TestRuntime,
+		},
+		BridgeStorage, FinalityCache, HeaderToImport,
+	};
 
 	const TOTAL_VALIDATORS: usize = 5;
 
@@ -342,7 +340,8 @@ mod tests {
 			storage.insert_header(header_to_import.clone());
 
 			// when header#2 is inserted, nothing is finalized (2 votes)
-			header_to_import.header = HeaderBuilder::with_parent_hash(id1.hash).sign_by(&validator(1));
+			header_to_import.header =
+				HeaderBuilder::with_parent_hash(id1.hash).sign_by(&validator(1));
 			header_to_import.id = header_to_import.header.compute_id();
 			let id2 = header_to_import.header.compute_id();
 			assert_eq!(
@@ -361,7 +360,8 @@ mod tests {
 			storage.insert_header(header_to_import.clone());
 
 			// when header#3 is inserted, header#1 is finalized (3 votes)
-			header_to_import.header = HeaderBuilder::with_parent_hash(id2.hash).sign_by(&validator(2));
+			header_to_import.header =
+				HeaderBuilder::with_parent_hash(id2.hash).sign_by(&validator(2));
 			header_to_import.id = header_to_import.header.compute_id();
 			let id3 = header_to_import.header.compute_id();
 			assert_eq!(
@@ -391,7 +391,9 @@ mod tests {
 		// 2) add votes from header#4 and header#5
 		let validators = validators_addresses(5);
 		let headers = (1..6)
-			.map(|number| HeaderBuilder::with_number(number).sign_by(&validator(number as usize - 1)))
+			.map(|number| {
+				HeaderBuilder::with_number(number).sign_by(&validator(number as usize - 1))
+			})
 			.collect::<Vec<_>>();
 		let ancestry = headers
 			.iter()
@@ -406,9 +408,10 @@ mod tests {
 			prepare_votes::<()>(
 				CachedFinalityVotes {
 					stopped_at_finalized_sibling: false,
-					unaccounted_ancestry: vec![(headers[3].compute_id(), None, headers[3].clone()),]
-						.into_iter()
-						.collect(),
+					unaccounted_ancestry:
+						vec![(headers[3].compute_id(), None, headers[3].clone()),]
+							.into_iter()
+							.collect(),
 					votes: Some(FinalityVotes {
 						votes: vec![(validators[0], 1), (validators[1], 1), (validators[2], 1),]
 							.into_iter()
@@ -446,7 +449,8 @@ mod tests {
 			let mut ancestry = Vec::new();
 			let mut parent_hash = ctx.genesis.compute_hash();
 			for i in 1..10 {
-				let header = HeaderBuilder::with_parent_hash(parent_hash).sign_by(&validator((i - 1) / 3));
+				let header =
+					HeaderBuilder::with_parent_hash(parent_hash).sign_by(&validator((i - 1) / 3));
 				let id = header.compute_id();
 				insert_header(&mut storage, header.clone());
 				hashes.push(id.hash);
@@ -540,10 +544,7 @@ mod tests {
 	fn prepare_votes_fails_when_finalized_sibling_is_in_ancestry() {
 		assert_eq!(
 			prepare_votes::<()>(
-				CachedFinalityVotes {
-					stopped_at_finalized_sibling: true,
-					..Default::default()
-				},
+				CachedFinalityVotes { stopped_at_finalized_sibling: true, ..Default::default() },
 				Default::default(),
 				&validators_addresses(3).iter().collect(),
 				Default::default(),

@@ -17,8 +17,8 @@
 //! Ethereum node RPC interface.
 
 use crate::types::{
-	Address, Bytes, CallRequest, Header, HeaderWithTransactions, Receipt, SyncState, Transaction, TransactionHash,
-	H256, U256, U64,
+	Address, Bytes, CallRequest, Header, HeaderWithTransactions, Receipt, SyncState, Transaction,
+	TransactionHash, H256, U256, U64,
 };
 
 jsonrpsee_proc_macros::rpc_client_api! {

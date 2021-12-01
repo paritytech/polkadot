@@ -16,8 +16,7 @@
 
 //! Rialto-Substrate -> Ethereum PoA synchronization.
 
-use crate::ethereum_client::EthereumHighLevelRpc;
-use crate::rpc_errors::RpcError;
+use crate::{ethereum_client::EthereumHighLevelRpc, rpc_errors::RpcError};
 
 use async_trait::async_trait;
 use codec::Encode;
@@ -38,8 +37,7 @@ use relay_substrate_client::{
 use relay_utils::{metrics::MetricsParams, relay_loop::Client as RelayClient};
 use sp_runtime::EncodedJustification;
 
-use std::fmt::Debug;
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, fmt::Debug, time::Duration};
 
 pub mod consts {
 	use super::*;
@@ -50,7 +48,8 @@ pub mod consts {
 	pub const MAX_FUTURE_HEADERS_TO_DOWNLOAD: usize = 8;
 	/// Max Ethereum headers count we want to have in 'submitted' state.
 	pub const MAX_SUBMITTED_HEADERS: usize = 4;
-	/// Max depth of in-memory headers in all states. Past this depth they will be forgotten (pruned).
+	/// Max depth of in-memory headers in all states. Past this depth they will be forgotten
+	/// (pruned).
 	pub const PRUNE_DEPTH: u32 = 256;
 }
 
@@ -110,11 +109,7 @@ struct EthereumHeadersTarget {
 
 impl EthereumHeadersTarget {
 	fn new(client: EthereumClient, contract: Address, sign_params: EthereumSigningParams) -> Self {
-		Self {
-			client,
-			contract,
-			sign_params,
-		}
+		Self { client, contract, sign_params }
 	}
 }
 
@@ -137,11 +132,17 @@ impl TargetClient<SubstrateHeadersSyncPipeline> for EthereumHeadersTarget {
 		self.client.best_substrate_block(self.contract).await
 	}
 
-	async fn is_known_header(&self, id: RialtoHeaderId) -> Result<(RialtoHeaderId, bool), RpcError> {
+	async fn is_known_header(
+		&self,
+		id: RialtoHeaderId,
+	) -> Result<(RialtoHeaderId, bool), RpcError> {
 		self.client.substrate_header_known(self.contract, id).await
 	}
 
-	async fn submit_headers(&self, headers: Vec<QueuedRialtoHeader>) -> SubmittedHeaders<RialtoHeaderId, RpcError> {
+	async fn submit_headers(
+		&self,
+		headers: Vec<QueuedRialtoHeader>,
+	) -> SubmittedHeaders<RialtoHeaderId, RpcError> {
 		self.client
 			.submit_substrate_headers(self.sign_params.clone(), self.contract, headers)
 			.await
@@ -161,7 +162,10 @@ impl TargetClient<SubstrateHeadersSyncPipeline> for EthereumHeadersTarget {
 			.await
 	}
 
-	async fn requires_extra(&self, header: QueuedRialtoHeader) -> Result<(RialtoHeaderId, bool), RpcError> {
+	async fn requires_extra(
+		&self,
+		header: QueuedRialtoHeader,
+	) -> Result<(RialtoHeaderId, bool), RpcError> {
 		Ok((header.header().id(), false))
 	}
 }
@@ -194,7 +198,7 @@ pub async fn run(params: SubstrateSyncParams) -> Result<(), RpcError> {
 		futures::future::pending(),
 	)
 	.await
-	.map_err(RpcError::SyncLoop)?;
+	.map_err(|e| RpcError::SyncLoop(e.to_string()))?;
 
 	Ok(())
 }

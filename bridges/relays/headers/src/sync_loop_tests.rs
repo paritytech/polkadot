@@ -16,16 +16,18 @@
 
 #![cfg(test)]
 
-use crate::sync_loop::{run, SourceClient, TargetClient};
-use crate::sync_types::{HeadersSyncPipeline, QueuedHeader, SourceHeader, SubmittedHeaders};
+use crate::{
+	sync_loop::{run, SourceClient, TargetClient},
+	sync_types::{HeadersSyncPipeline, QueuedHeader, SourceHeader, SubmittedHeaders},
+};
 
 use async_trait::async_trait;
 use backoff::backoff::Backoff;
 use futures::{future::FutureExt, stream::StreamExt};
 use parking_lot::Mutex;
 use relay_utils::{
-	metrics::MetricsParams, process_future_result, relay_loop::Client as RelayClient, retry_backoff, HeaderId,
-	MaybeConnectionError,
+	metrics::MetricsParams, process_future_result, relay_loop::Client as RelayClient,
+	retry_backoff, HeaderId, MaybeConnectionError,
 };
 use std::{
 	collections::{HashMap, HashSet},
@@ -166,7 +168,10 @@ impl SourceClient<TestHeadersSyncPipeline> for Source {
 		data.header_by_number.get(&number).cloned().ok_or(TestError(false))
 	}
 
-	async fn header_completion(&self, id: TestHeaderId) -> Result<(TestHeaderId, Option<TestCompletion>), TestError> {
+	async fn header_completion(
+		&self,
+		id: TestHeaderId,
+	) -> Result<(TestHeaderId, Option<TestCompletion>), TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(SourceMethod::HeaderCompletion(id), &mut *data);
 		if data.provides_completion {
@@ -264,7 +269,10 @@ impl TargetClient<TestHeadersSyncPipeline> for Target {
 			.unwrap_or(Ok((id, false)))
 	}
 
-	async fn submit_headers(&self, headers: Vec<TestQueuedHeader>) -> SubmittedHeaders<TestHeaderId, TestError> {
+	async fn submit_headers(
+		&self,
+		headers: Vec<TestQueuedHeader>,
+	) -> SubmittedHeaders<TestHeaderId, TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(TargetMethod::SubmitHeaders(headers.clone()), &mut *data);
 		data.submitted_headers
@@ -287,14 +295,21 @@ impl TargetClient<TestHeadersSyncPipeline> for Target {
 		}
 	}
 
-	async fn complete_header(&self, id: TestHeaderId, completion: TestCompletion) -> Result<TestHeaderId, TestError> {
+	async fn complete_header(
+		&self,
+		id: TestHeaderId,
+		completion: TestCompletion,
+	) -> Result<TestHeaderId, TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(TargetMethod::CompleteHeader(id, completion), &mut *data);
 		data.completed_headers.insert(id.1, completion);
 		Ok(id)
 	}
 
-	async fn requires_extra(&self, header: TestQueuedHeader) -> Result<(TestHeaderId, bool), TestError> {
+	async fn requires_extra(
+		&self,
+		header: TestQueuedHeader,
+	) -> Result<(TestHeaderId, bool), TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(TargetMethod::RequiresExtra(header.clone()), &mut *data);
 		if data.requires_extra {
@@ -321,11 +336,7 @@ fn test_header(number: TestNumber) -> TestHeader {
 	TestHeader {
 		hash: id.1,
 		number: id.0,
-		parent_hash: if number == 0 {
-			TestHash::default()
-		} else {
-			test_id(number - 1).1
-		},
+		parent_hash: if number == 0 { TestHash::default() } else { test_id(number - 1).1 },
 	}
 }
 
@@ -467,18 +478,15 @@ fn run_sync_loop_test(params: SyncLoopTestParams) {
 	let target_requires_extra = params.target_requires_extra;
 	let target_requires_completion = params.target_requires_completion;
 	let stop_at = params.stop_at;
-	let source = Source::new(
-		params.best_source_header.id(),
-		params.headers_on_source,
-		move |method, _| {
+	let source =
+		Source::new(params.best_source_header.id(), params.headers_on_source, move |method, _| {
 			if !target_requires_extra {
 				source_reject_extra(&method);
 			}
 			if !target_requires_completion {
 				source_reject_completion(&method);
 			}
-		},
-	);
+		});
 	let target = Target::new(
 		params.best_target_header.id(),
 		params.headers_on_target.into_iter().map(|header| header.id()).collect(),

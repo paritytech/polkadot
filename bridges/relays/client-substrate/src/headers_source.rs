@@ -16,9 +16,11 @@
 
 //! Default generic implementation of headers source for basic Substrate client.
 
-use crate::chain::{BlockWithJustification, Chain};
-use crate::client::Client;
-use crate::error::Error;
+use crate::{
+	chain::{BlockWithJustification, Chain},
+	client::Client,
+	error::Error,
+};
 
 use async_trait::async_trait;
 use headers_relay::{
@@ -38,19 +40,13 @@ pub struct HeadersSource<C: Chain, P> {
 impl<C: Chain, P> HeadersSource<C, P> {
 	/// Create new headers source using given client.
 	pub fn new(client: Client<C>) -> Self {
-		HeadersSource {
-			client,
-			_phantom: Default::default(),
-		}
+		HeadersSource { client, _phantom: Default::default() }
 	}
 }
 
 impl<C: Chain, P> Clone for HeadersSource<C, P> {
 	fn clone(&self) -> Self {
-		HeadersSource {
-			client: self.client.clone(),
-			_phantom: Default::default(),
-		}
+		HeadersSource { client: self.client.clone(), _phantom: Default::default() }
 	}
 }
 
@@ -69,7 +65,12 @@ where
 	C: Chain,
 	C::BlockNumber: relay_utils::BlockNumberBase,
 	C::Header: Into<P::Header>,
-	P: HeadersSyncPipeline<Extra = (), Completion = EncodedJustification, Hash = C::Hash, Number = C::BlockNumber>,
+	P: HeadersSyncPipeline<
+		Extra = (),
+		Completion = EncodedJustification,
+		Hash = C::Hash,
+		Number = C::BlockNumber,
+	>,
 	P::Header: SourceHeader<C::Hash, C::BlockNumber>,
 {
 	async fn best_block_number(&self) -> Result<P::Number, Error> {
@@ -79,22 +80,17 @@ where
 	}
 
 	async fn header_by_hash(&self, hash: P::Hash) -> Result<P::Header, Error> {
-		self.client
-			.header_by_hash(hash)
-			.await
-			.map(Into::into)
-			.map_err(Into::into)
+		self.client.header_by_hash(hash).await.map(Into::into).map_err(Into::into)
 	}
 
 	async fn header_by_number(&self, number: P::Number) -> Result<P::Header, Error> {
-		self.client
-			.header_by_number(number)
-			.await
-			.map(Into::into)
-			.map_err(Into::into)
+		self.client.header_by_number(number).await.map(Into::into).map_err(Into::into)
 	}
 
-	async fn header_completion(&self, id: HeaderIdOf<P>) -> Result<(HeaderIdOf<P>, Option<P::Completion>), Error> {
+	async fn header_completion(
+		&self,
+		id: HeaderIdOf<P>,
+	) -> Result<(HeaderIdOf<P>, Option<P::Completion>), Error> {
 		let hash = id.1;
 		let signed_block = self.client.get_block(Some(hash)).await?;
 		let grandpa_justification = signed_block.justification().cloned();
@@ -102,7 +98,11 @@ where
 		Ok((id, grandpa_justification))
 	}
 
-	async fn header_extra(&self, id: HeaderIdOf<P>, _header: QueuedHeader<P>) -> Result<(HeaderIdOf<P>, ()), Error> {
+	async fn header_extra(
+		&self,
+		id: HeaderIdOf<P>,
+		_header: QueuedHeader<P>,
+	) -> Result<(HeaderIdOf<P>, ()), Error> {
 		Ok((id, ()))
 	}
 }

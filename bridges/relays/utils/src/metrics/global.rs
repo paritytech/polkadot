@@ -17,7 +17,8 @@
 //! Global system-wide Prometheus metrics exposed by relays.
 
 use crate::metrics::{
-	metric_name, register, Gauge, GaugeVec, Opts, PrometheusError, Registry, StandaloneMetrics, F64, U64,
+	metric_name, register, Gauge, GaugeVec, Opts, PrometheusError, Registry, StandaloneMetrics,
+	F64, U64,
 };
 
 use async_std::sync::{Arc, Mutex};
@@ -50,7 +51,10 @@ impl GlobalMetrics {
 				registry,
 			)?,
 			process_cpu_usage_percentage: register(
-				Gauge::new(metric_name(prefix, "process_cpu_usage_percentage"), "Process CPU usage")?,
+				Gauge::new(
+					metric_name(prefix, "process_cpu_usage_percentage"),
+					"Process CPU usage",
+				)?,
 				registry,
 			)?,
 			process_memory_usage_bytes: register(
@@ -92,16 +96,19 @@ impl StandaloneMetrics for GlobalMetrics {
 					memory_usage,
 				);
 
-				self.process_cpu_usage_percentage
-					.set(if cpu_usage.is_finite() { cpu_usage } else { 0f64 });
+				self.process_cpu_usage_percentage.set(if cpu_usage.is_finite() {
+					cpu_usage
+				} else {
+					0f64
+				});
 				self.process_memory_usage_bytes.set(memory_usage);
-			}
+			},
 			_ => {
 				log::warn!(
 					target: "bridge-metrics",
 					"Failed to refresh process information. Metrics may show obsolete values",
 				);
-			}
+			},
 		}
 	}
 

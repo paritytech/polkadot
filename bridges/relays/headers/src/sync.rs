@@ -19,8 +19,10 @@
 //! to submit to the target chain? The context makes decisions basing on parameters
 //! passed using `HeadersSyncParams` structure.
 
-use crate::headers::QueuedHeaders;
-use crate::sync_types::{HeaderIdOf, HeaderStatus, HeadersSyncPipeline, QueuedHeader};
+use crate::{
+	headers::QueuedHeaders,
+	sync_types::{HeaderIdOf, HeaderStatus, HeadersSyncPipeline, QueuedHeader},
+};
 use num_traits::{One, Saturating, Zero};
 
 /// Common sync params.
@@ -35,7 +37,7 @@ pub struct HeadersSyncParams {
 	/// Maximal total headers size in single submit request.
 	pub max_headers_size_in_single_submit: usize,
 	/// We only may store and accept (from Ethereum node) headers that have
-	/// number >= than best_substrate_header.number - prune_depth.
+	/// number >= than "best_substrate_header.number" - "prune_depth".
 	pub prune_depth: u32,
 	/// Target transactions mode.
 	pub target_tx_mode: TargetTransactionMode,
@@ -58,9 +60,9 @@ pub enum TargetTransactionMode {
 pub struct HeadersSync<P: HeadersSyncPipeline> {
 	/// Synchronization parameters.
 	params: HeadersSyncParams,
-	/// Best header number known to source node.
+	/// The best header number known to source node.
 	source_best_number: Option<P::Number>,
-	/// Best header known to target node.
+	/// The best header known to target node.
 	target_best_header: Option<HeaderIdOf<P>>,
 	/// Headers queue.
 	headers: QueuedHeaders<P>,
@@ -85,7 +87,7 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 		self.source_best_number
 	}
 
-	/// Best header known to target node.
+	/// The best header known to target node.
 	pub fn target_best_header(&self) -> Option<HeaderIdOf<P>> {
 		self.target_best_header
 	}
@@ -121,36 +123,37 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 		// if we haven't received best header from source node yet, there's nothing we can download
 		let source_best_number = self.source_best_number?;
 
-		// if we haven't received known best header from target node yet, there's nothing we can download
+		// if we haven't received known best header from target node yet, there's nothing we can
+		// download
 		let target_best_header = self.target_best_header.as_ref()?;
 
 		// if there's too many headers in the queue, stop downloading
 		let in_memory_headers = self.headers.total_headers();
 		if in_memory_headers >= self.params.max_future_headers_to_download {
-			return None;
+			return None
 		}
 
 		// if queue is empty and best header on target is > than best header on source,
-		// then we shoud reorg
+		// then we shoud reorganization
 		let best_queued_number = self.headers.best_queued_number();
 		if best_queued_number.is_zero() && source_best_number < target_best_header.0 {
-			return Some(source_best_number);
+			return Some(source_best_number)
 		}
 
-		// we assume that there were no reorgs if we have already downloaded best header
+		// we assume that there were no reorganizations if we have already downloaded best header
 		let best_downloaded_number = std::cmp::max(
 			std::cmp::max(best_queued_number, self.headers.best_synced_number()),
 			target_best_header.0,
 		);
 		if best_downloaded_number >= source_best_number {
-			return None;
+			return None
 		}
 
 		// download new header
 		Some(best_downloaded_number + One::one())
 	}
 
-	/// Selech orphan header to downoload.
+	/// Select orphan header to download.
 	pub fn select_orphan_header_to_download(&self) -> Option<&QueuedHeader<P>> {
 		let orphan_header = self.headers.header(HeaderStatus::Orphan)?;
 
@@ -159,7 +162,7 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 		// => let's avoid fetching duplicate headers
 		let parent_id = orphan_header.parent_id();
 		if self.headers.status(&parent_id) != HeaderStatus::Unknown {
-			return None;
+			return None
 		}
 
 		Some(orphan_header)
@@ -169,12 +172,12 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 	pub fn select_headers_to_submit(&self, stalled: bool) -> Option<Vec<&QueuedHeader<P>>> {
 		// maybe we have paused new headers submit?
 		if self.pause_submit {
-			return None;
+			return None
 		}
 
 		// if we operate in backup mode, we only submit headers when sync has stalled
 		if self.params.target_tx_mode == TargetTransactionMode::Backup && !stalled {
-			return None;
+			return None
 		}
 
 		let headers_in_submit_status = self.headers.headers_in_status(HeaderStatus::Submitted);
@@ -187,15 +190,17 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 		let mut total_headers = 0;
 		self.headers.headers(HeaderStatus::Ready, |header| {
 			if total_headers == headers_to_submit_count {
-				return false;
+				return false
 			}
 			if total_headers == self.params.max_headers_in_single_submit {
-				return false;
+				return false
 			}
 
 			let encoded_size = P::estimate_size(header);
-			if total_headers != 0 && total_size + encoded_size > self.params.max_headers_size_in_single_submit {
-				return false;
+			if total_headers != 0 &&
+				total_size + encoded_size > self.params.max_headers_size_in_single_submit
+			{
+				return false
 			}
 
 			total_size += encoded_size;
@@ -228,15 +233,14 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 
 		// early return if it is still the same
 		if self.target_best_header == Some(best_header) {
-			return false;
+			return false
 		}
 
 		// remember that this header is now known to the Substrate runtime
 		self.headers.target_best_header_response(&best_header);
 
 		// prune ancient headers
-		self.headers
-			.prune(best_header.0.saturating_sub(self.params.prune_depth.into()));
+		self.headers.prune(best_header.0.saturating_sub(self.params.prune_depth.into()));
 
 		// finally remember the best header itself
 		self.target_best_header = Some(best_header);
@@ -281,9 +285,11 @@ impl<P: HeadersSyncPipeline> HeadersSync<P> {
 #[cfg(test)]
 pub mod tests {
 	use super::*;
-	use crate::headers::tests::{header, id};
-	use crate::sync_loop_tests::{TestHash, TestHeadersSyncPipeline, TestNumber};
-	use crate::sync_types::HeaderStatus;
+	use crate::{
+		headers::tests::{header, id},
+		sync_loop_tests::{TestHash, TestHeadersSyncPipeline, TestNumber},
+		sync_types::HeaderStatus,
+	};
 	use relay_utils::HeaderId;
 
 	fn side_hash(number: TestNumber) -> TestHash {

@@ -85,7 +85,8 @@ impl Error {
 			Error::InsufficientProof => "Header has insufficient proof",
 			Error::InvalidDifficulty => "Header has invalid difficulty",
 			Error::NotValidator => "Header is sealed by unexpected validator",
-			Error::MissingTransactionsReceipts => "The import operation requires transactions receipts",
+			Error::MissingTransactionsReceipts =>
+				"The import operation requires transactions receipts",
 			Error::RedundantTransactionsReceipts => "Redundant transactions receipts are provided",
 			Error::TransactionsReceiptsMismatch => "Invalid transactions receipts provided",
 			Error::UnsignedTooFarInTheFuture => "The unsigned header is too far in future",

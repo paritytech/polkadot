@@ -20,7 +20,7 @@ services:
       - --unsafe-rpc-external
       - --unsafe-ws-external
     environment:
-      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,runtime::bridge=trace
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,runtime::bridge=trace,sc_basic_authorship=trace
     ports:
       - "19933:9933"
       - "19944:9944"

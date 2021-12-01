@@ -19,11 +19,12 @@
 //! before invoking module calls.
 
 use super::{
-	Call, Config as CurrencyExchangeConfig, InclusionProofVerifier, Instance, Pallet as CurrencyExchangePallet,
+	Call, Config as CurrencyExchangeConfig, InclusionProofVerifier,
+	Pallet as CurrencyExchangePallet,
 };
 use sp_std::prelude::*;
 
-use frame_benchmarking::{account, benchmarks_instance};
+use frame_benchmarking::{account, benchmarks_instance_pallet};
 use frame_system::RawOrigin;
 
 const SEED: u32 = 0;
@@ -31,7 +32,7 @@ const WORST_TX_SIZE_FACTOR: u32 = 1000;
 const WORST_PROOF_SIZE_FACTOR: u32 = 1000;
 
 /// Pallet we're benchmarking here.
-pub struct Pallet<T: Config<I>, I: Instance>(CurrencyExchangePallet<T, I>);
+pub struct Pallet<T: Config<I>, I: 'static>(CurrencyExchangePallet<T, I>);
 
 /// Proof benchmarking parameters.
 pub struct ProofParams<Recipient> {
@@ -39,8 +40,8 @@ pub struct ProofParams<Recipient> {
 	pub recipient: Recipient,
 	/// When true, recipient must exists before import.
 	pub recipient_exists: bool,
-	/// When 0, transaction should have minimal possible size. When this value has non-zero value n,
-	/// transaction size should be (if possible) near to `MIN_SIZE + n * SIZE_FACTOR`.
+	/// When 0, transaction should have minimal possible size. When this value has non-zero value
+	/// n, transaction size should be (if possible) near to MIN_SIZE + n * SIZE_FACTOR.
 	pub transaction_size_factor: u32,
 	/// When 0, proof should have minimal possible size. When this value has non-zero value n,
 	/// proof size should be (if possible) near to `MIN_SIZE + n * SIZE_FACTOR`.
@@ -48,14 +49,14 @@ pub struct ProofParams<Recipient> {
 }
 
 /// Config that must be implemented by runtime.
-pub trait Config<I: Instance>: CurrencyExchangeConfig<I> {
+pub trait Config<I: 'static>: CurrencyExchangeConfig<I> {
 	/// Prepare proof for importing exchange transaction.
 	fn make_proof(
 		proof_params: ProofParams<Self::AccountId>,
 	) -> <<Self as CurrencyExchangeConfig<I>>::PeerBlockchain as InclusionProofVerifier>::TransactionInclusionProof;
 }
 
-benchmarks_instance! {
+benchmarks_instance_pallet! {
 	// Benchmark `import_peer_transaction` extrinsic with the best possible conditions:
 	// * Proof is the transaction itself.
 	// * Transaction has minimal size.

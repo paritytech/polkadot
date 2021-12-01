@@ -93,7 +93,7 @@ seeds for the `sr25519` keys. This seed may also be used in the signer argument 
 and PoA relays. Example:
 
 ```bash
-./substrate-relay relay-headers RialtoToMillau \
+./substrate-relay relay-headers rialto-to-millau \
 	--source-host rialto-node-alice \
 	--source-port 9944 \
 	--target-host millau-node-alice \
@@ -121,7 +121,9 @@ Following accounts are used when `rialto-millau` bridge is running:
 - Millau's `Eve` signs relay transactions with message delivery confirmations (lane 00000001) from Rialto to Millau;
 - Rialto's `Eve` signs relay transactions with messages (lane 00000001) from Millau to Rialto;
 - Millau's `Ferdie` signs relay transactions with messages (lane 00000001) from Rialto to Millau;
-- Rialto's `Ferdie` signs relay transactions with message delivery confirmations (lane 00000001) from Millau to Rialto.
+- Rialto's `Ferdie` signs relay transactions with message delivery confirmations (lane 00000001) from Millau to Rialto;
+- Millau's `RialtoMessagesOwner` signs relay transactions with updated Rialto -> Millau conversion rate;
+- Rialto's `MillauMessagesOwner` signs relay transactions with updated Millau -> Rialto conversion rate.
 
 Following accounts are used when `westend-millau` bridge is running:
 

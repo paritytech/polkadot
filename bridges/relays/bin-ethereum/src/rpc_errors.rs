@@ -17,48 +17,30 @@
 use relay_ethereum_client::Error as EthereumNodeError;
 use relay_substrate_client::Error as SubstrateNodeError;
 use relay_utils::MaybeConnectionError;
+use thiserror::Error;
 
 /// Contains common errors that can occur when
 /// interacting with a Substrate or Ethereum node
 /// through RPC.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum RpcError {
 	/// The arguments to the RPC method failed to serialize.
-	Serialization(serde_json::Error),
-	/// An error occured when interacting with an Ethereum node.
-	Ethereum(EthereumNodeError),
-	/// An error occured when interacting with a Substrate node.
-	Substrate(SubstrateNodeError),
+	#[error("RPC arguments serialization failed: {0}")]
+	Serialization(#[from] serde_json::Error),
+	/// An error occurred when interacting with an Ethereum node.
+	#[error("Ethereum node error: {0}")]
+	Ethereum(#[from] EthereumNodeError),
+	/// An error occurred when interacting with a Substrate node.
+	#[error("Substrate node error: {0}")]
+	Substrate(#[from] SubstrateNodeError),
 	/// Error running relay loop.
+	#[error("{0}")]
 	SyncLoop(String),
 }
 
 impl From<RpcError> for String {
 	fn from(err: RpcError) -> Self {
-		match err {
-			RpcError::Serialization(e) => e.to_string(),
-			RpcError::Ethereum(e) => e.to_string(),
-			RpcError::Substrate(e) => e.to_string(),
-			RpcError::SyncLoop(e) => e,
-		}
-	}
-}
-
-impl From<serde_json::Error> for RpcError {
-	fn from(err: serde_json::Error) -> Self {
-		Self::Serialization(err)
-	}
-}
-
-impl From<EthereumNodeError> for RpcError {
-	fn from(err: EthereumNodeError) -> Self {
-		Self::Ethereum(err)
-	}
-}
-
-impl From<SubstrateNodeError> for RpcError {
-	fn from(err: SubstrateNodeError) -> Self {
-		Self::Substrate(err)
+		format!("{}", err)
 	}
 }
 

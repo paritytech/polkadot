@@ -17,11 +17,12 @@
 //! Converting between Ethereum headers and bridge module types.
 
 use bp_eth_poa::{
-	AuraHeader as SubstrateEthereumHeader, LogEntry as SubstrateEthereumLogEntry, Receipt as SubstrateEthereumReceipt,
-	TransactionOutcome as SubstrateEthereumTransactionOutcome,
+	AuraHeader as SubstrateEthereumHeader, LogEntry as SubstrateEthereumLogEntry,
+	Receipt as SubstrateEthereumReceipt, TransactionOutcome as SubstrateEthereumTransactionOutcome,
 };
 use relay_ethereum_client::types::{
-	Header as EthereumHeader, Receipt as EthereumReceipt, HEADER_ID_PROOF as ETHEREUM_HEADER_ID_PROOF,
+	Header as EthereumHeader, Receipt as EthereumReceipt,
+	HEADER_ID_PROOF as ETHEREUM_HEADER_ID_PROOF,
 };
 
 /// Convert Ethereum header into Ethereum header for Substrate.
@@ -68,7 +69,8 @@ pub fn into_substrate_ethereum_receipt(receipt: &EthereumReceipt) -> SubstrateEt
 			})
 			.collect(),
 		outcome: match (receipt.status, receipt.root) {
-			(Some(status), None) => SubstrateEthereumTransactionOutcome::StatusCode(status.as_u64() as u8),
+			(Some(status), None) =>
+				SubstrateEthereumTransactionOutcome::StatusCode(status.as_u64() as u8),
 			(None, Some(root)) => SubstrateEthereumTransactionOutcome::StateRoot(root),
 			_ => SubstrateEthereumTransactionOutcome::Unknown,
 		},

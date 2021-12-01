@@ -6,6 +6,7 @@ edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
+anyhow = "1.0"
 async-std = "1.6.5"
 async-trait = "0.1.40"
 backoff = "0.2"
@@ -14,3 +15,4 @@ log = "0.4.11"
 num-traits = "0.2"
 parking_lot = "0.11.0"
 relay-utils = { path = "../utils" }
+thiserror = "1.0.26"

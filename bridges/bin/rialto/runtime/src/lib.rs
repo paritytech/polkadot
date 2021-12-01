@@ -36,6 +36,7 @@ pub mod exchange;
 pub mod benches;
 pub mod kovan;
 pub mod millau_messages;
+pub mod parachains;
 pub mod rialto_poa;
 
 use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
@@ -43,21 +44,20 @@ use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
 use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
-use codec::Decode;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
+use pallet_transaction_payment::{FeeDetails, Multiplier, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
-use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{Block as BlockT, IdentityLookup, NumberFor, OpaqueKeys},
+	traits::{AccountIdLookup, Block as BlockT, NumberFor, OpaqueKeys},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, MultiSignature, MultiSigner,
+	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, MultiSigner, Perquintill,
 };
-use sp_std::prelude::*;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -101,7 +101,7 @@ pub type AccountIndex = u32;
 pub type Balance = bp_rialto::Balance;
 
 /// Index of a transaction in the chain.
-pub type Index = u32;
+pub type Index = bp_rialto::Index;
 
 /// A hash of some data used by the chain.
 pub type Hash = bp_rialto::Hash;
@@ -131,8 +131,11 @@ pub mod opaque {
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		pub aura: Aura,
+		pub babe: Babe,
 		pub grandpa: Grandpa,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -171,7 +174,7 @@ impl frame_system::Config for Runtime {
 	/// The aggregated dispatch type that is available for extrinsics.
 	type Call = Call;
 	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
-	type Lookup = IdentityLookup<AccountId>;
+	type Lookup = AccountIdLookup<AccountId, ()>;
 	/// The index type for storing how many extrinsics an account has signed.
 	type Index = Index;
 	/// The index type for blocks.
@@ -213,15 +216,41 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
-impl pallet_randomness_collective_flip::Config for Runtime {}
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
+	sp_consensus_babe::BabeEpochConfiguration {
+		c: bp_rialto::time_units::PRIMARY_PROBABILITY,
+		allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+	};
 
 parameter_types! {
+	pub const EpochDuration: u64 = bp_rialto::EPOCH_DURATION_IN_SLOTS as u64;
+	pub const ExpectedBlockTime: bp_rialto::Moment = bp_rialto::time_units::MILLISECS_PER_BLOCK;
 	pub const MaxAuthorities: u32 = 10;
 }
 
-impl pallet_aura::Config for Runtime {
-	type AuthorityId = AuraId;
+impl pallet_babe::Config for Runtime {
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
 	type MaxAuthorities = MaxAuthorities;
+
+	// session module is the trigger
+	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+
+	// equivocation related configuration - we don't expect any equivocations in our testnets
+	type KeyOwnerProofSystem = ();
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::IdentificationTuple;
+	type HandleEquivocation = ();
+
+	type DisabledValidators = ();
+	type WeightInfo = ();
 }
 
 type RialtoPoA = pallet_bridge_eth_poa::Instance1;
@@ -268,7 +297,7 @@ impl pallet_bridge_currency_exchange::Config<KovanCurrencyExchange> for Runtime 
 
 impl pallet_bridge_dispatch::Config for Runtime {
 	type Event = Event;
-	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
+	type BridgeMessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
 	type CallFilter = frame_support::traits::Everything;
 	type EncodedCall = crate::millau_messages::FromMillauEncodedCall;
@@ -288,14 +317,14 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 		recipient: Self::Recipient,
 		amount: Self::Amount,
 	) -> bp_currency_exchange::Result<()> {
-		// let balances module make all checks for us (it won't allow depositing lower than existential
-		// deposit, balance overflow, ...)
+		// let balances module make all checks for us (it won't allow depositing lower than
+		// existential deposit, balance overflow, ...)
 		let deposited = <pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(
 			&recipient, amount,
 		);
 
-		// I'm dropping deposited here explicitly to illustrate the fact that it'll update `TotalIssuance`
-		// on drop
+		// I'm dropping deposited here explicitly to illustrate the fact that it'll update
+		// `TotalIssuance` on drop
 		let deposited_amount = deposited.peek();
 		drop(deposited);
 
@@ -343,6 +372,7 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type MaxAuthorities = MaxAuthorities;
 	type KeyOwnerProofSystem = ();
 	type KeyOwnerProof =
 		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
@@ -361,9 +391,9 @@ parameter_types! {
 }
 
 impl pallet_timestamp::Config for Runtime {
-	/// A timestamp: milliseconds since the Unix epoch.
-	type Moment = u64;
-	type OnTimestampSet = Aura;
+	/// A timestamp: milliseconds since the UNIX epoch.
+	type Moment = bp_rialto::Moment;
+	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
@@ -395,13 +425,25 @@ impl pallet_balances::Config for Runtime {
 parameter_types! {
 	pub const TransactionBaseFee: Balance = 0;
 	pub const TransactionByteFee: Balance = 1;
+	pub const OperationalFeeMultiplier: u8 = 5;
+	// values for following parameters are copied from polkadot repo, but it is fine
+	// not to sync them - we're not going to make Rialto a full copy of one of Polkadot-like chains
+	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
+	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(3, 100_000);
+	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
 }
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = pallet_transaction_payment::CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
-	type WeightToFee = IdentityFee<Balance>;
-	type FeeMultiplierUpdate = ();
+	type OperationalFeeMultiplier = OperationalFeeMultiplier;
+	type WeightToFee = bp_rialto::WeightToFee;
+	type FeeMultiplierUpdate = pallet_transaction_payment::TargetedFeeAdjustment<
+		Runtime,
+		TargetBlockFullness,
+		AdjustmentVariable,
+		MinimumMultiplier,
+	>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -409,22 +451,21 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-parameter_types! {
-	pub const Period: BlockNumber = bp_rialto::SESSION_LENGTH;
-	pub const Offset: BlockNumber = 0;
-}
-
 impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = ();
-	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+	type ShouldEndSession = Babe;
+	type NextSessionRotation = Babe;
 	type SessionManager = pallet_shift_session_manager::Pallet<Runtime>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
+}
+
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
 }
 
 parameter_types! {
@@ -475,10 +516,11 @@ parameter_types! {
 	pub const GetDeliveryConfirmationTransactionFee: Balance =
 		bp_rialto::MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT as _;
 	pub const RootAccountForPayments: Option<AccountId> = None;
+  pub const BridgedChainId: bp_runtime::ChainId = bp_runtime::MILLAU_CHAIN_ID;
 }
 
 /// Instance of the messages pallet used to relay messages to/from Millau chain.
-pub type WithMillauMessagesInstance = pallet_bridge_messages::DefaultInstance;
+pub type WithMillauMessagesInstance = ();
 
 impl pallet_bridge_messages::Config<WithMillauMessagesInstance> for Runtime {
 	type Event = Event;
@@ -502,14 +544,17 @@ impl pallet_bridge_messages::Config<WithMillauMessagesInstance> for Runtime {
 	type MessageDeliveryAndDispatchPayment =
 		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
 			Runtime,
+			(),
 			pallet_balances::Pallet<Runtime>,
 			GetDeliveryConfirmationTransactionFee,
 			RootAccountForPayments,
 		>;
+	type OnMessageAccepted = ();
 	type OnDeliveryConfirmed = ();
 
 	type SourceHeaderChain = crate::millau_messages::Millau;
 	type MessageDispatch = crate::millau_messages::FromMillauMessageDispatch;
+	type BridgedChainId = BridgedChainId;
 }
 
 construct_runtime!(
@@ -518,28 +563,56 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
+
+		// Must be before session.
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+
+		// Consensus support.
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
+		ShiftSessionManager: pallet_shift_session_manager::{Pallet},
+
+		// Eth-PoA chains bridge modules.
 		BridgeRialtoPoa: pallet_bridge_eth_poa::<Instance1>::{Pallet, Call, Config, Storage, ValidateUnsigned},
 		BridgeKovan: pallet_bridge_eth_poa::<Instance2>::{Pallet, Call, Config, Storage, ValidateUnsigned},
 		BridgeRialtoCurrencyExchange: pallet_bridge_currency_exchange::<Instance1>::{Pallet, Call},
 		BridgeKovanCurrencyExchange: pallet_bridge_currency_exchange::<Instance2>::{Pallet, Call},
+
+		// Millau bridge modules.
 		BridgeMillauGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage},
 		BridgeDispatch: pallet_bridge_dispatch::{Pallet, Event<T>},
-		BridgeMillauMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>},
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-		Aura: pallet_aura::{Pallet, Config<T>},
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
-		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
-		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		ShiftSessionManager: pallet_shift_session_manager::{Pallet},
+		BridgeMillauMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>},
+
+		// Parachain modules.
+		ParachainsOrigin: polkadot_runtime_parachains::origin::{Pallet, Origin},
+		Configuration: polkadot_runtime_parachains::configuration::{Pallet, Call, Storage, Config<T>},
+		Shared: polkadot_runtime_parachains::shared::{Pallet, Call, Storage},
+		Inclusion: polkadot_runtime_parachains::inclusion::{Pallet, Call, Storage, Event<T>},
+		ParasInherent: polkadot_runtime_parachains::paras_inherent::{Pallet, Call, Storage, Inherent},
+		Scheduler: polkadot_runtime_parachains::scheduler::{Pallet, Storage},
+		Paras: polkadot_runtime_parachains::paras::{Pallet, Call, Storage, Event, Config},
+		Initializer: polkadot_runtime_parachains::initializer::{Pallet, Call, Storage},
+		Dmp: polkadot_runtime_parachains::dmp::{Pallet, Call, Storage},
+		Ump: polkadot_runtime_parachains::ump::{Pallet, Call, Storage, Event},
+		Hrmp: polkadot_runtime_parachains::hrmp::{Pallet, Call, Storage, Event<T>, Config},
+		SessionInfo: polkadot_runtime_parachains::session_info::{Pallet, Storage},
+
+		// Parachain Onboarding Pallets
+		Registrar: polkadot_runtime_common::paras_registrar::{Pallet, Call, Storage, Event<T>},
+		Slots: polkadot_runtime_common::slots::{Pallet, Call, Storage, Event<T>},
+		ParasSudoWrapper: polkadot_runtime_common::paras_sudo_wrapper::{Pallet, Call},
 	}
 );
 
 /// The address format for describing accounts.
-pub type Address = AccountId;
+pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, Hashing>;
 /// Block type as expected by this runtime.
@@ -570,7 +643,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPalletsWithSystem,
+	AllPallets,
 >;
 
 impl_runtime_apis! {
@@ -700,13 +773,145 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
-		fn slot_duration() -> sp_consensus_aura::SlotDuration {
-			sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
+	impl sp_consensus_babe::BabeApi<Block> for Runtime {
+		fn configuration() -> sp_consensus_babe::BabeGenesisConfiguration {
+			// The choice of `c` parameter (where `1 - c` represents the
+			// probability of a slot being empty), is done in accordance to the
+			// slot duration and expected target block time, for safely
+			// resisting network delays of maximum two seconds.
+			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
+			sp_consensus_babe::BabeGenesisConfiguration {
+				slot_duration: Babe::slot_duration(),
+				epoch_length: EpochDuration::get(),
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
+				genesis_authorities: Babe::authorities().to_vec(),
+				randomness: Babe::randomness(),
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+			}
 		}
 
-		fn authorities() -> Vec<AuraId> {
-			Aura::authorities()
+		fn current_epoch_start() -> sp_consensus_babe::Slot {
+			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> sp_consensus_babe::Epoch {
+			Babe::current_epoch()
+		}
+
+		fn next_epoch() -> sp_consensus_babe::Epoch {
+			Babe::next_epoch()
+		}
+
+		fn generate_key_ownership_proof(
+			_slot: sp_consensus_babe::Slot,
+			_authority_id: sp_consensus_babe::AuthorityId,
+		) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
+			None
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			equivocation_proof: sp_consensus_babe::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			let key_owner_proof = key_owner_proof.decode()?;
+
+			Babe::submit_unsigned_equivocation_report(
+				equivocation_proof,
+				key_owner_proof,
+			)
+		}
+	}
+
+	impl polkadot_primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<polkadot_primitives::v1::ValidatorId> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::validators::<Runtime>()
+		}
+
+		fn validator_groups() -> (
+			Vec<Vec<polkadot_primitives::v1::ValidatorIndex>>,
+			polkadot_primitives::v1::GroupRotationInfo<BlockNumber>,
+		) {
+			polkadot_runtime_parachains::runtime_api_impl::v1::validator_groups::<Runtime>()
+		}
+
+		fn availability_cores() -> Vec<polkadot_primitives::v1::CoreState<Hash, BlockNumber>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::availability_cores::<Runtime>()
+		}
+
+		fn persisted_validation_data(
+			para_id: polkadot_primitives::v1::Id,
+			assumption: polkadot_primitives::v1::OccupiedCoreAssumption,
+		)
+			-> Option<polkadot_primitives::v1::PersistedValidationData<Hash, BlockNumber>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn check_validation_outputs(
+			para_id: polkadot_primitives::v1::Id,
+			outputs: polkadot_primitives::v1::CandidateCommitments,
+		) -> bool {
+			polkadot_runtime_parachains::runtime_api_impl::v1::check_validation_outputs::<Runtime>(para_id, outputs)
+		}
+
+		fn session_index_for_child() -> polkadot_primitives::v1::SessionIndex {
+			polkadot_runtime_parachains::runtime_api_impl::v1::session_index_for_child::<Runtime>()
+		}
+
+		fn validation_code(
+			para_id: polkadot_primitives::v1::Id,
+			assumption: polkadot_primitives::v1::OccupiedCoreAssumption,
+		)
+			-> Option<polkadot_primitives::v1::ValidationCode> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::validation_code::<Runtime>(para_id, assumption)
+		}
+
+		fn candidate_pending_availability(
+			para_id: polkadot_primitives::v1::Id,
+		) -> Option<polkadot_primitives::v1::CommittedCandidateReceipt<Hash>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::candidate_pending_availability::<Runtime>(para_id)
+		}
+
+		fn candidate_events() -> Vec<polkadot_primitives::v1::CandidateEvent<Hash>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::candidate_events::<Runtime, _>(|ev| {
+				match ev {
+					Event::Inclusion(ev) => {
+						Some(ev)
+					}
+					_ => None,
+				}
+			})
+		}
+
+		fn session_info(index: polkadot_primitives::v1::SessionIndex) -> Option<polkadot_primitives::v1::SessionInfo> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::session_info::<Runtime>(index)
+		}
+
+		fn dmq_contents(
+			recipient: polkadot_primitives::v1::Id,
+		) -> Vec<polkadot_primitives::v1::InboundDownwardMessage<BlockNumber>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::dmq_contents::<Runtime>(recipient)
+		}
+
+		fn inbound_hrmp_channels_contents(
+			recipient: polkadot_primitives::v1::Id
+		) -> BTreeMap<polkadot_primitives::v1::Id, Vec<polkadot_primitives::v1::InboundHrmpMessage<BlockNumber>>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::inbound_hrmp_channels_contents::<Runtime>(recipient)
+		}
+
+		fn validation_code_by_hash(
+			hash: polkadot_primitives::v1::ValidationCodeHash,
+		) -> Option<polkadot_primitives::v1::ValidationCode> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::validation_code_by_hash::<Runtime>(hash)
+		}
+
+		fn on_chain_votes() -> Option<polkadot_primitives::v1::ScrapedOnChainVotes<Hash>> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::on_chain_votes::<Runtime>()
+		}
+	}
+
+	impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			polkadot_runtime_parachains::runtime_api_impl::v1::relevant_authority_ids::<Runtime>()
 		}
 	}
 
@@ -735,6 +940,10 @@ impl_runtime_apis! {
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
+		fn current_set_id() -> fg_primitives::SetId {
+			Grandpa::current_set_id()
+		}
+
 		fn grandpa_authorities() -> GrandpaAuthorityList {
 			Grandpa::grandpa_authorities()
 		}
@@ -781,20 +990,11 @@ impl_runtime_apis! {
 			begin: bp_messages::MessageNonce,
 			end: bp_messages::MessageNonce,
 		) -> Vec<bp_messages::MessageDetails<Balance>> {
-			(begin..=end).filter_map(|nonce| {
-				let message_data = BridgeMillauMessages::outbound_message_data(lane, nonce)?;
-				let decoded_payload = millau_messages::ToMillauMessagePayload::decode(
-					&mut &message_data.payload[..]
-				).ok()?;
-				Some(bp_messages::MessageDetails {
-					nonce,
-					dispatch_weight: decoded_payload.weight,
-					size: message_data.payload.len() as _,
-					delivery_and_dispatch_fee: message_data.fee,
-					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
-				})
-			})
-			.collect()
+			bridge_runtime_common::messages_api::outbound_message_details::<
+				Runtime,
+				WithMillauMessagesInstance,
+				WithMillauMessageBridge,
+			>(lane, begin, end)
 		}
 
 		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
@@ -829,18 +1029,18 @@ impl_runtime_apis! {
 			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
+			use pallet_bridge_currency_exchange::benchmarking::Pallet as BridgeCurrencyExchangeBench;
+			use pallet_bridge_messages::benchmarking::Pallet as MessagesBench;
+
+			let mut list = Vec::<BenchmarkList>::new();
+
+			list_benchmark!(list, extra, pallet_bridge_eth_poa, BridgeRialtoPoa);
 			list_benchmark!(
 				list,
 				extra,
-				pallet_bridge_currency_exchange,
-				BridgeCurrencyExchangeBench::<Runtime, KovanCurrencyExchange>
+				pallet_bridge_currency_exchange, BridgeCurrencyExchangeBench::<Runtime, KovanCurrencyExchange>
 			);
-			list_benchmark!(
-				list,
-				extra,
-				pallet_bridge_messages,
-				MessagesBench::<Runtime, WithMillauMessagesInstance>
-			);
+			list_benchmark!(list, extra, pallet_bridge_messages, MessagesBench::<Runtime, WithMillauMessagesInstance>);
 			list_benchmark!(list, extra, pallet_bridge_grandpa, BridgeMillauGrandpa);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
@@ -981,7 +1181,7 @@ impl_runtime_apis! {
 						MessagesProofSize::Minimal(ref size) => vec![0u8; *size as _],
 						_ => vec![],
 					};
-					let call = Call::System(SystemCall::remark(remark));
+					let call = Call::System(SystemCall::remark { remark });
 					let call_weight = call.get_dispatch_info().weight;
 
 					let millau_account_id: bp_millau::AccountId = Default::default();
@@ -1001,14 +1201,12 @@ impl_runtime_apis! {
 						Self::endow_account(&rialto_public.clone().into_account());
 					}
 
-					let make_millau_message_key = |message_key: MessageKey| storage_keys::message_key::<
-						<WithMillauMessageBridge as MessageBridge>::BridgedMessagesInstance,
-					>(
+					let make_millau_message_key = |message_key: MessageKey| storage_keys::message_key(
+						<WithMillauMessageBridge as MessageBridge>::BRIDGED_MESSAGES_PALLET_NAME,
 						&message_key.lane_id, message_key.nonce,
 					).0;
-					let make_millau_outbound_lane_data_key = |lane_id| storage_keys::outbound_lane_data_key::<
-						<WithMillauMessageBridge as MessageBridge>::BridgedMessagesInstance,
-					>(
+					let make_millau_outbound_lane_data_key = |lane_id| storage_keys::outbound_lane_data_key(
+						<WithMillauMessageBridge as MessageBridge>::BRIDGED_MESSAGES_PALLET_NAME,
 						&lane_id,
 					).0;
 
@@ -1054,9 +1252,8 @@ impl_runtime_apis! {
 
 					prepare_message_delivery_proof::<WithMillauMessageBridge, bp_millau::Hasher, Runtime, (), _, _>(
 						params,
-						|lane_id| pallet_bridge_messages::storage_keys::inbound_lane_data_key::<
-							<WithMillauMessageBridge as MessageBridge>::BridgedMessagesInstance,
-						>(
+						|lane_id| pallet_bridge_messages::storage_keys::inbound_lane_data_key(
+							<WithMillauMessageBridge as MessageBridge>::BRIDGED_MESSAGES_PALLET_NAME,
 							&lane_id,
 						).0,
 						|state_root| bp_millau::Header::new(
@@ -1082,6 +1279,7 @@ impl_runtime_apis! {
 				}
 			}
 
+			add_benchmark!(params, batches, pallet_bridge_eth_poa, BridgeRialtoPoa);
 			add_benchmark!(
 				params,
 				batches,
@@ -1105,8 +1303,8 @@ impl_runtime_apis! {
 /// Millau account ownership digest from Rialto.
 ///
 /// The byte vector returned by this function should be signed with a Millau account private key.
-/// This way, the owner of `rialto_account_id` on Rialto proves that the Millau account private key
-/// is also under his control.
+/// This way, the owner of `rialto_account_id` on Rialto proves that the 'millau' account private
+/// key is also under his control.
 pub fn rialto_to_millau_account_ownership_digest<Call, AccountId, SpecVersion>(
 	millau_call: &Call,
 	rialto_account_id: AccountId,
@@ -1180,6 +1378,7 @@ mod tests {
 			bp_rialto::ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT,
 			bp_rialto::MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT,
 			bp_rialto::PAY_INBOUND_DISPATCH_FEE_WEIGHT,
+			DbWeight::get(),
 		);
 
 		let max_incoming_message_proof_size = bp_millau::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
@@ -1207,6 +1406,7 @@ mod tests {
 			max_incoming_inbound_lane_data_proof_size,
 			bp_millau::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE,
 			bp_millau::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE,
+			DbWeight::get(),
 		);
 	}
 
@@ -1252,5 +1452,11 @@ mod tests {
 			);
 			additional_amount
 		});
+	}
+
+	#[test]
+	fn call_size() {
+		const MAX_CALL_SIZE: usize = 230; // value from polkadot-runtime tests
+		assert!(core::mem::size_of::<Call>() <= MAX_CALL_SIZE);
 	}
 }

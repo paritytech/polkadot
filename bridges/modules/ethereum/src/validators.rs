@@ -14,15 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error;
-use crate::{ChangeToEnact, Storage};
+use crate::{error::Error, ChangeToEnact, Storage};
 use bp_eth_poa::{Address, AuraHeader, HeaderId, LogEntry, Receipt, U256};
 use sp_std::prelude::*;
 
 /// The hash of InitiateChange event of the validators set contract.
 pub(crate) const CHANGE_EVENT_HASH: &[u8; 32] = &[
-	0x55, 0x25, 0x2f, 0xa6, 0xee, 0xe4, 0x74, 0x1b, 0x4e, 0x24, 0xa7, 0x4a, 0x70, 0xe9, 0xc1, 0x1f, 0xd2, 0xc2, 0x28,
-	0x1d, 0xf8, 0xd6, 0xea, 0x13, 0x12, 0x6f, 0xf8, 0x45, 0xf7, 0x82, 0x5c, 0x89,
+	0x55, 0x25, 0x2f, 0xa6, 0xee, 0xe4, 0x74, 0x1b, 0x4e, 0x24, 0xa7, 0x4a, 0x70, 0xe9, 0xc1, 0x1f,
+	0xd2, 0xc2, 0x28, 0x1d, 0xf8, 0xd6, 0xea, 0x13, 0x12, 0x6f, 0xf8, 0x45, 0xf7, 0x82, 0x5c, 0x89,
 ];
 
 /// Where source of validators addresses come from. This covers the chain lifetime.
@@ -104,7 +103,8 @@ impl<'a> Validators<'a> {
 		if next_starts_at == header.number {
 			match *next_source {
 				ValidatorsSource::List(ref new_list) => return Ok((None, Some(new_list.clone()))),
-				ValidatorsSource::Contract(_, ref new_list) => return Ok((Some(new_list.clone()), None)),
+				ValidatorsSource::Contract(_, ref new_list) =>
+					return Ok((Some(new_list.clone()), None)),
 			}
 		}
 
@@ -128,12 +128,13 @@ impl<'a> Validators<'a> {
 		.bloom();
 
 		if !header.log_bloom.contains(&expected_bloom) {
-			return Ok((None, None));
+			return Ok((None, None))
 		}
 
 		let receipts = receipts.ok_or(Error::MissingTransactionsReceipts)?;
+		#[allow(clippy::question_mark)]
 		if header.check_receipts_root(&receipts).is_err() {
-			return Err(Error::TransactionsReceiptsMismatch);
+			return Err(Error::TransactionsReceiptsMismatch)
 		}
 
 		// iterate in reverse because only the _last_ change in a given
@@ -145,24 +146,24 @@ impl<'a> Validators<'a> {
 				.filter(|r| r.log_bloom.contains(&expected_bloom))
 				.flat_map(|r| r.logs.iter())
 				.filter(|l| {
-					l.address == *contract_address
-						&& l.topics.len() == 2 && l.topics[0].as_fixed_bytes() == CHANGE_EVENT_HASH
-						&& l.topics[1] == header.parent_hash
+					l.address == *contract_address &&
+						l.topics.len() == 2 && l.topics[0].as_fixed_bytes() == CHANGE_EVENT_HASH &&
+						l.topics[1] == header.parent_hash
 				})
 				.filter_map(|l| {
 					let data_len = l.data.len();
 					if data_len < 64 {
-						return None;
+						return None
 					}
 
 					let new_validators_len_u256 = U256::from_big_endian(&l.data[32..64]);
 					let new_validators_len = new_validators_len_u256.low_u64();
 					if new_validators_len_u256 != new_validators_len.into() {
-						return None;
+						return None
 					}
 
 					if (data_len - 64) as u64 != new_validators_len.saturating_mul(32) {
-						return None;
+						return None
 					}
 
 					Some(
@@ -188,7 +189,10 @@ impl<'a> Validators<'a> {
 		finalized_blocks: &[(HeaderId, Option<S::Submitter>)],
 	) -> Option<ChangeToEnact> {
 		// if we haven't finalized any blocks, no changes may be finalized
-		let newest_finalized_id = finalized_blocks.last().map(|(id, _)| id)?;
+		let newest_finalized_id = match finalized_blocks.last().map(|(id, _)| id) {
+			Some(last_finalized_id) => last_finalized_id,
+			None => return None,
+		};
 		let oldest_finalized_id = finalized_blocks
 			.first()
 			.map(|(id, _)| id)
@@ -213,12 +217,10 @@ impl<'a> Validators<'a> {
 				}
 			})
 			.and_then(|signal_block| {
-				storage
-					.scheduled_change(&signal_block.hash)
-					.map(|change| ChangeToEnact {
-						signal_block: Some(signal_block),
-						validators: change.validators,
-					})
+				storage.scheduled_change(&signal_block.hash).map(|change| ChangeToEnact {
+					signal_block: Some(signal_block),
+					validators: change.validators,
+				})
 			})
 	}
 
@@ -240,7 +242,11 @@ impl<'a> Validators<'a> {
 	}
 
 	/// Returns source of validators that should author the next header.
-	fn source_at_next_header(&self, header_source_index: usize, header_number: u64) -> (u64, &ValidatorsSource) {
+	fn source_at_next_header(
+		&self,
+		header_source_index: usize,
+		header_number: u64,
+	) -> (u64, &ValidatorsSource) {
 		match self.config {
 			ValidatorsConfiguration::Single(ref source) => (0, source),
 			ValidatorsConfiguration::Multi(ref sources) => {
@@ -248,13 +254,13 @@ impl<'a> Validators<'a> {
 				if next_source_index < sources.len() {
 					let next_source = &sources[next_source_index];
 					if next_source.0 < header_number + 1 {
-						return (next_source.0, &next_source.1);
+						return (next_source.0, &next_source.1)
 					}
 				}
 
 				let source = &sources[header_source_index];
 				(source.0, &source.1)
-			}
+			},
 		}
 	}
 }
@@ -272,11 +278,11 @@ impl ValidatorsSource {
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::mock::{run_test, validators_addresses, validators_change_receipt, TestRuntime};
-	use crate::DefaultInstance;
-	use crate::{AuraScheduledChange, BridgeStorage, Headers, ScheduledChanges, StoredHeader};
+	use crate::{
+		mock::{run_test, validators_addresses, validators_change_receipt, TestRuntime},
+		AuraScheduledChange, BridgeStorage, Headers, ScheduledChanges, StoredHeader,
+	};
 	use bp_eth_poa::compute_merkle_root;
-	use frame_support::StorageMap;
 
 	const TOTAL_VALIDATORS: usize = 3;
 
@@ -289,10 +295,7 @@ pub(crate) mod tests {
 		]);
 		let validators = Validators::new(&config);
 
-		assert_eq!(
-			validators.source_at(99),
-			(0, 0, &ValidatorsSource::List(vec![[1; 20].into()])),
-		);
+		assert_eq!(validators.source_at(99), (0, 0, &ValidatorsSource::List(vec![[1; 20].into()])),);
 		assert_eq!(
 			validators.source_at_next_header(0, 99),
 			(0, &ValidatorsSource::List(vec![[1; 20].into()])),
@@ -320,12 +323,12 @@ pub(crate) mod tests {
 	#[test]
 	fn maybe_signals_validators_change_works() {
 		// when contract is active, but bloom has no required bits set
-		let config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(Default::default(), Vec::new()));
+		let config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(
+			Default::default(),
+			Vec::new(),
+		));
 		let validators = Validators::new(&config);
-		let mut header = AuraHeader {
-			number: u64::MAX,
-			..Default::default()
-		};
+		let mut header = AuraHeader { number: u64::max_value(), ..Default::default() };
 		assert!(!validators.maybe_signals_validators_change(&header));
 
 		// when contract is active and bloom has required bits set
@@ -346,10 +349,7 @@ pub(crate) mod tests {
 			(200, ValidatorsSource::Contract([3; 20].into(), vec![[3; 20].into()])),
 		]);
 		let validators = Validators::new(&config);
-		let mut header = AuraHeader {
-			number: 100,
-			..Default::default()
-		};
+		let mut header = AuraHeader { number: 100, ..Default::default() };
 
 		// when we're at the block that switches to list source
 		assert_eq!(
@@ -405,26 +405,20 @@ pub(crate) mod tests {
 
 	fn try_finalize_with_scheduled_change(scheduled_at: Option<HeaderId>) -> Option<ChangeToEnact> {
 		run_test(TOTAL_VALIDATORS, |_| {
-			let config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(Default::default(), Vec::new()));
+			let config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(
+				Default::default(),
+				Vec::new(),
+			));
 			let validators = Validators::new(&config);
 			let storage = BridgeStorage::<TestRuntime>::new();
 
 			// when we're finailizing blocks 10...100
-			let id10 = HeaderId {
-				number: 10,
-				hash: [10; 32].into(),
-			};
-			let id100 = HeaderId {
-				number: 100,
-				hash: [100; 32].into(),
-			};
+			let id10 = HeaderId { number: 10, hash: [10; 32].into() };
+			let id100 = HeaderId { number: 100, hash: [100; 32].into() };
 			let finalized_blocks = vec![(id10, None), (id100, None)];
 			let header100 = StoredHeader::<u64> {
 				submitter: None,
-				header: AuraHeader {
-					number: 100,
-					..Default::default()
-				},
+				header: AuraHeader { number: 100, ..Default::default() },
 				total_difficulty: 0.into(),
 				next_validators_set_id: 0,
 				last_signal_block: scheduled_at,
@@ -435,7 +429,7 @@ pub(crate) mod tests {
 			};
 			Headers::<TestRuntime>::insert(id100.hash, header100);
 			if let Some(scheduled_at) = scheduled_at {
-				ScheduledChanges::<DefaultInstance>::insert(scheduled_at.hash, scheduled_change);
+				ScheduledChanges::<TestRuntime, ()>::insert(scheduled_at.hash, scheduled_change);
 			}
 
 			validators.finalize_validators_change(&storage, &finalized_blocks)
@@ -444,16 +438,10 @@ pub(crate) mod tests {
 
 	#[test]
 	fn finalize_validators_change_finalizes_scheduled_change() {
-		let id50 = HeaderId {
-			number: 50,
-			..Default::default()
-		};
+		let id50 = HeaderId { number: 50, ..Default::default() };
 		assert_eq!(
 			try_finalize_with_scheduled_change(Some(id50)),
-			Some(ChangeToEnact {
-				signal_block: Some(id50),
-				validators: validators_addresses(1),
-			}),
+			Some(ChangeToEnact { signal_block: Some(id50), validators: validators_addresses(1) }),
 		);
 	}
 
@@ -464,10 +452,7 @@ pub(crate) mod tests {
 
 	#[test]
 	fn finalize_validators_change_does_not_finalize_changes_when_they_are_outside_of_range() {
-		let id5 = HeaderId {
-			number: 5,
-			..Default::default()
-		};
-		assert_eq!(try_finalize_with_scheduled_change(Some(id5)), None);
+		let id5 = HeaderId { number: 5, ..Default::default() };
+		assert_eq!(try_finalize_with_scheduled_change(Some(id5)), None,);
 	}
 }

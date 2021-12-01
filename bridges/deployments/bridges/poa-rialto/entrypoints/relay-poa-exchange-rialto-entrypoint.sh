@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xeu
 
-sleep 20
+sleep 60
 curl -v http://poa-node-arthur:8545/api/health
 curl -v http://poa-node-bertha:8545/api/health
 curl -v http://poa-node-carlos:8545/api/health

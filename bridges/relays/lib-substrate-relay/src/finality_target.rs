@@ -22,7 +22,7 @@ use crate::finality_pipeline::SubstrateFinalitySyncPipeline;
 
 use async_trait::async_trait;
 use codec::Decode;
-use finality_relay::TargetClient;
+use finality_relay::{FinalitySyncPipeline, TargetClient};
 use relay_substrate_client::{Chain, Client, Error as SubstrateError};
 use relay_utils::relay_loop::Client as RelayClient;
 
@@ -30,12 +30,13 @@ use relay_utils::relay_loop::Client as RelayClient;
 pub struct SubstrateFinalityTarget<C: Chain, P> {
 	client: Client<C>,
 	pipeline: P,
+	transactions_mortality: Option<u32>,
 }
 
 impl<C: Chain, P> SubstrateFinalityTarget<C, P> {
 	/// Create new Substrate headers target.
-	pub fn new(client: Client<C>, pipeline: P) -> Self {
-		SubstrateFinalityTarget { client, pipeline }
+	pub fn new(client: Client<C>, pipeline: P, transactions_mortality: Option<u32>) -> Self {
+		SubstrateFinalityTarget { client, pipeline, transactions_mortality }
 	}
 }
 
@@ -44,6 +45,7 @@ impl<C: Chain, P: SubstrateFinalitySyncPipeline> Clone for SubstrateFinalityTarg
 		SubstrateFinalityTarget {
 			client: self.client.clone(),
 			pipeline: self.pipeline.clone(),
+			transactions_mortality: self.transactions_mortality,
 		}
 	}
 }
@@ -58,33 +60,53 @@ impl<C: Chain, P: SubstrateFinalitySyncPipeline> RelayClient for SubstrateFinali
 }
 
 #[async_trait]
-impl<C, P> TargetClient<P> for SubstrateFinalityTarget<C, P>
+impl<C, P> TargetClient<P::FinalitySyncPipeline> for SubstrateFinalityTarget<C, P>
 where
 	C: Chain,
-	P::Number: Decode,
-	P::Hash: Decode,
 	P: SubstrateFinalitySyncPipeline<TargetChain = C>,
+	<P::FinalitySyncPipeline as FinalitySyncPipeline>::Number: Decode,
+	<P::FinalitySyncPipeline as FinalitySyncPipeline>::Hash: Decode,
 {
-	async fn best_finalized_source_block_number(&self) -> Result<P::Number, SubstrateError> {
+	async fn best_finalized_source_block_number(
+		&self,
+	) -> Result<<P::FinalitySyncPipeline as FinalitySyncPipeline>::Number, SubstrateError> {
 		// we can't continue to relay finality if target node is out of sync, because
 		// it may have already received (some of) headers that we're going to relay
 		self.client.ensure_synced().await?;
 
-		Ok(crate::messages_source::read_client_state::<C, P::Hash, P::Number>(
-			&self.client,
-			P::BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET,
-		)
+		Ok(crate::messages_source::read_client_state::<
+			C,
+			<P::FinalitySyncPipeline as FinalitySyncPipeline>::Hash,
+			<P::FinalitySyncPipeline as FinalitySyncPipeline>::Number,
+		>(&self.client, P::BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET)
 		.await?
 		.best_finalized_peer_at_best_self
 		.0)
 	}
 
-	async fn submit_finality_proof(&self, header: P::Header, proof: P::FinalityProof) -> Result<(), SubstrateError> {
+	async fn submit_finality_proof(
+		&self,
+		header: <P::FinalitySyncPipeline as FinalitySyncPipeline>::Header,
+		proof: <P::FinalitySyncPipeline as FinalitySyncPipeline>::FinalityProof,
+	) -> Result<(), SubstrateError> {
+		let transactions_author = self.pipeline.transactions_author();
+		let pipeline = self.pipeline.clone();
+		let transactions_mortality = self.transactions_mortality;
 		self.client
-			.submit_signed_extrinsic(self.pipeline.transactions_author(), move |transaction_nonce| {
-				self.pipeline
-					.make_submit_finality_proof_transaction(transaction_nonce, header, proof)
-			})
+			.submit_signed_extrinsic(
+				transactions_author,
+				move |best_block_id, transaction_nonce| {
+					pipeline.make_submit_finality_proof_transaction(
+						relay_substrate_client::TransactionEra::new(
+							best_block_id,
+							transactions_mortality,
+						),
+						transaction_nonce,
+						header,
+						proof,
+					)
+				},
+			)
 			.await
 			.map(drop)
 	}

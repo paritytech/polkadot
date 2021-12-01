@@ -22,7 +22,8 @@ use pallet_bridge_eth_poa::{ValidatorsConfiguration, ValidatorsSource};
 use sp_std::vec;
 
 pub use crate::kovan::{
-	genesis_header, genesis_validators, BridgeAuraConfiguration, FinalityVotesCachingInterval, PruningStrategy,
+	genesis_header, genesis_validators, BridgeAuraConfiguration, FinalityVotesCachingInterval,
+	PruningStrategy,
 };
 
 frame_support::parameter_types! {

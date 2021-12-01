@@ -19,11 +19,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use bp_currency_exchange::{
-	CurrencyConverter, DepositInto, Error as ExchangeError, MaybeLockFundsTransaction, RecipientsMap,
+	CurrencyConverter, DepositInto, Error as ExchangeError, MaybeLockFundsTransaction,
+	RecipientsMap,
 };
 use bp_header_chain::InclusionProofVerifier;
-use frame_support::{decl_error, decl_module, decl_storage, ensure};
-use sp_runtime::DispatchResult;
+use frame_support::ensure;
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -34,61 +34,53 @@ pub trait OnTransactionSubmitted<AccountId> {
 	fn on_valid_transaction_submitted(submitter: AccountId);
 }
 
-/// The module configuration trait
-pub trait Config<I = DefaultInstance>: frame_system::Config {
-	/// Handler for transaction submission result.
-	type OnTransactionSubmitted: OnTransactionSubmitted<Self::AccountId>;
-	/// Represents the blockchain that we'll be exchanging currency with.
-	type PeerBlockchain: InclusionProofVerifier;
-	/// Peer blockchain transaction parser.
-	type PeerMaybeLockFundsTransaction: MaybeLockFundsTransaction<
-		Transaction = <Self::PeerBlockchain as InclusionProofVerifier>::Transaction,
-	>;
-	/// Map between blockchains recipients.
-	type RecipientsMap: RecipientsMap<
-		PeerRecipient = <Self::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Recipient,
-		Recipient = Self::AccountId,
-	>;
-	/// This blockchain currency amount type.
-	type Amount;
-	/// Converter from peer blockchain currency type into current blockchain currency type.
-	type CurrencyConverter: CurrencyConverter<
-		SourceAmount = <Self::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Amount,
-		TargetAmount = Self::Amount,
-	>;
-	/// Something that could grant money.
-	type DepositInto: DepositInto<Recipient = Self::AccountId, Amount = Self::Amount>;
-}
+pub use pallet::*;
 
-decl_error! {
-	pub enum Error for Pallet<T: Config<I>, I: Instance> {
-		/// Invalid peer blockchain transaction provided.
-		InvalidTransaction,
-		/// Peer transaction has invalid amount.
-		InvalidAmount,
-		/// Peer transaction has invalid recipient.
-		InvalidRecipient,
-		/// Cannot map from peer recipient to this blockchain recipient.
-		FailedToMapRecipients,
-		/// Failed to convert from peer blockchain currency to this blockchain currency.
-		FailedToConvertCurrency,
-		/// Deposit has failed.
-		DepositFailed,
-		/// Deposit has partially failed (changes to recipient account were made).
-		DepositPartiallyFailed,
-		/// Transaction is not finalized.
-		UnfinalizedTransaction,
-		/// Transaction funds are already claimed.
-		AlreadyClaimed,
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+
+	#[pallet::config]
+	pub trait Config<I: 'static = ()>: frame_system::Config {
+		/// Handler for transaction submission result.
+		type OnTransactionSubmitted: OnTransactionSubmitted<Self::AccountId>;
+		/// Represents the blockchain that we'll be exchanging currency with.
+		type PeerBlockchain: InclusionProofVerifier;
+		/// Peer blockchain transaction parser.
+		type PeerMaybeLockFundsTransaction: MaybeLockFundsTransaction<
+			Transaction = <Self::PeerBlockchain as InclusionProofVerifier>::Transaction,
+		>;
+		/// Map between blockchains recipients.
+		type RecipientsMap: RecipientsMap<
+			PeerRecipient = <Self::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Recipient,
+			Recipient = Self::AccountId,
+		>;
+		/// This blockchain currency amount type.
+		type Amount;
+		/// Converter from peer blockchain currency type into current blockchain currency type.
+		type CurrencyConverter: CurrencyConverter<
+			SourceAmount = <Self::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Amount,
+			TargetAmount = Self::Amount,
+		>;
+		/// Something that could grant money.
+		type DepositInto: DepositInto<Recipient = Self::AccountId, Amount = Self::Amount>;
 	}
-}
 
-decl_module! {
-	pub struct Module<T: Config<I>, I: Instance = DefaultInstance> for enum Call where origin: T::Origin {
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T, I = ()>(PhantomData<(T, I)>);
+
+	#[pallet::hooks]
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {}
+
+	#[pallet::call]
+	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Imports lock fund transaction of the peer blockchain.
-		#[weight = 0] // TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
+		#[pallet::weight(0)] // TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 		pub fn import_peer_transaction(
-			origin,
+			origin: OriginFor<T>,
 			proof: <<T as Config<I>>::PeerBlockchain as InclusionProofVerifier>::TransactionInclusionProof,
 		) -> DispatchResult {
 			let submitter = frame_system::ensure_signed(origin)?;
@@ -101,7 +93,8 @@ decl_module! {
 			{
 				// if any changes were made to the storage, we can't just return error here, because
 				// otherwise the same proof may be imported again
-				let deposit_result = T::DepositInto::deposit_into(deposit.recipient, deposit.amount);
+				let deposit_result =
+					T::DepositInto::deposit_into(deposit.recipient, deposit.amount);
 				match deposit_result {
 					Ok(_) => (),
 					Err(ExchangeError::DepositPartiallyFailed) => (),
@@ -122,16 +115,41 @@ decl_module! {
 			Ok(())
 		}
 	}
-}
 
-decl_storage! {
-	trait Store for Pallet<T: Config<I>, I: Instance = DefaultInstance> as Bridge {
-		/// All transfers that have already been claimed.
-		Transfers: map hasher(blake2_128_concat) <T::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Id => ();
+	#[pallet::error]
+	pub enum Error<T, I = ()> {
+		/// Invalid peer blockchain transaction provided.
+		InvalidTransaction,
+		/// Peer transaction has invalid amount.
+		InvalidAmount,
+		/// Peer transaction has invalid recipient.
+		InvalidRecipient,
+		/// Cannot map from peer recipient to this blockchain recipient.
+		FailedToMapRecipients,
+		/// Failed to convert from peer blockchain currency to this blockchain currency.
+		FailedToConvertCurrency,
+		/// Deposit has failed.
+		DepositFailed,
+		/// Deposit has partially failed (changes to recipient account were made).
+		DepositPartiallyFailed,
+		/// Transaction is not finalized.
+		UnfinalizedTransaction,
+		/// Transaction funds are already claimed.
+		AlreadyClaimed,
 	}
+
+	/// All transfers that have already been claimed.
+	#[pallet::storage]
+	pub(super) type Transfers<T: Config<I>, I: 'static = ()> = StorageMap<
+		_,
+		Blake2_128Concat,
+		<T::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Id,
+		(),
+		ValueQuery,
+	>;
 }
 
-impl<T: Config<I>, I: Instance> Pallet<T, I> {
+impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	/// Returns true if currency exchange module is able to import given transaction proof in
 	/// its current state.
 	pub fn filter_transaction_proof(
@@ -144,14 +162,14 @@ impl<T: Config<I>, I: Instance> Pallet<T, I> {
 				err,
 			);
 
-			return false;
+			return false
 		}
 
 		true
 	}
 }
 
-impl<T: Config<I>, I: Instance> From<ExchangeError> for Error<T, I> {
+impl<T: Config<I>, I: 'static> From<ExchangeError> for Error<T, I> {
 	fn from(error: ExchangeError) -> Self {
 		match error {
 			ExchangeError::InvalidTransaction => Error::InvalidTransaction,
@@ -170,7 +188,7 @@ impl<AccountId> OnTransactionSubmitted<AccountId> for () {
 }
 
 /// Exchange deposit details.
-struct DepositDetails<T: Config<I>, I: Instance> {
+struct DepositDetails<T: Config<I>, I: 'static> {
 	/// Transfer id.
 	pub transfer_id: <T::PeerMaybeLockFundsTransaction as MaybeLockFundsTransaction>::Id,
 	/// Transfer recipient.
@@ -181,7 +199,7 @@ struct DepositDetails<T: Config<I>, I: Instance> {
 
 /// Verify and parse transaction proof, preparing everything required for importing
 /// this transaction proof.
-fn prepare_deposit_details<T: Config<I>, I: Instance>(
+fn prepare_deposit_details<T: Config<I>, I: 'static>(
 	proof: &<<T as Config<I>>::PeerBlockchain as InclusionProofVerifier>::TransactionInclusionProof,
 ) -> Result<DepositDetails<T, I>, Error<T, I>> {
 	// ensure that transaction is included in finalized block that we know of
@@ -189,23 +207,16 @@ fn prepare_deposit_details<T: Config<I>, I: Instance>(
 		.ok_or(Error::<T, I>::UnfinalizedTransaction)?;
 
 	// parse transaction
-	let transaction =
-		<T as Config<I>>::PeerMaybeLockFundsTransaction::parse(&transaction).map_err(Error::<T, I>::from)?;
+	let transaction = <T as Config<I>>::PeerMaybeLockFundsTransaction::parse(&transaction)
+		.map_err(Error::<T, I>::from)?;
 	let transfer_id = transaction.id;
-	ensure!(
-		!Transfers::<T, I>::contains_key(&transfer_id),
-		Error::<T, I>::AlreadyClaimed
-	);
+	ensure!(!Transfers::<T, I>::contains_key(&transfer_id), Error::<T, I>::AlreadyClaimed);
 
 	// grant recipient
 	let recipient = T::RecipientsMap::map(transaction.recipient).map_err(Error::<T, I>::from)?;
 	let amount = T::CurrencyConverter::convert(transaction.amount).map_err(Error::<T, I>::from)?;
 
-	Ok(DepositDetails {
-		transfer_id,
-		recipient,
-		amount,
-	})
+	Ok(DepositDetails { transfer_id, recipient, amount })
 }
 
 #[cfg(test)]
@@ -215,7 +226,9 @@ mod tests {
 
 	use super::*;
 	use bp_currency_exchange::LockFundsTransaction;
-	use frame_support::{assert_noop, assert_ok, construct_runtime, parameter_types, weights::Weight};
+	use frame_support::{
+		assert_noop, assert_ok, construct_runtime, parameter_types, weights::Weight,
+	};
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,
@@ -238,7 +251,7 @@ mod tests {
 
 	impl OnTransactionSubmitted<AccountId> for DummyTransactionSubmissionHandler {
 		fn on_valid_transaction_submitted(submitter: AccountId) {
-			Transfers::<TestRuntime, DefaultInstance>::insert(submitter, ());
+			Transfers::<TestRuntime, ()>::insert(submitter, ());
 		}
 	}
 
@@ -248,7 +261,9 @@ mod tests {
 		type Transaction = RawTransaction;
 		type TransactionInclusionProof = (bool, RawTransaction);
 
-		fn verify_transaction_inclusion_proof(proof: &Self::TransactionInclusionProof) -> Option<RawTransaction> {
+		fn verify_transaction_inclusion_proof(
+			proof: &Self::TransactionInclusionProof,
+		) -> Option<RawTransaction> {
 			if proof.0 {
 				Some(proof.1.clone())
 			} else {
@@ -279,7 +294,9 @@ mod tests {
 		type PeerRecipient = AccountId;
 		type Recipient = AccountId;
 
-		fn map(peer_recipient: Self::PeerRecipient) -> bp_currency_exchange::Result<Self::Recipient> {
+		fn map(
+			peer_recipient: Self::PeerRecipient,
+		) -> bp_currency_exchange::Result<Self::Recipient> {
 			match peer_recipient {
 				UNKNOWN_RECIPIENT_ID => Err(ExchangeError::FailedToMapRecipients),
 				_ => Ok(peer_recipient * 10),
@@ -307,10 +324,14 @@ mod tests {
 		type Recipient = AccountId;
 		type Amount = u64;
 
-		fn deposit_into(_recipient: Self::Recipient, amount: Self::Amount) -> bp_currency_exchange::Result<()> {
+		fn deposit_into(
+			_recipient: Self::Recipient,
+			amount: Self::Amount,
+		) -> bp_currency_exchange::Result<()> {
 			match amount {
 				amount if amount < MAX_DEPOSIT_AMOUNT * 10 => Ok(()),
-				amount if amount == MAX_DEPOSIT_AMOUNT * 10 => Err(ExchangeError::DepositPartiallyFailed),
+				amount if amount == MAX_DEPOSIT_AMOUNT * 10 =>
+					Err(ExchangeError::DepositPartiallyFailed),
 				_ => Err(ExchangeError::DepositFailed),
 			}
 		}
@@ -375,26 +396,23 @@ mod tests {
 	}
 
 	fn new_test_ext() -> sp_io::TestExternalities {
-		let t = frame_system::GenesisConfig::default()
-			.build_storage::<TestRuntime>()
-			.unwrap();
+		let t = frame_system::GenesisConfig::default().build_storage::<TestRuntime>().unwrap();
 		sp_io::TestExternalities::new(t)
 	}
 
 	fn transaction(id: u64) -> RawTransaction {
-		RawTransaction {
-			id,
-			recipient: 1,
-			amount: 2,
-		}
+		RawTransaction { id, recipient: 1, amount: 2 }
 	}
 
 	#[test]
 	fn unfinalized_transaction_rejected() {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
-				Exchange::import_peer_transaction(Origin::signed(SUBMITTER), (false, transaction(0))),
-				Error::<TestRuntime, DefaultInstance>::UnfinalizedTransaction,
+				Exchange::import_peer_transaction(
+					Origin::signed(SUBMITTER),
+					(false, transaction(0))
+				),
+				Error::<TestRuntime, ()>::UnfinalizedTransaction,
 			);
 		});
 	}
@@ -407,7 +425,7 @@ mod tests {
 					Origin::signed(SUBMITTER),
 					(true, transaction(INVALID_TRANSACTION_ID)),
 				),
-				Error::<TestRuntime, DefaultInstance>::InvalidTransaction,
+				Error::<TestRuntime, ()>::InvalidTransaction,
 			);
 		});
 	}
@@ -421,7 +439,7 @@ mod tests {
 					Origin::signed(SUBMITTER),
 					(true, transaction(ALREADY_CLAIMED_TRANSACTION_ID)),
 				),
-				Error::<TestRuntime, DefaultInstance>::AlreadyClaimed,
+				Error::<TestRuntime, ()>::AlreadyClaimed,
 			);
 		});
 	}
@@ -433,7 +451,7 @@ mod tests {
 			transaction.recipient = UNKNOWN_RECIPIENT_ID;
 			assert_noop!(
 				Exchange::import_peer_transaction(Origin::signed(SUBMITTER), (true, transaction)),
-				Error::<TestRuntime, DefaultInstance>::FailedToMapRecipients,
+				Error::<TestRuntime, ()>::FailedToMapRecipients,
 			);
 		});
 	}
@@ -445,7 +463,7 @@ mod tests {
 			transaction.amount = INVALID_AMOUNT;
 			assert_noop!(
 				Exchange::import_peer_transaction(Origin::signed(SUBMITTER), (true, transaction)),
-				Error::<TestRuntime, DefaultInstance>::FailedToConvertCurrency,
+				Error::<TestRuntime, ()>::FailedToConvertCurrency,
 			);
 		});
 	}
@@ -457,7 +475,7 @@ mod tests {
 			transaction.amount = MAX_DEPOSIT_AMOUNT + 1;
 			assert_noop!(
 				Exchange::import_peer_transaction(Origin::signed(SUBMITTER), (true, transaction)),
-				Error::<TestRuntime, DefaultInstance>::DepositFailed,
+				Error::<TestRuntime, ()>::DepositFailed,
 			);
 		});
 	}

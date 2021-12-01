@@ -22,6 +22,7 @@
 
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::{Parameter, RuntimeDebug};
+use scale_info::TypeInfo;
 use sp_api::decl_runtime_apis;
 use sp_std::marker::PhantomData;
 
@@ -36,7 +37,7 @@ pub enum Error {
 	InvalidRecipient,
 	/// Cannot map from peer recipient to this blockchain recipient.
 	FailedToMapRecipients,
-	/// Failed to convert from peer blockchain currency to this blockhain currency.
+	/// Failed to convert from peer blockchain currency to this blockchain currency.
 	FailedToConvertCurrency,
 	/// Deposit has failed.
 	DepositFailed,
@@ -48,7 +49,7 @@ pub enum Error {
 pub type Result<T> = sp_std::result::Result<T, Error>;
 
 /// Peer blockchain lock funds transaction.
-#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct LockFundsTransaction<TransferId, Recipient, Amount> {
 	/// Something that uniquely identifies this transfer.
 	pub id: TransferId,
@@ -63,7 +64,7 @@ pub trait MaybeLockFundsTransaction {
 	/// Transaction type.
 	type Transaction;
 	/// Identifier that uniquely identifies this transfer.
-	type Id: Decode + Encode + EncodeLike + sp_std::fmt::Debug;
+	type Id: Decode + Encode + TypeInfo + EncodeLike + sp_std::fmt::Debug;
 	/// Peer recipient type.
 	type Recipient;
 	/// Peer currency amount type.
@@ -71,7 +72,9 @@ pub trait MaybeLockFundsTransaction {
 
 	/// Parse lock funds transaction of the peer blockchain. Returns None if
 	/// transaction format is unknown, or it isn't a lock funds transaction.
-	fn parse(tx: &Self::Transaction) -> Result<LockFundsTransaction<Self::Id, Self::Recipient, Self::Amount>>;
+	fn parse(
+		tx: &Self::Transaction,
+	) -> Result<LockFundsTransaction<Self::Id, Self::Recipient, Self::Amount>>;
 }
 
 /// Map that maps recipients from peer blockchain to this blockchain recipients.
