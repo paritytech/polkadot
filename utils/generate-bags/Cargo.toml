@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-generate-bags = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-io = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+generate-bags = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
 structopt = "0.3.25"
 
 westend-runtime = { path = "../../runtime/westend" }

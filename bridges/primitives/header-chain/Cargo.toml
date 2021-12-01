@@ -14,11 +14,11 @@ serde = { version = "1.0", optional = true }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
 
 [dev-dependencies]
 assert_matches = "1.5"

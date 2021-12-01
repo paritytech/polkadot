@@ -11,7 +11,7 @@ futures-timer = "3.0.2"
 
 metered-channel = { path = "../metered-channel" }
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
 
 [features]
 default = []

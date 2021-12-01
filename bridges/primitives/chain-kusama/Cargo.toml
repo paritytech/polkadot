@@ -14,8 +14,8 @@ bp-polkadot-core = { path = "../polkadot-core", default-features = false }
 bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Based Dependencies
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
 
 [features]
 default = ["std"]

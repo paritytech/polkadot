@@ -9,14 +9,14 @@ version = "0.9.13"
 impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "wk-polkadot-v0.9.13" }
 log = { version = "0.4.14", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "wk-polkadot-v0.9.13" }
 
 [features]
 default = ["std"]

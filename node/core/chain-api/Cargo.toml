@@ -7,12 +7,12 @@ edition = "2018"
 [dependencies]
 futures = "0.3.17"
 tracing = "0.1.29"
-sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
 
 [dev-dependencies]
 futures = { version = "0.3.17", features = ["thread-pool"] }
@@ -20,4 +20,4 @@ maplit = "1.0.2"
 parity-scale-codec = "2.3.1"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "wk-polkadot-v0.9.13" }
