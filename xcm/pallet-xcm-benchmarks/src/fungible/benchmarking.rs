@@ -104,7 +104,7 @@ benchmarks_instance_pallet! {
 	} verify {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
-		// TODO: Check sender queue is not empty.
+		// TODO: Check sender queue is not empty. #4426
 	}
 
 	receive_teleported_asset {
