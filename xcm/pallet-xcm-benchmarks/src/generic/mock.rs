@@ -28,7 +28,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::{
-	test_utils::{TestAssetTrap, TestSubscriptionService, Assets},
+	test_utils::{Assets, TestAssetTrap, TestSubscriptionService},
 	AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;

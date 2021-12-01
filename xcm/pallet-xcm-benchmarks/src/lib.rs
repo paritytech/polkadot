@@ -77,7 +77,8 @@ pub fn mock_worst_case_holding() -> MultiAssets {
 			id: Concrete(GeneralIndex(i as u128).into()),
 			fun: NonFungible(asset_instance_from(i)),
 		}))
-		.collect::<Vec<_>>().into()
+		.collect::<Vec<_>>()
+		.into()
 }
 
 pub fn asset_instance_from(x: u32) -> AssetInstance {
