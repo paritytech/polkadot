@@ -719,15 +719,21 @@ where
 	let chain_spec = config.chain_spec.cloned_box();
 
 	let local_keystore = basics.keystore_container.local_keystore();
-	let requires_overseer_for_chain_sel =
-		local_keystore.is_some() && (role.is_authority() || is_collator.is_collator());
+	let auth_or_collator = role.is_authority() || is_collator.is_collator();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let select_chain = SelectRelayChain::new(
-		basics.backend.clone(),
-		overseer_handle.clone(),
-		requires_overseer_for_chain_sel,
-		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
-	);
+	let select_chain = if requires_overseer_for_chain_sel {
+		let metrics =
+			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
+
+		SelectRelayChain::new_disputes_aware(
+			basics.backend.clone(),
+			overseer_handle.clone(),
+			metrics,
+		)
+	} else {
+		SelectRelayChain::new_longest_chain(basics.backend.clone())
+	};
 
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
@@ -876,7 +882,7 @@ where
 	let active_leaves =
 		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
+	let authority_discovery_service = if auth_or_collator {
 		use futures::StreamExt;
 		use sc_network::Event;
 

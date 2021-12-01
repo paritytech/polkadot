@@ -157,7 +157,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 	(SessionHistoricalModulePrefixMigration,),
 >;
 /// The payload being signed in transactions.
@@ -204,7 +204,7 @@ construct_runtime! {
 	{
 		System: frame_system,
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe,
 
 		Timestamp: pallet_timestamp,
@@ -213,6 +213,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment,
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session for
+		// im-online.
 		Authorship: pallet_authorship,
 		Offences: pallet_offences,
 		Historical: session_historical,

@@ -53,7 +53,7 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
 	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, Public};
@@ -235,6 +235,27 @@ pub async fn signing_key_and_index(
 		}
 	}
 	None
+}
+
+/// Sign the given data with the given validator ID.
+///
+/// Returns `Ok(None)` if the private key that correponds to that validator ID is not found in the
+/// given keystore. Returns an error if the key could not be used for signing.
+pub async fn sign(
+	keystore: &SyncCryptoStorePtr,
+	key: &ValidatorId,
+	data: &[u8],
+) -> Result<Option<ValidatorSignature>, KeystoreError> {
+	use std::convert::TryInto;
+
+	let signature =
+		CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
+
+	match signature {
+		Some(sig) =>
+			Ok(Some(sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?)),
+		None => Ok(None),
+	}
 }
 
 /// Find the validator group the given validator index belongs to.

@@ -17,4 +17,4 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tokio = { version = "1", features = ["macros"] }
 log = { version = "0.4.14" }
 structopt = {version = "0.3.25" }
-clap = { version = "2.33.3" }
+clap = { version = "2.34.0" }
