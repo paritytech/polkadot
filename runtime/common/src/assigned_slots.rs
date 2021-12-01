@@ -570,7 +570,7 @@ mod tests {
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 			ParasShared: parachains_shared::{Pallet, Call, Storage},
-			Parachains: parachains_paras::{Pallet, Origin, Call, Storage, Config, Event},
+			Parachains: parachains_paras::{Pallet, Call, Storage, Config, Event},
 			Slots: slots::{Pallet, Call, Storage, Event<T>},
 			AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
 		}
@@ -626,7 +626,6 @@ mod tests {
 	}
 
 	impl parachains_paras::Config for Test {
-		type Origin = Origin;
 		type Event = Event;
 		type WeightInfo = parachains_paras::TestWeightInfo;
 	}
