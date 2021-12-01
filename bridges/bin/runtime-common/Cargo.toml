@@ -24,13 +24,13 @@ pallet-bridge-messages = { path = "../../modules/messages", default-features = f
 
 # Substrate dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.13" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
 
 [features]
 default = ["std"]

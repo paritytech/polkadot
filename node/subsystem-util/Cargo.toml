@@ -26,9 +26,9 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered-channel = { path = "../metered-channel" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

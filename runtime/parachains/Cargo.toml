@@ -14,27 +14,27 @@ serde = { version = "1.0.130", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", optional = true }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13", default-features = false }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -46,9 +46,9 @@ rand_chacha = { version = "0.3.1", default-features = false }
 [dev-dependencies]
 futures = "0.3.17"
 hex-literal = "0.3.4"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", rev = "5714e30cd280906a8f20e699b187fdef22989ffc" }
 
 
 [features]
