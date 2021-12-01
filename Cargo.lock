@@ -5990,6 +5990,7 @@ dependencies = [
  "futures 0.3.17",
  "log",
  "nix",
+ "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
  "polkadot-service",
  "sc-cli",

@@ -17,6 +17,7 @@
 use crate::error::PerfCheckError;
 use log::info;
 use nix::unistd;
+use polkadot_erasure_coding::{obtain_chunks, reconstruct};
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
 use service::kusama_runtime;
 use std::{
@@ -59,7 +60,6 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 }
 
 pub fn host_perf_check(result_cache_path: &Path) -> Result<(), PerfCheckError> {
-	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
 	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 	let wasm_code = kusama_runtime::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
@@ -71,30 +71,61 @@ pub fn host_perf_check(result_cache_path: &Path) -> Result<(), PerfCheckError> {
 		return Ok(())
 	}
 
-	info!("Running the performance check...");
+	// Decompress the code before running checks.
+	let code = sp_maybe_compressed_blob::decompress(wasm_code, CODE_SIZE_LIMIT)
+		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
+
+	info!("Running the performance checks...");
+
+	pvf_perf_check(code.as_ref())?;
+
+	erasure_coding_perf_check(code.as_ref())?;
+
+	// Persist successful result.
+	if let Err(err) = save_check_passed_file(&check_passed_file_path) {
+		info!("Couldn't persist check result at {:?}: {}", check_passed_file_path, err.to_string());
+	}
+
+	Ok(())
+}
+
+fn pvf_perf_check(code: &[u8]) -> Result<(), PerfCheckError> {
+	const PREPARE_TIME_LIMIT: Duration = Duration::from_secs(20);
+
 	let start = Instant::now();
 
 	// Recreate the pipeline from the pvf prepare worker.
-	let code = sp_maybe_compressed_blob::decompress(wasm_code, CODE_SIZE_LIMIT)
-		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	let _ = polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
+	polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
 
 	let elapsed = start.elapsed();
-	if elapsed <= PERF_CHECK_TIME_LIMIT {
-		info!("Performance check passed, elapsed: {:?}", start.elapsed());
-
-		// Persist successful result.
-		if let Err(err) = save_check_passed_file(&check_passed_file_path) {
-			info!(
-				"Couldn't persist check result at {:?}: {}",
-				check_passed_file_path,
-				err.to_string()
-			);
-		}
+	if elapsed <= PREPARE_TIME_LIMIT {
+		info!("PVF performance check passed, elapsed: {:?}", elapsed);
 
 		Ok(())
 	} else {
-		Err(PerfCheckError::TimeOut { elapsed, limit: PERF_CHECK_TIME_LIMIT })
+		Err(PerfCheckError::TimeOut { elapsed, limit: PREPARE_TIME_LIMIT })
+	}
+}
+
+fn erasure_coding_perf_check(data: &[u8]) -> Result<(), PerfCheckError> {
+	const ERASURE_CODING_TIME_LIMIT: Duration = Duration::from_secs(1);
+	const N: usize = 1024;
+
+	let start = Instant::now();
+
+	let chunks = obtain_chunks(N, &data).expect("The payload is not empty; qed");
+	let indexed_chunks = chunks.iter().enumerate().map(|(i, chunk)| (chunk.as_slice(), i));
+
+	let _: Vec<u8> =
+		reconstruct(N, indexed_chunks).expect("Chunks were obtained above, cannot fail; qed");
+
+	let elapsed = start.elapsed();
+	if elapsed <= ERASURE_CODING_TIME_LIMIT {
+		info!("Erasure-coding performance check passed, elapsed: {:?}", elapsed);
+
+		Ok(())
+	} else {
+		Err(PerfCheckError::TimeOut { elapsed, limit: ERASURE_CODING_TIME_LIMIT })
 	}
 }

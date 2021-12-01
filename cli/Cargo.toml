@@ -18,10 +18,11 @@ log = "0.4.13"
 thiserror = "1.0.30"
 structopt = { version = "0.3.25", optional = true }
 futures = "0.3.17"
-nix = "0.20.0"
+nix = { version = "0.20.0", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
+polkadot-erasure-coding = { path = "../erasure-coding", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -47,6 +48,8 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"polkadot-node-core-pvf",
+	"polkadot-erasure-coding",
+	"nix",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
