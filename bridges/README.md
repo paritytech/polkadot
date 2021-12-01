@@ -6,7 +6,7 @@ These components include Substrate pallets for syncing headers, passing arbitrar
 as libraries for building relayers to provide cross-chain communication capabilities.
 
 Three bridge nodes are also available. The nodes can be used to run test networks which bridge other
-Substrate chains or Ethereum Proof-of-Authority chains.
+Substrate chains.
 
 🚧 The bridges are currently under construction - a hardhat is recommended beyond this point 🚧
 
@@ -38,7 +38,7 @@ cargo build --all
 cargo test --all
 ```
 
-Also you can build the repo with 
+Also you can build the repo with
 [Parity CI Docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/bridges-ci):
 
 ```bash
@@ -54,7 +54,7 @@ docker run --rm -it -w /shellhere/parity-bridges-common \
 #artifacts can be found in ~/cache/target
 ```
 
-If you want to reproduce other steps of CI process you can use the following 
+If you want to reproduce other steps of CI process you can use the following
 [guide](https://github.com/paritytech/scripts#reproduce-ci-locally).
 
 If you need more information about setting up your development environment Substrate's
@@ -104,7 +104,6 @@ the `relays` which are used to pass messages between chains.
 ├── diagrams        // Pretty pictures of the project architecture
 │  └──  ...
 ├── modules         // Substrate Runtime Modules (a.k.a Pallets)
-│  ├── ethereum     // Ethereum PoA Header Sync Module
 │  ├── grandpa      // On-Chain GRANDPA Light Client
 │  ├── messages     // Cross Chain Message Passing
 │  ├── dispatch     // Target Chain Message Execution

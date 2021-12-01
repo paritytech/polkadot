@@ -95,6 +95,7 @@ impl RelayMessages {
 				target_to_source_headers_relay: None,
 				lane_id: self.lane.into(),
 				metrics_params: self.prometheus_params.into(),
+				standalone_metrics: None,
 				relay_strategy,
 			})
 			.await

@@ -17,8 +17,8 @@
 use crate::{
 	error::{self, Error},
 	metrics::{
-		metric_name, register, F64SharedRef, Gauge, PrometheusError, Registry, StandaloneMetrics,
-		F64,
+		metric_name, register, F64SharedRef, Gauge, Metric, PrometheusError, Registry,
+		StandaloneMetric, F64,
 	},
 };
 
@@ -44,8 +44,6 @@ pub struct FloatJsonValueMetric {
 impl FloatJsonValueMetric {
 	/// Create new metric instance with given name and help.
 	pub fn new(
-		registry: &Registry,
-		prefix: Option<&str>,
 		url: String,
 		json_path: String,
 		name: String,
@@ -55,7 +53,7 @@ impl FloatJsonValueMetric {
 		Ok(FloatJsonValueMetric {
 			url,
 			json_path,
-			metric: register(Gauge::new(metric_name(prefix, &name), help)?, registry)?,
+			metric: Gauge::new(metric_name(None, &name), help)?,
 			shared_value_ref,
 		})
 	}
@@ -81,8 +79,14 @@ impl FloatJsonValueMetric {
 	}
 }
 
+impl Metric for FloatJsonValueMetric {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.metric.clone(), registry).map(drop)
+	}
+}
+
 #[async_trait]
-impl StandaloneMetrics for FloatJsonValueMetric {
+impl StandaloneMetric for FloatJsonValueMetric {
 	fn update_interval(&self) -> Duration {
 		UPDATE_INTERVAL
 	}

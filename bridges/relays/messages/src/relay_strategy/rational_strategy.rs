@@ -41,7 +41,7 @@ impl RelayStrategy for RationalStrategy {
 		SourceClient: MessageLaneSourceClient<P>,
 		TargetClient: MessageLaneTargetClient<P>,
 	>(
-		&self,
+		&mut self,
 		reference: &mut RelayReference<P, SourceClient, TargetClient>,
 	) -> bool {
 		// technically, multiple confirmations will be delivered in a single transaction,

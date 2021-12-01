@@ -521,7 +521,7 @@ where
 			nonces_queue_range: 0..maximal_source_queue_index + 1,
 		};
 
-		let strategy = EnforcementStrategy::new(self.relay_strategy.clone());
+		let mut strategy = EnforcementStrategy::new(self.relay_strategy.clone());
 		let range_end = strategy.decide(reference).await?;
 
 		let range_begin = source_queue[0].1.begin();

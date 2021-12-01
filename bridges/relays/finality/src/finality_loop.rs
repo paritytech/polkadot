@@ -19,17 +19,17 @@
 //! is the mandatory headers, which we always submit to the target node. For such headers, we
 //! assume that the persistent proof either exists, or will eventually become available.
 
-use crate::{FinalityProof, FinalitySyncPipeline, SourceHeader};
+use crate::{
+	sync_loop_metrics::SyncLoopMetrics, FinalityProof, FinalitySyncPipeline, SourceHeader,
+};
 
 use async_trait::async_trait;
 use backoff::backoff::Backoff;
 use futures::{select, Future, FutureExt, Stream, StreamExt};
-use headers_relay::sync_loop_metrics::SyncLoopMetrics;
 use num_traits::{One, Saturating};
 use relay_utils::{
-	metrics::{GlobalMetrics, MetricsParams},
-	relay_loop::Client as RelayClient,
-	retry_backoff, FailedClient, MaybeConnectionError,
+	metrics::MetricsParams, relay_loop::Client as RelayClient, retry_backoff, FailedClient,
+	MaybeConnectionError,
 };
 use std::{
 	pin::Pin,
@@ -113,9 +113,8 @@ pub async fn run<P: FinalitySyncPipeline>(
 ) -> Result<(), relay_utils::Error> {
 	let exit_signal = exit_signal.shared();
 	relay_utils::relay_loop(source_client, target_client)
-		.with_metrics(Some(metrics_prefix::<P>()), metrics_params)
-		.loop_metric(SyncLoopMetrics::new)?
-		.standalone_metric(GlobalMetrics::new)?
+		.with_metrics(metrics_params)
+		.loop_metric(SyncLoopMetrics::new(Some(&metrics_prefix::<P>()))?)?
 		.expose()
 		.await?
 		.run(metrics_prefix::<P>(), move |source_client, target_client, metrics| {

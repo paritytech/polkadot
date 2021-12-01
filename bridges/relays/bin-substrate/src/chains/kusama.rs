@@ -17,6 +17,8 @@
 use codec::Decode;
 use frame_support::weights::{DispatchClass, DispatchInfo, Pays, Weight};
 use relay_kusama_client::Kusama;
+use sp_core::storage::StorageKey;
+use sp_runtime::{FixedPointNumber, FixedU128};
 use sp_version::RuntimeVersion;
 
 use crate::cli::{
@@ -100,4 +102,15 @@ impl CliChain for Kusama {
 	) -> anyhow::Result<Self::MessagePayload> {
 		anyhow::bail!("Sending messages from Kusama is not yet supported.")
 	}
+}
+
+/// Storage key and initial value of Polkadot -> Kusama conversion rate.
+pub(crate) fn polkadot_to_kusama_conversion_rate_params() -> (StorageKey, FixedU128) {
+	(
+		bp_runtime::storage_parameter_key(
+			bp_kusama::POLKADOT_TO_KUSAMA_CONVERSION_RATE_PARAMETER_NAME,
+		),
+		// starting relay before this parameter will be set to some value may cause troubles
+		FixedU128::from_inner(FixedU128::DIV),
+	)
 }

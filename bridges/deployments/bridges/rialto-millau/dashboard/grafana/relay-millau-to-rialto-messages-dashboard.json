@@ -1441,7 +1441,7 @@
       "pluginVersion": "7.1.3",
       "targets": [
         {
-          "expr": "avg_over_time(Millau_to_Rialto_MessageLane_00000000_process_cpu_usage_percentage[1m])",
+          "expr": "avg_over_time(process_cpu_usage_percentage{instance='relay-millau-rialto:9616'}[1m])",
           "instant": true,
           "interval": "",
           "legendFormat": "1 CPU = 100",
@@ -1499,7 +1499,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "Millau_to_Rialto_MessageLane_00000000_system_average_load",
+          "expr": "system_average_load{instance='relay-millau-rialto:9616'}",
           "interval": "",
           "legendFormat": "Average system load in last {{over}}",
           "refId": "A"
@@ -1592,7 +1592,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "Millau_to_Rialto_MessageLane_00000000_process_memory_usage_bytes / 1024 / 1024",
+          "expr": "process_memory_usage_bytes{instance='relay-millau-rialto:9616'} / 1024 / 1024",
           "interval": "",
           "legendFormat": "Process memory, MB",
           "refId": "A"

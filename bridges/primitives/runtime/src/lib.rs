@@ -256,10 +256,22 @@ pub fn storage_map_final_key_identity(
 ///
 /// Copied from `frame_support::parameter_types` macro
 pub fn storage_parameter_key(parameter_name: &str) -> StorageKey {
-	let mut buffer = Vec::with_capacity(1 + parameter_name.len() + 1 + 1);
+	let mut buffer = Vec::with_capacity(1 + parameter_name.len() + 1);
 	buffer.push(b':');
 	buffer.extend_from_slice(parameter_name.as_bytes());
 	buffer.push(b':');
-	buffer.push(0);
 	StorageKey(sp_io::hashing::twox_128(&buffer).to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn storage_parameter_key_works() {
+		assert_eq!(
+			storage_parameter_key("MillauToRialtoConversionRate"),
+			StorageKey(hex_literal::hex!("58942375551bb0af1682f72786b59d04").to_vec()),
+		);
+	}
 }

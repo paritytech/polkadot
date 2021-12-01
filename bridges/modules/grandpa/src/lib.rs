@@ -239,7 +239,7 @@ pub mod pallet {
 			operational: bool,
 		) -> DispatchResultWithPostInfo {
 			ensure_owner_or_root::<T, I>(origin)?;
-			<IsHalted<T, I>>::put(operational);
+			<IsHalted<T, I>>::put(!operational);
 
 			if operational {
 				log::info!(target: "runtime::bridge-grandpa", "Resuming pallet operations.");
@@ -798,9 +798,13 @@ mod tests {
 	#[test]
 	fn pallet_rejects_transactions_if_halted() {
 		run_test(|| {
-			<IsHalted<TestRuntime>>::put(true);
+			initialize_substrate_bridge();
 
+			assert_ok!(Pallet::<TestRuntime>::set_operational(Origin::root(), false));
 			assert_noop!(submit_finality_proof(1), Error::<TestRuntime>::Halted);
+
+			assert_ok!(Pallet::<TestRuntime>::set_operational(Origin::root(), true));
+			assert_ok!(submit_finality_proof(1));
 		})
 	}
 

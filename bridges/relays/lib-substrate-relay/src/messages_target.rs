@@ -55,7 +55,7 @@ pub struct SubstrateMessagesTarget<P: SubstrateMessageLane> {
 	client: Client<P::TargetChain>,
 	lane: P,
 	lane_id: LaneId,
-	metric_values: StandaloneMessagesMetrics,
+	metric_values: StandaloneMessagesMetrics<P::SourceChain, P::TargetChain>,
 	source_to_target_headers_relay: Option<OnDemandHeadersRelay<P::SourceChain>>,
 }
 
@@ -65,7 +65,7 @@ impl<P: SubstrateMessageLane> SubstrateMessagesTarget<P> {
 		client: Client<P::TargetChain>,
 		lane: P,
 		lane_id: LaneId,
-		metric_values: StandaloneMessagesMetrics,
+		metric_values: StandaloneMessagesMetrics<P::SourceChain, P::TargetChain>,
 		source_to_target_headers_relay: Option<OnDemandHeadersRelay<P::SourceChain>>,
 	) -> Self {
 		SubstrateMessagesTarget {

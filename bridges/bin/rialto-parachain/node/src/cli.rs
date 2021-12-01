@@ -103,6 +103,9 @@ pub struct Cli {
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
+	#[structopt(long)]
+	pub parachain_id: Option<u32>,
+
 	#[structopt(flatten)]
 	pub run: cumulus_client_cli::RunCmd,
 
