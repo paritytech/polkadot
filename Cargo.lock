@@ -744,20 +744,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bp-rialto"
-version = "0.1.0"
-dependencies = [
- "bp-messages",
- "bp-runtime",
- "frame-support",
- "frame-system",
- "sp-api",
- "sp-core",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "bp-rococo"
 version = "0.1.0"
 dependencies = [
@@ -4748,7 +4734,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4771,6 +4756,7 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-io",
  "sp-runtime",
@@ -4785,7 +4771,6 @@ dependencies = [
  "bitvec",
  "bp-message-dispatch",
  "bp-messages",
- "bp-rialto",
  "bp-runtime",
  "frame-benchmarking",
  "frame-support",
