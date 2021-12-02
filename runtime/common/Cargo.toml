@@ -57,7 +57,7 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-serde_json = "1.0.71"
+serde_json = "1.0.72"
 libsecp256k1 = "0.7.0"
 
 [features]
@@ -102,7 +102,7 @@ std = [
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
 	"libsecp256k1/static-context",
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
