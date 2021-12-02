@@ -300,12 +300,13 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
-        "sp-io polkadot-runtime"
+        $CARGO_UPDATE_CRATES
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
 check-transaction-versions:
   stage:                           build
