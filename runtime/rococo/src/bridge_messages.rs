@@ -286,7 +286,6 @@ mod at_rococo {
 
 		type ThisChain = RococoAtRococo;
 		type BridgedChain = WococoAtRococo;
-		//		type BridgedMessagesInstance = crate::AtWococoWithRococoMessagesInstance;
 
 		fn bridged_balance_to_this_balance(
 			bridged_balance: bp_wococo::Balance,
@@ -337,7 +336,6 @@ mod at_wococo {
 
 		type ThisChain = WococoAtWococo;
 		type BridgedChain = RococoAtWococo;
-		//		type BridgedMessagesInstance = crate::AtRococoWithWococoMessagesInstance;
 
 		fn bridged_balance_to_this_balance(
 			bridged_balance: bp_rococo::Balance,
