@@ -31,7 +31,7 @@ use primitives::v1::{
 use runtime_common::{
 	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
 	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor, prod_or_test,
 };
 use sp_core::u32_trait::{_1, _2, _3, _5};
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -232,9 +232,13 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
+	pub EpochDuration: u64 = prod_or_test!(
+		EPOCH_DURATION_IN_SLOTS as u64,
+		2 * MINUTES as u64,
+		"KSM_EPOCH_DURATION"
+	);
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-	pub const ReportLongevity: u64 =
+	pub ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
@@ -368,8 +372,17 @@ impl pallet_session::historical::Config for Runtime {
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
-	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
+	// in testing: 1min or half of the session for each
+	pub SignedPhase: u32 = prod_or_test!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
+		"KSM_SIGNED_PHASE"
+	);
+	pub UnsignedPhase: u32 = prod_or_test!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
+		"KSM_UNSIGNED_PHASE"
+	);
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
@@ -555,26 +568,6 @@ impl pallet_staking::Config for Runtime {
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
-macro_rules! prod_or_test {
-	($prod:expr, $test:expr) => {
-		if cfg!(feature = "fast-runtime") {
-			$test
-		} else {
-			$prod
-		}
-	};
-	($prod:expr, $test:expr, $env:expr) => {
-		if cfg!(feature = "fast-runtime") {
-			core::option_env!($env)
-				.map(|s| s.parse().ok())
-				.flatten()
-				.unwrap_or($test)
-		} else {
-			$prod
-		}
-	}
-}
-
 parameter_types! {
 	pub LaunchPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
 	pub VotingPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
@@ -642,13 +635,8 @@ impl pallet_democracy::Config for Runtime {
 	type MaxProposals = MaxProposals;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const MOTION_DURATION: BlockNumber = 2 * MINUTES;
-#[cfg(not(feature = "fast-runtime"))]
-pub const MOTION_DURATION: BlockNumber = 3 * DAYS;
-
 parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = MOTION_DURATION;
+	pub CouncilMotionDuration: BlockNumber = prod_or_test!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -665,11 +653,6 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const TERM_DURATION: BlockNumber = 2 * MINUTES;
-#[cfg(not(feature = "fast-runtime"))]
-pub const TERM_DURATION: BlockNumber = 24 * HOURS;
-
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * CENTS;
 	// 1 storage item created, key size is 32 bytes, value size is 16+16.
@@ -677,7 +660,7 @@ parameter_types! {
 	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Daily council elections
-	pub const TermDuration: BlockNumber = TERM_DURATION;
+	pub TermDuration: BlockNumber = prod_or_test!(24 * HOURS, 2 * MINUTES, "KSM_TERM_DURATION");
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
@@ -705,7 +688,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-	pub const TechnicalMotionDuration: BlockNumber = MOTION_DURATION;
+	pub TechnicalMotionDuration: BlockNumber = prod_or_test!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
 }

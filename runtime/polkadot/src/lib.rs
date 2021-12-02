@@ -24,7 +24,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
 	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor, prod_or_test,
 };
 
 use runtime_parachains::{
@@ -275,9 +275,13 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
+	pub EpochDuration: u64 = prod_or_test!(
+		EPOCH_DURATION_IN_SLOTS as u64,
+		2 * MINUTES as u64,
+		"KSM_EPOCH_DURATION"
+	);
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-	pub const ReportLongevity: u64 =
+	pub ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
@@ -407,8 +411,17 @@ impl pallet_session::historical::Config for Runtime {
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
-	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
+	// in testing: 1min or half of the session for each
+	pub SignedPhase: u32 = prod_or_test!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
+		"DOT_SIGNED_PHASE"
+	);
+	pub UnsignedPhase: u32 = prod_or_test!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
+		"DOT_UNSIGNED_PHASE"
+	);
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
@@ -575,35 +588,13 @@ impl pallet_identity::Config for Runtime {
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const LAUNCH_PERIOD: BlockNumber = 1;
-#[cfg(feature = "fast-runtime")]
-pub const VOTING_PERIOD: BlockNumber = 1 * MINUTES;
-#[cfg(feature = "fast-runtime")]
-pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 1 * MINUTES;
-#[cfg(feature = "fast-runtime")]
-pub const ENACTMENT_PERIOD: BlockNumber = 1;
-#[cfg(feature = "fast-runtime")]
-pub const COOLOFF_PERIOD: BlockNumber = 1 * MINUTES;
-
-#[cfg(not(feature = "fast-runtime"))]
-pub const LAUNCH_PERIOD: BlockNumber = 28 * DAYS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const VOTING_PERIOD: BlockNumber = 28 * DAYS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 3 * HOURS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const ENACTMENT_PERIOD: BlockNumber = 28 * DAYS;
-#[cfg(not(feature = "fast-runtime"))]
-pub const COOLOFF_PERIOD: BlockNumber = 7 * DAYS;
-
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = LAUNCH_PERIOD;
-	pub const VotingPeriod: BlockNumber = VOTING_PERIOD;
-	pub const FastTrackVotingPeriod: BlockNumber = FAST_TRACK_VOTING_PERIOD;
+	pub LaunchPeriod: BlockNumber = prod_or_test!(28 * DAYS, 1, "DOT_LAUNCH_PERIOD");
+	pub VotingPeriod: BlockNumber = prod_or_test!(28 * DAYS, 1 * MINUTES, "DOT_VOTING_PERIOD");
+	pub FastTrackVotingPeriod: BlockNumber = prod_or_test!(3 * HOURS, 1 * MINUTES, "DOT_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
-	pub const EnactmentPeriod: BlockNumber = ENACTMENT_PERIOD;
-	pub const CooloffPeriod: BlockNumber = COOLOFF_PERIOD;
+	pub EnactmentPeriod: BlockNumber = prod_or_test!(28 * DAYS, 1, "DOT_ENACTMENT_PERIOD");
+	pub CooloffPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1, "DOT_COOLOFF_PERIOD");
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = true;
@@ -674,13 +665,8 @@ impl pallet_democracy::Config for Runtime {
 	type MaxProposals = MaxProposals;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const MOTION_DURATION: BlockNumber = 2 * MINUTES;
-#[cfg(not(feature = "fast-runtime"))]
-pub const MOTION_DURATION: BlockNumber = 7 * DAYS;
-
 parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = MOTION_DURATION;
+	pub CouncilMotionDuration: BlockNumber = prod_or_test!(7 * DAYS, 2 * MINUTES, "DOT_MOTION_DURATION");
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -697,11 +683,6 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const TERM_DURATION: BlockNumber = 2 * MINUTES;
-#[cfg(not(feature = "fast-runtime"))]
-pub const TERM_DURATION: BlockNumber = 7 * DAYS;
-
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	// 1 storage item created, key size is 32 bytes, value size is 16+16.
@@ -709,7 +690,7 @@ parameter_types! {
 	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Weekly council elections; scaling up to monthly eventually.
-	pub const TermDuration: BlockNumber = 7 * DAYS;
+	pub TermDuration: BlockNumber = prod_or_test!(7 * DAYS, 2 * MINUTES, "DOT_TERM_DURATION");
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
