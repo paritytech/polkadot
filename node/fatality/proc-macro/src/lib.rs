@@ -1,36 +1,28 @@
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+
 use proc_macro2::{Ident, TokenStream, Span};
 use quote::{quote, ToTokens};
-use syn::parse::Parse;
-use syn::{Variant, ItemEnum, Path, parse2};
+use syn::{Variant, ItemEnum, Path, parse2, Visibility};
 use syn::spanned::Spanned;
 
+// TODO
 // pub mod keywords {
 // 	syn::custom_keyword!(fatal);
-// }
-
-
-
-// enum Fatality {
-// 	Fatal,
-// 	Boring,
-// }
-
-// impl Parse for IsFatal {
-//     fn parse(input: ParseStream) -> Result<Fatality> {
-//         let lookahead = input.lookahead1();
-//         if lookahead.peek(keywords::fatal) {
-// 			let _ = input.parse::<kw::fatal>()?;
-//             Ok(Argument::Fatal)
-//         } else if lookahead.peek(kw::str) {
-//             Ok(Argument::Str {
-//                 str_token: input.parse::<kw::str>()?,
-//                 eq_token: input.parse()?,
-//                 value: input.parse()?,
-//             })
-//         } else {
-//             Err(lookahead.error())
-//         }
-//     }
 // }
 
 use proc_macro_crate::{crate_name, FoundCrate};
@@ -62,22 +54,21 @@ fn trait_fatality_impl(who: Ident, logic: TokenStream) -> TokenStream {
 	}
 }
 
-fn gen(item: &ItemEnum) -> TokenStream {
+fn fatality_gen(item: &ItemEnum) -> TokenStream {
 	let mut item2 = item.clone();
 	let name = item.ident.clone();
 
 	let mut fatal_variants = Vec::<Variant>::new();
 	let mut jfyi_variants = Vec::<Variant>::new();
-	// if there is not a single fatal annotation, we can just replace `#[fatality]` with `3[thiserror::Error]`
+	// if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(thiserror::Error)]`
 	// without the intermediate type. But impl `trait Fatality` on-top.
 	let mut fatal_count = 0;
 	for variant in item2.variants.iter_mut() {
-		dbg!(&variant);
 		let mut is_fatal = false;
 		while let Some(idx) = variant.attrs
 			.iter().enumerate()
 			.find_map(|(idx, attr)| {
-				if dbg!(&attr.path).is_ident(&Ident::new("fatal", Span::call_site())) {
+				if attr.path.is_ident(&Ident::new("fatal", Span::call_site())) {
 					Some(idx)
 				} else {
 					None
@@ -85,6 +76,7 @@ fn gen(item: &ItemEnum) -> TokenStream {
 			})
 		{
 			dbg!(&mut variant.attrs).swap_remove(idx);
+			dbg!(&mut variant.attrs);
 			is_fatal = true;
 		}
 		if is_fatal {
@@ -107,7 +99,8 @@ fn gen(item: &ItemEnum) -> TokenStream {
 		let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
 		let thiserror = abs(thiserror, name.span());
 		let wrapper_enum = quote! {
-			#[#thiserror]
+			#[derive(#thiserror)]
+			#[derive(Debug)]
 			#vis enum #name {
 				#[error(transparent)]
 				Fatal(#name_fatal),
@@ -115,18 +108,20 @@ fn gen(item: &ItemEnum) -> TokenStream {
 				Jfyi(#name_jfyi),
 			}
 		};
-		let jfyi_enum = quote! {
-			#[#thiserror]
-			#vis enum #name_jfyi {
-				#( #jfyi_variants ),*
+
+		fn generate_inner_enum(vis: &Visibility, name: &Ident, variants: Vec<Variant>, thiserror: &Path) -> TokenStream {
+			quote! {
+				#[derive(#thiserror)]
+				#[derive(Debug)]
+				#vis enum #name {
+					#( #variants , )*
+				}
 			}
-		};
-		let fatal_enum = quote! {
-			#[#thiserror]
-			#vis enum #name_fatal {
-				#( #fatal_variants ),*
-			}
-		};
+		}
+
+		let fatal_enum = generate_inner_enum(&vis, &name_fatal, fatal_variants, &thiserror);
+		let jfyi_enum = generate_inner_enum(&vis, &name_jfyi, jfyi_variants, &thiserror);
+
 		let mut ts = TokenStream::new();
 		ts.extend(wrapper_enum);
 		ts.extend(trait_fatality_impl(name, quote! {
@@ -159,8 +154,8 @@ fn gen(item: &ItemEnum) -> TokenStream {
 
 }
 
-fn fatality2(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-	let mut item: ItemEnum = match syn::parse2(input.clone()) {
+fn fatality2(attr: proc_macro2::TokenStream, input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+	let item: ItemEnum = match syn::parse2(input.clone()) {
 		Err(e) => {
 			let mut bail = input.into_token_stream();
 			bail.extend(e.to_compile_error());
@@ -168,15 +163,23 @@ fn fatality2(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
 		}
 		Ok(item) => item,
 	};
-	let res = gen(&item);
+	if !attr.is_empty() {
+		return syn::Error::new_spanned(attr, "fatality does not take any arguments").into_compile_error().into_token_stream()
+	}
+	let res = fatality_gen(&item);
 	res
 }
 
-#[proc_macro]
-pub fn fatality(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+
+#[proc_macro_attribute]
+pub fn fatality(
+	attr: proc_macro::TokenStream,
+	input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+	let attr = TokenStream::from(attr);
 	let input = TokenStream::from(input);
 
-    let output: TokenStream = fatality2(input);
+    let output: TokenStream = fatality2(attr, input);
 
     proc_macro::TokenStream::from(output)
 }
@@ -189,18 +192,20 @@ mod tests {
 	fn basic_full() {
 		let input = quote!{
 enum Kaboom {
-	#[fatal, error(transparent)]
+	#[fatal]
+	#[error(transparent)]
 	A(X),
 	#[error(transparent)]
 	B(Y),
 }
 		};
-		let output = fatality2(dbg!(input));
+		let output = fatality2(TokenStream::new(), input);
 		println!(r##">>>>>>>>>>>>>>>>>>>
 {}
 >>>>>>>>>>>>>>>>>>>"##, output.to_string());
 		assert_eq!(output.to_string(), quote!{
-#[crate::thiserror::Error]
+#[derive(crate::thiserror::Error)]
+#[derive(Debug)]
 enum Kaboom {
 	#[error(transparent)]
 	Fatal(FatalKaboom),
@@ -218,7 +223,8 @@ impl crate::Fatality for Kaboom {
 	}
 }
 
-#[crate::thiserror::Error]
+#[derive(crate::thiserror::Error)]
+#[derive(Debug)]
 enum FatalKaboom {
 	#[error(transparent)]
 	A(X),
@@ -230,7 +236,8 @@ impl crate::Fatality for FatalKaboom {
 	}
 }
 
-#[crate::thiserror::Error]
+#[derive(crate::thiserror::Error)]
+#[derive(Debug)]
 enum JfyiKaboom {
 	#[error(transparent)]
 	B(Y),

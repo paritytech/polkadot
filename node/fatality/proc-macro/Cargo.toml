@@ -1,7 +1,9 @@
 [package]
 name = "fatality-proc-macro"
 version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+description = "Fatality extension to crate thiserror - proc-macro part"
 
 [lib]
 proc-macro = true
