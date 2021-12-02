@@ -25,8 +25,10 @@ use frame_support::RuntimeDebug;
 use scale_info::TypeInfo;
 use sp_finality_grandpa::{AuthorityId, AuthoritySignature, SetId};
 use sp_runtime::traits::Header as HeaderT;
-use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use sp_std::prelude::*;
+use sp_std::{
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	prelude::*,
+};
 
 /// A GRANDPA Justification is a proof that a given header was finalized
 /// at a certain height and with a certain set of authorities.
@@ -38,7 +40,8 @@ pub struct GrandpaJustification<Header: HeaderT> {
 	/// The round (voting period) this justification is valid for.
 	pub round: u64,
 	/// The set of votes for the chain which is to be finalized.
-	pub commit: finality_grandpa::Commit<Header::Hash, Header::Number, AuthoritySignature, AuthorityId>,
+	pub commit:
+		finality_grandpa::Commit<Header::Hash, Header::Number, AuthoritySignature, AuthorityId>,
 	/// A proof that the chain of blocks in the commit are related to each other.
 	pub votes_ancestries: Vec<Header>,
 }
@@ -58,7 +61,8 @@ pub enum Error {
 	InvalidJustificationTarget,
 	/// The authority has provided an invalid signature.
 	InvalidAuthoritySignature,
-	/// The justification contains pre-commit for header that is not a descendant of the commit header.
+	/// The justification contains precommit for header that is not a descendant of the commit
+	/// header.
 	PrecommitIsNotCommitDescendant,
 	/// The cumulative weight of all votes in the justification is not enough to justify commit
 	/// header finalization.
@@ -88,7 +92,7 @@ where
 {
 	// ensure that it is justification for the expected header
 	if (justification.commit.target_hash, justification.commit.target_number) != finalized_target {
-		return Err(Error::InvalidJustificationTarget);
+		return Err(Error::InvalidJustificationTarget)
 	}
 
 	let mut chain = AncestryChain::new(&justification.votes_ancestries);
@@ -100,30 +104,32 @@ where
 		let authority_info = match authorities_set.get(&signed.id) {
 			Some(authority_info) => authority_info,
 			None => {
-				// just ignore precommit from unknown authority as `finality_grandpa::import_precommit` does
-				continue;
-			}
+				// just ignore precommit from unknown authority as
+				// `finality_grandpa::import_precommit` does
+				continue
+			},
 		};
 
 		// check if authority has already voted in the same round.
 		//
 		// there's a lot of code in `validate_commit` and `import_precommit` functions inside
-		// `finality-grandpa` crate (mostly related to reporing equivocations). But the only thing that we
-		// care about is that only first vote from the authority is accepted
+		// `finality-grandpa` crate (mostly related to reporing equivocations). But the only thing
+		// that we care about is that only first vote from the authority is accepted
 		if !votes.insert(signed.id.clone()) {
-			continue;
+			continue
 		}
 
 		// everything below this line can't just `continue`, because state is already altered
 
 		// all precommits must be for block higher than the target
 		if signed.precommit.target_number < justification.commit.target_number {
-			return Err(Error::PrecommitIsNotCommitDescendant);
+			return Err(Error::PrecommitIsNotCommitDescendant)
 		}
-		// all precommits must be for target block descendants
-		chain = chain.ensure_descendant(&justification.commit.target_hash, &signed.precommit.target_hash)?;
-		// since we know now that the precommit target is the descendant of the justification target,
-		// we may increase 'weight' of the justification target
+		// all precommits must be for target block descendents
+		chain = chain
+			.ensure_descendant(&justification.commit.target_hash, &signed.precommit.target_hash)?;
+		// since we know now that the precommit target is the descendant of the justification
+		// target, we may increase 'weight' of the justification target
 		//
 		// there's a lot of code in the `VoteGraph::insert` method inside `finality-grandpa` crate,
 		// but in the end it is only used to find GHOST, which we don't care about. The only thing
@@ -145,13 +151,13 @@ where
 			authorities_set_id,
 			&mut signature_buffer,
 		) {
-			return Err(Error::InvalidAuthoritySignature);
+			return Err(Error::InvalidAuthoritySignature)
 		}
 	}
 
 	// check that there are no extra headers in the justification
 	if !chain.unvisited.is_empty() {
-		return Err(Error::ExtraHeadersInVotesAncestries);
+		return Err(Error::ExtraHeadersInVotesAncestries)
 	}
 
 	// check that the cumulative weight of validators voted for the justification target (or one
@@ -169,7 +175,7 @@ where
 pub struct AncestryChain<Header: HeaderT> {
 	/// Header hash => parent header hash mapping.
 	pub parents: BTreeMap<Header::Hash, Header::Hash>,
-	/// Hashes of headers that weren't visited by `is_ancestor` method.
+	/// Hashes of headers that were not visited by `is_ancestor` method.
 	pub unvisited: BTreeSet<Header::Hash>,
 }
 
@@ -187,7 +193,8 @@ impl<Header: HeaderT> AncestryChain<Header> {
 		AncestryChain { parents, unvisited }
 	}
 
-	/// Returns `Err(_)` if `precommit_target` is a descendant of the `commit_target` block and `Ok(_)` otherwise.
+	/// Returns `Err(_)` if `precommit_target` is a descendant of the `commit_target` block and
+	/// `Ok(_)` otherwise.
 	pub fn ensure_descendant(
 		mut self,
 		commit_target: &Header::Hash,
@@ -196,22 +203,22 @@ impl<Header: HeaderT> AncestryChain<Header> {
 		let mut current_hash = *precommit_target;
 		loop {
 			if current_hash == *commit_target {
-				break;
+				break
 			}
 
 			let is_visited_before = !self.unvisited.remove(&current_hash);
 			current_hash = match self.parents.get(&current_hash) {
 				Some(parent_hash) => {
 					if is_visited_before {
-						// `Some(parent_hash)` means that the `current_hash` is in the `parents` container
-						// `is_visited_before` means that it has been visited before in some of previous calls
-						// => since we assume that previous call has finished with `true`, this also will
-						//    be finished with `true`
-						return Ok(self);
+						// `Some(parent_hash)` means that the `current_hash` is in the `parents`
+						// container `is_visited_before` means that it has been visited before in
+						// some of previous calls => since we assume that previous call has finished
+						// with `true`, this also will    be finished with `true`
+						return Ok(self)
 					}
 
 					*parent_hash
-				}
+				},
 				None => return Err(Error::PrecommitIsNotCommitDescendant),
 			};
 		}
