@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // Copyright 2020-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -20,7 +21,7 @@
 
 use rand::Rng;
 
-const MALICIOUS_BASE_MIN: usize = 2usize;
+const MALICIOUS_BASE_MIN: usize = 100usize;
 
 
 use std::{
