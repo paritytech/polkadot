@@ -34,7 +34,7 @@ mod enter {
 		dispute_sessions: Vec<u32>,
 		backed_and_concluding: BTreeMap<u32, u32>,
 		num_validators_per_core: u32,
-		includes_code_upgrade: Option<u32>,
+		code_upgrade: Option<u32>,
 	}
 
 	fn make_inherent_data(
@@ -43,14 +43,24 @@ mod enter {
 			dispute_sessions,
 			backed_and_concluding,
 			num_validators_per_core,
-			includes_code_upgrade,
+			code_upgrade,
 		}: TestConfig,
 	) -> Bench<Test> {
-		BenchBuilder::<Test>::new()
-			.set_max_validators((dispute_sessions.len() as u32) * num_validators_per_core)
+		let builder = BenchBuilder::<Test>::new()
+			.set_max_validators(
+				(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
+					num_validators_per_core,
+			)
 			.set_max_validators_per_core(num_validators_per_core)
 			.set_dispute_statements(dispute_statements)
-			.build(backed_and_concluding, dispute_sessions.as_slice(), includes_code_upgrade)
+			.set_backed_and_concluding_cores(backed_and_concluding)
+			.set_dispute_sessions(&dispute_sessions[..]);
+
+		if let Some(code_size) = code_upgrade {
+			builder.set_code_upgrade(code_size).build()
+		} else {
+			builder.build()
+		}
 	}
 
 	#[test]
@@ -67,10 +77,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				dispute_sessions: vec![0, 0],
+				dispute_sessions: vec![], // No disputes
 				backed_and_concluding,
 				num_validators_per_core: 1,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			// We expect the scenario to have cores 0 & 1 with pending availability. The backed
@@ -133,7 +143,7 @@ mod enter {
 				dispute_sessions: vec![1, 2, 3 /* Session 3 too new, will get filtered out */],
 				backed_and_concluding,
 				num_validators_per_core: 5,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -193,15 +203,15 @@ mod enter {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();
-			// No backed and concluding cores, so all cores will be fileld with disputesw
+			// No backed and concluding cores, so all cores will be filld with disputes.
 			let backed_and_concluding = BTreeMap::new();
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 6,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -257,15 +267,15 @@ mod enter {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();
-			// No backed and concluding cores, so all cores will be fileld with disputesw
+			// No backed and concluding cores, so all cores will be filled with disputes.
 			let backed_and_concluding = BTreeMap::new();
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 6,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -308,11 +318,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-				dispute_sessions: vec![0, 0, 2, 2, 1],
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 4,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -384,11 +393,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-				dispute_sessions: vec![0, 0, 2, 2, 1],
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 4,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -443,11 +451,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-				dispute_sessions: vec![0, 0, 2, 2, 1],
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 5,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -521,11 +528,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-				dispute_sessions: vec![0, 0, 2, 2, 1],
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 5,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -578,10 +584,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 5,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -646,10 +652,10 @@ mod enter {
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 5,
-				includes_code_upgrade: None,
+				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
