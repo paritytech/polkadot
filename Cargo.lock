@@ -3189,6 +3189,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex-literal",
+ "kusama-runtime-constants",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -3262,6 +3263,17 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
+]
+
+[[package]]
+name = "kusama-runtime-constants"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6900,6 +6912,7 @@ dependencies = [
  "futures 0.3.17",
  "hex-literal",
  "kusama-runtime",
+ "kusama-runtime-constants",
  "kvdb",
  "kvdb-rocksdb",
  "log",

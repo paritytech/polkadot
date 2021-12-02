@@ -21,7 +21,7 @@ use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;
 #[cfg(feature = "kusama-native")]
-use kusama_runtime::constants::currency::UNITS as KSM;
+use kusama_runtime_constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 #[cfg(feature = "polkadot-native")]

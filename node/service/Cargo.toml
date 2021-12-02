@@ -84,6 +84,9 @@ polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 
+# Polkadot Runtime Constants
+kusama-runtime-constants = { path = "../../kusama-runtime-constants" }
+
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
 kusama-runtime = { path = "../../runtime/kusama", optional = true }

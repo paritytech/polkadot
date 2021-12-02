@@ -27,6 +27,7 @@ members = [
 	"core-primitives",
 	"erasure-coding",
 	"primitives",
+	"kusama-runtime-constants",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
 	"runtime/parachains",
