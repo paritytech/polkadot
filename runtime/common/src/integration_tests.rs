@@ -292,12 +292,10 @@ fn run_to_block(n: u32) {
 	assert!(System::block_number() < n);
 	while System::block_number() < n {
 		let block_number = System::block_number();
-		AllPallets::on_finalize(block_number);
-		System::on_finalize(block_number);
+		AllPalletsWithSystem::on_finalize(block_number);
 		System::set_block_number(block_number + 1);
-		System::on_initialize(block_number + 1);
 		maybe_new_session(block_number + 1);
-		AllPallets::on_initialize(block_number + 1);
+		AllPalletsWithSystem::on_initialize(block_number + 1);
 	}
 }
 
@@ -308,6 +306,10 @@ fn run_to_session(n: u32) {
 
 fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
+}
+
+fn contains_event(event: Event) -> bool {
+	System::events().iter().any(|x| x.event == event)
 }
 
 // Runs an end to end test of the auction, crowdloan, slots, and onboarding process over varying
@@ -390,10 +392,9 @@ fn basic_end_to_end_works() {
 
 			// Auction ends at block 110 + offset
 			run_to_block(109 + offset);
-			assert_eq!(
-				last_event(),
-				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
-			);
+			assert!(contains_event(
+				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into()
+			));
 			run_to_block(110 + offset);
 			assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
 

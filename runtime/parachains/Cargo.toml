@@ -72,6 +72,7 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"pallet-authorship/std",
+	"pallet-babe/std",
 	"pallet-balances/std",
 	"pallet-session/std",
 	"pallet-staking/std",
@@ -83,7 +84,7 @@ std = [
 	"log/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"primitives/runtime-benchmarks",
