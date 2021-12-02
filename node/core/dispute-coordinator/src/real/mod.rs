@@ -100,7 +100,6 @@ use status::Clock;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
-const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-dispute-coordinator";
 
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
