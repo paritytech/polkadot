@@ -646,7 +646,7 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
-	tracing::info!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		"PVF pruning: {} artifacts reached their end of life",
 		to_remove.len(),
@@ -1039,27 +1039,27 @@ mod tests {
 		);
 
 		result_tx_pvf_1_1
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_1.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 
 		result_tx_pvf_1_2
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 
 		result_tx_pvf_2
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 	}
 
@@ -1156,7 +1156,7 @@ mod tests {
 		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Err(PrepareError::TimedOut));
 		assert_matches!(
 			result_rx_execute.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(_)))
+			Err(ValidationError::InternalError(_))
 		);
 
 		// Reversed case: first send multiple precheck requests, then ask for an execution.

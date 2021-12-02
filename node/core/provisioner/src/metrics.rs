@@ -15,12 +15,19 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use std::convert::TryInto;
 
 #[derive(Clone)]
 struct MetricsInner {
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
 	request_inherent_data: prometheus::Histogram,
 	provisionable_data: prometheus::Histogram,
+
+	/// The following metrics track how many disputes/votes the runtime will have to process. These will count
+	/// all recent statements meaning every dispute from last sessions: 10 min on Rococo, 60 min on Kusama and
+	/// 4 hours on Polkadot. The metrics are updated only when the node authors a block, so values vary across nodes.
+	inherent_data_dispute_statement_sets: prometheus::Counter<prometheus::U64>,
+	inherent_data_dispute_statements: prometheus::CounterVec<prometheus::U64>,
 }
 
 /// Provisioner metrics.
@@ -50,6 +57,32 @@ impl Metrics {
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
 	}
+
+	pub(crate) fn inc_valid_statements_by(&self, votes: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics
+				.inherent_data_dispute_statements
+				.with_label_values(&["valid"])
+				.inc_by(votes.try_into().unwrap_or(0));
+		}
+	}
+
+	pub(crate) fn inc_invalid_statements_by(&self, votes: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics
+				.inherent_data_dispute_statements
+				.with_label_values(&["invalid"])
+				.inc_by(votes.try_into().unwrap_or(0));
+		}
+	}
+
+	pub(crate) fn inc_dispute_statement_sets_by(&self, disputes: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics
+				.inherent_data_dispute_statement_sets
+				.inc_by(disputes.try_into().unwrap_or(0));
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -77,6 +110,23 @@ impl metrics::Metrics for Metrics {
 					"parachain_provisioner_provisionable_data_time",
 					"Time spent within `provisioner::provisionable_data`",
 				))?,
+				registry,
+			)?,
+			inherent_data_dispute_statements: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_inherent_data_dispute_statements",
+						"Number of dispute statements passed to `create_inherent()`.",
+					),
+					&["validity"],
+				)?,
+				&registry,
+			)?,
+			inherent_data_dispute_statement_sets: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_inherent_data_dispute_statement_sets",
+					"Number of dispute statements sets passed to `create_inherent()`.",
+				)?,
 				registry,
 			)?,
 		};
