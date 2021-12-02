@@ -23,9 +23,6 @@ mod grandpa_support;
 mod parachains_db;
 mod relay_chain_selection;
 
-// TODO(niklasad1): this should be replaced.
-type RpcHandlers = ();
-
 #[cfg(feature = "full-node")]
 pub mod overseer;
 
@@ -103,7 +100,7 @@ pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
 	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,
-	TFullBackend, TFullCallExecutor, TFullClient, TaskManager, TransactionPoolOptions,
+	TFullBackend, TFullCallExecutor, TFullClient, TaskManager, TransactionPoolOptions, RpcHandlers
 };
 pub use sp_api::{ApiRef, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::{
