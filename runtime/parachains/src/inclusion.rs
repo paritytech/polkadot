@@ -420,7 +420,7 @@ impl<T: Config> Pallet<T> {
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T>(
+		let (checked_bitfields, _) = sanitize_bitfields::<T>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,

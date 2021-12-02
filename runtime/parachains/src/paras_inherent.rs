@@ -161,7 +161,7 @@ fn paras_inherent_total_weight<T: Config>(
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
 		.saturating_add(dispute_statements_weight::<T>(disputes))
 		.saturating_add(enact_candidates_weight::<T>(
-			bitfields_count_ones(bitfields, expected_bits, validator_count),
+			bitfields_count_ones(bitfields, expected_bits, validator_count) as u32,
 			config,
 		))
 }
@@ -184,7 +184,7 @@ fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 
 // Calculate the worst case weight for enacting the given number of candidates.
 fn enact_candidates_weight<T: frame_system::Config + Config>(
-	candidate_count: usize,
+	candidate_count: u32,
 	config: &HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	<inclusion::Pallet<T>>::enact_candidate_weight(
@@ -457,7 +457,7 @@ impl<T: Config> Pallet<T> {
 				&signed_bitfields,
 				expected_bits,
 				shared::Pallet::<T>::active_validator_keys().len(),
-			),
+			) as u32,
 			&<configuration::Pallet<T>>::config(),
 		);
 
@@ -662,7 +662,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let (mut backed_candidates, mut bitfields) =
+		let (mut backed_candidates, mut bitfields, cores_with_votes) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -722,7 +722,7 @@ impl<T: Config> Pallet<T> {
 
 				// The following 3 calls are equiv to a call to `process_bitfields`
 				// but we can retain access to `bitfields`.
-				let bitfields = sanitize_bitfields::<T>(
+				let (bitfields, cores_with_votes) = sanitize_bitfields::<T>(
 					bitfields,
 					disputed_bitfield,
 					expected_bits,
@@ -778,6 +778,8 @@ impl<T: Config> Pallet<T> {
 					backed_candidates,
 					// filtered bitfields
 					bitfields,
+					// number of cores voted on by filtered bitfields
+					cores_with_votes.count_ones(),
 				))
 			});
 
@@ -791,8 +793,10 @@ impl<T: Config> Pallet<T> {
 			&mut backed_candidates,
 			&mut bitfields,
 			&mut disputes,
+			cores_with_votes as u32,
 			max_block_weight,
 			&mut rng,
+			&<configuration::Pallet<T>>::config(),
 		);
 
 		Some(ParachainsInherentData::<T::Header> {
@@ -896,17 +900,25 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	candidates: &mut Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,
 	disputes: &mut MultiDisputeStatementSet,
+	cores_with_votes: u32,
 	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
+	config: &HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	// include as many disputes as possible, always
 	let remaining_weight = limit_disputes::<T>(disputes, max_block_weight, rng);
 
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
 
+	// we include the worst case weight of enacting the candidates voted for by the bitfields
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
-	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
+	let total_enact_candidates_weight =
+		enact_candidates_weight::<T>(cores_with_votes, config);
+
+	let total = total_bitfields_weight
+		.saturating_add(total_candidates_weight)
+		.saturating_add(total_enact_candidates_weight);
 
 	// candidates + bitfields fit into the block
 	if remaining_weight >= total {
@@ -925,7 +937,10 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
-	if let Some(remaining_weight) = remaining_weight.checked_sub(total_bitfields_weight) {
+	if let Some(remaining_weight) = remaining_weight
+		.checked_sub(total_bitfields_weight)
+		.and_then(|r| r.checked_sub(total_enact_candidates_weight))
+	{
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
@@ -953,7 +968,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// accounting for that when tracking individual bitfield weight, thus the weight here likely
 		// ends up being an underestimate.
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
-		remaining_weight,
+		remaining_weight.saturating_sub(total_enact_candidates_weight),
 	);
 
 	bitfields.indexed_retain(|idx, _bitfield| indices.binary_search(&idx).is_ok());
@@ -988,7 +1003,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 	session_index: SessionIndex,
 	validators: &[ValidatorId],
 	full_check: FullCheck,
-) -> UncheckedSignedAvailabilityBitfields {
+) -> (UncheckedSignedAvailabilityBitfields, usize) {
 	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
 
 	let mut last_index: Option<ValidatorIndex> = None;
@@ -997,10 +1012,11 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 		// This is a system logic error that should never occur, but we want to handle it gracefully
 		// so we just drop all bitfields
 		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits");
-		return vec![]
+		return (vec![], 0)
 	}
 
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
+	let mut cores_with_votes = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
 		// Find and skip invalid bitfields.
@@ -1033,17 +1049,20 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 			if let Ok(signed_bitfield) =
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
+				cores_with_votes |= signed_bitfield.payload().0.clone();
 				bitfields.push(signed_bitfield.into_unchecked());
 			} else {
 				log::warn!(target: LOG_TARGET, "Invalid bitfield signature");
 			};
 		} else {
+			cores_with_votes |= unchecked_bitfield.unchecked_payload().0.clone();
 			bitfields.push(unchecked_bitfield);
 		}
 
 		last_index = Some(validator_index);
 	}
-	bitfields
+
+	(bitfields, cores_with_votes.count_ones())
 }
 
 // Returns `true` iff the checks pass.
@@ -2032,7 +2051,7 @@ mod tests {
 						&validator_public[..],
 						FullCheck::Skip,
 					),
-					unchecked_bitfields.clone()
+					(unchecked_bitfields.clone(), expected_bits)
 				);
 				assert_eq!(
 					sanitize_bitfields::<Test>(
@@ -2044,7 +2063,7 @@ mod tests {
 						&validator_public[..],
 						FullCheck::Yes
 					),
-					unchecked_bitfields.clone()
+					(unchecked_bitfields.clone(), expected_bits)
 				);
 			}
 
@@ -2065,6 +2084,7 @@ mod tests {
 						&validator_public[..],
 						FullCheck::Yes
 					)
+					.0
 					.len(),
 					1
 				);
@@ -2078,6 +2098,7 @@ mod tests {
 						&validator_public[..],
 						FullCheck::Skip
 					)
+					.0
 					.len(),
 					1
 				);
@@ -2094,6 +2115,7 @@ mod tests {
 					&validator_public[..],
 					FullCheck::Yes
 				)
+				.0
 				.is_empty());
 				assert!(sanitize_bitfields::<Test>(
 					unchecked_bitfields.clone(),
@@ -2104,6 +2126,7 @@ mod tests {
 					&validator_public[..],
 					FullCheck::Skip
 				)
+				.0
 				.is_empty());
 			}
 
@@ -2119,7 +2142,8 @@ mod tests {
 						session_index,
 						&validator_public[..shortened],
 						FullCheck::Yes,
-					)[..],
+					)
+					.0[..],
 					&unchecked_bitfields[..shortened]
 				);
 				assert_eq!(
@@ -2131,7 +2155,8 @@ mod tests {
 						session_index,
 						&validator_public[..shortened],
 						FullCheck::Skip,
-					)[..],
+					)
+					.0[..],
 					&unchecked_bitfields[..shortened]
 				);
 			}
@@ -2150,7 +2175,8 @@ mod tests {
 						session_index,
 						&validator_public[..],
 						FullCheck::Yes
-					)[..],
+					)
+					.0[..],
 					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 				);
 				assert_eq!(
@@ -2162,7 +2188,8 @@ mod tests {
 						session_index,
 						&validator_public[..],
 						FullCheck::Skip
-					)[..],
+					)
+					.0[..],
 					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 				);
 			}
@@ -2187,7 +2214,8 @@ mod tests {
 						session_index,
 						&validator_public[..],
 						FullCheck::Yes
-					)[..],
+					)
+					.0[..],
 					&unchecked_bitfields[..last_bit_idx]
 				);
 				assert_eq!(
@@ -2199,7 +2227,8 @@ mod tests {
 						session_index,
 						&validator_public[..],
 						FullCheck::Skip
-					)[..],
+					)
+					.0[..],
 					&unchecked_bitfields[..]
 				);
 			}
