@@ -17,7 +17,7 @@
 //! An implementation of the `RewardValidators` trait used by `inclusion` that employs
 //! `pallet-staking` to compute the rewards.
 //!
-//! Based on https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html
+//! Based on https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html
 //! which doesn't currently mention availability bitfields. As such, we don't reward them
 //! for the time being, although we will build schemes to do so in the future.
 

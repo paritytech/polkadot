@@ -59,7 +59,9 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing},
+	traits::{
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
+	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -457,6 +459,7 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
 	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
 	type SortedListProvider = BagsList;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -822,7 +825,6 @@ impl parachains_inclusion::Config for Runtime {
 }
 
 impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 }
@@ -1040,7 +1042,7 @@ construct_runtime! {
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
@@ -1049,6 +1051,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 26,
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session and era
+		// for im-online and staking.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
@@ -1099,7 +1103,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 50,
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 51,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 51,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
@@ -1142,11 +1146,32 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
-	(),
+	AllPalletsWithSystem,
+	(SessionHistoricalPalletPrefixMigration,),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalPalletPrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -1472,6 +1497,7 @@ sp_api::impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let mut list = Vec::<BenchmarkList>::new();
 
@@ -1508,6 +1534,7 @@ sp_api::impl_runtime_apis! {
 			// XCM Benchmarks
 			// NOTE: Make sure you point to the individual modules below.
 			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
+			list_benchmark!(list, extra, pallet_xcm_benchmarks::generic, XcmGeneric);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1520,7 +1547,7 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
@@ -1536,8 +1563,15 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
-				fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
+				}
+				fn worst_case_holding() -> MultiAssets {
+					// Westend only knows about WND.
+					vec![MultiAsset{
+						id: Concrete(WndLocation::get()),
+						fun: Fungible(1_000_000 * UNITS),
+					}].into()
 				}
 			}
 
@@ -1562,7 +1596,31 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
+			impl pallet_xcm_benchmarks::generic::Config for Runtime {
+				type Call = Call;
+
+				fn worst_case_response() -> (u64, Response) {
+					(0u64, Response::Version(Default::default()))
+				}
+
+				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
+				}
+
+				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
+				}
+
+				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
+					let origin = Westmint::get();
+					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
+					let ticket = MultiLocation { parents: 0, interior: Here };
+					Ok((origin, ticket, assets))
+				}
+			}
+
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1621,8 +1679,8 @@ sp_api::impl_runtime_apis! {
 			// XCM Benchmarks
 			// NOTE: Make sure you point to the individual modules below.
 			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks::generic, XcmGeneric);
 
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}
