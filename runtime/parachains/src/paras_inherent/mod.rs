@@ -265,7 +265,7 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
 			parent_header_hash,
 			signed_bitfields.len(),
 			backed_candidates.len(),
