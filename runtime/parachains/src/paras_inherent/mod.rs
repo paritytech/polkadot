@@ -22,15 +22,15 @@
 //! this module.
 
 use crate::{
+	configuration,
+	configuration::HostConfiguration,
 	disputes::DisputesHandler,
 	inclusion,
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
-	configuration
 };
-use crate::configuration::HostConfiguration;
 use bitvec::prelude::BitVec;
 use frame_support::{
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
@@ -63,9 +63,9 @@ mod weights;
 pub use self::{
 	misc::IndexedRetain,
 	weights::{
-		backed_candidate_weight, backed_candidates_weight, dispute_statements_weight,
-		paras_inherent_total_weight, signed_bitfields_weight, TestWeightInfo, WeightInfo,
-		enact_candidates_weight, bitfields_count_ones
+		backed_candidate_weight, backed_candidates_weight, bitfields_count_ones,
+		dispute_statements_weight, enact_candidates_weight, paras_inherent_total_weight,
+		signed_bitfields_weight, TestWeightInfo, WeightInfo,
 	},
 };
 
@@ -749,8 +749,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// we include the worst case weight of enacting the candidates voted for by the bitfields
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
-	let total_enact_candidates_weight =
-		enact_candidates_weight::<T>(cores_with_votes, config);
+	let total_enact_candidates_weight = enact_candidates_weight::<T>(cores_with_votes, config);
 
 	let total = total_bitfields_weight
 		.saturating_add(total_candidates_weight)

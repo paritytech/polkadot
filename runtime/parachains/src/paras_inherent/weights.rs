@@ -14,12 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 use super::{
-	BackedCandidate, Config, DisputeStatementSet, UncheckedSignedAvailabilityBitfield, Weight,
-	cheap_bitfield_checks
+	cheap_bitfield_checks, BackedCandidate, Config, DisputeStatementSet,
+	UncheckedSignedAvailabilityBitfield, Weight,
 };
-use crate::configuration::HostConfiguration;
-use crate::inclusion::{self, FullCheck};
- use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use crate::{
+	configuration::HostConfiguration,
+	inclusion::{self, FullCheck},
+};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 const MAX_UNCHECKED_BITFIELD_ITERATIONS: usize = 1_000;
 
 pub trait WeightInfo {
