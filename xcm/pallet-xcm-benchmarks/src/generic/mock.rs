@@ -16,22 +16,26 @@
 
 //! A mock runtime for XCM benchmarking.
 
-use crate::{fungible as xcm_balances_benchmark, mock::*};
-use frame_benchmarking::BenchmarkError;
-use frame_support::{parameter_types, traits::Everything};
+use crate::{generic, mock::*, *};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, OriginTrait},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::latest::prelude::*;
-use xcm_builder::AllowUnpaidExecutionFrom;
+use xcm_builder::{
+	test_utils::{Assets, TestAssetTrap, TestSubscriptionService},
+	AllowUnpaidExecutionFrom,
+};
+use xcm_executor::traits::ConvertOrigin;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-// For testing the pallet, we construct a mock runtime.
 frame_support::construct_runtime!(
 	pub enum Test where
 		Block = Block,
@@ -39,8 +43,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		XcmBalancesBenchmark: xcm_balances_benchmark::{Pallet},
+		XcmGenericBenchmarks: generic::{Pallet},
 	}
 );
 
@@ -49,6 +52,7 @@ parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(1024);
 }
+
 impl frame_system::Config for Test {
 	type BaseCallFilter = Everything;
 	type BlockWeights = ();
@@ -75,53 +79,19 @@ impl frame_system::Config for Test {
 	type OnSetCode = ();
 }
 
-parameter_types! {
-	pub const ExistentialDeposit: u64 = 7;
-}
+/// The benchmarks in this pallet should never need an asset transactor to begin with.
+pub struct NoAssetTransactor;
+impl xcm_executor::traits::TransactAsset for NoAssetTransactor {
+	fn deposit_asset(_: &MultiAsset, _: &MultiLocation) -> Result<(), XcmError> {
+		unreachable!();
+	}
 
-impl pallet_balances::Config for Test {
-	type MaxLocks = ();
-	type MaxReserves = ();
-	type ReserveIdentifier = [u8; 8];
-	type Balance = u64;
-	type DustRemoval = ();
-	type Event = Event;
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
-	type WeightInfo = ();
-}
-
-parameter_types! {
-	pub const AssetDeposit: u64 = 100 * ExistentialDeposit::get();
-	pub const ApprovalDeposit: u64 = 1 * ExistentialDeposit::get();
-	pub const StringLimit: u32 = 50;
-	pub const MetadataDepositBase: u64 = 10 * ExistentialDeposit::get();
-	pub const MetadataDepositPerByte: u64 = 1 * ExistentialDeposit::get();
-}
-
-pub struct MatchAnyFungible;
-impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
-	fn matches_fungible(m: &MultiAsset) -> Option<u64> {
-		use sp_runtime::traits::SaturatedConversion;
-		match m {
-			MultiAsset { fun: Fungible(amount), .. } => Some((*amount).saturated_into::<u64>()),
-			_ => None,
-		}
+	fn withdraw_asset(_: &MultiAsset, _: &MultiLocation) -> Result<Assets, XcmError> {
+		unreachable!();
 	}
 }
 
-// Use balances as the asset transactor.
-pub type AssetTransactor = xcm_builder::CurrencyAdapter<
-	Balances,
-	MatchAnyFungible,
-	AccountIdConverter,
-	u64,
-	CheckedAccount,
->;
-
 parameter_types! {
-	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
-	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
 }
 
@@ -129,18 +99,18 @@ pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = DevNull;
-	type AssetTransactor = AssetTransactor;
-	type OriginConverter = ();
-	type IsReserve = ();
-	type IsTeleporter = TrustedTeleporters;
+	type AssetTransactor = NoAssetTransactor;
+	type OriginConverter = AlwaysSignedByDefault<Origin>;
+	type IsReserve = AllAssetLocationsPass;
+	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
-	type AssetTrap = ();
-	type AssetClaims = ();
-	type SubscriptionService = ();
+	type AssetTrap = TestAssetTrap;
+	type AssetClaims = TestAssetTrap;
+	type SubscriptionService = TestSubscriptionService;
 }
 
 impl crate::Config for Test {
@@ -148,7 +118,7 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
-			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
+			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
 
 		Ok(valid_destination)
 	}
@@ -157,28 +127,26 @@ impl crate::Config for Test {
 	}
 }
 
-pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
+impl generic::Config for Test {
+	type Call = Call;
 
-parameter_types! {
-	pub const CheckedAccount: Option<u64> = Some(100);
-	pub const ChildTeleporter: MultiLocation = Parachain(1000).into();
-	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
-		ChildTeleporter::get(),
-		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
-	));
-	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
-}
+	fn worst_case_response() -> (u64, Response) {
+		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
+		(0, Response::Assets(assets))
+	}
 
-impl xcm_balances_benchmark::Config for Test {
-	type TransactAsset = Balances;
-	type CheckedAccount = CheckedAccount;
-	type TrustedTeleporter = TrustedTeleporter;
+	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+		Ok(Default::default())
+	}
 
-	fn get_multi_asset() -> MultiAsset {
-		let amount =
-			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;
-		MultiAsset { id: Concrete(Here.into()), fun: Fungible(amount) }
+	fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+		Ok(Default::default())
+	}
+
+	fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
+		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
+		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
+		Ok((Default::default(), ticket, assets))
 	}
 }
 
@@ -186,4 +154,18 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
+}
+
+pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
+impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
+where
+	Origin: OriginTrait,
+	<Origin as OriginTrait>::AccountId: Default,
+{
+	fn convert_origin(
+		_origin: impl Into<MultiLocation>,
+		_kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
+		Ok(Origin::signed(Default::default()))
+	}
 }

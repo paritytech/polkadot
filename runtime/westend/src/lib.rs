@@ -1497,6 +1497,7 @@ sp_api::impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let mut list = Vec::<BenchmarkList>::new();
 
@@ -1533,6 +1534,7 @@ sp_api::impl_runtime_apis! {
 			// XCM Benchmarks
 			// NOTE: Make sure you point to the individual modules below.
 			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
+			list_benchmark!(list, extra, pallet_xcm_benchmarks::generic, XcmGeneric);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1545,7 +1547,7 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
@@ -1561,8 +1563,15 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
-				fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
+				}
+				fn worst_case_holding() -> MultiAssets {
+					// Westend only knows about WND.
+					vec![MultiAsset{
+						id: Concrete(WndLocation::get()),
+						fun: Fungible(1_000_000 * UNITS),
+					}].into()
 				}
 			}
 
@@ -1587,7 +1596,31 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
+			impl pallet_xcm_benchmarks::generic::Config for Runtime {
+				type Call = Call;
+
+				fn worst_case_response() -> (u64, Response) {
+					(0u64, Response::Version(Default::default()))
+				}
+
+				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
+				}
+
+				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
+				}
+
+				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
+					let origin = Westmint::get();
+					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
+					let ticket = MultiLocation { parents: 0, interior: Here };
+					Ok((origin, ticket, assets))
+				}
+			}
+
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1646,8 +1679,8 @@ sp_api::impl_runtime_apis! {
 			// XCM Benchmarks
 			// NOTE: Make sure you point to the individual modules below.
 			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks::generic, XcmGeneric);
 
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}
