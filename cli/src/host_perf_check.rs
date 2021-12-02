@@ -61,16 +61,21 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 	Ok(())
 }
 
-pub fn host_perf_check(result_cache_path: &Path) -> Result<(), PerfCheckError> {
+pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), PerfCheckError> {
 	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 	let wasm_code = kusama_runtime::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
 	let check_passed_file_path = result_cache_path.join(CHECK_PASSED_FILE_NAME);
 
-	if let Ok(true) = is_perf_check_done(&check_passed_file_path) {
-		info!("Performance check skipped: already passed (cached at {:?})", check_passed_file_path);
-		return Ok(())
+	if !force {
+		if let Ok(true) = is_perf_check_done(&check_passed_file_path) {
+			info!(
+				"Performance check skipped: already passed (cached at {:?})",
+				check_passed_file_path
+			);
+			return Ok(())
+		}
 	}
 
 	// Decompress the code before running checks.
