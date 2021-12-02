@@ -454,6 +454,7 @@ impl<T: Config> Pallet<T> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
+			log::debug!(target: LOG_TARGET, "[process_candidate] scheduled is empty!",);
 			return Ok(ProcessedCandidates::default())
 		}
 
@@ -619,6 +620,12 @@ impl<T: Config> Pallet<T> {
 					}
 				}
 
+				log::warn!(
+					target: LOG_TARGET,
+					"[process_candidate] left over unscheduled candidates: {:?} {:?}",
+					scheduled,
+					candidates,
+				);
 				// end of loop reached means that the candidate didn't appear in the non-traversed
 				// section of the `scheduled` slice. either it was not scheduled or didn't appear in
 				// `candidates` in the correct order.
