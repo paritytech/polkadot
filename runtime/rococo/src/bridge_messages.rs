@@ -208,7 +208,7 @@ where
 	B::ThisChain: ChainWithMessages<AccountId = crate::AccountId>,
 	B::BridgedChain: ChainWithMessages<Hash = crate::Hash>,
 	GI: 'static,
-	crate::Runtime: pallet_bridge_grandpa::Config<GI> + pallet_bridge_messages::Config<B::BridgedMessagesInstance>,
+	crate::Runtime: pallet_bridge_grandpa::Config<GI>,
 	<<crate::Runtime as pallet_bridge_grandpa::Config<GI>>::BridgedChain as bp_runtime::Chain>::Hash: From<crate::Hash>,
 {
 	type Error = &'static str;
@@ -230,7 +230,7 @@ where
 	B: MessageBridge,
 	B::BridgedChain: ChainWithMessages<Balance = crate::Balance, Hash = crate::Hash>,
 	GI: 'static,
-	crate::Runtime: pallet_bridge_grandpa::Config<GI> + pallet_bridge_messages::Config<B::BridgedMessagesInstance>,
+	crate::Runtime: pallet_bridge_grandpa::Config<GI>,
 	<<crate::Runtime as pallet_bridge_grandpa::Config<GI>>::BridgedChain as bp_runtime::Chain>::Hash: From<crate::Hash>,
 {
 	type Error = &'static str;
@@ -267,10 +267,12 @@ mod at_rococo {
 		const THIS_CHAIN_ID: ChainId = ROCOCO_CHAIN_ID;
 		const BRIDGED_CHAIN_ID: ChainId = WOCOCO_CHAIN_ID;
 		const RELAYER_FEE_PERCENT: u32 = 10;
+		const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
+			bp_wococo::WITH_ROCOCO_MESSAGES_PALLET_NAME;
 
 		type ThisChain = RococoAtRococo;
 		type BridgedChain = WococoAtRococo;
-		type BridgedMessagesInstance = crate::AtWococoWithRococoMessagesInstance;
+		//		type BridgedMessagesInstance = crate::AtWococoWithRococoMessagesInstance;
 
 		fn bridged_balance_to_this_balance(
 			bridged_balance: bp_wococo::Balance,
@@ -316,10 +318,12 @@ mod at_wococo {
 		const THIS_CHAIN_ID: ChainId = WOCOCO_CHAIN_ID;
 		const BRIDGED_CHAIN_ID: ChainId = ROCOCO_CHAIN_ID;
 		const RELAYER_FEE_PERCENT: u32 = 10;
+		const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
+			bp_rococo::WITH_WOCOCO_MESSAGES_PALLET_NAME;
 
 		type ThisChain = WococoAtWococo;
 		type BridgedChain = RococoAtWococo;
-		type BridgedMessagesInstance = crate::AtRococoWithWococoMessagesInstance;
+		//		type BridgedMessagesInstance = crate::AtRococoWithWococoMessagesInstance;
 
 		fn bridged_balance_to_this_balance(
 			bridged_balance: bp_rococo::Balance,
