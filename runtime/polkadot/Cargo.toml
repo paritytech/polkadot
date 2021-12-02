@@ -88,6 +88,8 @@ xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
+
 [dev-dependencies]
 hex-literal = "0.3.4"
 tiny-keccak = "2.0.2"
@@ -257,4 +259,10 @@ disable-runtime-api = []
 on-chain-release-build = [
 	"sp-api/disable-logging",
 ]
+<<<<<<< HEAD
 runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]
+=======
+
+# Set timing constants (e.g. session period) to faster versions to speed up testing.
+fast-runtime = []
+>>>>>>> 99abae35f (Squashed commit of the following:)

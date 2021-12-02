@@ -35,8 +35,16 @@ pub mod time {
 	use primitives::v0::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
+	#[cfg(feature = "fast-runtime")]
+	pub const DEFAULT_EPOCH_DURATION: BlockNumber = 1 * MINUTES;
+	#[cfg(not(feature = "fast-runtime"))]
+	pub const DEFAULT_EPOCH_DURATION: BlockNumber = 10 * MINUTES;
 	frame_support::parameter_types! {
+<<<<<<< HEAD:runtime/rococo/constants/src/lib.rs
 		pub storage EpochDurationInBlocks: BlockNumber = 1 * HOURS;
+=======
+		pub storage EpochDurationInBlocks: BlockNumber = DEFAULT_EPOCH_DURATION;
+>>>>>>> 99abae35f (Squashed commit of the following:):runtime/rococo/src/constants.rs
 	}
 
 	// These time units are defined in number of blocks.

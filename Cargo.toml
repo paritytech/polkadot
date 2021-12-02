@@ -129,7 +129,7 @@ overflow-checks = true
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
-
+fast-runtime = [ "polkadot-cli/fast-runtime" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
