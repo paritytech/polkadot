@@ -120,7 +120,7 @@ log = "0.4.14"
 assert_matches = "1.5.0"
 
 [features]
-default = ["db", "full-node", "polkadot-native"]
+default = ["db", "full-node", "polkadot-native", "disputes" ]
 
 db = [
 	"service/db"
