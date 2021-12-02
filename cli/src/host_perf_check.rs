@@ -30,10 +30,10 @@ use std::{
 fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
 
-	let mut host_name = vec![0u8; host_name_max_len];
-	let mut buf = host_name.clone();
+	let mut hostname_buf = vec![0u8; host_name_max_len];
 	// Makes a call to FFI which is available on both Linux and MacOS.
-	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+	let hostname = unistd::gethostname(&mut hostname_buf)
+		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
 	let file = match fs::File::open(path) {
 		Ok(file) => file,
@@ -42,19 +42,21 @@ fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 	};
 	let mut reader = io::BufReader::new(file);
 
-	reader.read_exact(&mut buf)?;
+	let mut buf = Vec::new();
+	reader.read_to_end(&mut buf)?;
 
-	Ok(host_name == buf)
+	Ok(hostname.to_bytes() == buf.as_slice())
 }
 
 fn save_check_passed_file(path: &Path) -> io::Result<()> {
-	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
-	let mut host_name = vec![0u8; host_name_max_len];
-	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+	let hostname_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
+	let mut hostname_buf = vec![0u8; hostname_max_len];
+	let hostname = unistd::gethostname(&mut hostname_buf)
+		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
 	let mut file = OpenOptions::new().truncate(true).create(true).write(true).open(path)?;
 
-	file.write(&host_name)?;
+	file.write(hostname.to_bytes())?;
 
 	Ok(())
 }
