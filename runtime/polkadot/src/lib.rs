@@ -1925,7 +1925,6 @@ sp_api::impl_runtime_apis! {
 			// in the generated file.
 			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::crowdloan, Crowdloan);
-			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
@@ -2002,7 +2001,6 @@ sp_api::impl_runtime_apis! {
 			// in the generated file.
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
-			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
