@@ -25,7 +25,7 @@ use kusama_runtime_constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 #[cfg(feature = "polkadot-native")]
-use polkadot::constants::currency::UNITS as DOT;
+use polkadot_runtime_constants::currency::UNITS as DOT;
 use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId};
 #[cfg(feature = "polkadot-native")]
 use polkadot_runtime as polkadot;

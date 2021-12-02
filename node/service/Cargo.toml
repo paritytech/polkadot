@@ -85,6 +85,7 @@ polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 
 # Polkadot Runtime Constants
+polkadot-runtime-constants = { path = "../../polkadot-runtime-constants" }
 kusama-runtime-constants = { path = "../../kusama-runtime-constants" }
 
 # Polkadot Runtimes

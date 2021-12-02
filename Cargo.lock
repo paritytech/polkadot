@@ -6771,6 +6771,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-runtime-common",
+ "polkadot-runtime-constants",
  "polkadot-runtime-parachains",
  "rustc-hex",
  "scale-info",
@@ -6853,6 +6854,17 @@ dependencies = [
  "sp-std",
  "static_assertions",
  "xcm",
+]
+
+[[package]]
+name = "polkadot-runtime-constants"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6953,6 +6965,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
+ "polkadot-runtime-constants",
  "polkadot-runtime-parachains",
  "polkadot-statement-distribution",
  "polkadot-test-client",

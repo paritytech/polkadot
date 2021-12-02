@@ -1,0 +1,20 @@
+[package]
+name = "polkadot-runtime-constants"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+smallvec = "1.6.1"
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../runtime/common", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"sp-runtime/std"
+]
