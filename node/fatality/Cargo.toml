@@ -1,0 +1,10 @@
+[package]
+name = "fatality"
+version = "0.1.0"
+edition = "2021"
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "*"
+quote = "*"
+syn = "*"

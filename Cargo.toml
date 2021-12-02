@@ -93,6 +93,7 @@ members = [
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
+	"node/fatality",
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
