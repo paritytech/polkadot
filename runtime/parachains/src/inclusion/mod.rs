@@ -172,6 +172,11 @@ impl<H> Default for ProcessedCandidates<H> {
 	}
 }
 
+/// Number of backing votes we need for a valid backing.
+pub const fn backing_group_quorum(_n_validators: usize) -> usize {
+	1
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -580,8 +585,10 @@ impl<T: Config> Pallet<T> {
 							);
 
 							match maybe_amount_validated {
-								Ok(amount_validated) =>
-									ensure!(amount_validated >= 1, Error::<T>::InsufficientBacking,),
+								Ok(amount_validated) => ensure!(
+									amount_validated >= backing_group_quorum(group_vals.len()),
+									Error::<T>::InsufficientBacking,
+								),
 								Err(()) => {
 									Err(Error::<T>::InvalidBacking)?;
 								},
