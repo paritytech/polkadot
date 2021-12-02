@@ -19,6 +19,7 @@
 
 use bp_runtime::Chain;
 use frame_support::{construct_runtime, parameter_types, weights::Weight};
+use sp_core::sr25519::Signature;
 use sp_runtime::{
 	testing::{Header, H256},
 	traits::{BlakeTwo256, IdentityLookup},
@@ -28,7 +29,6 @@ use sp_runtime::{
 pub type AccountId = u64;
 pub type TestHeader = crate::BridgedHeader<TestRuntime, ()>;
 pub type TestNumber = crate::BridgedBlockNumber<TestRuntime, ()>;
-pub type TestHash = crate::BridgedBlockHash<TestRuntime, ()>;
 
 type Block = frame_system::mocking::MockBlock<TestRuntime>;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<TestRuntime>;
@@ -101,6 +101,11 @@ impl Chain for TestBridgedChain {
 	type Hash = <TestRuntime as frame_system::Config>::Hash;
 	type Hasher = <TestRuntime as frame_system::Config>::Hashing;
 	type Header = <TestRuntime as frame_system::Config>::Header;
+
+	type AccountId = AccountId;
+	type Balance = u64;
+	type Index = u64;
+	type Signature = Signature;
 }
 
 pub fn run_test<T>(test: impl FnOnce() -> T) -> T {

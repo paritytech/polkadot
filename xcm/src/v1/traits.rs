@@ -57,12 +57,12 @@ pub enum Error {
 	/// An asset wildcard was passed where it was not expected (e.g. as the asset to withdraw in a
 	/// `WithdrawAsset` XCM).
 	Wildcard,
-	/// The case where an XCM message has specified a optional weight limit and the weight required for
-	/// processing is too great.
+	/// The case where an XCM message has specified a weight limit on an interior call and this
+	/// limit is too low.
 	///
 	/// Used by:
 	/// - `Transact`
-	TooMuchWeightRequired,
+	MaxWeightInvalid,
 	/// The fees specified by the XCM message were not found in the holding register.
 	///
 	/// Used by:
@@ -146,7 +146,12 @@ pub trait ExecuteXcm<Call> {
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+	fn execute_xcm(
+		origin: impl Into<MultiLocation>,
+		message: Xcm<Call>,
+		weight_limit: Weight,
+	) -> Outcome {
+		let origin = origin.into();
 		log::debug!(
 			target: "xcm::execute_xcm",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}",
@@ -162,7 +167,7 @@ pub trait ExecuteXcm<Call> {
 	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
 	/// execution without associated payment.
 	fn execute_xcm_in_credit(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
 		weight_limit: Weight,
 		weight_credit: Weight,
@@ -171,7 +176,7 @@ pub trait ExecuteXcm<Call> {
 
 impl<C> ExecuteXcm<C> for () {
 	fn execute_xcm_in_credit(
-		_origin: MultiLocation,
+		_origin: impl Into<MultiLocation>,
 		_message: Xcm<C>,
 		_weight_limit: Weight,
 		_weight_credit: Weight,
@@ -195,15 +200,16 @@ impl<C> ExecuteXcm<C> for () {
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         return Err(Error::CannotReachDestination(destination, message))
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
+///         return Err(Error::CannotReachDestination(destination.into(), message))
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
+///         let destination = destination.into();
 ///         if matches!(destination.interior(), Junctions::X2(j1, j2))
 ///             && destination.parent_count() == 0
 ///         {
@@ -217,7 +223,8 @@ impl<C> ExecuteXcm<C> for () {
 /// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
+///         let destination = destination.into();
 ///         if matches!(destination.interior(), Junctions::Here)
 ///             && destination.parent_count() == 1
 ///         {
@@ -232,17 +239,16 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination: MultiLocation = Parent.into();
 ///
 /// assert!(
 ///     // Sender2 will block this.
-///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
 ///         .is_err()
 /// );
 ///
 /// assert!(
 ///     // Sender3 will catch this.
-///     <(Sender1, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///     <(Sender1, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
 ///         .is_ok()
 /// );
 /// # }
@@ -253,12 +259,12 @@ pub trait SendXcm {
 	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
 	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
 	/// trying other type fields.
-	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
 		for_tuples!( #(
 			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
@@ -266,6 +272,6 @@ impl SendXcm for Tuple {
 				o @ _ => return o,
 			};
 		)* );
-		Err(Error::CannotReachDestination(destination, message))
+		Err(Error::CannotReachDestination(destination.into(), message))
 	}
 }

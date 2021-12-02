@@ -1,17 +1,17 @@
 [package]
 name = "polkadot-runtime-parachains"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.130", features = [ "derive" ], optional = true }
-derive_more = "0.99.14"
+derive_more = "0.99.17"
 bitflags = "1.3.2"
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -27,6 +27,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -44,7 +45,7 @@ rand_chacha = { version = "0.3.1", default-features = false }
 
 [dev-dependencies]
 futures = "0.3.17"
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -71,6 +72,7 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"pallet-authorship/std",
+	"pallet-babe/std",
 	"pallet-balances/std",
 	"pallet-session/std",
 	"pallet-staking/std",
@@ -82,9 +84,10 @@ std = [
 	"log/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"primitives/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-support/try-runtime",

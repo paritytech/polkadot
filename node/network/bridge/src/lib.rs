@@ -198,7 +198,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::GaugeVec::new(
 					prometheus::Opts::new(
 						"parachain_desired_peer_count",
-						"The number of peers that the local node is expected to connect to on a parachain-related peer-set",
+						"The number of peers that the local node is expected to connect to on a parachain-related peer-set (either including or not including unresolvable authorities, depending on whether `ConnectToValidators` or `ConnectToValidatorsResolved` was used.)",
 					),
 					&["protocol"]
 				)?,
@@ -552,6 +552,27 @@ where
 						network_service = ns;
 						authority_discovery_service = ads;
 					}
+					NetworkBridgeMessage::ConnectToResolvedValidators {
+						validator_addrs,
+						peer_set,
+					} => {
+						tracing::trace!(
+							target: LOG_TARGET,
+							action = "ConnectToPeers",
+							peer_set = ?peer_set,
+							?validator_addrs,
+							"Received a resolved validator connection request",
+						);
+
+						metrics.note_desired_peer_count(peer_set, validator_addrs.len());
+
+						let all_addrs = validator_addrs.into_iter().flatten().collect();
+						network_service = validator_discovery.on_resolved_request(
+							all_addrs,
+							peer_set,
+							network_service,
+						).await;
+					}
 					NetworkBridgeMessage::NewGossipTopology {
 						our_neighbors,
 					} => {
@@ -640,7 +661,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				};
 
 				let maybe_authority =
-					authority_discovery_service.get_authority_id_by_peer_id(peer).await;
+					authority_discovery_service.get_authority_ids_by_peer_id(peer).await;
 
 				match peer_set {
 					PeerSet::Validation => {

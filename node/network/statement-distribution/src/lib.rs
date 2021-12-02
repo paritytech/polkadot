@@ -105,7 +105,7 @@ const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
 pub struct StatementDistribution {
-	/// Pointer to a keystore, which is required for determining this nodes validator index.
+	/// Pointer to a keystore, which is required for determining this node's validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
 	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
@@ -413,8 +413,8 @@ impl PeerRelayParentKnowledge {
 struct PeerData {
 	view: View,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
-	// Peer might be an authority.
-	maybe_authority: Option<AuthorityDiscoveryId>,
+	/// Peer might be known as authority with the given ids.
+	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
 }
 
 impl PeerData {
@@ -1466,14 +1466,18 @@ async fn handle_network_update(
 					maybe_authority: maybe_authority.clone(),
 				},
 			);
-			if let Some(authority) = maybe_authority {
-				authorities.insert(authority, peer);
+			if let Some(authority_ids) = maybe_authority {
+				authority_ids.into_iter().for_each(|a| {
+					authorities.insert(a, peer);
+				});
 			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
-			if let Some(auth_id) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
-				authorities.remove(&auth_id);
+			if let Some(auth_ids) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
+				auth_ids.into_iter().for_each(|a| {
+					authorities.remove(&a);
+				});
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
@@ -1625,7 +1629,7 @@ impl StatementDistribution {
 					&requesting_peer,
 					&relay_parent,
 					&candidate_hash,
-				) {
+				)? {
 					return Err(NonFatal::RequestedUnannouncedCandidate(
 						requesting_peer,
 						candidate_hash,
@@ -1896,27 +1900,15 @@ fn requesting_peer_knows_about_candidate(
 	requesting_peer: &PeerId,
 	relay_parent: &Hash,
 	candidate_hash: &CandidateHash,
-) -> bool {
-	requesting_peer_knows_about_candidate_inner(
-		peers,
-		requesting_peer,
-		relay_parent,
-		candidate_hash,
-	)
-	.is_some()
-}
-
-/// Helper function for `requesting_peer_knows_about_statement`.
-fn requesting_peer_knows_about_candidate_inner(
-	peers: &HashMap<PeerId, PeerData>,
-	requesting_peer: &PeerId,
-	relay_parent: &Hash,
-	candidate_hash: &CandidateHash,
-) -> Option<()> {
-	let peer_data = peers.get(requesting_peer)?;
-	let knowledge = peer_data.view_knowledge.get(relay_parent)?;
-	knowledge.sent_candidates.get(&candidate_hash)?;
-	Some(())
+) -> NonFatalResult<bool> {
+	let peer_data = peers
+		.get(requesting_peer)
+		.ok_or_else(|| NonFatal::NoSuchPeer(*requesting_peer))?;
+	let knowledge = peer_data
+		.view_knowledge
+		.get(relay_parent)
+		.ok_or_else(|| NonFatal::NoSuchHead(*relay_parent))?;
+	Ok(knowledge.sent_candidates.get(&candidate_hash).is_some())
 }
 
 #[derive(Clone)]

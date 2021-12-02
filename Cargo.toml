@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -17,8 +17,8 @@ color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.2"
-nix = "0.19.1"
+assert_cmd = "2.0.2"
+nix = "0.23.0"
 tempfile = "3.2.0"
 
 [workspace]
@@ -42,7 +42,9 @@ members = [
 	"xcm/xcm-executor/integration-tests",
 	"xcm/xcm-simulator",
 	"xcm/xcm-simulator/example",
+	"xcm/xcm-simulator/fuzzer",
 	"xcm/pallet-xcm",
+	"xcm/pallet-xcm-benchmarks",
 	"xcm/procedural",
 	"node/client",
 	"node/collation-generation",
@@ -54,7 +56,6 @@ members = [
 	"node/core/chain-api",
 	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
-	"node/core/dispute-participation",
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
@@ -72,7 +73,6 @@ members = [
 	"node/overseer",
 	"node/overseer/overseer-gen",
 	"node/overseer/overseer-gen/proc-macro",
-	"node/overseer/all-subsystems-gen",
 	"node/malus",
 	"node/primitives",
 	"node/service",
@@ -93,7 +93,7 @@ members = [
 	"parachain/test-parachains/adder/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
-	"utils/voter-bags",
+	"utils/generate-bags",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its

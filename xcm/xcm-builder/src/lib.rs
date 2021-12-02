@@ -25,6 +25,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "std")]
+pub mod test_utils;
+
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
@@ -57,7 +60,9 @@ pub use fungibles_adapter::{
 mod weight;
 #[allow(deprecated)]
 pub use weight::FixedRateOfConcreteFungible;
-pub use weight::{FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents};
+pub use weight::{
+	FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents, WeightInfoBounds,
+};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};

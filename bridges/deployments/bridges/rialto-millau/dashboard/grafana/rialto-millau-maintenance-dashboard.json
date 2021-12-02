@@ -65,7 +65,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "Rialto_to_Millau_MessageLane_00000000_rialto_storage_proof_overhead",
+          "expr": "rialto_storage_proof_overhead{instance='relay-millau-rialto:9616'}",
           "interval": "",
           "legendFormat": "Actual overhead",
           "refId": "A"
@@ -169,14 +169,14 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "Westend_to_Millau_Sync_kusama_to_base_conversion_rate / Westend_to_Millau_Sync_polkadot_to_base_conversion_rate",
+          "expr": "kusama_to_base_conversion_rate{instance='relay-millau-rialto:9616'} / polkadot_to_base_conversion_rate{instance='relay-millau-rialto:9616'}",
           "interval": "",
           "legendFormat": "Outside of runtime (actually Polkadot -> Kusama)",
           "refId": "A"
         },
         {
           "exemplar": true,
-          "expr": "Rialto_to_Millau_MessageLane_00000000_rialto_millau_to_rialto_conversion_rate",
+          "expr": "Millau_Rialto_to_Millau_conversion_rate{instance='relay-millau-rialto:9616'}",
           "hide": false,
           "interval": "",
           "legendFormat": "At runtime",
@@ -187,7 +187,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Rialto: Millau -> Rialto conversion rate",
+      "title": "Millau: Rialto -> Millau conversion rate",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -273,7 +273,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "Millau_to_Rialto_MessageLane_00000000_millau_storage_proof_overhead",
+          "expr": "millau_storage_proof_overhead{instance='relay-millau-rialto:9616'}",
           "interval": "",
           "legendFormat": "Actual overhead",
           "refId": "A"
@@ -377,14 +377,14 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "Westend_to_Millau_Sync_polkadot_to_base_conversion_rate / Westend_to_Millau_Sync_kusama_to_base_conversion_rate",
+          "expr": "polkadot_to_base_conversion_rate{instance='relay-millau-rialto:9616'} / kusama_to_base_conversion_rate{instance='relay-millau-rialto:9616'}",
           "interval": "",
           "legendFormat": "Outside of runtime (actually Kusama -> Polkadot)",
           "refId": "A"
         },
         {
           "exemplar": true,
-          "expr": "Millau_to_Rialto_MessageLane_00000000_millau_rialto_to_millau_conversion_rate",
+          "expr": "Rialto_Millau_to_Rialto_conversion_rate{instance='relay-millau-rialto:9616'}",
           "hide": false,
           "interval": "",
           "legendFormat": "At runtime",
@@ -395,7 +395,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Millau: Rialto -> Millau conversion rate",
+      "title": "Rialto: Millau -> Rialto conversion rate",
       "tooltip": {
         "shared": true,
         "sort": 0,

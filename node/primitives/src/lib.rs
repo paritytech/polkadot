@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin};
+use std::{convert::TryFrom, pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -65,11 +65,69 @@ pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 /// The bomb limit for decompressing PoV blobs.
 pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 
+/// The amount of time to spend on execution during backing.
+pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The amount of time to spend on execution during approval or disputes.
+///
+/// This is deliberately much longer than the backing execution timeout to
+/// ensure that in the absence of extremely large disparities between hardware,
+/// blocks that pass backing are considerd executable by approval checkers or
+/// dispute participants.
+pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// Type of a session window size.
+///
+/// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
+/// constants of `SessionWindowSize` would require `lazy_static` in that case.
+///
+/// See: https://github.com/rust-lang/rust/issues/67441
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SessionWindowSize(SessionIndex);
+
+#[macro_export]
+/// Create a new checked `SessionWindowSize`
+///
+/// which cannot be 0.
+macro_rules! new_session_window_size {
+	(0) => {
+		compile_error!("Must be non zero");
+	};
+	(0_u32) => {
+		compile_error!("Must be non zero");
+	};
+	(0 as u32) => {
+		compile_error!("Must be non zero");
+	};
+	(0 as _) => {
+		compile_error!("Must be non zero");
+	};
+	($l:literal) => {
+		SessionWindowSize::unchecked_new($l as _)
+	};
+}
+
 /// It would be nice to draw this from the chain state, but we have no tools for it right now.
 /// On Polkadot this is 1 day, and on Kusama it's 6 hours.
 ///
 /// Number of sessions we want to consider in disputes.
-pub const DISPUTE_WINDOW: SessionIndex = 6;
+pub const DISPUTE_WINDOW: SessionWindowSize = new_session_window_size!(6);
+
+impl SessionWindowSize {
+	/// Get the value as `SessionIndex` for doing comparisons with those.
+	pub fn get(self) -> SessionIndex {
+		self.0
+	}
+
+	/// Helper function for `new_session_window_size`.
+	///
+	/// Don't use it. The only reason it is public, is because otherwise the
+	/// `new_session_window_size` macro would not work outside of this module.
+	#[doc(hidden)]
+	pub const fn unchecked_new(size: SessionIndex) -> Self {
+		Self(size)
+	}
+}
 
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
@@ -223,7 +281,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
-/// Signal that is being returned back when a collation was seconded by a validator.
+/// Signal that is being returned when a collation was seconded by a validator.
 #[derive(Debug)]
 pub struct CollationSecondedSignal {
 	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].

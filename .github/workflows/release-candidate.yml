@@ -7,7 +7,8 @@ jobs:
   tag_rc:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
         with:
           fetch-depth: 0
       - id: compute_tag
@@ -48,7 +49,8 @@ jobs:
           VERSION: ${{ steps.compute_tag.outputs.version }}
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
-      - uses: s3krit/matrix-message-action@v0.0.2
+      - name: Send Matrix message
+        uses: s3krit/matrix-message-action@v0.0.3
         if: steps.create-issue.outputs.url != ''
         with:
           room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}

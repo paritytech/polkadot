@@ -74,7 +74,7 @@ fn report_outcome_notify_works() {
 			Parachain(PARA_ID).into(),
 			Xcm(vec![QueryResponse {
 				query_id: 0,
-				response: Response::ExecutionResult(Ok(())),
+				response: Response::ExecutionResult(None),
 				max_weight: 1_000_000,
 			}]),
 			1_000_000_000,
@@ -86,7 +86,7 @@ fn report_outcome_notify_works() {
 				Event::TestNotifier(pallet_test_notifier::Event::ResponseReceived(
 					Parachain(PARA_ID).into(),
 					0,
-					Response::ExecutionResult(Ok(())),
+					Response::ExecutionResult(None),
 				)),
 				Event::XcmPallet(crate::Event::Notified(0, 4, 2)),
 			]
@@ -128,7 +128,7 @@ fn report_outcome_works() {
 			Parachain(PARA_ID).into(),
 			Xcm(vec![QueryResponse {
 				query_id: 0,
-				response: Response::ExecutionResult(Ok(())),
+				response: Response::ExecutionResult(None),
 				max_weight: 0,
 			}]),
 			1_000_000_000,
@@ -136,10 +136,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(Ok(())),))
+			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(None),))
 		);
 
-		let response = Some((Response::ExecutionResult(Ok(())), 1));
+		let response = Some((Response::ExecutionResult(None), 1));
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -218,14 +218,111 @@ fn teleport_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
-			Box::new(AccountId32 { network: Any, id: BOB.into() }.into().into()),
+			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				RelayLocation::get().into(),
+				Xcm(vec![
+					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Here, SEND_AMOUNT), 4000),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+		);
+	});
+}
+
+/// Test `limited_teleport_assets`
+///
+/// Asserts that the sender's balance is decreased as a result of execution of
+/// local effects.
+#[test]
+fn limmited_teleport_assets_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let weight = 2 * BaseXcmWeight::get();
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
+		assert_ok!(XcmPallet::limited_teleport_assets(
+			Origin::signed(ALICE),
+			Box::new(RelayLocation::get().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+			WeightLimit::Limited(5000),
+		));
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				RelayLocation::get().into(),
+				Xcm(vec![
+					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Here, SEND_AMOUNT), 5000),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+		);
+	});
+}
+
+/// Test `limited_teleport_assets` with unlimited weight
+///
+/// Asserts that the sender's balance is decreased as a result of execution of
+/// local effects.
+#[test]
+fn unlimmited_teleport_assets_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let weight = 2 * BaseXcmWeight::get();
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
+		assert_ok!(XcmPallet::limited_teleport_assets(
+			Origin::signed(ALICE),
+			Box::new(RelayLocation::get().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+			WeightLimit::Unlimited,
+		));
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				RelayLocation::get().into(),
+				Xcm(vec![
+					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_execution((Here, SEND_AMOUNT)),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
+			)]
+		);
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -252,6 +349,100 @@ fn reserve_transfer_assets_works() {
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
+		));
+		// Alice spent amount
+		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		// Destination account (parachain account) has amount
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				Parachain(PARA_ID).into(),
+				Xcm(vec![
+					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Parent, SEND_AMOUNT), 4000),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+		);
+	});
+}
+
+/// Test `limited_reserve_transfer_assets`
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the correct message is sent and event is emitted.
+#[test]
+fn limited_reserve_transfer_assets_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let weight = BaseXcmWeight::get();
+		let dest: MultiLocation =
+			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
+			Origin::signed(ALICE),
+			Box::new(Parachain(PARA_ID).into().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+			WeightLimit::Limited(5000),
+		));
+		// Alice spent amount
+		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		// Destination account (parachain account) has amount
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				Parachain(PARA_ID).into(),
+				Xcm(vec![
+					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Parent, SEND_AMOUNT), 5000),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+		);
+	});
+}
+
+/// Test `limited_reserve_transfer_assets` with unlimited weight purchasing
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the correct message is sent and event is emitted.
+#[test]
+fn unlimited_reserve_transfer_assets_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let weight = BaseXcmWeight::get();
+		let dest: MultiLocation =
+			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
+			Origin::signed(ALICE),
+			Box::new(Parachain(PARA_ID).into().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+			WeightLimit::Unlimited,
 		));
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -670,7 +861,7 @@ fn subscriber_side_subscription_works() {
 	});
 }
 
-/// We should autosubscribe when we don't know the remote's version.
+/// We should auto-subscribe when we don't know the remote's version.
 #[test]
 fn auto_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {

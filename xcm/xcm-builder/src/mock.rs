@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::barriers::AllowSubscriptionsFrom;
+use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
 pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
@@ -36,7 +36,6 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
-use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -109,8 +108,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
 		Ok(())
 	}
 }
@@ -164,11 +163,11 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin) {
+		match (kind, origin.into()) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>
@@ -272,57 +271,6 @@ pub type TestBarrier = (
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
 	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );
-
-parameter_types! {
-	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
-}
-
-pub struct TestAssetTrap;
-
-impl DropAssets for TestAssetTrap {
-	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
-		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		t.push((origin.clone(), assets.into()));
-		TrappedAssets::set(t);
-		5
-	}
-}
-
-impl ClaimAssets for TestAssetTrap {
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
-		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
-			if let Some((l, a)) = t.get(*i as usize) {
-				if l == origin && a == what {
-					t.swap_remove(*i as usize);
-					TrappedAssets::set(t);
-					return true
-				}
-			}
-		}
-		false
-	}
-}
-
-parameter_types! {
-	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
-}
-pub struct TestSubscriptionService;
-
-impl VersionChangeNotifier for TestSubscriptionService {
-	fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
-		let mut r = SubscriptionRequests::get();
-		r.push((location.clone(), Some((query_id, max_weight))));
-		SubscriptionRequests::set(r);
-		Ok(())
-	}
-	fn stop(location: &MultiLocation) -> XcmResult {
-		let mut r = SubscriptionRequests::get();
-		r.push((location.clone(), None));
-		SubscriptionRequests::set(r);
-		Ok(())
-	}
-}
 
 pub struct TestConfig;
 impl Config for TestConfig {

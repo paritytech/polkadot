@@ -3,11 +3,11 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
-version = "0.9.9"
+version = "0.9.13"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.0"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -16,9 +16,13 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 log = { version = "0.4.14", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
 
 [features]
 default = ["std"]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+]
 std = [
 	"parity-scale-codec/std",
 	"xcm/std",

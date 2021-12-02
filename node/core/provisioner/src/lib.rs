@@ -35,10 +35,8 @@ use polkadot_node_subsystem::{
 	PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
-	JobTrait,
+	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
+	JobSubsystem, JobTrait,
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, DisputeStatement,
@@ -47,6 +45,10 @@ use polkadot_primitives::v1::{
 };
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 use thiserror::Error;
+
+mod metrics;
+
+pub use self::metrics::*;
 
 #[cfg(test)]
 mod tests;
@@ -148,7 +150,7 @@ impl JobTrait for ProvisioningJob {
 	type RunArgs = ();
 	type Metrics = Metrics;
 
-	const NAME: &'static str = "ProvisioningJob";
+	const NAME: &'static str = "provisioner-job";
 
 	/// Run a job for the parent block indicated
 	//
@@ -239,6 +241,7 @@ impl ProvisioningJob {
 			&self.backed_candidates,
 			return_senders,
 			sender,
+			&self.metrics,
 		)
 		.await
 		{
@@ -293,18 +296,18 @@ async fn send_inherent_data(
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	from_job: &mut impl SubsystemSender,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(relay_parent, from_job)
 		.await
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
+	let disputes = select_disputes(from_job, metrics).await?;
 	let bitfields = select_availability_bitfields(&availability_cores, bitfields);
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, relay_parent, from_job)
 			.await?;
-
-	let disputes = select_disputes(from_job).await?;
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
@@ -546,6 +549,7 @@ fn bitfields_indicate_availability(
 
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
+	metrics: &metrics::Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
 	let (tx, rx) = oneshot::channel();
 
@@ -605,6 +609,10 @@ async fn select_disputes(
 				.into_iter()
 				.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
 
+			metrics.inc_valid_statements_by(valid_statements.len());
+			metrics.inc_invalid_statements_by(invalid_statements.len());
+			metrics.inc_dispute_statement_sets_by(1);
+
 			DisputeStatementSet {
 				candidate_hash,
 				session: session_index,
@@ -612,72 +620,6 @@ async fn select_disputes(
 			}
 		})
 		.collect())
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
-	request_inherent_data: prometheus::Histogram,
-	provisionable_data: prometheus::Histogram,
-}
-
-/// Provisioner metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_inherent_data_request(&self, response: Result<(), ()>) {
-		if let Some(metrics) = &self.0 {
-			match response {
-				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeeded"]).inc(),
-				Err(()) => metrics.inherent_data_requests.with_label_values(&["failed"]).inc(),
-			}
-		}
-	}
-
-	/// Provide a timer for `request_inherent_data` which observes on drop.
-	fn time_request_inherent_data(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.request_inherent_data.start_timer())
-	}
-
-	/// Provide a timer for `provisionable_data` which observes on drop.
-	fn time_provisionable_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			inherent_data_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"parachain_inherent_data_requests_total",
-						"Number of InherentData requests served by provisioner.",
-					),
-					&["success"],
-				)?,
-				registry,
-			)?,
-			request_inherent_data: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_provisioner_request_inherent_data",
-					"Time spent within `provisioner::request_inherent_data`",
-				))?,
-				registry,
-			)?,
-			provisionable_data: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_provisioner_provisionable_data",
-					"Time spent within `provisioner::provisionable_data`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
 }
 
 /// The provisioning subsystem.

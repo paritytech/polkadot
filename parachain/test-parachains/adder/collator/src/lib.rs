@@ -186,6 +186,7 @@ impl Collator {
 			let seconded_collations = seconded_collations.clone();
 			spawner.spawn(
 				"adder-collator-seconded",
+				None,
 				async move {
 					if let Ok(res) = recv.await {
 						if !matches!(

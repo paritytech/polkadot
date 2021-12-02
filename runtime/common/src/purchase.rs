@@ -34,7 +34,7 @@ use sp_std::prelude::*;
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-/// The kind of a statement an account needs to make for a claim to be valid.
+/// The kind of statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum AccountValidity {
 	/// Account is not valid.

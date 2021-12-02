@@ -49,18 +49,18 @@ impl From<runtime::Error> for Error {
 #[derive(Debug, Error)]
 pub enum Fatal {
 	/// Spawning a running task failed.
-	#[error("Spawning subsystem task failed")]
+	#[error("Spawning subsystem task failed: {0}")]
 	SpawnTask(#[source] SubsystemError),
 
 	/// Requester stream exhausted.
 	#[error("Erasure chunk requester stream exhausted")]
 	RequesterExhausted,
 
-	#[error("Receive channel closed")]
+	#[error("Receive channel closed: {0}")]
 	IncomingMessageChannel(#[source] SubsystemError),
 
 	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information")]
+	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::Fatal),
 }
 
@@ -84,7 +84,7 @@ pub enum NonFatal {
 	SendResponse,
 
 	/// Fetching PoV failed with `RequestError`.
-	#[error("FetchPoV request error")]
+	#[error("FetchPoV request error: {0}")]
 	FetchPoV(#[source] RequestError),
 
 	/// Fetching PoV failed as the received PoV did not match the expected hash.
@@ -99,7 +99,7 @@ pub enum NonFatal {
 	InvalidValidatorIndex,
 
 	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information")]
+	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::NonFatal),
 }
 
@@ -117,7 +117,18 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
 		Err(Error::NonFatal(error)) => {
-			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			match error {
+				NonFatal::UnexpectedPoV |
+				NonFatal::InvalidValidatorIndex |
+				NonFatal::NoSuchCachedSession |
+				NonFatal::QueryAvailableDataResponseChannel(_) |
+				NonFatal::QueryChunkResponseChannel(_) =>
+					tracing::warn!(target: LOG_TARGET, error = %error, ctx),
+				NonFatal::FetchPoV(_) |
+				NonFatal::SendResponse |
+				NonFatal::NoSuchPoV |
+				NonFatal::Runtime(_) => tracing::debug!(target: LOG_TARGET, error = ?error, ctx),
+			}
 			Ok(())
 		},
 		Ok(()) => Ok(()),
