@@ -21,7 +21,9 @@
 #![allow(clippy::unnecessary_mut_passed)]
 
 use bp_messages::{LaneId, MessageDetails, MessageNonce, UnrewardedRelayersState};
-use frame_support::weights::{WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial};
+use frame_support::weights::{
+	Weight, WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
+};
 use sp_std::prelude::*;
 use sp_version::RuntimeVersion;
 
@@ -30,8 +32,8 @@ pub use bp_polkadot_core::*;
 /// Rococo Chain
 pub type Rococo = PolkadotLike;
 
-/// The target length of a session (how often authorities change) on Westend measured in of number of
-/// blocks.
+/// The target length of a session (how often authorities change) on Westend measured in of number
+/// of blocks.
 ///
 /// Note that since this is a target sessions may change before/after this time depending on network
 /// conditions.
@@ -72,27 +74,45 @@ pub fn derive_account_from_wococo_id(id: bp_runtime::SourceAccount<AccountId>) -
 	AccountIdConverter::convert(encoded_id)
 }
 
+/// Name of the With-Wococo messages pallet instance in the Rococo runtime.
+pub const WITH_WOCOCO_MESSAGES_PALLET_NAME: &str = "BridgeWococoMessages";
+
 /// Name of the `RococoFinalityApi::best_finalized` runtime method.
 pub const BEST_FINALIZED_ROCOCO_HEADER_METHOD: &str = "RococoFinalityApi_best_finalized";
 /// Name of the `RococoFinalityApi::is_known_header` runtime method.
 pub const IS_KNOWN_ROCOCO_HEADER_METHOD: &str = "RococoFinalityApi_is_known_header";
 
-/// Name of the `ToRococoOutboundLaneApi::estimate_message_delivery_and_dispatch_fee` runtime method.
+/// Name of the `ToRococoOutboundLaneApi::estimate_message_delivery_and_dispatch_fee` runtime
+/// method.
 pub const TO_ROCOCO_ESTIMATE_MESSAGE_FEE_METHOD: &str =
 	"ToRococoOutboundLaneApi_estimate_message_delivery_and_dispatch_fee";
 /// Name of the `ToRococoOutboundLaneApi::message_details` runtime method.
 pub const TO_ROCOCO_MESSAGE_DETAILS_METHOD: &str = "ToRococoOutboundLaneApi_message_details";
 /// Name of the `ToRococoOutboundLaneApi::latest_generated_nonce` runtime method.
-pub const TO_ROCOCO_LATEST_GENERATED_NONCE_METHOD: &str = "ToRococoOutboundLaneApi_latest_generated_nonce";
+pub const TO_ROCOCO_LATEST_GENERATED_NONCE_METHOD: &str =
+	"ToRococoOutboundLaneApi_latest_generated_nonce";
 /// Name of the `ToRococoOutboundLaneApi::latest_received_nonce` runtime method.
-pub const TO_ROCOCO_LATEST_RECEIVED_NONCE_METHOD: &str = "ToRococoOutboundLaneApi_latest_received_nonce";
+pub const TO_ROCOCO_LATEST_RECEIVED_NONCE_METHOD: &str =
+	"ToRococoOutboundLaneApi_latest_received_nonce";
 
 /// Name of the `FromRococoInboundLaneApi::latest_received_nonce` runtime method.
-pub const FROM_ROCOCO_LATEST_RECEIVED_NONCE_METHOD: &str = "FromRococoInboundLaneApi_latest_received_nonce";
+pub const FROM_ROCOCO_LATEST_RECEIVED_NONCE_METHOD: &str =
+	"FromRococoInboundLaneApi_latest_received_nonce";
 /// Name of the `FromRococoInboundLaneApi::latest_onfirmed_nonce` runtime method.
-pub const FROM_ROCOCO_LATEST_CONFIRMED_NONCE_METHOD: &str = "FromRococoInboundLaneApi_latest_confirmed_nonce";
+pub const FROM_ROCOCO_LATEST_CONFIRMED_NONCE_METHOD: &str =
+	"FromRococoInboundLaneApi_latest_confirmed_nonce";
 /// Name of the `FromRococoInboundLaneApi::unrewarded_relayers_state` runtime method.
-pub const FROM_ROCOCO_UNREWARDED_RELAYERS_STATE: &str = "FromRococoInboundLaneApi_unrewarded_relayers_state";
+pub const FROM_ROCOCO_UNREWARDED_RELAYERS_STATE: &str =
+	"FromRococoInboundLaneApi_unrewarded_relayers_state";
+
+/// Weight of pay-dispatch-fee operation for inbound messages at Rococo chain.
+///
+/// This value corresponds to the result of
+/// `pallet_bridge_messages::WeightInfoExt::pay_inbound_dispatch_fee_overhead()` call for your
+/// chain. Don't put too much reserve there, because it is used to **decrease**
+/// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery
+/// transactions cheaper.
+pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
 
 sp_api::decl_runtime_apis! {
 	/// API for querying information about the finalized Rococo headers.

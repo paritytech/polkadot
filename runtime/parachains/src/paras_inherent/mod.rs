@@ -261,9 +261,12 @@ impl<T: Config> Pallet<T> {
 			mut disputes,
 		} = data;
 
+		let parent_header_hash = parent_header.hash();
+
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
+			parent_header_hash,
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -272,7 +275,7 @@ impl<T: Config> Pallet<T> {
 		// Check that the submitted parent header indeed corresponds to the previous block hash.
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 		ensure!(
-			parent_header.hash().as_ref() == parent_hash.as_ref(),
+			parent_header_hash.as_ref() == parent_hash.as_ref(),
 			Error::<T>::InvalidParentHeader,
 		);
 

@@ -15,12 +15,15 @@
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::Parameter;
-use num_traits::AsPrimitive;
-use sp_runtime::traits::{
-	AtLeast32BitUnsigned, Hash as HashT, Header as HeaderT, MaybeDisplay, MaybeMallocSizeOf, MaybeSerializeDeserialize,
-	Member, SimpleBitOps,
+use num_traits::{AsPrimitive, Bounded, CheckedSub, SaturatingAdd, Zero};
+use sp_runtime::{
+	traits::{
+		AtLeast32Bit, AtLeast32BitUnsigned, Hash as HashT, Header as HeaderT, MaybeDisplay,
+		MaybeMallocSizeOf, MaybeSerialize, MaybeSerializeDeserialize, Member, SimpleBitOps, Verify,
+	},
+	FixedPointOperand,
 };
-use sp_std::str::FromStr;
+use sp_std::{convert::TryFrom, fmt::Debug, hash::Hash, str::FromStr};
 
 /// Minimal Substrate-based chain representation that may be used from no_std environment.
 pub trait Chain: Send + Sync + 'static {
@@ -34,7 +37,7 @@ pub trait Chain: Send + Sync + 'static {
 	type BlockNumber: Parameter
 		+ Member
 		+ MaybeSerializeDeserialize
-		+ sp_std::hash::Hash
+		+ Hash
 		+ Copy
 		+ Default
 		+ MaybeDisplay
@@ -42,7 +45,10 @@ pub trait Chain: Send + Sync + 'static {
 		+ FromStr
 		+ MaybeMallocSizeOf
 		+ AsPrimitive<usize>
-		+ Default;
+		+ Default
+		// original `sp_runtime::traits::Header::BlockNumber` doesn't have this trait, but
+		// `sp_runtime::generic::Era` requires block number -> `u64` conversion.
+		+ Into<u64>;
 
 	/// A type that fulfills the abstract idea of what a Substrate hash is.
 	// Constraits come from the associated Hash type of `sp_runtime::traits::Header`
@@ -51,7 +57,7 @@ pub trait Chain: Send + Sync + 'static {
 	type Hash: Parameter
 		+ Member
 		+ MaybeSerializeDeserialize
-		+ sp_std::hash::Hash
+		+ Hash
 		+ Ord
 		+ Copy
 		+ MaybeDisplay
@@ -71,7 +77,48 @@ pub trait Chain: Send + Sync + 'static {
 	/// A type that fulfills the abstract idea of what a Substrate header is.
 	// See here for more info:
 	// https://crates.parity.io/sp_runtime/traits/trait.Header.html
-	type Header: Parameter + HeaderT<Number = Self::BlockNumber, Hash = Self::Hash> + MaybeSerializeDeserialize;
+	type Header: Parameter
+		+ HeaderT<Number = Self::BlockNumber, Hash = Self::Hash>
+		+ MaybeSerializeDeserialize;
+
+	/// The user account identifier type for the runtime.
+	type AccountId: Parameter
+		+ Member
+		+ MaybeSerializeDeserialize
+		+ Debug
+		+ MaybeDisplay
+		+ Ord
+		+ Default;
+	/// Balance of an account in native tokens.
+	///
+	/// The chain may support multiple tokens, but this particular type is for token that is used
+	/// to pay for transaction dispatch, to reward different relayers (headers, messages), etc.
+	type Balance: AtLeast32BitUnsigned
+		+ FixedPointOperand
+		+ Parameter
+		+ Parameter
+		+ Member
+		+ MaybeSerializeDeserialize
+		+ Clone
+		+ Copy
+		+ Bounded
+		+ CheckedSub
+		+ PartialOrd
+		+ SaturatingAdd
+		+ Zero
+		+ TryFrom<sp_core::U256>;
+	/// Index of a transaction used by the chain.
+	type Index: Parameter
+		+ Member
+		+ MaybeSerialize
+		+ Debug
+		+ Default
+		+ MaybeDisplay
+		+ MaybeSerializeDeserialize
+		+ AtLeast32Bit
+		+ Copy;
+	/// Signature type, used on this chain.
+	type Signature: Parameter + Verify;
 }
 
 /// Block number used by the chain.
@@ -85,3 +132,21 @@ pub type HasherOf<C> = <C as Chain>::Hasher;
 
 /// Header type used by the chain.
 pub type HeaderOf<C> = <C as Chain>::Header;
+
+/// Account id type used by the chain.
+pub type AccountIdOf<C> = <C as Chain>::AccountId;
+
+/// Balance type used by the chain.
+pub type BalanceOf<C> = <C as Chain>::Balance;
+
+/// Transaction index type used by the chain.
+pub type IndexOf<C> = <C as Chain>::Index;
+
+/// Signature type used by the chain.
+pub type SignatureOf<C> = <C as Chain>::Signature;
+
+/// Account public type used by the chain.
+pub type AccountPublicOf<C> = <SignatureOf<C> as Verify>::Signer;
+
+/// Transaction era used by the chain.
+pub type TransactionEraOf<C> = crate::TransactionEra<BlockNumberOf<C>, HashOf<C>>;

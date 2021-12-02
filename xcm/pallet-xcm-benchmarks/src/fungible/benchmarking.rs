@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{account_and_location, new_executor, worst_case_holding, AssetTransactorOf, XcmCallOf};
+use crate::{account_and_location, new_executor, AssetTransactorOf, XcmCallOf};
 use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
 use frame_support::{
 	pallet_prelude::Get,
@@ -41,7 +41,7 @@ benchmarks_instance_pallet! {
 
 	withdraw_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let worst_case_holding = worst_case_holding();
+		let worst_case_holding = T::worst_case_holding();
 		let asset = T::get_multi_asset();
 
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
@@ -49,7 +49,7 @@ benchmarks_instance_pallet! {
 		assert!(!T::TransactAsset::balance(&sender_account).is_zero());
 
 		let mut executor = new_executor::<T>(sender_location);
-		executor.holding = worst_case_holding;
+		executor.holding = worst_case_holding.into();
 		let instruction = Instruction::<XcmCallOf<T>>::WithdrawAsset(vec![asset.clone()].into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
@@ -104,7 +104,7 @@ benchmarks_instance_pallet! {
 	} verify {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
-		// TODO: Check sender queue is not empty.
+		// TODO: Check sender queue is not empty. #4426
 	}
 
 	receive_teleported_asset {
@@ -140,10 +140,10 @@ benchmarks_instance_pallet! {
 
 	deposit_asset {
 		let asset = T::get_multi_asset();
-		let mut holding = worst_case_holding();
+		let mut holding = T::worst_case_holding();
 
 		// Add our asset to the holding.
-		holding.subsume(asset.clone());
+		holding.push(asset.clone());
 
 		// our dest must have no balance initially.
 		let dest_location = T::valid_destination()?;
@@ -151,7 +151,7 @@ benchmarks_instance_pallet! {
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
+		executor.holding = holding.into();
 		let instruction = Instruction::<XcmCallOf<T>>::DepositAsset {
 			assets: asset.into(),
 			max_assets: 1,
@@ -167,10 +167,10 @@ benchmarks_instance_pallet! {
 
 	deposit_reserve_asset {
 		let asset = T::get_multi_asset();
-		let mut holding = worst_case_holding();
+		let mut holding = T::worst_case_holding();
 
 		// Add our asset to the holding.
-		holding.subsume(asset.clone());
+		holding.push(asset.clone());
 
 		// our dest must have no balance initially.
 		let dest_location = T::valid_destination()?;
@@ -178,7 +178,7 @@ benchmarks_instance_pallet! {
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
+		executor.holding = holding.into();
 		let instruction = Instruction::<XcmCallOf<T>>::DepositReserveAsset {
 			assets: asset.into(),
 			max_assets: 1,
@@ -195,16 +195,16 @@ benchmarks_instance_pallet! {
 
 	initiate_teleport {
 		let asset = T::get_multi_asset();
-		let mut holding = worst_case_holding();
+		let mut holding = T::worst_case_holding();
 
 		// Add our asset to the holding.
-		holding.subsume(asset.clone());
+		holding.push(asset.clone());
 
 		// Checked account starts at zero
 		assert!(T::CheckedAccount::get().map_or(true, |c| T::TransactAsset::balance(&c).is_zero()));
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
+		executor.holding = holding.into();
 		let instruction = Instruction::<XcmCallOf<T>>::InitiateTeleport {
 			assets: asset.into(),
 			dest: T::valid_destination()?,
