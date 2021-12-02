@@ -31,7 +31,7 @@ use primitives::v1::{
 use runtime_common::{
 	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
 	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor, prod_or_test,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor, prod_or_fast,
 };
 use sp_core::u32_trait::{_1, _2, _3, _5};
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -232,7 +232,7 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub EpochDuration: u64 = prod_or_test!(
+	pub EpochDuration: u64 = prod_or_fast!(
 		EPOCH_DURATION_IN_SLOTS as u64,
 		2 * MINUTES as u64,
 		"KSM_EPOCH_DURATION"
@@ -373,12 +373,12 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
 	// in testing: 1min or half of the session for each
-	pub SignedPhase: u32 = prod_or_test!(
+	pub SignedPhase: u32 = prod_or_fast!(
 		EPOCH_DURATION_IN_SLOTS / 4,
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
 		"KSM_SIGNED_PHASE"
 	);
-	pub UnsignedPhase: u32 = prod_or_test!(
+	pub UnsignedPhase: u32 = prod_or_fast!(
 		EPOCH_DURATION_IN_SLOTS / 4,
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
 		"KSM_UNSIGNED_PHASE"
@@ -569,12 +569,12 @@ impl pallet_staking::Config for Runtime {
 }
 
 parameter_types! {
-	pub LaunchPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
-	pub VotingPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
-	pub FastTrackVotingPeriod: BlockNumber = prod_or_test!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
+	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
+	pub VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
+	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub EnactmentPeriod: BlockNumber = prod_or_test!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
-	pub CooloffPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
+	pub EnactmentPeriod: BlockNumber = prod_or_fast!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
+	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
@@ -636,7 +636,7 @@ impl pallet_democracy::Config for Runtime {
 }
 
 parameter_types! {
-	pub CouncilMotionDuration: BlockNumber = prod_or_test!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
+	pub CouncilMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -660,7 +660,7 @@ parameter_types! {
 	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Daily council elections
-	pub TermDuration: BlockNumber = prod_or_test!(24 * HOURS, 2 * MINUTES, "KSM_TERM_DURATION");
+	pub TermDuration: BlockNumber = prod_or_fast!(24 * HOURS, 2 * MINUTES, "KSM_TERM_DURATION");
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
@@ -688,7 +688,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-	pub TechnicalMotionDuration: BlockNumber = prod_or_test!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
+	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
 }
