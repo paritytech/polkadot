@@ -947,7 +947,7 @@ async fn handle_actions(
 
 				match confirmation_rx.await {
 					Err(oneshot::Canceled) => {
-						tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+						tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
 					},
 					Ok(ImportStatementsResult::ValidImport) => {},
 					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(

@@ -900,9 +900,8 @@ impl CandidateBackingJob {
 				.await;
 
 			match confirmation_rx.await {
-				Err(oneshot::Canceled) => {
-					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
-				},
+				Err(oneshot::Canceled) =>
+					tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",),
 				Ok(ImportStatementsResult::ValidImport) => {},
 				Ok(ImportStatementsResult::InvalidImport) => {
 					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
