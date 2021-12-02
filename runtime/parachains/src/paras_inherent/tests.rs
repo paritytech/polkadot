@@ -1,4 +1,3 @@
-
 use super::*;
 
 // In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
