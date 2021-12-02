@@ -85,7 +85,7 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents,
+	TakeWeightCredit, UsingComponents, WeightInfoBounds,
 };
 use xcm_executor::XcmExecutor;
 
@@ -1390,7 +1390,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = WeightInfoBounds<weights::xcm::KusamaXcmWeight<Call>, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
