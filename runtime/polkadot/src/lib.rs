@@ -22,9 +22,10 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor, prod_or_fast,
+	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
+	xcm_sender, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote,
+	OffchainSolutionLengthLimit, OffchainSolutionWeightLimit, RocksDbWeight,
+	SlowAdjustingFeeUpdate, ToAuthor,
 };
 
 use runtime_parachains::{
