@@ -69,14 +69,15 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
-	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
-		assets.weigh_multi_assets(XcmGeneric::<Runtime>::reserve_asset_deposited())
+	fn reserve_asset_deposited(_assets: &MultiAssets) -> Weight {
+		// Westend does not support reserve asset deposits.
+		Weight::MAX
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
 	}
-	fn query_response(_query_id: &u64, _response: &Response, max_weight: &u64) -> Weight {
-		*max_weight
+	fn query_response(_query_id: &u64, _response: &Response, _max_weight: &u64) -> Weight {
+		XcmGeneric::<Runtime>::query_response()
 	}
 	fn transfer_asset(assets: &MultiAssets, _dest: &MultiLocation) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::transfer_asset())
@@ -100,19 +101,22 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		_max_message_size: &u32,
 		_max_capacity: &u32,
 	) -> Weight {
-		XcmGeneric::<Runtime>::hrmp_new_channel_open_request()
+		// XCM Executor does not currently support HRMP channel operations
+		Weight::MAX
 	}
 	fn hrmp_channel_accepted(_recipient: &u32) -> Weight {
-		XcmGeneric::<Runtime>::hrmp_channel_accepted()
+		// XCM Executor does not currently support HRMP channel operations
+		Weight::MAX
 	}
 	fn hrmp_channel_closing(_initiator: &u32, _sender: &u32, _recipient: &u32) -> Weight {
-		XcmGeneric::<Runtime>::hrmp_channel_closing()
+		// XCM Executor does not currently support HRMP channel operations
+		Weight::MAX
 	}
 	fn clear_origin() -> Weight {
 		XcmGeneric::<Runtime>::clear_origin()
 	}
-	fn descend_origin(who: &InteriorMultiLocation) -> Weight {
-		XcmGeneric::<Runtime>::descend_origin(who)
+	fn descend_origin(_who: &InteriorMultiLocation) -> Weight {
+		XcmGeneric::<Runtime>::descend_origin()
 	}
 	fn report_error(
 		_query_id: &QueryId,
@@ -120,9 +124,6 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		_max_response_weight: &u64,
 	) -> Weight {
 		XcmGeneric::<Runtime>::report_error()
-	}
-	fn relayed_from(_who: &Junctions, _message: &Box<Xcm<Call>>) -> Weight {
-		XcmGeneric::<Runtime>::relayed_from()
 	}
 
 	fn deposit_asset(
@@ -180,11 +181,11 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn clear_error() -> Weight {
 		XcmGeneric::<Runtime>::clear_error()
 	}
-	fn claim_asset(assets: &MultiAssets, _ticket: &MultiLocation) -> Weight {
-		XcmGeneric::<Runtime>::claim_asset(assets)
+	fn claim_asset(_assets: &MultiAssets, _ticket: &MultiLocation) -> Weight {
+		XcmGeneric::<Runtime>::claim_asset()
 	}
-	fn trap(code: &u64) -> Weight {
-		XcmGeneric::<Runtime>::trap(code)
+	fn trap(_code: &u64) -> Weight {
+		XcmGeneric::<Runtime>::trap()
 	}
 	fn subscribe_version(_query_id: &QueryId, _max_response_weight: &u64) -> Weight {
 		XcmGeneric::<Runtime>::subscribe_version()

@@ -72,6 +72,7 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"pallet-authorship/std",
+	"pallet-babe/std",
 	"pallet-balances/std",
 	"pallet-session/std",
 	"pallet-staking/std",
