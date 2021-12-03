@@ -22,7 +22,7 @@ nix = { version = "0.20.0", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
-polkadot-erasure-coding = { path = "../erasure-coding", optional = true }
+polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -48,7 +48,7 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"polkadot-node-core-pvf",
-	"polkadot-erasure-coding",
+	"polkadot-performance-test",
 	"nix",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]

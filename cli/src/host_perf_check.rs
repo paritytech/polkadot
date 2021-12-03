@@ -14,17 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::PerfCheckError;
 use log::info;
 use nix::unistd;
-use polkadot_erasure_coding::{obtain_chunks, reconstruct};
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
+use polkadot_performance_test::{
+	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, VALIDATION_CODE_BOMB_LIMIT,
+};
 use service::kusama_runtime;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, Read, Write},
 	path::Path,
-	time::{Duration, Instant},
+	time::Duration,
 };
 
 fn is_perf_check_done(path: &Path) -> io::Result<bool> {
@@ -62,7 +63,9 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 }
 
 pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), PerfCheckError> {
-	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
+	const PREPARE_TIME_LIMIT: Duration = Duration::from_secs(20);
+	const ERASURE_CODING_TIME_LIMIT: Duration = Duration::from_secs(1);
+	const N_VALIDATORS: usize = 1000;
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 	let wasm_code = kusama_runtime::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
@@ -79,14 +82,16 @@ pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), Perf
 	}
 
 	// Decompress the code before running checks.
-	let code = sp_maybe_compressed_blob::decompress(wasm_code, CODE_SIZE_LIMIT)
+	let code = sp_maybe_compressed_blob::decompress(wasm_code, VALIDATION_CODE_BOMB_LIMIT)
 		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 
 	info!("Running the performance checks...");
 
-	pvf_perf_check(code.as_ref())?;
+	perf_check("PVF-prepare", PREPARE_TIME_LIMIT, || measure_pvf_prepare(code.as_ref()))?;
 
-	erasure_coding_perf_check(code.as_ref())?;
+	perf_check("Erasure-coding", ERASURE_CODING_TIME_LIMIT, || {
+		measure_erasure_coding(N_VALIDATORS, code.as_ref())
+	})?;
 
 	// Persist successful result.
 	if let Err(err) = save_check_passed_file(&check_passed_file_path) {
@@ -103,13 +108,10 @@ fn green_threshold(duration: Duration) -> Duration {
 fn perf_check(
 	test_name: &str,
 	time_limit: Duration,
-	test: impl Fn() -> Result<(), PerfCheckError>,
+	test: impl Fn() -> Result<Duration, PerfCheckError>,
 ) -> Result<(), PerfCheckError> {
-	let start = Instant::now();
+	let elapsed = test()?;
 
-	test()?;
-
-	let elapsed = start.elapsed();
 	if elapsed < green_threshold(time_limit) {
 		info!("🟢 {} performance check passed, elapsed: {:?}", test_name, elapsed);
 		Ok(())
@@ -122,31 +124,4 @@ fn perf_check(
 	} else {
 		Err(PerfCheckError::TimeOut { elapsed, limit: time_limit })
 	}
-}
-
-fn pvf_perf_check(code: &[u8]) -> Result<(), PerfCheckError> {
-	const PREPARE_TIME_LIMIT: Duration = Duration::from_secs(20);
-
-	perf_check("PVF-prepare", PREPARE_TIME_LIMIT, || {
-		// Recreate the pipeline from the pvf prepare worker.
-		let blob =
-			polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-		polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
-		Ok(())
-	})
-}
-
-fn erasure_coding_perf_check(data: &[u8]) -> Result<(), PerfCheckError> {
-	const ERASURE_CODING_TIME_LIMIT: Duration = Duration::from_secs(1);
-	const N: usize = 1024;
-
-	perf_check("Erasure-coding", ERASURE_CODING_TIME_LIMIT, || {
-		let chunks = obtain_chunks(N, &data).expect("The payload is not empty; qed");
-		let indexed_chunks = chunks.iter().enumerate().map(|(i, chunk)| (chunk.as_slice(), i));
-
-		let _: Vec<u8> =
-			reconstruct(N, indexed_chunks).expect("Chunks were obtained above, cannot fail; qed");
-
-		Ok(())
-	})
 }

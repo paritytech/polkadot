@@ -5990,8 +5990,8 @@ dependencies = [
  "futures 0.3.17",
  "log",
  "nix",
- "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
+ "polkadot-performance-test",
  "polkadot-service",
  "sc-cli",
  "sc-service",
@@ -6679,6 +6679,16 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "polkadot-performance-test"
+version = "0.9.13"
+dependencies = [
+ "polkadot-erasure-coding",
+ "polkadot-node-core-pvf",
+ "polkadot-node-primitives",
+ "thiserror",
 ]
 
 [[package]]

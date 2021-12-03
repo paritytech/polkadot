@@ -23,7 +23,8 @@ use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use std::path::Path;
 
-pub use crate::error::{Error, PerfCheckError};
+pub use crate::error::Error;
+pub use polkadot_performance_test::PerfCheckError;
 
 impl std::convert::From<String> for Error {
 	fn from(s: String) -> Self {

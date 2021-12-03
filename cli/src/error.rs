@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_core_pvf::sc_executor_common;
-use std::time::Duration;
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error(transparent)]
@@ -29,29 +26,8 @@ pub enum Error {
 	SubstrateService(#[from] sc_service::Error),
 
 	#[error(transparent)]
-	PerfCheck(#[from] PerfCheckError),
+	PerfCheck(#[from] polkadot_performance_test::PerfCheckError),
 
 	#[error("Other: {0}")]
 	Other(String),
-}
-
-#[allow(missing_docs)]
-#[derive(thiserror::Error, Debug)]
-pub enum PerfCheckError {
-	#[error("This subcommand is only available in release mode")]
-	WrongBuildType,
-
-	#[error("No wasm code found for running the performance test")]
-	WasmBinaryMissing,
-
-	#[error("Failed to decompress wasm code")]
-	CodeDecompressionFailed,
-
-	#[error(transparent)]
-	Wasm(#[from] sc_executor_common::error::WasmError),
-
-	#[error(
-		"Performance check not passed: exceeded the {limit:?} time limit, elapsed: {elapsed:?}"
-	)]
-	TimeOut { elapsed: Duration, limit: Duration },
 }
