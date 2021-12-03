@@ -292,7 +292,7 @@ build-malus:
   script:
     - git clone
         --depth=1
-        "--branch=bkchr-update-cargo"
+        "--branch=$PIPELINE_SCRIPTS_TAG"
         https://github.com/paritytech/pipeline-scripts
     - ./pipeline-scripts/check_dependent_project.sh
         paritytech
