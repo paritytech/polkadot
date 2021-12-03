@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 #![cfg_attr(not(feature = "std"), no_std)]
 /// Money matters.
 pub mod currency {
