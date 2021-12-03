@@ -17,8 +17,8 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
-	session_info, shared,
+	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
+	scheduler, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -51,21 +51,22 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
-		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		ParasShared: shared::{Pallet, Call, Storage},
-		ParaInclusion: inclusion::{Pallet, Call, Storage, Event<T>},
-		ParaInherent: paras_inherent::{Pallet, Call, Storage},
-		Scheduler: scheduler::{Pallet, Storage},
-		Initializer: initializer::{Pallet, Call, Storage},
-		Dmp: dmp::{Pallet, Call, Storage},
-		Ump: ump::{Pallet, Call, Storage, Event},
-		Hrmp: hrmp::{Pallet, Call, Storage, Event<T>},
-		SessionInfo: session_info::{Pallet, Storage},
-		Disputes: disputes::{Pallet, Storage, Event<T>},
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		System: frame_system,
+		Balances: pallet_balances,
+		Paras: paras,
+		Configuration: configuration,
+		ParasShared: shared,
+		ParaInclusion: inclusion,
+		ParaInherent: paras_inherent,
+		Scheduler: scheduler,
+		Initializer: initializer,
+		Dmp: dmp,
+		Ump: ump,
+		Hrmp: hrmp,
+		ParachainsOrigin: origin,
+		SessionInfo: session_info,
+		Disputes: disputes,
+		Babe: pallet_babe,
 	}
 );
 
@@ -177,8 +178,9 @@ impl crate::configuration::Config for Test {
 
 impl crate::shared::Config for Test {}
 
+impl origin::Config for Test {}
+
 impl crate::paras::Config for Test {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = crate::paras::TestWeightInfo;
 }

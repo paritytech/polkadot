@@ -659,9 +659,9 @@ mod tests {
 		assert_noop, assert_ok, assert_storage_noop,
 		dispatch::DispatchError::BadOrigin,
 		ord_parameter_types, parameter_types,
-		traits::{OnFinalize, OnInitialize},
+		traits::{EnsureOneOf, OnFinalize, OnInitialize},
 	};
-	use frame_system::{EnsureOneOf, EnsureRoot, EnsureSignedBy};
+	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 	use sp_core::H256;
@@ -821,7 +821,7 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
-	type RootOrSix = EnsureOneOf<u64, EnsureRoot<u64>, EnsureSignedBy<Six, u64>>;
+	type RootOrSix = EnsureOneOf<EnsureRoot<u64>, EnsureSignedBy<Six, u64>>;
 
 	thread_local! {
 		pub static LAST_RANDOM: RefCell<Option<(H256, u32)>> = RefCell::new(None);

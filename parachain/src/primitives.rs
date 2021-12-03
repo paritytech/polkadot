@@ -20,7 +20,7 @@
 use sp_std::vec::Vec;
 
 use frame_support::weights::Weight;
-use parity_scale_codec::{CompactAs, Decode, Encode};
+use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
@@ -139,6 +139,7 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	Encode,
 	Eq,
 	Hash,
+	MaxEncodedLen,
 	Ord,
 	PartialEq,
 	PartialOrd,

@@ -109,9 +109,9 @@ impl ParachainsInherentDataProvider {
 impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 	fn provide_inherent_data(
 		&self,
-		inherent_data: &mut sp_inherents::InherentData,
+		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
-		inherent_data
+		dst_inherent_data
 			.put_data(polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
 	}
 

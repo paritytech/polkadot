@@ -46,22 +46,22 @@ FLAGS:
 
 SUBCOMMANDS:
     help                Prints this message or the help of the given subcommand(s)
-    MillauToRialto      Submit message to given Millau -> Rialto lane
-    RialtoToMillau      Submit message to given Rialto -> Millau lane
+    millau-to-rialto      Submit message to given Millau -> Rialto lane
+    rialto-to-millau      Submit message to given Rialto -> Millau lane
 
 ```
 Messages are send from a source chain to a target chain using a so called `message lane`. Message lanes handle
 both, message transport and message dispatch. There is one command for submitting a message to each of the two
-available bridges, namely `MillauToRialto` and `RialtoToMillau`.
+available bridges, namely `millau-to-rialto` and `rialto-to-millau`.
 
 Submitting a message requires a number of arguments to be provided. Those arguments are essentially the same
-for both submit message commands, hence only the output for `MillauToRialto` is shown below.
+for both submit message commands, hence only the output for `millau-to-rialto` is shown below.
 
 ```
 Submit message to given Millau -> Rialto lane
 
 USAGE:
-    substrate-relay send-message MillauToRialto [OPTIONS] --lane <lane> --source-host <source-host> --source-port <source-port> --source-signer <source-signer> --origin <origin> --target-signer <target-signer> <SUBCOMMAND>
+    substrate-relay send-message millau-to-rialto [OPTIONS] --lane <lane> --source-host <source-host> --source-port <source-port> --source-signer <source-signer> --origin <origin> --target-signer <target-signer> <SUBCOMMAND>
 
 FLAGS:
     -h, --help       Prints help information
@@ -104,7 +104,7 @@ Usage of the arguments is best explained with an example. Below you can see, how
 would look like:
 
 ```
-substrate-relay send-message MillauToRialto \
+substrate-relay send-message millau-to-rialto \
 		--source-host=127.0.0.1 \
 		--source-port=10946 \
 		--source-signer=//Dave \

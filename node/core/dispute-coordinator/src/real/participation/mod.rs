@@ -48,7 +48,7 @@ pub use queues::{Error as QueueError, ParticipationRequest};
 /// How many participation processes do we want to run in parallel the most.
 ///
 /// This should be a relatively low value, while we might have a speedup once we fetched the data,
-/// due to multi core architectures, but the fetching itself can not be improved by parallel
+/// due to multi-core architectures, but the fetching itself can not be improved by parallel
 /// requests. This means that higher numbers make it harder for a single dispute to resolve fast.
 const MAX_PARALLEL_PARTICIPATIONS: usize = 3;
 
