@@ -472,6 +472,10 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
+	let provisioner_config = ProvisionerConfig {
+		disputes_enabled: false,
+	};
+
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config
 			.database
@@ -567,6 +571,7 @@ where
 					parachains_db,
 					availability_config,
 					approval_voting_config,
+					provisioner_config,
 					network_service: network.clone(),
 					authority_discovery_service,
 					registry: prometheus_registry.as_ref(),

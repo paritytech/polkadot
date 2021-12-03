@@ -722,6 +722,11 @@ where
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
+	let disputes_enabled = chain_spec.is_rococo() ||
+		chain_spec.is_kusama() ||
+		chain_spec.is_westend() ||
+		chain_spec.is_wococo();
+
 	let select_chain = if requires_overseer_for_chain_sel {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
@@ -730,10 +735,7 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
-			chain_spec.is_rococo() ||
-				chain_spec.is_kusama() ||
-				chain_spec.is_westend() ||
-				chain_spec.is_wococo(),
+			disputes_enabled,
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
@@ -864,6 +866,8 @@ where
 		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
+	let provisioner_config = ProvisionerConfig { disputes_enabled };
+
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -957,6 +961,7 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
+					provisioner_config,
 				},
 			)
 			.map_err(|e| {
