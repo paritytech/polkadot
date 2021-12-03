@@ -6970,6 +6970,7 @@ dependencies = [
  "polkadot-statement-distribution",
  "polkadot-test-client",
  "rococo-runtime",
+ "rococo-runtime-constants",
  "sc-authority-discovery",
  "sc-basic-authorship",
  "sc-block-builder",
@@ -7013,6 +7014,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "westend-runtime",
+ "westend-runtime-constants",
 ]
 
 [[package]]
@@ -7218,6 +7220,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
+ "test-runtime-constants",
  "tiny-keccak",
  "xcm",
  "xcm-builder",
@@ -7962,6 +7965,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
+ "rococo-runtime-constants",
  "scale-info",
  "serde",
  "serde_derive",
@@ -7984,6 +7988,17 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
+]
+
+[[package]]
+name = "rococo-runtime-constants"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -10620,6 +10635,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-runtime-constants"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11697,9 +11723,21 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
+ "westend-runtime-constants",
  "xcm",
  "xcm-builder",
  "xcm-executor",
+]
+
+[[package]]
+name = "westend-runtime-constants"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]

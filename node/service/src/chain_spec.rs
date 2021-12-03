@@ -128,7 +128,7 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 	fn assimilate_storage(&self, storage: &mut sp_core::storage::Storage) -> Result<(), String> {
 		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
 			if let Some(length) = self.session_length_in_blocks.as_ref() {
-				rococo::constants::time::EpochDurationInBlocks::set(length);
+				rococo_runtime_constants::time::EpochDurationInBlocks::set(length);
 			}
 		});
 		self.runtime_genesis_config.assimilate_storage(storage)
