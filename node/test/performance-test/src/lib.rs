@@ -20,7 +20,15 @@ use polkadot_erasure_coding::{obtain_chunks, reconstruct};
 use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
 use std::time::{Duration, Instant};
 
+mod constants;
+
+pub use constants::*;
 pub use polkadot_node_primitives::VALIDATION_CODE_BOMB_LIMIT;
+
+/// Value used for reference benchmark of erasure-coding.
+pub const ERASURE_CODING_N_VALIDATORS: usize = 1024;
+
+pub use kusama_runtime::WASM_BINARY;
 
 #[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
@@ -39,6 +47,9 @@ pub enum PerfCheckError {
 
 	#[error(transparent)]
 	ErasureCoding(#[from] polkadot_erasure_coding::Error),
+
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
 
 	#[error(
 		"Performance check not passed: exceeded the {limit:?} time limit, elapsed: {elapsed:?}"

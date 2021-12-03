@@ -6685,9 +6685,11 @@ dependencies = [
 name = "polkadot-performance-test"
 version = "0.9.13"
 dependencies = [
+ "kusama-runtime",
  "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
  "polkadot-node-primitives",
+ "quote",
  "thiserror",
 ]
 

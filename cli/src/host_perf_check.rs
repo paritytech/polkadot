@@ -18,9 +18,9 @@ use log::info;
 use nix::unistd;
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
 use polkadot_performance_test::{
-	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, VALIDATION_CODE_BOMB_LIMIT,
+	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, ERASURE_CODING_TIME_LIMIT,
+	PVF_PREPARE_TIME_LIMIT, VALIDATION_CODE_BOMB_LIMIT, ERASURE_CODING_N_VALIDATORS
 };
-use service::kusama_runtime;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, Read, Write},
@@ -28,10 +28,10 @@ use std::{
 	time::Duration,
 };
 
-fn is_perf_check_done(path: &Path) -> io::Result<bool> {
-	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
+const HOSTNAME_MAX_LEN: usize = unistd::SysconfVar::HOST_NAME_MAX as usize;
 
-	let mut hostname_buf = vec![0u8; host_name_max_len];
+fn is_perf_check_done(path: &Path) -> io::Result<bool> {
+	let mut hostname_buf = vec![0u8; HOSTNAME_MAX_LEN];
 	// Makes a call to FFI which is available on both Linux and MacOS.
 	let hostname = unistd::gethostname(&mut hostname_buf)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
@@ -50,8 +50,7 @@ fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 }
 
 fn save_check_passed_file(path: &Path) -> io::Result<()> {
-	let hostname_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
-	let mut hostname_buf = vec![0u8; hostname_max_len];
+	let mut hostname_buf = vec![0u8; HOSTNAME_MAX_LEN];
 	let hostname = unistd::gethostname(&mut hostname_buf)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
@@ -63,11 +62,9 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 }
 
 pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), PerfCheckError> {
-	const PREPARE_TIME_LIMIT: Duration = Duration::from_secs(20);
-	const ERASURE_CODING_TIME_LIMIT: Duration = Duration::from_secs(1);
-	const N_VALIDATORS: usize = 1000;
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
-	let wasm_code = kusama_runtime::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
+
+	let wasm_code = polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
 	let check_passed_file_path = result_cache_path.join(CHECK_PASSED_FILE_NAME);
 
@@ -87,10 +84,10 @@ pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), Perf
 
 	info!("Running the performance checks...");
 
-	perf_check("PVF-prepare", PREPARE_TIME_LIMIT, || measure_pvf_prepare(code.as_ref()))?;
+	perf_check("PVF-prepare", PVF_PREPARE_TIME_LIMIT, || measure_pvf_prepare(code.as_ref()))?;
 
 	perf_check("Erasure-coding", ERASURE_CODING_TIME_LIMIT, || {
-		measure_erasure_coding(N_VALIDATORS, code.as_ref())
+		measure_erasure_coding(ERASURE_CODING_N_VALIDATORS, code.as_ref())
 	})?;
 
 	// Persist successful result.
