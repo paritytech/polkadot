@@ -280,12 +280,15 @@ mod tests {
 	fn reanchored<Ancestry: Get<MultiLocation>>(mut assets: Assets, dest: &MultiLocation) -> Result<MultiAssets, XcmError> {
 		let inv_dest = LocationInverter::<Ancestry>::invert_location(&dest)
 			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
+		println!("Inverted Location: {:#?}", inv_dest);
+		println!("Input Assets: {:#?}", assets);
 		assets.prepend_location(&inv_dest);
+		println!("Reanchored Assets: {:#?}", assets);
 		Ok(assets.into_assets_iter().collect::<Vec<_>>().into())
 	}
 
 	#[test]
-	fn asset_reanchoring() {
+	fn reserve_asset_reanchoring() {
 		use xcm::opaque::latest::*;
 
 		parameter_types! {
@@ -306,16 +309,71 @@ mod tests {
 			id: AssetId::Concrete(MultiLocation::new(
 				1,
 				Junctions::X2(
-					Junction::Parachain(1000),
-					Junction::GeneralIndex(asset_id),
+					Parachain(1000),
+					GeneralIndex(asset_id),
 				),
 			)),
 			fun: Fungibility::Fungible(amount),
 		};
 		assets.push(statemine_asset);
-		let res = reanchored::<SomePara>(assets.into(), &Statemine::get());
+		let reanchored_assets = reanchored::<SomePara>(assets.into(), &Statemine::get()).unwrap();
 
-		println!("{:#?}", res);
-		assert!(false);
+		let mut expected_assets = MultiAssets::new();
+		let statemine_asset = MultiAsset {
+			id: AssetId::Concrete(MultiLocation::new(
+				0,
+				Junctions::X1(
+					GeneralIndex(asset_id),
+				),
+			)),
+			fun: Fungibility::Fungible(amount),
+		};
+		expected_assets.push(statemine_asset);
+		assert_eq!(reanchored_assets, expected_assets);
+	}
+
+	#[test]
+	fn local_asset_reanchoring() {
+		use xcm::opaque::latest::*;
+
+		parameter_types! {
+			pub Statemine: MultiLocation = MultiLocation::new(
+				1,
+				X1(Parachain(1000))
+			);
+			pub SomePara: MultiLocation = MultiLocation::new(
+				0,
+				X1(Parachain(2002))
+			);
+		}
+
+		let asset_id = 999u32.into();
+		let amount = 1234u32.into();
+		let mut assets = MultiAssets::new();
+		let local_asset = MultiAsset {
+			id: AssetId::Concrete(MultiLocation::new(
+				0,
+				Junctions::X1(
+					GeneralIndex(asset_id),
+				),
+			)),
+			fun: Fungibility::Fungible(amount),
+		};
+		assets.push(local_asset);
+		let reanchored_assets = reanchored::<SomePara>(assets.into(), &Statemine::get()).unwrap();
+
+		let mut expected_assets = MultiAssets::new();
+		let local_asset = MultiAsset {
+			id: AssetId::Concrete(MultiLocation::new(
+				1,
+				Junctions::X2(
+					Parachain(2002),
+					GeneralIndex(asset_id),
+				),
+			)),
+			fun: Fungibility::Fungible(amount),
+		};
+		expected_assets.push(local_asset);
+		assert_eq!(reanchored_assets, expected_assets);
 	}
 }
