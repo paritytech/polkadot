@@ -27,7 +27,7 @@ use syn::spanned::Spanned;
 
 use proc_macro_crate::{crate_name, FoundCrate};
 
-fn abs(what: impl Into<Path>, loco: Span) -> Path {
+fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 	let what = what.into();
     let found_crate = if cfg!(test) {
 		FoundCrate::Itself
@@ -43,8 +43,18 @@ fn abs(what: impl Into<Path>, loco: Span) -> Path {
 	path
 }
 
+fn generate_inner_enum(vis: &Visibility, name: &Ident, variants: Vec<Variant>, thiserror: &Path) -> TokenStream {
+	quote! {
+		#[derive(#thiserror)]
+		#[derive(Debug)]
+		#vis enum #name {
+			#( #variants , )*
+		}
+	}
+}
+
 fn trait_fatality_impl(who: Ident, logic: TokenStream) -> TokenStream {
-	let fatality_trait = abs(Ident::new("Fatality", who.span()), who.span());
+	let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
 	quote!{
 		impl #fatality_trait for #who {
 			fn is_fatal(&self) -> bool {
@@ -90,14 +100,14 @@ fn fatality_gen(item: &ItemEnum) -> TokenStream {
 	let fatal_only = fatal_count == item2.variants.len();
 	let jfyi_only = fatal_count == 0;
 
-	// we can avoid the entire generation of extra enums if none, or all variants are fatal or jfyi
+	// we can avoid the entire generation of extra enums if none, or all variants are `fatal` or `jfyi`
 	if !fatal_only && !jfyi_only {
 		let name_fatal = Ident::new(format!("Fatal{}", name).as_str(), item.span());
 		let name_jfyi = Ident::new(format!("Jfyi{}", name).as_str(), item.span());
 		let vis = item.vis.clone();
 
 		let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
-		let thiserror = abs(thiserror, name.span());
+		let thiserror = abs_helper_path(thiserror, name.span());
 		let wrapper_enum = quote! {
 			#[derive(#thiserror)]
 			#[derive(Debug)]
@@ -108,16 +118,6 @@ fn fatality_gen(item: &ItemEnum) -> TokenStream {
 				Jfyi(#name_jfyi),
 			}
 		};
-
-		fn generate_inner_enum(vis: &Visibility, name: &Ident, variants: Vec<Variant>, thiserror: &Path) -> TokenStream {
-			quote! {
-				#[derive(#thiserror)]
-				#[derive(Debug)]
-				#vis enum #name {
-					#( #variants , )*
-				}
-			}
-		}
 
 		let fatal_enum = generate_inner_enum(&vis, &name_fatal, fatal_variants, &thiserror);
 		let jfyi_enum = generate_inner_enum(&vis, &name_jfyi, jfyi_variants, &thiserror);
