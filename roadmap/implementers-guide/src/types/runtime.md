@@ -127,6 +127,6 @@ struct ParaInherentData {
 	bitfields: Bitfields,
 	backed_candidates: BackedCandidates,
 	dispute_statements: MultiDisputeStatementSet,
-  parent_header: Header
+	parent_header: Header
 }
 ```
