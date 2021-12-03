@@ -27,12 +27,5 @@
 
 mod metrics;
 
-#[cfg(feature = "disputes")]
 mod real;
-#[cfg(feature = "disputes")]
 pub use real::*;
-
-#[cfg(not(feature = "disputes"))]
-mod dummy;
-#[cfg(not(feature = "disputes"))]
-pub use dummy::*;

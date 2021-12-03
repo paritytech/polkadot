@@ -172,4 +172,3 @@ try-runtime = [
 	"rococo-runtime/try-runtime",
 ]
 malus = ["full-node"]
-disputes = ["polkadot-node-core-dispute-coordinator/disputes"]
