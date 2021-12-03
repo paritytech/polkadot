@@ -31,7 +31,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  PIPELINE_SCRIPTS_TAG:            "v0.1"
+  PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
   cache:                           {}
@@ -300,11 +300,13 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
+        $CARGO_UPDATE_CRATES
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
 check-transaction-versions:
   stage:                           build
