@@ -18,8 +18,8 @@ use log::info;
 use nix::unistd;
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
 use polkadot_performance_test::{
-	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, ERASURE_CODING_TIME_LIMIT,
-	PVF_PREPARE_TIME_LIMIT, VALIDATION_CODE_BOMB_LIMIT, ERASURE_CODING_N_VALIDATORS
+	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, ERASURE_CODING_N_VALIDATORS,
+	ERASURE_CODING_TIME_LIMIT, PVF_PREPARE_TIME_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
 };
 use std::{
 	fs::{self, OpenOptions},
@@ -64,7 +64,8 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), PerfCheckError> {
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 
-	let wasm_code = polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
+	let wasm_code =
+		polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
 	let check_passed_file_path = result_cache_path.join(CHECK_PASSED_FILE_NAME);
 

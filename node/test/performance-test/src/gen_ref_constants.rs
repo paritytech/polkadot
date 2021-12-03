@@ -68,14 +68,21 @@ mod run {
 	}
 
 	pub fn run() -> Result<(), PerfCheckError> {
+		let _ = env_logger::builder().filter(None, log::LevelFilter::Info).try_init();
+
 		let wasm_code =
 			polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
+
+		log::info!("Running the benchmark, number of iterations: {}", WARM_UP_RUNS);
 
 		let code = sp_maybe_compressed_blob::decompress(wasm_code, VALIDATION_CODE_BOMB_LIMIT)
 			.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 
-		let (pvf_prepare_time, erasure_coding_time) = (0..WARM_UP_RUNS)
-			.map(|_| {
+		let (pvf_prepare_time, erasure_coding_time) = (1..=WARM_UP_RUNS)
+			.map(|i| {
+				if i - 1 > 0 && (i - 1) % 10 == 0 {
+					log::info!("{} iterations done", i - 1);
+				}
 				(
 					measure_pvf_prepare(code.as_ref()),
 					measure_erasure_coding(ERASURE_CODING_N_VALIDATORS, code.as_ref()),
@@ -85,6 +92,8 @@ mod run {
 			.unwrap();
 
 		save_constants(pvf_prepare_time?, erasure_coding_time?)?;
+
+		log::info!("Successfully stored new reference values at {:?}. Make sure to format the file via `cargo +nightly fmt`", FILE_PATH);
 
 		Ok(())
 	}
