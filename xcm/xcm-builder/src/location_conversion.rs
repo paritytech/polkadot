@@ -273,4 +273,49 @@ mod tests {
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
 		assert_eq!(inverted, Err(()));
 	}
+
+	use xcm::opaque::latest::MultiAssets;
+	use xcm::opaque::latest::Error as XcmError;
+	use xcm_executor::Assets;
+	fn reanchored<Ancestry: Get<MultiLocation>>(mut assets: Assets, dest: &MultiLocation) -> Result<MultiAssets, XcmError> {
+		let inv_dest = LocationInverter::<Ancestry>::invert_location(&dest)
+			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
+		assets.prepend_location(&inv_dest);
+		Ok(assets.into_assets_iter().collect::<Vec<_>>().into())
+	}
+
+	#[test]
+	fn asset_reanchoring() {
+		use xcm::opaque::latest::*;
+
+		parameter_types! {
+			pub Statemine: MultiLocation = MultiLocation::new(
+				1,
+				X1(Parachain(1000))
+			);
+			pub SomePara: MultiLocation = MultiLocation::new(
+				0,
+				X1(Parachain(2002))
+			);
+		}
+
+		let asset_id = 42u32.into();
+		let amount = 1234u32.into();
+		let mut assets = MultiAssets::new();
+		let statemine_asset = MultiAsset {
+			id: AssetId::Concrete(MultiLocation::new(
+				1,
+				Junctions::X2(
+					Junction::Parachain(1000),
+					Junction::GeneralIndex(asset_id),
+				),
+			)),
+			fun: Fungibility::Fungible(amount),
+		};
+		assets.push(statemine_asset);
+		let res = reanchored::<SomePara>(assets.into(), &Statemine::get());
+
+		println!("{:#?}", res);
+		assert!(false);
+	}
 }
