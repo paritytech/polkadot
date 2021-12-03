@@ -87,6 +87,8 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 # Polkadot Runtime Constants
 polkadot-runtime-constants = { path = "../../polkadot-runtime-constants" }
 kusama-runtime-constants = { path = "../../kusama-runtime-constants" }
+rococo-runtime-constants = { path = "../../rococo-runtime-constants" }
+westend-runtime-constants = { path = "../../westend-runtime-constants" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }

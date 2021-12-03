@@ -35,7 +35,7 @@ use sp_consensus_babe::AuthorityId as BabeId;
 #[cfg(feature = "rococo-native")]
 use rococo_runtime as rococo;
 #[cfg(feature = "rococo-native")]
-use rococo_runtime::constants::currency::UNITS as ROC;
+use rococo_runtime_constants::currency::UNITS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
@@ -44,7 +44,7 @@ use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
-use westend_runtime::constants::currency::UNITS as WND;
+use westend_runtime_constants::currency::UNITS as WND;
 
 #[cfg(feature = "polkadot-native")]
 const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";

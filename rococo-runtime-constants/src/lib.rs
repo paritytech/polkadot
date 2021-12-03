@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,24 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 /// Money matters.
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS;
+	pub const UNITS: Balance = 1_000_000_000_000;
+	pub const DOLLARS: Balance = UNITS;
 	pub const CENTS: Balance = DOLLARS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
+
+	pub const fn deposit(items: u32, bytes: u32) -> Balance {
+		items as Balance * 1 * DOLLARS + (bytes as Balance) * 5 * MILLICENTS
+	}
 }
 
 /// Time and blocks.
 pub mod time {
 	use primitives::v0::{BlockNumber, Moment};
-	// Testnet
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	// 30 seconds for now
-	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = MINUTES / 2;
+	frame_support::parameter_types! {
+		pub storage EpochDurationInBlocks: BlockNumber = 10 * MINUTES;
+	}
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
@@ -69,6 +74,7 @@ pub mod fee {
 	impl WeightToFeePolynomial for WeightToFee {
 		type Balance = Balance;
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
+			// in Westend, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
 			let p = super::currency::CENTS;
 			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
 			smallvec![WeightToFeeCoefficient {
@@ -78,5 +84,36 @@ pub mod fee {
 				coeff_integer: p / q,
 			}]
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{
+		currency::{CENTS, DOLLARS, MILLICENTS},
+		fee::WeightToFee,
+	};
+	use frame_support::weights::{DispatchClass, WeightToFeePolynomial};
+	use runtime_common::BlockWeights;
+
+	#[test]
+	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
+	fn full_block_fee_is_correct() {
+		// A full block should cost 16 DOLLARS
+		println!("Base: {}", BlockWeights::get().get(DispatchClass::Normal).base_extrinsic);
+		let x = WeightToFee::calc(&BlockWeights::get().max_block);
+		let y = 16 * DOLLARS;
+		assert!(x.max(y) - x.min(y) < MILLICENTS);
+	}
+
+	#[test]
+	// This function tests that the fee for `ExtrinsicBaseWeight` of weight is correct
+	fn extrinsic_base_fee_is_correct() {
+		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
+		let base_weight = BlockWeights::get().get(DispatchClass::Normal).base_extrinsic;
+		println!("Base: {}", base_weight);
+		let x = WeightToFee::calc(&base_weight);
+		let y = CENTS / 10;
+		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}
 }
