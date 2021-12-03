@@ -14,23 +14,78 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet};
-
+use indexmap::IndexMap;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
+	parse::{Parse, ParseStream},
 	parse2,
+	punctuated::Punctuated,
 	spanned::Spanned,
-	token::{Brace, Bracket, Paren},
-	Item, ItemEnum, Pat, PatLit, PatPath, PatRest, PatStruct, PatTupleStruct, Path, Token, Variant, Attribute,
+	token::{Brace, Colon2, Paren},
+	FieldPat, Fields, ItemEnum, LitBool, Member, Pat, PatIdent, PatPath, PatRest, PatStruct,
+	PatTuple, PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token, Variant,
 };
 
-// TODO
-// pub mod keywords {
-// 	syn::custom_keyword!(fatal);
-// }
-
 use proc_macro_crate::{crate_name, FoundCrate};
+
+mod kw {
+	// Variant fatality is determined based on the inner value, if there is only one, if multiple, the first is chosen.
+	syn::custom_keyword!(forward);
+	// Scrape the `thiserror` `transparent` annotation.
+	syn::custom_keyword!(transparent);
+}
+
+#[derive(Clone, Debug)]
+enum ResolutionMode {
+	None,
+	Fatal,
+	WithExplicitBool(LitBool),
+	Forward(kw::forward, Option<Ident>),
+}
+
+impl Default for ResolutionMode {
+	fn default() -> Self {
+		Self::Fatal
+	}
+}
+
+impl Parse for ResolutionMode {
+	fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+		let content;
+		let _ = syn::parenthesized!(content in input);
+
+		let lookahead = content.lookahead1();
+
+		if lookahead.peek(kw::forward) {
+			Ok(Self::Forward(content.parse::<kw::forward>()?, None))
+		} else if lookahead.peek(LitBool) {
+			Ok(Self::WithExplicitBool(content.parse::<LitBool>()?))
+		} else {
+			Err(lookahead.error())
+		}
+	}
+}
+
+impl ToTokens for ResolutionMode {
+	fn to_tokens(&self, ts: &mut TokenStream) {
+		let tmp = match self {
+			Self::None => quote! { false },
+			Self::Fatal => quote! { true },
+			Self::WithExplicitBool(boolean) => {
+				let value = boolean.value;
+				quote! { #value }
+			},
+			Self::Forward(_, maybe_ident) =>
+				if let Some(ident) = maybe_ident {
+					quote! { #ident .is_fatal() }
+				} else {
+					quote! { x.is_fatal() }
+				},
+		};
+		ts.extend(tmp)
+	}
+}
 
 fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 	let what = what.into();
@@ -61,50 +116,37 @@ fn trait_fatality_impl(who: &Ident, logic: TokenStream) -> TokenStream {
 	}
 }
 
-use syn::{
-	punctuated::Punctuated, token::Colon2, FieldPat, Fields, PatTuple, PathArguments, PathSegment,
-};
+#[derive(Debug, Clone)]
+struct Transparent(kw::transparent);
 
-#[derive(Clone, Debug)]
-enum Determine {
-	Fatal,
-	Jfyi,
-	Defer(Ident),
-}
+impl Parse for Transparent {
+	fn parse(input: ParseStream) -> syn::Result<Self> {
+		let content;
+		let _ = syn::parenthesized!(content in input);
 
-impl From<bool> for Determine {
-	fn from(b: bool) -> Self {
-		if b {
-			Self::Fatal
+		let lookahead = content.lookahead1();
+
+		if lookahead.peek(kw::transparent) {
+			Ok(Self(content.parse::<kw::transparent>()?))
 		} else {
-			Self::Jfyi
+			Err(lookahead.error())
 		}
 	}
 }
 
-impl From<Ident> for Determine {
-	fn from(who: Ident) -> Self {
-		Self::Defer(who)
-	}
-}
-
-impl ToTokens for Determine {
-	fn to_tokens(&self, ts: &mut TokenStream) {
-		let tmp = match self {
-			Self::Fatal => quote! { true },
-			Self::Jfyi => quote! { false },
-			Self::Defer(inner) => quote! { #inner .is_fatal() },
-		};
-		ts.extend(tmp)
-	}
-}
-
 /// Returns the pattern to match, and if there is an inner ident
-/// that was annotated with source, which would be used to defer
+/// that was annotated with `#[source]`, which would be used to defer
 /// `is_fatal` resolution.
-fn variant_to_pattern(variant: &Variant, has_fatal_annotation: bool) -> (Pat, Determine) {
+///
+/// Consumes a requested `ResolutionMode` and returns the same mode,
+/// with a populated identifier, or errors.
+fn variant_to_pattern(
+	variant: &Variant,
+	requested_resolution_mode: ResolutionMode,
+) -> Result<(Pat, ResolutionMode), syn::Error> {
 	let span = variant.fields.span();
-
+	// default name for referencing a var in an unnamed enum variant
+	let pat_capture_ident = &Ident::new("inner", span);
 	let me = PathSegment { ident: Ident::new("Self", span), arguments: PathArguments::None };
 	let path = Path {
 		leading_colon: None,
@@ -116,77 +158,157 @@ fn variant_to_pattern(variant: &Variant, has_fatal_annotation: bool) -> (Pat, De
 	let is_transparent = variant
 		.attrs
 		.iter()
-		.find_map(|attr| {
+		.find(|attr| {
 			if attr.path.is_ident(&Ident::new("error", span)) {
-				// FIXME check attr is transparent
-				Some(true)
+				parse2::<Transparent>(attr.tokens.clone()).is_ok()
 			} else {
-				None
+				false
 			}
 		})
-		.unwrap_or_default();
+		.is_some();
+
+	let source = Ident::new("source", span);
 
 	// let source: Option<Ident> = variant
 	let (pat, resolution) = match variant.fields {
-		Fields::Named(ref _named_fields) => (
-			Pat::Struct(PatStruct {
-				attrs: vec![],
-				path,
-				brace_token: Brace(span),
-				fields: Punctuated::<FieldPat, Token![,]>::new(),
-				dot2_token: Some(Token![..](span)),
-			}),
-			Determine::from(has_fatal_annotation),
-		),
-		Fields::Unnamed(ref _unnamed_fields) => (
-			Pat::TupleStruct(PatTupleStruct {
-				attrs: vec![],
-				path,
-				pat: PatTuple {
-					attrs: vec![],
-					paren_token: Paren(span),
-					elems: Punctuated::<Pat, Token![,]>::from_iter([Pat::Rest(PatRest {
+		Fields::Named(ref fields) => {
+			let fwd_field = if is_transparent {
+				fields.named.first()
+			} else {
+				fields.named.iter().find(|field| {
+					field.attrs.iter().find(|attr| attr.path.is_ident(&source)).is_some()
+				})
+			}
+			.cloned();
+
+			let fields = match requested_resolution_mode {
+				ResolutionMode::Forward(_, _) if fwd_field.is_some() => {
+					let field_name = fwd_field.as_ref().and_then(|f| f.ident.clone());
+					let fp = FieldPat {
 						attrs: vec![],
-						dot2_token: Token![..](span),
-					})]),
+						member: Member::Named(field_name.clone().unwrap()),
+						colon_token: None,
+						pat: Box::new(Pat::Ident(PatIdent {
+							attrs: vec![],
+							by_ref: Some(Token![ref](span)),
+							mutability: None,
+							ident: field_name.unwrap(),
+							subpat: None,
+						})),
+					};
+					Punctuated::<FieldPat, Token![,]>::from_iter([fp])
 				},
-			}),
-			// TODO take into account `#[source]` or `#[error(transparent)]` annotations
-			Determine::from(has_fatal_annotation),
-		),
+				_ => Punctuated::<FieldPat, Token![,]>::new(),
+			};
+
+			(
+				Pat::Struct(PatStruct {
+					attrs: vec![],
+					path,
+					brace_token: Brace(span),
+					fields,
+					dot2_token: Some(Token![..](span)),
+				}),
+				match requested_resolution_mode {
+					ResolutionMode::Forward(fwd, _) => ResolutionMode::Forward(
+						fwd,
+						fwd_field.as_ref().and_then(|f| f.ident.clone()),
+					),
+					other => other,
+				},
+			)
+		},
+		Fields::Unnamed(ref fields) => {
+			let fwd_idx = if is_transparent {
+				// take the first one, TODO error if there is more than one
+				0_usize
+			} else {
+				fields
+					.unnamed
+					.iter()
+					.enumerate()
+					.find_map(|(idx, field)| {
+						field.attrs.iter().find(|attr| attr.path.is_ident(&source)).map(|_attr| idx)
+					})
+					.ok_or_else(|| {
+						syn::Error::new(
+							span,
+							"Must have a `#[source]` annotated field for `forward` with `fatality`",
+						)
+					})?
+			};
+
+			let maybe_member_ref = if let ResolutionMode::Forward(..) = requested_resolution_mode {
+				Some(Pat::Ident(PatIdent {
+					attrs: vec![],
+					by_ref: Some(Token![ref](span)),
+					mutability: None,
+					ident: pat_capture_ident.clone(),
+					subpat: None,
+				}))
+			} else {
+				None
+			};
+
+			let field_pats = std::iter::repeat(Pat::Wild(PatWild {
+				attrs: vec![],
+				underscore_token: Token![_](span),
+			}))
+			.take(fwd_idx)
+			.chain(maybe_member_ref)
+			.chain([Pat::Rest(PatRest { attrs: vec![], dot2_token: Token![..](span) })]);
+
+			(
+				Pat::TupleStruct(PatTupleStruct {
+					attrs: vec![],
+					path,
+					pat: PatTuple {
+						attrs: vec![],
+						paren_token: Paren(span),
+						elems: Punctuated::<Pat, Token![,]>::from_iter(field_pats),
+					},
+				}),
+				match requested_resolution_mode {
+					ResolutionMode::Forward(x, _) =>
+						ResolutionMode::Forward(x, Some(pat_capture_ident.clone())),
+					x => x,
+				},
+			)
+		},
 		Fields::Unit => (
 			Pat::Path(PatPath { attrs: vec![], qself: None, path }),
-			Determine::from(has_fatal_annotation),
+			match requested_resolution_mode {
+				ResolutionMode::Forward(..) =>
+					return Err(syn::Error::new(span, "Cannot forward to a unit item variant")),
+				resolution => resolution,
+			},
 		),
 	};
-	(pat, resolution)
+	Ok((pat, resolution))
 }
 
-fn trait_conversion_impl(original: &ItemEnum, jfyi: &ItemEnum, fatal: &ItemEnum) -> TokenStream {
-	// original.variants
-	// jfyi.variants
-	// fatal.variants
-	TokenStream::new()
-}
-
-fn fatality_gen(item: &ItemEnum) -> TokenStream {
+fn fatality_gen(item: &ItemEnum) -> Result<TokenStream, syn::Error> {
 	let name = item.ident.clone();
 	let mut original = item.clone();
 
+	#[cfg(wip)]
+	{
 	let mut fatal = original.clone();
 	fatal.variants.clear();
 	fatal.ident = Ident::new(format!("Fatal{}", name).as_str(), original.span());
 
+
 	let mut jfyi = original.clone();
 	jfyi.variants.clear();
 	jfyi.ident = Ident::new(format!("Jfyi{}", name).as_str(), original.span());
+	}
 
-	let mut has_fatal_annotation = HashSet::new();
+	let mut has_fatal_annotation = IndexMap::new();
 
 	// if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(thiserror::Error, Debug)]`
 	// without the intermediate type. But impl `trait Fatality` on-top.
 	for variant in original.variants.iter_mut() {
-		let mut is_fatal = false;
+		let mut resolution_mode = ResolutionMode::None;
 
 		// remove the `#[fatal]` attribute
 		while let Some(idx) = variant.attrs.iter().enumerate().find_map(|(idx, attr)| {
@@ -196,98 +318,57 @@ fn fatality_gen(item: &ItemEnum) -> TokenStream {
 				None
 			}
 		}) {
-			dbg!(&mut variant.attrs).remove(idx);
-			dbg!(&mut variant.attrs);
-			is_fatal = true;
-		}
-		// add to the `Fatal*` or `Jfyi*` `enum`
-		if is_fatal {
-			has_fatal_annotation.insert(variant.clone());
-			fatal.variants.push(variant.clone());
-		} else {
-			jfyi.variants.push(variant.clone());
-		}
-	}
-
-	let fatal_count = has_fatal_annotation.len();
-	let fatal_only = fatal_count == original.variants.len();
-	let jfyi_only = fatal_count == 0;
-
-	// we can avoid the entire generation of extra enums if none, or all variants are `fatal` or `jfyi`
-	if !fatal_only && !jfyi_only {
-		let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
-		let thiserror = abs_helper_path(thiserror, name.span());
-		let vis = original.vis;
-		let attrs = original.attrs;
-		let name_fatal = &fatal.ident;
-		let name_jfyi = &jfyi.ident;
-		let wrapper_enum = quote! {
-			#[derive(#thiserror,Debug)]
-			#vis enum #name {
-					#[error(transparent)]
-					Fatal(#name_fatal),
-					#[error(transparent)]
-					Jfyi(#name_jfyi),
+			let attr = variant.attrs.remove(idx);
+			if attr.tokens.is_empty() {
+				resolution_mode = ResolutionMode::Fatal;
+			} else {
+				resolution_mode = parse2::<ResolutionMode>(attr.tokens.into_token_stream())?;
 			}
-		};
-
-		let fatal_enum = quote! {
-			#[derive(#thiserror, Debug)]
-			#fatal
-		};
-
-		let jfyi_enum = quote! {
-			#[derive(#thiserror, Debug)]
-			#jfyi
-		};
-
-		let pattern_and_resolution = original
-			.variants
-			.iter()
-			.map(move |variant| {
-				variant_to_pattern(variant, has_fatal_annotation.contains(&*variant))
-			})
-			.collect::<HashMap<_, _>>();
-		let pat = pattern_and_resolution.keys().cloned();
-		let resolution = pattern_and_resolution.values().cloned();
-		let mut ts = TokenStream::new();
-		ts.extend(wrapper_enum);
-		ts.extend(trait_fatality_impl(
-			&original.ident,
-			quote! {
-				match self {
-					#( #pat => #resolution ),*
-				}
-			},
-		));
-
-		ts.extend(fatal_enum);
-		ts.extend(trait_fatality_impl(
-			&fatal.ident,
-			quote! {
-				true
-			},
-		));
-
-		ts.extend(jfyi_enum);
-		ts.extend(trait_fatality_impl(
-			&jfyi.ident,
-			quote! {
-				// TODO, if there is a `#[source]` annotation, and `jfyi(fwd)` annotation, fwd to the inner
-				false
-			},
-		));
-		ts
-	} else {
-		let mut ts = item.to_token_stream();
-		ts.extend(trait_fatality_impl(
-			&original.ident,
-			quote! {
-				#fatal_only
-			},
-		));
-		ts
+		}
+		// If no `#[fatal]` annotation, this one is non-fatal for sure, statically.
+		#[cfg(wip)]
+		if let ResolutionMode::None = resolution_mode {
+			jfyi.variants.push(variant.clone());
+		} else {
+			fatal.variants.push(variant.clone());
+		}
+		has_fatal_annotation.insert(variant.clone(), resolution_mode);
 	}
+
+	// Path to `thiserror`.
+	let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
+	let thiserror = abs_helper_path(thiserror, name.span());
+
+	let original_enum = quote! {
+		#[derive(#thiserror,Debug)]
+		#original
+	};
+
+	// Obtain the patterns for each variant, and the resolution, which can either be `forward`, `true`, or `false`
+	// as used in the `trait Fatality`.
+	let pattern_and_resolution = original
+		.variants
+		.iter()
+		.map(move |variant| {
+			variant_to_pattern(
+				variant,
+				has_fatal_annotation.get(&*variant).cloned().unwrap_or_default(),
+			)
+		})
+		.collect::<Result<IndexMap<_, _>, syn::Error>>()?;
+	let pat = pattern_and_resolution.keys().cloned();
+	let resolution = pattern_and_resolution.values().cloned();
+	let mut ts = TokenStream::new();
+	ts.extend(original_enum);
+	ts.extend(trait_fatality_impl(
+		&original.ident,
+		quote! {
+			match self {
+				#( #pat => #resolution ),*
+			}
+		},
+	));
+	Ok(ts)
 }
 
 fn fatality2(
@@ -307,7 +388,7 @@ fn fatality2(
 			.into_compile_error()
 			.into_token_stream()
 	}
-	let res = fatality_gen(&item);
+	let res = fatality_gen(&item).unwrap_or_else(|e| e.to_compile_error());
 	res
 }
 
@@ -328,71 +409,189 @@ pub fn fatality(
 mod tests {
 	use super::*;
 
-	#[test]
-	fn basic_full() {
-		let input = quote! {
-		enum Kaboom {
-			#[fatal]
-			#[error(transparent)]
-			A(X),
-			#[error(transparent)]
-			B(Y),
-		}
-				};
+	fn run_test(input: TokenStream, expected: TokenStream) {
 		let output = fatality2(TokenStream::new(), input);
+		let output = output.to_string();
 		println!(
 			r##">>>>>>>>>>>>>>>>>>>
-{}
->>>>>>>>>>>>>>>>>>>"##,
-			output.to_string()
+	{}
+	>>>>>>>>>>>>>>>>>>>"##,
+			output.as_str()
 		);
-		assert_eq!(
-			output.to_string(),
+		assert_eq!(output, expected.to_string(),);
+	}
+
+	#[test]
+	fn transparent_fatal_implicit() {
+		run_test(
 			quote! {
-			#[derive(crate::thiserror::Error, Debug)]
-			enum Kaboom {
-				#[error(transparent)]
-				Fatal(FatalKaboom),
-				#[error(transparent)]
-				Jfyi(JfyiKaboom),
-			}
+				enum Q {
+					#[fatal]
+					#[error(transparent)]
+					V(I),
+				}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
+				enum Q {
+					#[error(transparent)]
+					V(I),
+				}
 
 
-			impl crate::Fatality for Kaboom {
-				fn is_fatal(&self) -> bool {
-					match self {
-						Self::Fatal(_) => true,
-						Self::Jfyi(_) => false,
+				impl crate::Fatality for Q {
+					fn is_fatal(&self) -> bool {
+						match self {
+							Self::V(..) => true
+						}
 					}
 				}
-			}
+			},
+		);
+	}
 
-			#[derive(crate::thiserror::Error, Debug)]
-			enum FatalKaboom {
-				#[error(transparent)]
-				A(X),
-			}
-
-			impl crate::Fatality for FatalKaboom {
-				fn is_fatal(&self) -> bool {
-					true
+	#[test]
+	fn transparent_fatal_fwd() {
+		run_test(
+			quote! {
+				enum Q {
+					#[fatal(forward)]
+					#[error(transparent)]
+					V(I),
 				}
-			}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
 
-			#[derive(crate::thiserror::Error, Debug)]
-			enum JfyiKaboom {
-				#[error(transparent)]
-				B(Y),
-			}
-
-			impl crate::Fatality for JfyiKaboom {
-				fn is_fatal(&self) -> bool {
-					false
+				enum Q {
+					#[error(transparent)]
+					V(I),
 				}
-			}
 
+
+				impl crate::Fatality for Q {
+					fn is_fatal(&self) -> bool {
+						match self {
+							Self::V(ref inner, ..) => inner.is_fatal()
+						}
+					}
 				}
-			.to_string()
+			},
+		);
+	}
+
+	#[test]
+	fn transparent_fatal_true() {
+		run_test(
+			quote! {
+				enum Q {
+					#[fatal(true)]
+					#[error(transparent)]
+					V(I),
+				}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
+				enum Q {
+					#[error(transparent)]
+					V(I),
+				}
+
+
+				impl crate::Fatality for Q {
+					fn is_fatal(&self) -> bool {
+						match self {
+							Self::V(..) => true
+						}
+					}
+				}
+			},
+		);
+	}
+
+	#[test]
+	fn source_fatal() {
+		run_test(
+			quote! {
+				enum Q {
+					#[fatal(forward)]
+					#[error("DDDDDDDDDDDD")]
+					V(first, #[source] I),
+				}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
+
+				enum Q {
+					#[error("DDDDDDDDDDDD")]
+					V(first, #[source] I),
+				}
+
+
+				impl crate::Fatality for Q {
+					fn is_fatal(&self) -> bool {
+						match self {
+							Self::V(_, ref inner, ..) => inner.is_fatal()
+						}
+					}
+				}
+			},
+		);
+	}
+
+	#[test]
+	fn full() {
+		run_test(
+			quote! {
+				enum Kaboom {
+					#[fatal(forward)]
+					#[error(transparent)]
+					A(X),
+
+					#[fatal(forward)]
+					#[error("Bar")]
+					B(#[source] Y),
+
+					#[fatal(forward)]
+					#[error("zzzZZzZ")]
+					C {#[source] z: Z },
+
+					#[error("What?")]
+					What,
+
+
+					#[fatal]
+					#[error(transparent)]
+					O(P),
+				}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
+				enum Kaboom {
+					#[error(transparent)]
+					A(X),
+					#[error("Bar")]
+					B(#[source] Y),
+					#[error("zzzZZzZ")]
+					C {#[source] z: Z },
+					#[error("What?")]
+					What,
+					#[error(transparent)]
+					O(P),
+				}
+
+				impl crate::Fatality for Kaboom {
+					fn is_fatal(&self) -> bool {
+						match self {
+							Self::A(ref inner, ..) => inner.is_fatal(),
+							Self::B(ref inner, ..) => inner.is_fatal(),
+							Self::C{ref z, ..} => z.is_fatal(),
+							Self::What => false,
+							Self::O(..) => true
+						}
+					}
+				}
+			},
 		);
 	}
 }
