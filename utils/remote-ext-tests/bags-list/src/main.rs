@@ -83,15 +83,15 @@ async fn main() {
 
 	match (options.runtime, options.command) {
 		(Runtime::Kusama, Command::CheckMigration) => {
-			use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
+			use kusama_runtime_constants::{currency::UNITS, Block, Runtime};
 			migration::execute::<Runtime, Block>(UNITS as u64, "KSM", options.uri.clone()).await;
 		},
 		(Runtime::Kusama, Command::SanityCheck) => {
-			use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
+			use kusama_runtime_constants::{currency::UNITS, Block, Runtime};
 			sanity_check::execute::<Runtime, Block>(UNITS as u64, "KSM", options.uri.clone()).await;
 		},
 		(Runtime::Kusama, Command::Snapshot) => {
-			use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
+			use kusama_runtime_constants::{currency::UNITS, Block, Runtime};
 			snapshot::execute::<Runtime, Block>(
 				options.snapshot_limit,
 				UNITS.try_into().unwrap(),
@@ -101,15 +101,15 @@ async fn main() {
 		},
 
 		(Runtime::Westend, Command::CheckMigration) => {
-			use westend_runtime::{constants::currency::UNITS, Block, Runtime};
+			use westend_runtime_constants::{currency::UNITS, Block, Runtime};
 			migration::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
 		},
 		(Runtime::Westend, Command::SanityCheck) => {
-			use westend_runtime::{constants::currency::UNITS, Block, Runtime};
+			use westend_runtime_constants::{currency::UNITS, Block, Runtime};
 			sanity_check::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
 		},
 		(Runtime::Westend, Command::Snapshot) => {
-			use westend_runtime::{constants::currency::UNITS, Block, Runtime};
+			use westend_runtime_constants::{currency::UNITS, Block, Runtime};
 			snapshot::execute::<Runtime, Block>(
 				options.snapshot_limit,
 				UNITS.try_into().unwrap(),
@@ -119,15 +119,15 @@ async fn main() {
 		},
 
 		(Runtime::Polkadot, Command::CheckMigration) => {
-			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+			use polkadot_runtime_constants::{currency::UNITS, Block, Runtime};
 			migration::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
 		},
 		(Runtime::Polkadot, Command::SanityCheck) => {
-			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+			use polkadot_runtime_constants::{currency::UNITS, Block, Runtime};
 			sanity_check::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
 		},
 		(Runtime::Polkadot, Command::Snapshot) => {
-			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+			use polkadot_runtime_constants::{currency::UNITS, Block, Runtime};
 			snapshot::execute::<Runtime, Block>(
 				options.snapshot_limit,
 				UNITS.try_into().unwrap(),
