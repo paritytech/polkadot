@@ -22,7 +22,7 @@ use syn::{
 	parse2,
 	spanned::Spanned,
 	token::{Brace, Bracket, Paren},
-	Item, ItemEnum, Pat, PatLit, PatPath, PatRest, PatStruct, PatTupleStruct, Path, Token, Variant,
+	Item, ItemEnum, Pat, PatLit, PatPath, PatRest, PatStruct, PatTupleStruct, Path, Token, Variant, Attribute,
 };
 
 // TODO
@@ -217,9 +217,18 @@ fn fatality_gen(item: &ItemEnum) -> TokenStream {
 	if !fatal_only && !jfyi_only {
 		let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
 		let thiserror = abs_helper_path(thiserror, name.span());
-		let original_enum = quote! {
-			#[derive(#thiserror, Debug)]
-			#original
+		let vis = original.vis;
+		let attrs = original.attrs;
+		let name_fatal = &fatal.ident;
+		let name_jfyi = &jfyi.ident;
+		let wrapper_enum = quote! {
+			#[derive(#thiserror,Debug)]
+			#vis enum #name {
+					#[error(transparent)]
+					Fatal(#name_fatal),
+					#[error(transparent)]
+					Jfyi(#name_jfyi),
+			}
 		};
 
 		let fatal_enum = quote! {
@@ -242,7 +251,7 @@ fn fatality_gen(item: &ItemEnum) -> TokenStream {
 		let pat = pattern_and_resolution.keys().cloned();
 		let resolution = pattern_and_resolution.values().cloned();
 		let mut ts = TokenStream::new();
-		// ts.extend(original_enum);
+		ts.extend(wrapper_enum);
 		ts.extend(trait_fatality_impl(
 			&original.ident,
 			quote! {
@@ -252,22 +261,22 @@ fn fatality_gen(item: &ItemEnum) -> TokenStream {
 			},
 		));
 
-		// ts.extend(fatal_enum);
-		// ts.extend(trait_fatality_impl(
-		// 	&fatal.ident,
-		// 	quote! {
-		// 		true
-		// 	},
-		// ));
+		ts.extend(fatal_enum);
+		ts.extend(trait_fatality_impl(
+			&fatal.ident,
+			quote! {
+				true
+			},
+		));
 
-		// ts.extend(jfyi_enum);
-		// ts.extend(trait_fatality_impl(
-		// 	&jfyi.ident,
-		// 	quote! {
-		// 		// TODO, if there is a `#[source]` annotation, and `jfyi(fwd)` annotation, fwd to the inner
-		// 		false
-		// 	},
-		// ));
+		ts.extend(jfyi_enum);
+		ts.extend(trait_fatality_impl(
+			&jfyi.ident,
+			quote! {
+				// TODO, if there is a `#[source]` annotation, and `jfyi(fwd)` annotation, fwd to the inner
+				false
+			},
+		));
 		ts
 	} else {
 		let mut ts = item.to_token_stream();

@@ -22,12 +22,6 @@ pub trait Fatality: std::error::Error + Debug {
 	fn is_fatal(&self) -> bool;
 }
 
-pub trait FatalitySplit: std::error::Error + Debug {
-	type Fatal: std::error::Error + Debug;
-	type Jfyi: std::error::Error + Debug;
-	fn is_fatal(&self) -> Result<Jfyi, Fatal>;
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -41,9 +35,8 @@ mod tests {
 	struct Y;
 
 	#[fatality]
-	#[derive(Debug)]
 	enum Acc {
-		#[fatal]
+		#[fatal(source)]
 		#[error("X={0}")]
 		A(#[source] X),
 
