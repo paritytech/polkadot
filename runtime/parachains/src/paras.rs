@@ -1038,7 +1038,7 @@ impl<T: Config> Pallet<T> {
 								Self::decrease_code_ref(&removed_code_hash);
 							} else {
 								log::warn!(
-									target: "runtime::paras",
+									target: LOG_TARGET,
 									"Missing code for removed hash {:?}",
 									removed_code_hash,
 								);
@@ -1115,7 +1115,7 @@ impl<T: Config> Pallet<T> {
 					// `PvfActiveVoteMap`'s keys is always equal to the set of items found in
 					// `PvfActiveVoteList`.
 					log::warn!(
-						target: "runtime::paras",
+						target: LOG_TARGET,
 						"The PvfActiveVoteMap is out of sync with PvfActiveVoteList!",
 					);
 					debug_assert!(false);
@@ -1453,7 +1453,7 @@ impl<T: Config> Pallet<T> {
 			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
 			//       the following call `note_new_head`
 			log::warn!(
-				target: "runtime::paras",
+				target: LOG_TARGET,
 				"ended up scheduling an upgrade while one is pending",
 			);
 			return weight
@@ -1470,7 +1470,7 @@ impl<T: Config> Pallet<T> {
 			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
 			//       the following call `note_new_head`
 			log::warn!(
-				target: "runtime::paras",
+				target: LOG_TARGET,
 				"para tried to upgrade to the same code. Abort the upgrade",
 			);
 			return weight
@@ -1654,11 +1654,7 @@ impl<T: Config> Pallet<T> {
 		if let Err(e) = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(
 			Call::include_pvf_check_statement { stmt, signature }.into(),
 		) {
-			log::error!(
-				target: "runtime::paras",
-				"Error submitting pvf check statement: {:?}",
-				e,
-			);
+			log::error!(target: LOG_TARGET, "Error submitting pvf check statement: {:?}", e,);
 		}
 	}
 
