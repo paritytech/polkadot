@@ -1,0 +1,13 @@
+version: '3.5'
+services:
+  bridges-ui:
+    image: paritytech/parity-bridges-ui
+    environment:
+      VIRTUAL_HOST: ui.brucke.link
+      VIRTUAL_PORT: 80
+      LETSENCRYPT_HOST: ui.brucke.link
+      LETSENCRYPT_EMAIL: admin@parity.io
+      CHAIN_1_SUBSTRATE_PROVIDER: ${UI_CHAIN_1:-ws://localhost:9944}
+      CHAIN_2_SUBSTRATE_PROVIDER: ${UI_CHAIN_2:-ws://localhost:19944}
+    ports:
+      - "8080:80"

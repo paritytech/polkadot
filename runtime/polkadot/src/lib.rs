@@ -41,13 +41,13 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, match_type, parameter_types,
 	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		Contains, EnsureOneOf, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		Nothing, OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
-use frame_system::{EnsureOneOf, EnsureRoot};
+use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_mmr_primitives as mmr;
@@ -117,13 +117,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9130,
+	spec_version: 9140,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 8,
+	transaction_version: 9,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -192,7 +192,6 @@ impl Contains<Call> for BaseFilter {
 }
 
 type MoreThanHalfCouncil = EnsureOneOf<
-	AccountId,
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>,
 >;
@@ -235,7 +234,6 @@ parameter_types! {
 }
 
 type ScheduleOrigin = EnsureOneOf<
-	AccountId,
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 >;
@@ -468,7 +466,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
-		AccountId,
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 	>;
@@ -515,7 +512,6 @@ parameter_types! {
 }
 
 type SlashCancelOrigin = EnsureOneOf<
-	AccountId,
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>,
 >;
@@ -602,33 +598,28 @@ impl pallet_democracy::Config for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = frame_system::EnsureOneOf<
-		AccountId,
+	type ExternalOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = frame_system::EnsureOneOf<
-		AccountId,
+	type ExternalMajorityOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = frame_system::EnsureOneOf<
-		AccountId,
+	type ExternalDefaultOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// Two thirds of the technical committee can have an `ExternalMajority/ExternalDefault` vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = frame_system::EnsureOneOf<
-		AccountId,
+	type FastTrackOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
-	type InstantOrigin = frame_system::EnsureOneOf<
-		AccountId,
+	type InstantOrigin = EnsureOneOf<
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
@@ -636,14 +627,12 @@ impl pallet_democracy::Config for Runtime {
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
 	type CancellationOrigin = EnsureOneOf<
-		AccountId,
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 		EnsureRoot<AccountId>,
 	>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
 	type CancelProposalOrigin = EnsureOneOf<
-		AccountId,
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
 		EnsureRoot<AccountId>,
 	>;
@@ -770,7 +759,6 @@ parameter_types! {
 }
 
 type ApproveOrigin = EnsureOneOf<
-	AccountId,
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
 >;
@@ -1170,7 +1158,6 @@ impl parachains_inclusion::Config for Runtime {
 }
 
 impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 }
@@ -1240,6 +1227,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = LeaseOffset;
+	type ForceOrigin = MoreThanHalfCouncil;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
@@ -1276,7 +1264,6 @@ parameter_types! {
 }
 
 type AuctionInitiate = EnsureOneOf<
-	AccountId,
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 >;
@@ -1450,7 +1437,7 @@ construct_runtime! {
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 1,
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 2,
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
@@ -1459,6 +1446,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 32,
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session and era
+		// for im-online and staking.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 6,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 7,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 8,
@@ -1558,7 +1547,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 	(StakingBagsListMigrationV8, SessionHistoricalPalletPrefixMigration),
 >;
 /// The payload being signed in transactions.
@@ -1935,7 +1924,6 @@ sp_api::impl_runtime_apis! {
 			// in the generated file.
 			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::crowdloan, Crowdloan);
-			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
@@ -2012,7 +2000,6 @@ sp_api::impl_runtime_apis! {
 			// in the generated file.
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
-			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
@@ -2045,7 +2032,6 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}

@@ -578,7 +578,7 @@ mod tests {
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
 	use primitives::v1::{Balance, BlockNumber, Header};
-	use runtime_parachains::{configuration, shared};
+	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
 	use sp_runtime::{
@@ -598,9 +598,10 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-			Parachains: paras::{Pallet, Origin, Call, Storage, Config, Event},
+			Parachains: paras::{Pallet, Call, Storage, Config, Event},
 			ParasShared: shared::{Pallet, Call, Storage},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+			ParachainsOrigin: origin::{Pallet, Origin},
 		}
 	);
 
@@ -657,8 +658,9 @@ mod tests {
 
 	impl shared::Config for Test {}
 
+	impl origin::Config for Test {}
+
 	impl paras::Config for Test {
-		type Origin = Origin;
 		type Event = Event;
 		type WeightInfo = paras::TestWeightInfo;
 	}

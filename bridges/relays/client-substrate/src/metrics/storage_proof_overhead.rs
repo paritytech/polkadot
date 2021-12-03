@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::chain::Chain;
-use crate::client::Client;
-use crate::error::Error;
+use crate::{chain::Chain, client::Client, error::Error};
 
 use async_trait::async_trait;
-use relay_utils::metrics::{metric_name, register, Gauge, PrometheusError, Registry, StandaloneMetrics, U64};
+use relay_utils::metrics::{
+	metric_name, register, Gauge, Metric, PrometheusError, Registry, StandaloneMetric, U64,
+};
 use sp_core::storage::StorageKey;
 use sp_runtime::traits::Header as HeaderT;
 use sp_storage::well_known_keys::CODE;
@@ -40,25 +40,16 @@ pub struct StorageProofOverheadMetric<C: Chain> {
 
 impl<C: Chain> Clone for StorageProofOverheadMetric<C> {
 	fn clone(&self) -> Self {
-		StorageProofOverheadMetric {
-			client: self.client.clone(),
-			metric: self.metric.clone(),
-		}
+		StorageProofOverheadMetric { client: self.client.clone(), metric: self.metric.clone() }
 	}
 }
 
 impl<C: Chain> StorageProofOverheadMetric<C> {
 	/// Create new metric instance with given name and help.
-	pub fn new(
-		registry: &Registry,
-		prefix: Option<&str>,
-		client: Client<C>,
-		name: String,
-		help: String,
-	) -> Result<Self, PrometheusError> {
+	pub fn new(client: Client<C>, name: String, help: String) -> Result<Self, PrometheusError> {
 		Ok(StorageProofOverheadMetric {
 			client,
-			metric: register(Gauge::new(metric_name(prefix, &name), help)?, registry)?,
+			metric: Gauge::new(metric_name(None, &name), help)?,
 		})
 	}
 
@@ -73,22 +64,28 @@ impl<C: Chain> StorageProofOverheadMetric<C> {
 			.await?;
 		let storage_proof_size: usize = storage_proof.clone().iter_nodes().map(|n| n.len()).sum();
 
-		let storage_value_reader =
-			bp_runtime::StorageProofChecker::<C::Hasher>::new(*best_header.state_root(), storage_proof)
-				.map_err(Error::StorageProofError)?;
-		let maybe_encoded_storage_value = storage_value_reader
-			.read_value(CODE)
-			.map_err(Error::StorageProofError)?;
-		let encoded_storage_value_size = maybe_encoded_storage_value
-			.ok_or(Error::MissingMandatoryCodeEntry)?
-			.len();
+		let storage_value_reader = bp_runtime::StorageProofChecker::<C::Hasher>::new(
+			*best_header.state_root(),
+			storage_proof,
+		)
+		.map_err(Error::StorageProofError)?;
+		let maybe_encoded_storage_value =
+			storage_value_reader.read_value(CODE).map_err(Error::StorageProofError)?;
+		let encoded_storage_value_size =
+			maybe_encoded_storage_value.ok_or(Error::MissingMandatoryCodeEntry)?.len();
 
 		Ok(storage_proof_size - encoded_storage_value_size)
 	}
 }
 
+impl<C: Chain> Metric for StorageProofOverheadMetric<C> {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.metric.clone(), registry).map(drop)
+	}
+}
+
 #[async_trait]
-impl<C: Chain> StandaloneMetrics for StorageProofOverheadMetric<C> {
+impl<C: Chain> StandaloneMetric for StorageProofOverheadMetric<C> {
 	fn update_interval(&self) -> Duration {
 		C::AVERAGE_BLOCK_INTERVAL * UPDATE_INTERVAL_IN_BLOCKS
 	}
