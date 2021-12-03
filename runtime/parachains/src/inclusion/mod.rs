@@ -173,7 +173,7 @@ impl<H> Default for ProcessedCandidates<H> {
 }
 
 /// Number of backing votes we need for a valid backing.
-pub const fn backing_group_quorum(_n_validators: usize) -> usize {
+pub const fn minimum_backing_votes(_n_validators: usize) -> usize {
 	1
 }
 
@@ -586,7 +586,7 @@ impl<T: Config> Pallet<T> {
 
 							match maybe_amount_validated {
 								Ok(amount_validated) => ensure!(
-									amount_validated >= backing_group_quorum(group_vals.len()),
+									amount_validated >= minimum_backing_votes(group_vals.len()),
 									Error::<T>::InsufficientBacking,
 								),
 								Err(()) => {

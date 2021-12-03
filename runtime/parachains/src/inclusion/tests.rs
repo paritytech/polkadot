@@ -109,7 +109,7 @@ pub(crate) async fn back_candidate(
 	kind: BackingKind,
 ) -> BackedCandidate {
 	let mut validator_indices = bitvec::bitvec![BitOrderLsb0, u8; 0; group.len()];
-	let threshold = backing_group_quorum(group.len());
+	let threshold = minimum_backing_votes(group.len());
 
 	let signing = match kind {
 		BackingKind::Unanimous => group.len(),
@@ -1626,7 +1626,7 @@ fn backing_works() {
 		);
 
 		let backers = {
-			let num_backers = backing_group_quorum(group_validators(GroupIndex(0)).unwrap().len());
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
 			backing_bitfield(&(0..num_backers).collect::<Vec<_>>())
 		};
 		assert_eq!(
@@ -1648,7 +1648,7 @@ fn backing_works() {
 		);
 
 		let backers = {
-			let num_backers = backing_group_quorum(group_validators(GroupIndex(0)).unwrap().len());
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
 			backing_bitfield(&(0..num_backers).map(|v| v + 2).collect::<Vec<_>>())
 		};
 		assert_eq!(
@@ -1773,7 +1773,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
 
 		let backers = {
-			let num_backers = backing_group_quorum(group_validators(GroupIndex(0)).unwrap().len());
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
 			backing_bitfield(&(0..num_backers).collect::<Vec<_>>())
 		};
 		assert_eq!(

@@ -191,7 +191,9 @@ struct AttestingData {
 }
 
 /// How many votes we need to consider a candidate backed.
-const fn group_quorum(n_validators: usize) -> usize {
+const fn minimum_votes(n_validators: usize) -> usize {
+	// This value is going to change soon. Once https://github.com/paritytech/polkadot/pull/4437
+	// went live.
 	(n_validators / 2) + 1
 }
 
@@ -224,7 +226,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
-		self.groups.get(group).map_or(usize::MAX, |g| group_quorum(g.len()))
+		self.groups.get(group).map_or(usize::MAX, |g| minimum_votes(g.len()))
 	}
 }
 
