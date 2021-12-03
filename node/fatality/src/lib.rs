@@ -18,40 +18,44 @@ pub use fatality_proc_macro::fatality;
 pub use thiserror;
 
 /// Determine the fatality of an error.
-pub trait Fatality {
-    fn is_fatal(&self) -> bool;
+pub trait Fatality: std::error::Error + Debug {
+	fn is_fatal(&self) -> bool;
 }
 
+pub trait FatalitySplit: std::error::Error + Debug {
+	type Fatal: std::error::Error + Debug;
+	type Jfyi: std::error::Error + Debug;
+	fn is_fatal(&self) -> Result<Jfyi, Fatal>;
+}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 
-    #[derive(Debug, thiserror::Error)]
-    #[error("X")]
-    struct X;
+	#[derive(Debug, thiserror::Error)]
+	#[error("X")]
+	struct X;
 
-    #[derive(Debug, thiserror::Error)]
-    #[error("Y")]
-    struct Y;
+	#[derive(Debug, thiserror::Error)]
+	#[error("Y")]
+	struct Y;
 
-    #[fatality]
-    #[derive(Debug)]
-    enum Fatal {
-        #[fatal]
-        #[error("X={0}")]
-        A(#[source] X),
+	#[fatality]
+	#[derive(Debug)]
+	enum Acc {
+		#[fatal]
+		#[error("X={0}")]
+		A(#[source] X),
 
-        #[error(transparent)]
-        B(Y),
-    }
+		#[error(transparent)]
+		B(Y),
+	}
 
-
-    #[test]
-    fn all_in_one() {
-        // TODO this must continue to work, so consider retaining the original error type as is, and only split
-        // TODO on `is_fatal() -> Result<Jfyi, Fatal>`
-        assert_eq!(true, Fatality::is_fatal(&Fatal::A(X)));
-        assert_eq!(false, Fatality::is_fatal(&Fatal::B(Y)));
-    }
+	#[test]
+	fn all_in_one() {
+		// TODO this must continue to work, so consider retaining the original error type as is, and only split
+		// TODO on `is_fatal() -> Result<Jfyi, Fatal>`
+		assert_eq!(true, Fatality::is_fatal(&Acc::A(X)));
+		assert_eq!(false, Fatality::is_fatal(&Acc::B(Y)));
+	}
 }
