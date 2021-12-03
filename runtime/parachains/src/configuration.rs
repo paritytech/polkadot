@@ -77,7 +77,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
 	/// specified by [`pvf_voting_ttl`]. Unlike, [`pvf_voting_ttl`], this parameter uses blocks
 	/// as a unit.
-	pub validation_upgrade_frequency: BlockNumber,
+	#[cfg_attr(feature = "std", serde(alias = "validation_upgrade_frequency"))]
+	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 
@@ -218,7 +219,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
 			no_show_slots: 1u32.into(),
-			validation_upgrade_frequency: Default::default(),
+			validation_upgrade_cooldown: Default::default(),
 			validation_upgrade_delay: 2u32.into(),
 			code_retention_period: Default::default(),
 			max_code_size: Default::default(),
@@ -470,18 +471,18 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Set the validation upgrade frequency.
+		/// Set the validation upgrade cooldown.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_validation_upgrade_frequency(
+		pub fn set_validation_upgrade_cooldown(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.validation_upgrade_frequency = new;
+				config.validation_upgrade_cooldown = new;
 			})
 		}
 
@@ -1345,11 +1346,11 @@ mod tests {
 			let old_config = Configuration::config();
 			let mut config = old_config.clone();
 			config.validation_upgrade_delay = 100;
-			config.validation_upgrade_frequency = 100;
+			config.validation_upgrade_cooldown = 100;
 			assert!(old_config != config);
 
 			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 100));
+			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 100));
 			assert_eq!(Configuration::config(), old_config);
 			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
 
@@ -1373,7 +1374,7 @@ mod tests {
 				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
 			let final_config = HostConfiguration {
 				validation_upgrade_delay: 100,
-				validation_upgrade_frequency: 99,
+				validation_upgrade_cooldown: 99,
 				..initial_config.clone()
 			};
 
@@ -1388,7 +1389,7 @@ mod tests {
 
 			// We are still waiting until the pending configuration is applied and we add another
 			// update.
-			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 99));
+			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
 
 			// This should result in yet another configiguration change scheduled.
 			assert_eq!(Configuration::config(), initial_config);
@@ -1420,7 +1421,7 @@ mod tests {
 				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
 			let final_config = HostConfiguration {
 				validation_upgrade_delay: 100,
-				validation_upgrade_frequency: 99,
+				validation_upgrade_cooldown: 99,
 				code_retention_period: 98,
 				..initial_config.clone()
 			};
@@ -1436,7 +1437,7 @@ mod tests {
 
 			// The second call should fall into the case where we already have a pending config
 			// update for the scheduled_session, but we want to update it once more.
-			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 99));
+			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
 			assert_ok!(Configuration::set_code_retention_period(Origin::root(), 98));
 
 			// This should result in yet another configiguration change scheduled.
@@ -1545,7 +1546,7 @@ mod tests {
 	fn setting_pending_config_members() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let new_config = HostConfiguration {
-				validation_upgrade_frequency: 100,
+				validation_upgrade_cooldown: 100,
 				validation_upgrade_delay: 10,
 				code_retention_period: 5,
 				max_code_size: 100_000,
@@ -1592,9 +1593,9 @@ mod tests {
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
 
-			Configuration::set_validation_upgrade_frequency(
+			Configuration::set_validation_upgrade_cooldown(
 				Origin::root(),
-				new_config.validation_upgrade_frequency,
+				new_config.validation_upgrade_cooldown,
 			)
 			.unwrap();
 			Configuration::set_validation_upgrade_delay(
@@ -1813,7 +1814,7 @@ mod tests {
 						.max_upward_message_num_per_candidate,
 					hrmp_max_message_num_per_candidate: ground_truth
 						.hrmp_max_message_num_per_candidate,
-					validation_upgrade_frequency: ground_truth.validation_upgrade_frequency,
+					validation_upgrade_cooldown: ground_truth.validation_upgrade_cooldown,
 					validation_upgrade_delay: ground_truth.validation_upgrade_delay,
 				},
 			);
