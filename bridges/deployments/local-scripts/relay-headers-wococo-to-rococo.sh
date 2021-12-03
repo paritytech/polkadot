@@ -8,14 +8,14 @@
 
 set -xeu
 
-RUST_LOG=rpc=trace,bridge=trace ./target/debug/substrate-relay init-bridge WococoToRococo \
+RUST_LOG=rpc=trace,bridge=trace ./target/debug/substrate-relay init-bridge wococo-to-rococo \
 	--source-host 127.0.0.1 \
 	--source-port 9944 \
 	--target-host 127.0.0.1 \
 	--target-port 9955 \
 	--target-signer //Alice
 
-RUST_LOG=rpc=trace,bridge=trace ./target/debug/substrate-relay relay-headers WococoToRococo \
+RUST_LOG=rpc=trace,bridge=trace ./target/debug/substrate-relay relay-headers wococo-to-rococo \
 	--source-host 127.0.0.1 \
 	--source-port 9944 \
 	--target-host 127.0.0.1 \
