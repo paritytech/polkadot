@@ -161,7 +161,12 @@ where
 
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new_disputes_aware(backend: Arc<B>, overseer: Handle, metrics: Metrics, disputes_enabled: bool) -> Self {
+	pub fn new_disputes_aware(
+		backend: Arc<B>,
+		overseer: Handle,
+		metrics: Metrics,
+		disputes_enabled: bool,
+	) -> Self {
 		tracing::debug!(
 			target: LOG_TARGET,
 			"Using {} chain selection algorithm",
@@ -176,7 +181,10 @@ where
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: IsDisputesAwareWithOverseer::Yes(SelectRelayChainInner::new(
-				backend, overseer, metrics, disputes_enabled,
+				backend,
+				overseer,
+				metrics,
+				disputes_enabled,
 			)),
 		}
 	}

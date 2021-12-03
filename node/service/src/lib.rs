@@ -730,7 +730,10 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
-			chain_spec.is_rococo() || chain_spec.is_kusama() || chain_spec.is_westend() || chain_spec.is_wococo()
+			chain_spec.is_rococo() ||
+				chain_spec.is_kusama() ||
+				chain_spec.is_westend() ||
+				chain_spec.is_wococo(),
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
