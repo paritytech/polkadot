@@ -7169,6 +7169,7 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
+ "test-runtime-constants",
  "tokio",
  "tracing",
 ]
