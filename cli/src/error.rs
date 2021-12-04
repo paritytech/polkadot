@@ -26,6 +26,9 @@ pub enum Error {
 	SubstrateService(#[from] sc_service::Error),
 
 	#[error(transparent)]
+	SubstrateTracing(#[from] sc_tracing::logging::Error),
+
+	#[error(transparent)]
 	PerfCheck(#[from] polkadot_performance_test::PerfCheckError),
 
 	#[error("Other: {0}")]

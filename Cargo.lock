@@ -5995,6 +5995,7 @@ dependencies = [
  "polkadot-service",
  "sc-cli",
  "sc-service",
+ "sc-tracing",
  "sp-core",
  "sp-trie",
  "structopt",
