@@ -8,9 +8,10 @@ edition = "2018"
 polkadot-runtime = { version = "0.9.13", path = "../../../runtime/polkadot" }
 kusama-runtime = { version = "0.9.13", path = "../../../runtime/kusama" }
 westend-runtime = { version = "0.9.13", path = "../../../runtime/westend" }
-polkadot-runtime-constants = { version = "0.9.13", path = "../../../runtime/polkadot/constants" }
-kusama-runtime-constants = { version = "0.9.13", path = "../../../runtime/kusama/constants" }
-westend-runtime-constants = { version = "0.9.13", path = "../../../runtime/westend/constants" }
+
+#polkadot-runtime-constants = { version = "0.9.13", path = "../../../runtime/polkadot/constants" }
+#kusama-runtime-constants = { version = "0.9.13", path = "../../../runtime/kusama/constants" }
+#westend-runtime-constants = { version = "0.9.13", path = "../../../runtime/westend/constants" }
 
 
 pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
