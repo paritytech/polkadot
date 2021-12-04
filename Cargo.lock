@@ -7697,14 +7697,17 @@ dependencies = [
  "clap",
  "frame-system",
  "kusama-runtime",
+ "kusama-runtime-constants",
  "log",
  "pallet-bags-list-remote-tests",
  "polkadot-runtime",
+ "polkadot-runtime-constants",
  "sp-core",
  "sp-tracing",
  "structopt",
  "tokio",
  "westend-runtime",
+ "westend-runtime-constants",
 ]
 
 [[package]]
