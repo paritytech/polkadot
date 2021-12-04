@@ -89,7 +89,7 @@ mod run {
 				)
 			})
 			.last()
-			.unwrap();
+			.expect("`WARM_UP_RUNS` is greater than 1 and thus we have at least one element; qed");
 
 		save_constants(pvf_prepare_time?, erasure_coding_time?)?;
 
