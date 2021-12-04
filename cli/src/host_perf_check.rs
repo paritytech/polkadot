@@ -21,12 +21,7 @@ use polkadot_performance_test::{
 	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, ERASURE_CODING_N_VALIDATORS,
 	ERASURE_CODING_TIME_LIMIT, PVF_PREPARE_TIME_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
 };
-use std::{
-	fs::{self, OpenOptions},
-	io::{self, Read, Write},
-	path::Path,
-	time::Duration,
-};
+use std::{fs, io, path::Path, time::Duration};
 
 const HOSTNAME_MAX_LEN: usize = unistd::SysconfVar::HOST_NAME_MAX as usize;
 
@@ -36,15 +31,11 @@ fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 	let hostname = unistd::gethostname(&mut hostname_buf)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-	let file = match fs::File::open(path) {
-		Ok(file) => file,
+	let buf = match fs::read(path) {
+		Ok(buf) => buf,
 		Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
 		Err(err) => return Err(err),
 	};
-	let mut reader = io::BufReader::new(file);
-
-	let mut buf = Vec::new();
-	reader.read_to_end(&mut buf)?;
 
 	Ok(hostname.to_bytes() == buf.as_slice())
 }
@@ -54,11 +45,7 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 	let hostname = unistd::gethostname(&mut hostname_buf)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-	let mut file = OpenOptions::new().truncate(true).create(true).write(true).open(path)?;
-
-	file.write(hostname.to_bytes())?;
-
-	Ok(())
+	fs::write(path, hostname.to_bytes())
 }
 
 pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), PerfCheckError> {
