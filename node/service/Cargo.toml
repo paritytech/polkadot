@@ -85,10 +85,10 @@ polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 
 # Polkadot Runtime Constants
-polkadot-runtime-constants = { path = "../../polkadot-runtime-constants" }
-kusama-runtime-constants = { path = "../../kusama-runtime-constants" }
-rococo-runtime-constants = { path = "../../rococo-runtime-constants" }
-westend-runtime-constants = { path = "../../westend-runtime-constants" }
+polkadot-runtime-constants = { path = "../../runtime/polkadot/constants" }
+kusama-runtime-constants = { path = "../../runtime/kusama/constants" }
+rococo-runtime-constants = { path = "../../runtime/rococo/constants" }
+westend-runtime-constants = { path = "../../runtime/westend/constants" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
