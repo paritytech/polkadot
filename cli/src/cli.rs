@@ -16,7 +16,6 @@
 
 //! Polkadot CLI library.
 
-use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[allow(missing_docs)]
@@ -57,7 +56,7 @@ pub enum Subcommand {
 
 	/// Runs performance checks such as PVF compilation in order to measure machine
 	/// capabilities of running a validator.
-	HostPerfCheck(HostPerfCheckCommand),
+	HostPerfCheck,
 
 	/// Try some command against runtime state.
 	#[cfg(feature = "try-runtime")]
@@ -76,17 +75,6 @@ pub enum Subcommand {
 pub struct ValidationWorkerCommand {
 	/// The path to the validation host's socket.
 	pub socket_path: String,
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
-pub struct HostPerfCheckCommand {
-	/// The path for caching the successful result of performance check.
-	#[structopt(long, parse(from_os_str))]
-	pub base_path: Option<PathBuf>,
-	/// Force-run checks disregarding possibly cached result.
-	#[structopt(long)]
-	pub force: bool,
 }
 
 #[allow(missing_docs)]

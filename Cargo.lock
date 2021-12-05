@@ -5989,7 +5989,6 @@ dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.17",
  "log",
- "nix",
  "polkadot-node-core-pvf",
  "polkadot-performance-test",
  "polkadot-service",

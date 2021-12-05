@@ -18,10 +18,8 @@ use crate::cli::{Cli, Subcommand};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
-use sc_service::config::BasePath;
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
-use std::path::Path;
 
 pub use crate::error::Error;
 pub use polkadot_performance_test::PerfCheckError;
@@ -206,16 +204,15 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 }
 
 /// Runs performance checks.
-/// Should only be run in release build since the check would take too much time otherwise.
-/// Returns `Ok` immediately if the check has been passed previously.
-fn host_perf_check(_base_path: &Path, _force: bool) -> Result<()> {
+/// Should only be used in release build since the check would take too much time otherwise.
+fn host_perf_check() -> Result<()> {
 	#[cfg(not(build_type = "release"))]
 	{
 		Err(PerfCheckError::WrongBuildType.into())
 	}
 	#[cfg(build_type = "release")]
 	{
-		crate::host_perf_check::host_perf_check(_base_path, _force)?;
+		crate::host_perf_check::host_perf_check()?;
 		Ok(())
 	}
 }
@@ -420,16 +417,12 @@ pub fn run() -> Result<()> {
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
-		Some(Subcommand::HostPerfCheck(cmd)) => {
+		Some(Subcommand::HostPerfCheck) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(true);
 			builder.init()?;
 
-			let base_path = cmd.base_path.clone().unwrap_or_else(|| {
-				BasePath::from_project("", "", &Cli::executable_name()).path().to_owned()
-			});
-
-			host_perf_check(&base_path, cmd.force)
+			host_perf_check()
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]

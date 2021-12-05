@@ -15,56 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-use nix::unistd;
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
 use polkadot_performance_test::{
 	measure_erasure_coding, measure_pvf_prepare, PerfCheckError, ERASURE_CODING_N_VALIDATORS,
 	ERASURE_CODING_TIME_LIMIT, PVF_PREPARE_TIME_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
 };
-use std::{fs, io, path::Path, time::Duration};
+use std::time::Duration;
 
-const HOSTNAME_MAX_LEN: usize = unistd::SysconfVar::HOST_NAME_MAX as usize;
-
-fn is_perf_check_done(path: &Path) -> io::Result<bool> {
-	let mut hostname_buf = vec![0u8; HOSTNAME_MAX_LEN];
-	// Makes a call to FFI which is available on both Linux and MacOS.
-	let hostname = unistd::gethostname(&mut hostname_buf)
-		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-
-	let buf = match fs::read(path) {
-		Ok(buf) => buf,
-		Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
-		Err(err) => return Err(err),
-	};
-
-	Ok(hostname.to_bytes() == buf.as_slice())
-}
-
-fn save_check_passed_file(path: &Path) -> io::Result<()> {
-	let mut hostname_buf = vec![0u8; HOSTNAME_MAX_LEN];
-	let hostname = unistd::gethostname(&mut hostname_buf)
-		.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-
-	fs::write(path, hostname.to_bytes())
-}
-
-pub fn host_perf_check(base_path: &Path, force: bool) -> Result<(), PerfCheckError> {
-	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
-
+pub fn host_perf_check() -> Result<(), PerfCheckError> {
 	let wasm_code =
 		polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
-
-	let check_passed_file_path = base_path.join(CHECK_PASSED_FILE_NAME);
-
-	if !force {
-		if let Ok(true) = is_perf_check_done(&check_passed_file_path) {
-			info!(
-				"Performance check skipped: already passed (cached at {:?})",
-				check_passed_file_path
-			);
-			return Ok(())
-		}
-	}
 
 	// Decompress the code before running checks.
 	let code = sp_maybe_compressed_blob::decompress(wasm_code, VALIDATION_CODE_BOMB_LIMIT)
@@ -77,11 +37,6 @@ pub fn host_perf_check(base_path: &Path, force: bool) -> Result<(), PerfCheckErr
 	perf_check("Erasure-coding", ERASURE_CODING_TIME_LIMIT, || {
 		measure_erasure_coding(ERASURE_CODING_N_VALIDATORS, code.as_ref())
 	})?;
-
-	// Persist successful result.
-	if let Err(err) = save_check_passed_file(&check_passed_file_path) {
-		info!("Couldn't persist check result at {:?}: {}", check_passed_file_path, err.to_string());
-	}
 
 	Ok(())
 }
