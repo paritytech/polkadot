@@ -208,14 +208,14 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 /// Runs performance checks.
 /// Should only be run in release build since the check would take too much time otherwise.
 /// Returns `Ok` immediately if the check has been passed previously.
-fn host_perf_check(_result_cache_path: &Path, _force: bool) -> Result<()> {
+fn host_perf_check(_base_path: &Path, _force: bool) -> Result<()> {
 	#[cfg(not(build_type = "release"))]
 	{
 		Err(PerfCheckError::WrongBuildType.into())
 	}
 	#[cfg(build_type = "release")]
 	{
-		crate::host_perf_check::host_perf_check(_result_cache_path, _force)?;
+		crate::host_perf_check::host_perf_check(_base_path, _force)?;
 		Ok(())
 	}
 }
@@ -425,11 +425,11 @@ pub fn run() -> Result<()> {
 			builder.with_colors(true);
 			builder.init()?;
 
-			let cache_path = cmd.cache_path.clone().unwrap_or_else(|| {
+			let base_path = cmd.base_path.clone().unwrap_or_else(|| {
 				BasePath::from_project("", "", &Cli::executable_name()).path().to_owned()
 			});
 
-			host_perf_check(&cache_path, cmd.force)
+			host_perf_check(&base_path, cmd.force)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]

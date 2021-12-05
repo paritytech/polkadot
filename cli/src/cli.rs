@@ -83,7 +83,7 @@ pub struct ValidationWorkerCommand {
 pub struct HostPerfCheckCommand {
 	/// The path for caching the successful result of performance check.
 	#[structopt(long, parse(from_os_str))]
-	pub cache_path: Option<PathBuf>,
+	pub base_path: Option<PathBuf>,
 	/// Force-run checks disregarding possibly cached result.
 	#[structopt(long)]
 	pub force: bool,

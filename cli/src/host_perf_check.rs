@@ -48,13 +48,13 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 	fs::write(path, hostname.to_bytes())
 }
 
-pub fn host_perf_check(result_cache_path: &Path, force: bool) -> Result<(), PerfCheckError> {
+pub fn host_perf_check(base_path: &Path, force: bool) -> Result<(), PerfCheckError> {
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 
 	let wasm_code =
 		polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
-	let check_passed_file_path = result_cache_path.join(CHECK_PASSED_FILE_NAME);
+	let check_passed_file_path = base_path.join(CHECK_PASSED_FILE_NAME);
 
 	if !force {
 		if let Ok(true) = is_perf_check_done(&check_passed_file_path) {
