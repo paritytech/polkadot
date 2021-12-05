@@ -147,7 +147,9 @@ pub enum Error {
 /// Provisioner run arguments.
 #[derive(Debug, Clone, Copy)]
 pub struct ProvisionerConfig {
-	/// If disputes are enabled, is `true`, otherwise `false`.
+	/// If enabled, dispute votes will be provided to `fn create_inherent`, otherwise not.
+	/// Long term we will obviously always want disputes to be enabled, this option exists for testing purposes
+	/// and will be removed in the near future.
 	pub disputes_enabled: bool,
 }
 

@@ -170,7 +170,7 @@ where
 		tracing::debug!(
 			target: LOG_TARGET,
 			"Using {} chain selection algorithm",
-			if self.disputes_enabled {
+			if disputes_enabled {
 				"dispute aware relay"
 			} else {
 				// no disputes are queried, that logic is disabled
