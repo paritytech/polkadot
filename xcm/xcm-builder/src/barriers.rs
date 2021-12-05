@@ -65,7 +65,13 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		);
 		ensure!(T::contains(origin), ());
 		let mut iter = message.0.iter_mut();
-		let i = iter.next().ok_or(())?;
+		let mut i = iter.next().ok_or(())?;
+		match i {
+			SetAppendix(Xcm(ref instrs)) if matches!(&instrs[..], &[ReportError { .. }]) => {
+				i = iter.next().ok_or(())?;
+			},
+			_ => (),
+		}
 		match i {
 			ReceiveTeleportedAsset(..) |
 			WithdrawAsset(..) |
