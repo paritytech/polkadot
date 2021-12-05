@@ -27,7 +27,7 @@ use crate::{
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump,
+	shared, ump, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -890,6 +890,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 ///
 /// `candidate_has_concluded_invalid_dispute` must return `true` if the candidate
 /// is disputed, false otherwise
+///
+/// The returned `Vec` is sorted according to the occupied core index.
 fn sanitize_backed_candidates<
 	T: crate::inclusion::Config,
 	F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool,
@@ -900,20 +902,35 @@ fn sanitize_backed_candidates<
 	scheduled: &[CoreAssignment],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
+	// This does not assume sorting.
 	backed_candidates.indexed_retain(move |idx, backed_candidate| {
 		!candidate_has_concluded_invalid_dispute_or_is_invalid(idx, backed_candidate)
 	});
 
+	let scheduled_paras_to_core_idx = scheduled
+		.into_iter()
+		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.collect::<BTreeMap<ParaId, CoreIndex>>();
+
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
 	// Also checks the candidate references the correct relay parent.
-	let scheduled_paras_set = scheduled
-		.into_iter()
-		.map(|core_assignment| core_assignment.para_id)
-		.collect::<BTreeSet<_>>();
+
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
+		desc.relay_parent == relay_parent &&
+			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
+	});
+
+	// Sort the `Vec` last, once there is a guarantee that these
+	// `BackedCandidates` references the expected relay chain parent,
+	// but more importantly are scheduled for a free core.
+	// This both avoids extra work for obviously invalid candidates,
+	// but also allows this to be done in place.
+	backed_candidates.sort_by(|x, y| {
+		// Never panics, since we filtered all panic arguments out in the previous `fn retain`.
+		scheduled_paras_to_core_idx[&x.descriptor().para_id]
+			.cmp(&scheduled_paras_to_core_idx[&y.descriptor().para_id])
 	});
 
 	backed_candidates
