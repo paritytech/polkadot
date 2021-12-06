@@ -957,15 +957,14 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 
 /// Limit disputes in place.
 ///
-/// Returns the unused weight of `remaining_weight`.
+/// Returns the unused weight of `max_consumable_weight`.
 fn limit_disputes<T: Config>(
 	disputes: &mut MultiDisputeStatementSet,
-	remaining_weight: Weight,
+	mut max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> Weight {
-	let mut remaining_weight = remaining_weight;
 	let disputes_weight = dispute_statements_weight::<T>(&disputes);
-	if disputes_weight > remaining_weight {
+	if disputes_weight > max_consumable_weight {
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
@@ -1007,8 +1006,8 @@ fn limit_disputes<T: Config>(
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				d.statements.len() as u32,
 			);
-			if remaining_weight >= dispute_weight {
-				remaining_weight -= dispute_weight;
+			if max_consumable_weight >= dispute_weight {
+				max_consumable_weight -= dispute_weight;
 				true
 			} else {
 				false
@@ -1035,8 +1034,8 @@ fn limit_disputes<T: Config>(
 		disputes.append(&mut remote_disputes);
 
 		// Update the remaining weight
-		remaining_weight = remaining_weight.saturating_sub(acc_remote_disputes_weight);
+		max_consumable_weight = max_consumable_weight.saturating_sub(acc_remote_disputes_weight);
 	}
 
-	remaining_weight
+	max_consumable_weight
 }
