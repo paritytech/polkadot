@@ -328,11 +328,7 @@ impl MultiLocation {
 	/// The context of `self` is provided as `ancestry`.
 	///
 	/// Does not modify `self` in case of overflow.
-	pub fn reanchor(
-		&mut self,
-		target: &MultiLocation,
-		ancestry: &MultiLocation,
-	) -> Result<(), ()> {
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		// TODO: Optimize this.
 
 		// 1. Use our `ancestry` to figure out how the `target` would address us.
@@ -845,7 +841,8 @@ mod tests {
 
 	#[test]
 	fn simplify_basic_works() {
-		let mut location: MultiLocation = (Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		let context = X2(Parachain(1000), PalletInstance(42));
 		let expected = GeneralIndex(69).into();
 		location.simplify(&context);
@@ -863,7 +860,8 @@ mod tests {
 		location.simplify(&context);
 		assert_eq!(location, expected);
 
-		let mut location: MultiLocation = (Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		let context = X3(OnlyChild, Parachain(1000), PalletInstance(42));
 		let expected = GeneralIndex(69).into();
 		location.simplify(&context);
@@ -872,15 +870,19 @@ mod tests {
 
 	#[test]
 	fn simplify_incompatible_location_fails() {
-		let mut location: MultiLocation = (Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		let context = X3(Parachain(1000), PalletInstance(42), GeneralIndex(42));
-		let expected = (Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let expected =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		location.simplify(&context);
 		assert_eq!(location, expected);
 
-		let mut location: MultiLocation = (Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		let context = X1(Parachain(1000));
-		let expected = (Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let expected =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		location.simplify(&context);
 		assert_eq!(location, expected);
 	}

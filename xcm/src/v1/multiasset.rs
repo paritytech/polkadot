@@ -224,7 +224,11 @@ impl MultiAsset {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `ancestry`.
-	pub fn reanchored(mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<Self, ()> {
+	pub fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		ancestry: &MultiLocation,
+	) -> Result<Self, ()> {
 		self.id.reanchor(target, ancestry)?;
 		Ok(self)
 	}
