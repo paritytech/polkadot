@@ -624,7 +624,6 @@ impl<T: Config> Pallet<T> {
 
 		// Assure the maximum block weight is adhered.
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-		// TODO subtract enactment weight - return sanitized bitfields from enactment
 		let _consumed_weight = apply_weight_limit::<T>(
 			&mut backed_candidates,
 			&mut bitfields,
@@ -829,7 +828,6 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 ///
 /// `full_check` determines if validator signatures are checked. If `::Yes`,
 /// bitfields that have an invalid signature will be filtered out.
-// TODO also return all bitfields OR'ed together
 pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
