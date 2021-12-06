@@ -281,43 +281,17 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 
-		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
+		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
+		let entropy = compute_entropy::<T>(parent_hash);
+		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+
 		// Potentially trim inherent data to ensure processing will be within weight limits
-		let total_weight = {
-			if candidate_weight
-				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight) >
-				max_block_weight
-			{
-				// if the total weight is over the max block weight, first try clearing backed
-				// candidates and bitfields.
-				backed_candidates.clear();
-				candidate_weight = 0;
-				signed_bitfields.clear();
-				bitfields_weight = 0;
-			}
-
-			if disputes_weight > max_block_weight {
-				// if disputes are by themselves overweight already, trim the disputes.
-				debug_assert!(candidate_weight == 0 && bitfields_weight == 0);
-
-				let entropy = compute_entropy::<T>(parent_hash);
-				let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
-
-				let remaining_weight =
-					limit_disputes::<T>(&mut disputes, max_block_weight, &mut rng);
-				remaining_weight
-			} else {
-				candidate_weight
-					.saturating_add(bitfields_weight)
-					.saturating_add(disputes_weight)
-			}
-		};
+		let total_consumed_weight = enforce_weight_limit(candidates_weight, bitfields_weight, disputes_weight, &mut disputes, max_block_weight, &mut rng);
 
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
@@ -432,7 +406,7 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		Ok(Some(total_weight).into())
+		Ok(Some(total_consumed_weight).into())
 	}
 }
 
@@ -693,6 +667,50 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	// unstable sorting is fine, since there are no duplicates
 	picked_indices.sort_unstable();
 	(weight_acc, picked_indices)
+}
+
+
+/// Harshly enforces a weight limit.
+///
+/// If the weight limit is exceeded, removes everything but disputes.
+/// If disputes themselves exceed the weight limit, picks random ones.
+///
+/// Guarantees that all remaining `disputes` are signature verified.
+fn enforce_weight_limit<T: Config>(
+	candidates_weight: Weight,
+	bitfields_weight: Weight,
+	disputes_weight: Weight,
+	disputes: &mut MultiDisputeStatementSet,
+	max_block_weight: Weight,
+	rng: &mut rand_chacha::ChaChaRng,
+) -> Weight {
+	{
+		if candidate_weight
+			.saturating_add(bitfields_weight)
+			.saturating_add(disputes_weight) >
+			max_block_weight
+		{
+			// if the total weight is over the max block weight, first try clearing backed
+			// candidates and bitfields.
+			backed_candidates.clear();
+			candidate_weight = 0;
+			signed_bitfields.clear();
+			bitfields_weight = 0;
+		}
+
+		if disputes_weight > max_block_weight {
+			// if disputes are by themselves overweight already, trim the disputes.
+			debug_assert!(candidate_weight == 0 && bitfields_weight == 0);
+
+			let remaining_weight =
+				limit_disputes::<T>(&mut disputes, |_| { true }, max_block_weight, &mut rng);
+			remaining_weight
+		} else {
+			candidate_weight
+				.saturating_add(bitfields_weight)
+				.saturating_add(disputes_weight)
+		}
+	}
 }
 
 /// Considers an upper threshold that the inherent data must not exceed.
