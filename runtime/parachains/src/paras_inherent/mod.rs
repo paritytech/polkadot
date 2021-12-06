@@ -314,7 +314,7 @@ impl<T: Config> Pallet<T> {
 
 				let remaining_weight =
 					limit_disputes::<T>(&mut disputes, max_block_weight, &mut rng);
-				max_block_weight.saturating_sub(remaining_weight)
+				remaining_weight
 			} else {
 				candidate_weight
 					.saturating_add(bitfields_weight)
