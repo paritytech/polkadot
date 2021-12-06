@@ -494,7 +494,7 @@ fn collator_authentication_verification_works() {
 //	our view.
 //	- Collation protocol should request one PoV.
 //	- Collation protocol should disconnect both collators after having received the collation.
-//	- The same collators plus an additional collator connect again and send povs for a different relay parent.
+//	- The same collators plus an additional collator connect again and send `PoV`s for a different relay parent.
 //	- Collation protocol will request one PoV, but we will cancel it.
 //	- Collation protocol should request the second PoV which does not succeed in time.
 //	- Collation protocol should request third PoV.
@@ -697,7 +697,7 @@ fn reject_connection_to_next_group() {
 			&mut virtual_overseer,
 			peer_b.clone(),
 			test_state.collators[0].clone(),
-			test_state.chain_ids[1].clone(), // next, not current para_id
+			test_state.chain_ids[1].clone(), // next, not current `para_id`
 		)
 		.await;
 

@@ -264,7 +264,7 @@ mod tests {
 			assert!(Sessions::<Test>::get(8).is_some());
 			assert!(Sessions::<Test>::get(9).is_some());
 
-			// changing dispute_period works
+			// changing `dispute_period` works
 			let dispute_period = 5;
 			Configuration::set_dispute_period(Origin::root(), dispute_period).unwrap();
 

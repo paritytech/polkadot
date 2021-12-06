@@ -249,7 +249,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 			// no-op prune.
 			self.upgrade_times.drain(self.upgrade_times.len()..)
 		} else {
-			// if we are actually pruning something, update the last_pruned member.
+			// if we are actually pruning something, update the `last_pruned` member.
 			self.last_pruned = Some(self.upgrade_times[to_prune - 1].activated_at);
 			self.upgrade_times.drain(..to_prune)
 		};
