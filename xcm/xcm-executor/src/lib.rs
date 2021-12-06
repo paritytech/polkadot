@@ -304,12 +304,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			TransferReserveAsset { mut assets, dest, xcm } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
-				let inv_dest = Config::LocationInverter::invert_location(&dest)
-					.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
-				assets.reanchor(&inv_dest).map_err(|()| XcmError::MultiLocationFull)?;
+				let ancestry = Config::LocationInverter::ancestry();
+				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
@@ -498,9 +497,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Result<MultiAssets, XcmError> {
-		let inv_dest = Config::LocationInverter::invert_location(&dest)
-			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-		assets.prepend_location(&inv_dest);
+		assets.reanchor(dest, &Config::LocationInverter::ancestry());
 		Ok(assets.into_assets_iter().collect::<Vec<_>>().into())
 	}
 }

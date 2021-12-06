@@ -194,7 +194,7 @@ impl Assets {
 		self.fungible = fungible
 			.into_iter()
 			.map(|(mut id, amount)| {
-				let _ = id.reanchor(prepend);
+				let _ = id.prepend_with(prepend);
 				(id, amount)
 			})
 			.collect();
@@ -203,7 +203,34 @@ impl Assets {
 		self.non_fungible = non_fungible
 			.into_iter()
 			.map(|(mut class, inst)| {
-				let _ = class.reanchor(prepend);
+				let _ = class.prepend_with(prepend);
+				(class, inst)
+			})
+			.collect();
+	}
+
+	/// Mutate the assets to be interpreted as the same assets from the perspective of a `target`
+	/// chain. The local chain's `ancestry` is provided.
+	///
+	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's
+	/// responsibility to ensure that any internal asset IDs are able to be prepended without
+	/// overflow.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) {
+		let mut fungible = Default::default();
+		mem::swap(&mut self.fungible, &mut fungible);
+		self.fungible = fungible
+			.into_iter()
+			.map(|(mut id, amount)| {
+				let _ = id.reanchor(target, ancestry);
+				(id, amount)
+			})
+			.collect();
+		let mut non_fungible = Default::default();
+		mem::swap(&mut self.non_fungible, &mut non_fungible);
+		self.non_fungible = non_fungible
+			.into_iter()
+			.map(|(mut class, inst)| {
+				let _ = class.reanchor(target, ancestry);
 				(class, inst)
 			})
 			.collect();
