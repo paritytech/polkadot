@@ -145,7 +145,7 @@ pub struct Config {
 impl Config {
 	/// Create a new instance of the configuration.
 	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from async_std.
+		// Do not contaminate the other parts of the codebase with the types from `async_std`.
 		let cache_path = PathBuf::from(cache_path);
 		let program_path = PathBuf::from(program_path);
 
@@ -378,7 +378,7 @@ async fn run(
 				// can be scheduled as a result of this function call, in case there are pending
 				// executions.
 				//
-				// We could be eager in terms of reporting and plumb the result from the prepartion
+				// We could be eager in terms of reporting and plumb the result from the preparation
 				// worker but we don't for the sake of simplicity.
 				break_if_fatal!(handle_prepare_done(
 					&cache_path,
@@ -1087,7 +1087,7 @@ mod tests {
 		// Received the precheck result.
 		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
 
-		// Send multiple requests for the same pvf.
+		// Send multiple requests for the same PVF.
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
@@ -1121,7 +1121,7 @@ mod tests {
 		let mut host = test.host_handle();
 
 		// Test mixed cases of receiving execute and precheck requests
-		// for the same pvf.
+		// for the same PVF.
 
 		// Send PVF for the execution and request the prechecking for it.
 		let (result_tx, result_rx_execute) = oneshot::channel();
