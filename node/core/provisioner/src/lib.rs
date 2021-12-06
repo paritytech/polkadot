@@ -43,7 +43,7 @@ use polkadot_primitives::v1::{
 	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{collections::BTreeMap, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, pin::Pin};
 use thiserror::Error;
 
 mod metrics;
@@ -163,9 +163,10 @@ impl JobTrait for ProvisioningJob {
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
+			let span = leaf.span.clone();
 			let job = ProvisioningJob::new(leaf, metrics, receiver);
 
-			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(leaf.span, "provisioner"))
+			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
 				.await
 		}
 		.boxed()

@@ -68,8 +68,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 	//
 	// this function is in charge of creating and executing the job's main loop
 	fn run<S: SubsystemSender>(
-		_: Hash,
-		_: Arc<jaeger::Span>,
+		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
