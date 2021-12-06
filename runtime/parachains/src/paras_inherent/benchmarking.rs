@@ -45,10 +45,12 @@ benchmarks! {
 	verify {
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
+
 		// Assert that there are on-chain votes that got scraped
 		let onchain_votes = OnChainVotes::<T>::get();
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
+
 		// Ensure that the votes are for the correct session
 		assert_eq!(vote.session, scenario._session);
 	}
