@@ -474,6 +474,14 @@ impl<T: Config> Pallet<T> {
 		let current_session = <shared::Pallet<T>>::session_index();
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 		let validator_public = shared::Pallet::<T>::active_validator_keys();
+		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+
+
+		let entropy = compute_entropy::<T>(parent_hash);
+		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+
+		// Limit the disputes first, since the following statements depend on the votes include here.
+		let remaining_weight = limit_disputes::<T>(&mut disputes, |dispute_set| { true }, max_block_weight, &mut rng);
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
@@ -596,16 +604,11 @@ impl<T: Config> Pallet<T> {
 				))
 			});
 
-		let entropy = compute_entropy::<T>(parent_hash);
-		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
-
 		// Assure the maximum block weight is adhered.
-		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 		let _consumed_weight = apply_weight_limit::<T>(
 			&mut backed_candidates,
 			&mut bitfields,
-			&mut disputes,
-			max_block_weight,
+			remaining_weight,
 			&mut rng,
 		);
 
@@ -740,7 +743,7 @@ fn enforce_weight_limit<T: Config>(
 
 /// Considers an upper threshold that the inherent data must not exceed.
 ///
-/// If there is sufficient space, all disputes, all bitfields and all candidates
+/// If there is sufficient space, all bitfields and all candidates
 /// will be included.
 ///
 /// Otherwise tries to include all disputes, and then tries to fill the remaining space with bitfields and then candidates.
@@ -750,16 +753,14 @@ fn enforce_weight_limit<T: Config>(
 /// for backed candidates, since with a increasing number of parachains their chances of
 /// inclusion become slim. All backed candidates  are checked beforehands in `fn create_inherent_inner`
 /// which guarantees sanity.
+///
+/// Assumes disputes are already filtered by the time this is called.
 fn apply_weight_limit<T: Config + inclusion::Config>(
 	candidates: &mut Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,
-	disputes: &mut MultiDisputeStatementSet,
 	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> Weight {
-	// include as many disputes as possible, always
-	let remaining_weight = limit_disputes::<T>(disputes, max_block_weight, rng);
-
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
 
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
@@ -1004,8 +1005,9 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 /// Limit disputes in place.
 ///
 /// Returns the unused weight of `max_consumable_weight`.
-fn limit_disputes<T: Config>(
+fn limit_disputes<T: Config, F: FnMut(MultiDisputeStatement) -> bool >(
 	disputes: &mut MultiDisputeStatementSet,
+	dispute_statement_valid: F,
 	mut max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> Weight {
@@ -1053,7 +1055,10 @@ fn limit_disputes<T: Config>(
 				d.statements.len() as u32,
 			);
 			if max_consumable_weight >= dispute_weight {
-				max_consumable_weight -= dispute_weight;
+				// only apply the weight if the validity check passes
+				if dispute_statement_valid(d) {
+					max_consumable_weight -= dispute_weight;
+				}
 				true
 			} else {
 				false
