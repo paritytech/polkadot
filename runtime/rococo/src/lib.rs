@@ -43,8 +43,9 @@ use primitives::v1::{
 	ValidatorIndex,
 };
 use runtime_common::{
-	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
+	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight,
+	SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -106,7 +107,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9130,
+	spec_version: 9140,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -157,7 +158,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 	(SessionHistoricalModulePrefixMigration,),
 >;
 /// The payload being signed in transactions.
@@ -204,7 +205,7 @@ construct_runtime! {
 	{
 		System: frame_system,
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe,
 
 		Timestamp: pallet_timestamp,
@@ -213,6 +214,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment,
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session for
+		// im-online.
 		Authorship: pallet_authorship,
 		Offences: pallet_offences,
 		Historical: session_historical,
@@ -237,11 +240,12 @@ construct_runtime! {
 		ParasDisputes: parachains_disputes,
 
 		// Parachain Onboarding Pallets
-		Registrar: paras_registrar,
-		Auctions: auctions,
-		Crowdloan: crowdloan,
-		Slots: slots,
-		ParasSudoWrapper: paras_sudo_wrapper,
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config},
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
+		Slots: slots::{Pallet, Call, Storage, Event<T>},
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
 
 		// Sudo
 		Sudo: pallet_sudo,
@@ -785,6 +789,25 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
+	pub const PermanentSlotLeasePeriodLength: u32 = 26;
+	pub const TemporarySlotLeasePeriodLength: u32 = 1;
+	pub const MaxPermanentSlots: u32 = 5;
+	pub const MaxTemporarySlots: u32 = 20;
+	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
+}
+
+impl assigned_slots::Config for Runtime {
+	type Event = Event;
+	type AssignSlotOrigin = EnsureRoot<AccountId>;
+	type Leaser = Slots;
+	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
+	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
+	type MaxPermanentSlots = MaxPermanentSlots;
+	type MaxTemporarySlots = MaxTemporarySlots;
+	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+}
+
+parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
 }
@@ -1017,7 +1040,7 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 1 * DAYS;
+	pub const LeasePeriod: BlockNumber = 7 * DAYS;
 }
 
 impl slots::Config for Runtime {
@@ -1026,6 +1049,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = slots::TestWeightInfo;
 }
 
@@ -1106,8 +1130,9 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+			},
 			ProxyType::Auction => matches!(
 				c,
 				Call::Auctions { .. } |
@@ -1674,7 +1699,6 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}

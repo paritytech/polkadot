@@ -28,7 +28,7 @@
 //!
 //! Since this pallet only tracks finalized headers it does not deal with forks. Forks can only
 //! occur if the GRANDPA validator set on the bridged chain is either colluding or there is a severe
-//! bug causing resulting in an equivocation. Such events are outside of the scope of this pallet.
+//! bug causing resulting in an equivocation. Such events are outside the scope of this pallet.
 //! Shall the fork occur on the bridged chain governance intervention will be required to
 //! re-initialize the bridge and track the right fork.
 
@@ -38,15 +38,14 @@
 
 use crate::weights::WeightInfo;
 
-use bp_header_chain::justification::GrandpaJustification;
-use bp_header_chain::InitializationData;
+use bp_header_chain::{justification::GrandpaJustification, InitializationData};
 use bp_runtime::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};
 use finality_grandpa::voter_set::VoterSet;
 use frame_support::{ensure, fail};
 use frame_system::{ensure_signed, RawOrigin};
 use sp_finality_grandpa::{ConsensusLog, GRANDPA_ENGINE_ID};
 use sp_runtime::traits::{BadOrigin, Header as HeaderT, Zero};
-use sp_std::convert::TryInto;
+use sp_std::{boxed::Box, convert::TryInto};
 
 #[cfg(test)]
 mod mock;
@@ -130,16 +129,13 @@ pub mod pallet {
 		))]
 		pub fn submit_finality_proof(
 			origin: OriginFor<T>,
-			finality_target: BridgedHeader<T, I>,
+			finality_target: Box<BridgedHeader<T, I>>,
 			justification: GrandpaJustification<BridgedHeader<T, I>>,
 		) -> DispatchResultWithPostInfo {
 			ensure_operational::<T, I>()?;
 			let _ = ensure_signed(origin)?;
 
-			ensure!(
-				Self::request_count() < T::MaxRequests::get(),
-				<Error<T, I>>::TooManyRequests
-			);
+			ensure!(Self::request_count() < T::MaxRequests::get(), <Error<T, I>>::TooManyRequests);
 
 			let (hash, number) = (finality_target.hash(), finality_target.number());
 			log::trace!(target: "runtime::bridge-grandpa", "Going to try and finalize header {:?}", finality_target);
@@ -153,30 +149,40 @@ pub mod pallet {
 						finality_target,
 					);
 					fail!(<Error<T, I>>::NotInitialized);
-				}
+				},
 			};
 
 			// We do a quick check here to ensure that our header chain is making progress and isn't
-			// "travelling back in time" (which could be indicative of something bad, e.g a hard-fork).
+			// "travelling back in time" (which could be indicative of something bad, e.g a
+			// hard-fork).
 			ensure!(best_finalized.number() < number, <Error<T, I>>::OldHeader);
 
 			let authority_set = <CurrentAuthoritySet<T, I>>::get();
 			let set_id = authority_set.set_id;
 			verify_justification::<T, I>(&justification, hash, *number, authority_set)?;
 
-			let _enacted = try_enact_authority_change::<T, I>(&finality_target, set_id)?;
+			let is_authorities_change_enacted =
+				try_enact_authority_change::<T, I>(&finality_target, set_id)?;
 			<RequestCount<T, I>>::mutate(|count| *count += 1);
-			insert_header::<T, I>(finality_target, hash);
+			insert_header::<T, I>(*finality_target, hash);
 			log::info!(target: "runtime::bridge-grandpa", "Succesfully imported finalized header with hash {:?}!", hash);
 
-			Ok(().into())
+			// mandatory header is a header that changes authorities set. The pallet can't go
+			// further without importing this header. So every bridge MUST import mandatory headers.
+			//
+			// We don't want to charge extra costs for mandatory operations. So relayer is not
+			// paying fee for mandatory headers import transactions.
+			let is_mandatory_header = is_authorities_change_enacted;
+			let pays_fee = if is_mandatory_header { Pays::No } else { Pays::Yes };
+
+			Ok(pays_fee.into())
 		}
 
 		/// Bootstrap the bridge pallet with an initial header and authority set from which to sync.
 		///
 		/// The initial configuration provided does not need to be the genesis header of the bridged
-		/// chain, it can be any arbirary header. You can also provide the next scheduled set change
-		/// if it is already know.
+		/// chain, it can be any arbitrary header. You can also provide the next scheduled set
+		/// change if it is already know.
 		///
 		/// This function is only allowed to be called from a trusted origin and writes to storage
 		/// with practically no checks in terms of the validity of the data. It is important that
@@ -205,17 +211,20 @@ pub mod pallet {
 		///
 		/// May only be called either by root, or by `PalletOwner`.
 		#[pallet::weight((T::DbWeight::get().reads_writes(1, 1), DispatchClass::Operational))]
-		pub fn set_owner(origin: OriginFor<T>, new_owner: Option<T::AccountId>) -> DispatchResultWithPostInfo {
+		pub fn set_owner(
+			origin: OriginFor<T>,
+			new_owner: Option<T::AccountId>,
+		) -> DispatchResultWithPostInfo {
 			ensure_owner_or_root::<T, I>(origin)?;
 			match new_owner {
 				Some(new_owner) => {
 					PalletOwner::<T, I>::put(&new_owner);
 					log::info!(target: "runtime::bridge-grandpa", "Setting pallet Owner to: {:?}", new_owner);
-				}
+				},
 				None => {
 					PalletOwner::<T, I>::kill();
 					log::info!(target: "runtime::bridge-grandpa", "Removed Owner of pallet.");
-				}
+				},
 			}
 
 			Ok(().into())
@@ -225,9 +234,12 @@ pub mod pallet {
 		///
 		/// May only be called either by root, or by `PalletOwner`.
 		#[pallet::weight((T::DbWeight::get().reads_writes(1, 1), DispatchClass::Operational))]
-		pub fn set_operational(origin: OriginFor<T>, operational: bool) -> DispatchResultWithPostInfo {
+		pub fn set_operational(
+			origin: OriginFor<T>,
+			operational: bool,
+		) -> DispatchResultWithPostInfo {
 			ensure_owner_or_root::<T, I>(origin)?;
-			<IsHalted<T, I>>::put(operational);
+			<IsHalted<T, I>>::put(!operational);
 
 			if operational {
 				log::info!(target: "runtime::bridge-grandpa", "Resuming pallet operations.");
@@ -252,11 +264,13 @@ pub mod pallet {
 
 	/// Hash of the header used to bootstrap the pallet.
 	#[pallet::storage]
-	pub(super) type InitialHash<T: Config<I>, I: 'static = ()> = StorageValue<_, BridgedBlockHash<T, I>, ValueQuery>;
+	pub(super) type InitialHash<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, BridgedBlockHash<T, I>, ValueQuery>;
 
 	/// Hash of the best finalized header.
 	#[pallet::storage]
-	pub(super) type BestFinalized<T: Config<I>, I: 'static = ()> = StorageValue<_, BridgedBlockHash<T, I>, ValueQuery>;
+	pub(super) type BestFinalized<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, BridgedBlockHash<T, I>, ValueQuery>;
 
 	/// A ring buffer of imported hashes. Ordered by the insertion time.
 	#[pallet::storage]
@@ -265,7 +279,8 @@ pub mod pallet {
 
 	/// Current ring buffer position.
 	#[pallet::storage]
-	pub(super) type ImportedHashesPointer<T: Config<I>, I: 'static = ()> = StorageValue<_, u32, ValueQuery>;
+	pub(super) type ImportedHashesPointer<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, u32, ValueQuery>;
 
 	/// Headers which have been imported into the pallet.
 	#[pallet::storage]
@@ -284,7 +299,8 @@ pub mod pallet {
 	/// runtime methods may still be used to do that (i.e. democracy::referendum to update halt
 	/// flag directly or call the `halt_operations`).
 	#[pallet::storage]
-	pub(super) type PalletOwner<T: Config<I>, I: 'static = ()> = StorageValue<_, T::AccountId, OptionQuery>;
+	pub(super) type PalletOwner<T: Config<I>, I: 'static = ()> =
+		StorageValue<_, T::AccountId, OptionQuery>;
 
 	/// If true, all pallet transactions are failed immediately.
 	#[pallet::storage]
@@ -301,10 +317,7 @@ pub mod pallet {
 	#[cfg(feature = "std")]
 	impl<T: Config<I>, I: 'static> Default for GenesisConfig<T, I> {
 		fn default() -> Self {
-			Self {
-				owner: None,
-				init_data: None,
-			}
+			Self { owner: None, init_data: None }
 		}
 	}
 
@@ -355,7 +368,7 @@ pub mod pallet {
 	/// is found it will be enacted immediately.
 	///
 	/// This function does not support forced changes, or scheduled changes with delays
-	/// since these types of changes are indicitive of abnormal behaviour from GRANDPA.
+	/// since these types of changes are indicative of abnormal behavior from GRANDPA.
 	///
 	/// Returned value will indicate if a change was enacted or not.
 	pub(crate) fn try_enact_authority_change<T: Config<I>, I: 'static>(
@@ -401,7 +414,7 @@ pub mod pallet {
 	///
 	/// Will use the GRANDPA current authorities known to the pallet.
 	///
-	/// If succesful it returns the decoded GRANDPA justification so we can refund any weight which
+	/// If successful it returns the decoded GRANDPA justification so we can refund any weight which
 	/// was overcharged in the initial call.
 	pub(crate) fn verify_justification<T: Config<I>, I: 'static>(
 		justification: &GrandpaJustification<BridgedHeader<T, I>>,
@@ -411,29 +424,35 @@ pub mod pallet {
 	) -> Result<(), sp_runtime::DispatchError> {
 		use bp_header_chain::justification::verify_justification;
 
-		let voter_set = VoterSet::new(authority_set.authorities).ok_or(<Error<T, I>>::InvalidAuthoritySet)?;
+		let voter_set =
+			VoterSet::new(authority_set.authorities).ok_or(<Error<T, I>>::InvalidAuthoritySet)?;
 		let set_id = authority_set.set_id;
 
-		Ok(
-			verify_justification::<BridgedHeader<T, I>>((hash, number), set_id, &voter_set, justification).map_err(
-				|e| {
-					log::error!(
-						target: "runtime::bridge-grandpa",
-						"Received invalid justification for {:?}: {:?}",
-						hash,
-						e,
-					);
-					<Error<T, I>>::InvalidJustification
-				},
-			)?,
+		Ok(verify_justification::<BridgedHeader<T, I>>(
+			(hash, number),
+			set_id,
+			&voter_set,
+			justification,
 		)
+		.map_err(|e| {
+			log::error!(
+				target: "runtime::bridge-grandpa",
+				"Received invalid justification for {:?}: {:?}",
+				hash,
+				e,
+			);
+			<Error<T, I>>::InvalidJustification
+		})?)
 	}
 
 	/// Import a previously verified header to the storage.
 	///
 	/// Note this function solely takes care of updating the storage and pruning old entries,
-	/// but does not verify the validaty of such import.
-	pub(crate) fn insert_header<T: Config<I>, I: 'static>(header: BridgedHeader<T, I>, hash: BridgedBlockHash<T, I>) {
+	/// but does not verify the validity of such import.
+	pub(crate) fn insert_header<T: Config<I>, I: 'static>(
+		header: BridgedHeader<T, I>,
+		hash: BridgedBlockHash<T, I>,
+	) {
 		let index = <ImportedHashesPointer<T, I>>::get();
 		let pruning = <ImportedHashes<T, I>>::try_get(index);
 		<BestFinalized<T, I>>::put(hash);
@@ -453,17 +472,12 @@ pub mod pallet {
 	pub(crate) fn initialize_bridge<T: Config<I>, I: 'static>(
 		init_params: super::InitializationData<BridgedHeader<T, I>>,
 	) {
-		let super::InitializationData {
-			header,
-			authority_list,
-			set_id,
-			is_halted,
-		} = init_params;
+		let super::InitializationData { header, authority_list, set_id, is_halted } = init_params;
 
 		let initial_hash = header.hash();
 		<InitialHash<T, I>>::put(initial_hash);
 		<ImportedHashesPointer<T, I>>::put(0);
-		insert_header::<T, I>(header, initial_hash);
+		insert_header::<T, I>(*header, initial_hash);
 
 		let authority_set = bp_header_chain::AuthoritySet::new(authority_list, set_id);
 		<CurrentAuthoritySet<T, I>>::put(authority_set);
@@ -498,7 +512,9 @@ pub mod pallet {
 	fn ensure_owner_or_root<T: Config<I>, I: 'static>(origin: T::Origin) -> Result<(), BadOrigin> {
 		match origin.into() {
 			Ok(RawOrigin::Root) => Ok(()),
-			Ok(RawOrigin::Signed(ref signer)) if Some(signer) == <PalletOwner<T, I>>::get().as_ref() => Ok(()),
+			Ok(RawOrigin::Signed(ref signer))
+				if Some(signer) == <PalletOwner<T, I>>::get().as_ref() =>
+				Ok(()),
 			_ => Err(BadOrigin),
 		}
 	}
@@ -545,14 +561,17 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		parse: impl FnOnce(bp_runtime::StorageProofChecker<BridgedBlockHasher<T, I>>) -> R,
 	) -> Result<R, sp_runtime::DispatchError> {
 		let header = <ImportedHeaders<T, I>>::get(hash).ok_or(Error::<T, I>::UnknownHeader)?;
-		let storage_proof_checker = bp_runtime::StorageProofChecker::new(*header.state_root(), storage_proof)
-			.map_err(|_| Error::<T, I>::StorageRootMismatch)?;
+		let storage_proof_checker =
+			bp_runtime::StorageProofChecker::new(*header.state_root(), storage_proof)
+				.map_err(|_| Error::<T, I>::StorageRootMismatch)?;
 
 		Ok(parse(storage_proof_checker))
 	}
 }
 
-pub(crate) fn find_scheduled_change<H: HeaderT>(header: &H) -> Option<sp_finality_grandpa::ScheduledChange<H::Number>> {
+pub(crate) fn find_scheduled_change<H: HeaderT>(
+	header: &H,
+) -> Option<sp_finality_grandpa::ScheduledChange<H::Number>> {
 	use sp_runtime::generic::OpaqueDigestItemId;
 
 	let id = OpaqueDigestItemId::Consensus(&GRANDPA_ENGINE_ID);
@@ -567,7 +586,7 @@ pub(crate) fn find_scheduled_change<H: HeaderT>(header: &H) -> Option<sp_finalit
 	header.digest().convert_first(|l| l.try_to(id).and_then(filter_log))
 }
 
-/// Checks the given header for a consensus digest signalling a **forced** scheduled change and
+/// Checks the given header for a consensus digest signaling a **forced** scheduled change and
 /// extracts it.
 pub(crate) fn find_forced_change<H: HeaderT>(
 	header: &H,
@@ -590,8 +609,9 @@ pub(crate) fn find_forced_change<H: HeaderT>(
 #[cfg(feature = "runtime-benchmarks")]
 pub fn initialize_for_benchmarks<T: Config<I>, I: 'static>(header: BridgedHeader<T, I>) {
 	initialize_bridge::<T, I>(InitializationData {
-		header,
-		authority_list: sp_std::vec::Vec::new(), // we don't verify any proofs in external benchmarks
+		header: Box::new(header),
+		authority_list: sp_std::vec::Vec::new(), /* we don't verify any proofs in external
+		                                          * benchmarks */
 		set_id: 0,
 		is_halted: false,
 	});
@@ -602,12 +622,11 @@ mod tests {
 	use super::*;
 	use crate::mock::{run_test, test_header, Origin, TestHeader, TestNumber, TestRuntime};
 	use bp_test_utils::{
-		authority_list, make_default_justification, make_justification_for_header, JustificationGeneratorParams, ALICE,
-		BOB,
+		authority_list, make_default_justification, make_justification_for_header,
+		JustificationGeneratorParams, ALICE, BOB,
 	};
 	use codec::Encode;
-	use frame_support::weights::PostDispatchInfo;
-	use frame_support::{assert_err, assert_noop, assert_ok};
+	use frame_support::{assert_err, assert_noop, assert_ok, weights::PostDispatchInfo};
 	use sp_runtime::{Digest, DigestItem, DispatchError};
 
 	fn initialize_substrate_bridge() {
@@ -616,11 +635,14 @@ mod tests {
 
 	fn init_with_origin(
 		origin: Origin,
-	) -> Result<InitializationData<TestHeader>, sp_runtime::DispatchErrorWithPostInfo<PostDispatchInfo>> {
+	) -> Result<
+		InitializationData<TestHeader>,
+		sp_runtime::DispatchErrorWithPostInfo<PostDispatchInfo>,
+	> {
 		let genesis = test_header(0);
 
 		let init_data = InitializationData {
-			header: genesis,
+			header: Box::new(genesis),
 			authority_list: authority_list(),
 			set_id: 1,
 			is_halted: false,
@@ -633,7 +655,11 @@ mod tests {
 		let header = test_header(header.into());
 		let justification = make_default_justification(&header);
 
-		Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, justification)
+		Pallet::<TestRuntime>::submit_finality_proof(
+			Origin::signed(1),
+			Box::new(header),
+			justification,
+		)
 	}
 
 	fn next_block() {
@@ -645,14 +671,13 @@ mod tests {
 	}
 
 	fn change_log(delay: u64) -> Digest {
-		let consensus_log = ConsensusLog::<TestNumber>::ScheduledChange(sp_finality_grandpa::ScheduledChange {
-			next_authorities: vec![(ALICE.into(), 1), (BOB.into(), 1)],
-			delay,
-		});
+		let consensus_log =
+			ConsensusLog::<TestNumber>::ScheduledChange(sp_finality_grandpa::ScheduledChange {
+				next_authorities: vec![(ALICE.into(), 1), (BOB.into(), 1)],
+				delay,
+			});
 
-		Digest {
-			logs: vec![DigestItem::Consensus(GRANDPA_ENGINE_ID, consensus_log.encode())],
-		}
+		Digest { logs: vec![DigestItem::Consensus(GRANDPA_ENGINE_ID, consensus_log.encode())] }
 	}
 
 	fn forced_change_log(delay: u64) -> Digest {
@@ -664,9 +689,7 @@ mod tests {
 			},
 		);
 
-		Digest {
-			logs: vec![DigestItem::Consensus(GRANDPA_ENGINE_ID, consensus_log.encode())],
-		}
+		Digest { logs: vec![DigestItem::Consensus(GRANDPA_ENGINE_ID, consensus_log.encode())] }
 	}
 
 	#[test]
@@ -775,9 +798,13 @@ mod tests {
 	#[test]
 	fn pallet_rejects_transactions_if_halted() {
 		run_test(|| {
-			<IsHalted<TestRuntime>>::put(true);
+			initialize_substrate_bridge();
 
+			assert_ok!(Pallet::<TestRuntime>::set_operational(Origin::root(), false));
 			assert_noop!(submit_finality_proof(1), Error::<TestRuntime>::Halted);
+
+			assert_ok!(Pallet::<TestRuntime>::set_operational(Origin::root(), true));
+			assert_ok!(submit_finality_proof(1));
 		})
 	}
 
@@ -792,7 +819,13 @@ mod tests {
 	fn succesfully_imports_header_with_valid_finality() {
 		run_test(|| {
 			initialize_substrate_bridge();
-			assert_ok!(submit_finality_proof(1));
+			assert_ok!(
+				submit_finality_proof(1),
+				PostDispatchInfo {
+					actual_weight: None,
+					pays_fee: frame_support::weights::Pays::Yes,
+				},
+			);
 
 			let header = test_header(1);
 			assert_eq!(<BestFinalized<TestRuntime>>::get(), header.hash());
@@ -807,14 +840,16 @@ mod tests {
 
 			let header = test_header(1);
 
-			let params = JustificationGeneratorParams::<TestHeader> {
-				set_id: 2,
-				..Default::default()
-			};
+			let params =
+				JustificationGeneratorParams::<TestHeader> { set_id: 2, ..Default::default() };
 			let justification = make_justification_for_header(params);
 
 			assert_err!(
-				Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, justification,),
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header),
+					justification,
+				),
 				<Error<TestRuntime>>::InvalidJustification
 			);
 		})
@@ -830,7 +865,11 @@ mod tests {
 			justification.round = 42;
 
 			assert_err!(
-				Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, justification,),
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header),
+					justification,
+				),
 				<Error<TestRuntime>>::InvalidJustification
 			);
 		})
@@ -843,7 +882,7 @@ mod tests {
 
 			let invalid_authority_list = vec![(ALICE.into(), u64::MAX), (BOB.into(), u64::MAX)];
 			let init_data = InitializationData {
-				header: genesis,
+				header: Box::new(genesis),
 				authority_list: invalid_authority_list,
 				set_id: 1,
 				is_halted: false,
@@ -855,7 +894,11 @@ mod tests {
 			let justification = make_default_justification(&header);
 
 			assert_err!(
-				Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, justification,),
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header),
+					justification,
+				),
 				<Error<TestRuntime>>::InvalidAuthoritySet
 			);
 		})
@@ -889,11 +932,17 @@ mod tests {
 			let justification = make_default_justification(&header);
 
 			// Let's import our test header
-			assert_ok!(Pallet::<TestRuntime>::submit_finality_proof(
-				Origin::signed(1),
-				header.clone(),
-				justification
-			));
+			assert_ok!(
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header.clone()),
+					justification
+				),
+				PostDispatchInfo {
+					actual_weight: None,
+					pays_fee: frame_support::weights::Pays::No,
+				},
+			);
 
 			// Make sure that our header is the best finalized
 			assert_eq!(<BestFinalized<TestRuntime>>::get(), header.hash());
@@ -922,7 +971,11 @@ mod tests {
 
 			// Should not be allowed to import this header
 			assert_err!(
-				Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, justification),
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header),
+					justification
+				),
 				<Error<TestRuntime>>::UnsupportedScheduledChange
 			);
 		})
@@ -943,7 +996,11 @@ mod tests {
 
 			// Should not be allowed to import this header
 			assert_err!(
-				Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, justification),
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header),
+					justification
+				),
 				<Error<TestRuntime>>::UnsupportedScheduledChange
 			);
 		})
@@ -1001,7 +1058,11 @@ mod tests {
 				let mut invalid_justification = make_default_justification(&header);
 				invalid_justification.round = 42;
 
-				Pallet::<TestRuntime>::submit_finality_proof(Origin::signed(1), header, invalid_justification)
+				Pallet::<TestRuntime>::submit_finality_proof(
+					Origin::signed(1),
+					Box::new(header),
+					invalid_justification,
+				)
 			};
 
 			initialize_substrate_bridge();

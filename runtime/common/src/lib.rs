@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod assigned_slots;
 pub mod auctions;
 pub mod claims;
 pub mod crowdloan;

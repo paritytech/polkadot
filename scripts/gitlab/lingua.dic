@@ -124,6 +124,7 @@ isolate/BG
 iterable
 jaeger/MS
 js
+judgement
 keccak256/M
 keypair/MS
 keystore/MS
@@ -147,7 +148,6 @@ Merklized
 metadata/M
 middleware/MS
 Millau
-minimalistic
 misbehavior/SM
 misbehaviors
 misvalidate/D
@@ -280,6 +280,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unassign
 unconcluded
 unfinalize/B
 unfinalized
