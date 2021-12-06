@@ -142,7 +142,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_: T::BlockNumber) -> Weight {
-			T::DbWeight::get().reads_writes(1, 1) // in on_finalize.
+			T::DbWeight::get().reads_writes(1, 1) // in `on_finalize`.
 		}
 
 		fn on_finalize(_: T::BlockNumber) {
@@ -947,7 +947,7 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {
-		// in case there is no vrf randomness present, we utilize the relay parent
+		// in case there is no VRF randomness present, we utilize the relay parent
 		// as seed, it's better than a static value.
 		log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
 		entropy.as_mut().copy_from_slice(parent_hash.as_ref());

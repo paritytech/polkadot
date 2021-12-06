@@ -602,7 +602,7 @@ impl StatementSetFilter {
 
 				// reverse order ensures correctness
 				for index in indices.into_iter().rev() {
-					// swap_remove guarantees linear complexity.
+					// `swap_remove` guarantees linear complexity.
 					statement_set.statements.swap_remove(index);
 				}
 
@@ -1579,7 +1579,7 @@ mod tests {
 		});
 	}
 
-	// Test prunning works
+	// Test pruning works
 	#[test]
 	fn test_initializer_on_new_session() {
 		let dispute_period = 3;
@@ -2244,7 +2244,7 @@ mod tests {
 			Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 
-			// Ensure the reward_validator function was correctly called
+			// Ensure the `reward_validator` function was correctly called
 			assert_eq!(
 				REWARD_VALIDATORS.with(|r| r.borrow().clone()),
 				vec![
@@ -2304,7 +2304,7 @@ mod tests {
 			assert_noop!(
 				{
 					Pallet::<Test>::revert_and_freeze(0);
-					Result::<(), ()>::Err(()) // Just a small trick in order to use assert_noop.
+					Result::<(), ()>::Err(()) // Just a small trick in order to use `assert_noop`.
 				},
 				(),
 			);
@@ -2325,7 +2325,7 @@ mod tests {
 			assert_noop!(
 				{
 					Pallet::<Test>::revert_and_freeze(10);
-					Result::<(), ()>::Err(()) // Just a small trick in order to use assert_noop.
+					Result::<(), ()>::Err(()) // Just a small trick in order to use `assert_noop`.
 				},
 				(),
 			);
