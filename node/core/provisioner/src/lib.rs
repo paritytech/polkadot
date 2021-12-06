@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
 		ProvisionerInherentData, ProvisionerMessage,
 	},
-	PerLeafSpan, SubsystemSender,
+	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
@@ -92,7 +92,7 @@ impl InherentAfter {
 
 /// A per-relay-parent job for the provisioning subsystem.
 pub struct ProvisioningJob {
-	relay_parent: Hash,
+	leaf: ActivatedLeaf,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
@@ -156,17 +156,16 @@ impl JobTrait for ProvisioningJob {
 	//
 	// this function is in charge of creating and executing the job's main loop
 	fn run<S: SubsystemSender>(
-		relay_parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = ProvisioningJob::new(relay_parent, metrics, receiver);
+			let job = ProvisioningJob::new(leaf, metrics, receiver);
 
-			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
+			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(leaf.span, "provisioner"))
 				.await
 		}
 		.boxed()
@@ -175,12 +174,12 @@ impl JobTrait for ProvisioningJob {
 
 impl ProvisioningJob {
 	fn new(
-		relay_parent: Hash,
+		leaf: ActivatedLeaf,
 		metrics: Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 	) -> Self {
 		Self {
-			relay_parent,
+			leaf,
 			receiver,
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
@@ -236,7 +235,7 @@ impl ProvisioningJob {
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	) {
 		if let Err(err) = send_inherent_data(
-			self.relay_parent,
+			&self.leaf,
 			&self.signed_bitfields,
 			&self.backed_candidates,
 			return_senders,
@@ -291,23 +290,27 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 /// maximize availability. So basically, include all bitfields. And then
 /// choose a coherent set of candidates along with that.
 async fn send_inherent_data(
-	relay_parent: Hash,
+	leaf: &ActivatedLeaf,
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	from_job: &mut impl SubsystemSender,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
-	let availability_cores = request_availability_cores(relay_parent, from_job)
+	let availability_cores = request_availability_cores(leaf.hash, from_job)
 		.await
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
 	let disputes = select_disputes(from_job, metrics).await?;
-	let bitfields = select_availability_bitfields(&availability_cores, bitfields);
+	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
+	// there will be at least one block, which cannot get disputed, so the chain can make progress.
+	let bitfields = match leaf.status {
+		LeafStatus::Fresh => select_availability_bitfields(&availability_cores, bitfields),
+		LeafStatus::Stale => Vec::new(),
+	};
 	let candidates =
-		select_candidates(&availability_cores, &bitfields, candidates, relay_parent, from_job)
-			.await?;
+		select_candidates(&availability_cores, &bitfields, candidates, leaf.hash, from_job).await?;
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
