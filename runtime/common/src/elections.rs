@@ -128,19 +128,19 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 		pallet_bags_list::Pallet::<T>::on_remove(id);
 	}
 
-	fn regenerate(
+	fn unsafe_regenerate(
 		all: impl IntoIterator<Item = T::AccountId>,
 		weight_of: Box<dyn Fn(&T::AccountId) -> VoteWeight>,
 	) -> u32 {
-		pallet_bags_list::Pallet::<T>::regenerate(all, weight_of)
+		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
 	}
 
 	fn sanity_check() -> Result<(), &'static str> {
 		pallet_bags_list::Pallet::<T>::sanity_check()
 	}
 
-	fn clear(count: Option<u32>) -> u32 {
-		pallet_bags_list::Pallet::<T>::clear(count)
+	fn unsafe_clear() {
+		pallet_bags_list::Pallet::<T>::unsafe_clear()
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
