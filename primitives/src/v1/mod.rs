@@ -1095,7 +1095,7 @@ pub struct AbridgedHostConfiguration {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum frequency at which parachains can update their validation code.
+	/// The minimum period, in blocks, between which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
@@ -1376,6 +1376,31 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
+}
+
+/// A statement from the specified validator whether the given validation code passes PVF
+/// pre-checking or not anchored to the given session index.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	/// `true` if the subject passed pre-checking and `false` otherwise.
+	pub accept: bool,
+	/// The validation code hash that was checked.
+	pub subject: ValidationCodeHash,
+	/// The index of a session during which this statement is considered valid.
+	pub session_index: SessionIndex,
+	/// The index of the validator from which this statement originates.
+	pub validator_index: ValidatorIndex,
+}
+
+impl PvfCheckStatement {
+	/// Produce the payload used for signing this type of statement.
+	///
+	/// It is expected that it will be signed by the validator at `validator_index` in the
+	/// `session_index`.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
 }
 
 /// The maximum number of validators `f` which may safely be faulty.

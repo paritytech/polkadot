@@ -93,6 +93,26 @@ impl BoundToRelayParent for CandidateBackingMessage {
 #[error("Validation failed with {0:?}")]
 pub struct ValidationFailed(pub String);
 
+/// The outcome of the candidate-validation's PVF pre-check request.
+#[derive(Debug, PartialEq)]
+pub enum PreCheckOutcome {
+	/// The PVF has been compiled successfully within the given constraints.
+	Valid,
+	/// The PVF could not be compiled. This variant is used when the candidate-validation subsystem
+	/// can be sure that the PVF is invalid. To give a couple of examples: a PVF that cannot be
+	/// decompressed or that does not represent a structurally valid WebAssembly file.
+	Invalid,
+	/// This variant is used when the PVF cannot be compiled but for other reasons that are not
+	/// included into [`PreCheckOutcome::Invalid`]. This variant can indicate that the PVF in
+	/// question is invalid, however it is not necessary that PVF that received this judgement
+	/// is invalid.
+	///
+	/// For example, if during compilation the preparation worker was killed we cannot be sure why
+	/// it happened: because the PVF was malicious made the worker to use too much memory or its
+	/// because the host machine is under severe memory pressure and it decided to kill the worker.
+	Failed,
+}
+
 /// Messages received by the Validation subsystem.
 ///
 /// ## Validation Requests
@@ -137,6 +157,17 @@ pub enum CandidateValidationMessage {
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
+	/// Try to compile the given validation code and send back
+	/// the outcome.
+	///
+	/// The validation code is specified by the hash and will be queried from the runtime API at the
+	/// given relay-parent.
+	PreCheck(
+		// Relay-parent
+		Hash,
+		ValidationCodeHash,
+		oneshot::Sender<PreCheckOutcome>,
+	),
 }
 
 impl CandidateValidationMessage {
@@ -145,6 +176,7 @@ impl CandidateValidationMessage {
 		match self {
 			Self::ValidateFromChainState(_, _, _, _) => None,
 			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
 		}
 	}
 }

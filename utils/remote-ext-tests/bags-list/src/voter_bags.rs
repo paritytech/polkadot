@@ -61,14 +61,14 @@ pub(crate) async fn test_voter_bags_migration<
 				"some data already seem to exist in the bags-list pallet.."
 			);
 		}
-		<Runtime as pallet_staking::Config>::SortedListProvider::clear(None);
+		<Runtime as pallet_staking::Config>::SortedListProvider::unsafe_clear();
 
 		// get the nominator & validator count prior to migrating; these should be invariant.
 		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
 		log::info!(target: LOG_TARGET, "Nominator count: {}", pre_migrate_nominator_count);
 
 		// run the actual migration,
-		let moved = <Runtime as pallet_staking::Config>::SortedListProvider::regenerate(
+		let moved = <Runtime as pallet_staking::Config>::SortedListProvider::unsafe_regenerate(
 			pallet_staking::Nominators::<Runtime>::iter().map(|(n, _)| n),
 			pallet_staking::Pallet::<Runtime>::weight_of_fn(),
 		);

@@ -251,7 +251,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 
 	if let Some(available) = find_idle_worker(queue) {
 		// This may seem not fair (w.r.t priority) on the first glance, but it should be. This is
-		// because as soon as a worker finishes with the job it's immediatelly given the next one.
+		// because as soon as a worker finishes with the job it's immediately given the next one.
 		assign(queue, available, job).await?;
 	} else {
 		spawn_extra_worker(queue, priority.is_critical()).await?;
@@ -335,7 +335,7 @@ async fn handle_worker_concluded(
 			match $expr {
 				Some(v) => v,
 				None => {
-					// Precondition of calling this is that the $expr is never none;
+					// Precondition of calling this is that the `$expr` is never none;
 					// Assume the conditions holds, then this never is not hit;
 					// qed.
 					never!("never_none, {}", stringify!($expr));
@@ -794,7 +794,7 @@ mod tests {
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 
-		// Now, to the interesting part. After the queue normally issues the start_work command to
+		// Now, to the interesting part. After the queue normally issues the `start_work` command to
 		// the pool, before receiving the command the queue may report that the worker ripped.
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		test.send_from_pool(pool::FromPool::Rip(w1));

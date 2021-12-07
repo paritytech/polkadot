@@ -76,7 +76,7 @@ pub type LaneId = [u8; 4];
 pub type MessageNonce = u64;
 
 /// Message id as a tuple.
-pub type MessageId = (LaneId, MessageNonce);
+pub type BridgeMessageId = (LaneId, MessageNonce);
 
 /// Opaque message payload. We only decode this payload when it is dispatched.
 pub type MessagePayload = Vec<u8>;
@@ -111,22 +111,23 @@ pub struct Message<Fee> {
 /// Inbound lane data.
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct InboundLaneData<RelayerId> {
-	/// Identifiers of relayers and messages that they have delivered to this lane (ordered by message nonce).
+	/// Identifiers of relayers and messages that they have delivered to this lane (ordered by
+	/// message nonce).
 	///
 	/// This serves as a helper storage item, to allow the source chain to easily pay rewards
-	/// to the relayers who succesfuly delivered messages to the target chain (inbound lane).
+	/// to the relayers who successfully delivered messages to the target chain (inbound lane).
 	///
 	/// It is guaranteed to have at most N entries, where N is configured at the module level.
 	/// If there are N entries in this vec, then:
-	/// 1) all incoming messages are rejected if they're missing corresponding `proof-of(outbound-lane.state)`;
-	/// 2) all incoming messages are rejected if `proof-of(outbound-lane.state).last_delivered_nonce` is
-	///    equal to `self.last_confirmed_nonce`.
-	/// Given what is said above, all nonces in this queue are in range:
-	/// `(self.last_confirmed_nonce; self.last_delivered_nonce()]`.
+	/// 1) all incoming messages are rejected if they're missing corresponding
+	/// `proof-of(outbound-lane.state)`; 2) all incoming messages are rejected if
+	/// `proof-of(outbound-lane.state).last_delivered_nonce` is    equal to
+	/// `self.last_confirmed_nonce`. Given what is said above, all nonces in this queue are in
+	/// range: `(self.last_confirmed_nonce; self.last_delivered_nonce()]`.
 	///
 	/// When a relayer sends a single message, both of MessageNonces are the same.
-	/// When relayer sends messages in a batch, the first arg is the lowest nonce, second arg the highest nonce.
-	/// Multiple dispatches from the same relayer are allowed.
+	/// When relayer sends messages in a batch, the first arg is the lowest nonce, second arg the
+	/// highest nonce. Multiple dispatches from the same relayer are allowed.
 	pub relayers: VecDeque<UnrewardedRelayer<RelayerId>>,
 
 	/// Nonce of the last message that
@@ -142,24 +143,26 @@ pub struct InboundLaneData<RelayerId> {
 
 impl<RelayerId> Default for InboundLaneData<RelayerId> {
 	fn default() -> Self {
-		InboundLaneData {
-			relayers: VecDeque::new(),
-			last_confirmed_nonce: 0,
-		}
+		InboundLaneData { relayers: VecDeque::new(), last_confirmed_nonce: 0 }
 	}
 }
 
 impl<RelayerId> InboundLaneData<RelayerId> {
-	/// Returns approximate size of the struct, given number of entries in the `relayers` set and
+	/// Returns approximate size of the struct, given a number of entries in the `relayers` set and
 	/// size of each entry.
 	///
 	/// Returns `None` if size overflows `u32` limits.
-	pub fn encoded_size_hint(relayer_id_encoded_size: u32, relayers_entries: u32, messages_count: u32) -> Option<u32> {
+	pub fn encoded_size_hint(
+		relayer_id_encoded_size: u32,
+		relayers_entries: u32,
+		messages_count: u32,
+	) -> Option<u32> {
 		let message_nonce_size = 8;
 		let relayers_entry_size = relayer_id_encoded_size.checked_add(2 * message_nonce_size)?;
 		let relayers_size = relayers_entries.checked_mul(relayers_entry_size)?;
 		let dispatch_results_per_byte = 8;
-		let dispatch_result_size = sp_std::cmp::max(relayers_entries, messages_count / dispatch_results_per_byte);
+		let dispatch_result_size =
+			sp_std::cmp::max(relayers_entries, messages_count / dispatch_results_per_byte);
 		relayers_size
 			.checked_add(message_nonce_size)
 			.and_then(|result| result.checked_add(dispatch_result_size))
@@ -194,8 +197,8 @@ pub type DispatchResultsBitVec = BitVec<Msb0, u8>;
 
 /// Unrewarded relayer entry stored in the inbound lane data.
 ///
-/// This struct represents a continuous range of messages that have been delivered by the same relayer
-/// and whose confirmations are still pending.
+/// This struct represents a continuous range of messages that have been delivered by the same
+/// relayer and whose confirmations are still pending.
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct UnrewardedRelayer<RelayerId> {
 	/// Identifier of the relayer.
@@ -218,12 +221,22 @@ pub struct DeliveredMessages {
 }
 
 impl DeliveredMessages {
-	/// Create new `DeliveredMessages` struct that confirms delivery of single nonce with given dispatch result.
+	/// Create new `DeliveredMessages` struct that confirms delivery of single nonce with given
+	/// dispatch result.
 	pub fn new(nonce: MessageNonce, dispatch_result: bool) -> Self {
 		DeliveredMessages {
 			begin: nonce,
 			end: nonce,
 			dispatch_results: bitvec![Msb0, u8; if dispatch_result { 1 } else { 0 }],
+		}
+	}
+
+	/// Return total count of delivered messages.
+	pub fn total_messages(&self) -> MessageNonce {
+		if self.end >= self.begin {
+			self.end - self.begin + 1
+		} else {
+			0
 		}
 	}
 
@@ -269,19 +282,20 @@ pub struct UnrewardedRelayersState {
 /// Outbound lane data.
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct OutboundLaneData {
-	/// Nonce of oldest message that we haven't yet pruned. May point to not-yet-generated message if
-	/// all sent messages are already pruned.
+	/// Nonce of the oldest message that we haven't yet pruned. May point to not-yet-generated
+	/// message if all sent messages are already pruned.
 	pub oldest_unpruned_nonce: MessageNonce,
-	/// Nonce of latest message, received by bridged chain.
+	/// Nonce of the latest message, received by bridged chain.
 	pub latest_received_nonce: MessageNonce,
-	/// Nonce of latest message, generated by us.
+	/// Nonce of the latest message, generated by us.
 	pub latest_generated_nonce: MessageNonce,
 }
 
 impl Default for OutboundLaneData {
 	fn default() -> Self {
 		OutboundLaneData {
-			// it is 1 because we're pruning everything in [oldest_unpruned_nonce; latest_received_nonce]
+			// it is 1 because we're pruning everything in [oldest_unpruned_nonce;
+			// latest_received_nonce]
 			oldest_unpruned_nonce: 1,
 			latest_received_nonce: 0,
 			latest_generated_nonce: 0,
@@ -292,7 +306,9 @@ impl Default for OutboundLaneData {
 /// Returns total number of messages in the `InboundLaneData::relayers` vector.
 ///
 /// Returns `None` if there are more messages that `MessageNonce` may fit (i.e. `MessageNonce + 1`).
-pub fn total_unrewarded_messages<RelayerId>(relayers: &VecDeque<UnrewardedRelayer<RelayerId>>) -> Option<MessageNonce> {
+pub fn total_unrewarded_messages<RelayerId>(
+	relayers: &VecDeque<UnrewardedRelayer<RelayerId>>,
+) -> Option<MessageNonce> {
 	match (relayers.front(), relayers.back()) {
 		(Some(front), Some(back)) => {
 			if let Some(difference) = back.messages.end.checked_sub(front.messages.begin) {
@@ -300,7 +316,7 @@ pub fn total_unrewarded_messages<RelayerId>(relayers: &VecDeque<UnrewardedRelaye
 			} else {
 				Some(0)
 			}
-		}
+		},
 		_ => Some(0),
 	}
 }
@@ -314,10 +330,7 @@ mod tests {
 		assert_eq!(
 			total_unrewarded_messages(
 				&vec![
-					UnrewardedRelayer {
-						relayer: 1,
-						messages: DeliveredMessages::new(0, true)
-					},
+					UnrewardedRelayer { relayer: 1, messages: DeliveredMessages::new(0, true) },
 					UnrewardedRelayer {
 						relayer: 2,
 						messages: DeliveredMessages::new(MessageNonce::MAX, true)
@@ -341,7 +354,11 @@ mod tests {
 			(13u8, 128u8),
 		];
 		for (relayer_entries, messages_count) in test_cases {
-			let expected_size = InboundLaneData::<u8>::encoded_size_hint(1, relayer_entries as _, messages_count as _);
+			let expected_size = InboundLaneData::<u8>::encoded_size_hint(
+				1,
+				relayer_entries as _,
+				messages_count as _,
+			);
 			let actual_size = InboundLaneData {
 				relayers: (1u8..=relayer_entries)
 					.map(|i| {
@@ -375,11 +392,8 @@ mod tests {
 
 	#[test]
 	fn message_dispatch_result_works() {
-		let delivered_messages = DeliveredMessages {
-			begin: 100,
-			end: 150,
-			dispatch_results: bitvec![Msb0, u8; 1; 151],
-		};
+		let delivered_messages =
+			DeliveredMessages { begin: 100, end: 150, dispatch_results: bitvec![Msb0, u8; 1; 151] };
 
 		assert!(!delivered_messages.contains_message(99));
 		assert!(delivered_messages.contains_message(100));
