@@ -38,7 +38,7 @@ pub struct RuntimeMetricsProvider(Registry, Metrics);
 /// Metric label
 #[derive(Clone)]
 pub struct RuntimeMetricLabel(&'static str);
- 
+
 impl RuntimeMetricLabel {
 	/// Returns the inner static string.
 	pub fn as_str(&self) -> &'static str {
@@ -85,15 +85,14 @@ impl RuntimeMetricsProvider {
 		match self.register_countervec(name, "default description", label.clone()) {
 			Ok(_) => {
 				// The metric is in the hashmap, unwrap won't panic.
-				self
-				.1
-				.counter_vecs
-				.lock()
-				.expect("bad lock")
-				.get_mut(name)
-				.unwrap()
-				.with_label_values(&[label.as_str()])
-				.inc_by(value);
+				self.1
+					.counter_vecs
+					.lock()
+					.expect("bad lock")
+					.get_mut(name)
+					.unwrap()
+					.with_label_values(&[label.as_str()])
+					.inc_by(value);
 			},
 			Err(_) => {},
 		}
@@ -107,11 +106,7 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 		// TODO: parse TraceEvent to extract metric update information.
 
 		println!("Hey it works: {:?}", event.values.string_values.get("params"));
-		self.inc_counter_by(
-			"runtime_metric_test",
-			1024,
-			"test_label".into(),
-		);
+		self.inc_counter_by("runtime_metric_test", 1024, "test_label".into());
 	}
 }
 
