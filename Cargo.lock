@@ -6352,6 +6352,9 @@ dependencies = [
  "futures 0.3.18",
  "futures-timer 3.0.2",
  "metered-channel",
+ "sc-cli",
+ "sc-service",
+ "sc-tracing",
  "substrate-prometheus-endpoint",
 ]
 

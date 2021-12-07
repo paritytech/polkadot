@@ -260,13 +260,11 @@ impl<T: Config> Pallet<T> {
 			parent_header,
 			mut disputes,
 		} = data;
-
-		let parent_header_hash = parent_header.hash();
+		sp_io::init_tracing();
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
-			parent_header_hash,
+			"[enter] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -275,7 +273,7 @@ impl<T: Config> Pallet<T> {
 		// Check that the submitted parent header indeed corresponds to the previous block hash.
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 		ensure!(
-			parent_header_hash.as_ref() == parent_hash.as_ref(),
+			parent_header.hash().as_ref() == parent_hash.as_ref(),
 			Error::<T>::InvalidParentHeader,
 		);
 
@@ -286,6 +284,14 @@ impl<T: Config> Pallet<T> {
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+		sp_tracing::event!(
+			target: "metrics",
+			sp_tracing::Level::TRACE,
+			metric = "create_inherent_prefilter_weight",
+			op = "inc",
+			value = candidate_weight + bitfields_weight + disputes_weight
+		);
+
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
 		let total_weight = {
@@ -374,6 +380,14 @@ impl<T: Config> Pallet<T> {
 			disputed_bitfield
 		};
 
+		sp_tracing::event!(
+			target: "metrics",
+			sp_tracing::Level::TRACE,
+			metric = "create_inherent_bitfields_processed",
+			op = "inc",
+			value = signed_bitfields.len()
+		);
+		
 		// Process new availability bitfields, yielding any availability cores whose
 		// work has now concluded.
 		let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
@@ -404,6 +418,16 @@ impl<T: Config> Pallet<T> {
 			&scheduled[..],
 		);
 
+
+		// TODO: define metrics macros.
+		sp_tracing::event!(
+			target: "metrics",
+			sp_tracing::Level::TRACE,
+			metric = "create_inherent_candidates_processed",
+			op = "inc",
+			value = backed_candidates.len()
+		);
+
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
@@ -431,6 +455,14 @@ impl<T: Config> Pallet<T> {
 		// Give some time slice to dispatch pending upward messages.
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
+
+		sp_tracing::event!(
+			target: "metrics",
+			sp_tracing::Level::TRACE,
+			metric = "create_inherent_total_weight",
+			op = "inc",
+			value = total_weight
+		);
 
 		Ok(Some(total_weight).into())
 	}
