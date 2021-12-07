@@ -21,13 +21,15 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
+use frame_system::InitKind;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
-	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
-	Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
-	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
+	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
+	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
+	Hash, HeadData, Id as ParaId, InherentData as ParachainsInherentData,
+	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
+	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, ValidityAttestation,
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -37,17 +39,98 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
 
-fn dummy_validation_code() -> ValidationCode {
-	ValidationCode(vec![1, 2, 3])
+/// Provide a not necessarily valid or invalid dummy value.
+pub trait Dummy {
+	/// Provide a dummy, that might very well be incomplete,
+	/// invalid or inconsistent.
+	/// Relevant for testcases where only a small API subset needs to
+	/// be tested, and the API arguments need to be satisfied.
+	fn dummy() -> Self;
+}
+
+impl Dummy for Hash {
+	fn dummy() -> Self {
+		Hash::repeat_byte(0u8)
+	}
+}
+
+impl Dummy for HeadData {
+	fn dummy() -> Self {
+		Self(vec![0; 32])
+	}
+}
+
+impl Dummy for ValidationCode {
+	fn dummy() -> Self {
+		Self(vec![1, 2, 3])
+	}
+}
+
+impl Dummy for ValidationCodeHash {
+	fn dummy() -> Self {
+		Self::from([0u8; 32])
+	}
+}
+
+impl Dummy for CollatorSignature {
+	fn dummy() -> Self {
+		// TODO remove this, it makes no sense
+		CollatorSignature::default()
+	}
+}
+
+impl Dummy for CollatorId {
+	fn dummy() -> Self {
+		// TODO remove this, it makes no sense
+		CollatorId::default()
+	}
+}
+
+impl Dummy for ParaId {
+	fn dummy() -> Self {
+		ParaId::from(0u32)
+	}
+}
+impl Dummy for Digest {
+	fn dummy() -> Self {
+		Digest::default()
+	}
+}
+
+impl<H: Dummy> Dummy for CandidateDescriptor<H> {
+	fn dummy() -> Self {
+		CandidateDescriptor::<H> {
+			para_id: ParaId::dummy(),
+			relay_parent: <H as Dummy>::dummy(),
+			collator: CollatorId::dummy(),
+			persisted_validation_data_hash: Hash::dummy(),
+			pov_hash: Hash::dummy(),
+			erasure_root: Hash::dummy(),
+			signature: CollatorSignature::dummy(),
+			para_head: Hash::dummy(),
+			validation_code_hash: ValidationCodeHash::dummy(),
+		}
+	}
+}
+
+// Test runtime has an u64 as account ids
+impl Dummy for u64 {
+	fn dummy() -> Self {
+		0u64
+	}
 }
 
 /// Grab an account, seeded by a name and index.
 ///
 /// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
 /// "features = runtime-benchmarks".
-fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
+fn account<AccountId: Dummy + Decode + Default>(
+	name: &'static str,
+	index: u32,
+	seed: u32,
+) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
-	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
+	AccountId::decode(&mut &entropy[..]).unwrap_or_else(|_| AccountId::dummy())
 }
 
 /// Create a 32 byte slice based on the given number.
@@ -99,7 +182,11 @@ pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) _block_number: T::BlockNumber,
 }
 
-impl<T: paras_inherent::Config> BenchBuilder<T> {
+impl<T: paras_inherent::Config> BenchBuilder<T>
+where
+	T::Hash: Dummy,
+	T::AccountId: Dummy,
+{
 	/// Create a new `BenchBuilder` with some opinionated values that should work with the rest
 	/// of the functions in this implementation.
 	pub(crate) fn new() -> Self {
@@ -149,11 +236,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Mock header.
 	pub(crate) fn header(block_number: T::BlockNumber) -> T::Header {
 		T::Header::new(
-			block_number,       // `block_number`,
-			Default::default(), // `extrinsics_root`,
-			Default::default(), // `storage_root`,
-			Default::default(), // `parent_hash`,
-			Default::default(), // digest,
+			block_number,       // block_number,
+			<T::Hash>::dummy(), // extrinsics_root,
+			<T::Hash>::dummy(), // storage_root,
+			<T::Hash>::dummy(), // parent_hash,
+			Digest::dummy(),    // digest,
 		)
 	}
 
@@ -240,9 +327,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		availability_votes: BitVec<BitOrderLsb0, u8>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
-			core_idx,           // core
-			candidate_hash,     // hash
-			Default::default(), // candidate descriptor
+			core_idx,       // core
+			candidate_hash, // hash
+			CandidateDescriptor::dummy(),
 			availability_votes, // availability votes
 			Default::default(), // backers
 			Zero::zero(),       // relay parent
@@ -315,8 +402,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
-					genesis_head: Default::default(),
-					validation_code: dummy_validation_code(),
+					genesis_head: HeadData::dummy(),
+					validation_code: ValidationCode::dummy(),
 					parachain: true,
 				},
 			)
@@ -377,7 +464,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			&header.number(),
 			&header.hash(),
 			&Digest { logs: Vec::new() },
-			Default::default(),
+			InitKind::default(),
 		);
 
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
@@ -464,17 +551,17 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				let collator_public = CollatorId::generate_pair(None);
 				let header = Self::header(self.block_number.clone());
 				let relay_parent = header.hash();
-				let head_data: HeadData = Default::default();
+				let head_data = HeadData::dummy();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
 					parent_head: head_data.clone(),
 					relay_parent_number: self.relay_parent_number(),
-					relay_parent_storage_root: Default::default(),
+					relay_parent_storage_root: Hash::dummy(),
 					max_pov_size: config.max_pov_size,
 				}
 				.hash();
 
-				let pov_hash = Default::default();
-				let validation_code_hash = dummy_validation_code().hash();
+				let pov_hash = Hash::dummy();
+				let validation_code_hash = ValidationCode::dummy().hash();
 				let payload = collator_signature_payload(
 					&relay_parent,
 					&para_id,
@@ -500,7 +587,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						collator: collator_public,
 						persisted_validation_data_hash,
 						pov_hash,
-						erasure_root: Default::default(),
+						erasure_root: Hash::dummy(),
 						signature,
 						para_head: head_data.hash(),
 						validation_code_hash,
