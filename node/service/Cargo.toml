@@ -173,3 +173,11 @@ try-runtime = [
 ]
 malus = ["full-node"]
 disputes = ["polkadot-node-core-dispute-coordinator/disputes"]
+with-tracing = [
+	"polkadot-client/with-tracing", 
+	"rococo-runtime/with-tracing",
+	"westend-runtime/with-tracing",
+	"kusama-runtime/with-tracing",
+	"polkadot-runtime/with-tracing",
+	"polkadot-runtime-parachains/with-tracing"
+]

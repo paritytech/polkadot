@@ -264,3 +264,4 @@ disable-runtime-api = []
 on-chain-release-build = [
 	"sp-api/disable-logging",
 ]
+with-tracing = ["frame-executive/with-tracing", "sp-io/with-tracing"]

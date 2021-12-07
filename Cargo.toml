@@ -116,6 +116,7 @@ panic = "unwind"
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
 disputes = [ "polkadot-cli/disputes" ]
+with-tracing = [ "polkadot-cli/with-tracing" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

@@ -248,3 +248,4 @@ try-runtime = [
 # runtime without clashing with the runtime API exported functions
 # in WASM.
 disable-runtime-api = []
+with-tracing = ["frame-executive/with-tracing", "sp-io/with-tracing"]

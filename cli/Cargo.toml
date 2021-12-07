@@ -27,6 +27,8 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", bran
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-node-metrics = { path = "../node/metrics" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
@@ -62,3 +64,4 @@ rococo-native = [ "service/rococo-native" ]
 
 malus = [ "full-node", "service/malus" ]
 disputes = [ "service/disputes" ]
+with-tracing = ["service/with-tracing"]
