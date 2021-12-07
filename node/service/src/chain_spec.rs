@@ -1699,7 +1699,7 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-/// Versi development config (single validator Alice)
+/// `Versi` development config (single validator Alice)
 #[cfg(feature = "rococo-native")]
 pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
@@ -1885,7 +1885,7 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 	)
 }
 
-/// Versi is a temporary testnet that uses the same runtime as rococo.
+/// `Versi` is a temporary testnet that uses the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
 fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
@@ -1923,7 +1923,7 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-/// Versi local testnet config (multivalidator Alice + Bob + Charlie + Dave)
+/// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
