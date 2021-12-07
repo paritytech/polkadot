@@ -3121,6 +3121,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex-literal",
+ "kusama-runtime-constants",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -3194,6 +3195,17 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
+]
+
+[[package]]
+name = "kusama-runtime-constants"
+version = "0.9.13"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6651,6 +6663,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-runtime-common",
+ "polkadot-runtime-constants",
  "polkadot-runtime-parachains",
  "rustc-hex",
  "scale-info",
@@ -6736,6 +6749,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-runtime-constants"
+version = "0.9.13"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
+]
+
+[[package]]
 name = "polkadot-runtime-parachains"
 version = "0.9.13"
 dependencies = [
@@ -6792,6 +6816,7 @@ dependencies = [
  "futures 0.3.18",
  "hex-literal",
  "kusama-runtime",
+ "kusama-runtime-constants",
  "kvdb",
  "kvdb-rocksdb",
  "log",
@@ -6832,10 +6857,12 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
+ "polkadot-runtime-constants",
  "polkadot-runtime-parachains",
  "polkadot-statement-distribution",
  "polkadot-test-client",
  "rococo-runtime",
+ "rococo-runtime-constants",
  "sc-authority-discovery",
  "sc-basic-authorship",
  "sc-block-builder",
@@ -6879,6 +6906,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "westend-runtime",
+ "westend-runtime-constants",
 ]
 
 [[package]]
@@ -7084,6 +7112,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
+ "test-runtime-constants",
  "tiny-keccak",
  "xcm",
  "xcm-builder",
@@ -7140,6 +7169,7 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
+ "test-runtime-constants",
  "tokio",
  "tracing",
 ]
@@ -7668,14 +7698,17 @@ dependencies = [
  "clap",
  "frame-system",
  "kusama-runtime",
+ "kusama-runtime-constants",
  "log",
  "pallet-bags-list-remote-tests",
  "polkadot-runtime",
+ "polkadot-runtime-constants",
  "sp-core",
  "sp-tracing",
  "structopt",
  "tokio",
  "westend-runtime",
+ "westend-runtime-constants",
 ]
 
 [[package]]
@@ -7804,6 +7837,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
+ "rococo-runtime-constants",
  "scale-info",
  "serde",
  "serde_derive",
@@ -7826,6 +7860,17 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
+]
+
+[[package]]
+name = "rococo-runtime-constants"
+version = "0.9.13"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -10448,6 +10493,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-runtime-constants"
+version = "0.9.13"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11506,9 +11562,21 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
+ "westend-runtime-constants",
  "xcm",
  "xcm-builder",
  "xcm-executor",
+]
+
+[[package]]
+name = "westend-runtime-constants"
+version = "0.9.13"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-runtime",
 ]
 
 [[package]]

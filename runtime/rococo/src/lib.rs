@@ -81,7 +81,9 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 
-use constants::{currency::*, fee::*, time::*};
+/// Constant values used within the runtime.
+use rococo_runtime_constants::{currency::*, fee::*, time::*};
+
 use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -92,9 +94,13 @@ use xcm_builder::{
 };
 use xcm_executor::XcmExecutor;
 
+<<<<<<< HEAD
 mod bridge_messages;
 /// Constant values used within the runtime.
 pub mod constants;
+=======
+//mod bridge_messages;
+>>>>>>> c25860bba9df4aa17c21069a6947749f234ba3af
 mod validator_manager;
 mod weights;
 
