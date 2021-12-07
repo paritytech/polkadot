@@ -311,7 +311,7 @@ async fn distribute_collation(
 	// whether or not we expect a connection request or not.
 	should_connect: bool,
 ) -> DistributeCollation {
-	// Now we want to distribute a PoVBlock
+	// Now we want to distribute a `PoVBlock`
 	let pov_block = PoV { block_data: BlockData(vec![42, 43, 44]) };
 
 	let pov_hash = pov_block.hash();
@@ -531,7 +531,7 @@ fn advertise_and_send_collation() {
 
 		// We declare to the connected validators that we are a collator.
 		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
+		// previously connected to.
 		for peer_id in test_state.current_group_validator_peer_ids() {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
 		}
@@ -897,7 +897,7 @@ where
 
 		// We declare to the connected validators that we are a collator.
 		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
+		// previously connected to.
 		for peer_id in test_state.current_group_validator_peer_ids() {
 			expect_declare_msg(virtual_overseer, &test_state, &peer_id).await;
 		}
