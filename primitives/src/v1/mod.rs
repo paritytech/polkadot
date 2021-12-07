@@ -327,7 +327,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
@@ -365,6 +365,41 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 			&self.collator,
 			&self.signature,
 		)
+	}
+}
+
+impl<H: Default> CandidateDescriptor<H> {
+	/// The default value but the collator ID and signature must be specified since there is
+	/// sensible default for this.
+	pub fn default_with(collator: CollatorId, signature: CollatorSignature) -> Self {
+		Self {
+			para_id: Default::default(),
+			relay_parent: Default::default(),
+			collator,
+			persisted_validation_data_hash: Default::default(),
+			pov_hash: Default::default(),
+			erasure_root: Default::default(),
+			signature,
+			para_head: Default::default(),
+			validation_code_hash: Default::default(),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+fn dummy_collator_id() -> CollatorId {
+	primitives::crypto::UncheckedFrom::unchecked_from([1u8; 32])
+}
+
+#[cfg(feature = "std")]
+fn dummy_signature() -> CollatorSignature {
+	primitives::crypto::UncheckedFrom::unchecked_from([1u8; 64])
+}
+
+#[cfg(feature = "std")]
+impl<H: Default> Default for CandidateDescriptor<H> {
+	fn default() -> Self {
+		Self::default_with(dummy_collator_id(), dummy_signature())
 	}
 }
 
@@ -407,8 +442,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf, Default))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -669,12 +704,12 @@ impl From<u32> for GroupIndex {
 }
 
 /// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadEntry {
 	/// The claim.
