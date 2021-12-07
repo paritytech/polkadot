@@ -94,13 +94,7 @@ use xcm_builder::{
 };
 use xcm_executor::XcmExecutor;
 
-<<<<<<< HEAD
 mod bridge_messages;
-/// Constant values used within the runtime.
-pub mod constants;
-=======
-//mod bridge_messages;
->>>>>>> c25860bba9df4aa17c21069a6947749f234ba3af
 mod validator_manager;
 mod weights;
 
