@@ -31,7 +31,7 @@ use tokio_tungstenite::{
 mod errors;
 use errors::BackchannelError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ZombienetBackchannel {
 	broadcast_tx: broadcast::Sender<BackchannelItem>,
 	ws_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
