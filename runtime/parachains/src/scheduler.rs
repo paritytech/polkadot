@@ -533,7 +533,7 @@ impl<T: Config> Pallet<T> {
 
 		let mut availability_cores = AvailabilityCores::<T>::get();
 		Scheduled::<T>::mutate(|scheduled| {
-			// The constraints on the function require that now_occupied is a sorted subset of the
+			// The constraints on the function require that `now_occupied` is a sorted subset of the
 			// `scheduled` cores, which are also sorted.
 
 			let mut occupied_iter = now_occupied.iter().cloned().peekable();
@@ -983,7 +983,7 @@ mod tests {
 				schedule_blank_para(thread_c, false);
 			}
 
-			// set up a queue as if n_cores was 4 and with some with many retries.
+			// set up a queue as if `n_cores` was 4 and with some with many retries.
 			ParathreadQueue::<Test>::put({
 				let mut queue = ParathreadClaimQueue::default();
 

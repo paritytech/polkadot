@@ -363,7 +363,7 @@ fn send_dispute_gets_cleaned_up() {
 		)
 		.await;
 
-		// Yield, so subsystem can make progess:
+		// Yield, so subsystem can make progress:
 		Delay::new(Duration::from_millis(2)).await;
 
 		conclude(&mut handle).await;
@@ -582,7 +582,7 @@ async fn conclude(handle: &mut TestSubsystemContextHandle<DisputeDistributionMes
 	poll_fn(|ctx| {
 		let fut = handle.recv();
 		pin_mut!(fut);
-		// No requests should be inititated, as there is no longer any dispute active:
+		// No requests should be initiated, as there is no longer any dispute active:
 		assert_matches!(fut.poll(ctx), Poll::Pending, "No requests expected");
 		Poll::Ready(())
 	})

@@ -203,7 +203,7 @@ mod enter {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();
-			// No backed and concluding cores, so all cores will be filld with disputes.
+			// No backed and concluding cores, so all cores will be filled with disputes.
 			let backed_and_concluding = BTreeMap::new();
 
 			let scenario = make_inherent_data(TestConfig {
