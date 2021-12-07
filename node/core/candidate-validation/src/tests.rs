@@ -25,18 +25,45 @@ use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
-fn collator_sign(descriptor: &mut CandidateDescriptor, collator: Sr25519Keyring) {
-	descriptor.collator = collator.public().into();
-	let payload = polkadot_primitives::v1::collator_signature_payload(
-		&descriptor.relay_parent,
-		&descriptor.para_id,
-		&descriptor.persisted_validation_data_hash,
-		&descriptor.pov_hash,
-		&descriptor.validation_code_hash,
-	);
 
-	descriptor.signature = collator.sign(&payload[..]).into();
+fn dummy_hash() -> Hash {
+	Hash::repeat_byte(0u8)
+}
+
+fn create_desc_full(
+	para_id: ParaId,
+	relay_parent: Hash,
+	persisted_validation_data_hash: Hash,
+	pov_hash: Hash,
+	validation_code_hash: Hash,
+	para_head: Hash,
+	collator: impl Into<CollatorId>,
+) -> CandidateDescriptor {
+	let collator: CollatorId = collator.into();
+	let payload = polkadot_primitives::v1::collator_signature_payload(
+		&relay_parent,
+		&para_id,
+		&persisted_validation_data_hash,
+		&pov_hash,
+		&validation_code_hash,
+	);
+	let zeros = Hash::repeat_byte(0u8);
+
+	let signature = collator.sign(&payload[..]).into();
+	let descriptor = CandidateDescriptor {
+		para_id,
+		relay_parent,
+		collator,
+		persisted_validation_data_hash,
+		pov_hash,
+		erasure_root: zeros,
+		signature,
+		para_head,
+		validation_code_hash,
+	};
+
 	assert!(descriptor.check_collator_signature().is_ok());
+	descriptor
 }
 
 #[test]
@@ -48,10 +75,16 @@ fn correctly_checks_included_assumption() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-	candidate.para_id = para_id;
+	let descriptor = create_desc_full(
+		para_id,
+		relay_parent,
+		persisted_validation_data_hash,
+		dummy_hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
+
 
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
@@ -59,7 +92,7 @@ fn correctly_checks_included_assumption() {
 
 	let (check_fut, check_result) = check_assumption_validation_data(
 		ctx.sender(),
-		&candidate,
+		&descriptor,
 		OccupiedCoreAssumption::Included,
 	)
 	.remote_handle();
@@ -114,10 +147,16 @@ fn correctly_checks_timed_out_assumption() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-	candidate.para_id = para_id;
+
+	let descriptor = create_desc_full(
+		para_id,
+		relay_parent,
+		persisted_validation_data_hash,
+		dummy_hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
@@ -178,10 +217,15 @@ fn check_is_bad_request_if_no_validation_data() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-	candidate.para_id = para_id;
+	let descriptor = create_desc_full(
+		para_id,
+		relay_parent,
+		persisted_validation_data_hash,
+		dummy_hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
@@ -226,10 +270,16 @@ fn check_is_bad_request_if_no_validation_code() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-	candidate.para_id = para_id;
+
+	let descriptor = create_desc_full(
+		para_id,
+		relay_parent,
+		persisted_validation_data_hash,
+		dummy_hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
@@ -286,10 +336,15 @@ fn check_does_not_match() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = [3; 32].into();
-	candidate.para_id = para_id;
+	let descriptor = create_desc_full(
+		para_id,
+		relay_parent,
+		[3; 32].into().hash(),
+		dummy_hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
@@ -361,11 +416,16 @@ fn candidate_validation_ok_is_ok() {
 	let head_data = HeadData(vec![1, 1, 1]);
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.para_head = head_data.hash();
-	descriptor.validation_code_hash = validation_code.hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		head_data.hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let check = perform_basic_checks(
 		&descriptor,
@@ -412,10 +472,15 @@ fn candidate_validation_bad_return_is_invalid() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.validation_code_hash = validation_code.hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let check = perform_basic_checks(
 		&descriptor,
@@ -448,10 +513,15 @@ fn candidate_validation_timeout_is_internal_error() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.validation_code_hash = validation_code.hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let check = perform_basic_checks(
 		&descriptor,
@@ -483,10 +553,15 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.validation_code_hash = ValidationCode(vec![1; 16]).hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		ValidationCode(vec![1; 16]).hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let check = perform_basic_checks(
 		&descriptor,
@@ -523,11 +598,15 @@ fn compressed_code_works() {
 		.map(ValidationCode)
 		.unwrap();
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.para_head = head_data.hash();
-	descriptor.validation_code_hash = validation_code.hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		head_data.hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let validation_result = WasmValidationResult {
 		head_data,
@@ -563,11 +642,16 @@ fn code_decompression_failure_is_invalid() {
 			.map(ValidationCode)
 			.unwrap();
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.para_head = head_data.hash();
-	descriptor.validation_code_hash = validation_code.hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		head_data.hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let validation_result = WasmValidationResult {
 		head_data,
@@ -604,11 +688,15 @@ fn pov_decompression_failure_is_invalid() {
 
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let mut descriptor = CandidateDescriptor::default();
-	descriptor.pov_hash = pov.hash();
-	descriptor.para_head = head_data.hash();
-	descriptor.validation_code_hash = validation_code.hash();
-	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+	let descriptor = create_desc_full(
+		ParaId::from(1),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		head_data.hash(),
+		Sr25519Keyring::Alice.public(),
+	);
 
 	let validation_result = WasmValidationResult {
 		head_data,
