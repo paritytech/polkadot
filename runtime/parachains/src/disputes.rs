@@ -784,7 +784,8 @@ impl<T: Config> Pallet<T> {
 	// Votes which are duplicate or already known by the chain are filtered out.
 	// The entire set is removed if the dispute is ancient or concluded.
 	fn filter_dispute_data(
-		config: &HostConfiguration<T::BlockNumber>,
+		post_conclusion_acceptance_period: <T as Config>::BlockNumber,
+		max_spam_slots: u32,
 		set: &DisputeStatementSet,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
@@ -792,7 +793,7 @@ impl<T: Config> Pallet<T> {
 		// Dispute statement sets on any dispute which concluded
 		// before this point are to be rejected.
 		let now = <frame_system::Pallet<T>>::block_number();
-		let oldest_accepted = now.saturating_sub(config.dispute_post_conclusion_acceptance_period);
+		let oldest_accepted = now.saturating_sub(post_conclusion_acceptance_period);
 
 		// Load session info to access validators
 		let session_info = match <session_info::Pallet<T>>::session_info(set.session) {
@@ -887,7 +888,7 @@ impl<T: Config> Pallet<T> {
 					.expect("index is in-bounds, as checked above; qed");
 
 				if let SpamSlotChange::Inc = spam_slot_change {
-					if *spam_slot >= config.dispute_max_spam_slots {
+					if *spam_slot >= max_spam_slots {
 						// Find the vote by this validator and filter it out.
 						let first_index_in_set = set
 							.statements
@@ -1014,85 +1015,93 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::SingleSidedDispute,
 		);
 
-		// Apply spam slot changes. Bail early if too many occupied.
-		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
-		if !is_local {
-			let mut spam_slots: Vec<u32> =
-				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
+		fn apply_spam_slot_changes(session: SessionIndex, candidate_hash: CandidateHash, summary: ImportSummary, max_spam_slots: u32, n_validators: usize) -> Result<()> {
+			// Apply spam slot changes. Bail early if too many occupied.
+			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
+			if !is_local {
+				let mut spam_slots: Vec<u32> =
+					SpamSlots::<T>::get(&session).unwrap_or_else(|| vec![0; n_validators]);
 
-			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
-				let spam_slot = spam_slots
-					.get_mut(validator_index.0 as usize)
-					.expect("index is in-bounds, as checked above; qed");
+				for (validator_index, spam_slot_change) in summary.spam_slot_changes {
+					let spam_slot = spam_slots
+						.get_mut(validator_index.0 as usize)
+						.expect("index is in-bounds, as checked above; qed");
 
-				match spam_slot_change {
-					SpamSlotChange::Inc => {
-						ensure!(
-							*spam_slot < config.dispute_max_spam_slots,
-							Error::<T>::PotentialSpam,
-						);
+					match spam_slot_change {
+						SpamSlotChange::Inc => {
+							ensure!(
+								*spam_slot < max_spam_slots,
+								Error::<T>::PotentialSpam,
+							);
 
-						*spam_slot += 1;
-					},
-					SpamSlotChange::Dec => {
-						*spam_slot = spam_slot.saturating_sub(1);
-					},
+							*spam_slot += 1;
+						},
+						SpamSlotChange::Dec => {
+							*spam_slot = spam_slot.saturating_sub(1);
+						},
+					}
+				}
+				SpamSlots::<T>::insert(&session, spam_slots);
+			}
+			Ok(())
+		}
+		apply_spam_slot_changes(set.session, set.candidate_hash, summary, config.dispute_max_spam_slots, n_validators);
+
+		fn deposit_dispute_events(session: SessionIndex, candidate_hash: CandidateHash, summary: Summary, fresh: bool, is_local: bool)
+		{
+			if fresh {
+				Self::deposit_event(Event::DisputeInitiated(
+					candidate_hash,
+					if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
+				));
+			}
+
+			{
+				if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+					Self::deposit_event(Event::DisputeConcluded(
+						candidate_hash,
+						DisputeResult::Valid,
+					));
+				}
+
+				// It is possible, although unexpected, for a dispute to conclude twice.
+				// This would require f+1 validators to vote in both directions.
+				// A dispute cannot conclude more than once in each direction.
+
+				if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+					Self::deposit_event(Event::DisputeConcluded(
+						candidate_hash,
+						DisputeResult::Invalid,
+					));
 				}
 			}
 
-			SpamSlots::<T>::insert(&set.session, spam_slots);
-		}
+			// Reward statements.
+			T::RewardValidators::reward_dispute_statement(
+				session,
+				summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
+			);
 
-		if fresh {
-			Self::deposit_event(Event::DisputeInitiated(
-				set.candidate_hash,
-				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
-			));
-		}
+			// Slash participants on a losing side.
+			{
+				// a valid candidate, according to 2/3. Punish those on the 'against' side.
+				T::PunishValidators::punish_against_valid(session, summary.slash_against);
 
-		{
-			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(
-					set.candidate_hash,
-					DisputeResult::Valid,
-				));
+				// an invalid candidate, according to 2/3. Punish those on the 'for' side.
+				T::PunishValidators::punish_for_invalid(session, summary.slash_for);
 			}
 
-			// It is possible, although unexpected, for a dispute to conclude twice.
-			// This would require f+1 validators to vote in both directions.
-			// A dispute cannot conclude more than once in each direction.
+			<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
 
+			// Freeze if just concluded against some local candidate
 			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(
-					set.candidate_hash,
-					DisputeResult::Invalid,
-				));
+				if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
+					Self::revert_and_freeze(revert_to);
+				}
 			}
 		}
 
-		// Reward statements.
-		T::RewardValidators::reward_dispute_statement(
-			set.session,
-			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
-		);
-
-		// Slash participants on a losing side.
-		{
-			// a valid candidate, according to 2/3. Punish those on the 'against' side.
-			T::PunishValidators::punish_against_valid(set.session, summary.slash_against);
-
-			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(set.session, summary.slash_for);
-		}
-
-		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
-
-		// Freeze if just concluded against some local candidate
-		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
-				Self::revert_and_freeze(revert_to);
-			}
-		}
+		deposit_dispute_events(set.session, set.candidate_hash, summary, fresh, is_local);
 
 		Ok(fresh)
 	}
