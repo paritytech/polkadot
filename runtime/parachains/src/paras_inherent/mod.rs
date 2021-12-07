@@ -292,7 +292,6 @@ impl<T: Config> Pallet<T> {
 			value = candidate_weight + bitfields_weight + disputes_weight
 		);
 
-
 		// Potentially trim inherent data to ensure processing will be within weight limits
 		let total_weight = {
 			if candidate_weight
@@ -387,7 +386,7 @@ impl<T: Config> Pallet<T> {
 			op = "inc",
 			value = signed_bitfields.len()
 		);
-		
+
 		// Process new availability bitfields, yielding any availability cores whose
 		// work has now concluded.
 		let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
@@ -417,7 +416,6 @@ impl<T: Config> Pallet<T> {
 			},
 			&scheduled[..],
 		);
-
 
 		// TODO: define metrics macros.
 		sp_tracing::event!(
