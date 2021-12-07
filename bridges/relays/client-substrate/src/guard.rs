@@ -17,32 +17,41 @@
 //! Pallet provides a set of guard functions that are running in background threads
 //! and are aborting process if some condition fails.
 
-use crate::{Chain, ChainWithBalances, Client};
+use crate::{error::Error, Chain, ChainWithBalances, Client};
 
 use async_trait::async_trait;
 use num_traits::CheckedSub;
 use sp_version::RuntimeVersion;
 use std::{
 	collections::VecDeque,
+	fmt::Display,
 	time::{Duration, Instant},
 };
 
 /// Guards environment.
 #[async_trait]
 pub trait Environment<C: ChainWithBalances>: Send + Sync + 'static {
+	/// Error type.
+	type Error: Display + Send + Sync + 'static;
+
 	/// Return current runtime version.
-	async fn runtime_version(&mut self) -> Result<RuntimeVersion, String>;
+	async fn runtime_version(&mut self) -> Result<RuntimeVersion, Self::Error>;
 	/// Return free native balance of the account on the chain.
-	async fn free_native_balance(&mut self, account: C::AccountId) -> Result<C::Balance, String>;
+	async fn free_native_balance(
+		&mut self,
+		account: C::AccountId,
+	) -> Result<C::Balance, Self::Error>;
 
 	/// Return current time.
 	fn now(&self) -> Instant {
 		Instant::now()
 	}
+
 	/// Sleep given amount of time.
 	async fn sleep(&mut self, duration: Duration) {
 		async_std::task::sleep(duration).await
 	}
+
 	/// Abort current process. Called when guard condition check fails.
 	async fn abort(&mut self) {
 		std::process::abort();
@@ -50,7 +59,10 @@ pub trait Environment<C: ChainWithBalances>: Send + Sync + 'static {
 }
 
 /// Abort when runtime spec version is different from specified.
-pub fn abort_on_spec_version_change<C: ChainWithBalances>(mut env: impl Environment<C>, expected_spec_version: u32) {
+pub fn abort_on_spec_version_change<C: ChainWithBalances>(
+	mut env: impl Environment<C>,
+	expected_spec_version: u32,
+) {
 	async_std::task::spawn(async move {
 		loop {
 			let actual_spec_version = env.runtime_version().await;
@@ -66,10 +78,10 @@ pub fn abort_on_spec_version_change<C: ChainWithBalances>(mut env: impl Environm
 					);
 
 					env.abort().await;
-				}
+				},
 				Err(error) => log::warn!(
 					target: "bridge-guard",
-					"Failed to read {} runtime version: {:?}. Relay may need to be stopped manually",
+					"Failed to read {} runtime version: {}. Relay may need to be stopped manually",
 					C::NAME,
 					error,
 				),
@@ -80,8 +92,9 @@ pub fn abort_on_spec_version_change<C: ChainWithBalances>(mut env: impl Environm
 	});
 }
 
-/// Abort if, during a 24 hours, free balance of given account is decreased at least by given value.
-/// Other components may increase (or decrease) balance of account and it WILL affect logic of the guard.
+/// Abort if, during 24 hours, free balance of given account is decreased at least by given value.
+/// Other components may increase (or decrease) balance of account and it WILL affect logic of the
+/// guard.
 pub fn abort_when_account_balance_decreased<C: ChainWithBalances>(
 	mut env: impl Environment<C>,
 	account_id: C::AccountId,
@@ -127,16 +140,16 @@ pub fn abort_when_account_balance_decreased<C: ChainWithBalances>(
 
 						env.abort().await;
 					}
-				}
+				},
 				Err(error) => {
 					log::warn!(
 						target: "bridge-guard",
-						"Failed to read {} account {:?} balance: {:?}. Relay may need to be stopped manually",
+						"Failed to read {} account {:?} balance: {}. Relay may need to be stopped manually",
 						C::NAME,
 						account_id,
 						error,
 					);
-				}
+				},
 			};
 
 			env.sleep(conditions_check_delay::<C>()).await;
@@ -151,20 +164,24 @@ fn conditions_check_delay<C: Chain>() -> Duration {
 
 #[async_trait]
 impl<C: ChainWithBalances> Environment<C> for Client<C> {
-	async fn runtime_version(&mut self) -> Result<RuntimeVersion, String> {
-		Client::<C>::runtime_version(self).await.map_err(|e| e.to_string())
+	type Error = Error;
+
+	async fn runtime_version(&mut self) -> Result<RuntimeVersion, Self::Error> {
+		Client::<C>::runtime_version(self).await
 	}
 
-	async fn free_native_balance(&mut self, account: C::AccountId) -> Result<C::Balance, String> {
-		Client::<C>::free_native_balance(self, account)
-			.await
-			.map_err(|e| e.to_string())
+	async fn free_native_balance(
+		&mut self,
+		account: C::AccountId,
+	) -> Result<C::Balance, Self::Error> {
+		Client::<C>::free_native_balance(self, account).await
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use frame_support::weights::IdentityFee;
 	use futures::{
 		channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
 		future::FutureExt,
@@ -180,18 +197,24 @@ mod tests {
 		type Hash = sp_core::H256;
 		type Hasher = sp_runtime::traits::BlakeTwo256;
 		type Header = sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>;
+
+		type AccountId = u32;
+		type Balance = u32;
+		type Index = u32;
+		type Signature = sp_runtime::testing::TestSignature;
 	}
 
 	impl Chain for TestChain {
 		const NAME: &'static str = "Test";
 		const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_millis(1);
+		const STORAGE_PROOF_OVERHEAD: u32 = 0;
+		const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = 0;
 
-		type AccountId = u32;
-		type Index = u32;
-		type SignedBlock =
-			sp_runtime::generic::SignedBlock<sp_runtime::generic::Block<Self::Header, sp_runtime::OpaqueExtrinsic>>;
+		type SignedBlock = sp_runtime::generic::SignedBlock<
+			sp_runtime::generic::Block<Self::Header, sp_runtime::OpaqueExtrinsic>,
+		>;
 		type Call = ();
-		type Balance = u32;
+		type WeightToFee = IdentityFee<u32>;
 	}
 
 	impl ChainWithBalances for TestChain {
@@ -209,11 +232,13 @@ mod tests {
 
 	#[async_trait]
 	impl Environment<TestChain> for TestEnvironment {
-		async fn runtime_version(&mut self) -> Result<RuntimeVersion, String> {
+		type Error = Error;
+
+		async fn runtime_version(&mut self) -> Result<RuntimeVersion, Self::Error> {
 			Ok(self.runtime_version_rx.next().await.unwrap_or_default())
 		}
 
-		async fn free_native_balance(&mut self, _account: u32) -> Result<u32, String> {
+		async fn free_native_balance(&mut self, _account: u32) -> Result<u32, Self::Error> {
 			Ok(self.free_native_balance_rx.next().await.unwrap_or_default())
 		}
 
@@ -249,10 +274,7 @@ mod tests {
 
 			// client responds with wrong version
 			runtime_version_tx
-				.send(RuntimeVersion {
-					spec_version: 42,
-					..Default::default()
-				})
+				.send(RuntimeVersion { spec_version: 42, ..Default::default() })
 				.await
 				.unwrap();
 
@@ -284,10 +306,7 @@ mod tests {
 
 			// client responds with the same version
 			runtime_version_tx
-				.send(RuntimeVersion {
-					spec_version: 42,
-					..Default::default()
-				})
+				.send(RuntimeVersion { spec_version: 42, ..Default::default() })
 				.await
 				.unwrap();
 

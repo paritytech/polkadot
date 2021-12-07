@@ -34,7 +34,7 @@ use primitives::v1::{
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
-use sp_std::{prelude::*, result};
+use sp_std::prelude::*;
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -249,7 +249,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 			// no-op prune.
 			self.upgrade_times.drain(self.upgrade_times.len()..)
 		} else {
-			// if we are actually pruning something, update the last_pruned member.
+			// if we are actually pruning something, update the `last_pruned` member.
 			self.last_pruned = Some(self.upgrade_times[to_prune - 1].activated_at);
 			self.upgrade_times.drain(..to_prune)
 		};
@@ -307,11 +307,6 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + shared::Config {
-		/// The outer origin type.
-		type Origin: From<Origin>
-			+ From<<Self as frame_system::Config>::Origin>
-			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
-
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Weight information for extrinsics in this pallet.
@@ -517,9 +512,6 @@ pub mod pallet {
 			}
 		}
 	}
-
-	#[pallet::origin]
-	pub type Origin = ParachainOrigin;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
