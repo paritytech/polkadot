@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
-	GroupIndex, Hash, Id as ParaId,
+	Hash, Id as ParaId,
 };
 use polkadot_subsystem::{
 	jaeger,
@@ -148,20 +148,23 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-/// The group of validators that is assigned to our para at a given point of time.
+/// Info about validators we are currently connected to.
 ///
-/// This structure is responsible for keeping track of which validators belong to a certain group for a para. It also
-/// stores a mapping from [`PeerId`] to [`ValidatorId`] as we learn about it over the lifetime of this object. Besides
-/// that it also keeps track to which validators we advertised our collation.
+/// It keeps track to which validators we advertised our collation.
 #[derive(Debug)]
 struct ValidatorGroup {
-	/// All [`AuthorityDiscoveryId`]'s that are assigned to us in this group.
-	discovery_ids: HashSet<AuthorityDiscoveryId>,
 	/// All [`ValidatorId`]'s of the current group to that we advertised our collation.
 	advertised_to: HashSet<AuthorityDiscoveryId>,
 }
 
 impl ValidatorGroup {
+	/// Create a new `ValidatorGroup`
+	///
+	/// without any advertisements.
+	fn new() -> Self {
+		Self { advertised_to: HashSet::new() }
+	}
+
 	/// Returns `true` if we should advertise our collation to the given peer.
 	fn should_advertise_to(
 		&self,
@@ -185,12 +188,6 @@ impl ValidatorGroup {
 				self.advertised_to.insert(a.clone());
 			});
 		}
-	}
-}
-
-impl From<HashSet<AuthorityDiscoveryId>> for ValidatorGroup {
-	fn from(discovery_ids: HashSet<AuthorityDiscoveryId>) -> Self {
-		Self { discovery_ids, advertised_to: HashSet::new() }
 	}
 }
 
@@ -406,13 +403,10 @@ where
 		"Accepted collation, connecting to validators."
 	);
 
-	let validator_group: HashSet<_> =
-		current_validators.validators.iter().map(Clone::clone).collect();
-
 	// Issue a discovery request for the validators of the current group:
 	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 
-	state.our_validators_groups.insert(relay_parent, validator_group.into());
+	state.our_validators_groups.insert(relay_parent, ValidatorGroup::new());
 
 	if let Some(result_sender) = result_sender {
 		state.collation_result_senders.insert(receipt.hash(), result_sender);
@@ -458,8 +452,6 @@ where
 /// Validators of a particular group index.
 #[derive(Debug)]
 struct GroupValidators {
-	/// The group those validators belong to.
-	group: GroupIndex,
 	/// The validators of above group (their discovery keys).
 	validators: Vec<AuthorityDiscoveryId>,
 }
@@ -498,8 +490,7 @@ where
 	let current_validators =
 		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
-	let current_validators =
-		GroupValidators { group: current_group_index, validators: current_validators };
+	let current_validators = GroupValidators { validators: current_validators };
 
 	Ok(current_validators)
 }

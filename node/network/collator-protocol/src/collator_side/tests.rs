@@ -68,7 +68,6 @@ impl TestCandidateBuilder {
 #[derive(Clone)]
 struct TestState {
 	para_id: ParaId,
-	validators: Vec<Sr25519Keyring>,
 	session_info: SessionInfo,
 	group_rotation_info: GroupRotationInfo,
 	validator_peer_id: Vec<PeerId>,
@@ -121,7 +120,6 @@ impl Default for TestState {
 
 		Self {
 			para_id,
-			validators,
 			session_info: SessionInfo {
 				validators: validator_public,
 				discovery_keys,
