@@ -269,7 +269,7 @@ impl DisputeSender {
 		// but I don't want to enable a bypass for the below smart constructor and this code path
 		// is supposed to be only hit on startup basically.
 		//
-		// Revisit this decision when the `from_signed_statements` is unneded for the normal code
+		// Revisit this decision when the `from_signed_statements` is unneeded for the normal code
 		// path as well.
 		let message = DisputeMessage::from_signed_statements(
 			valid_signed,

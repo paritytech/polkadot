@@ -119,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9130,
+	spec_version: 9140,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1238,6 +1238,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
+	type ForceOrigin = MoreThanHalfCouncil;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 

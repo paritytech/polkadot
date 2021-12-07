@@ -196,7 +196,7 @@ impl TestCandidateBuilder {
 	}
 }
 
-// Tests that the subsystem performs actions that are requied on startup.
+// Tests that the subsystem performs actions that are required on startup.
 async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestState) {
 	// Start work on some new parent.
 	virtual_overseer
@@ -378,7 +378,7 @@ fn backing_second_works() {
 	});
 }
 
-// Test that the candidate reaches quorum succesfully.
+// Test that the candidate reaches quorum successfully.
 #[test]
 fn backing_works() {
 	let test_state = TestState::default();

@@ -149,10 +149,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Mock header.
 	pub(crate) fn header(block_number: T::BlockNumber) -> T::Header {
 		T::Header::new(
-			block_number,       // block_number,
-			Default::default(), // extrinsics_root,
-			Default::default(), // storage_root,
-			Default::default(), // parent_hash,
+			block_number,       // `block_number`,
+			Default::default(), // `extrinsics_root`,
+			Default::default(), // `storage_root`,
+			Default::default(), // `parent_hash`,
 			Default::default(), // digest,
 		)
 	}
