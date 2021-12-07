@@ -109,7 +109,6 @@ pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extension
 /// The `ChainSpec` parameterized for the versi runtime.
 ///
 /// As of now `Versi` will just be a clone of `Rococo`, until we need it to differ.
-#[cfg(feature = "rococo-native")]
 pub type VersiChainSpec = RococoChainSpec;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
