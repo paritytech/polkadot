@@ -253,14 +253,14 @@ construct_runtime! {
 		Beefy: pallet_beefy,
 		MmrLeaf: pallet_beefy_mmr,
 
+		// Validator Manager pallet.
+		ValidatorManager: validator_manager,
+
 		// It might seem strange that we add both sides of the bridge to the same runtime. We do this because this
 		// runtime as shared by both the Rococo and Wococo chains. When running as Rococo we only use
 		// `BridgeWococoGrandpa`, and vice versa.
 		BridgeRococoGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage, Config<T>} = 40,
 		BridgeWococoGrandpa: pallet_bridge_grandpa::<Instance1>::{Pallet, Call, Storage, Config<T>} = 41,
-
-		// Validator Manager pallet.
-		ValidatorManager: validator_manager,
 
 		// Bridge messages support. The same story as with the bridge grandpa pallet above ^^^ - when we're
 		// running as Rococo we only use `BridgeWococoMessages`/`BridgeWococoMessagesDispatch`, and vice versa.
