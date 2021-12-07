@@ -29,6 +29,8 @@ pub use metered_channel as metered;
 /// Cyclic metric collection support.
 pub mod metronome;
 pub use self::metronome::Metronome;
+pub mod runtime;
+pub use self::runtime::logger_hook;
 
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
