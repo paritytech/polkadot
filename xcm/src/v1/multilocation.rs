@@ -837,6 +837,12 @@ mod tests {
 		let expected = (Parent, PalletInstance(42)).into();
 		let inverted = ancestry.inverted(&target).unwrap();
 		assert_eq!(inverted, expected);
+		
+		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
+		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
+		let inverted = ancestry.inverted(&target).unwrap();
+		assert_eq!(inverted, expected);
 	}
 
 	#[test]
