@@ -23,8 +23,7 @@ use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use parity_scale_codec as codec;
 use serde::{Deserialize, Serialize};
 use std::env;
-use tokio::net::TcpStream;
-use tokio::sync::broadcast;
+use tokio::{net::TcpStream, sync::broadcast};
 use tokio_tungstenite::{
 	connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
 };
@@ -65,15 +64,14 @@ impl ZombienetBackchannel {
 				println!("es {}", &text);
 
 				match serde_json::from_str::<BackchannelItem>(&text) {
-					Ok(backchannel_item) => {
+					Ok(backchannel_item) =>
 						if tx1.send(backchannel_item).is_err() {
 							tracing::error!("Error sending through the channel");
-							return;
-						}
-					}
+							return
+						},
 					Err(_) => {
 						tracing::error!("Invalid payload received");
-					}
+					},
 				}
 			}
 		});
