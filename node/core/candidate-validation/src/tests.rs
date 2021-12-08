@@ -25,7 +25,6 @@ use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
-
 fn dummy_hash() -> Hash {
 	Hash::zero()
 }
@@ -84,7 +83,6 @@ fn correctly_checks_included_assumption() {
 		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
-
 
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
@@ -146,7 +144,6 @@ fn correctly_checks_timed_out_assumption() {
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
-
 
 	let descriptor = create_desc_full(
 		para_id,
@@ -269,7 +266,6 @@ fn check_is_bad_request_if_no_validation_code() {
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
-
 
 	let descriptor = create_desc_full(
 		para_id,
@@ -415,7 +411,6 @@ fn candidate_validation_ok_is_ok() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let head_data = HeadData(vec![1, 1, 1]);
 	let validation_code = ValidationCode(vec![2; 16]);
-
 
 	let descriptor = create_desc_full(
 		ParaId::from(1),
@@ -641,7 +636,6 @@ fn code_decompression_failure_is_invalid() {
 		sp_maybe_compressed_blob::compress(&raw_code, VALIDATION_CODE_BOMB_LIMIT + 1)
 			.map(ValidationCode)
 			.unwrap();
-
 
 	let descriptor = create_desc_full(
 		ParaId::from(1),
