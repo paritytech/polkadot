@@ -572,7 +572,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::Call>>,
 			max_weight: Weight,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let value = (origin_location, message);
@@ -584,8 +584,9 @@ pub mod pallet {
 				max_weight,
 				max_weight,
 			);
+			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
+			result
 		}
 
 		/// Extoll that a particular destination can be communicated with through a particular
