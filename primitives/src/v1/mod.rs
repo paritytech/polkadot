@@ -353,6 +353,24 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub validation_code_hash: ValidationCodeHash,
 }
 
+impl<H: Default> CandidateDescriptor<H> {
+	/// Create a dummy `CandidateDescriptor`.
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	pub fn dummy(collator: CollatorId) -> Self {
+		Self {
+			para_id: Default::default(),
+			relay_parent: Default::default(),
+			collator,
+			persisted_validation_data_hash: Default::default(),
+			pov_hash: Default::default(),
+			erasure_root: Default::default(),
+			signature: Default::default(),
+			para_head: Default::default(),
+			validation_code_hash: Default::default(),
+		}
+	}
+}
+
 impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 	/// Check the signature of the collator within this descriptor.
 	pub fn check_collator_signature(&self) -> Result<(), ()> {
@@ -376,6 +394,31 @@ pub struct CandidateReceipt<H = Hash> {
 	pub descriptor: CandidateDescriptor<H>,
 	/// The hash of the encoded commitments made as a result of candidate execution.
 	pub commitments_hash: Hash,
+}
+
+#[cfg(feature = "std")]
+impl<H: Default> CandidateReceipt<H> {
+	/// Generate a dummy `CandidateReceipt` where the `CandidateDescriptor` uses the given 
+	/// `collator`.
+	pub fn dummy(collator: CollatorId) -> Self {
+		Self {
+			descriptor: CandidateDescriptor::<H>::dummy(collator),
+			commitments_hash: Default::default(),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<H: Default> Default for CandidateReceipt<H> {
+	// TODO try and get rid of this. Place holder for now
+	fn default() -> Self {
+		use application_crypto::sr25519;
+		let collator = CollatorId::from(sr25519::Public::from_raw([42; 32]));
+		Self {
+			descriptor: CandidateDescriptor::<H>::dummy(collator),
+			commitments_hash: Default::default(),
+		}
+	}
 }
 
 impl<H> CandidateReceipt<H> {
@@ -466,6 +509,21 @@ impl Ord for CommittedCandidateReceipt {
 			.para_id
 			.cmp(&other.descriptor().para_id)
 			.then_with(|| self.commitments.head_data.cmp(&other.commitments.head_data))
+	}
+}
+
+#[cfg(feature = "std")]
+impl<H: Default> Default for CommittedCandidateReceipt<H> {
+	fn default() -> Self {
+		// TODO this will generate a random collator pair everytime which is probably misleading
+		// because default is assumed to be deterministic
+		use application_crypto::sr25519;
+		let public = sr25519::Public::from_raw([42; 32]);
+		let collator = CollatorId::from(public);
+		Self {
+			descriptor: CandidateDescriptor::<H>::dummy(collator),
+			commitments: Default::default(),
+		}
 	}
 }
 

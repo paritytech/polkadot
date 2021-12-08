@@ -47,7 +47,7 @@ fn dummy_validation_code() -> ValidationCode {
 /// "features = runtime-benchmarks".
 fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
-	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
+	AccountId::decode(&mut &entropy[..]).expect("user must call with valid input.")
 }
 
 /// Create a 32 byte slice based on the given number.
@@ -242,7 +242,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
 			core_idx,           // core
 			candidate_hash,     // hash
-			Default::default(), // candidate descriptor
+			// CandidateDescriptor::dummy(CollatorId::from([42; 32])), // candidate descriptor
+			CandidateDescriptor::dummy(CollatorId::generate_pair(None)), // candidate descriptor
 			availability_votes, // availability votes
 			Default::default(), // backers
 			Zero::zero(),       // relay parent

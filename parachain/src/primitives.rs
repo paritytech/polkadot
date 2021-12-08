@@ -51,9 +51,8 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 	RuntimeDebug,
 	derive_more::From,
 	TypeInfo,
-	Default,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl HeadData {
@@ -65,9 +64,9 @@ impl HeadData {
 
 /// Parachain validation code.
 #[derive(
-	Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
+	PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Default))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl ValidationCode {
@@ -82,8 +81,8 @@ impl ValidationCode {
 /// This type is produced by [`ValidationCode::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
-#[derive(Clone, Copy, Encode, Decode, Default, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf, Default))]
 pub struct ValidationCodeHash(Hash);
 
 impl sp_std::fmt::Display for ValidationCodeHash {
