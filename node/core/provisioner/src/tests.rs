@@ -37,13 +37,13 @@ pub fn default_bitvec(n_cores: usize) -> CoreAvailability {
 }
 
 pub fn scheduled_core(id: u32) -> ScheduledCore {
-	ScheduledCore { para_id: id.into(), ..Default::default() }
+	ScheduledCore { para_id: id.into(), collator: None }
 }
 
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
 	use futures::executor::block_on;
-	use polkadot_primitives::v1::{SigningContext, ValidatorId, ValidatorIndex};
+	use polkadot_primitives::v1::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{testing::KeyStore, CryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;
@@ -112,8 +112,11 @@ mod select_availability_bitfields {
 		let mut bitvec2 = bitvec.clone();
 		bitvec2.set(2, true);
 
-		let cores =
-			vec![CoreState::Free, CoreState::Scheduled(Default::default()), occupied_core(2)];
+		let cores = vec![
+			CoreState::Free,
+			CoreState::Scheduled(ScheduledCore { para_id: Default::default(), collator: None }),
+			occupied_core(2),
+		];
 
 		let bitfields = vec![
 			block_on(signed_bitfield(&keystore, bitvec0, ValidatorIndex(0))),
