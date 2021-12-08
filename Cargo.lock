@@ -6354,10 +6354,14 @@ dependencies = [
  "futures 0.3.18",
  "futures-timer 3.0.2",
  "metered-channel",
+ "parity-scale-codec",
+ "polkadot-primitives",
  "sc-cli",
  "sc-service",
  "sc-tracing",
+ "sp-tracing",
  "substrate-prometheus-endpoint",
+ "tracing",
 ]
 
 [[package]]
