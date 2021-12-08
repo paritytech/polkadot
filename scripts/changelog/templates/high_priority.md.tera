@@ -9,17 +9,16 @@
 {%- elif p >= 5 -%}
     {%- set prio = "❗️ Medium" -%}
     {%- set text = "This is a medium priority release and you should upgrade in a timely manner." -%}
-{%- elif p >= 3 -%}
+{%- else -%}
     {%- set prio = "Low" -%}
     {%- set text = "This is a low priority release and you may upgrade at your convenience." -%}
 {%- endif %}
 
+
 {%- if prio %}
 {{prio}}: {{text}}
-{%- else -%}
-<!-- No relevant Priority label as been detected -->
-{% endif %}
 
+{% if p >= 3 %}
 The changes motivating this priority level are:
 
 {% for pr in changes | sort(attribute="merged_at") -%}
@@ -32,6 +31,9 @@ The changes motivating this priority level are:
         {%- endif -%}
     {%- endif -%}
 {%- endfor %}
-
+{%- else -%}
+<!-- No relevant Priority label as been detected for p={{ p }} -->
+{%- endif -%}
+{%- endif -%}
 
 {%- endmacro priority -%}

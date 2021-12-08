@@ -4,7 +4,7 @@
 
 {% if env.PRE_RELEASE == "true" -%}
 This pre-release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
-{% else -%}
+{%- else -%}
 This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 {% endif -%}
 
