@@ -230,7 +230,7 @@ fn run_node_inner<F>(
 ) -> Result<()>
 where
 	F: FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration),
-{
+{	
 	let runner = cli
 		.create_runner_with_logger_hook::<sc_cli::RunCmd, F>(&cli.run.base, logger_hook)
 		.map_err(Error::from)?;
@@ -281,7 +281,10 @@ pub fn run_with_wasm_metrics() -> Result<()> {
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
-	let cli = Cli::from_args();
+	let mut cli: Cli = Cli::from_args();
+
+	// Override the default substrate metric prefix.
+	cli.update_prometheus_metric_prefix("polkadot");
 
 	match &cli.subcommand {
 		// TODO: gate by feature `runtime_metrics`.

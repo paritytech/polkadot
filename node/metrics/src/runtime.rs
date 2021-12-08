@@ -118,7 +118,6 @@ pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Con
 		if config.prometheus_registry().is_none() {
 			return
 		}
-
 		let registry = config.prometheus_registry().cloned().unwrap();
 		let metrics_provider = RuntimeMetricsProvider::new(registry);
 		logger_builder.with_custom_profiling(vec![Box::new(metrics_provider)]);
