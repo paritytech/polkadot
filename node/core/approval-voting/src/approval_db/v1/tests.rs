@@ -85,7 +85,7 @@ fn read_write() {
 		make_block_entry(hash_a, Default::default(), 1, vec![(CoreIndex(0), candidate_hash)]);
 
 	let candidate_entry = CandidateEntry {
-		candidate: Default::default(),
+		candidate: CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
 		session: 5,
 		block_assignments: vec![(
 			hash_a,
