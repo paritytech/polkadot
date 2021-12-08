@@ -28,6 +28,7 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, SessionInfo, ValidatorIndex,
 };
 use sp_core::sr25519;
+use polkadot_primitives_test_helpers::{dummy_hash, dummy_validation_code};
 
 /// Create dummy session info with two validator groups.
 pub fn make_session_info() -> SessionInfo {
@@ -116,10 +117,10 @@ impl TestCandidateBuilder {
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
 				collator: CollatorId::from(sr25519::Public::from_raw([42; 32])),
-				persisted_validation_data_hash: Default::default(),
-				signature: Default::default(),
-				para_head: Default::default(),
-				validation_code_hash: Default::default(),
+				persisted_validation_data_hash: dummy_hash(),
+				signature: sr25519::Signature::from_raw([42; 64]).into(),
+				para_head: dummy_hash(),
+				validation_code_hash: dummy_validation_code().hash(),
 			},
 			commitments: CandidateCommitments { head_data: self.head_data, ..Default::default() },
 		}
