@@ -33,6 +33,8 @@ use sp_tracing as _;
 use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
 
+use ::test_helpers::{dummy_validation_code, dummy_hash, dummy_candidate_receipt, dummy_committed_candidate_receipt};
+
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
@@ -189,9 +191,20 @@ impl TestCandidateBuilder {
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
-				..Default::default()
+				collator: CollatorId::from(sp_keyring::AccountKeyring::Two.public()),
+				signature: sr25519::Signature([0u8;64]).into(),
+				para_head: dummy_hash(),
+				validation_code_hash: dummy_validation_code().hash(),
+				persisted_validation_data_hash: dummy_hash(),
 			},
-			commitments: CandidateCommitments { head_data: self.head_data, ..Default::default() },
+			commitments: CandidateCommitments {
+				head_data: self.head_data,
+				upward_messages: vec![],
+				horizontal_messages: vec![],
+				new_validation_code: None,
+				processed_downward_messages: 0,
+				hrmp_watermark: 0_u32,
+			},
 		}
 	}
 }
@@ -1445,8 +1458,7 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let fake_attestation = |idx: u32| {
-		let candidate: CommittedCandidateReceipt =
-			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+		let candidate = dummy_candidate_receipt(dummy_hash());
 		let hash = candidate.hash();
 		let mut data = vec![0; 64];
 		data[0..32].copy_from_slice(hash.0.as_bytes());
@@ -1457,7 +1469,7 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let attested = TableAttestedCandidate {
-		candidate: Default::default(),
+		candidate: dummy_committed_candidate_receipt(dummy_hash()),
 		validity_votes: vec![
 			(ValidatorIndex(5), fake_attestation(5)),
 			(ValidatorIndex(3), fake_attestation(3)),
