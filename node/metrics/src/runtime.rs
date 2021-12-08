@@ -23,6 +23,8 @@ use std::{
 	sync::{Arc, Mutex},
 };
 use substrate_prometheus_endpoint::{register, CounterVec, Opts, PrometheusError, Registry, U64};
+use primitives::v0::{RuntimeMetricUpdate, RuntimeMetricOp};
+use codec::Decode;
 
 /// We only support CounterVec for now.
 /// TODO: add more when needed.
@@ -35,7 +37,11 @@ pub struct Metrics {
 #[derive(Clone)]
 pub struct RuntimeMetricsProvider(Registry, Metrics);
 
-/// Metric label
+/// A set of metric labels.
+#[derive(Clone)]
+pub struct RuntimeMetricLabels(Vec<RuntimeMetricLabel>);
+
+/// A metric label value.
 #[derive(Clone)]
 pub struct RuntimeMetricLabel(&'static str);
 
@@ -102,10 +108,33 @@ impl RuntimeMetricsProvider {
 impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 	fn handle_span(&self, _span: &sc_tracing::SpanDatum) {}
 	fn handle_event(&self, event: &sc_tracing::TraceEvent) {
-		// DUMMY impl
-		// TODO: parse TraceEvent to extract metric update information.
-		println!("Hey it works: {:?}", event.values.string_values.get("params"));
-		self.inc_counter_by("runtime_metric_test", 1024, "test_label".into());
+		if event.target.ne("metrics") {
+			return
+		}
+
+		if let Some(update_op_str) = event.values.string_values.get("params").cloned() {
+			// TODO: Fix ugly hack because the payload comes in as a formatted string.
+			const SKIP_CHARS: usize = " { update_op: ".len();
+
+			match RuntimeMetricUpdate::decode(&mut update_op_str[SKIP_CHARS..].as_bytes()) {
+				Ok(update_op) => {
+					self.parse_metric_update(update_op);
+				},
+				Err(e) => {
+					tracing::error!("TraceEvent decode failed: {:?}", e);
+				}
+			}
+		}
+	}
+}
+
+impl RuntimeMetricsProvider {
+	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
+		match update.op {
+			RuntimeMetricOp::Increment(value) => {
+				self.inc_counter_by(update.metric_name(), value, "test_label".into());
+			}
+		}
 	}
 }
 
