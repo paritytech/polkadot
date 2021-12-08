@@ -215,23 +215,38 @@ impl Assets {
 	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's
 	/// responsibility to ensure that any internal asset IDs are able to be prepended without
 	/// overflow.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		ancestry: &MultiLocation,
+		failed_bin: &mut Self,
+	) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible
 			.into_iter()
-			.map(|(mut id, amount)| {
-				let _ = id.reanchor(target, ancestry);
-				(id, amount)
+			.filter_map(|(mut id, amount)| {
+				match id.reanchor(target, ancestry) {
+					Ok(()) => Some((id, amount)),
+					Err(()) => {
+						failed_bin.fungible.insert(id, amount);
+						None
+					}
+				}
 			})
 			.collect();
 		let mut non_fungible = Default::default();
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible
 			.into_iter()
-			.map(|(mut class, inst)| {
-				let _ = class.reanchor(target, ancestry);
-				(class, inst)
+			.filter_map(|(mut class, inst)| {
+				match class.reanchor(target, ancestry) {
+					Ok(()) => Some((class, inst)),
+					Err(()) => {
+						failed_bin.non_fungible.insert((class, inst));
+						None
+					}
+				}
 			})
 			.collect();
 	}
