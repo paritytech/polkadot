@@ -38,7 +38,6 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "mas
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 westend-runtime-constants = { package = "westend-runtime-constants", path = "./constants", default-features = false }
-
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
