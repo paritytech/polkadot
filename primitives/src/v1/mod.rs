@@ -398,7 +398,7 @@ pub struct CandidateReceipt<H = Hash> {
 
 #[cfg(feature = "std")]
 impl<H: Default> CandidateReceipt<H> {
-	/// Generate a dummy `CandidateReceipt` where the `CandidateDescriptor` uses the given 
+	/// Generate a dummy `CandidateReceipt` where the `CandidateDescriptor` uses the given
 	/// `collator`.
 	pub fn dummy(collator: CollatorId) -> Self {
 		Self {

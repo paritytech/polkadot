@@ -16,6 +16,8 @@
 
 use assert_matches::assert_matches;
 use polkadot_primitives::v1::{BlockNumber, CandidateReceipt, Hash};
+use sp_application_crypto::sr25519;
+use polkadot_primitives::v1::CollatorId;
 
 use crate::real::ordering::CandidateComparator;
 
@@ -23,7 +25,9 @@ use super::{Error, ParticipationRequest, Queues};
 
 /// Make a `ParticipationRequest` based on the given commitments hash.
 fn make_participation_request(hash: Hash) -> ParticipationRequest {
-	let mut receipt = CandidateReceipt::default();
+	let mut receipt = CandidateReceipt::dummy(
+		CollatorId::from(sr25519::Public::from_raw([42; 32]))
+	);
 	// make it differ:
 	receipt.commitments_hash = hash;
 	ParticipationRequest::new(receipt, 1, 100)
