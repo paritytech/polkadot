@@ -17,14 +17,16 @@ logger.debug('Starting')
 
 owner = 'paritytech'
 repo = 'polkadot'
-polkadot_ref1 = ARGV[0]
+
+gh_polkadot = SubRef.new(format('%<owner>s/%<repo>s', { owner: owner, repo: repo }))
+last_release_ref = gh_polkadot.get_last_ref()
+
+polkadot_ref1 = ARGV[0] || last_release_ref
 polkadot_ref2 = ARGV[1] || 'HEAD'
 output = ARGV[2] || 'release-notes.md'
 
 ENV['REF1'] = polkadot_ref1
 ENV['REF2'] = polkadot_ref2
-
-gh_polkadot = SubRef.new(format('%<owner>s/%<repo>s', { owner: owner, repo: repo }))
 
 substrate_ref1 = gh_polkadot.get_dependency_reference(polkadot_ref1, 'sp-io')
 substrate_ref2 = gh_polkadot.get_dependency_reference(polkadot_ref2, 'sp-io')

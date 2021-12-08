@@ -70,20 +70,64 @@ jobs:
         with:
           fetch-depth: 0
           path: polkadot
-      - name: Set up Ruby 2.7
+
+      - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
-          ruby-version: 2.7
+          ruby-version: 3.0.0
+
       - name: Download srtool json output
         uses: actions/download-artifact@v2
-      - name: Generate release text
+
+      - name: Prepare tooling
+        run: |
+          cd cumulus/scripts/changelog
+          gem install bundler changelogerator
+          bundle install
+          changelogerator --help
+
+          URL=https://github.com/chevdor/tera-cli/releases/download/v0.2.1/tera-cli_linux_amd64.deb
+          wget $URL -O tera.deb
+          sudo dpkg -i tera.deb
+          tera --version
+
+      - name: Generate release notes
         env:
           RUSTC_STABLE: ${{ needs.get-rust-versions.outputs.rustc-stable }}
           RUSTC_NIGHTLY: ${{ needs.get-rust-versions.outputs.rustc-nightly }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NO_CACHE: 1
+          DEBUG: 1
+          SHELL_DIGEST: ${{ github.workspace}}/shell-srtool-json/shell_srtool_output.json
+          WESTMINT_DIGEST: ${{ github.workspace}}/westmint-srtool-json/westmint_srtool_output.json
+          STATEMINE_DIGEST: ${{ github.workspace}}/statemine-srtool-json/statemine_srtool_output.json
+          STATEMINT_DIGEST: ${{ github.workspace}}/statemint-srtool-json/statemint_srtool_output.json
+          ROCOCO_DIGEST: ${{ github.workspace}}/rococo-parachain-srtool-json/rococo-parachain_srtool_output.json
+          PRE_RELEASE: ${{ github.event.inputs.pre_release }}
+          HIDE_SRTOOL_ROCOCO: false
         run: |
-          gem install changelogerator:0.0.16 git toml
-          ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb | tee release_text.md
+          find ${{env.GITHUB_WORKSPACE}} -type f -name "*_srtool_output.json"
+          ls -al $SHELL_DIGEST
+          ls -al $WESTMINT_DIGEST
+          ls -al $STATEMINE_DIGEST
+          ls -al $STATEMINT_DIGEST
+          ls -al $ROCOCO_DIGEST
+
+          echo "The diff will be computed from $REF1 to $REF2"
+          cd cumulus/scripts/changelog
+
+          ./bin/changelog
+          ls -al release-notes.md
+          ls -al context.json
+
+      - name: Archive artifact context.json
+        uses: actions/upload-artifact@v2
+        with:
+          name: release-notes-context
+          path: |
+            context.json
+            **/*_srtool_output.json
+
       - name: Create draft release
         id: create-release
         uses: actions/create-release@v1
@@ -92,7 +136,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Polkadot ${{ github.ref }}
-          body_path: ./release_text.md
+          body_path: ./cumulus/scripts/changelog/release-notes.md
           draft: true
 
   publish-runtimes:
@@ -117,6 +161,7 @@ jobs:
           ls "${{ matrix.runtime }}-runtime"
           runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
           echo "::set-output name=runtime_ver::$runtime_ver"
+
       - name: Upload compressed ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1
         env:
