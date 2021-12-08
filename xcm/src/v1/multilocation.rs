@@ -329,7 +329,7 @@ impl MultiLocation {
 	///
 	/// Does not modify `self` in case of overflow.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
-		// TODO: Optimize this.
+		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
 
 		// 1. Use our `ancestry` to figure out how the `target` would address us.
 		let inverted_target = ancestry.inverted(target)?;
