@@ -352,7 +352,7 @@ impl MultiLocation {
 		let mut junctions = Junctions::Here;
 		for _ in 0..target.parent_count() {
 			junctions = junctions
-				.pushed_with(ancestry.interior.take_last().unwrap_or(OnlyChild))
+				.pushed_front_with(ancestry.interior.take_last().unwrap_or(OnlyChild))
 				.map_err(|_| ())?;
 		}
 		let parents = target.interior().len() as u8;
