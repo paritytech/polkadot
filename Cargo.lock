@@ -5820,6 +5820,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.4",
  "sc-network",
  "sp-core",
@@ -6079,6 +6080,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand_core 0.5.1",
  "sc-keystore",
  "schnorrkel",
@@ -6114,6 +6116,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-keyring",
  "thiserror",
@@ -6133,6 +6136,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "polkadot-statement-table",
  "sc-keystore",
  "sp-application-crypto",
@@ -6175,6 +6179,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-keyring",
  "sp-maybe-compressed-blob",
@@ -6324,6 +6329,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-api",
  "sp-authority-discovery",
  "sp-consensus-babe",
@@ -6573,6 +6579,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-primitives-test-helpers"
+version = "0.9.13"
+dependencies = [
+ "polkadot-primitives",
+ "sp-application-crypto",
+ "sp-keyring",
+]
+
+[[package]]
 name = "polkadot-rpc"
 version = "0.9.13"
 dependencies = [
@@ -6763,6 +6778,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.4",
  "rand_chacha 0.3.1",
  "rustc-hex",
