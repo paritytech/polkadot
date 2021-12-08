@@ -32,6 +32,8 @@ use sp_keystore::{CryptoStore, SyncCryptoStore};
 use sp_tracing as _;
 use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
+use sp_application_crypto::sr25519;
+use polkadot_primitives::v1::CollatorId;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -1445,7 +1447,9 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let fake_attestation = |idx: u32| {
-		let candidate: CommittedCandidateReceipt = Default::default();
+		let candidate: CommittedCandidateReceipt = CandidateReceipt::dummy(
+			CollatorId::from(sr25519::Public::from_raw([42; 32]))
+		);
 		let hash = candidate.hash();
 		let mut data = vec![0; 64];
 		data[0..32].copy_from_slice(hash.0.as_bytes());

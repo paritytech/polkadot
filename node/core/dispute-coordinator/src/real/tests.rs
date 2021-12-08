@@ -54,6 +54,8 @@ use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, HashT,
 	Header, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
+use sp_application_crypto::sr25519;
+use polkadot_primitives::v1::CollatorId;
 
 use crate::{
 	metrics::Metrics,
@@ -358,14 +360,19 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-	let mut candidate_receipt = CandidateReceipt::default();
+	let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(
+		CollatorId::from(sr25519::Public::from_raw([42; 32]))
+	);
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
+	// TODO make sure this is ok
 	// Commitments hash will be 0, which is not correct:
-	CandidateReceipt::default()
+	CandidateReceipt::<Hash>::dummy(
+		CollatorId::from(sr25519::Public::from_raw([42; 32]))
+	)
 }
 
 #[test]
