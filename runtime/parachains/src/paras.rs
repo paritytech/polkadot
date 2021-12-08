@@ -456,13 +456,20 @@ pub mod pallet {
 			new_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para).unwrap_or(dummy_validation_code().hash());
+			let maybe_prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para);
 			let new_code_hash = new_code.hash();
 			Self::increase_code_ref(&new_code_hash, &new_code);
 			<Self as Store>::CurrentCodeHash::insert(&para, new_code_hash);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			Self::note_past_code(para, now, now, prior_code_hash);
+			if let Some(prior_code_hash) = maybe_prior_code_hash {
+				Self::note_past_code(para, now, now, prior_code_hash);
+			} else {
+				log::error!(
+					"Pallet paras storage is inconsistent, prior code not found {:?}",
+					&para
+				);
+			}
 			Self::deposit_event(Event::CurrentCodeUpdated(para));
 			Ok(())
 		}
@@ -959,9 +966,13 @@ impl<T: Config> Pallet<T> {
 				<Self as Store>::UpgradeGoAheadSignal::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
-				let fallback = ValidationCodeHash::from(<T>::Hash::zero());
-				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or(fallback);
-				let prior_code_hash = CurrentCodeHash::<T>::get(&id).unwrap_or(fallback);
+				let new_code_hash = if let Some(new_code_hash) = FutureCodeHash::<T>::take(&id) {
+					new_code_hash
+				} else {
+					log::error!("Missing future code hash for {:?}", &id);
+					return T::DbWeight::get().reads_writes(3, 1 + 3)
+				};
+				let prior_code_hash = CurrentCodeHash::<T>::get(&id);
 				CurrentCodeHash::<T>::insert(&id, &new_code_hash);
 
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
@@ -970,7 +981,12 @@ impl<T: Config> Pallet<T> {
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Pallet<T>>::block_number();
 
-				let weight = Self::note_past_code(id, expected_at, now, prior_code_hash);
+				let weight = if let Some(prior_code_hash) = prior_code_hash {
+					Self::note_past_code(id, expected_at, now, prior_code_hash)
+				} else {
+					log::error!("Missing prior code hash for {:?}", &id);
+					0 as Weight
+				};
 
 				// add 1 to writes due to heads update.
 				weight + T::DbWeight::get().reads_writes(3, 1 + 3)
