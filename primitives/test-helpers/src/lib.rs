@@ -21,21 +21,37 @@
 //!
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
-use polkadot_primitives::v1::{ValidationCodeHash, CollatorId, CandidateReceipt, CandidateDescriptor, Hash, Id as ParaId};
+use polkadot_primitives::{v1::{HeadData, ValidationCodeHash, CollatorId, CommittedCandidateReceipt, CandidateReceipt, CandidateDescriptor, Hash, Id as ParaId, ValidationCode}, v1::CandidateCommitments};
 
 use sp_application_crypto::RuntimeAppPublic;
 
 /// Creates a candidate receipt without
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
-	let collator = sp_keyring::AccountKeyring::Two.public();
-	// TODO make this PRNG based
-	let invalid = Hash::zero();
-	let descriptor = make_candidate_descriptor(1.into(), relay_parent, invalid, invalid, invalid, invalid, invalid, collator);
 	CandidateReceipt::<H> {
-		commitments_hash: Hash::zero(),
-		descriptor,
+		commitments_hash: dummy_candidate_commitments(HeadData(vec![1,1,11])).hash(),
+		descriptor: dummy_candidate_descriptor(relay_parent),
 	}
 }
+
+/// Creates a committed candidate receipt without
+pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CommittedCandidateReceipt<H> {
+	CommittedCandidateReceipt::<H> {
+		descriptor: dummy_candidate_descriptor::<H>(relay_parent),
+		commitments: dummy_candidate_commitments(HeadData(vec![1,1,11])),
+	}
+}
+
+pub fn dummy_candidate_commitments(head_data: HeadData) -> CandidateCommitments {
+	CandidateCommitments {
+		head_data,
+		upward_messages: vec![],
+		new_validation_code: None,
+		horizontal_messages: vec![],
+		processed_downward_messages: 0,
+		hrmp_watermark: 0_u32,
+	}
+}
+
 
 /// Create meaningless dummy hash.
 pub fn dummy_hash() -> Hash {
@@ -43,9 +59,20 @@ pub fn dummy_hash() -> Hash {
 	Hash::zero()
 }
 
+pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateDescriptor<H>{
+	let collator = sp_keyring::AccountKeyring::Ferdie.public();
+	let invalid = Hash::zero();
+	let descriptor = make_valid_candidate_descriptor(1.into(), relay_parent, invalid, invalid, invalid, invalid, invalid, collator);
+	descriptor
+}
+
+pub fn dummy_validation_code() -> ValidationCode {
+	ValidationCode(vec![1,2,3])
+}
+
 /// Create a new candidate descripter, and applies a valid siganture
 /// using the provided `CollatorId` key.
-pub fn make_candidate_descriptor<H: AsRef<[u8]>>(
+pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	para_id: ParaId,
 	relay_parent: H,
 	persisted_validation_data_hash: Hash,
