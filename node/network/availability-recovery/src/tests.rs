@@ -215,7 +215,13 @@ impl TestState {
 					discovery_keys: self.validator_authority_id.clone(),
 					// all validators in the same group.
 					validator_groups: vec![(0..self.validators.len()).map(|i| ValidatorIndex(i as _)).collect()],
-					..Default::default()
+					assignment_keys: Vec::new(),
+					n_cores: 0,
+					zeroth_delay_tranche_width: 0,
+					relay_vrf_modulo_samples: 0,
+					n_delay_tranches: 0,
+					no_show_slots: 0,
+					needed_approvals: 0,
 				}))).unwrap();
 			}
 		);
