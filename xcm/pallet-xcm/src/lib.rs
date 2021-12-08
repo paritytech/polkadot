@@ -578,7 +578,12 @@ pub mod pallet {
 			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
-			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
+			let outcome = T::XcmExecutor::execute_xcm_in_credit(
+				origin_location,
+				message,
+				max_weight,
+				max_weight,
+			);
 			Self::deposit_event(Event::Attempted(outcome));
 			Ok(())
 		}
