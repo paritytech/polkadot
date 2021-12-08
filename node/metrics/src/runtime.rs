@@ -108,7 +108,8 @@ impl RuntimeMetricsProvider {
 impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 	fn handle_span(&self, _span: &sc_tracing::SpanDatum) {}
 	fn handle_event(&self, event: &sc_tracing::TraceEvent) {
-		if event.target.ne("metrics") {
+		let target = event.values.string_values.get("target");
+		if target.is_none() || target.unwrap().ne("metrics") {
 			return
 		}
 
