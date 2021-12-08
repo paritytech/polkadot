@@ -354,7 +354,7 @@ pub struct CandidateDescriptor<H = Hash> {
 }
 
 impl<H: Default> CandidateDescriptor<H> {
-	/// Create a dummy `CandidateDescriptor`.
+	/// Create a dummy `CandidateDescriptor` with the given `collator`.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn dummy(collator: CollatorId) -> Self {
 		Self {
@@ -396,10 +396,10 @@ pub struct CandidateReceipt<H = Hash> {
 	pub commitments_hash: Hash,
 }
 
-#[cfg(feature = "std")]
 impl<H: Default> CandidateReceipt<H> {
 	/// Generate a dummy `CandidateReceipt` where the `CandidateDescriptor` uses the given
 	/// `collator`.
+	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn dummy(collator: CollatorId) -> Self {
 		Self {
 			descriptor: CandidateDescriptor::<H>::dummy(collator),
@@ -499,8 +499,10 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-#[cfg(feature = "std")]
 impl<H: Default> CommittedCandidateReceipt<H> {
+	/// Create a dummy `CommittedCandidateReceipt` with the given `collator` used in the
+	/// `descriptor`.
+	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn dummy(collator: CollatorId) -> Self {
 		Self {
 			descriptor: CandidateDescriptor::<H>::dummy(collator),

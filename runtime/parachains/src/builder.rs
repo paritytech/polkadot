@@ -29,6 +29,7 @@ use primitives::v1::{
 	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
 	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
+use sp_application_crypto::sr25519;
 use sp_core::H256;
 use sp_runtime::{
 	generic::Digest,
@@ -240,15 +241,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		availability_votes: BitVec<BitOrderLsb0, u8>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
-			core_idx,       // core
-			candidate_hash, // hash
-			// CandidateDescriptor::dummy(CollatorId::from([42; 32])), // candidate descriptor
-			CandidateDescriptor::dummy(CollatorId::generate_pair(None)), // candidate descriptor
-			availability_votes,                                          // availability votes
-			Default::default(),                                          // backers
-			Zero::zero(),                                                // relay parent
-			One::one(),                                                  // relay chain block this was backed in
-			group_idx,                                                   // backing group
+			core_idx,                                                                          // core
+			candidate_hash,                                                                    // hash
+			CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))), // candidate descriptor
+			availability_votes, // availability votes
+			Default::default(), // backers
+			Zero::zero(),       // relay parent
+			One::one(),         // relay chain block this was backed in
+			group_idx,          // backing group
 		)
 	}
 

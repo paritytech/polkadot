@@ -28,9 +28,10 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v1::{
-	CandidateHash, CollatorPair, InvalidDisputeStatementKind, ValidDisputeStatementKind,
-	ValidatorIndex,
+	CandidateDescriptor, CandidateHash, CollatorId, CollatorPair, CommittedCandidateReceipt,
+	InvalidDisputeStatementKind, ValidDisputeStatementKind, ValidatorIndex,
 };
+use sp_application_crypto::sr25519;
 
 use crate::{
 	self as overseer,
@@ -110,7 +111,9 @@ where
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
-							Default::default(),
+							CandidateDescriptor::dummy(CollatorId::from(
+								sr25519::Public::from_raw([42; 32]),
+							)),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
@@ -793,7 +796,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
 	CandidateValidationMessage::ValidateFromChainState(
-		Default::default(),
+		CommittedCandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
 		pov,
 		Default::default(),
 		sender,
@@ -844,7 +847,7 @@ fn test_statement_distribution_msg() -> StatementDistributionMessage {
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 	let (sender, _) = oneshot::channel();
 	AvailabilityRecoveryMessage::RecoverAvailableData(
-		Default::default(),
+		CommittedCandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
 		Default::default(),
 		None,
 		sender,
@@ -890,7 +893,9 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 	let dummy_dispute_message = UncheckedDisputeMessage {
-		candidate_receipt: Default::default(),
+		candidate_receipt: CommittedCandidateReceipt::dummy(CollatorId::from(
+			sr25519::Public::from_raw([42; 32]),
+		)),
 		session_index: 0,
 		invalid_vote: InvalidDisputeVote {
 			validator_index: ValidatorIndex(0),
