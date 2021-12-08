@@ -459,17 +459,16 @@ mod tests {
 	use super::*;
 
 	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-	use polkadot_primitives::v1::{CandidateReceipt, CollatorId, GroupIndex};
-	use sp_application_crypto::sr25519;
+	use polkadot_primitives::v1::{GroupIndex};
+
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 	use crate::approval_db;
 
 	#[test]
 	fn pending_is_not_approved() {
 		let candidate = approval_db::v1::CandidateEntry {
-			candidate: CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw(
-				[42; 32],
-			))),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: Default::default(),
@@ -502,9 +501,7 @@ mod tests {
 	#[test]
 	fn exact_takes_only_assignments_up_to() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw(
-				[42; 32],
-			))),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
@@ -576,9 +573,7 @@ mod tests {
 	#[test]
 	fn one_honest_node_always_approves() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw(
-				[42; 32],
-			))),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
@@ -1038,9 +1033,7 @@ mod tests {
 		let needed_approvals = 3;
 
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw(
-				[42; 32],
-			))),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 3],

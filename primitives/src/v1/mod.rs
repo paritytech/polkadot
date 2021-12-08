@@ -357,6 +357,7 @@ impl CandidateDescriptor<Hash> {
 	/// Create a dummy `CandidateDescriptor` with the given `collator`.
 	pub fn dummy(collator: CollatorId) -> Self {
 		let zeros = Hash::zero();
+		// let zeros = Default::default();
 		Self {
 			para_id: 0.into(),
 			relay_parent: zeros,
