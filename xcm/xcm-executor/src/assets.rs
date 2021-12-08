@@ -212,23 +212,25 @@ impl Assets {
 	/// Mutate the assets to be interpreted as the same assets from the perspective of a `target`
 	/// chain. The local chain's `ancestry` is provided.
 	///
-	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's
-	/// responsibility to ensure that any internal asset IDs are able to be prepended without
-	/// overflow.
+	/// Any assets which were unable to be reanchored are introduced into `failed_bin`.
 	pub fn reanchor(
 		&mut self,
 		target: &MultiLocation,
 		ancestry: &MultiLocation,
-		failed_bin: &mut Self,
+		mut maybe_failed_bin: Option<&mut Self>,
 	) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
+		let maybe_failed_bin_ref = &mut maybe_failed_bin;
 		self.fungible = fungible
 			.into_iter()
 			.filter_map(|(mut id, amount)| match id.reanchor(target, ancestry) {
 				Ok(()) => Some((id, amount)),
 				Err(()) => {
-					failed_bin.fungible.insert(id, amount);
+					*maybe_failed_bin_ref = maybe_failed_bin_ref.take().map(|failed| {
+						failed.fungible.insert(id, amount);
+						failed
+					});
 					None
 				},
 			})
@@ -240,7 +242,10 @@ impl Assets {
 			.filter_map(|(mut class, inst)| match class.reanchor(target, ancestry) {
 				Ok(()) => Some((class, inst)),
 				Err(()) => {
-					failed_bin.non_fungible.insert((class, inst));
+					*maybe_failed_bin_ref = maybe_failed_bin_ref.take().map(|failed| {
+						failed.non_fungible.insert((class, inst));
+						failed
+					});
 					None
 				},
 			})

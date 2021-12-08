@@ -400,16 +400,20 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
-				let assets = Self::reanchored(deposited, &dest, &mut self.holding);
+				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
+				// be reanchored  because we have already called `deposit_asset` on all assets.
+				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
+				// Note that here we are able to place any assets which could not be reanchored
+				// back into Holding.
 				let assets = Self::reanchored(
 					self.holding.saturating_take(assets),
 					&reserve,
-					&mut self.holding,
+					Some(&mut self.holding),
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
@@ -421,13 +425,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&dest, &asset);
 				}
-				let assets = Self::reanchored(assets, &dest, &mut self.holding);
+				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
+				// be reanchored  because we have already checked all assets out.
+				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			QueryHolding { query_id, dest, assets, max_response_weight } => {
-				let assets = Self::reanchored(self.holding.min(&assets), &dest, &mut self.holding);
+				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
+				// from Holding.
+				let assets = Self::reanchored(self.holding.min(&assets), &dest, None);
 				let max_weight = max_response_weight;
 				let response = Response::Assets(assets);
 				let instruction = QueryResponse { query_id, response, max_weight };
@@ -500,12 +508,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 
+	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.
 	fn reanchored(
 		mut assets: Assets,
 		dest: &MultiLocation,
-		failed_bin: &mut Assets,
+		maybe_failed_bin: Option<&mut Assets>,
 	) -> MultiAssets {
-		assets.reanchor(dest, &Config::LocationInverter::ancestry(), failed_bin);
+		assets.reanchor(dest, &Config::LocationInverter::ancestry(), maybe_failed_bin);
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 }
