@@ -408,18 +408,18 @@ impl<H: Default> CandidateReceipt<H> {
 	}
 }
 
-#[cfg(feature = "std")]
-impl<H: Default> Default for CandidateReceipt<H> {
-	// TODO try and get rid of this. Place holder for now
-	fn default() -> Self {
-		use application_crypto::sr25519;
-		let collator = CollatorId::from(sr25519::Public::from_raw([42; 32]));
-		Self {
-			descriptor: CandidateDescriptor::<H>::dummy(collator),
-			commitments_hash: Default::default(),
-		}
-	}
-}
+// #[cfg(feature = "std")]
+// impl<H: Default> Default for CandidateReceipt<H> {
+// 	// TODO try and get rid of this. Place holder for now
+// 	fn default() -> Self {
+// 		use application_crypto::sr25519;
+// 		let collator = CollatorId::from(sr25519::Public::from_raw([42; 32]));
+// 		Self {
+// 			descriptor: CandidateDescriptor::<H>::dummy(collator),
+// 			commitments_hash: Default::default(),
+// 		}
+// 	}
+// }
 
 impl<H> CandidateReceipt<H> {
 	/// Get a reference to the candidate descriptor.
@@ -509,21 +509,6 @@ impl Ord for CommittedCandidateReceipt {
 			.para_id
 			.cmp(&other.descriptor().para_id)
 			.then_with(|| self.commitments.head_data.cmp(&other.commitments.head_data))
-	}
-}
-
-#[cfg(feature = "std")]
-impl<H: Default> Default for CommittedCandidateReceipt<H> {
-	fn default() -> Self {
-		// TODO this will generate a random collator pair everytime which is probably misleading
-		// because default is assumed to be deterministic
-		use application_crypto::sr25519;
-		let public = sr25519::Public::from_raw([42; 32]);
-		let collator = CollatorId::from(public);
-		Self {
-			descriptor: CandidateDescriptor::<H>::dummy(collator),
-			commitments: Default::default(),
-		}
 	}
 }
 
