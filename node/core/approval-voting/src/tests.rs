@@ -52,6 +52,8 @@ use super::{
 	},
 };
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_descriptor};
+
 const SLOT_DURATION_MILLIS: u64 = 5000;
 
 #[derive(Clone)]
@@ -1134,7 +1136,7 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
 		let candidate_hash =
-			CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
+			dummy_candidate_receipt(block_hash)
 				.hash();
 		let session_index = 1;
 
@@ -2199,7 +2201,7 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_receipt =
-			CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+			dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;
@@ -2334,7 +2336,7 @@ where
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_receipt =
-			CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+			dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;

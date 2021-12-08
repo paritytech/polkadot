@@ -26,6 +26,8 @@ use polkadot_primitives::v1::{CollatorId, Id as ParaId};
 use sp_application_crypto::sr25519;
 use std::{collections::HashMap, sync::Arc};
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_descriptor};
+
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
 
@@ -75,7 +77,7 @@ fn read_write() {
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
 	let candidate_hash =
-		CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
+		dummy_candidate_receipt(dummy_hash())
 			.hash();
 
 	let range = StoredBlockRange(10, 20);
