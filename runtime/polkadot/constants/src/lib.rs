@@ -16,6 +16,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub use self::currency::DOLLARS;
+
 /// Money matters.
 pub mod currency {
 	use primitives::v0::Balance;
