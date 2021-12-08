@@ -42,6 +42,8 @@ use polkadot_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_subsystem_testhelpers as test_helpers;
+use sp_application_crypto::sr25519;
+use polkadot_primitives::v1::CollatorId;
 
 #[derive(Default)]
 struct TestCandidateBuilder {
@@ -58,7 +60,12 @@ impl TestCandidateBuilder {
 				para_id: self.para_id,
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
-				..Default::default()
+				collator: CollatorId::from(sr25519::Public::from_raw([42; 32])),
+				persisted_validation_data_hash: Default::default(),
+				erasure_root: Default::default(),
+				signature: Default::default(),
+				para_head: Default::default(),
+				validation_code_hash: Default::default(),
 			},
 			commitments_hash: self.commitments_hash,
 		}

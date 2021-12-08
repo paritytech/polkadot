@@ -5926,6 +5926,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-network",
+ "sp-application-crypto",
  "sp-core",
  "sp-keyring",
  "sp-keystore",
