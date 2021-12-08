@@ -118,9 +118,9 @@ impl From<Option<MetricsAddress>> for MetricsParams {
 /// Returns metric name optionally prefixed with given prefix.
 pub fn metric_name(prefix: Option<&str>, name: &str) -> String {
 	if let Some(prefix) = prefix {
-		format!("polkadot_{}_{}", prefix, name)
+		format!("{}_{}", prefix, name)
 	} else {
-		format!("polkadot_{}", name)
+		name.into()
 	}
 }
 

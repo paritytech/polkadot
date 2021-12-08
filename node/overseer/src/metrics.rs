@@ -197,14 +197,14 @@ impl MetricsTrait for Metrics {
 
 			memory_stats_allocated: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
-					"memory_allocated",
+					"polkadot_memory_allocated",
 					"Total bytes allocated by the node",
 				)?,
 				registry,
 			)?,
 			memory_stats_resident: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
-					"memory_resident",
+					"polkadot_memory_resident",
 					"Bytes allocated by the node, and held in RAM",
 				)?,
 				registry,

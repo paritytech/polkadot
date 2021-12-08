@@ -116,7 +116,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			time_dispute_request: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_dispute_distribution_time_dispute_request",
+					"polkadot_parachain_dispute_distribution_time_dispute_request",
 					"Time needed for dispute votes to get confirmed/fail getting transmitted.",
 				))?,
 				registry,
