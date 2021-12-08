@@ -225,28 +225,24 @@ impl Assets {
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible
 			.into_iter()
-			.filter_map(|(mut id, amount)| {
-				match id.reanchor(target, ancestry) {
-					Ok(()) => Some((id, amount)),
-					Err(()) => {
-						failed_bin.fungible.insert(id, amount);
-						None
-					}
-				}
+			.filter_map(|(mut id, amount)| match id.reanchor(target, ancestry) {
+				Ok(()) => Some((id, amount)),
+				Err(()) => {
+					failed_bin.fungible.insert(id, amount);
+					None
+				},
 			})
 			.collect();
 		let mut non_fungible = Default::default();
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible
 			.into_iter()
-			.filter_map(|(mut class, inst)| {
-				match class.reanchor(target, ancestry) {
-					Ok(()) => Some((class, inst)),
-					Err(()) => {
-						failed_bin.non_fungible.insert((class, inst));
-						None
-					}
-				}
+			.filter_map(|(mut class, inst)| match class.reanchor(target, ancestry) {
+				Ok(()) => Some((class, inst)),
+				Err(()) => {
+					failed_bin.non_fungible.insert((class, inst));
+					None
+				},
 			})
 			.collect();
 	}

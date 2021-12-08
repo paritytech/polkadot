@@ -406,7 +406,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				let assets = Self::reanchored(self.holding.saturating_take(assets), &reserve, &mut self.holding);
+				let assets = Self::reanchored(
+					self.holding.saturating_take(assets),
+					&reserve,
+					&mut self.holding,
+				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
