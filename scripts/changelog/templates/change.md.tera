@@ -12,7 +12,7 @@
 {%- endif -%}
 
 {%- set audit = "" -%}
-{#
+
 {%- if c.meta.D and c.meta.D.value == 1 -%}
 {%- set audit = "✅ audited " -%}
 {%- elif c.meta.D and c.meta.D.value == 2 -%}
@@ -24,7 +24,6 @@
 {%- else -%}
 {%- set audit = "" -%}
 {%- endif -%}
-#}
 
 {%- if c.html_url is containing("polkadot") -%}
 {%- set repo = dot -%}
