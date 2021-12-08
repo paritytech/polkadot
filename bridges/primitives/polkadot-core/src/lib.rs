@@ -248,7 +248,8 @@ pub type UncheckedExtrinsic<Call> =
 pub type Address = MultiAddress<AccountId, ()>;
 
 /// A type of the data encoded as part of the transaction.
-pub type SignedExtra = ((), (), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
+pub type SignedExtra =
+	((), (), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
 
 /// Parameters which are part of the payload used to produce transaction signature,
 /// but don't end up in the transaction itself (i.e. inherent part of the runtime).
