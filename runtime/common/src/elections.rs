@@ -17,11 +17,13 @@
 //! Code for elections.
 
 use super::{BlockExecutionWeight, BlockLength, BlockWeights};
+use frame_election_provider_support::{SortedListProvider, VoteWeight};
 use frame_support::{
 	parameter_types,
 	weights::{DispatchClass, Weight},
 };
 use sp_runtime::Perbill;
+use sp_std::{boxed::Box, convert::From, marker::PhantomData};
 
 parameter_types! {
 	/// A limit for off-chain phragmen unsigned solution submission.
@@ -43,15 +45,106 @@ parameter_types! {
 		.get(DispatchClass::Normal);
 }
 
-/// The numbers configured here should always be more than the the maximum limits of staking pallet
-/// to ensure election snapshot will not run out of memory.
+/// The numbers configured here could always be more than the the maximum limits of staking pallet
+/// to ensure election snapshot will not run out of memory. For now, we set them to smaller values
+/// since the staking is bounded and the weight pipeline takes hours for this single pallet.
 pub struct BenchmarkConfig;
 impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfig {
-	const VOTERS: [u32; 2] = [5_000, 10_000];
-	const TARGETS: [u32; 2] = [1_000, 2_000];
-	const ACTIVE_VOTERS: [u32; 2] = [1000, 4_000];
-	const DESIRED_TARGETS: [u32; 2] = [400, 800];
-	const SNAPSHOT_MAXIMUM_VOTERS: u32 = 25_000;
-	const MINER_MAXIMUM_VOTERS: u32 = 15_000;
-	const MAXIMUM_TARGETS: u32 = 2000;
+	const VOTERS: [u32; 2] = [1000, 2000];
+	const TARGETS: [u32; 2] = [500, 1000];
+	const ACTIVE_VOTERS: [u32; 2] = [500, 800];
+	const DESIRED_TARGETS: [u32; 2] = [200, 400];
+	const SNAPSHOT_MAXIMUM_VOTERS: u32 = 1000;
+	const MINER_MAXIMUM_VOTERS: u32 = 1000;
+	const MAXIMUM_TARGETS: u32 = 300;
+}
+
+/// The accuracy type used for genesis election provider;
+pub type OnOnChainAccuracy = sp_runtime::Perbill;
+
+/// The election provider of the genesis
+pub type GenesisElectionOf<T> =
+	frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
+
+/// Maximum number of iterations for balancing that will be executed in the embedded miner of
+/// pallet-election-provider-multi-phase.
+pub const MINER_MAX_ITERATIONS: u32 = 10;
+
+/// A source of random balance for the NPoS Solver, which is meant to be run by the off-chain worker
+/// election miner.
+pub struct OffchainRandomBalancing;
+impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
+	for OffchainRandomBalancing
+{
+	fn get() -> Option<(usize, sp_npos_elections::ExtendedBalance)> {
+		use sp_runtime::{codec::Decode, traits::TrailingZeroInput};
+		let iters = match MINER_MAX_ITERATIONS {
+			0 => 0,
+			max @ _ => {
+				let seed = sp_io::offchain::random_seed();
+				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
+					.expect("input is padded with zeroes; qed") %
+					max.saturating_add(1);
+				random as usize
+			},
+		};
+
+		Some((iters, 0))
+	}
+}
+
+/// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
+/// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary
+/// implementation for runtimes to "test" out the bags-list by keeping it up to date, but not yet
+/// using it for snapshot generation. In contrast, a  "complete" implementation would use bags-list
+/// for `iter`.
+pub struct UseNominatorsAndUpdateBagsList<T>(PhantomData<T>);
+impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T::AccountId>
+	for UseNominatorsAndUpdateBagsList<T>
+{
+	type Error = pallet_bags_list::Error;
+
+	fn iter() -> Box<dyn Iterator<Item = T::AccountId>> {
+		Box::new(pallet_staking::Nominators::<T>::iter().map(|(n, _)| n))
+	}
+
+	fn count() -> u32 {
+		pallet_bags_list::Pallet::<T>::count()
+	}
+
+	fn contains(id: &T::AccountId) -> bool {
+		pallet_bags_list::Pallet::<T>::contains(id)
+	}
+
+	fn on_insert(id: T::AccountId, weight: VoteWeight) -> Result<(), Self::Error> {
+		pallet_bags_list::Pallet::<T>::on_insert(id, weight)
+	}
+
+	fn on_update(id: &T::AccountId, new_weight: VoteWeight) {
+		pallet_bags_list::Pallet::<T>::on_update(id, new_weight);
+	}
+
+	fn on_remove(id: &T::AccountId) {
+		pallet_bags_list::Pallet::<T>::on_remove(id);
+	}
+
+	fn unsafe_regenerate(
+		all: impl IntoIterator<Item = T::AccountId>,
+		weight_of: Box<dyn Fn(&T::AccountId) -> VoteWeight>,
+	) -> u32 {
+		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
+	}
+
+	fn sanity_check() -> Result<(), &'static str> {
+		pallet_bags_list::Pallet::<T>::sanity_check()
+	}
+
+	fn unsafe_clear() {
+		pallet_bags_list::Pallet::<T>::unsafe_clear()
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn weight_update_worst_case(who: &T::AccountId, is_increase: bool) -> VoteWeight {
+		pallet_bags_list::Pallet::<T>::weight_update_worst_case(who, is_increase)
+	}
 }

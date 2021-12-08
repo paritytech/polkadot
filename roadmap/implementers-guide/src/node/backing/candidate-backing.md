@@ -123,7 +123,7 @@ Dispatch a [`AvailabilityDistributionMessage`][ADM]`::FetchPoV{ validator_index,
 ### Validate PoV Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a `CandidateValidationMessage::Validate(validation function, candidate, pov, sender)` and listen on the receiver for a response.
+Dispatch a `CandidateValidationMessage::Validate(validation function, candidate, pov, BACKING_EXECUTION_TIMEOUT, sender)` and listen on the receiver for a response.
 
 ### Distribute Signed Statement
 

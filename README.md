@@ -10,7 +10,7 @@ Implementation of a <https://polkadot.network> node in Rust based on the Substra
 This repo contains runtimes for the Polkadot, Kusama, and Westend networks. The README provides
 information about installing the `polkadot` binary and developing on the codebase. For more
 specific guides, like how to be a validator, see the
-[Polkadot Wiki](https://wiki.polkadot.network/docs/en/).
+[Polkadot Wiki](https://wiki.polkadot.network/docs/getting-started).
 
 ## Installation
 
@@ -33,7 +33,7 @@ the command-line.
 Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
 derivatives. Run the following commands as the `root` user.
 
-```
+```bash
 # Import the security@parity.io GPG key
 gpg --recv-keys --keyserver hkps://keys.mailvelope.com 9D4B2B6EB8F97156D19669A9FF0812D491B96798
 gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
@@ -52,7 +52,7 @@ apt install polkadot
 
 Currently supports Fedora 32 and CentOS 8, and derivatives.
 
-```
+```bash
 # Install dnf-plugins-core (This might already be installed)
 dnf install dnf-plugins-core
 # Add the repository and enable it
@@ -67,7 +67,7 @@ dnf install polkadot
 
 ### Install via Cargo
 
-Make sure you have the support software installed from the **Build from Source** section 
+Make sure you have the support software installed from the **Build from Source** section
 below this section.
 
 If you want to install Polkadot in your PATH, you can do so with with:
@@ -107,6 +107,22 @@ cargo build --release
 ```
 
 Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+
+#### Build from Source with Docker
+
+You can also build from source using 
+[Parity CI docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/ci-linux):
+
+```bash
+git checkout <latest tagged release>
+docker run --rm -it -w /shellhere/polkadot \
+                    -v $(pwd):/shellhere/polkadot \
+                    paritytech/ci-linux:production cargo build --release
+sudo chown -R $(id -u):$(id -g) target/
+```
+
+If you want to reproduce other steps of CI process you can use the following 
+[guide](https://github.com/paritytech/scripts#gitlab-ci-for-building-docker-images).
 
 ## Networks
 
@@ -154,7 +170,7 @@ If you want to do anything on Polkadot, Kusama, or Westend, then you'll need to 
 some DOT, KSM, or WND tokens, respectively. See the
 [claims instructions](https://claims.polkadot.network/) for Polkadot if you have DOTs to claim. For
 Westend's WND tokens, see the faucet
-[instructions](https://wiki.polkadot.network/docs/en/learn-DOT#getting-westies) on the Wiki.
+[instructions](https://wiki.polkadot.network/docs/learn-DOT#getting-westies) on the Wiki.
 
 ## Hacking on Polkadot
 
@@ -228,9 +244,11 @@ polkadot --chain=polkadot-local --bob -d /tmp/bob --port 30334 --bootnodes '/ip4
 Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
 
 ### Using Docker
+
 [Using Docker](doc/docker.md)
 
 ### Shell Completion
+
 [Shell Completion](doc/shell-completion.md)
 
 ## Contributing

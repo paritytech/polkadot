@@ -1,17 +1,17 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-futures = "0.3.12"
-tracing = "0.1.26"
+futures = "0.3.17"
+tracing = "0.1.29"
 parity-scale-codec = "2"
 kvdb = "0.10.0"
-derive_more = "0.99.14"
-thiserror = "1.0.26"
+derive_more = "0.99.17"
+thiserror = "1.0.30"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
@@ -22,9 +22,12 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 [dev-dependencies]
 kvdb-memorydb = "0.10.0"
-polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
-polkadot-overseer = { path = "../../overseer" }
+
+[features]
+# If not enabled, the dispute coordinator will do nothing.
+disputes = []

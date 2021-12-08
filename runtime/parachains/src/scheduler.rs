@@ -40,6 +40,7 @@ use primitives::v1::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
 };
+use scale_info::TypeInfo;
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{convert::TryInto, prelude::*};
 
@@ -48,7 +49,7 @@ use crate::{configuration, initializer::SessionChangeNotification, paras};
 pub use pallet::*;
 
 /// A queued parathread entry, pre-assigned to a core.
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct QueuedParathread {
 	claim: ParathreadEntry,
@@ -56,7 +57,7 @@ pub struct QueuedParathread {
 }
 
 /// The queue of all parathread claims.
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
@@ -89,6 +90,7 @@ impl ParathreadClaimQueue {
 }
 
 /// Reasons a core might be freed
+#[derive(Clone, Copy)]
 pub enum FreedReason {
 	/// The core's work concluded and the parablock assigned to it is considered available.
 	Concluded,
@@ -97,7 +99,7 @@ pub enum FreedReason {
 }
 
 /// The assignment type.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum AssignmentKind {
 	/// A parachain.
@@ -107,7 +109,7 @@ pub enum AssignmentKind {
 }
 
 /// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
@@ -368,6 +370,43 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
+	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
+	pub(crate) fn free_cores(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
+		let config = <configuration::Pallet<T>>::config();
+
+		AvailabilityCores::<T>::mutate(|cores| {
+			for (freed_index, freed_reason) in just_freed_cores {
+				if (freed_index.0 as usize) < cores.len() {
+					match cores[freed_index.0 as usize].take() {
+						None => continue,
+						Some(CoreOccupied::Parachain) => {},
+						Some(CoreOccupied::Parathread(entry)) => {
+							match freed_reason {
+								FreedReason::Concluded => {
+									// After a parathread candidate has successfully been included,
+									// open it up for further claims!
+									ParathreadClaimIndex::<T>::mutate(|index| {
+										if let Ok(i) = index.binary_search(&entry.claim.0) {
+											index.remove(i);
+										}
+									})
+								},
+								FreedReason::TimedOut => {
+									// If a parathread candidate times out, it's not the collator's fault,
+									// so we don't increment retries.
+									ParathreadQueue::<T>::mutate(|queue| {
+										queue.enqueue_entry(entry, config.parathread_cores);
+									})
+								},
+							}
+						},
+					}
+				}
+			}
+		})
+	}
+
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
@@ -375,38 +414,9 @@ impl<T: Config> Pallet<T> {
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: T::BlockNumber,
 	) {
-		let mut cores = AvailabilityCores::<T>::get();
-		let config = <configuration::Pallet<T>>::config();
+		Self::free_cores(just_freed_cores);
 
-		for (freed_index, freed_reason) in just_freed_cores {
-			if (freed_index.0 as usize) < cores.len() {
-				match cores[freed_index.0 as usize].take() {
-					None => continue,
-					Some(CoreOccupied::Parachain) => {},
-					Some(CoreOccupied::Parathread(entry)) => {
-						match freed_reason {
-							FreedReason::Concluded => {
-								// After a parathread candidate has successfully been included,
-								// open it up for further claims!
-								ParathreadClaimIndex::<T>::mutate(|index| {
-									if let Ok(i) = index.binary_search(&entry.claim.0) {
-										index.remove(i);
-									}
-								})
-							},
-							FreedReason::TimedOut => {
-								// If a parathread candidate times out, it's not the collator's fault,
-								// so we don't increment retries.
-								ParathreadQueue::<T>::mutate(|queue| {
-									queue.enqueue_entry(entry, config.parathread_cores);
-								})
-							},
-						}
-					},
-				}
-			}
-		}
-
+		let cores = AvailabilityCores::<T>::get();
 		let parachains = <paras::Pallet<T>>::parachains();
 		let mut scheduled = Scheduled::<T>::get();
 		let mut parathread_queue = ParathreadQueue::<T>::get();
@@ -509,7 +519,6 @@ impl<T: Config> Pallet<T> {
 
 		Scheduled::<T>::set(scheduled);
 		ParathreadQueue::<T>::set(parathread_queue);
-		AvailabilityCores::<T>::set(cores);
 	}
 
 	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
@@ -524,7 +533,7 @@ impl<T: Config> Pallet<T> {
 
 		let mut availability_cores = AvailabilityCores::<T>::get();
 		Scheduled::<T>::mutate(|scheduled| {
-			// The constraints on the function require that now_occupied is a sorted subset of the
+			// The constraints on the function require that `now_occupied` is a sorted subset of the
 			// `scheduled` cores, which are also sorted.
 
 			let mut occupied_iter = now_occupied.iter().cloned().peekable();
@@ -768,7 +777,7 @@ mod tests {
 			id,
 			ParaGenesisArgs {
 				genesis_head: Vec::new().into(),
-				validation_code: Vec::new().into(),
+				validation_code: vec![1, 2, 3].into(),
 				parachain: is_chain,
 			}
 		));
@@ -974,7 +983,7 @@ mod tests {
 				schedule_blank_para(thread_c, false);
 			}
 
-			// set up a queue as if n_cores was 4 and with some with many retries.
+			// set up a queue as if `n_cores` was 4 and with some with many retries.
 			ParathreadQueue::<Test>::put({
 				let mut queue = ParathreadClaimQueue::default();
 

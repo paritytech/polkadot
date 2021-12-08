@@ -1,15 +1,14 @@
 [package]
 name = "test-parachains"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Integration tests using the test-parachains"
 edition = "2018"
 
 [dependencies]
 tiny-keccak = "2.0.2"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 
-parachain = { package = "polkadot-parachain", path = ".." }
 adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
 
@@ -17,8 +16,5 @@ halt = { package = "test-parachain-halt", path = "halt" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "std" ]
-std = [
-	"adder/std",
-	"halt/std",
-]
+default = ["std"]
+std = ["adder/std", "halt/std"]

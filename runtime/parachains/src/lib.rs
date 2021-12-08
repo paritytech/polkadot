@@ -20,6 +20,7 @@
 //! particular the `Initializer` module, as it is responsible for initializing the state
 //! of the other modules.
 
+#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "256")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod configuration;
@@ -41,6 +42,8 @@ pub mod runtime_api_impl;
 
 mod util;
 
+#[cfg(any(feature = "runtime-benchmarks", test))]
+mod builder;
 #[cfg(test)]
 mod mock;
 
@@ -49,6 +52,8 @@ pub use paras::ParaLifecycle;
 use primitives::v1::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
+///
+/// See [`paras::Pallet::schedule_para_initialize`] for more details.
 pub fn schedule_para_initialize<T: paras::Config>(
 	id: ParaId,
 	genesis: paras::ParaGenesisArgs,
@@ -57,6 +62,8 @@ pub fn schedule_para_initialize<T: paras::Config>(
 }
 
 /// Schedule a para to be cleaned up at the start of the next session.
+///
+/// See [`paras::Pallet::schedule_para_cleanup`] for more details.
 pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) -> Result<(), ()> {
 	<paras::Pallet<T>>::schedule_para_cleanup(id).map_err(|_| ())
 }

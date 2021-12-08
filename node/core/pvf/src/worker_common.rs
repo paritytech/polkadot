@@ -47,14 +47,38 @@ pub async fn spawn_with_program_path(
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
 		async move {
-			let listener = UnixListener::bind(&socket_path).await.map_err(|_| SpawnErr::Bind)?;
+			let listener = UnixListener::bind(&socket_path).await.map_err(|err| {
+				tracing::warn!(
+					target: LOG_TARGET,
+					%debug_id,
+					"cannot bind unix socket: {:?}",
+					err,
+				);
+				SpawnErr::Bind
+			})?;
 
-			let handle = WorkerHandle::spawn(program_path, extra_args, socket_path)
-				.map_err(|_| SpawnErr::ProcessSpawn)?;
+			let handle =
+				WorkerHandle::spawn(program_path, extra_args, socket_path).map_err(|err| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						%debug_id,
+						"cannot spawn a worker: {:?}",
+						err,
+					);
+					SpawnErr::ProcessSpawn
+				})?;
 
 			futures::select! {
 				accept_result = listener.accept().fuse() => {
-					let (stream, _) = accept_result.map_err(|_| SpawnErr::Accept)?;
+					let (stream, _) = accept_result.map_err(|err| {
+						tracing::warn!(
+							target: LOG_TARGET,
+							%debug_id,
+							"cannot accept a worker: {:?}",
+							err,
+						);
+						SpawnErr::Accept
+					})?;
 					Ok((IdleWorker { stream, pid: handle.id() }, handle))
 				}
 				_ = Delay::new(spawn_timeout).fuse() => {
@@ -148,7 +172,7 @@ where
 /// A struct that represents an idle worker.
 ///
 /// This struct is supposed to be used as a token that is passed by move into a subroutine that
-/// initiates a job. If the worker dies on the duty, then the token is not returned back.
+/// initiates a job. If the worker dies on the duty, then the token is not returned.
 #[derive(Debug)]
 pub struct IdleWorker {
 	/// The stream to which the child process is connected.
@@ -212,7 +236,7 @@ impl WorkerHandle {
 			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
 			// of a small size, because otherwise if the child process does return any data we will end up
 			// issuing a syscall for each byte. We also prefer not to do allocate that on the stack, since
-			// each poll the buffer will be allocated and initialized (and that's due poll_read takes &mut [u8]
+			// each poll the buffer will be allocated and initialized (and that's due `poll_read` takes &mut [u8]
 			// and there are no guarantees that a `poll_read` won't ever read from there even though that's
 			// unlikely).
 			//
@@ -235,7 +259,7 @@ impl futures::Future for WorkerHandle {
 		let me = self.project();
 		match futures::ready!(AsyncRead::poll_read(me.stdout, cx, &mut *me.drop_box)) {
 			Ok(0) => {
-				// 0 means EOF means the child was terminated. Resolve.
+				// 0 means `EOF` means the child was terminated. Resolve.
 				Poll::Ready(())
 			},
 			Ok(_bytes_read) => {
@@ -244,7 +268,7 @@ impl futures::Future for WorkerHandle {
 				Poll::Pending
 			},
 			Err(_) => {
-				// The implementation is guaranteed to not to return WouldBlock and Interrupted. This
+				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted. This
 				// leaves us with a legit errors which we suppose were due to termination.
 				Poll::Ready(())
 			},
@@ -260,7 +284,7 @@ impl fmt::Debug for WorkerHandle {
 
 /// Convert the given path into a byte buffer.
 pub fn path_to_bytes(path: &Path) -> &[u8] {
-	// Ideally, we take the OsStr of the path, send that and reconstruct this on the other side.
+	// Ideally, we take the `OsStr` of the path, send that and reconstruct this on the other side.
 	// However, libstd doesn't provide us with such an option. There are crates out there that
 	// allow for extraction of a path, but TBH it doesn't seem to be a real issue.
 	//

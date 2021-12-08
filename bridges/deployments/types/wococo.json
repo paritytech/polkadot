@@ -1,4 +1,6 @@
 {
+	"Address": "WococoAddress",
+	"LookupSource": "WococoLookupSource",
 	"Fee": "WococoBalance",
 	"Balance": "WococoBalance",
 	"Hash": "WococoBlockHash",

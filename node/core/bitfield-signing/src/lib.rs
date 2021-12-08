@@ -233,7 +233,7 @@ impl JobTrait for BitfieldSigningJob {
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
-	const NAME: &'static str = "BitfieldSigningJob";
+	const NAME: &'static str = "bitfield-signing-job";
 
 	/// Run a job for the parent block indicated
 	fn run<S: SubsystemSender>(

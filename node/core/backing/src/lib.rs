@@ -32,6 +32,7 @@ use futures::{
 
 use polkadot_node_primitives::{
 	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
+	BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -92,7 +93,7 @@ pub enum Error {
 	#[error(transparent)]
 	ValidationFailed(#[from] ValidationFailed),
 	#[error(transparent)]
-	Mpsc(#[from] mpsc::SendError),
+	BackgroundValidationMpsc(#[from] mpsc::SendError),
 	#[error(transparent)]
 	UtilError(#[from] util::Error),
 }
@@ -294,20 +295,18 @@ fn table_attested_to_backed(
 
 async fn store_available_data(
 	sender: &mut JobSender<impl SubsystemSender>,
-	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(AvailabilityStoreMessage::StoreAvailableData(
+		.send_message(AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
-			id,
 			n_validators,
 			available_data,
 			tx,
-		))
+		})
 		.await;
 
 	let _ = rx.await.map_err(Error::StoreAvailableData)?;
@@ -321,7 +320,6 @@ async fn store_available_data(
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
 async fn make_pov_available(
 	sender: &mut JobSender<impl SubsystemSender>,
-	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
@@ -347,14 +345,7 @@ async fn make_pov_available(
 	{
 		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
 
-		store_available_data(
-			sender,
-			validator_index,
-			n_validators as u32,
-			candidate_hash,
-			available_data,
-		)
-		.await?;
+		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
 	}
 
 	Ok(Ok(()))
@@ -390,7 +381,12 @@ async fn request_candidate_validation(
 	let (tx, rx) = oneshot::channel();
 
 	sender
-		.send_message(CandidateValidationMessage::ValidateFromChainState(candidate, pov, tx))
+		.send_message(CandidateValidationMessage::ValidateFromChainState(
+			candidate,
+			pov,
+			BACKING_EXECUTION_TIMEOUT,
+			tx,
+		))
 		.await;
 
 	match rx.await {
@@ -409,7 +405,6 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
 	pov: PoVData,
-	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
 	span: Option<jaeger::Span>,
 	make_command: F,
@@ -427,7 +422,6 @@ async fn validate_and_make_available(
 		candidate,
 		relay_parent,
 		pov,
-		validator_index,
 		n_validators,
 		span,
 		make_command,
@@ -444,7 +438,7 @@ async fn validate_and_make_available(
 					tx_command
 						.send(ValidatedCandidateCommand::AttestNoPoV(candidate.hash()))
 						.await
-						.map_err(Error::Mpsc)?;
+						.map_err(Error::BackgroundValidationMpsc)?;
 					return Ok(())
 				},
 				Err(err) => return Err(err),
@@ -484,7 +478,6 @@ async fn validate_and_make_available(
 			} else {
 				let erasure_valid = make_pov_available(
 					&mut sender,
-					validator_index,
 					n_validators,
 					pov.clone(),
 					candidate.hash(),
@@ -650,15 +643,23 @@ impl CandidateBackingJob {
 			// spawn background task.
 			let bg = async move {
 				if let Err(e) = validate_and_make_available(params).await {
-					tracing::error!(
-						target: LOG_TARGET,
-						"Failed to validate and make available: {:?}",
-						e
-					);
+					if let Error::BackgroundValidationMpsc(error) = e {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?error,
+							"Mpsc background validation mpsc died during validation- leaf no longer active?"
+						);
+					} else {
+						tracing::error!(
+							target: LOG_TARGET,
+							"Failed to validate and make available: {:?}",
+							e
+						);
+					}
 				}
 			};
 			sender
-				.send_command(FromJobCommand::Spawn("Backing Validation", bg.boxed()))
+				.send_command(FromJobCommand::Spawn("backing-validation", bg.boxed()))
 				.await?;
 		}
 
@@ -711,7 +712,6 @@ impl CandidateBackingJob {
 				candidate: candidate.clone(),
 				relay_parent: self.parent,
 				pov: PoVData::Ready(pov),
-				validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Second,
@@ -900,11 +900,13 @@ impl CandidateBackingJob {
 				.await;
 
 			match confirmation_rx.await {
-				Err(oneshot::Canceled) =>
-					tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",),
+				Err(oneshot::Canceled) => {
+					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+				},
 				Ok(ImportStatementsResult::ValidImport) => {},
-				Ok(ImportStatementsResult::InvalidImport) =>
-					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",),
+				Ok(ImportStatementsResult::InvalidImport) => {
+					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
+				},
 			}
 		}
 
@@ -930,6 +932,13 @@ impl CandidateBackingJob {
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
+					tracing::debug!(
+						target: LOG_TARGET,
+						our_assignment = ?self.assignment,
+						collation = ?candidate.descriptor().para_id,
+						"Subsystem asked to second for para outside of our assignment",
+					);
+
 					return Ok(())
 				}
 
@@ -1025,7 +1034,6 @@ impl CandidateBackingJob {
 				candidate: attesting.candidate,
 				relay_parent: self.parent,
 				pov,
-				validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Attest,
@@ -1169,7 +1177,7 @@ impl util::JobTrait for CandidateBackingJob {
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
-	const NAME: &'static str = "CandidateBackingJob";
+	const NAME: &'static str = "candidate-backing-job";
 
 	fn run<S: SubsystemSender>(
 		parent: Hash,

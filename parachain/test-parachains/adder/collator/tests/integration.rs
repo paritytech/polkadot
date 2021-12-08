@@ -21,8 +21,7 @@ const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
 
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test]
-async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor) {
-	use futures::join;
+async fn collating_using_adder_collator() {
 	use polkadot_primitives::v1::Id as ParaId;
 	use sp_keyring::AccountKeyring::*;
 
@@ -34,7 +33,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 
 	// start alice
 	let alice = polkadot_test_service::run_validator_node(
-		task_executor.clone(),
+		tokio::runtime::Handle::current(),
 		Alice,
 		|| {},
 		vec![],
@@ -43,7 +42,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 
 	// start bob
 	let bob = polkadot_test_service::run_validator_node(
-		task_executor.clone(),
+		tokio::runtime::Handle::current(),
 		Bob,
 		|| {},
 		vec![alice.addr.clone()],
@@ -60,7 +59,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 
 	// run the collator node
 	let mut charlie = polkadot_test_service::run_collator_node(
-		task_executor.clone(),
+		tokio::runtime::Handle::current(),
 		Charlie,
 		|| {},
 		vec![alice.addr.clone(), bob.addr.clone()],
@@ -80,10 +79,4 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 
 	// Wait until the collator received `12` seconded statements for its collations.
 	collator.wait_for_seconded_collations(12).await;
-
-	join!(
-		alice.task_manager.clean_shutdown(),
-		bob.task_manager.clean_shutdown(),
-		charlie.task_manager.clean_shutdown(),
-	);
 }

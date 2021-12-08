@@ -25,6 +25,7 @@ use bp_runtime::{
 };
 use codec::{Decode, Encode};
 use frame_support::RuntimeDebug;
+use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
 /// Message dispatch weight.
@@ -34,7 +35,7 @@ pub type Weight = u64;
 pub type SpecVersion = u32;
 
 /// A generic trait to dispatch arbitrary messages delivered over the bridge.
-pub trait MessageDispatch<AccountId, MessageId> {
+pub trait MessageDispatch<AccountId, BridgeMessageId> {
 	/// A type of the message to be dispatched.
 	type Message: codec::Decode;
 
@@ -60,7 +61,7 @@ pub trait MessageDispatch<AccountId, MessageId> {
 	fn dispatch<P: FnOnce(&AccountId, Weight) -> Result<(), ()>>(
 		source_chain: ChainId,
 		target_chain: ChainId,
-		id: MessageId,
+		id: BridgeMessageId,
 		message: Result<Self::Message, ()>,
 		pay_dispatch_fee: P,
 	) -> MessageDispatchResult;
@@ -71,13 +72,13 @@ pub trait MessageDispatch<AccountId, MessageId> {
 /// The source chain can (and should) verify that the message can be dispatched on the target chain
 /// with a particular origin given the source chain's origin. This can be done with the
 /// `verify_message_origin()` function.
-#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq)]
+#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainSignature> {
 	/// Call is sent by the Root origin on the source chain. On the target chain it is dispatched
 	/// from a derived account.
 	///
 	/// The derived account represents the source Root account on the target chain. This is useful
-	/// if the target chain needs some way of knowing that a call came from a priviledged origin on
+	/// if the target chain needs some way of knowing that a call came from a privileged origin on
 	/// the source chain (maybe to allow a configuration change for example).
 	SourceRoot,
 
@@ -111,8 +112,13 @@ pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainS
 }
 
 /// Message payload type used by dispatch module.
-#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq)]
-pub struct MessagePayload<SourceChainAccountId, TargetChainAccountPublic, TargetChainSignature, Call> {
+#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+pub struct MessagePayload<
+	SourceChainAccountId,
+	TargetChainAccountPublic,
+	TargetChainSignature,
+	Call,
+> {
 	/// Runtime specification version. We only dispatch messages that have the same
 	/// runtime version. Otherwise we risk to misinterpret encoded calls.
 	pub spec_version: SpecVersion,

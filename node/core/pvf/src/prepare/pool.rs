@@ -16,6 +16,8 @@
 
 use super::worker::{self, Outcome};
 use crate::{
+	error::{PrepareError, PrepareResult},
+	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
@@ -77,9 +79,16 @@ pub enum FromPool {
 	/// The given worker was just spawned and is ready to be used.
 	Spawned(Worker),
 
-	/// The given worker either succeeded or failed the given job. Under any circumstances the
-	/// artifact file has been written. The `bool` says whether the worker ripped.
-	Concluded(Worker, bool),
+	/// The given worker either succeeded or failed the given job.
+	Concluded {
+		/// A key for retrieving the worker data from the pool.
+		worker: Worker,
+		/// Indicates whether the worker process was killed.
+		rip: bool,
+		/// [`Ok`] indicates that compiled artifact is successfully stored on disk.
+		/// Otherwise, an [error](PrepareError) is supplied.
+		result: PrepareResult,
+	},
 
 	/// The given worker ceased to exist.
 	Rip(Worker),
@@ -111,6 +120,7 @@ struct Pool {
 	from_pool: mpsc::UnboundedSender<FromPool>,
 	spawned: HopSlotMap<Worker, WorkerData>,
 	mux: Mux,
+	metrics: Metrics,
 }
 
 /// A fatal error that warrants stopping the event loop of the pool.
@@ -125,6 +135,7 @@ async fn run(
 		mut from_pool,
 		mut spawned,
 		mut mux,
+		metrics,
 	}: Pool,
 ) {
 	macro_rules! break_if_fatal {
@@ -143,6 +154,7 @@ async fn run(
 			to_pool = to_pool.next() => {
 				let to_pool = break_if_fatal!(to_pool.ok_or(Fatal));
 				handle_to_pool(
+					&metrics,
 					&program_path,
 					&cache_path,
 					spawn_timeout,
@@ -151,14 +163,17 @@ async fn run(
 					to_pool,
 				)
 			}
-			ev = mux.select_next_some() => break_if_fatal!(handle_mux(&mut from_pool, &mut spawned, ev)),
+			ev = mux.select_next_some() => {
+				break_if_fatal!(handle_mux(&metrics, &mut from_pool, &mut spawned, ev))
+			}
 		}
 
-		break_if_fatal!(purge_dead(&mut from_pool, &mut spawned).await);
+		break_if_fatal!(purge_dead(&metrics, &mut from_pool, &mut spawned).await);
 	}
 }
 
 async fn purge_dead(
+	metrics: &Metrics,
 	from_pool: &mut mpsc::UnboundedSender<FromPool>,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 ) -> Result<(), Fatal> {
@@ -177,7 +192,7 @@ async fn purge_dead(
 		}
 	}
 	for w in to_remove {
-		if spawned.remove(w).is_some() {
+		if attempt_retire(metrics, spawned, w) {
 			reply(from_pool, FromPool::Rip(w))?;
 		}
 	}
@@ -185,6 +200,7 @@ async fn purge_dead(
 }
 
 fn handle_to_pool(
+	metrics: &Metrics,
 	program_path: &Path,
 	cache_path: &Path,
 	spawn_timeout: Duration,
@@ -195,11 +211,13 @@ fn handle_to_pool(
 	match to_pool {
 		ToPool::Spawn => {
 			tracing::debug!(target: LOG_TARGET, "spawning a new prepare worker");
+			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
 		ToPool::StartWork { worker, code, artifact_path, background_priority } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
+					let preparation_timer = metrics.time_preparation();
 					mux.push(
 						start_work_task(
 							worker,
@@ -208,6 +226,7 @@ fn handle_to_pool(
 							cache_path.to_owned(),
 							artifact_path,
 							background_priority,
+							preparation_timer,
 						)
 						.boxed(),
 					);
@@ -227,7 +246,7 @@ fn handle_to_pool(
 		ToPool::Kill(worker) => {
 			tracing::debug!(target: LOG_TARGET, ?worker, "killing prepare worker");
 			// It may be absent if it were previously already removed by `purge_dead`.
-			let _ = spawned.remove(worker);
+			let _ = attempt_retire(metrics, spawned, worker);
 		},
 		ToPool::BumpPriority(worker) =>
 			if let Some(data) = spawned.get(worker) {
@@ -252,13 +271,14 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 	}
 }
 
-async fn start_work_task(
+async fn start_work_task<Timer>(
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
 	background_priority: bool,
+	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
 	let outcome =
 		worker::start_work(idle, code, &cache_path, artifact_path, background_priority).await;
@@ -266,12 +286,15 @@ async fn start_work_task(
 }
 
 fn handle_mux(
+	metrics: &Metrics,
 	from_pool: &mut mpsc::UnboundedSender<FromPool>,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	event: PoolEvent,
 ) -> Result<(), Fatal> {
 	match event {
 		PoolEvent::Spawn(idle, handle) => {
+			metrics.prepare_worker().on_spawned();
+
 			let worker = spawned.insert(WorkerData { idle: Some(idle), handle });
 
 			reply(from_pool, FromPool::Spawned(worker))?;
@@ -280,7 +303,7 @@ fn handle_mux(
 		},
 		PoolEvent::StartWork(worker, outcome) => {
 			match outcome {
-				Outcome::Concluded(idle) => {
+				Outcome::Concluded { worker: idle, result } => {
 					let data = match spawned.get_mut(worker) {
 						None => {
 							// Perhaps the worker was killed meanwhile and the result is no longer
@@ -295,20 +318,41 @@ fn handle_mux(
 					let old = data.idle.replace(idle);
 					assert_matches!(old, None, "attempt to overwrite an idle worker");
 
-					reply(from_pool, FromPool::Concluded(worker, false))?;
+					reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
 
 					Ok(())
 				},
 				Outcome::Unreachable => {
-					if spawned.remove(worker).is_some() {
+					if attempt_retire(metrics, spawned, worker) {
 						reply(from_pool, FromPool::Rip(worker))?;
 					}
 
 					Ok(())
 				},
-				Outcome::DidntMakeIt => {
-					if spawned.remove(worker).is_some() {
-						reply(from_pool, FromPool::Concluded(worker, true))?;
+				Outcome::DidNotMakeIt => {
+					if attempt_retire(metrics, spawned, worker) {
+						reply(
+							from_pool,
+							FromPool::Concluded {
+								worker,
+								rip: true,
+								result: Err(PrepareError::DidNotMakeIt),
+							},
+						)?;
+					}
+
+					Ok(())
+				},
+				Outcome::TimedOut => {
+					if attempt_retire(metrics, spawned, worker) {
+						reply(
+							from_pool,
+							FromPool::Concluded {
+								worker,
+								rip: true,
+								result: Err(PrepareError::TimedOut),
+							},
+						)?;
 					}
 
 					Ok(())
@@ -322,8 +366,28 @@ fn reply(from_pool: &mut mpsc::UnboundedSender<FromPool>, m: FromPool) -> Result
 	from_pool.unbounded_send(m).map_err(|_| Fatal)
 }
 
+/// Removes the given worker from the registry if it there. This will lead to dropping and hence
+/// to killing the worker process.
+///
+/// Returns `true` if the worker exists and was removed and the process was killed.
+///
+/// This function takes care about counting the retired workers metric.
+fn attempt_retire(
+	metrics: &Metrics,
+	spawned: &mut HopSlotMap<Worker, WorkerData>,
+	worker: Worker,
+) -> bool {
+	if spawned.remove(worker).is_some() {
+		metrics.prepare_worker().on_retired();
+		true
+	} else {
+		false
+	}
+}
+
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
+	metrics: Metrics,
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
@@ -332,6 +396,7 @@ pub fn start(
 	let (from_pool_tx, from_pool_rx) = mpsc::unbounded();
 
 	let run = run(Pool {
+		metrics,
 		program_path,
 		cache_path,
 		spawn_timeout,

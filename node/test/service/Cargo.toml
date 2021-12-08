@@ -1,16 +1,17 @@
 [package]
 name = "polkadot-test-service"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.15"
+futures = "0.3.17"
 futures01 = { package = "futures", version = "0.1.29" }
 hex = "0.4.3"
-tracing = "0.1.26"
+tracing = "0.1.29"
 rand = "0.8.3"
 tempfile = "3.2.0"
+tokio = "1.14.0"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }
@@ -57,6 +58,6 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-serde_json = "1.0.61"
+serde_json = "1.0.72"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.14", features = ["macros"] }

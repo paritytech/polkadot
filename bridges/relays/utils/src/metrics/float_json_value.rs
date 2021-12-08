@@ -14,8 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::metrics::{metric_name, register, Gauge, PrometheusError, Registry, StandaloneMetrics, F64};
+use crate::{
+	error::{self, Error},
+	metrics::{
+		metric_name, register, F64SharedRef, Gauge, Metric, PrometheusError, Registry,
+		StandaloneMetric, F64,
+	},
+};
 
+use async_std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use std::time::Duration;
 
@@ -23,86 +30,90 @@ use std::time::Duration;
 const UPDATE_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Metric that represents float value received from HTTP service as float gauge.
+///
+/// The float value returned by the service is assumed to be normal (`f64::is_normal`
+/// should return `true`) and strictly positive.
 #[derive(Debug, Clone)]
 pub struct FloatJsonValueMetric {
 	url: String,
 	json_path: String,
 	metric: Gauge<F64>,
+	shared_value_ref: F64SharedRef,
 }
 
 impl FloatJsonValueMetric {
 	/// Create new metric instance with given name and help.
 	pub fn new(
-		registry: &Registry,
-		prefix: Option<&str>,
 		url: String,
 		json_path: String,
 		name: String,
 		help: String,
 	) -> Result<Self, PrometheusError> {
+		let shared_value_ref = Arc::new(RwLock::new(None));
 		Ok(FloatJsonValueMetric {
 			url,
 			json_path,
-			metric: register(Gauge::new(metric_name(prefix, &name), help)?, registry)?,
+			metric: Gauge::new(metric_name(None, &name), help)?,
+			shared_value_ref,
 		})
 	}
 
-	/// Read value from HTTP service.
-	async fn read_value(&self) -> Result<f64, String> {
+	/// Get shared reference to metric value.
+	pub fn shared_value_ref(&self) -> F64SharedRef {
+		self.shared_value_ref.clone()
+	}
+
+	/// Request value from HTTP service.
+	async fn request_value(&self) -> anyhow::Result<String> {
 		use isahc::{AsyncReadResponseExt, HttpClient, Request};
 
-		fn map_isahc_err(err: impl std::fmt::Display) -> String {
-			format!("Failed to fetch token price from remote server: {}", err)
-		}
+		let request = Request::get(&self.url).header("Accept", "application/json").body(())?;
+		let raw_response = HttpClient::new()?.send_async(request).await?.text().await?;
+		Ok(raw_response)
+	}
 
-		let request = Request::get(&self.url)
-			.header("Accept", "application/json")
-			.body(())
-			.map_err(map_isahc_err)?;
-		let raw_response = HttpClient::new()
-			.map_err(map_isahc_err)?
-			.send_async(request)
-			.await
-			.map_err(map_isahc_err)?
-			.text()
-			.await
-			.map_err(map_isahc_err)?;
-
+	/// Read value from HTTP service.
+	async fn read_value(&self) -> error::Result<f64> {
+		let raw_response = self.request_value().await.map_err(Error::FetchTokenPrice)?;
 		parse_service_response(&self.json_path, &raw_response)
 	}
 }
 
+impl Metric for FloatJsonValueMetric {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.metric.clone(), registry).map(drop)
+	}
+}
+
 #[async_trait]
-impl StandaloneMetrics for FloatJsonValueMetric {
+impl StandaloneMetric for FloatJsonValueMetric {
 	fn update_interval(&self) -> Duration {
 		UPDATE_INTERVAL
 	}
 
 	async fn update(&self) {
-		crate::metrics::set_gauge_value(&self.metric, self.read_value().await.map(Some));
+		let value = self.read_value().await;
+		let maybe_ok = value.as_ref().ok().copied();
+		crate::metrics::set_gauge_value(&self.metric, value.map(Some));
+		*self.shared_value_ref.write().await = maybe_ok;
 	}
 }
 
 /// Parse HTTP service response.
-fn parse_service_response(json_path: &str, response: &str) -> Result<f64, String> {
-	let json = serde_json::from_str(response).map_err(|err| {
-		format!(
-			"Failed to parse HTTP service response: {:?}. Response: {:?}",
-			err, response,
-		)
-	})?;
+fn parse_service_response(json_path: &str, response: &str) -> error::Result<f64> {
+	let json =
+		serde_json::from_str(response).map_err(|err| Error::ParseHttp(err, response.to_owned()))?;
 
 	let mut selector = jsonpath_lib::selector(&json);
-	let maybe_selected_value = selector(json_path).map_err(|err| {
-		format!(
-			"Failed to select value from response: {:?}. Response: {:?}",
-			err, response,
-		)
-	})?;
+	let maybe_selected_value =
+		selector(json_path).map_err(|err| Error::SelectResponseValue(err, response.to_owned()))?;
 	let selected_value = maybe_selected_value
 		.first()
 		.and_then(|v| v.as_f64())
-		.ok_or_else(|| format!("Missing required value from response: {:?}", response,))?;
+		.ok_or_else(|| Error::MissingResponseValue(response.to_owned()))?;
+	if !selected_value.is_normal() || selected_value < 0.0 {
+		return Err(Error::ParseFloat(selected_value))
+	}
 
 	Ok(selected_value)
 }
@@ -117,5 +128,20 @@ mod tests {
 			parse_service_response("$.kusama.usd", r#"{"kusama":{"usd":433.05}}"#).map_err(drop),
 			Ok(433.05),
 		);
+	}
+
+	#[test]
+	fn parse_service_response_rejects_negative_numbers() {
+		assert!(parse_service_response("$.kusama.usd", r#"{"kusama":{"usd":-433.05}}"#).is_err());
+	}
+
+	#[test]
+	fn parse_service_response_rejects_zero_numbers() {
+		assert!(parse_service_response("$.kusama.usd", r#"{"kusama":{"usd":0.0}}"#).is_err());
+	}
+
+	#[test]
+	fn parse_service_response_rejects_nan() {
+		assert!(parse_service_response("$.kusama.usd", r#"{"kusama":{"usd":NaN}}"#).is_err());
 	}
 }

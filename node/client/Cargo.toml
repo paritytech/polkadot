@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-client"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -29,10 +29,10 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Polkadot Runtimes
-polkadot-runtime = { path = "../../runtime/polkadot" }
+polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
 kusama-runtime = { path = "../../runtime/kusama", optional = true }
 westend-runtime = { path = "../../runtime/westend", optional = true }
 rococo-runtime = { path = "../../runtime/rococo", optional = true }
@@ -40,6 +40,8 @@ rococo-runtime = { path = "../../runtime/rococo", optional = true }
 polkadot-primitives = { path = "../../primitives" }
 
 [features]
-kusama = [ "kusama-runtime" ]
-rococo = [ "rococo-runtime" ]
-westend = [ "westend-runtime" ]
+default = ["polkadot"]
+polkadot = ["polkadot-runtime"]
+kusama = ["kusama-runtime"]
+rococo = ["rococo-runtime"]
+westend = ["westend-runtime"]

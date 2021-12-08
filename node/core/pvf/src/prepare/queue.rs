@@ -17,7 +17,7 @@
 //! A queue that handles requests for PVF preparation.
 
 use super::pool::{self, Worker};
-use crate::{artifacts::ArtifactId, Priority, Pvf, LOG_TARGET};
+use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -29,7 +29,7 @@ pub enum ToQueue {
 	/// This schedules preparation of the given PVF.
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
-	/// [`FromQueue::Prepared`] response. In case there is a need to bump the priority, use
+	/// [`FromQueue`] response. In case there is a need to bump the priority, use
 	/// [`ToQueue::Amend`].
 	Enqueue { priority: Priority, pvf: Pvf },
 	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.
@@ -37,9 +37,14 @@ pub enum ToQueue {
 }
 
 /// A response from queue.
-#[derive(Debug, PartialEq, Eq)]
-pub enum FromQueue {
-	Prepared(ArtifactId),
+#[derive(Debug)]
+pub struct FromQueue {
+	/// Identifier of an artifact.
+	pub(crate) artifact_id: ArtifactId,
+	/// Outcome of the PVF processing. [`Ok`] indicates that compiled artifact
+	/// is successfully stored on disk. Otherwise, an [error](crate::error::PrepareError)
+	/// is supplied.
+	pub(crate) result: PrepareResult,
 }
 
 #[derive(Default)]
@@ -127,6 +132,8 @@ impl Unscheduled {
 }
 
 struct Queue {
+	metrics: Metrics,
+
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 	from_queue_tx: mpsc::UnboundedSender<FromQueue>,
 
@@ -155,6 +162,7 @@ struct Fatal;
 
 impl Queue {
 	fn new(
+		metrics: Metrics,
 		soft_capacity: usize,
 		hard_capacity: usize,
 		cache_path: PathBuf,
@@ -164,6 +172,7 @@ impl Queue {
 		from_pool_rx: mpsc::UnboundedReceiver<pool::FromPool>,
 	) -> Self {
 		Self {
+			metrics,
 			to_queue_rx,
 			from_queue_tx,
 			to_pool_tx,
@@ -218,6 +227,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 		?priority,
 		"PVF is enqueued for preparation.",
 	);
+	queue.metrics.prepare_enqueued();
 
 	let artifact_id = pvf.as_artifact_id();
 	if never!(
@@ -241,7 +251,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 
 	if let Some(available) = find_idle_worker(queue) {
 		// This may seem not fair (w.r.t priority) on the first glance, but it should be. This is
-		// because as soon as a worker finishes with the job it's immediatelly given the next one.
+		// because as soon as a worker finishes with the job it's immediately given the next one.
 		assign(queue, available, job).await?;
 	} else {
 		spawn_extra_worker(queue, priority.is_critical()).await?;
@@ -294,7 +304,8 @@ async fn handle_from_pool(queue: &mut Queue, from_pool: pool::FromPool) -> Resul
 	use pool::FromPool::*;
 	match from_pool {
 		Spawned(worker) => handle_worker_spawned(queue, worker).await?,
-		Concluded(worker, rip) => handle_worker_concluded(queue, worker, rip).await?,
+		Concluded { worker, rip, result } =>
+			handle_worker_concluded(queue, worker, rip, result).await?,
 		Rip(worker) => handle_worker_rip(queue, worker).await?,
 	}
 	Ok(())
@@ -315,13 +326,16 @@ async fn handle_worker_concluded(
 	queue: &mut Queue,
 	worker: Worker,
 	rip: bool,
+	result: PrepareResult,
 ) -> Result<(), Fatal> {
+	queue.metrics.prepare_concluded();
+
 	macro_rules! never_none {
 		($expr:expr) => {
 			match $expr {
 				Some(v) => v,
 				None => {
-					// Precondition of calling this is that the $expr is never none;
+					// Precondition of calling this is that the `$expr` is never none;
 					// Assume the conditions holds, then this never is not hit;
 					// qed.
 					never!("never_none, {}", stringify!($expr));
@@ -370,7 +384,7 @@ async fn handle_worker_concluded(
 		"prepare worker concluded",
 	);
 
-	reply(&mut queue.from_queue_tx, FromQueue::Prepared(artifact_id))?;
+	reply(&mut queue.from_queue_tx, FromQueue { artifact_id, result })?;
 
 	// Figure out what to do with the worker.
 	if rip {
@@ -486,6 +500,7 @@ async fn send_pool(
 
 /// Spins up the queue and returns the future that should be polled to make the queue functional.
 pub fn start(
+	metrics: Metrics,
 	soft_capacity: usize,
 	hard_capacity: usize,
 	cache_path: PathBuf,
@@ -496,6 +511,7 @@ pub fn start(
 	let (from_queue_tx, from_queue_rx) = mpsc::unbounded();
 
 	let run = Queue::new(
+		metrics,
 		soft_capacity,
 		hard_capacity,
 		cache_path,
@@ -512,6 +528,7 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::error::PrepareError;
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -565,6 +582,7 @@ mod tests {
 			let workers: SlotMap<Worker, ()> = SlotMap::with_key();
 
 			let (to_queue_tx, from_queue_rx, run) = start(
+				Metrics::default(),
 				soft_capacity,
 				hard_capacity,
 				tempdir.path().to_owned().into(),
@@ -631,12 +649,9 @@ mod tests {
 
 		let w = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w));
-		test.send_from_pool(pool::FromPool::Concluded(w, false));
+		test.send_from_pool(pool::FromPool::Concluded { worker: w, rip: false, result: Ok(()) });
 
-		assert_eq!(
-			test.poll_and_recv_from_queue().await,
-			FromQueue::Prepared(pvf(1).as_artifact_id())
-		);
+		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
 
 	#[async_std::test]
@@ -661,7 +676,7 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
-		test.send_from_pool(pool::FromPool::Concluded(w1, false));
+		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
@@ -694,7 +709,7 @@ mod tests {
 		// That's a bit silly in this context, but in production there will be an entire pool up
 		// to the `soft_capacity` of workers and it doesn't matter which one to cull. Either way,
 		// we just check that edge case of an edge case works.
-		test.send_from_pool(pool::FromPool::Concluded(w1, false));
+		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Kill(w1));
 	}
 
@@ -739,15 +754,12 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Conclude worker 1 and rip it.
-		test.send_from_pool(pool::FromPool::Concluded(w1, true));
+		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: true, result: Ok(()) });
 
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-		assert_eq!(
-			test.poll_and_recv_from_queue().await,
-			FromQueue::Prepared(pvf(1).as_artifact_id())
-		);
+		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
 
 	#[async_std::test]
@@ -763,7 +775,11 @@ mod tests {
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
-		test.send_from_pool(pool::FromPool::Concluded(w1, true));
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: true,
+			result: Err(PrepareError::DidNotMakeIt),
+		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
 
@@ -778,7 +794,7 @@ mod tests {
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 
-		// Now, to the interesting part. After the queue normally issues the start_work command to
+		// Now, to the interesting part. After the queue normally issues the `start_work` command to
 		// the pool, before receiving the command the queue may report that the worker ripped.
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		test.send_from_pool(pool::FromPool::Rip(w1));

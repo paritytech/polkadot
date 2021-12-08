@@ -24,7 +24,7 @@ use futures::{
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
-	request::{OutgoingRequest, Recipient, RequestError, Requests},
+	outgoing::{OutgoingRequest, Recipient, RequestError, Requests},
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
@@ -103,7 +103,7 @@ struct RunningTask {
 
 	/// Index of validator group to fetch the chunk from.
 	///
-	/// Needef for reporting bad validators.
+	/// Needed for reporting bad validators.
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
@@ -203,7 +203,9 @@ impl FetchTask {
 	/// Remove leaves and cancel the task, if it was the last one and the task has still been
 	/// fetching.
 	pub fn remove_leaves(&mut self, leaves: &HashSet<Hash>) {
-		self.live_in.difference(leaves);
+		for leaf in leaves {
+			self.live_in.remove(leaf);
+		}
 		if self.live_in.is_empty() && !self.is_finished() {
 			self.state = FetchedState::Canceled
 		}
@@ -327,7 +329,7 @@ impl RunningTask {
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect),
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError),
 			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;
@@ -344,7 +346,7 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				tracing::warn!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					origin= ?validator,
 					err= ?err,
@@ -353,7 +355,7 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
-				tracing::warn!(target: LOG_TARGET,
+				tracing::debug!(target: LOG_TARGET,
 							   origin= ?validator,
 							   "Erasure chunk request got canceled");
 				Err(TaskError::PeerError)
@@ -363,7 +365,7 @@ impl RunningTask {
 
 	fn validate_chunk(&self, validator: &AuthorityDiscoveryId, chunk: &ErasureChunk) -> bool {
 		let anticipated_hash =
-			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index.0 as usize) {
+			match branch_hash(&self.erasure_root, chunk.proof(), chunk.index.0 as usize) {
 				Ok(hash) => hash,
 				Err(e) => {
 					tracing::warn!(

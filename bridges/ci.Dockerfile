@@ -1,7 +1,7 @@
 # This file is a "runtime" part from a builder-pattern in Dockerfile, it's used in CI.
 # The only different part is that the compilation happens externally,
 # so COPY has a different source.
-FROM ubuntu:20.04
+FROM docker.io/library/ubuntu:20.04
 
 # show backtraces
 ENV RUST_BACKTRACE 1
@@ -24,7 +24,7 @@ USER user
 
 WORKDIR /home/user
 
-ARG PROJECT=ethereum-poa-relay
+ARG PROJECT=substrate-relay
 
 COPY --chown=user:user ./${PROJECT} ./
 COPY --chown=user:user ./bridge-entrypoint.sh ./

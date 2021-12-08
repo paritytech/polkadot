@@ -27,7 +27,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, paras as parachains_paras,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v1 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
@@ -48,8 +48,8 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
 	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
@@ -188,6 +188,7 @@ impl pallet_babe::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 parameter_types! {
@@ -222,11 +223,15 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
 	pub storage TransactionByteFee: Balance = 10 * MILLICENTS;
+	/// This value increases the priority of `Operational` transactions by adding
+	/// a "virtual tip" that's equal to the `OperationalFeeMultiplier * final_fee`.
+	pub const OperationalFeeMultiplier: u8 = 5;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
+	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
@@ -268,10 +273,6 @@ impl_opaque_keys! {
 	}
 }
 
-parameter_types! {
-	pub storage DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
-}
-
 impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
@@ -281,7 +282,6 @@ impl pallet_session::Config for Runtime {
 	type SessionManager = Staking;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	type WeightInfo = ();
 }
 
@@ -310,13 +310,12 @@ parameter_types! {
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
+	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
-	type AccountId = <Self as frame_system::Config>::AccountId;
-	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
-	type BlockWeights = ();
-	type Accuracy = sp_runtime::Perbill;
+	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
 	type DataProvider = Staking;
 }
 
@@ -337,11 +336,16 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider =
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type GenesisElectionProvider =
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
+	// to bags-list is a no-op, but the storage version will be updated.
+	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = ();
 }
 
@@ -362,6 +366,7 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -414,7 +419,9 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
-impl pallet_authority_discovery::Config for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
+}
 
 parameter_types! {
 	pub storage LeasePeriod: BlockNumber = 100_000;
@@ -443,6 +450,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = ();
+	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -450,7 +458,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-impl parachains_configuration::Config for Runtime {}
+impl parachains_configuration::Config for Runtime {
+	type WeightInfo = parachains_configuration::TestWeightInfo;
+}
 
 impl parachains_shared::Config for Runtime {}
 
@@ -464,20 +474,24 @@ impl parachains_disputes::Config for Runtime {
 	type Event = Event;
 	type RewardValidators = ();
 	type PunishValidators = ();
+	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = parachains_paras_inherent::TestWeightInfo;
+}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 impl parachains_session_info::Config for Runtime {}
 
 impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = parachains_paras::TestWeightInfo;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -490,11 +504,13 @@ impl parachains_ump::Config for Runtime {
 	type Event = Event;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 parameter_types! {
 	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
 	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
+	pub const MaxInstructions: u32 = 100;
 }
 
 pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
@@ -506,12 +522,16 @@ impl pallet_xcm::Config for Runtime {
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type LocationInverter = xcm_config::InvertNothing;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
+	type Origin = Origin;
+	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl parachains_hrmp::Config for Runtime {
@@ -523,6 +543,94 @@ impl parachains_hrmp::Config for Runtime {
 impl parachains_scheduler::Config for Runtime {}
 
 impl paras_sudo_wrapper::Config for Runtime {}
+
+impl parachains_origin::Config for Runtime {}
+
+impl pallet_test_notifier::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Call = Call;
+}
+
+#[frame_support::pallet]
+pub mod pallet_test_notifier {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use pallet_xcm::ensure_response;
+	use sp_runtime::DispatchResult;
+	use xcm::latest::prelude::*;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config + pallet_xcm::Config {
+		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type Origin: IsType<<Self as frame_system::Config>::Origin>
+			+ Into<Result<pallet_xcm::Origin, <Self as Config>::Origin>>;
+		type Call: IsType<<Self as pallet_xcm::Config>::Call> + From<Call<Self>>;
+	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		QueryPrepared(QueryId),
+		NotifyQueryPrepared(QueryId),
+		ResponseReceived(MultiLocation, QueryId, Response),
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		UnexpectedId,
+		BadAccountFormat,
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_new_query(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who
+				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let qid = pallet_xcm::Pallet::<T>::new_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				100u32.into(),
+			);
+			Self::deposit_event(Event::<T>::QueryPrepared(qid));
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_new_notify_query(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who
+				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let call =
+				Call::<T>::notification_received { query_id: 0, response: Default::default() };
+			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				<T as Config>::Call::from(call),
+				100u32.into(),
+			);
+			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn notification_received(
+			origin: OriginFor<T>,
+			query_id: QueryId,
+			response: Response,
+		) -> DispatchResult {
+			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
+			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
+			Ok(())
+		}
+	}
+}
 
 construct_runtime! {
 	pub enum Runtime where
@@ -561,10 +669,11 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		Scheduler: parachains_scheduler::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
@@ -573,6 +682,8 @@ construct_runtime! {
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
+
+		TestNotifier: pallet_test_notifier::{Pallet, Call, Event<T>},
 	}
 }
 
@@ -604,7 +715,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -629,7 +740,7 @@ sp_api::impl_runtime_apis! {
 
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
-			Runtime::metadata().into()
+			OpaqueMetadata::new(Runtime::metadata().into())
 		}
 	}
 
@@ -695,6 +806,16 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			runtime_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
+		}
+
 		fn check_validation_outputs(
 			para_id: ParaId,
 			outputs: primitives::v1::CandidateCommitments,
@@ -739,6 +860,10 @@ sp_api::impl_runtime_apis! {
 
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_impl::validation_code_by_hash::<Runtime>(hash)
+		}
+
+		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
+			runtime_impl::on_chain_votes::<Runtime>()
 		}
 	}
 
@@ -812,7 +937,7 @@ sp_api::impl_runtime_apis! {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
 				c: BABE_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: Babe::authorities(),
+				genesis_authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
 				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}

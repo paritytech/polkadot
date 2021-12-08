@@ -14,21 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{future, pin_mut, select};
+use futures::{future, pin_mut, select, FutureExt};
 use polkadot_test_service::*;
-use service::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
 #[substrate_test_utils::test]
-async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
+async fn ensure_test_service_build_blocks() {
 	let mut builder = sc_cli::LoggerBuilder::new("");
 	builder.with_colors(false);
 	builder.init().expect("Sets up logger");
 
-	let mut alice =
-		run_validator_node(task_executor.clone(), Sr25519Keyring::Alice, || {}, Vec::new(), None);
+	let mut alice = run_validator_node(
+		tokio::runtime::Handle::current(),
+		Sr25519Keyring::Alice,
+		|| {},
+		Vec::new(),
+		None,
+	);
 	let mut bob = run_validator_node(
-		task_executor.clone(),
+		tokio::runtime::Handle::current(),
 		Sr25519Keyring::Bob,
 		|| {},
 		vec![alice.addr.clone()],
@@ -48,7 +52,4 @@ async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
 			_ = t3 => panic!("service Bob failed"),
 		}
 	}
-
-	alice.task_manager.clean_shutdown().await;
-	bob.task_manager.clean_shutdown().await;
 }

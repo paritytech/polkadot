@@ -46,6 +46,9 @@ struct MetricsInner {
 	///
 	/// We both have successful imports and failed imports here.
 	imported_requests: CounterVec<U64>,
+
+	/// The duration of issued dispute request to response.
+	time_dispute_request: prometheus::Histogram,
 }
 
 impl Metrics {
@@ -61,7 +64,7 @@ impl Metrics {
 		}
 	}
 
-	/// Increment counter on served chunks.
+	/// Increment counter on served disputes.
 	pub fn on_received_request(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.received_requests.inc()
@@ -73,6 +76,11 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.imported_requests.with_label_values(&[label]).inc()
 		}
+	}
+
+	/// Get a timer to time request/response duration.
+	pub fn time_dispute_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_dispute_request.start_timer())
 	}
 }
 
@@ -104,6 +112,13 @@ impl metrics::Metrics for Metrics {
 					),
 					&["success"],
 				)?,
+				registry,
+			)?,
+			time_dispute_request: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_dispute_distribution_time_dispute_request",
+					"Time needed for dispute votes to get confirmed/fail getting transmitted.",
+				))?,
 				registry,
 			)?,
 		};

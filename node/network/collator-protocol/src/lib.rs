@@ -26,7 +26,10 @@ use futures::{FutureExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
+use polkadot_node_network_protocol::{
+	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	PeerId, UnifiedReputationChange as Rep,
+};
 use polkadot_primitives::v1::CollatorPair;
 
 use polkadot_subsystem::{
@@ -36,7 +39,7 @@ use polkadot_subsystem::{
 };
 
 mod error;
-use error::Result;
+use error::{FatalResult, Result};
 
 mod collator_side;
 mod validator_side;
@@ -73,7 +76,12 @@ pub enum ProtocolSide {
 		metrics: validator_side::Metrics,
 	},
 	/// Collators operate on a parachain.
-	Collator(PeerId, CollatorPair, collator_side::Metrics),
+	Collator(
+		PeerId,
+		CollatorPair,
+		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+		collator_side::Metrics,
+	),
 }
 
 /// The collator protocol subsystem.
@@ -90,7 +98,7 @@ impl CollatorProtocolSubsystem {
 		Self { protocol_side }
 	}
 
-	async fn run<Context>(self, ctx: Context) -> Result<()>
+	async fn run<Context>(self, ctx: Context) -> FatalResult<()>
 	where
 		Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -98,8 +106,8 @@ impl CollatorProtocolSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
 				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) =>
-				collator_side::run(ctx, local_peer_id, collator_pair, metrics).await,
+			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
+				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
 		}
 	}
 }

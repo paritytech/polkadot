@@ -150,22 +150,25 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl overseer::SubsystemSender<AllMessages> for TestSubsystemSender {
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.tx.send(msg).await.expect("test overseer no longer live");
+impl<T> overseer::SubsystemSender<T> for TestSubsystemSender
+where
+	T: Into<AllMessages> + Send + 'static,
+{
+	async fn send_message(&mut self, msg: T) {
+		self.tx.send(msg.into()).await.expect("test overseer no longer live");
 	}
 
-	async fn send_messages<T>(&mut self, msgs: T)
+	async fn send_messages<X>(&mut self, msgs: X)
 	where
-		T: IntoIterator<Item = AllMessages> + Send,
-		T::IntoIter: Send,
+		X: IntoIterator<Item = T> + Send,
+		X::IntoIter: Send,
 	{
-		let mut iter = stream::iter(msgs.into_iter().map(Ok));
+		let mut iter = stream::iter(msgs.into_iter().map(|msg| Ok(msg.into())));
 		self.tx.send_all(&mut iter).await.expect("test overseer no longer live");
 	}
 
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.tx.unbounded_send(msg).expect("test overseer no longer live");
+	fn send_unbounded_message(&mut self, msg: T) {
+		self.tx.unbounded_send(msg.into()).expect("test overseer no longer live");
 	}
 }
 
@@ -209,7 +212,7 @@ where
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.spawn.spawn(name, s);
+		self.spawn.spawn(name, None, s);
 		Ok(())
 	}
 
@@ -218,7 +221,7 @@ where
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.spawn.spawn_blocking(name, s);
+		self.spawn.spawn_blocking(name, None, s);
 		Ok(())
 	}
 
@@ -240,7 +243,7 @@ pub struct TestSubsystemContextHandle<M> {
 }
 
 impl<M> TestSubsystemContextHandle<M> {
-	/// Send a message or signal to the subsystem. This resolves at the point in time where the
+	/// Send a message or signal to the subsystem. This resolves at the point in time when the
 	/// subsystem has _read_ the message.
 	pub async fn send(&mut self, from_overseer: FromOverseer<M>) {
 		self.tx.send(from_overseer).await.expect("Test subsystem no longer live");
@@ -334,12 +337,42 @@ where
 	}
 }
 
+/// Asserts that two patterns match, yet only one
+#[macro_export]
+macro_rules! arbitrary_order {
+	($rx:expr; $p1:pat => $e1:expr; $p2:pat => $e2:expr) => {
+		// If i.e. a enum has only two variants, `_` is unreachable.
+		match $rx {
+			$p1 => {
+				let __ret1 = { $e1 };
+				let __ret2 = match $rx {
+					$p2 => $e2,
+					#[allow(unreachable_patterns)]
+					_ => unreachable!("first pattern matched, second pattern did not"),
+				};
+				(__ret1, __ret2)
+			},
+			$p2 => {
+				let __ret2 = { $e2 };
+				let __ret1 = match $rx {
+					$p1 => $e1,
+					#[allow(unreachable_patterns)]
+					_ => unreachable!("second pattern matched, first pattern did not"),
+				};
+				(__ret1, __ret2)
+			},
+			#[allow(unreachable_patterns)]
+			_ => unreachable!("neither first nor second pattern matched"),
+		}
+	};
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
-	use polkadot_overseer::{AllSubsystems, Handle, HeadSupportsParachains, Overseer};
+	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
 	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;
@@ -353,24 +386,38 @@ mod tests {
 	fn forward_subsystem_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
-		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_collator_protocol(ForwardSubsystem(tx));
-		let (overseer, handle) = Overseer::new(
-			Vec::new(),
-			all_subsystems,
-			None,
-			AlwaysSupportsParachains,
-			spawner.clone(),
-		)
-		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let (overseer, handle) =
+			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
+				.unwrap()
+				.replace_collator_protocol(|_| ForwardSubsystem(tx))
+				.leaves(vec![])
+				.build()
+				.unwrap();
 
-		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
+		let mut handle = Handle::new(handle);
+
+		spawner.spawn("overseer", None, overseer.run().then(|_| async { () }).boxed());
 
 		block_on(handle.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
 		assert!(matches!(
 			block_on(rx.into_future()).0.unwrap(),
 			CollatorProtocolMessage::CollateOn(_)
 		));
+	}
+
+	#[test]
+	fn macro_arbitrary_order() {
+		let mut vals = vec![Some(15_usize), None];
+		let (first, second) = arbitrary_order!(vals.pop().unwrap(); Some(fx) => fx; None => 0);
+		assert_eq!(first, 15_usize);
+		assert_eq!(second, 0_usize);
+	}
+
+	#[test]
+	fn macro_arbitrary_order_swapped() {
+		let mut vals = vec![None, Some(11_usize)];
+		let (first, second) = arbitrary_order!(vals.pop().unwrap(); Some(fx) => fx; None => 0);
+		assert_eq!(first, 11_usize);
+		assert_eq!(second, 0);
 	}
 }

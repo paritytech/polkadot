@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
 
 [package.metadata.wasm-pack.profile.release]
-# `wasm-opt` has some problems on linux, see
+# `wasm-opt` has some problems on Linux, see
 # https://github.com/rustwasm/wasm-pack/issues/781 etc.
 wasm-opt = false
 
@@ -15,11 +15,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.13"
-thiserror = "1.0.26"
-structopt = { version = "0.3.21", optional = true }
-wasm-bindgen = { version = "0.2.70", optional = true }
-wasm-bindgen-futures = { version = "0.4.25", optional = true }
-futures = "0.3.15"
+thiserror = "1.0.30"
+structopt = { version = "0.3.25", optional = true }
+futures = "0.3.17"
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
@@ -29,7 +27,6 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", bran
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
@@ -39,7 +36,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
+default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
@@ -50,22 +47,18 @@ cli = [
 	"try-runtime-cli",
 	"polkadot-node-core-pvf",
 ]
-browser = [
-	"wasm-bindgen",
-	"wasm-bindgen-futures",
-	"browser-utils",
-	"service/light-node",
-]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
 try-runtime = [ "service/try-runtime" ]
 
-# Configure the native runtimes to use. Polkadot is always enabled by default.
+# Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
+polkadot-native = [ "service/polkadot-native" ]
 kusama-native = [ "service/kusama-native" ]
 westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
 
 malus = [ "full-node", "service/malus" ]
+disputes = [ "service/disputes" ]

@@ -40,11 +40,14 @@ use strum::EnumIter;
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
 
-/// All requests that can be sent to the network bridge.
-pub mod request;
-pub use request::{
-	IncomingRequest, OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender,
-};
+/// Everything related to handling of incoming requests.
+pub mod incoming;
+/// Everything related to handling of outgoing requests.
+pub mod outgoing;
+
+pub use incoming::{IncomingRequest, IncomingRequestReceiver};
+
+pub use outgoing::{OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender};
 
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;
@@ -85,6 +88,9 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 /// Request timeout where we can assume the connection is already open (e.g. we have peers in a
 /// peer set as well).
 const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
+
+/// Timeout for requesting availability chunks.
+pub const CHUNK_REQUEST_TIMEOUT: Duration = DEFAULT_REQUEST_TIMEOUT_CONNECTED;
 
 /// This timeout is based on what seems sensible from a time budget perspective, considering 6
 /// second block time. This is going to be tough, if we have multiple forks and large PoVs, but we
@@ -127,9 +133,9 @@ impl Protocol {
 			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: POV_RESPONSE_SIZE as u64 / 10,
+				max_response_size: POV_RESPONSE_SIZE as u64 * 3,
 				// We are connected to all validators:
-				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
+				request_timeout: CHUNK_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 			Protocol::CollationFetching => RequestResponseConfig {
@@ -247,4 +253,13 @@ impl Protocol {
 			Protocol::DisputeSending => "/polkadot/send_dispute/1",
 		}
 	}
+}
+
+/// Common properties of any `Request`.
+pub trait IsRequest {
+	/// Each request has a corresponding `Response`.
+	type Response;
+
+	/// What protocol this `Request` implements.
+	const PROTOCOL: Protocol;
 }

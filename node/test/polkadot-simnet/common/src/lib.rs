@@ -27,39 +27,49 @@ use polkadot_runtime::{
 use polkadot_runtime_common::claims;
 use sc_consensus_babe::BabeBlockImport;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sc_executor::NativeElseWasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
-use support::{weights::Weight, StorageValue};
+use support::weights::Weight;
 use test_runner::{
-	build_runtime, client_parts, task_executor, ChainInfo, ConfigOrChainSpec, Node,
-	SignatureVerificationOverride,
+	build_runtime, client_parts, ChainInfo, ConfigOrChainSpec, Node, SignatureVerificationOverride,
 };
 
 type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
 type Block = polkadot_primitives::v1::Block;
 type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
 
-sc_executor::native_executor_instance!(
-	pub Executor,
-	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version,
-	(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride),
-);
+/// Declare an instance of the native executor named `ExecutorDispatch`. Include the wasm binary as the
+/// equivalent wasm code.
+pub struct ExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
+	type ExtendHostFunctions =
+		(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride);
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		polkadot_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		polkadot_runtime::native_version()
+	}
+}
 
 /// `ChainInfo` implementation.
 pub struct PolkadotChainInfo;
 
 impl ChainInfo for PolkadotChainInfo {
 	type Block = Block;
-	type Executor = Executor;
+	type ExecutorDispatch = ExecutorDispatch;
 	type Runtime = Runtime;
 	type RuntimeApi = RuntimeApi;
 	type SelectChain = SelectChain;
 	type BlockImport = BlockImport<
 		Self::Block,
 		TFullBackend<Self::Block>,
-		TFullClient<Self::Block, RuntimeApi, Self::Executor>,
+		TFullClient<Self::Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 		Self::SelectChain,
 	>;
 	type SignedExtras = polkadot_runtime::SignedExtra;
@@ -88,14 +98,14 @@ pub async fn dispatch_with_root<T>(
 where
 	T: ChainInfo<
 		Block = Block,
-		Executor = Executor,
+		ExecutorDispatch = ExecutorDispatch,
 		Runtime = Runtime,
 		RuntimeApi = RuntimeApi,
 		SelectChain = SelectChain,
 		BlockImport = BlockImport<
 			Block,
 			TFullBackend<Block>,
-			TFullClient<Block, RuntimeApi, Executor>,
+			TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 			SelectChain,
 		>,
 		SignedExtras = polkadot_runtime::SignedExtra,
@@ -128,7 +138,7 @@ where
 	let proposal_hash = {
 		// note the call (pre-image?) of the call.
 		node.submit_extrinsic(
-			DemocracyCall::note_preimage(call.into().encode()),
+			DemocracyCall::note_preimage { encoded_proposal: call.into().encode() },
 			Some(whales[0].clone()),
 		)
 		.await?;
@@ -139,7 +149,7 @@ where
 		events
 			.iter()
 			.filter_map(|event| match event.event {
-				Event::Democracy(democracy::Event::PreimageNoted(ref proposal_hash, _, _)) =>
+				Event::Democracy(democracy::Event::PreimageNoted { ref proposal_hash, .. }) =>
 					Some(proposal_hash.clone()),
 				_ => None,
 			})
@@ -149,17 +159,18 @@ where
 			})?
 	};
 
-	// submit external_propose call through council collective
+	// submit `external_propose` call through council collective
 	{
-		let external_propose =
-			DemocracyCall::external_propose_majority(proposal_hash.clone().into());
+		let external_propose = DemocracyCall::external_propose_majority {
+			proposal_hash: proposal_hash.clone().into(),
+		};
 		let length = external_propose.using_encoded(|x| x.len()) as u32 + 1;
 		let weight = Weight::MAX / 100_000_000;
-		let proposal = CouncilCollectiveCall::propose(
-			council_collective.len() as u32,
-			Box::new(external_propose.clone().into()),
-			length,
-		);
+		let proposal = CouncilCollectiveCall::propose {
+			threshold: council_collective.len() as u32,
+			proposal: Box::new(external_propose.clone().into()),
+			length_bound: length,
+		};
 
 		node.submit_extrinsic(proposal.clone(), Some(council_collective[0].clone()))
 			.await?;
@@ -170,8 +181,12 @@ where
 		let (index, hash): (u32, H256) = events
 			.iter()
 			.filter_map(|event| match event.event {
-				Event::Council(CouncilCollectiveEvent::Proposed(_, index, ref hash, _)) =>
-					Some((index, hash.clone())),
+				Event::Council(CouncilCollectiveEvent::Proposed {
+					account: _,
+					proposal_index,
+					ref proposal_hash,
+					threshold: _,
+				}) => Some((proposal_index, proposal_hash.clone())),
 				_ => None,
 			})
 			.next()
@@ -181,13 +196,18 @@ where
 
 		// vote
 		for member in &council_collective[1..] {
-			let call = CouncilCollectiveCall::vote(hash.clone(), index, true);
+			let call = CouncilCollectiveCall::vote { proposal: hash.clone(), index, approve: true };
 			node.submit_extrinsic(call, Some(member.clone())).await?;
 		}
 		node.seal_blocks(1).await;
 
 		// close vote
-		let call = CouncilCollectiveCall::close(hash, index, weight, length);
+		let call = CouncilCollectiveCall::close {
+			proposal_hash: hash,
+			index,
+			proposal_weight_bound: weight,
+			length_bound: length,
+		};
 		node.submit_extrinsic(call, Some(council_collective[0].clone())).await?;
 		node.seal_blocks(1).await;
 
@@ -196,12 +216,16 @@ where
 			.events()
 			.into_iter()
 			.filter(|event| match event.event {
-				Event::Council(CouncilCollectiveEvent::Closed(_hash, _, _)) if hash == _hash =>
+				Event::Council(CouncilCollectiveEvent::Closed { proposal_hash, yes: _, no: _ })
+					if hash == proposal_hash =>
 					true,
-				Event::Council(CouncilCollectiveEvent::Approved(_hash)) if hash == _hash => true,
-				Event::Council(CouncilCollectiveEvent::Executed(_hash, Ok(())))
-					if hash == _hash =>
+				Event::Council(CouncilCollectiveEvent::Approved { proposal_hash })
+					if hash == proposal_hash =>
 					true,
+				Event::Council(CouncilCollectiveEvent::Executed {
+					proposal_hash,
+					result: Ok(()),
+				}) if hash == proposal_hash => true,
 				_ => false,
 			})
 			.collect::<Vec<_>>();
@@ -217,15 +241,18 @@ where
 
 	// next technical collective must fast track the proposal.
 	{
-		let fast_track =
-			DemocracyCall::fast_track(proposal_hash.into(), FastTrackVotingPeriod::get(), 0);
+		let fast_track = DemocracyCall::fast_track {
+			proposal_hash: proposal_hash.into(),
+			voting_period: FastTrackVotingPeriod::get(),
+			delay: 0,
+		};
 		let weight = Weight::MAX / 100_000_000;
 		let length = fast_track.using_encoded(|x| x.len()) as u32 + 1;
-		let proposal = TechnicalCollectiveCall::propose(
-			technical_collective.len() as u32,
-			Box::new(fast_track.into()),
-			length,
-		);
+		let proposal = TechnicalCollectiveCall::propose {
+			threshold: technical_collective.len() as u32,
+			proposal: Box::new(fast_track.into()),
+			length_bound: length,
+		};
 
 		node.submit_extrinsic(proposal, Some(technical_collective[0].clone())).await?;
 		node.seal_blocks(1).await;
@@ -234,12 +261,12 @@ where
 		let (index, hash) = events
 			.iter()
 			.filter_map(|event| match event.event {
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(
-					_,
-					index,
-					ref hash,
-					_,
-				)) => Some((index, hash.clone())),
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed {
+					account: _,
+					proposal_index,
+					ref proposal_hash,
+					threshold: _,
+				}) => Some((proposal_index, proposal_hash.clone())),
 				_ => None,
 			})
 			.next()
@@ -249,13 +276,19 @@ where
 
 		// vote
 		for member in &technical_collective[1..] {
-			let call = TechnicalCollectiveCall::vote(hash.clone(), index, true);
+			let call =
+				TechnicalCollectiveCall::vote { proposal: hash.clone(), index, approve: true };
 			node.submit_extrinsic(call, Some(member.clone())).await?;
 		}
 		node.seal_blocks(1).await;
 
 		// close vote
-		let call = TechnicalCollectiveCall::close(hash, index, weight, length);
+		let call = CouncilCollectiveCall::close {
+			proposal_hash: hash,
+			index,
+			proposal_weight_bound: weight,
+			length_bound: length,
+		};
 		node.submit_extrinsic(call, Some(technical_collective[0].clone())).await?;
 		node.seal_blocks(1).await;
 
@@ -264,15 +297,17 @@ where
 			.events()
 			.into_iter()
 			.filter(|event| match event.event {
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_hash, _, _))
-					if hash == _hash =>
-					true,
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_hash))
-					if hash == _hash =>
-					true,
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_hash, Ok(())))
-					if hash == _hash =>
-					true,
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed {
+					proposal_hash: _hash,
+					..
+				}) if hash == _hash => true,
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved {
+					proposal_hash: _hash,
+				}) if hash == _hash => true,
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed {
+					proposal_hash: _hash,
+					result: Ok(()),
+				}) if hash == _hash => true,
 				_ => false,
 			})
 			.collect::<Vec<_>>();
@@ -291,7 +326,7 @@ where
 		.events()
 		.into_iter()
 		.filter_map(|event| match event.event {
-			Event::Democracy(democracy::Event::Started(index, _)) => Some(index),
+			Event::Democracy(democracy::Event::Started { ref_index: index, .. }) => Some(index),
 			_ => None,
 		})
 		.next()
@@ -299,14 +334,14 @@ where
 			format!("democracy::Event::Started not found in events: {:#?}", node.events())
 		})?;
 
-	let call = DemocracyCall::vote(
+	let call = DemocracyCall::vote {
 		ref_index,
-		AccountVote::Standard {
+		vote: AccountVote::Standard {
 			vote: Vote { aye: true, conviction: Conviction::Locked1x },
 			// 10 DOTS
 			balance: 10_000_000_000_000,
 		},
-	);
+	};
 	for whale in whales {
 		node.submit_extrinsic(call.clone(), Some(whale)).await?;
 	}
@@ -319,11 +354,14 @@ where
 		.events()
 		.into_iter()
 		.filter(|event| match event.event {
-			Event::Democracy(democracy::Event::Passed(_index)) if _index == ref_index => true,
-			Event::Democracy(democracy::Event::PreimageUsed(_hash, _, _))
+			Event::Democracy(democracy::Event::Passed { ref_index: _index })
+				if _index == ref_index =>
+				true,
+			Event::Democracy(democracy::Event::PreimageUsed { proposal_hash: _hash, .. })
 				if _hash == proposal_hash =>
 				true,
-			Event::Democracy(democracy::Event::Executed(_index, Ok(()))) if _index == ref_index =>
+			Event::Democracy(democracy::Event::Executed { ref_index: _index, result: Ok(()) })
+				if _index == ref_index =>
 				true,
 			_ => false,
 		})
@@ -348,9 +386,8 @@ where
 	use sc_cli::{CliConfiguration, SubstrateCli};
 	use structopt::StructOpt;
 
-	let mut tokio_runtime = build_runtime()?;
-	let task_executor = task_executor(tokio_runtime.handle().clone());
-	// parse cli args
+	let tokio_runtime = build_runtime()?;
+	// parse CLI args
 	let cmd = <polkadot_cli::Cli as StructOpt>::from_args();
 	// set up logging
 	let filters = cmd.run.base.log_filters()?;
@@ -358,7 +395,7 @@ where
 	logger.init()?;
 
 	// set up the test-runner
-	let config = cmd.create_configuration(&cmd.run.base, task_executor)?;
+	let config = cmd.create_configuration(&cmd.run.base, tokio_runtime.handle().clone())?;
 	sc_cli::print_node_infos::<polkadot_cli::Cli>(&config);
 	let (rpc, task_manager, client, pool, command_sink, backend) =
 		client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))?;
@@ -380,12 +417,11 @@ mod tests {
 
 	#[test]
 	fn test_runner() {
-		let mut runtime = build_runtime().unwrap();
-		let task_executor = task_executor(runtime.handle().clone());
+		let runtime = build_runtime().unwrap();
 		let (rpc, task_manager, client, pool, command_sink, backend) =
 			client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::ChainSpec(
 				Box::new(polkadot_development_config().unwrap()),
-				task_executor,
+				runtime.handle().clone(),
 			))
 			.unwrap();
 		let node =
@@ -396,9 +432,12 @@ mod tests {
 			node.seal_blocks(1).await;
 			// submit extrinsics
 			let alice = MultiSigner::from(Alice.public()).into_account();
-			node.submit_extrinsic(system::Call::remark((b"hello world").to_vec()), Some(alice))
-				.await
-				.unwrap();
+			node.submit_extrinsic(
+				system::Call::remark { remark: (b"hello world").to_vec() },
+				Some(alice),
+			)
+			.await
+			.unwrap();
 
 			// look ma, I can read state.
 			let _events = node.with_state(|| system::Pallet::<Runtime>::events());

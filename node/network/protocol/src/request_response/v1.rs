@@ -19,13 +19,13 @@
 use parity_scale_codec::{Decode, Encode};
 
 use polkadot_node_primitives::{
-	AvailableData, DisputeMessage, ErasureChunk, PoV, UncheckedDisputeMessage,
+	AvailableData, DisputeMessage, ErasureChunk, PoV, Proof, UncheckedDisputeMessage,
 };
 use polkadot_primitives::v1::{
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, Id as ParaId, ValidatorIndex,
 };
 
-use super::{request::IsRequest, Protocol};
+use super::{IsRequest, Protocol};
 
 /// Request an availability chunk.
 #[derive(Debug, Copy, Clone, Encode, Decode)]
@@ -67,7 +67,7 @@ pub struct ChunkResponse {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
 	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
+	pub proof: Proof,
 }
 
 impl From<ErasureChunk> for ChunkResponse {

@@ -21,13 +21,14 @@ use crate::{LaneId, Message, MessageData, MessageKey, OutboundLaneData};
 use bp_runtime::{messages::MessageDispatchResult, Size};
 use codec::{Decode, Encode, Error as CodecError};
 use frame_support::{weights::Weight, Parameter, RuntimeDebug};
+use scale_info::TypeInfo;
 use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, prelude::*};
 
 /// Proved messages from the source chain.
 pub type ProvedMessages<Message> = BTreeMap<LaneId, ProvedLaneMessages<Message>>;
 
 /// Proved messages from single lane of the source chain.
-#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq)]
+#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub struct ProvedLaneMessages<Message> {
 	/// Optional outbound lane state.
 	pub lane_state: Option<OutboundLaneData>,
@@ -75,7 +76,7 @@ pub trait SourceHeaderChain<Fee> {
 	/// messages will be rejected.
 	///
 	/// The `messages_count` argument verification (sane limits) is supposed to be made
-	/// outside of this function. This function only verifies that the proof declares exactly
+	/// outside this function. This function only verifies that the proof declares exactly
 	/// `messages_count` messages.
 	fn verify_messages_proof(
 		proof: Self::MessagesProof,
@@ -111,23 +112,19 @@ pub trait MessageDispatch<AccountId, Fee> {
 
 impl<Message> Default for ProvedLaneMessages<Message> {
 	fn default() -> Self {
-		ProvedLaneMessages {
-			lane_state: None,
-			messages: Vec::new(),
-		}
+		ProvedLaneMessages { lane_state: None, messages: Vec::new() }
 	}
 }
 
 impl<DispatchPayload: Decode, Fee> From<Message<Fee>> for DispatchMessage<DispatchPayload, Fee> {
 	fn from(message: Message<Fee>) -> Self {
-		DispatchMessage {
-			key: message.key,
-			data: message.data.into(),
-		}
+		DispatchMessage { key: message.key, data: message.data.into() }
 	}
 }
 
-impl<DispatchPayload: Decode, Fee> From<MessageData<Fee>> for DispatchMessageData<DispatchPayload, Fee> {
+impl<DispatchPayload: Decode, Fee> From<MessageData<Fee>>
+	for DispatchMessageData<DispatchPayload, Fee>
+{
 	fn from(data: MessageData<Fee>) -> Self {
 		DispatchMessageData {
 			payload: DispatchPayload::decode(&mut &data.payload[..]),
@@ -141,7 +138,8 @@ impl<DispatchPayload: Decode, Fee> From<MessageData<Fee>> for DispatchMessageDat
 pub struct ForbidInboundMessages;
 
 /// Error message that is used in `ForbidOutboundMessages` implementation.
-const ALL_INBOUND_MESSAGES_REJECTED: &str = "This chain is configured to reject all inbound messages";
+const ALL_INBOUND_MESSAGES_REJECTED: &str =
+	"This chain is configured to reject all inbound messages";
 
 impl<Fee> SourceHeaderChain<Fee> for ForbidInboundMessages {
 	type Error = &'static str;
@@ -162,7 +160,10 @@ impl<AccountId, Fee> MessageDispatch<AccountId, Fee> for ForbidInboundMessages {
 		Weight::MAX
 	}
 
-	fn dispatch(_: &AccountId, _: DispatchMessage<Self::DispatchPayload, Fee>) -> MessageDispatchResult {
+	fn dispatch(
+		_: &AccountId,
+		_: DispatchMessage<Self::DispatchPayload, Fee>,
+	) -> MessageDispatchResult {
 		MessageDispatchResult {
 			dispatch_result: false,
 			unspent_weight: 0,

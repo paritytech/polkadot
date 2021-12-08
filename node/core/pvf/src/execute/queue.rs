@@ -20,6 +20,7 @@ use super::worker::Outcome;
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId},
 	host::ResultSender,
+	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
@@ -37,11 +38,17 @@ slotmap::new_key_type! { struct Worker; }
 
 #[derive(Debug)]
 pub enum ToQueue {
-	Enqueue { artifact: ArtifactPathId, params: Vec<u8>, result_tx: ResultSender },
+	Enqueue {
+		artifact: ArtifactPathId,
+		execution_timeout: Duration,
+		params: Vec<u8>,
+		result_tx: ResultSender,
+	},
 }
 
 struct ExecuteJob {
 	artifact: ArtifactPathId,
+	execution_timeout: Duration,
 	params: Vec<u8>,
 	result_tx: ResultSender,
 }
@@ -95,6 +102,8 @@ enum QueueEvent {
 type Mux = FuturesUnordered<BoxFuture<'static, QueueEvent>>;
 
 struct Queue {
+	metrics: Metrics,
+
 	/// The receiver that receives messages to the pool.
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 
@@ -109,12 +118,14 @@ struct Queue {
 
 impl Queue {
 	fn new(
+		metrics: Metrics,
 		program_path: PathBuf,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
+			metrics,
 			program_path,
 			spawn_timeout,
 			to_queue_rx,
@@ -141,12 +152,12 @@ impl Queue {
 				ev = self.mux.select_next_some() => handle_mux(&mut self, ev).await,
 			}
 
-			purge_dead(&mut self.workers).await;
+			purge_dead(&self.metrics, &mut self.workers).await;
 		}
 	}
 }
 
-async fn purge_dead(workers: &mut Workers) {
+async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 	let mut to_remove = vec![];
 	for (worker, data) in workers.running.iter_mut() {
 		if futures::poll!(&mut data.handle).is_ready() {
@@ -155,18 +166,21 @@ async fn purge_dead(workers: &mut Workers) {
 		}
 	}
 	for w in to_remove {
-		let _ = workers.running.remove(w);
+		if workers.running.remove(w).is_some() {
+			metrics.execute_worker().on_retired();
+		}
 	}
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, params, result_tx } = to_queue;
+	let ToQueue::Enqueue { artifact, execution_timeout, params, result_tx } = to_queue;
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
 		"enqueueing an artifact for execution",
 	);
-	let job = ExecuteJob { artifact, params, result_tx };
+	queue.metrics.execute_enqueued();
+	let job = ExecuteJob { artifact, execution_timeout, params, result_tx };
 
 	if let Some(available) = queue.workers.find_available() {
 		assign(queue, available, job);
@@ -190,6 +204,7 @@ async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 }
 
 fn handle_worker_spawned(queue: &mut Queue, idle: IdleWorker, handle: WorkerHandle) {
+	queue.metrics.execute_worker().on_spawned();
 	queue.workers.spawn_inflight -= 1;
 	let worker = queue.workers.running.insert(WorkerData { idle: Some(idle), handle });
 
@@ -225,9 +240,10 @@ fn handle_job_finish(
 		Outcome::HardTimeout =>
 			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))),
 		Outcome::IoErr =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))),
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))),
 	};
 
+	queue.metrics.execute_finished();
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
@@ -257,7 +273,9 @@ fn handle_job_finish(
 		}
 	} else {
 		// Note it's possible that the worker was purged already by `purge_dead`
-		queue.workers.running.remove(worker);
+		if queue.workers.running.remove(worker).is_some() {
+			queue.metrics.execute_worker().on_retired();
+		}
 
 		if !queue.queue.is_empty() {
 			// The worker has died and we still have work we have to do. Request an extra worker.
@@ -269,6 +287,7 @@ fn handle_job_finish(
 }
 
 fn spawn_extra_worker(queue: &mut Queue) {
+	queue.metrics.execute_worker().on_begin_spawn();
 	tracing::debug!(target: LOG_TARGET, "spawning an extra worker");
 
 	queue
@@ -309,9 +328,17 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 			thus claim_idle cannot return None;
 			qed.",
 	);
+	let execution_timer = queue.metrics.time_execution();
 	queue.mux.push(
 		async move {
-			let outcome = super::worker::start_work(idle, job.artifact.clone(), job.params).await;
+			let _timer = execution_timer;
+			let outcome = super::worker::start_work(
+				idle,
+				job.artifact.clone(),
+				job.execution_timeout,
+				job.params,
+			)
+			.await;
 			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
 		}
 		.boxed(),
@@ -319,11 +346,12 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 }
 
 pub fn start(
+	metrics: Metrics,
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
-	let run = Queue::new(program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
+	let run = Queue::new(metrics, program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
 	(to_queue_tx, run)
 }

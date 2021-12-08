@@ -1,6 +1,6 @@
 [package]
 name = "test-parachain-adder-collator"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
 edition = "2018"
@@ -14,22 +14,21 @@ name = "adder_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-futures = "0.3.15"
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+futures = "0.3.17"
 futures-timer = "3.0.2"
 log = "0.4.13"
-structopt = "0.3.21"
+structopt = "0.3.25"
 
 test-parachain-adder = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }
 polkadot-cli = { path = "../../../../cli" }
-polkadot-service = { path = "../../../../node/service", features = [ "rococo-native" ] }
+polkadot-service = { path = "../../../../node/service", features = ["rococo-native"] }
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
@@ -45,4 +44,4 @@ substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.14", features = ["macros"] }

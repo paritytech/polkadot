@@ -1,16 +1,16 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
-version = "0.9.9"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-async-trait = "0.1.42"
-futures = "0.3.15"
-tracing = "0.1.26"
+async-trait = "0.1.51"
+futures = "0.3.17"
+tracing = "0.1.29"
 
 sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
@@ -23,7 +23,7 @@ polkadot-node-core-pvf = { path = "../pvf" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.15", features = ["thread-pool"] }
+futures = { version = "0.3.17", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

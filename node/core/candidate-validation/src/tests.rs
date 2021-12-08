@@ -17,8 +17,10 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::executor;
+use polkadot_node_core_pvf::PrepareError;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
@@ -52,11 +54,15 @@ fn correctly_checks_included_assumption() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::Included,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -89,7 +95,7 @@ fn correctly_checks_included_assumption() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+		assert_matches!(check_result.await, AssumptionCheckOutcome::Matches(o, v) => {
 			assert_eq!(o, validation_data);
 			assert_eq!(v, validation_code);
 		});
@@ -114,11 +120,15 @@ fn correctly_checks_timed_out_assumption() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::TimedOut,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -151,7 +161,7 @@ fn correctly_checks_timed_out_assumption() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+		assert_matches!(check_result.await, AssumptionCheckOutcome::Matches(o, v) => {
 			assert_eq!(o, validation_data);
 			assert_eq!(v, validation_code);
 		});
@@ -174,11 +184,15 @@ fn check_is_bad_request_if_no_validation_data() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::Included,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -198,7 +212,7 @@ fn check_is_bad_request_if_no_validation_data() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		assert_matches!(check_result.await, AssumptionCheckOutcome::BadRequest);
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -218,11 +232,15 @@ fn check_is_bad_request_if_no_validation_code() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::TimedOut,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -255,7 +273,7 @@ fn check_is_bad_request_if_no_validation_code() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		assert_matches!(check_result.await, AssumptionCheckOutcome::BadRequest);
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -274,11 +292,15 @@ fn check_does_not_match() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::Included,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -298,31 +320,36 @@ fn check_does_not_match() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::DoesNotMatch);
+		assert_matches!(check_result.await, AssumptionCheckOutcome::DoesNotMatch);
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
 	executor::block_on(test_fut);
 }
 
-struct MockValidatorBackend {
+struct MockValidateCandidateBackend {
 	result: Result<WasmValidationResult, ValidationError>,
 }
 
-impl MockValidatorBackend {
+impl MockValidateCandidateBackend {
 	fn with_hardcoded_result(result: Result<WasmValidationResult, ValidationError>) -> Self {
 		Self { result }
 	}
 }
 
 #[async_trait]
-impl ValidationBackend for MockValidatorBackend {
+impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
 		_raw_validation_code: Vec<u8>,
+		_timeout: Duration,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
+	}
+
+	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+		unreachable!()
 	}
 }
 
@@ -358,14 +385,14 @@ fn candidate_validation_ok_is_ok() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
-	.unwrap()
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
@@ -399,16 +426,16 @@ fn candidate_validation_bad_return_is_invalid() {
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::AmbigiousWorkerDeath,
-		))),
+		MockValidateCandidateBackend::with_hardcoded_result(Err(
+			ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath),
+		)),
 		validation_data,
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
-	.unwrap()
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
@@ -435,16 +462,16 @@ fn candidate_validation_timeout_is_internal_error() {
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::HardTimeout,
-		))),
+		MockValidateCandidateBackend::with_hardcoded_result(Err(
+			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+		)),
 		validation_data,
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 }
@@ -470,16 +497,16 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
-			WasmInvalidCandidate::HardTimeout,
-		))),
+		MockValidateCandidateBackend::with_hardcoded_result(Err(
+			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+		)),
 		validation_data,
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
-	.unwrap()
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
@@ -512,14 +539,14 @@ fn compressed_code_works() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Valid(_, _)));
 }
@@ -552,14 +579,14 @@ fn code_decompression_failure_is_invalid() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
 }
@@ -593,14 +620,177 @@ fn pov_decompression_failure_is_invalid() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
+}
+
+struct MockPreCheckBackend {
+	result: Result<(), PrepareError>,
+}
+
+impl MockPreCheckBackend {
+	fn with_hardcoded_result(result: Result<(), PrepareError>) -> Self {
+		Self { result }
+	}
+}
+
+#[async_trait]
+impl ValidationBackend for MockPreCheckBackend {
+	async fn validate_candidate(
+		&mut self,
+		_raw_validation_code: Vec<u8>,
+		_timeout: Duration,
+		_params: ValidationParams,
+	) -> Result<WasmValidationResult, ValidationError> {
+		unreachable!()
+	}
+
+	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+		self.result.clone()
+	}
+}
+
+#[test]
+fn precheck_works() {
+	let relay_parent = [3; 32].into();
+	let validation_code = ValidationCode(vec![3; 16]);
+	let validation_code_hash = validation_code.hash();
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+	let (check_fut, check_result) = precheck_pvf(
+		ctx.sender(),
+		MockPreCheckBackend::with_hardcoded_result(Ok(())),
+		relay_parent,
+		validation_code_hash,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				rp,
+				RuntimeApiRequest::ValidationCodeByHash(
+					vch,
+					tx
+				),
+			)) => {
+				assert_eq!(vch, validation_code_hash);
+				assert_eq!(rp, relay_parent);
+
+				let _ = tx.send(Ok(Some(validation_code.clone())));
+			}
+		);
+		assert_matches!(check_result.await, PreCheckOutcome::Valid);
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
+}
+
+#[test]
+fn precheck_invalid_pvf_blob_compression() {
+	let relay_parent = [3; 32].into();
+
+	let raw_code = vec![2u8; VALIDATION_CODE_BOMB_LIMIT + 1];
+	let validation_code =
+		sp_maybe_compressed_blob::compress(&raw_code, VALIDATION_CODE_BOMB_LIMIT + 1)
+			.map(ValidationCode)
+			.unwrap();
+	let validation_code_hash = validation_code.hash();
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+	let (check_fut, check_result) = precheck_pvf(
+		ctx.sender(),
+		MockPreCheckBackend::with_hardcoded_result(Ok(())),
+		relay_parent,
+		validation_code_hash,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				rp,
+				RuntimeApiRequest::ValidationCodeByHash(
+					vch,
+					tx
+				),
+			)) => {
+				assert_eq!(vch, validation_code_hash);
+				assert_eq!(rp, relay_parent);
+
+				let _ = tx.send(Ok(Some(validation_code.clone())));
+			}
+		);
+		assert_matches!(check_result.await, PreCheckOutcome::Invalid);
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
+}
+
+#[test]
+fn precheck_properly_classifies_outcomes() {
+	let inner = |prepare_result, precheck_outcome| {
+		let relay_parent = [3; 32].into();
+		let validation_code = ValidationCode(vec![3; 16]);
+		let validation_code_hash = validation_code.hash();
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut ctx_handle) =
+			test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+		let (check_fut, check_result) = precheck_pvf(
+			ctx.sender(),
+			MockPreCheckBackend::with_hardcoded_result(prepare_result),
+			relay_parent,
+			validation_code_hash,
+		)
+		.remote_handle();
+
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCodeByHash(
+						vch,
+						tx
+					),
+				)) => {
+					assert_eq!(vch, validation_code_hash);
+					assert_eq!(rp, relay_parent);
+
+					let _ = tx.send(Ok(Some(validation_code.clone())));
+				}
+			);
+			assert_eq!(check_result.await, precheck_outcome);
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	};
+
+	inner(Err(PrepareError::Prevalidation("foo".to_owned())), PreCheckOutcome::Invalid);
+	inner(Err(PrepareError::Preparation("bar".to_owned())), PreCheckOutcome::Invalid);
+	inner(Err(PrepareError::Panic("baz".to_owned())), PreCheckOutcome::Invalid);
+
+	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
+	inner(Err(PrepareError::DidNotMakeIt), PreCheckOutcome::Failed);
 }

@@ -8,18 +8,18 @@
 #
 # See the `deployments/README.md` for all the available `PROJECT` values.
 
-FROM paritytech/bridges-ci:latest as builder
+FROM docker.io/paritytech/bridges-ci:latest as builder
 WORKDIR /parity-bridges-common
 
 COPY . .
 
-ARG PROJECT=ethereum-poa-relay
+ARG PROJECT=substrate-relay
 RUN cargo build --release --verbose -p ${PROJECT} && \
     strip ./target/release/${PROJECT}
 
 # In this final stage we copy over the final binary and do some checks
 # to make sure that everything looks good.
-FROM ubuntu:20.04 as runtime
+FROM docker.io/library/ubuntu:20.04 as runtime
 
 # show backtraces
 ENV RUST_BACKTRACE 1
@@ -42,7 +42,7 @@ USER user
 
 WORKDIR /home/user
 
-ARG PROJECT=ethereum-poa-relay
+ARG PROJECT=substrate-relay
 
 COPY --chown=user:user --from=builder /parity-bridges-common/target/release/${PROJECT} ./
 COPY --chown=user:user --from=builder /parity-bridges-common/deployments/local-scripts/bridge-entrypoint.sh ./

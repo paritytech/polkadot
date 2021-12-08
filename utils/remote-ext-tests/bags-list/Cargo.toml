@@ -1,0 +1,20 @@
+[package]
+name = "remote-ext-tests-bags-list"
+version = "0.9.13"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot" }
+kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
+westend-runtime = { version = "0.9.8", path = "../../../runtime/westend" }
+
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+tokio = { version = "1", features = ["macros"] }
+log = { version = "0.4.14" }
+structopt = {version = "0.3.25" }
+clap = { version = "2.34.0" }

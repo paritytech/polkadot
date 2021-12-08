@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryFrom};
 
 use parity_scale_codec::Encode;
 
@@ -29,7 +29,7 @@ use sc_network as network;
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::request_response::{v1, Recipient};
-use polkadot_node_primitives::{BlockData, PoV};
+use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 
 use super::*;
@@ -60,7 +60,7 @@ fn task_does_not_accept_invalid_chunk() {
 				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
 				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: vec![1, 2, 3],
-					proof: vec![vec![9, 8, 2], vec![2, 3, 4]],
+					proof: Proof::try_from(vec![vec![9, 8, 2], vec![2, 3, 4]]).unwrap(),
 				}),
 			);
 			m
@@ -170,7 +170,7 @@ fn task_stores_valid_chunk_if_there_is_one() {
 				Recipient::Authority(Sr25519Keyring::Charlie.public().into()),
 				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: vec![1, 2, 3],
-					proof: vec![vec![9, 8, 2], vec![2, 3, 4]],
+					proof: Proof::try_from(vec![vec![9, 8, 2], vec![2, 3, 4]]).unwrap(),
 				}),
 			);
 
@@ -230,7 +230,7 @@ impl TestRun {
 		match msg {
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
 				reqs,
-				IfDisconnected::TryConnect,
+				IfDisconnected::ImmediateError,
 			)) => {
 				let mut valid_responses = 0;
 				for req in reqs {

@@ -23,6 +23,7 @@ use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
 use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
+use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
@@ -106,8 +107,8 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash, MallocSizeOf))]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidatorIndex(pub u32);
 
 // We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
@@ -139,7 +140,7 @@ impl MallocSizeOf for ValidatorSignature {
 }
 
 /// Retriability for a given active para.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Retriable {
 	/// Ineligible for retry. This means it's either a parachain that is always scheduled anyway or
@@ -205,7 +206,7 @@ impl SwapAux for () {
 }
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
-#[derive(Copy, Clone, PartialEq, Encode, Decode)]
+#[derive(Copy, Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Chain {
 	/// The relay chain.
@@ -215,7 +216,7 @@ pub enum Chain {
 }
 
 /// The duty roster specifying what jobs each validator must do.
-#[derive(Clone, PartialEq, Encode, Decode)]
+#[derive(Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Default, Debug))]
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
@@ -226,7 +227,7 @@ pub struct DutyRoster {
 /// to fully validate the candidate.
 ///
 /// These are global parameters that apply to all parachain candidates in a block.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct GlobalValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
@@ -239,7 +240,7 @@ pub struct GlobalValidationData<N = BlockNumber> {
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct LocalValidationData<N = BlockNumber> {
 	/// The parent head-data.
@@ -261,7 +262,7 @@ pub struct LocalValidationData<N = BlockNumber> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CandidateCommitments<H = Hash> {
 	/// Fees paid from the chain to the relay chain validators.
@@ -310,7 +311,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// All data pertaining to the execution of a parachain candidate.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The ID of the parachain this is a candidate for.
@@ -395,7 +396,7 @@ impl Ord for CandidateReceipt {
 
 /// All the data which is omitted in an `AbridgedCandidateReceipt`, but that
 /// is necessary for validation of the parachain candidate.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct OmittedValidationData<N = BlockNumber> {
 	/// The global validation schedule.
@@ -409,7 +410,7 @@ pub struct OmittedValidationData<N = BlockNumber> {
 /// Much info in a candidate-receipt is duplicated from the relay-chain state.
 /// When submitting to the relay-chain, this data should be omitted as it can
 /// be re-generated from relay-chain state.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct AbridgedCandidateReceipt<H = Hash> {
 	/// The ID of the parachain this is a candidate for.
@@ -544,7 +545,7 @@ impl Ord for AbridgedCandidateReceipt {
 }
 
 /// A unique descriptor of the candidate receipt, in a lightweight format.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
@@ -564,7 +565,7 @@ pub struct CandidateDescriptor<H = Hash> {
 }
 
 /// A collation sent by a collator.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CollationInfo {
 	/// The ID of the parachain this is a candidate for.
@@ -619,7 +620,7 @@ impl CollationInfo {
 
 /// A full collation.
 #[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode, TypeInfo))]
 pub struct Collation {
 	/// Candidate receipt itself.
 	pub info: CollationInfo,
@@ -629,7 +630,7 @@ pub struct Collation {
 
 /// A Proof-of-Validation block.
 #[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode, TypeInfo))]
 pub struct PoVBlock {
 	/// Block data.
 	pub block_data: BlockData,
@@ -645,7 +646,7 @@ impl PoVBlock {
 
 /// The data that is kept available about a particular parachain block.
 #[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode, TypeInfo))]
 pub struct AvailableData {
 	/// The PoV block.
 	pub pov_block: PoVBlock,
@@ -677,7 +678,7 @@ impl CompactStatement {
 }
 
 // Inner helper for codec on `CompactStatement`.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 enum CompactStatementInner {
 	#[codec(index = 1)]
 	Seconded(CandidateHash),
@@ -733,7 +734,8 @@ impl CompactStatement {
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
-#[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
+#[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidityAttestation {
 	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
@@ -746,6 +748,18 @@ pub enum ValidityAttestation {
 }
 
 impl ValidityAttestation {
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn to_compact_statement(&self, candidate_hash: CandidateHash) -> CompactStatement {
+		// Explicit and implicit map directly from
+		// `ValidityVote::Valid` and `ValidityVote::Issued`, and hence there is a
+		// `1:1` relationshow which enables the conversion.
+		match *self {
+			ValidityAttestation::Implicit(_) => CompactStatement::Seconded(candidate_hash),
+			ValidityAttestation::Explicit(_) => CompactStatement::Valid(candidate_hash),
+		}
+	}
+
 	/// Get a reference to the signature.
 	pub fn signature(&self) -> &ValidatorSignature {
 		match *self {
@@ -804,7 +818,7 @@ impl AttestedCandidate {
 }
 
 /// A fee schedule for messages. This is a linear function in the number of bytes of a message.
-#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.

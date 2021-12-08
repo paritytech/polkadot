@@ -22,15 +22,15 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
+use sc_network::Multiaddr;
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet,
-	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange,
+	peer_set::PeerSet, request_response::Requests, v1 as protocol_v1, PeerId,
+	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
@@ -51,6 +51,7 @@ use polkadot_statement_table::v1::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashSet},
 	sync::Arc,
+	time::Duration,
 };
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
@@ -92,6 +93,26 @@ impl BoundToRelayParent for CandidateBackingMessage {
 #[error("Validation failed with {0:?}")]
 pub struct ValidationFailed(pub String);
 
+/// The outcome of the candidate-validation's PVF pre-check request.
+#[derive(Debug, PartialEq)]
+pub enum PreCheckOutcome {
+	/// The PVF has been compiled successfully within the given constraints.
+	Valid,
+	/// The PVF could not be compiled. This variant is used when the candidate-validation subsystem
+	/// can be sure that the PVF is invalid. To give a couple of examples: a PVF that cannot be
+	/// decompressed or that does not represent a structurally valid WebAssembly file.
+	Invalid,
+	/// This variant is used when the PVF cannot be compiled but for other reasons that are not
+	/// included into [`PreCheckOutcome::Invalid`]. This variant can indicate that the PVF in
+	/// question is invalid, however it is not necessary that PVF that received this judgement
+	/// is invalid.
+	///
+	/// For example, if during compilation the preparation worker was killed we cannot be sure why
+	/// it happened: because the PVF was malicious made the worker to use too much memory or its
+	/// because the host machine is under severe memory pressure and it decided to kill the worker.
+	Failed,
+}
+
 /// Messages received by the Validation subsystem.
 ///
 /// ## Validation Requests
@@ -114,6 +135,8 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
+		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -130,7 +153,20 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
+		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	),
+	/// Try to compile the given validation code and send back
+	/// the outcome.
+	///
+	/// The validation code is specified by the hash and will be queried from the runtime API at the
+	/// given relay-parent.
+	PreCheck(
+		// Relay-parent
+		Hash,
+		ValidationCodeHash,
+		oneshot::Sender<PreCheckOutcome>,
 	),
 }
 
@@ -138,8 +174,9 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
 		}
 	}
 }
@@ -165,8 +202,6 @@ pub enum CollatorProtocolMessage {
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
-	/// Incoming network request for a collation.
-	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	///
 	/// The hash is the relay parent.
@@ -192,7 +227,7 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 /// Messages received by the dispute coordinator subsystem.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
-	/// Import a statement by a validator about a candidate.
+	/// Import statements by validators about a candidate.
 	///
 	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
 	/// candidates that are previously unknown to the subsystem. The former is simply because ancient
@@ -254,12 +289,12 @@ pub enum DisputeCoordinatorMessage {
 	/// is typically the number of the last finalized block but may be slightly higher. This block
 	/// is inevitably going to be finalized so it is not accounted for by this function.
 	DetermineUndisputedChain {
-		/// The number of the lowest possible block to vote on.
-		base_number: BlockNumber,
+		/// The lowest possible block to vote on.
+		base: (BlockNumber, Hash),
 		/// Descriptions of all the blocks counting upwards from the block after the base number
 		block_descriptions: Vec<BlockDescription>,
-		/// A response channel - `None` to vote on base, `Some` to vote higher.
-		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
+		/// The block to vote on, might be base in case there is no better.
+		tx: oneshot::Sender<(BlockNumber, Hash)>,
 	},
 }
 
@@ -272,34 +307,12 @@ pub enum ImportStatementsResult {
 	ValidImport,
 }
 
-/// Messages received by the dispute participation subsystem.
-#[derive(Debug)]
-pub enum DisputeParticipationMessage {
-	/// Validate a candidate for the purposes of participating in a dispute.
-	Participate {
-		/// The hash of the candidate
-		candidate_hash: CandidateHash,
-		/// The candidate receipt itself.
-		candidate_receipt: CandidateReceipt,
-		/// The session the candidate appears in.
-		session: SessionIndex,
-		/// The number of validators in the session.
-		n_validators: u32,
-		/// Give immediate feedback on whether the candidate was available or
-		/// not.
-		report_availability: oneshot::Sender<bool>,
-	},
-}
-
 /// Messages going to the dispute distribution subsystem.
 #[derive(Debug)]
 pub enum DisputeDistributionMessage {
 	/// Tell dispute distribution to distribute an explicit dispute statement to
 	/// validators.
 	SendDispute(DisputeMessage),
-
-	/// Get receiver for receiving incoming network requests for dispute sending.
-	DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.
@@ -351,6 +364,14 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
+	/// Alternative to `ConnectToValidators` in case you already know the `Multiaddrs` you want to be
+	/// connected to.
+	ConnectToResolvedValidators {
+		/// Each entry corresponds to the addresses of an already resolved validator.
+		validator_addrs: Vec<HashSet<Multiaddr>>,
+		/// The peer set we want the connection on.
+		peer_set: PeerSet,
+	},
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
@@ -371,6 +392,7 @@ impl NetworkBridgeMessage {
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
+			Self::ConnectToResolvedValidators { .. } => None,
 			Self::SendRequests { .. } => None,
 			Self::NewGossipTopology { .. } => None,
 		}
@@ -380,10 +402,6 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
-	/// Incoming network request for an availability chunk.
-	ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
-	/// Incoming network request for a seconded PoV.
-	PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
 	/// Instruct availability distribution to fetch a remote PoV.
 	///
 	/// NOTE: The result of this fetch is not yet locally validated and could be bogus.
@@ -413,9 +431,6 @@ pub enum AvailabilityRecoveryMessage {
 		Option<GroupIndex>, // Optional backing group to request from first.
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
-	/// Incoming network request for available data.
-	#[from]
-	AvailableDataFetchingRequest(IncomingRequest<req_res_v1::AvailableDataFetchingRequest>),
 }
 
 /// Bitfield distribution message.
@@ -489,17 +504,19 @@ pub enum AvailabilityStoreMessage {
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
 
-	/// Store a `AvailableData` in the AV store.
-	/// If `ValidatorIndex` is present store corresponding chunk also.
+	/// Store a `AvailableData` and all of its chunks in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(
-		CandidateHash,
-		Option<ValidatorIndex>,
-		u32,
-		AvailableData,
-		oneshot::Sender<Result<(), ()>>,
-	),
+	StoreAvailableData {
+		/// A hash of the candidate this `available_data` belongs to.
+		candidate_hash: CandidateHash,
+		/// The number of validators in the session.
+		n_validators: u32,
+		/// The `AvailableData` itself.
+		available_data: AvailableData,
+		/// Sending side of the channel to send result to.
+		tx: oneshot::Sender<Result<(), ()>>,
+	},
 }
 
 impl AvailabilityStoreMessage {
@@ -526,7 +543,7 @@ pub enum ChainApiMessage {
 	/// Get the cumulative weight of the given block, by hash.
 	/// If the block or weight is unknown, this returns `None`.
 	///
-	/// Note: this the weight within the low-level fork-choice rule,
+	/// Note: this is the weight within the low-level fork-choice rule,
 	/// not the high-level one implemented in the chain-selection subsystem.
 	///
 	/// Weight is used for comparing blocks in a fork-choice rule.
@@ -607,6 +624,13 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<PersistedValidationData>>,
 	),
+	/// Get the persisted validation data for a particular para along with the current validation code
+	/// hash, matching the data hash against an expected one.
+	AssumedValidationData(
+		ParaId,
+		Hash,
+		RuntimeApiSender<Option<(PersistedValidationData, ValidationCodeHash)>>,
+	),
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,
@@ -639,6 +663,8 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
+	/// Get all disputes in relation to a relay parent.
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -666,8 +692,6 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-	/// Get receiver for receiving incoming network requests for statement fetching.
-	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -865,21 +889,9 @@ pub enum ApprovalDistributionMessage {
 }
 
 /// Message to the Gossip Support subsystem.
-#[derive(Debug)]
-pub enum GossipSupportMessage {}
-
-impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
-		Self::PoVFetchingRequest(req)
-	}
-}
-impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AvailabilityDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
-		Self::ChunkFetchingRequest(req)
-	}
-}
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		Self::CollationFetchingRequest(req)
-	}
+#[derive(Debug, derive_more::From)]
+pub enum GossipSupportMessage {
+	/// Dummy constructor, so we can receive networking events.
+	#[from]
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
 }

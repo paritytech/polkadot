@@ -62,7 +62,7 @@ impl CollationGenerationSubsystem {
 	/// Conceptually, this is very simple: it just loops forever.
 	///
 	/// - On incoming overseer messages, it starts or stops jobs as appropriate.
-	/// - On other incoming messages, if they can be converted into Job::ToJob and
+	/// - On other incoming messages, if they can be converted into `Job::ToJob` and
 	///   include a hash, then they're forwarded to the appropriate individual job.
 	/// - On outgoing messages from the jobs, it forwards them to the overseer.
 	///
@@ -291,7 +291,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
 			ctx.spawn(
-				"collation generation collation builder",
+				"collation-builder",
 				Box::pin(async move {
 					let persisted_validation_data_hash = validation_data.hash();
 

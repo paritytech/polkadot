@@ -24,20 +24,35 @@
 //! in this graph will be forwarded to the network bridge with
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
-use futures::{channel::oneshot, FutureExt as _};
-use polkadot_node_network_protocol::peer_set::PeerSet;
+use std::{
+	collections::{HashMap, HashSet},
+	fmt,
+	time::{Duration, Instant},
+};
+
+use futures::{channel::oneshot, select, FutureExt as _};
+use futures_timer::Delay;
+use rand::{seq::SliceRandom as _, SeedableRng};
+use rand_chacha::ChaCha20Rng;
+
+use sc_network::Multiaddr;
+use sp_application_crypto::{AppKey, Public};
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
+
+use polkadot_node_network_protocol::{
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSuppportNetworkMessage,
+	PeerId,
+};
 use polkadot_node_subsystem::{
-	messages::{GossipSupportMessage, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
+	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
-use rand::{seq::SliceRandom as _, SeedableRng};
-use rand_chacha::ChaCha20Rng;
-use sp_application_crypto::{AppKey, Public};
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
-use std::time::{Duration, Instant};
 
 #[cfg(test)]
 mod tests;
@@ -54,16 +69,15 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 /// should be fine:
 ///
 /// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
-///
 const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 
-/// The Gossip Support subsystem.
-pub struct GossipSupport {
-	keystore: SyncCryptoStorePtr,
-}
+/// If connectivity is lower than this in percent, issue warning in logs.
+const LOW_CONNECTIVITY_WARN_THRESHOLD: usize = 90;
 
-#[derive(Default)]
-struct State {
+/// The Gossip Support subsystem.
+pub struct GossipSupport<AD> {
+	keystore: SyncCryptoStorePtr,
+
 	last_session_index: Option<SessionIndex>,
 	// Some(timestamp) if we failed to resolve
 	// at least a third of authorities the last time.
@@ -76,43 +90,73 @@ struct State {
 	/// potential sequence of failed attempts. It will be cleared once we reached >2/3
 	/// connectivity.
 	failure_start: Option<Instant>,
+
+	/// Successfully resolved connections
+	///
+	/// waiting for actual connection.
+	resolved_authorities: HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>>,
+
+	/// Actually connected authorities.
+	connected_authorities: HashMap<AuthorityDiscoveryId, PeerId>,
+	/// By `PeerId`.
+	///
+	/// Needed for efficient handling of disconnect events.
+	connected_authorities_by_peer_id: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
+	/// Authority discovery service.
+	authority_discovery: AD,
 }
 
-impl GossipSupport {
+impl<AD> GossipSupport<AD>
+where
+	AD: AuthorityDiscovery,
+{
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
-		Self { keystore }
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
+		Self {
+			keystore,
+			last_session_index: None,
+			last_failure: None,
+			failure_start: None,
+			resolved_authorities: HashMap::new(),
+			connected_authorities: HashMap::new(),
+			connected_authorities_by_peer_id: HashMap::new(),
+			authority_discovery,
+		}
 	}
 
-	async fn run<Context>(self, ctx: Context)
+	async fn run<Context>(mut self, mut ctx: Context) -> Self
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
-		let mut state = State::default();
-		self.run_inner(ctx, &mut state).await;
-	}
-
-	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-	{
-		let Self { keystore } = self;
+		fn get_connectivity_check_delay() -> Delay {
+			Delay::new(LOW_CONNECTIVITY_WARN_DELAY)
+		}
+		let mut next_connectivity_check = get_connectivity_check_delay().fuse();
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(e) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to receive a message from Overseer, exiting",
-					);
-					return
-				},
-			};
+			let message = select!(
+				_ = next_connectivity_check => {
+					self.check_connectivity();
+					next_connectivity_check = get_connectivity_check_delay().fuse();
+					continue
+				}
+				result = ctx.recv().fuse() =>
+					match result {
+						Ok(message) => message,
+						Err(e) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								err = ?e,
+								"Failed to receive a message from Overseer, exiting",
+							);
+							return self
+						},
+					}
+			);
 			match message {
-				FromOverseer::Communication { .. } => {},
+				FromOverseer::Communication {
+					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
+				} => self.handle_connect_disconnect(ev),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
@@ -120,14 +164,193 @@ impl GossipSupport {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
-					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
+					if let Err(e) = self.handle_active_leaves(&mut ctx, leaves).await {
 						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => return,
+				FromOverseer::Signal(OverseerSignal::Conclude) => return self,
 			}
 		}
+	}
+
+	/// 1. Determine if the current session index has changed.
+	/// 2. If it has, determine relevant validators
+	///    and issue a connection request.
+	async fn handle_active_leaves<Context>(
+		&mut self,
+		ctx: &mut Context,
+		leaves: impl Iterator<Item = Hash>,
+	) -> Result<(), util::Error>
+	where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+	{
+		for leaf in leaves {
+			let current_index =
+				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
+			let force_request = since_failure >= BACKOFF_DURATION;
+			let leaf_session = Some((current_index, leaf));
+			let maybe_new_session = match self.last_session_index {
+				Some(i) if current_index <= i => None,
+				_ => leaf_session,
+			};
+
+			let maybe_issue_connection =
+				if force_request { leaf_session } else { maybe_new_session };
+
+			if let Some((session_index, relay_parent)) = maybe_issue_connection {
+				let is_new_session = maybe_new_session.is_some();
+				if is_new_session {
+					tracing::debug!(
+						target: LOG_TARGET,
+						%session_index,
+						"New session detected",
+					);
+					self.last_session_index = Some(session_index);
+				}
+
+				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities).await?;
+				let other_authorities = {
+					let mut authorities = all_authorities.clone();
+					authorities.swap_remove(our_index);
+					authorities
+				};
+
+				self.issue_connection_request(ctx, other_authorities).await;
+
+				if is_new_session {
+					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
+				}
+			}
+		}
+
+		Ok(())
+	}
+
+	async fn issue_connection_request<Context>(
+		&mut self,
+		ctx: &mut Context,
+		authorities: Vec<AuthorityDiscoveryId>,
+	) where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+	{
+		let num = authorities.len();
+		let mut validator_addrs = Vec::with_capacity(authorities.len());
+		let mut failures = 0;
+		let mut resolved = HashMap::with_capacity(authorities.len());
+		for authority in authorities {
+			if let Some(addrs) =
+				self.authority_discovery.get_addresses_by_authority_id(authority.clone()).await
+			{
+				validator_addrs.push(addrs.clone());
+				resolved.insert(authority, addrs);
+			} else {
+				failures += 1;
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Couldn't resolve addresses of authority: {:?}",
+					authority
+				);
+			}
+		}
+		self.resolved_authorities = resolved;
+		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
+
+		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
+			validator_addrs,
+			peer_set: PeerSet::Validation,
+		})
+		.await;
+
+		// issue another request for the same session
+		// if at least a third of the authorities were not resolved.
+		if 3 * failures >= num {
+			let timestamp = Instant::now();
+			match self.failure_start {
+				None => self.failure_start = Some(timestamp),
+				Some(first) if first.elapsed() >= LOW_CONNECTIVITY_WARN_DELAY => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						connected = ?(num - failures),
+						target = ?num,
+						"Low connectivity - authority lookup failed for too many validators."
+					);
+				},
+				Some(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						connected = ?(num - failures),
+						target = ?num,
+						"Low connectivity (due to authority lookup failures) - expected on startup."
+					);
+				},
+			}
+			self.last_failure = Some(timestamp);
+		} else {
+			self.last_failure = None;
+			self.failure_start = None;
+		};
+	}
+
+	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
+		match ev {
+			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
+				if let Some(authority_ids) = o_authority {
+					authority_ids.iter().for_each(|a| {
+						self.connected_authorities.insert(a.clone(), peer_id);
+					});
+					self.connected_authorities_by_peer_id.insert(peer_id, authority_ids);
+				}
+			},
+			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
+				if let Some(authority_ids) = self.connected_authorities_by_peer_id.remove(&peer_id)
+				{
+					authority_ids.into_iter().for_each(|a| {
+						self.connected_authorities.remove(&a);
+					});
+				}
+			},
+			NetworkBridgeEvent::OurViewChange(_) => {},
+			NetworkBridgeEvent::PeerViewChange(_, _) => {},
+			NetworkBridgeEvent::NewGossipTopology(_) => {},
+			NetworkBridgeEvent::PeerMessage(_, v) => {
+				match v {};
+			},
+		}
+	}
+
+	/// Check connectivity and report on it in logs.
+	fn check_connectivity(&mut self) {
+		let absolute_connected = self.connected_authorities.len();
+		let absolute_resolved = self.resolved_authorities.len();
+		let connected_ratio =
+			(100 * absolute_connected).checked_div(absolute_resolved).unwrap_or(100);
+		let unconnected_authorities = self
+			.resolved_authorities
+			.iter()
+			.filter(|(a, _)| !self.connected_authorities.contains_key(a));
+		// TODO: Make that warning once connectivity issues are fixed (no point in warning, if
+		// we already know it is broken.
+		// https://github.com/paritytech/polkadot/issues/3921
+		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
+			);
+		}
+		let pretty = PrettyAuthorities(unconnected_authorities);
+		tracing::debug!(
+			target: LOG_TARGET,
+			?connected_ratio,
+			?absolute_connected,
+			?absolute_resolved,
+			unconnected_authorities = %pretty,
+			"Connectivity Report"
+		);
 	}
 }
 
@@ -160,22 +383,6 @@ async fn ensure_i_am_an_authority(
 		}
 	}
 	Err(util::Error::NotAValidator)
-}
-
-/// A helper function for making a `ConnectToValidators` request.
-async fn connect_to_authorities<Context>(
-	ctx: &mut Context,
-	validator_ids: Vec<AuthorityDiscoveryId>,
-	peer_set: PeerSet,
-) -> oneshot::Receiver<usize>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
-	let (failed, failed_rx) = oneshot::channel();
-	ctx.send_message(NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed })
-		.await;
-	failed_rx
 }
 
 /// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
@@ -254,118 +461,40 @@ fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize>
 	row_neighbors.chain(column_neighbors).filter(move |i| *i != our_index)
 }
 
-impl State {
-	/// 1. Determine if the current session index has changed.
-	/// 2. If it has, determine relevant validators
-	///    and issue a connection request.
-	async fn handle_active_leaves<Context>(
-		&mut self,
-		ctx: &mut Context,
-		keystore: &SyncCryptoStorePtr,
-		leaves: impl Iterator<Item = Hash>,
-	) -> Result<(), util::Error>
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-	{
-		for leaf in leaves {
-			let current_index =
-				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
-			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
-			let force_request = since_failure >= BACKOFF_DURATION;
-			let leaf_session = Some((current_index, leaf));
-			let maybe_new_session = match self.last_session_index {
-				Some(i) if current_index <= i => None,
-				_ => leaf_session,
-			};
-
-			let maybe_issue_connection =
-				if force_request { leaf_session } else { maybe_new_session };
-
-			if let Some((session_index, relay_parent)) = maybe_issue_connection {
-				let is_new_session = maybe_new_session.is_some();
-				if is_new_session {
-					tracing::debug!(
-						target: LOG_TARGET,
-						%session_index,
-						"New session detected",
-					);
-				}
-
-				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(keystore, &authorities).await?;
-
-				self.issue_connection_request(ctx, authorities.clone()).await?;
-
-				if is_new_session {
-					self.last_session_index = Some(session_index);
-					update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
-				}
-			}
-		}
-
-		Ok(())
-	}
-
-	async fn issue_connection_request<Context>(
-		&mut self,
-		ctx: &mut Context,
-		authorities: Vec<AuthorityDiscoveryId>,
-	) -> Result<(), util::Error>
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-	{
-		let num = authorities.len();
-		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
-
-		let failures = connect_to_authorities(ctx, authorities, PeerSet::Validation).await;
-
-		// we await for the request to be processed
-		// this is fine, it should take much less time than one session
-		let failures = failures.await.unwrap_or(num);
-
-		// issue another request for the same session
-		// if at least a third of the authorities were not resolved
-		if failures >= num / 3 {
-			let timestamp = Instant::now();
-			match self.failure_start {
-				None => self.failure_start = Some(timestamp),
-				Some(first) if first.elapsed() >= LOW_CONNECTIVITY_WARN_DELAY => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						connected = ?(num - failures),
-						target = ?num,
-						"Low connectivity - authority lookup failed for too many validators."
-					);
-				},
-				Some(_) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						connected = ?(num - failures),
-						target = ?num,
-						"Low connectivity (due to authority lookup failures) - expected on startup."
-					);
-				},
-			}
-			self.last_failure = Some(timestamp);
-		} else {
-			self.last_failure = None;
-			self.failure_start = None;
-		};
-
-		Ok(())
-	}
-}
-
-impl<Context> overseer::Subsystem<Context, SubsystemError> for GossipSupport
+impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for GossipSupport<AD>
 where
 	Context: SubsystemContext<Message = GossipSupportMessage>,
 	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "gossip-support-subsystem", future }
+	}
+}
+
+/// Helper struct to get a nice rendering of unreachable authorities.
+struct PrettyAuthorities<I>(I);
+
+impl<'a, I> fmt::Display for PrettyAuthorities<I>
+where
+	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a HashSet<Multiaddr>)> + Clone,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mut authorities = self.0.clone().peekable();
+		if authorities.peek().is_none() {
+			write!(f, "None")?;
+		} else {
+			write!(f, "\n")?;
+		}
+		for (authority, addrs) in authorities {
+			write!(f, "{}:\n", authority)?;
+			for addr in addrs {
+				write!(f, "  {}\n", addr)?;
+			}
+			write!(f, "\n")?;
+		}
+		Ok(())
 	}
 }

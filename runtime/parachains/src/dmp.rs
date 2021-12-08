@@ -22,7 +22,7 @@ use frame_support::pallet_prelude::*;
 use primitives::v1::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, prelude::*};
-use xcm::latest::Error as XcmError;
+use xcm::latest::SendError;
 
 pub use pallet::*;
 
@@ -33,10 +33,10 @@ pub enum QueueDownwardMessageError {
 	ExceedsMaxMessageSize,
 }
 
-impl From<QueueDownwardMessageError> for XcmError {
+impl From<QueueDownwardMessageError> for SendError {
 	fn from(err: QueueDownwardMessageError) -> Self {
 		match err {
-			QueueDownwardMessageError::ExceedsMaxMessageSize => XcmError::ExceedsMaxMessageSize,
+			QueueDownwardMessageError::ExceedsMaxMessageSize => SendError::ExceedsMaxMessageSize,
 		}
 	}
 }

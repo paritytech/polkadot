@@ -1,24 +1,23 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use super::{
-	super::v0::Order as Order0, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
-};
+use super::{MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm};
+use crate::{v0::Order as OldOrder, v2::Instruction};
 use alloc::{vec, vec::Vec};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -26,12 +25,14 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Order<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
@@ -140,8 +141,6 @@ pub enum Order<Call> {
 	///   any surrounding operations/orders.
 	/// - `halt_on_error`: If `true`, the execution of the `orders` and `operations` will halt on the first failure. If
 	///   `false`, then execution will continue regardless.
-	/// - `orders`: Orders to be executed with the existing Holding Register; execution of these orders happens PRIOR to
-	///   execution of the `operations`. The (shallow) weight for these must be paid for with the `weight` purchased.
 	/// - `instructions`: XCM instructions to be executed outside of the context of the current Holding Register;
 	///   execution of these instructions happens AFTER the execution of the `orders`. The (shallow) weight for these
 	///   must be paid for with the `weight` purchased.
@@ -152,7 +151,6 @@ pub enum Order<Call> {
 		weight: u64,
 		debt: u64,
 		halt_on_error: bool,
-		orders: Vec<Order<Call>>,
 		instructions: Vec<Xcm<Call>>,
 	},
 }
@@ -179,27 +177,26 @@ impl<Call> Order<Call> {
 			InitiateTeleport { assets, dest, effects } =>
 				InitiateTeleport { assets, dest, effects },
 			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
-			BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
-				let orders = orders.into_iter().map(Order::from).collect();
+			BuyExecution { fees, weight, debt, halt_on_error, instructions } => {
 				let instructions = instructions.into_iter().map(Xcm::from).collect();
-				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions }
+				BuyExecution { fees, weight, debt, halt_on_error, instructions }
 			},
 		}
 	}
 }
 
-impl<Call> TryFrom<Order0<Call>> for Order<Call> {
+impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
 	type Error = ();
-	fn try_from(old: Order0<Call>) -> result::Result<Order<Call>, ()> {
+	fn try_from(old: OldOrder<Call>) -> result::Result<Order<Call>, ()> {
 		use Order::*;
 		Ok(match old {
-			Order0::Null => Noop,
-			Order0::DepositAsset { assets, dest } => DepositAsset {
+			OldOrder::Null => Noop,
+			OldOrder::DepositAsset { assets, dest } => DepositAsset {
 				assets: assets.try_into()?,
 				max_assets: 1,
 				beneficiary: dest.try_into()?,
 			},
-			Order0::DepositReserveAsset { assets, dest, effects } => DepositReserveAsset {
+			OldOrder::DepositReserveAsset { assets, dest, effects } => DepositReserveAsset {
 				assets: assets.try_into()?,
 				max_assets: 1,
 				dest: dest.try_into()?,
@@ -208,9 +205,9 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Order0::ExchangeAsset { give, receive } =>
+			OldOrder::ExchangeAsset { give, receive } =>
 				ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
-			Order0::InitiateReserveWithdraw { assets, reserve, effects } =>
+			OldOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
 				InitiateReserveWithdraw {
 					assets: assets.try_into()?,
 					reserve: reserve.try_into()?,
@@ -219,7 +216,7 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 						.map(Order::<()>::try_from)
 						.collect::<result::Result<_, _>>()?,
 				},
-			Order0::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
+			OldOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
 				assets: assets.try_into()?,
 				dest: dest.try_into()?,
 				effects: effects
@@ -227,20 +224,70 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Order0::QueryHolding { query_id, dest, assets } =>
+			OldOrder::QueryHolding { query_id, dest, assets } =>
 				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
-			Order0::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
+			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let instructions =
 					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
-				BuyExecution {
-					fees: fees.try_into()?,
-					weight,
-					debt,
-					halt_on_error,
-					orders: vec![],
-					instructions,
-				}
+				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, instructions }
 			},
+		})
+	}
+}
+
+impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
+	type Error = ();
+	fn try_from(old: Instruction<Call>) -> result::Result<Order<Call>, ()> {
+		use Order::*;
+		Ok(match old {
+			Instruction::DepositAsset { assets, max_assets, beneficiary } =>
+				DepositAsset { assets, max_assets, beneficiary },
+			Instruction::DepositReserveAsset { assets, max_assets, dest, xcm } =>
+				DepositReserveAsset {
+					assets,
+					max_assets,
+					dest,
+					effects: xcm
+						.0
+						.into_iter()
+						.map(Order::<()>::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
+			Instruction::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			Instruction::InitiateReserveWithdraw { assets, reserve, xcm } =>
+				InitiateReserveWithdraw {
+					assets,
+					reserve,
+					effects: xcm
+						.0
+						.into_iter()
+						.map(Order::<()>::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
+			Instruction::InitiateTeleport { assets, dest, xcm } => InitiateTeleport {
+				assets,
+				dest,
+				effects: xcm
+					.0
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Instruction::QueryHolding { query_id, dest, assets, max_response_weight } => {
+				// Cannot handle special response weights.
+				if max_response_weight > 0 {
+					return Err(())
+				}
+				QueryHolding { query_id, dest, assets }
+			},
+			Instruction::BuyExecution { fees, weight_limit } => {
+				let instructions = vec![];
+				let halt_on_error = true;
+				let weight = 0;
+				let debt = Option::<u64>::from(weight_limit).ok_or(())?;
+				BuyExecution { fees, weight, debt, halt_on_error, instructions }
+			},
+			_ => return Err(()),
 		})
 	}
 }

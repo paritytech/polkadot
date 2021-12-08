@@ -44,7 +44,6 @@ struct TestState {
 	chain_ids: Vec<ParaId>,
 	relay_parent: Hash,
 	collators: Vec<CollatorPair>,
-	validators: Vec<Sr25519Keyring>,
 	validator_public: Vec<ValidatorId>,
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	group_rotation_info: GroupRotationInfo,
@@ -102,7 +101,6 @@ impl Default for TestState {
 			chain_ids,
 			relay_parent,
 			collators,
-			validators,
 			validator_public,
 			validator_groups,
 			group_rotation_info,
@@ -494,7 +492,7 @@ fn collator_authentication_verification_works() {
 //	our view.
 //	- Collation protocol should request one PoV.
 //	- Collation protocol should disconnect both collators after having received the collation.
-//	- The same collators plus an additional collator connect again and send povs for a different relay parent.
+//	- The same collators plus an additional collator connect again and send `PoV`s for a different relay parent.
 //	- Collation protocol will request one PoV, but we will cancel it.
 //	- Collation protocol should request the second PoV which does not succeed in time.
 //	- Collation protocol should request third PoV.
@@ -672,6 +670,50 @@ fn fetch_collations_works() {
 
 		virtual_overseer
 	});
+}
+
+#[test]
+fn reject_connection_to_next_group() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_b.clone(),
+			test_state.collators[0].clone(),
+			test_state.chain_ids[1].clone(), // next, not current `para_id`
+		)
+		.await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+				peer,
+				rep,
+			)) => {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+			}
+		);
+
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
+
+		virtual_overseer
+	})
 }
 
 // Ensure that we fetch a second collation, after the first checked collation was found to be invalid.
