@@ -30,7 +30,9 @@ use sc_network::config::RequestResponseConfig;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives::v1::{
+	AuthorityDiscoveryId, CollatorId, HeadData, PersistedValidationData,
+};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -38,7 +40,6 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem_testhelpers as test_helpers;
 use sp_application_crypto::sr25519;
-use polkadot_primitives::v1::CollatorId;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -418,9 +419,8 @@ impl Default for TestState {
 
 		let current = Hash::repeat_byte(1);
 
-		let mut candidate = CandidateReceipt::dummy(
-			CollatorId::from(sr25519::Public::from_raw([42; 32]))
-		);
+		let mut candidate =
+			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 
 		let session_index = 10;
 
@@ -512,9 +512,8 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 		let (tx, rx) = oneshot::channel();
 
 		// Test another candidate, send no chunks.
-		let mut new_candidate = CandidateReceipt::dummy(
-			CollatorId::from(sr25519::Public::from_raw([42; 32]))
-		);
+		let mut new_candidate =
+			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 
 		new_candidate.descriptor.relay_parent = test_state.candidate.descriptor.relay_parent;
 
@@ -600,9 +599,8 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 		let (tx, rx) = oneshot::channel();
 
 		// Test another candidate, send no chunks.
-		let mut new_candidate = CandidateReceipt::dummy(
-			CollatorId::from(sr25519::Public::from_raw([42; 32]))
-		);
+		let mut new_candidate =
+			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 
 		new_candidate.descriptor.relay_parent = test_state.candidate.descriptor.relay_parent;
 

@@ -252,9 +252,8 @@ pub(crate) fn note_current_session(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v1::{Hash, Id as ParaId};
+	use polkadot_primitives::v1::{CollatorId, Hash, Id as ParaId};
 	use sp_application_crypto::sr25519;
-	use polkadot_primitives::v1::CollatorId;
 
 	fn make_db() -> DbBackend {
 		let store = Arc::new(kvdb_memorydb::create(1));
@@ -287,9 +286,9 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: CandidateReceipt::<Hash>::dummy(
-					CollatorId::from(sr25519::Public::from_raw([42; 32]))
-				),
+				candidate_receipt: CandidateReceipt::<Hash>::dummy(CollatorId::from(
+					sr25519::Public::from_raw([42; 32]),
+				)),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -299,9 +298,9 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::<Hash>::dummy(
-						CollatorId::from(sr25519::Public::from_raw([42; 32]))
-					);
+					let mut receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+						sr25519::Public::from_raw([42; 32]),
+					));
 					receipt.descriptor.para_id = 5.into();
 
 					receipt
@@ -394,9 +393,9 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::<Hash>::dummy(
-						CollatorId::from(sr25519::Public::from_raw([42; 32]))
-					);
+					let mut receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+						sr25519::Public::from_raw([42; 32]),
+					));
 					receipt.descriptor.para_id = 5.into();
 
 					receipt

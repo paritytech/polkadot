@@ -35,11 +35,10 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{
-	BlakeTwo256, BlockNumber, CandidateEvent, CandidateReceipt, CoreIndex, GroupIndex, Hash, HashT,
-	HeadData,
+	BlakeTwo256, BlockNumber, CandidateEvent, CandidateReceipt, CollatorId, CoreIndex, GroupIndex,
+	Hash, HashT, HeadData,
 };
 use sp_application_crypto::sr25519;
-use polkadot_primitives::v1::CollatorId;
 
 use super::OrderingProvider;
 
@@ -92,9 +91,7 @@ fn launch_virtual_overseer(ctx: &mut impl SubsystemContext, ctx_handle: VirtualO
 }
 
 fn candidate_receipt() -> CandidateReceipt {
-	CandidateReceipt::<Hash>::dummy(
-		CollatorId::from(sr25519::Public::from_raw([42; 32]))
-	)
+	CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
 }
 
 async fn virtual_overseer(mut ctx_handle: VirtualOverseer) {
