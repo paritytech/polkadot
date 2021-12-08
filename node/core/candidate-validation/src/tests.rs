@@ -25,45 +25,7 @@ use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
-fn dummy_hash() -> Hash {
-	Hash::zero()
-}
-
-fn create_desc_full(
-	para_id: ParaId,
-	relay_parent: Hash,
-	persisted_validation_data_hash: Hash,
-	pov_hash: Hash,
-	validation_code_hash: Hash,
-	para_head: Hash,
-	collator: impl Into<CollatorId>,
-) -> CandidateDescriptor {
-	let collator: CollatorId = collator.into();
-	let payload = polkadot_primitives::v1::collator_signature_payload(
-		&relay_parent,
-		&para_id,
-		&persisted_validation_data_hash,
-		&pov_hash,
-		&validation_code_hash,
-	);
-	let zeros = dummy_hash();
-
-	let signature = collator.sign(&payload[..]).into();
-	let descriptor = CandidateDescriptor {
-		para_id,
-		relay_parent,
-		collator,
-		persisted_validation_data_hash,
-		pov_hash,
-		erasure_root: zeros,
-		signature,
-		para_head,
-		validation_code_hash,
-	};
-
-	assert!(descriptor.check_collator_signature().is_ok());
-	descriptor
-}
+use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor, dummy_candidate_receipt};
 
 #[test]
 fn correctly_checks_included_assumption() {
@@ -74,10 +36,11 @@ fn correctly_checks_included_assumption() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let descriptor = create_desc_full(
+	let descriptor = make_valid_candidate_descriptor(
 		para_id,
 		relay_parent,
 		persisted_validation_data_hash,
+		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
@@ -145,10 +108,11 @@ fn correctly_checks_timed_out_assumption() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let descriptor = create_desc_full(
+	let descriptor = make_valid_candidate_descriptor(
 		para_id,
 		relay_parent,
 		persisted_validation_data_hash,
+		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
@@ -161,7 +125,7 @@ fn correctly_checks_timed_out_assumption() {
 
 	let (check_fut, check_result) = check_assumption_validation_data(
 		ctx.sender(),
-		&candidate,
+		&descriptor,
 		OccupiedCoreAssumption::TimedOut,
 	)
 	.remote_handle();
@@ -214,10 +178,11 @@ fn check_is_bad_request_if_no_validation_data() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let descriptor = create_desc_full(
+	let descriptor = make_valid_candidate_descriptor(
 		para_id,
 		relay_parent,
 		persisted_validation_data_hash,
+		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
@@ -230,7 +195,7 @@ fn check_is_bad_request_if_no_validation_data() {
 
 	let (check_fut, check_result) = check_assumption_validation_data(
 		ctx.sender(),
-		&candidate,
+		&descriptor,
 		OccupiedCoreAssumption::Included,
 	)
 	.remote_handle();
@@ -267,10 +232,11 @@ fn check_is_bad_request_if_no_validation_code() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let descriptor = create_desc_full(
+	let descriptor = make_valid_candidate_descriptor(
 		para_id,
 		relay_parent,
 		persisted_validation_data_hash,
+		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
@@ -283,7 +249,7 @@ fn check_is_bad_request_if_no_validation_code() {
 
 	let (check_fut, check_result) = check_assumption_validation_data(
 		ctx.sender(),
-		&candidate,
+		&descriptor,
 		OccupiedCoreAssumption::TimedOut,
 	)
 	.remote_handle();
@@ -332,10 +298,11 @@ fn check_does_not_match() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
-	let descriptor = create_desc_full(
+	let descriptor = make_valid_candidate_descriptor(
 		para_id,
 		relay_parent,
-		[3; 32].into().hash(),
+		Hash::from([3; 32]),
+		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
@@ -348,7 +315,7 @@ fn check_does_not_match() {
 
 	let (check_fut, check_result) = check_assumption_validation_data(
 		ctx.sender(),
-		&candidate,
+		&descriptor,
 		OccupiedCoreAssumption::Included,
 	)
 	.remote_handle();
@@ -412,13 +379,14 @@ fn candidate_validation_ok_is_ok() {
 	let head_data = HeadData(vec![1, 1, 1]);
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		validation_code.hash(),
 		head_data.hash(),
+		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
 
@@ -467,12 +435,13 @@ fn candidate_validation_bad_return_is_invalid() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		validation_code.hash(),
+		dummy_hash(),
 		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
@@ -508,12 +477,13 @@ fn candidate_validation_timeout_is_internal_error() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		validation_code.hash(),
+		dummy_hash(),
 		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
@@ -548,12 +518,13 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		ValidationCode(vec![1; 16]).hash(),
+		dummy_hash(),
 		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
@@ -593,13 +564,14 @@ fn compressed_code_works() {
 		.map(ValidationCode)
 		.unwrap();
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		validation_code.hash(),
 		head_data.hash(),
+		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
 
@@ -637,13 +609,14 @@ fn code_decompression_failure_is_invalid() {
 			.map(ValidationCode)
 			.unwrap();
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		validation_code.hash(),
 		head_data.hash(),
+		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
 
@@ -682,13 +655,14 @@ fn pov_decompression_failure_is_invalid() {
 
 	let validation_code = ValidationCode(vec![2; 16]);
 
-	let descriptor = create_desc_full(
-		ParaId::from(1),
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
 		validation_code.hash(),
 		head_data.hash(),
+		dummy_hash(),
 		Sr25519Keyring::Alice.public(),
 	);
 
