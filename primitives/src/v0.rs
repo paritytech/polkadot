@@ -923,6 +923,30 @@ pub mod fisherman {
 	}
 }
 
+// TODO: add feature gate.
+/// Runtime metric operations.
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+pub enum RuntimeMetricOp {
+	/// Increment metric by value.
+	Increment(u64),
+}
+
+/// Runtime metric update event.
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+pub struct RuntimeMetricUpdate {
+	/// The name of the metric.
+	pub metric_name: Vec<u8>,
+	/// The operation applied to the metric.
+	pub op: RuntimeMetricOp,
+}
+
+impl RuntimeMetricUpdate {
+	/// Returns the metric name.
+	pub fn metric_name(&self) -> &str {
+		unsafe { sp_std::str::from_utf8_unchecked(&self.metric_name) }
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
