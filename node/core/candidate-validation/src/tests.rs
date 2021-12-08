@@ -27,7 +27,7 @@ use sp_keyring::Sr25519Keyring;
 
 
 fn dummy_hash() -> Hash {
-	Hash::repeat_byte(0u8)
+	Hash::zero()
 }
 
 fn create_desc_full(
@@ -47,7 +47,7 @@ fn create_desc_full(
 		&pov_hash,
 		&validation_code_hash,
 	);
-	let zeros = Hash::repeat_byte(0u8);
+	let zeros = dummy_hash();
 
 	let signature = collator.sign(&payload[..]).into();
 	let descriptor = CandidateDescriptor {
