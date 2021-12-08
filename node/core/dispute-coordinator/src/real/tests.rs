@@ -53,9 +53,8 @@ use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystem
 use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
 	Hash, HashT, Header, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId,
-	ValidatorIndex,
+	ValidatorIndex, MultiDisputeStatementSet,
 };
-use sp_application_crypto::sr25519;
 
 use crate::{
 	metrics::Metrics,
@@ -73,6 +72,16 @@ use super::{
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
+
+fn make_invalid_candidate_receipt() -> CandidateReceipt {
+	dummy_receipt()
+}
+
+fn dummy_receipt() -> CandidateReceipt {
+	// TODO make sure this is ok
+	// Commitments hash will be 0, which is not correct:
+	CandidateReceipt::dummy(CollatorId::from(sp_keyring::AccountKeyring::Two.public()))
+}
 
 // sets up a keystore with the given keyring accounts.
 fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
@@ -253,7 +262,11 @@ impl TestState {
 				RuntimeApiRequest::FetchOnChainVotes(tx),
 			)) => {
 				//add some `BackedCandidates` or resolved disputes here as needed
-				tx.send(Ok(Some(ScrapedOnChainVotes::default()))).unwrap();
+				tx.send(Ok(Some(ScrapedOnChainVotes {
+					session,
+					backing_validators_per_candidate: Vec::default(),
+					disputes: MultiDisputeStatementSet::default(),
+				}))).unwrap();
 			}
 		)
 	}
@@ -361,16 +374,11 @@ async fn participation_with_distribution(
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
 	let mut candidate_receipt =
-		CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+		make_invalid_candidate_receipt();
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }
 
-fn make_invalid_candidate_receipt() -> CandidateReceipt {
-	// TODO make sure this is ok
-	// Commitments hash will be 0, which is not correct:
-	CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
-}
 
 #[test]
 fn conflicting_votes_lead_to_dispute_participation() {

@@ -38,9 +38,18 @@ use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateEvent, CandidateReceipt, CollatorId, CoreIndex, GroupIndex,
 	Hash, HashT, HeadData,
 };
-use sp_application_crypto::sr25519;
 
 use super::OrderingProvider;
+
+fn make_invalid_candidate_receipt() -> CandidateReceipt {
+	dummy_receipt()
+}
+
+fn dummy_receipt() -> CandidateReceipt {
+	// TODO make sure this is ok
+	// Commitments hash will be 0, which is not correct:
+	CandidateReceipt::dummy(CollatorId::from(sp_keyring::AccountKeyring::Two.public()))
+}
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
@@ -91,7 +100,7 @@ fn launch_virtual_overseer(ctx: &mut impl SubsystemContext, ctx_handle: VirtualO
 }
 
 fn candidate_receipt() -> CandidateReceipt {
-	CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
+	make_invalid_candidate_receipt()
 }
 
 async fn virtual_overseer(mut ctx_handle: VirtualOverseer) {

@@ -16,16 +16,19 @@
 
 use assert_matches::assert_matches;
 use polkadot_primitives::v1::{BlockNumber, CandidateReceipt, CollatorId, Hash};
-use sp_application_crypto::sr25519;
 
 use crate::real::ordering::CandidateComparator;
 
 use super::{Error, ParticipationRequest, Queues};
 
+
+fn dummy_receipt() -> CandidateReceipt {
+	CandidateReceipt::dummy(CollatorId::from(sp_keyring::AccountKeyring::Two.public()))
+}
+
 /// Make a `ParticipationRequest` based on the given commitments hash.
 fn make_participation_request(hash: Hash) -> ParticipationRequest {
-	let mut receipt =
-		CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+	let mut receipt = dummy_receipt();
 	// make it differ:
 	receipt.commitments_hash = hash;
 	ParticipationRequest::new(receipt, 1, 100)

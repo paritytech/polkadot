@@ -253,12 +253,17 @@ pub(crate) fn note_current_session(
 mod tests {
 	use super::*;
 	use polkadot_primitives::v1::{CollatorId, Hash, Id as ParaId};
-	use sp_application_crypto::sr25519;
 
 	fn make_db() -> DbBackend {
 		let store = Arc::new(kvdb_memorydb::create(1));
 		let config = ColumnConfiguration { col_data: 0 };
 		DbBackend::new(store, config)
+	}
+
+	fn dummy_receipt() -> CandidateReceipt {
+		CandidateReceipt::<Hash>::dummy(CollatorId::from(
+			sp_keyring::AccountKeyring::One.public()
+		))
 	}
 
 	#[test]
@@ -286,9 +291,7 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: CandidateReceipt::<Hash>::dummy(CollatorId::from(
-					sr25519::Public::from_raw([42; 32]),
-				)),
+				candidate_receipt: dummy_receipt(),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -298,9 +301,7 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
-						sr25519::Public::from_raw([42; 32]),
-					));
+					let mut receipt = dummy_receipt();
 					receipt.descriptor.para_id = 5.into();
 
 					receipt
@@ -367,7 +368,7 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: Default::default(),
+				candidate_receipt: dummy_receipt(),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -393,9 +394,7 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
-						sr25519::Public::from_raw([42; 32]),
-					));
+					let mut receipt = dummy_receipt();
 					receipt.descriptor.para_id = 5.into();
 
 					receipt
@@ -434,7 +433,7 @@ mod tests {
 		let very_recent = current_session - 1;
 
 		let blank_candidate_votes = || CandidateVotes {
-			candidate_receipt: Default::default(),
+			candidate_receipt: dummy_receipt(),
 			valid: Vec::new(),
 			invalid: Vec::new(),
 		};
