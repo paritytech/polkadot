@@ -8,6 +8,7 @@ description = "Subsystem traits and message definitions"
 [dependencies]
 futures = "0.3.17"
 futures-timer = "3.0.2"
+tracing = "0.1.29"
 
 metered-channel = { path = "../metered-channel" }
 
@@ -15,6 +16,9 @@ substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+codec = { package = "parity-scale-codec", version = "2.2.0" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 
 [features]
 default = []

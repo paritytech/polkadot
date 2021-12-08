@@ -55,6 +55,40 @@ use sp_std::{
 	vec::Vec,
 };
 
+// TODO: Find a better place for all of this stuff:
+#[cfg(not(feature = "std"))]
+use primitives::v0::{RuntimeMetricUpdate, RuntimeMetricOp};
+
+// TODO: implement a define_metric macro that builds a metric object
+// with the Prometheus interface.
+#[cfg(not(feature = "std"))]
+/// Increment counter vec metric by specified value.
+macro_rules! inc_counter_vec {
+	($metric:ident, $value:expr) => {
+		let metric_update = RuntimeMetricUpdate {
+			metric_name: sp_std::vec::Vec::from(stringify!($metric)),
+			op: RuntimeMetricOp::Increment($value.try_into().unwrap_or(0))
+		}.encode();
+		
+		// This is safe, we only care about the metric name being a valid utf8 str, 
+		// which is enforced above.
+		unsafe {
+			let update_op = sp_std::str::from_utf8_unchecked(&metric_update);
+		
+			sp_tracing::event!(
+				target: "metrics",
+				sp_tracing::Level::TRACE,
+				update_op
+			);
+		}
+	};
+}
+
+#[cfg(feature = "std")]
+macro_rules! inc_counter_vec {
+	($metric:ident, $value:expr) => {}
+}
+
 mod misc;
 mod weights;
 
@@ -284,13 +318,8 @@ impl<T: Config> Pallet<T> {
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-		sp_tracing::event!(
-			target: "metrics",
-			sp_tracing::Level::TRACE,
-			metric = "create_inherent_prefilter_weight",
-			op = "inc",
-			value = candidate_weight + bitfields_weight + disputes_weight
-		);
+
+		inc_counter_vec!(create_inherent_prefilter_weight, candidate_weight + bitfields_weight + disputes_weight);
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
 		let total_weight = {
@@ -379,13 +408,7 @@ impl<T: Config> Pallet<T> {
 			disputed_bitfield
 		};
 
-		sp_tracing::event!(
-			target: "metrics",
-			sp_tracing::Level::TRACE,
-			metric = "create_inherent_bitfields_processed",
-			op = "inc",
-			value = signed_bitfields.len()
-		);
+		inc_counter_vec!(create_inherent_bitfields_processed, signed_bitfields.len());
 
 		// Process new availability bitfields, yielding any availability cores whose
 		// work has now concluded.
@@ -417,14 +440,8 @@ impl<T: Config> Pallet<T> {
 			&scheduled[..],
 		);
 
-		// TODO: define metrics macros.
-		sp_tracing::event!(
-			target: "metrics",
-			sp_tracing::Level::TRACE,
-			metric = "create_inherent_candidates_processed",
-			op = "inc",
-			value = backed_candidates.len()
-		);
+
+		inc_counter_vec!(create_inherent_candidates_processed, backed_candidates.len());
 
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = parent_header.state_root().clone();
@@ -454,13 +471,7 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		sp_tracing::event!(
-			target: "metrics",
-			sp_tracing::Level::TRACE,
-			metric = "create_inherent_total_weight",
-			op = "inc",
-			value = total_weight
-		);
+		inc_counter_vec!(create_inherent_total_weight, total_weight);
 
 		Ok(Some(total_weight).into())
 	}
