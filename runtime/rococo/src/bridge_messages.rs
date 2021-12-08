@@ -436,6 +436,7 @@ mod tests {
 		//    file if you're unsure who to ping)
 
 		let signed_extra: crate::SignedExtra = (
+			frame_system::CheckNonZeroSender::new(),
 			frame_system::CheckSpecVersion::new(),
 			frame_system::CheckTxVersion::new(),
 			frame_system::CheckGenesis::new(),
