@@ -18,13 +18,13 @@
 //!
 //! Builds on top of Substrate wasm tracing support.
 
+use codec::Decode;
+use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex},
 };
 use substrate_prometheus_endpoint::{register, CounterVec, Opts, PrometheusError, Registry, U64};
-use primitives::v0::{RuntimeMetricUpdate, RuntimeMetricOp};
-use codec::Decode;
 
 /// We only support CounterVec for now.
 /// TODO: add more when needed.
@@ -122,7 +122,7 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 				},
 				Err(e) => {
 					tracing::error!("TraceEvent decode failed: {:?}", e);
-				}
+				},
 			}
 		}
 	}
@@ -133,7 +133,7 @@ impl RuntimeMetricsProvider {
 		match update.op {
 			RuntimeMetricOp::Increment(value) => {
 				self.inc_counter_by(update.metric_name(), value, "test_label".into());
-			}
+			},
 		}
 	}
 }

@@ -57,7 +57,7 @@ use sp_std::{
 
 // TODO: Find a better place for all of this stuff:
 #[cfg(not(feature = "std"))]
-use primitives::v0::{RuntimeMetricUpdate, RuntimeMetricOp};
+use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
 
 // TODO: implement a define_metric macro that builds a metric object
 // with the Prometheus interface.
@@ -69,12 +69,12 @@ macro_rules! inc_counter_vec {
 			metric_name: sp_std::vec::Vec::from(stringify!($metric)),
 			op: RuntimeMetricOp::Increment($value.try_into().unwrap_or(0))
 		}.encode();
-		
-		// This is safe, we only care about the metric name being a valid utf8 str, 
+
+		// This is safe, we only care about the metric name being a valid utf8 str,
 		// which is enforced above.
 		unsafe {
 			let update_op = sp_std::str::from_utf8_unchecked(&metric_update);
-		
+
 			sp_tracing::event!(
 				target: "metrics",
 				sp_tracing::Level::TRACE,
@@ -86,7 +86,7 @@ macro_rules! inc_counter_vec {
 
 #[cfg(feature = "std")]
 macro_rules! inc_counter_vec {
-	($metric:ident, $value:expr) => {}
+	($metric:ident, $value:expr) => {};
 }
 
 mod misc;
@@ -319,7 +319,10 @@ impl<T: Config> Pallet<T> {
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-		inc_counter_vec!(create_inherent_prefilter_weight, candidate_weight + bitfields_weight + disputes_weight);
+		inc_counter_vec!(
+			create_inherent_prefilter_weight,
+			candidate_weight + bitfields_weight + disputes_weight
+		);
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
 		let total_weight = {
@@ -439,7 +442,6 @@ impl<T: Config> Pallet<T> {
 			},
 			&scheduled[..],
 		);
-
 
 		inc_counter_vec!(create_inherent_candidates_processed, backed_candidates.len());
 
