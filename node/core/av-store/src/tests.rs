@@ -47,7 +47,8 @@ const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns:
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
 
-#[derive(Default)]
+use ::test_helpers::dummy_candidate_descriptor;
+
 struct TestCandidateBuilder {
 	para_id: ParaId,
 	pov_hash: Hash,
@@ -55,15 +56,25 @@ struct TestCandidateBuilder {
 	commitments_hash: Hash,
 }
 
+impl std::default::Default for TestCandidateBuilder {
+	fn default() -> Self {
+		let zeros = Hash::zero();
+		Self {
+			para_id: 0.into(),
+			pov_hash: zeros,
+			relay_parent: zeros,
+			commitments_hash: zeros,
+		}
+	}
+}
+
 impl TestCandidateBuilder {
 	fn build(self) -> CandidateReceipt {
+		let mut descriptor = dummy_candidate_descriptor(self.relay_parent);
+		descriptor.para_id = self.para_id;
+		descriptor.pov_hash = self.pov_hash;
 		CandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: self.para_id,
-				pov_hash: self.pov_hash,
-				relay_parent: self.relay_parent,
-				..Default::default()
-			},
+			descriptor,
 			commitments_hash: self.commitments_hash,
 		}
 	}
