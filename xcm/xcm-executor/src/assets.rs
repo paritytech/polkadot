@@ -227,10 +227,9 @@ impl Assets {
 			.filter_map(|(mut id, amount)| match id.reanchor(target, ancestry) {
 				Ok(()) => Some((id, amount)),
 				Err(()) => {
-					*maybe_failed_bin_ref = maybe_failed_bin_ref.take().map(|failed| {
-						failed.fungible.insert(id, amount);
-						failed
-					});
+					if let Some(ref mut failed) = maybe_failed_bin_ref {
+						(*failed).fungible.insert(id, amount);
+					}
 					None
 				},
 			})
@@ -242,10 +241,9 @@ impl Assets {
 			.filter_map(|(mut class, inst)| match class.reanchor(target, ancestry) {
 				Ok(()) => Some((class, inst)),
 				Err(()) => {
-					*maybe_failed_bin_ref = maybe_failed_bin_ref.take().map(|failed| {
-						failed.non_fungible.insert((class, inst));
-						failed
-					});
+					if let Some(ref mut failed) = maybe_failed_bin_ref {
+						(*failed).non_fungible.insert((class, inst));
+					}
 					None
 				},
 			})
