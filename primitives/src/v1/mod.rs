@@ -408,19 +408,6 @@ impl<H: Default> CandidateReceipt<H> {
 	}
 }
 
-// #[cfg(feature = "std")]
-// impl<H: Default> Default for CandidateReceipt<H> {
-// 	// TODO try and get rid of this. Place holder for now
-// 	fn default() -> Self {
-// 		use application_crypto::sr25519;
-// 		let collator = CollatorId::from(sr25519::Public::from_raw([42; 32]));
-// 		Self {
-// 			descriptor: CandidateDescriptor::<H>::dummy(collator),
-// 			commitments_hash: Default::default(),
-// 		}
-// 	}
-// }
-
 impl<H> CandidateReceipt<H> {
 	/// Get a reference to the candidate descriptor.
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
@@ -562,8 +549,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf, Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -721,12 +708,12 @@ impl From<u32> for GroupIndex {
 }
 
 /// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadEntry {
 	/// The claim.
