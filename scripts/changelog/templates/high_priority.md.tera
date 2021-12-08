@@ -1,0 +1,37 @@
+{%- import "change.md.tera" as m_c -%}
+
+{# This macro convert a priority level into readable output #}
+{%- macro high_priority(p, changes) -%}
+
+{%- if p >= 7 -%}
+    {%- set prio = "‼️ HIGH" -%}
+    {%- set text = "This is a **high priority** release and you must upgrade as as soon as possible." -%}
+{%- elif p >= 5 -%}
+    {%- set prio = "❗️ Medium" -%}
+    {%- set text = "This is a medium priority release and you should upgrade in a timely manner." -%}
+{%- elif p >= 3 -%}
+    {%- set prio = "Low" -%}
+    {%- set text = "This is a low priority release and you may upgrade at your convenience." -%}
+{%- endif %}
+
+{%- if prio %}
+{{prio}}: {{text}}
+{%- else -%}
+<!-- No relevant Priority label as been detected -->
+{% endif %}
+
+The changes motivating this priority level are:
+
+{% for pr in changes | sort(attribute="merged_at") -%}
+    {%- if pr.meta.C -%}
+        {%- if pr.meta.C.value == p %}
+- {{ m_c::change(c=pr) }}
+{%- if pr.meta.B and pr.meta.B.value == 7 %}
+(RUNTIME)
+{% endif %}
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor %}
+
+
+{%- endmacro priority -%}
