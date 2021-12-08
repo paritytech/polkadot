@@ -104,10 +104,7 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 	fn handle_event(&self, event: &sc_tracing::TraceEvent) {
 		// DUMMY impl
 		// TODO: parse TraceEvent to extract metric update information.
-
 		println!("Hey it works: {:?}", event.values.string_values.get("params"));
-		// BUG: the metrics registered/updated here are not yet visibile in the
-		// Prometheus exporter, even if register/update calls are successful.
 		self.inc_counter_by("runtime_metric_test", 1024, "test_label".into());
 	}
 }
