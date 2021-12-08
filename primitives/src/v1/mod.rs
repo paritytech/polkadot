@@ -21,7 +21,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
-use application_crypto::KeyTypeId;
+use application_crypto::{KeyTypeId, sr25519};
 use inherents::InherentIdentifier;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Header as HeaderT};
@@ -353,20 +353,20 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub validation_code_hash: ValidationCodeHash,
 }
 
-impl<H: Default> CandidateDescriptor<H> {
+impl CandidateDescriptor<Hash> {
 	/// Create a dummy `CandidateDescriptor` with the given `collator`.
-	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn dummy(collator: CollatorId) -> Self {
+		let zeros = Hash::zero();
 		Self {
-			para_id: Default::default(),
-			relay_parent: Default::default(),
+			para_id: 0.into(),
+			relay_parent: zeros,
 			collator,
-			persisted_validation_data_hash: Default::default(),
-			pov_hash: Default::default(),
-			erasure_root: Default::default(),
-			signature: Default::default(),
-			para_head: Default::default(),
-			validation_code_hash: Default::default(),
+			persisted_validation_data_hash: zeros,
+			pov_hash: zeros,
+			erasure_root: zeros,
+			signature: CollatorSignature::from(sr25519::Signature([0u8;64])),
+			para_head: zeros,
+			validation_code_hash: ValidationCode(vec![1,2,3]).hash(),
 		}
 	}
 }
@@ -396,13 +396,12 @@ pub struct CandidateReceipt<H = Hash> {
 	pub commitments_hash: Hash,
 }
 
-impl<H: Default> CandidateReceipt<H> {
+impl CandidateReceipt<Hash> {
 	/// Generate a dummy `CandidateReceipt` where the `CandidateDescriptor` uses the given
 	/// `collator`.
-	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn dummy(collator: CollatorId) -> Self {
 		Self {
-			descriptor: CandidateDescriptor::<H>::dummy(collator),
+			descriptor: CandidateDescriptor::<Hash>::dummy(collator),
 			commitments_hash: Default::default(),
 		}
 	}
@@ -499,13 +498,13 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-impl<H: Default> CommittedCandidateReceipt<H> {
+impl CommittedCandidateReceipt<Hash> {
 	/// Create a dummy `CommittedCandidateReceipt` with the given `collator` used in the
 	/// `descriptor`.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn dummy(collator: CollatorId) -> Self {
 		Self {
-			descriptor: CandidateDescriptor::<H>::dummy(collator),
+			descriptor: CandidateDescriptor::<Hash>::dummy(collator),
 			commitments: Default::default(),
 		}
 	}
