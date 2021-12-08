@@ -21,9 +21,9 @@
 //!
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
-use polkadot_primitives::{v1::{HeadData, ValidationCodeHash, CollatorId, CommittedCandidateReceipt, CandidateReceipt, CandidateDescriptor, Hash, Id as ParaId, ValidationCode}, v1::CandidateCommitments};
-
-use sp_application_crypto::RuntimeAppPublic;
+use polkadot_primitives::v1::{
+	HeadData, ValidationCodeHash, CommittedCandidateReceipt, CandidateReceipt, CandidateDescriptor, Hash, Id as ParaId, ValidationCode, CandidateCommitments};
+use sp_keyring::Sr25519Keyring;
 
 /// Creates a candidate receipt without
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
@@ -60,7 +60,7 @@ pub fn dummy_hash() -> Hash {
 }
 
 pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateDescriptor<H>{
-	let collator = sp_keyring::AccountKeyring::Ferdie.public();
+	let collator = sp_keyring::Sr25519Keyring::Ferdie;
 	let invalid = Hash::zero();
 	let descriptor = make_valid_candidate_descriptor(1.into(), relay_parent, invalid, invalid, invalid, invalid, invalid, collator);
 	descriptor
@@ -80,9 +80,8 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	validation_code_hash: impl Into<ValidationCodeHash>,
 	para_head: Hash,
 	erasure_root: Hash,
-	collator: impl Into<CollatorId>,
+	collator: Sr25519Keyring,
 ) -> CandidateDescriptor<H> {
-	let collator: CollatorId = collator.into();
 	let validation_code_hash = validation_code_hash.into();
 	let payload = polkadot_primitives::v1::collator_signature_payload::<H>(
 		&relay_parent,
@@ -92,11 +91,11 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 		&validation_code_hash,
 	);
 
-	let signature = collator.sign(&payload).unwrap();
+	let signature = collator.sign(&payload).into();
 	let descriptor = CandidateDescriptor {
 		para_id,
 		relay_parent,
-		collator,
+		collator: collator.public().into(),
 		persisted_validation_data_hash,
 		pov_hash,
 		erasure_root,
@@ -109,25 +108,9 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	descriptor
 }
 
-
-/// Re-sign after manually modifying a candidate descriptor.
-pub fn resign_candidate_descriptor<H: AsRef<[u8]>>(descriptor: &mut CandidateDescriptor<H>) {
-	let collator: &CollatorId = &descriptor.collator;
-	let payload = polkadot_primitives::v1::collator_signature_payload::<H>(
-		&descriptor.relay_parent,
-		&descriptor.para_id,
-		&descriptor.persisted_validation_data_hash,
-		&descriptor.pov_hash,
-		&descriptor.validation_code_hash,
-	);
-	let signature = collator.sign(&payload).unwrap();
-	descriptor.signature = signature;
-}
-
-
 /// After manually modifyin the candidate descriptor, resign with a defined collator key.
-pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(descriptor: &mut CandidateDescriptor<H>, signer: impl Into<CollatorId>) {
-	let collator: CollatorId = signer.into();
+pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(descriptor: &mut CandidateDescriptor<H>, collator: Sr25519Keyring) {
+	descriptor.collator = collator.public().into();
 	let payload = polkadot_primitives::v1::collator_signature_payload::<H>(
 		&descriptor.relay_parent,
 		&descriptor.para_id,
@@ -135,6 +118,6 @@ pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(descriptor: &mu
 		&descriptor.pov_hash,
 		&descriptor.validation_code_hash,
 	);
-	let signature = collator.sign(&payload).unwrap();
+	let signature = collator.sign(&payload).into();
 	descriptor.signature = signature;
 }

@@ -6583,7 +6583,6 @@ name = "polkadot-primitives-test-helpers"
 version = "0.9.13"
 dependencies = [
  "polkadot-primitives",
- "sp-application-crypto",
  "sp-keyring",
 ]
 
