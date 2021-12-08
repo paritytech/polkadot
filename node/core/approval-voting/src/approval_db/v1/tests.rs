@@ -22,10 +22,9 @@ use crate::{
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
 use kvdb::KeyValueDB;
-use polkadot_primitives::v1::Id as ParaId;
-use std::{collections::HashMap, sync::Arc};
+use polkadot_primitives::v1::{CollatorId, Id as ParaId};
 use sp_application_crypto::sr25519;
-use polkadot_primitives::v1::CollatorId;
+use std::{collections::HashMap, sync::Arc};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -61,9 +60,7 @@ fn make_block_entry(
 }
 
 fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
-	let mut c = CandidateReceipt::dummy(
-		CollatorId::from(sr25519::Public::from_raw([42; 32]))
-	);
+	let mut c = CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 
 	c.descriptor.para_id = para_id;
 	c.descriptor.relay_parent = relay_parent;
@@ -77,9 +74,9 @@ fn read_write() {
 
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
-	let candidate_hash = CandidateReceipt::<Hash>::dummy(
-		CollatorId::from(sr25519::Public::from_raw([42; 32]))
-	).hash();
+	let candidate_hash =
+		CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
+			.hash();
 
 	let range = StoredBlockRange(10, 20);
 	let at_height = vec![hash_a, hash_b];

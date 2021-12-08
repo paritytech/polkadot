@@ -240,15 +240,15 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		availability_votes: BitVec<BitOrderLsb0, u8>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
-			core_idx,           // core
-			candidate_hash,     // hash
+			core_idx,       // core
+			candidate_hash, // hash
 			// CandidateDescriptor::dummy(CollatorId::from([42; 32])), // candidate descriptor
 			CandidateDescriptor::dummy(CollatorId::generate_pair(None)), // candidate descriptor
-			availability_votes, // availability votes
-			Default::default(), // backers
-			Zero::zero(),       // relay parent
-			One::one(),         // relay chain block this was backed in
-			group_idx,          // backing group
+			availability_votes,                                          // availability votes
+			Default::default(),                                          // backers
+			Zero::zero(),                                                // relay parent
+			One::one(),                                                  // relay chain block this was backed in
+			group_idx,                                                   // backing group
 		)
 	}
 

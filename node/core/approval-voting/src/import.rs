@@ -581,7 +581,8 @@ pub(crate) mod tests {
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex, CollatorId};
+	use polkadot_primitives::v1::{CollatorId, SessionInfo, ValidatorIndex};
+	use sp_application_crypto::sr25519;
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -590,7 +591,6 @@ pub(crate) mod tests {
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
-	use sp_application_crypto::sr25519;
 
 	use crate::{
 		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
@@ -716,9 +716,8 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut r =
+				CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -832,9 +831,8 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut r =
+				CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -936,9 +934,8 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut r =
+				CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -1028,9 +1025,8 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut r =
+				CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -1172,9 +1168,8 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut r =
+				CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r

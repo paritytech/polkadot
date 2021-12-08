@@ -26,11 +26,10 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
-	CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, ValidatorSignature,
+	CandidateEvent, CollatorId, CoreIndex, GroupIndex, Header, Id as ParaId, ValidatorSignature,
 };
-use std::time::Duration;
 use sp_application_crypto::sr25519;
-use polkadot_primitives::v1::CollatorId;
+use std::time::Duration;
 
 use assert_matches::assert_matches;
 use parking_lot::Mutex;
@@ -549,9 +548,7 @@ where
 }
 
 fn make_candidate(para_id: ParaId, hash: &Hash) -> CandidateReceipt {
-	let mut r = CandidateReceipt::dummy(
-		CollatorId::from(sr25519::Public::from_raw([42; 32]))
-	);
+	let mut r = CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 	r.descriptor.para_id = para_id;
 	r.descriptor.relay_parent = hash.clone();
 	r
@@ -1136,9 +1133,9 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
-		let candidate_hash = CandidateReceipt::<Hash>::dummy(
-			CollatorId::from(sr25519::Public::from_raw([42; 32]))
-		).hash();
+		let candidate_hash =
+			CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
+				.hash();
 		let session_index = 1;
 
 		let rx = check_and_import_approval(
@@ -1174,9 +1171,9 @@ fn subsystem_rejects_approval_before_assignment() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+				sr25519::Public::from_raw([42; 32]),
+			));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1366,9 +1363,9 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+				sr25519::Public::from_raw([42; 32]),
+			));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1433,9 +1430,9 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+				sr25519::Public::from_raw([42; 32]),
+			));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1898,16 +1895,16 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_receipt1 = {
-			let mut receipt = CandidateReceipt::<Hash>::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+				sr25519::Public::from_raw([42; 32]),
+			));
 			receipt.descriptor.para_id = 1.into();
 			receipt
 		};
 		let candidate_receipt2 = {
-			let mut receipt = CandidateReceipt::<Hash>::dummy(
-				CollatorId::from(sr25519::Public::from_raw([42; 32]))
-			);
+			let mut receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+				sr25519::Public::from_raw([42; 32]),
+			));
 			receipt.descriptor.para_id = 2.into();
 			receipt
 		};
@@ -2048,9 +2045,9 @@ fn approved_ancestor_test(
 			.iter()
 			.enumerate()
 			.map(|(i, hash)| {
-				let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(
-					CollatorId::from(sr25519::Public::from_raw([42; 32]))
-				);
+				let mut candidate_receipt = CandidateReceipt::<Hash>::dummy(CollatorId::from(
+					sr25519::Public::from_raw([42; 32]),
+				));
 				candidate_receipt.descriptor.para_id = i.into();
 				candidate_receipt.descriptor.relay_parent = *hash;
 				candidate_receipt
@@ -2201,9 +2198,8 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt = CandidateReceipt::<Hash>::dummy(
-			CollatorId::from(sr25519::Public::from_raw([42; 32]))
-		);
+		let candidate_receipt =
+			CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;
@@ -2337,9 +2333,8 @@ where
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt = CandidateReceipt::<Hash>::dummy(
-			CollatorId::from(sr25519::Public::from_raw([42; 32]))
-		);
+		let candidate_receipt =
+			CandidateReceipt::<Hash>::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;

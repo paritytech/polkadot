@@ -38,10 +38,9 @@ use primitives::{
 	},
 };
 use sc_keystore::LocalKeystore;
+use sp_application_crypto::sr25519;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
-use sp_application_crypto::sr25519;
-
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -255,7 +254,7 @@ pub(crate) struct TestCandidateBuilder {
 
 impl TestCandidateBuilder {
 	pub(crate) fn build(self) -> CommittedCandidateReceipt {
-	CommittedCandidateReceipt {
+		CommittedCandidateReceipt {
 			descriptor: CandidateDescriptor {
 				para_id: self.para_id,
 				pov_hash: self.pov_hash,
@@ -394,7 +393,9 @@ fn bitfield_checks() {
 						availability_votes: default_availability_votes(),
 						core: Default::default(),
 						hash: Default::default(),
-						descriptor: CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
+						descriptor: CandidateDescriptor::dummy(CollatorId::from(
+							sr25519::Public::from_raw([42; 32]),
+						)),
 						backers: Default::default(),
 						relay_parent_number: Default::default(),
 						backed_in_number: Default::default(),
