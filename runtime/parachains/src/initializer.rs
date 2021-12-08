@@ -426,8 +426,8 @@ mod tests {
 
 		let mock_genesis = crate::paras::ParaGenesisArgs {
 			parachain: true,
-			genesis_head: Default::default(),
-			validation_code: Default::default(),
+			genesis_head: HeadData(vec![u8;129]),
+			validation_code: ValidationCode(vec![1,2,3]),
 		};
 
 		new_test_ext(MockGenesisConfig {

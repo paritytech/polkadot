@@ -40,7 +40,7 @@ use primitives::{
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::sr25519;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use std::sync::Arc;
+use std::{sync::Arc, default};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -239,7 +239,6 @@ pub(crate) async fn sign_bitfield(
 	.unwrap()
 }
 
-#[derive(Default)]
 pub(crate) struct TestCandidateBuilder {
 	pub(crate) para_id: ParaId,
 	pub(crate) head_data: HeadData,
@@ -250,6 +249,23 @@ pub(crate) struct TestCandidateBuilder {
 	pub(crate) new_validation_code: Option<ValidationCode>,
 	pub(crate) validation_code: ValidationCode,
 	pub(crate) hrmp_watermark: BlockNumber,
+}
+
+impl std::default::Default for TestCandidateBuilder {
+	fn default() -> Self {
+		let zeros = Hash::zero();
+		Self {
+			para_id: 0.into(),
+			head_data: HeadData::from(vec![1,2,3]),
+			para_head_hash: None,
+			pov_hash: zeros,
+			relay_parent: zeros,
+			persisted_validation_data_hash: zeros,
+			new_validation_code: None,
+			validation_code: ValidationCode(vec![1,2,3]),
+			hrmp_watermark: 0.into(),
+		}
+	}
 }
 
 impl TestCandidateBuilder {

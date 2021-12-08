@@ -456,7 +456,7 @@ pub mod pallet {
 			new_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para).unwrap_or_default();
+			let prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para).unwrap_or(dummy_validation_code().hash());
 			let new_code_hash = new_code.hash();
 			Self::increase_code_ref(&new_code_hash, &new_code);
 			<Self as Store>::CurrentCodeHash::insert(&para, new_code_hash);
@@ -959,8 +959,9 @@ impl<T: Config> Pallet<T> {
 				<Self as Store>::UpgradeGoAheadSignal::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
-				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or_default();
-				let prior_code_hash = CurrentCodeHash::<T>::get(&id).unwrap_or_default();
+				let fallback = ValidationCodeHash::from(<T>::Hash::zero());
+				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or(fallback);
+				let prior_code_hash = CurrentCodeHash::<T>::get(&id).unwrap_or(fallback);
 				CurrentCodeHash::<T>::insert(&id, &new_code_hash);
 
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
@@ -1084,6 +1085,14 @@ mod tests {
 		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
+	fn dummy_genesis_head_data() -> HeadData {
+		HeadData(vec![0xFF, 129])
+	}
+
+	fn dummy_validation_code() -> ValidationCode {
+		ValidationCode(vec![1,2,3])
+	}
+
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
@@ -1195,7 +1204,7 @@ mod tests {
 					1000.into(),
 					ParaGenesisArgs {
 						parachain: false,
-						genesis_head: Default::default(),
+						genesis_head: dummy_genesis_head_data(),
 						validation_code: ValidationCode(vec![]),
 					}
 				),
@@ -1206,7 +1215,7 @@ mod tests {
 				1000.into(),
 				ParaGenesisArgs {
 					parachain: false,
-					genesis_head: Default::default(),
+					genesis_head: dummy_genesis_head_data(),
 					validation_code: ValidationCode(vec![1]),
 				}
 			));
@@ -1221,16 +1230,16 @@ mod tests {
 				0u32.into(),
 				ParaGenesisArgs {
 					parachain: true,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_genesis_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 			(
 				1u32.into(),
 				ParaGenesisArgs {
 					parachain: false,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_genesis_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 		];
@@ -1289,8 +1298,8 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
-				validation_code: Default::default(),
+				genesis_head: dummy_genesis_head_data(),
+				validation_code: dummy_validation_code(),
 			},
 		)];
 
@@ -1322,16 +1331,16 @@ mod tests {
 				0u32.into(),
 				ParaGenesisArgs {
 					parachain: true,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_genesis_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 			(
 				1u32.into(),
 				ParaGenesisArgs {
 					parachain: false,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_genesis_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 		];
@@ -1375,7 +1384,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_genesis_head_data(),
 				validation_code: original_code.clone(),
 			},
 		)];
@@ -1482,7 +1491,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_genesis_head_data(),
 				validation_code: original_code.clone(),
 			},
 		)];
@@ -1570,7 +1579,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_genesis_head_data(),
 				validation_code: vec![1, 2, 3].into(),
 			},
 		)];
@@ -1625,7 +1634,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_genesis_head_data(),
 				validation_code: original_code.clone(),
 			},
 		)];
@@ -1800,6 +1809,64 @@ mod tests {
 	}
 
 	#[test]
+	fn code_hash_at_with_intermediate() {
+		let code_retention_period = 10;
+		let validation_upgrade_delay = 10;
+
+		let paras = vec![(
+			0u32.into(),
+			ParaGenesisArgs {
+				parachain: true,
+				genesis_head: dummy_genesis_head_data(),
+				validation_code: vec![1, 2, 3].into(),
+			},
+		)];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					code_retention_period,
+					validation_upgrade_delay,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let old_code: ValidationCode = vec![1, 2, 3].into();
+			let new_code: ValidationCode = vec![4, 5, 6].into();
+
+			// expected_at = 10 = 0 + validation_upgrade_delay = 0 + 10
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
+			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(10));
+
+			// no intermediate, falls back on current/past.
+			assert_eq!(fetch_validation_code_at(para_id, 1, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 100, None), Some(old_code.clone()));
+
+			// intermediate before upgrade meant to be applied, falls back on current.
+			assert_eq!(fetch_validation_code_at(para_id, 9, Some(8)), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 10, Some(9)), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 11, Some(9)), Some(old_code.clone()));
+
+			// intermediate at or after upgrade applied
+			assert_eq!(fetch_validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
+
+			run_to_block(code_retention_period + 5, None);
+
+			// at <= intermediate not allowed
+			assert_eq!(fetch_validation_code_at(para_id, 10, Some(10)), None);
+			assert_eq!(fetch_validation_code_at(para_id, 9, Some(10)), None);
+		});
+	}
+
+	#[test]
 	fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 2;
@@ -1808,7 +1875,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_genesis_head_data(),
 				validation_code: vec![1, 2, 3].into(),
 			},
 		)];

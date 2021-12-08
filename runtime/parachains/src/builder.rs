@@ -316,7 +316,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
-					genesis_head: Default::default(),
+					genesis_head: dummy_genesis_head_data(),
 					validation_code: dummy_validation_code(),
 					parachain: true,
 				},
