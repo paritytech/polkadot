@@ -14,6 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![forbid(unused_crate_dependencies)]
+#![forbid(unused_extern_crates)]
+
+//! A set of primitive constructors, to aid in crafting meaningful testcase while reducing repetition.
+//!
+//! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
+//! contain randomness based data.
 use polkadot_primitives::v1::{ValidationCodeHash, CollatorId, CandidateReceipt, CandidateDescriptor, Hash, Id as ParaId};
 
 use sp_application_crypto::RuntimeAppPublic;
