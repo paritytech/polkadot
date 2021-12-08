@@ -6493,6 +6493,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-client-api",
  "sp-api",
+ "sp-application-crypto",
  "sp-core",
  "tracing",
 ]
