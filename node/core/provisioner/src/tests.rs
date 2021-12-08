@@ -1,6 +1,7 @@
 use super::*;
 use bitvec::bitvec;
-use polkadot_primitives::v1::{OccupiedCore, ScheduledCore};
+use polkadot_primitives::v1::{CandidateDescriptor, CollatorId, OccupiedCore, ScheduledCore};
+use sp_application_crypto::sr25519;
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -10,7 +11,9 @@ pub fn occupied_core(para_id: u32) -> CoreState {
 		time_out_at: 200_u32,
 		next_up_on_time_out: None,
 		availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
-		candidate_descriptor: Default::default(),
+		candidate_descriptor: CandidateDescriptor::dummy(CollatorId::from(
+			sr25519::Public::from_raw([42; 32]),
+		)),
 		candidate_hash: Default::default(),
 	})
 }
@@ -197,9 +200,10 @@ mod select_candidates {
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 	use polkadot_primitives::v1::{
-		BlockNumber, CandidateCommitments, CandidateDescriptor, CommittedCandidateReceipt,
-		PersistedValidationData,
+		BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
+		CommittedCandidateReceipt, PersistedValidationData,
 	};
+	use sp_application_crypto::sr25519;
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
@@ -346,11 +350,11 @@ mod select_candidates {
 
 		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
+		let mut descriptor_template =
+			CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+		descriptor_template.persisted_validation_data_hash = empty_hash;
 		let candidate_template = CandidateReceipt {
-			descriptor: CandidateDescriptor {
-				persisted_validation_data_hash: empty_hash,
-				..Default::default()
-			},
+			descriptor: descriptor_template,
 			commitments_hash: CandidateCommitments::default().hash(),
 		};
 
@@ -389,7 +393,7 @@ mod select_candidates {
 			.map(|c| BackedCandidate {
 				candidate: CommittedCandidateReceipt {
 					descriptor: c.descriptor.clone(),
-					..Default::default()
+					commitments: Default::default(),
 				},
 				validity_votes: Vec::new(),
 				validator_indices: default_bitvec(n_cores),
@@ -428,21 +432,23 @@ mod select_candidates {
 		let cores_with_code = [1, 4, 8];
 
 		let committed_receipts: Vec<_> = (0..mock_cores.len())
-			.map(|i| CommittedCandidateReceipt {
-				descriptor: CandidateDescriptor {
-					para_id: i.into(),
-					persisted_validation_data_hash: empty_hash,
-					..Default::default()
-				},
-				commitments: CandidateCommitments {
-					new_validation_code: if cores_with_code.contains(&i) {
-						Some(vec![].into())
-					} else {
-						None
+			.map(|i| {
+				let mut descriptor = CandidateDescriptor::dummy(CollatorId::from(
+					sr25519::Public::from_raw([42; 32]),
+				));
+				descriptor.para_id = i.into();
+				descriptor.persisted_validation_data_hash = empty_hash;
+				CommittedCandidateReceipt {
+					descriptor,
+					commitments: CandidateCommitments {
+						new_validation_code: if cores_with_code.contains(&i) {
+							Some(vec![].into())
+						} else {
+							None
+						},
+						..Default::default()
 					},
-					..Default::default()
-				},
-				..Default::default()
+				}
 			})
 			.collect();
 

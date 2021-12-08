@@ -527,6 +527,16 @@ impl<H: Default> Default for CommittedCandidateReceipt<H> {
 	}
 }
 
+#[cfg(feature = "std")]
+impl<H: Default> CommittedCandidateReceipt<H> {
+	pub fn dummy(collator: CollatorId) -> Self {
+		Self {
+			descriptor: CandidateDescriptor::<H>::dummy(collator),
+			commitments: Default::default(),
+		}
+	}
+}
+
 /// The validation data provides information about how to create the inputs for validation of a candidate.
 /// This information is derived from the chain state and will vary from para to para, although some
 /// fields may be the same for every para.
