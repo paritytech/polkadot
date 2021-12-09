@@ -6242,6 +6242,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sp-core",
  "sp-keyring",

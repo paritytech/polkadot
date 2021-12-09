@@ -38,14 +38,9 @@ use polkadot_node_subsystem_test_helpers::{
 use polkadot_primitives::v1::{
 	BlakeTwo256, CandidateCommitments, CollatorId, HashT, Header, ValidationCode,
 };
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
-
-fn dummy_receipt() -> CandidateReceipt {
-	CandidateReceipt::dummy(
-		CollatorId::from(sp_keyring::AccountKeyring::Two.public())
-	)
-}
 
 pub fn make_our_subsystem_context<S>(
 	spawn: S,
@@ -70,7 +65,10 @@ async fn participate_with_commitments_hash(
 	commitments_hash: Hash,
 ) -> Result<()> {
 	let candidate_receipt = {
-		let mut receipt = dummy_receipt();
+		let mut receipt = dummy_candidate_receipt_bad_sig(
+			Default::default(),
+			Some(Default::default())
+		);
 		receipt.commitments_hash = commitments_hash;
 		receipt
 	};

@@ -55,6 +55,7 @@ use polkadot_primitives::v1::{
 	Hash, HashT, Header, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId,
 	ValidatorIndex, MultiDisputeStatementSet,
 };
+use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_receipt_bad_sig};
 
 use crate::{
 	metrics::Metrics,
@@ -72,16 +73,6 @@ use super::{
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
-
-fn make_invalid_candidate_receipt() -> CandidateReceipt {
-	dummy_receipt()
-}
-
-fn dummy_receipt() -> CandidateReceipt {
-	// TODO make sure this is ok
-	// Commitments hash will be 0, which is not correct:
-	CandidateReceipt::dummy(CollatorId::from(sp_keyring::AccountKeyring::Two.public()))
-}
 
 // sets up a keystore with the given keyring accounts.
 fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
@@ -373,12 +364,18 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-	let mut candidate_receipt =
-		make_invalid_candidate_receipt();
+	let mut candidate_receipt = dummy_candidate_receipt_bad_sig(
+		Default::default(),
+		Some(Default::default())
+	);
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }
 
+fn make_invalid_candidate_receipt() -> CandidateReceipt {
+	// Commitments hash will be 0, which is not correct:
+	dummy_candidate_receipt(dummy_hash())
+}
 
 #[test]
 fn conflicting_votes_lead_to_dispute_participation() {

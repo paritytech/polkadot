@@ -38,18 +38,13 @@ use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateEvent, CandidateReceipt, CollatorId, CoreIndex, GroupIndex,
 	Hash, HashT, HeadData,
 };
+use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_receipt_bad_sig};
 
 use super::OrderingProvider;
 
-fn make_invalid_candidate_receipt() -> CandidateReceipt {
-	dummy_receipt()
-}
-
-fn dummy_receipt() -> CandidateReceipt {
-	// TODO make sure this is ok
-	// Commitments hash will be 0, which is not correct:
-	CandidateReceipt::dummy(CollatorId::from(sp_keyring::AccountKeyring::Two.public()))
-}
+// fn make_invalid_candidate_receipt() -> CandidateReceipt {
+// 	dummy_candidate_receipt(dummy_hash())
+// }
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
@@ -99,13 +94,9 @@ fn launch_virtual_overseer(ctx: &mut impl SubsystemContext, ctx_handle: VirtualO
 	.unwrap();
 }
 
-fn candidate_receipt() -> CandidateReceipt {
-	make_invalid_candidate_receipt()
-}
-
 async fn virtual_overseer(mut ctx_handle: VirtualOverseer) {
 	let ev = vec![CandidateEvent::CandidateIncluded(
-		candidate_receipt(),
+		dummy_candidate_receipt(dummy_hash()),
 		HeadData::default(),
 		CoreIndex::from(0),
 		GroupIndex::from(0),
@@ -158,11 +149,19 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 
 #[test]
 fn ordering_provider_provides_ordering_when_initialized() {
+	// TODO
+	let candidate = dummy_candidate_receipt_bad_sig(
+		Default::default(),
+		Some(Default::default())
+	);
 	futures::executor::block_on(async {
 		let mut state = TestState::new().await;
 		let r = state
 			.ordering
-			.candidate_comparator(state.ctx.sender(), &candidate_receipt())
+			.candidate_comparator(
+				state.ctx.sender(),
+				&candidate
+			)
 			.await
 			.unwrap();
 		assert!(r.is_none());
@@ -170,7 +169,10 @@ fn ordering_provider_provides_ordering_when_initialized() {
 		state.process_active_leaves_update().await;
 		let r = state
 			.ordering
-			.candidate_comparator(state.ctx.sender(), &candidate_receipt())
+			.candidate_comparator(
+				state.ctx.sender(),
+				&candidate
+			)
 			.await
 			.unwrap();
 		assert!(r.is_some());
