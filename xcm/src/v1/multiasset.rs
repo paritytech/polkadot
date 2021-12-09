@@ -301,8 +301,10 @@ impl From<Vec<MultiAsset>> for MultiAssets {
 						(
 							MultiAsset { fun: Fungibility::Fungible(a_amount), id: a_id },
 							MultiAsset { fun: Fungibility::Fungible(b_amount), id: b_id },
-						) if a_id == b_id =>
-							MultiAsset { id: a_id, fun: Fungibility::Fungible(a_amount + b_amount) },
+						) if a_id == b_id => MultiAsset {
+							id: a_id,
+							fun: Fungibility::Fungible(a_amount.saturating_add(b_amount)),
+						},
 						(
 							MultiAsset { fun: Fungibility::NonFungible(a_instance), id: a_id },
 							MultiAsset { fun: Fungibility::NonFungible(b_instance), id: b_id },
