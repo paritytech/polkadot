@@ -397,17 +397,6 @@ pub struct CandidateReceipt<H = Hash> {
 	pub commitments_hash: Hash,
 }
 
-impl CandidateReceipt<Hash> {
-	/// Generate a dummy `CandidateReceipt` where the `CandidateDescriptor` uses the given
-	/// `collator`.
-	pub fn dummy(collator: CollatorId) -> Self {
-		Self {
-			descriptor: CandidateDescriptor::<Hash>::dummy(collator),
-			commitments_hash: Default::default(),
-		}
-	}
-}
-
 impl<H> CandidateReceipt<H> {
 	/// Get a reference to the candidate descriptor.
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
