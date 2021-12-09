@@ -281,7 +281,7 @@ pub fn run_with_wasm_metrics() -> Result<()> {
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
-	let mut cli: Cli = Cli::from_args();
+	let cli: Cli = Cli::from_args();
 
 	match &cli.subcommand {
 		// TODO: gate by feature `runtime_metrics`.
