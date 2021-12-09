@@ -828,13 +828,13 @@ mod tests {
 		mock::TestRegistrar,
 		traits::{AuctionStatus, OnSwap},
 	};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use sp_keystore::{testing::KeyStore, KeystoreExt};
 	use sp_runtime::{
 		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 		DispatchResult,
 	};
-	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;

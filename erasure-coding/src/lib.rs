@@ -370,7 +370,7 @@ impl<'a, I: Iterator<Item = &'a [u8]>> parity_scale_codec::Input for ShardInput<
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v0::{AvailableData, BlockData, PoVBlock, OmittedValidationData};
+	use polkadot_primitives::v0::{AvailableData, BlockData, OmittedValidationData, PoVBlock};
 
 	// In order to adequately compute the number of entries in the Merkle
 	// trie, we must account for the fixed 16-ary trie structure.
@@ -385,7 +385,8 @@ mod tests {
 	fn round_trip_works() {
 		let pov_block = PoVBlock { block_data: BlockData((0..255).collect()) };
 
-		let available_data = AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
+		let available_data =
+			AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
 		let chunks = obtain_chunks(10, &available_data).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -413,7 +414,8 @@ mod tests {
 		let pov_block =
 			PoVBlock { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
 
-		let available_data = AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
+		let available_data =
+			AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
 
 		let chunks = obtain_chunks(magnitude as usize, &available_data).unwrap();
 

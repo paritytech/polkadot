@@ -23,12 +23,12 @@
 //! contain randomness based data.
 use polkadot_primitives::v1::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
-	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash, ValidatorId,
+	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
+	ValidatorId,
 };
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
-
 
 /// Creates a candidate receipt without
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {

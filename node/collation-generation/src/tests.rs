@@ -16,6 +16,10 @@
 
 mod handle_new_activations {
 	use super::super::*;
+	use ::test_helpers::{
+		dummy_collator, dummy_collator_signature, dummy_digest, dummy_hash, dummy_head_data,
+		dummy_validation_code, dummy_validator,
+	};
 	use futures::{
 		lock::Mutex,
 		task::{Context as FuturesContext, Poll},
@@ -30,7 +34,6 @@ mod handle_new_activations {
 		CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 	};
 	use std::pin::Pin;
-	use ::test_helpers::{dummy_collator_signature, dummy_validator, dummy_validation_code, dummy_hash, dummy_collator, dummy_head_data, dummy_digest};
 
 	fn test_collation() -> Collation {
 		Collation {

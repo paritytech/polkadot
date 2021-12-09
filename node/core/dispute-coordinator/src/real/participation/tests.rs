@@ -36,9 +36,13 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, HashT, Header, ValidationCode, PersistedValidationData, };
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, HashT, Header, PersistedValidationData, ValidationCode,
+};
 
-use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_candidate_commitments, dummy_hash, dummy_digest};
+use ::test_helpers::{
+	dummy_candidate_commitments, dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash,
+};
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
@@ -65,8 +69,7 @@ async fn participate_with_commitments_hash(
 	commitments_hash: Hash,
 ) -> Result<()> {
 	let candidate_receipt = {
-		let mut receipt =
-			dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
+		let mut receipt = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 		receipt.commitments_hash = commitments_hash;
 		receipt
 	};
@@ -139,8 +142,10 @@ pub async fn participation_missing_availability(ctx_handle: &mut VirtualOverseer
 async fn recover_available_data(virtual_overseer: &mut VirtualOverseer) {
 	let pov_block = PoV { block_data: BlockData(Vec::new()) };
 
-	let available_data =
-		AvailableData { pov: Arc::new(pov_block), validation_data: PersistedValidationData::default() };
+	let available_data = AvailableData {
+		pov: Arc::new(pov_block),
+		validation_data: PersistedValidationData::default(),
+	};
 
 	assert_matches!(
 		virtual_overseer.recv().await,

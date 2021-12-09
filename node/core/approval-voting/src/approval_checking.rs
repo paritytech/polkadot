@@ -466,7 +466,7 @@ mod tests {
 
 	use bitvec::vec::BitVec;
 
-	use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_digest};
+	use ::test_helpers::{dummy_candidate_receipt, dummy_digest, dummy_hash};
 
 	use crate::approval_db;
 

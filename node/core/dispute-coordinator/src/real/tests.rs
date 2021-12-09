@@ -71,7 +71,10 @@ use super::{
 	status::{Clock, Timestamp},
 };
 
-use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash, dummy_collator, dummy_head_data, dummy_digest};
+use ::test_helpers::{
+	dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_collator, dummy_digest,
+	dummy_hash, dummy_head_data,
+};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -365,8 +368,7 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-	let mut candidate_receipt =
-		dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
+	let mut candidate_receipt = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }
