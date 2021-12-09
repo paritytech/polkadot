@@ -157,9 +157,13 @@ jobs:
       - name: Get runtime version
         id: get-runtime-ver
         run: |
-          ls
-          ls "${{ matrix.runtime }}-runtime"
-          runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
+          echo "require './scripts/github/lib.rb'" > script.rb
+          echo "puts get_runtime(runtime: \"${{ matrix.runtime }}\", runtime_dir: \"$RUNTIME_DIR\")" >> script.rb
+
+          echo "Current folder: $PWD"
+          ls "$RUNTIME_DIR/${{ matrix.runtime }}"
+          runtime_ver=$(ruby script.rb)
+          echo "Found version: >$runtime_ver<"
           echo "::set-output name=runtime_ver::$runtime_ver"
 
       - name: Upload compressed ${{ matrix.runtime }} wasm
