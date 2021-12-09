@@ -353,24 +353,24 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub validation_code_hash: ValidationCodeHash,
 }
 
-impl CandidateDescriptor<Hash> {
-	/// Create a dummy `CandidateDescriptor` with the given `collator`.
-	pub fn dummy(collator: CollatorId) -> Self {
-		let zeros = Hash::zero();
-		// let zeros = Default::default();
-		Self {
-			para_id: 0.into(),
-			relay_parent: zeros,
-			collator,
-			persisted_validation_data_hash: zeros,
-			pov_hash: zeros,
-			erasure_root: zeros,
-			signature: CollatorSignature::from(sr25519::Signature([0u8; 64])),
-			para_head: zeros,
-			validation_code_hash: ValidationCode(vec![1, 2, 3]).hash(),
-		}
-	}
-}
+// impl CandidateDescriptor<Hash> {
+// 	/// Create a dummy `CandidateDescriptor` with the given `collator`.
+// 	pub fn dummy(collator: CollatorId) -> Self {
+// 		let zeros = Hash::zero();
+// 		// let zeros = Default::default();
+// 		Self {
+// 			para_id: 0.into(),
+// 			relay_parent: zeros,
+// 			collator,
+// 			persisted_validation_data_hash: zeros,
+// 			pov_hash: zeros,
+// 			erasure_root: zeros,
+// 			signature: CollatorSignature::from(sr25519::Signature([0u8; 64])),
+// 			para_head: zeros,
+// 			validation_code_hash: ValidationCode(vec![1, 2, 3]).hash(),
+// 		}
+// 	}
+// }
 
 impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 	/// Check the signature of the collator within this descriptor.
