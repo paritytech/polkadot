@@ -6501,6 +6501,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-overseer-gen",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-client-api",
  "sp-api",
  "sp-application-crypto",

@@ -32,8 +32,8 @@ use polkadot_overseer::{
 	gen::{FromOverseer, SpawnedSubsystem},
 	AllMessages, HeadSupportsParachains, OverseerSignal, SubsystemError,
 };
-use polkadot_primitives::v1::{CandidateDescriptor, CollatorId, Hash};
-use sp_application_crypto::sr25519;
+use polkadot_primitives::v1::{Hash};
+use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 
 struct AlwaysSupportsParachains;
 impl HeadSupportsParachains for AlwaysSupportsParachains {
@@ -74,7 +74,7 @@ impl Subsystem1 {
 			let (tx, _) = oneshot::channel();
 
 			let msg = CandidateValidationMessage::ValidateFromChainState(
-				CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
+				dummy_candidate_descriptor(dummy_hash()),
 				PoV { block_data: BlockData(Vec::new()) }.into(),
 				Default::default(),
 				tx,

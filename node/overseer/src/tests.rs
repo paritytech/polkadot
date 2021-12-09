@@ -28,11 +28,10 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v1::{
-	CandidateReceipt,
-	CandidateDescriptor, CandidateHash, CollatorId, CollatorPair,
+	CandidateHash, CollatorPair,
 	InvalidDisputeStatementKind, ValidDisputeStatementKind, ValidatorIndex,
 };
-use sp_application_crypto::sr25519;
+use ::test_helpers::{dummy_candidate_descriptor, dummy_hash, dummy_candidate_receipt};
 
 use crate::{
 	self as overseer,
@@ -112,9 +111,7 @@ where
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
-							CandidateDescriptor::dummy(CollatorId::from(
-								sr25519::Public::from_raw([42; 32]),
-							)),
+							dummy_candidate_descriptor(dummy_hash()),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
@@ -797,7 +794,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
 	CandidateValidationMessage::ValidateFromChainState(
-		CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
+		dummy_candidate_descriptor(dummy_hash()),
 		pov,
 		Duration::default(),
 		sender,
@@ -848,7 +845,7 @@ fn test_statement_distribution_msg() -> StatementDistributionMessage {
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 	let (sender, _) = oneshot::channel();
 	AvailabilityRecoveryMessage::RecoverAvailableData(
-		CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))),
+		dummy_candidate_receipt(dummy_hash()),
 		Default::default(),
 		None,
 		sender,
@@ -894,9 +891,7 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 	let dummy_dispute_message = UncheckedDisputeMessage {
-		candidate_receipt: CandidateReceipt::dummy(CollatorId::from(
-			sr25519::Public::from_raw([42; 32]),
-		)),
+		candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 		session_index: 0,
 		invalid_vote: InvalidDisputeVote {
 			validator_index: ValidatorIndex(0),
