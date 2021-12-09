@@ -1281,8 +1281,6 @@ fn candidate_checks() {
 				let expected_at = 10 + cfg.validation_upgrade_delay;
 				assert_eq!(expected_at, 10);
 				Paras::schedule_code_upgrade(chain_a, vec![1, 2, 3, 4].into(), expected_at, &cfg);
-
-				assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(expected_at));
 			}
 
 			assert_noop!(
