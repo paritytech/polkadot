@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor};
 use assert_matches::assert_matches;
 use futures::executor;
 use polkadot_node_core_pvf::PrepareError;
@@ -24,7 +25,6 @@ use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
-use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor};
 
 #[test]
 fn correctly_checks_included_assumption() {

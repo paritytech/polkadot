@@ -15,6 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use ::test_helpers::{
+	dummy_candidate_receipt_bad_sig, dummy_collator, dummy_collator_signature,
+	dummy_committed_candidate_receipt, dummy_hash, dummy_validation_code,
+};
 use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate};
@@ -26,16 +30,12 @@ use polkadot_subsystem::{
 	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
-use sp_application_crypto::{AppKey};
+use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore};
 use sp_tracing as _;
 use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
-use ::test_helpers::{
-	dummy_candidate_receipt_bad_sig, dummy_committed_candidate_receipt, dummy_hash,
-	dummy_validation_code, dummy_collator, dummy_collator_signature
-};
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()

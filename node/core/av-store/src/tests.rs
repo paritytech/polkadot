@@ -21,6 +21,7 @@ use std::convert::TryFrom;
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
+use ::test_helpers::TestCandidateBuilder;
 use parking_lot::Mutex;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -36,7 +37,6 @@ use polkadot_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use sp_keyring::Sr25519Keyring;
-use ::test_helpers::TestCandidateBuilder;
 
 mod columns {
 	pub const DATA: u32 = 0;
