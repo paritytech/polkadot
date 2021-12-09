@@ -947,6 +947,50 @@ impl RuntimeMetricUpdate {
 	}
 }
 
+/// A set of metric labels.
+pub type RuntimeMetricLabels = Vec<RuntimeMetricLabel>;
+
+/// A metric label.
+#[derive(Clone, Default)]
+pub struct RuntimeMetricLabel(Vec<u8>);
+
+/// A metric label value.
+#[derive(Clone, Default)]
+pub struct RuntimeMetricLabelValue(Vec<u8>);
+
+/// A set of metric label values.
+pub type RuntimeMetricLabelValues = Vec<RuntimeMetricLabelValue>;
+
+/// Trait for converting Vec<u8> to &str.
+pub trait AsStr {
+	/// Return a str reference.
+	fn as_str(&self) -> Option<&str>;
+}
+
+impl AsStr for RuntimeMetricLabel {
+	fn as_str(&self) -> Option<&str> {
+		sp_std::str::from_utf8(&self.0).ok()
+	}
+}
+
+impl AsStr for RuntimeMetricLabelValue {
+	fn as_str(&self) -> Option<&str> {
+		sp_std::str::from_utf8(&self.0).ok()
+	}
+}
+
+impl From<&'static str> for RuntimeMetricLabel {
+	fn from(s: &'static str) -> Self {
+		Self(s.as_bytes().to_vec())
+	}
+}
+
+impl From<&'static str> for RuntimeMetricLabelValue {
+	fn from(s: &'static str) -> Self {
+		Self(s.as_bytes().to_vec())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
