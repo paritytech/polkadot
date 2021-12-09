@@ -1095,13 +1095,12 @@ mod tests {
 	use super::*;
 	use frame_support::{assert_err, assert_ok};
 	use primitives::v1::BlockNumber;
+	use test_helpers::{dummy_head_data, dummy_validation_code};
 
 	use crate::{
 		configuration::HostConfiguration,
 		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
-
-	use test_helpers::{dummy_head_data, dummy_validation_code};
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {

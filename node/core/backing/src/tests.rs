@@ -26,7 +26,7 @@ use polkadot_subsystem::{
 	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
-use sp_application_crypto::{sr25519, AppKey};
+use sp_application_crypto::{AppKey};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore};
 use sp_tracing as _;
@@ -34,7 +34,7 @@ use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
 use ::test_helpers::{
 	dummy_candidate_receipt_bad_sig, dummy_committed_candidate_receipt, dummy_hash,
-	dummy_validation_code,
+	dummy_validation_code, dummy_collator, dummy_collator_signature
 };
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -193,8 +193,10 @@ impl TestCandidateBuilder {
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
-				collator: CollatorId::from(sp_keyring::AccountKeyring::Two.public()),
-				signature: sr25519::Signature([0u8; 64]).into(),
+				// collator: CollatorId::from(sp_keyring::AccountKeyring::Two.public()),
+				collator: dummy_collator(),
+				// signature: sr25519::Signature([0u8; 64]).into(),
+				signature: dummy_collator_signature(),
 				para_head: dummy_hash(),
 				validation_code_hash: dummy_validation_code().hash(),
 				persisted_validation_data_hash: dummy_hash(),

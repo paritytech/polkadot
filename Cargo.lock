@@ -6506,7 +6506,6 @@ dependencies = [
  "polkadot-primitives-test-helpers",
  "sc-client-api",
  "sp-api",
- "sp-application-crypto",
  "sp-core",
  "tracing",
 ]

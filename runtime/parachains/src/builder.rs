@@ -47,7 +47,7 @@ fn mock_validation_code() -> ValidationCode {
 /// "features = runtime-benchmarks".
 fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
-	AccountId::decode(&mut &entropy[..]).expect("user must call with valid input.")
+	AccountId::decode(&mut &entropy[..]).expect("256 bit input is valid. qed.")
 }
 
 /// Create a 32 byte slice based on the given number.
