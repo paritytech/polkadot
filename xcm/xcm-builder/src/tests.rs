@@ -598,7 +598,7 @@ fn transacting_should_respect_max_weight_requirement() {
 	}]);
 	let weight_limit = 60;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
-	assert_eq!(r, Outcome::Incomplete(50, XcmError::TooMuchWeightRequired));
+	assert_eq!(r, Outcome::Incomplete(50, XcmError::MaxWeightInvalid));
 }
 
 #[test]

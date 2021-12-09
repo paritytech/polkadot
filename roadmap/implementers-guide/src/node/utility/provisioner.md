@@ -28,8 +28,6 @@ The dispute inherent is similar to a misbehavior report in that it is an attesta
 
 Dispute resolution is complex and is explained in substantially more detail [here](../../runtime/disputes.md).
 
-> TODO: The provisioner is responsible for selecting remote disputes to replay. Let's figure out the details.
-
 ## Protocol
 
 Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.md).

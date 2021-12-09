@@ -21,9 +21,9 @@ This design should result in a protocol that is:
 
 ### Output
 
-- [`DisputeCoordinatorMessage::ActiveDisputes`][DisputeParticipationMessage]
-- [`DisputeCoordinatorMessage::ImportStatements`][DisputeParticipationMessage]
-- [`DisputeCoordinatorMessage::QueryCandidateVotes`][DisputeParticipationMessage]
+- [`DisputeCoordinatorMessage::ActiveDisputes`][DisputeCoordinatorMessage]
+- [`DisputeCoordinatorMessage::ImportStatements`][DisputeCoordinatorMessage]
+- [`DisputeCoordinatorMessage::QueryCandidateVotes`][DisputeCoordinatorMessage]
 - [`RuntimeApiMessage`][RuntimeApiMessage]
 
 ### Wire format
@@ -357,4 +357,3 @@ no real harm done: There was no serious attack to begin with.
 
 [DisputeDistributionMessage]: ../../types/overseer-protocol.md#dispute-distribution-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
-[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

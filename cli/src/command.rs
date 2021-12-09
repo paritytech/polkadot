@@ -221,8 +221,8 @@ fn host_perf_check() -> Result<()> {
 /// accepts an alternative overseer generator, to adjust behavior
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
-pub fn run_node(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(cli, overseer_gen)
+pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
+	run_node_inner(run, overseer_gen)
 }
 
 fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
@@ -256,7 +256,7 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 				config,
 				service::IsCollator::No,
 				grandpa_pause,
-				cli.run.no_beefy,
+				cli.run.beefy,
 				jaeger_agent,
 				None,
 				overseer_gen,

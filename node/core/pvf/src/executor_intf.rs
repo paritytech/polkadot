@@ -34,7 +34,7 @@ const CONFIG: Config = Config {
 	// Besides `heap_pages` linear memory requests an initial number of pages. Those pages are
 	// typically used for placing the so-called shadow stack and the data section.
 	//
-	// By default, rustc (or lld specifically) allocates 1 MiB for the shadow stack. That is, 16
+	// By default, rustc (or `lld` specifically) allocates 1 MiB for the shadow stack. That is, 16
 	// wasm pages.
 	//
 	// Data section for runtimes are typically rather small and can fit in a single digit number of
@@ -51,7 +51,7 @@ const CONFIG: Config = Config {
 	cache_path: None,
 	semantics: Semantics {
 		fast_instance_reuse: false,
-		// Enable determinstic stack limit to pin down the exact number of items the wasmtime stack
+		// Enable deterministic stack limit to pin down the exact number of items the wasmtime stack
 		// can contain before it traps with stack overflow.
 		//
 		// Here is how the values below were chosen.
@@ -60,7 +60,7 @@ const CONFIG: Config = Config {
 		// (see the docs about the field and the instrumentation algorithm) is 8 bytes, 1 MiB can
 		// fit 2x 65536 logical items.
 		//
-		// Since reaching the native stack limit is undesirable, we halven the logical item limit and
+		// Since reaching the native stack limit is undesirable, we halve the logical item limit and
 		// also increase the native 256x. This hopefully should preclude wasm code from reaching
 		// the stack limit set by the wasmtime.
 		deterministic_stack_limit: Some(DeterministicStackLimit {
