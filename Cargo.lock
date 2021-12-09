@@ -3656,28 +3656,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libp2p-rendezvous"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14a6d2b9e7677eff61dc3d2854876aaf3976d84a01ef6664b610c77a0c9407c5"
-dependencies = [
- "asynchronous-codec 0.6.0",
- "bimap",
- "futures 0.3.17",
- "libp2p-core",
- "libp2p-swarm",
- "log",
- "prost",
- "prost-build",
- "rand 0.8.4",
- "sha2 0.9.8",
- "thiserror",
- "unsigned-varint 0.7.0",
- "void",
- "wasm-timer",
-]
-
-[[package]]
 name = "libp2p-request-response"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
