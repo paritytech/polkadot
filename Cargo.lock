@@ -5865,9 +5865,11 @@ dependencies = [
  "futures 0.3.18",
  "log",
  "polkadot-node-core-pvf",
+ "polkadot-performance-test",
  "polkadot-service",
  "sc-cli",
  "sc-service",
+ "sc-tracing",
  "sp-core",
  "sp-trie",
  "structopt",
@@ -6538,6 +6540,20 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "polkadot-performance-test"
+version = "0.9.13"
+dependencies = [
+ "env_logger 0.9.0",
+ "kusama-runtime",
+ "log",
+ "polkadot-erasure-coding",
+ "polkadot-node-core-pvf",
+ "polkadot-node-primitives",
+ "quote",
+ "thiserror",
 ]
 
 [[package]]
