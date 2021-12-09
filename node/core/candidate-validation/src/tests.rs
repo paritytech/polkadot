@@ -44,7 +44,7 @@ fn correctly_checks_included_assumption() {
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let pool = TaskExecutor::new();
@@ -116,7 +116,7 @@ fn correctly_checks_timed_out_assumption() {
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let pool = TaskExecutor::new();
@@ -186,7 +186,7 @@ fn check_is_bad_request_if_no_validation_data() {
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let pool = TaskExecutor::new();
@@ -240,7 +240,7 @@ fn check_is_bad_request_if_no_validation_code() {
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let pool = TaskExecutor::new();
@@ -306,7 +306,7 @@ fn check_does_not_match() {
 		dummy_hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let pool = TaskExecutor::new();
@@ -387,7 +387,7 @@ fn candidate_validation_ok_is_ok() {
 		validation_code.hash(),
 		head_data.hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let check = perform_basic_checks(
@@ -443,7 +443,7 @@ fn candidate_validation_bad_return_is_invalid() {
 		validation_code.hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let check = perform_basic_checks(
@@ -485,7 +485,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		validation_code.hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let check = perform_basic_checks(
@@ -526,7 +526,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		ValidationCode(vec![1; 16]).hash(),
 		dummy_hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let check = perform_basic_checks(
@@ -572,7 +572,7 @@ fn compressed_code_works() {
 		validation_code.hash(),
 		head_data.hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let validation_result = WasmValidationResult {
@@ -617,7 +617,7 @@ fn code_decompression_failure_is_invalid() {
 		validation_code.hash(),
 		head_data.hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let validation_result = WasmValidationResult {
@@ -663,7 +663,7 @@ fn pov_decompression_failure_is_invalid() {
 		validation_code.hash(),
 		head_data.hash(),
 		dummy_hash(),
-		Sr25519Keyring::Alice.public(),
+		Sr25519Keyring::Alice,
 	);
 
 	let validation_result = WasmValidationResult {
