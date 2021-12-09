@@ -36,7 +36,7 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{
-	BlakeTwo256, BlockNumber, CandidateEvent, CandidateReceipt, CollatorId, CoreIndex, GroupIndex,
+	BlakeTwo256, BlockNumber, CandidateEvent, CoreIndex, GroupIndex,
 	Hash, HashT, HeadData,
 };
 
