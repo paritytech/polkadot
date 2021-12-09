@@ -81,7 +81,7 @@ jobs:
 
       - name: Prepare tooling
         run: |
-          cd cumulus/scripts/changelog
+          cd polkadot/scripts/changelog
           gem install bundler changelogerator
           bundle install
           changelogerator --help
@@ -114,7 +114,7 @@ jobs:
           ls -al $ROCOCO_DIGEST
 
           echo "The diff will be computed from $REF1 to $REF2"
-          cd cumulus/scripts/changelog
+          cd polkadot/scripts/changelog
 
           ./bin/changelog
           ls -al release-notes.md
@@ -136,7 +136,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Polkadot ${{ github.ref }}
-          body_path: ./cumulus/scripts/changelog/release-notes.md
+          body_path: ./polkadot/scripts/changelog/release-notes.md
           draft: true
 
   publish-runtimes:
