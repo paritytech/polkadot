@@ -56,41 +56,6 @@ use sp_std::{
 };
 
 use polkadot_runtime_metrics::CounterVec;
-
-// TODO: Find a better place for all of this stuff:
-// #[cfg(not(feature = "std"))]
-// use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
-
-// // TODO: implement a define_metric macro that builds a metric object
-// // with the Prometheus interface.
-// #[cfg(not(feature = "std"))]
-// /// Increment counter vec metric by specified value.
-// macro_rules! inc_counter_vec {
-// 	($metric:ident, $value:expr) => {
-// 		let metric_update = RuntimeMetricUpdate {
-// 			metric_name: sp_std::vec::Vec::from(stringify!($metric)),
-// 			op: RuntimeMetricOp::Increment($value.try_into().unwrap_or(0))
-// 		}.encode();
-
-// 		// This is safe, we only care about the metric name being a valid utf8 str,
-// 		// which is enforced above.
-// 		unsafe {
-// 			let update_op = sp_std::str::from_utf8_unchecked(&metric_update);
-
-// 			sp_tracing::event!(
-// 				target: "metrics",
-// 				sp_tracing::Level::TRACE,
-// 				update_op
-// 			);
-// 		}
-// 	};
-// }
-
-// #[cfg(feature = "std")]
-// macro_rules! inc_counter_vec {
-// 	($metric:ident, $value:expr) => {};
-// }
-
 mod misc;
 mod weights;
 
