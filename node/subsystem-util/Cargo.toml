@@ -14,7 +14,7 @@ pin-project = "1.0.8"
 rand = "0.8.3"
 thiserror = "1.0.30"
 tracing = "0.1.29"
-derive_more = "0.99.11"
+derive_more = "0.99.17"
 lru = "0.7.0"
 
 polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }

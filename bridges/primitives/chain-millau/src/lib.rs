@@ -25,14 +25,14 @@ mod millau_hash;
 use bp_messages::{LaneId, MessageDetails, MessageNonce, UnrewardedRelayersState};
 use bp_runtime::Chain;
 use frame_support::{
-	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, Weight},
+	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, IdentityFee, Weight},
 	Parameter, RuntimeDebug,
 };
 use frame_system::limits;
+use scale_info::TypeInfo;
 use sp_core::Hasher as HasherT;
-use sp_runtime::traits::Convert;
 use sp_runtime::{
-	traits::{IdentifyAccount, Verify},
+	traits::{Convert, IdentifyAccount, Verify},
 	MultiSignature, MultiSigner, Perbill,
 };
 use sp_std::prelude::*;
@@ -77,29 +77,32 @@ pub const MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE: MessageNonce = 1024;
 /// Weight of single regular message delivery transaction on Millau chain.
 ///
 /// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_proof_weight()` call
-/// for the case when single message of `pallet_bridge_messages::EXPECTED_DEFAULT_MESSAGE_LENGTH` bytes is delivered.
-/// The message must have dispatch weight set to zero. The result then must be rounded up to account
-/// possible future runtime upgrades.
+/// for the case when single message of `pallet_bridge_messages::EXPECTED_DEFAULT_MESSAGE_LENGTH`
+/// bytes is delivered. The message must have dispatch weight set to zero. The result then must be
+/// rounded up to account possible future runtime upgrades.
 pub const DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT: Weight = 1_500_000_000;
 
 /// Increase of delivery transaction weight on Millau chain with every additional message byte.
 ///
-/// This value is a result of `pallet_bridge_messages::WeightInfoExt::storage_proof_size_overhead(1)` call. The
-/// result then must be rounded up to account possible future runtime upgrades.
+/// This value is a result of
+/// `pallet_bridge_messages::WeightInfoExt::storage_proof_size_overhead(1)` call. The result then
+/// must be rounded up to account possible future runtime upgrades.
 pub const ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT: Weight = 25_000;
 
 /// Maximal weight of single message delivery confirmation transaction on Millau chain.
 ///
-/// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_delivery_proof` weight formula computation
-/// for the case when single message is confirmed. The result then must be rounded up to account possible future
-/// runtime upgrades.
+/// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_delivery_proof`
+/// weight formula computation for the case when single message is confirmed. The result then must
+/// be rounded up to account possible future runtime upgrades.
 pub const MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT: Weight = 2_000_000_000;
 
 /// Weight of pay-dispatch-fee operation for inbound messages at Millau chain.
 ///
-/// This value corresponds to the result of `pallet_bridge_messages::WeightInfoExt::pay_inbound_dispatch_fee_overhead()`
-/// call for your chain. Don't put too much reserve there, because it is used to **decrease**
-/// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery transactions cheaper.
+/// This value corresponds to the result of
+/// `pallet_bridge_messages::WeightInfoExt::pay_inbound_dispatch_fee_overhead()` call for your
+/// chain. Don't put too much reserve there, because it is used to **decrease**
+/// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery
+/// transactions cheaper.
 pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
 
 /// The target length of a session (how often authorities change) on Millau measured in of number of
@@ -130,7 +133,7 @@ pub type BlockNumber = u64;
 /// Hash type used in Millau.
 pub type Hash = <BlakeTwoAndKeccak256 as HasherT>::Out;
 
-/// The type of an object that can produce hashes on Millau.
+/// Type of object that can produce hashes on Millau.
 pub type Hasher = BlakeTwoAndKeccak256;
 
 /// The header type used by Millau.
@@ -149,6 +152,12 @@ pub type AccountSigner = MultiSigner;
 /// Balance of an account.
 pub type Balance = u64;
 
+/// Index of a transaction in the chain.
+pub type Index = u32;
+
+/// Weight-to-Fee type used by Millau.
+pub type WeightToFee = IdentityFee<Balance>;
+
 /// Millau chain.
 #[derive(RuntimeDebug)]
 pub struct Millau;
@@ -158,10 +167,15 @@ impl Chain for Millau {
 	type Hash = Hash;
 	type Hasher = Hasher;
 	type Header = Header;
+
+	type AccountId = AccountId;
+	type Balance = Balance;
+	type Index = Index;
+	type Signature = Signature;
 }
 
 /// Millau Hasher (Blake2-256 ++ Keccak-256) implementation.
-#[derive(PartialEq, Eq, Clone, Copy, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Copy, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct BlakeTwoAndKeccak256;
 
@@ -245,25 +259,36 @@ pub fn max_extrinsic_size() -> u32 {
 	*BlockLength::get().max.get(DispatchClass::Normal)
 }
 
+/// Name of the With-Rialto messages pallet instance in the Millau runtime.
+pub const WITH_RIALTO_MESSAGES_PALLET_NAME: &str = "BridgeRialtoMessages";
+/// Name of the With-Rialto token swap pallet instance in the Millau runtime.
+pub const WITH_RIALTO_TOKEN_SWAP_PALLET_NAME: &str = "BridgeRialtoTokenSwap";
+
 /// Name of the `MillauFinalityApi::best_finalized` runtime method.
 pub const BEST_FINALIZED_MILLAU_HEADER_METHOD: &str = "MillauFinalityApi_best_finalized";
 
-/// Name of the `ToMillauOutboundLaneApi::estimate_message_delivery_and_dispatch_fee` runtime method.
+/// Name of the `ToMillauOutboundLaneApi::estimate_message_delivery_and_dispatch_fee` runtime
+/// method.
 pub const TO_MILLAU_ESTIMATE_MESSAGE_FEE_METHOD: &str =
 	"ToMillauOutboundLaneApi_estimate_message_delivery_and_dispatch_fee";
 /// Name of the `ToMillauOutboundLaneApi::message_details` runtime method.
 pub const TO_MILLAU_MESSAGE_DETAILS_METHOD: &str = "ToMillauOutboundLaneApi_message_details";
 /// Name of the `ToMillauOutboundLaneApi::latest_received_nonce` runtime method.
-pub const TO_MILLAU_LATEST_RECEIVED_NONCE_METHOD: &str = "ToMillauOutboundLaneApi_latest_received_nonce";
+pub const TO_MILLAU_LATEST_RECEIVED_NONCE_METHOD: &str =
+	"ToMillauOutboundLaneApi_latest_received_nonce";
 /// Name of the `ToMillauOutboundLaneApi::latest_generated_nonce` runtime method.
-pub const TO_MILLAU_LATEST_GENERATED_NONCE_METHOD: &str = "ToMillauOutboundLaneApi_latest_generated_nonce";
+pub const TO_MILLAU_LATEST_GENERATED_NONCE_METHOD: &str =
+	"ToMillauOutboundLaneApi_latest_generated_nonce";
 
 /// Name of the `FromMillauInboundLaneApi::latest_received_nonce` runtime method.
-pub const FROM_MILLAU_LATEST_RECEIVED_NONCE_METHOD: &str = "FromMillauInboundLaneApi_latest_received_nonce";
+pub const FROM_MILLAU_LATEST_RECEIVED_NONCE_METHOD: &str =
+	"FromMillauInboundLaneApi_latest_received_nonce";
 /// Name of the `FromMillauInboundLaneApi::latest_onfirmed_nonce` runtime method.
-pub const FROM_MILLAU_LATEST_CONFIRMED_NONCE_METHOD: &str = "FromMillauInboundLaneApi_latest_confirmed_nonce";
+pub const FROM_MILLAU_LATEST_CONFIRMED_NONCE_METHOD: &str =
+	"FromMillauInboundLaneApi_latest_confirmed_nonce";
 /// Name of the `FromMillauInboundLaneApi::unrewarded_relayers_state` runtime method.
-pub const FROM_MILLAU_UNREWARDED_RELAYERS_STATE: &str = "FromMillauInboundLaneApi_unrewarded_relayers_state";
+pub const FROM_MILLAU_UNREWARDED_RELAYERS_STATE: &str =
+	"FromMillauInboundLaneApi_unrewarded_relayers_state";
 
 sp_api::decl_runtime_apis! {
 	/// API for querying information about the finalized Millau headers.
@@ -287,7 +312,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if message is too expensive to be sent to Millau from this chain.
 		///
-		/// Please keep in mind that this method returns lowest message fee required for message
+		/// Please keep in mind that this method returns the lowest message fee required for message
 		/// to be accepted to the lane. It may be good idea to pay a bit over this price to account
 		/// future exchange rate changes and guarantee that relayer would deliver your message
 		/// to the target chain.
@@ -318,7 +343,7 @@ sp_api::decl_runtime_apis! {
 	pub trait FromMillauInboundLaneApi {
 		/// Returns nonce of the latest message, received by given lane.
 		fn latest_received_nonce(lane: LaneId) -> MessageNonce;
-		/// Nonce of latest message that has been confirmed to the bridged chain.
+		/// Nonce of the latest message that has been confirmed to the bridged chain.
 		fn latest_confirmed_nonce(lane: LaneId) -> MessageNonce;
 		/// State of the unrewarded relayers set at given lane.
 		fn unrewarded_relayers_state(lane: LaneId) -> UnrewardedRelayersState;
