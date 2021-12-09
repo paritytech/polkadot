@@ -31,7 +31,7 @@ use sp_application_crypto::sr25519;
 /// Creates a candidate receipt without
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
 	CandidateReceipt::<H> {
-		commitments_hash: dummy_candidate_commitments(HeadData(vec![1,1,11])).hash(),
+		commitments_hash: dummy_candidate_commitments(dummy_head_data()).hash(),
 		descriptor: dummy_candidate_descriptor(relay_parent),
 	}
 }
@@ -40,7 +40,7 @@ pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateRece
 pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CommittedCandidateReceipt<H> {
 	CommittedCandidateReceipt::<H> {
 		descriptor: dummy_candidate_descriptor::<H>(relay_parent),
-		commitments: dummy_candidate_commitments(HeadData(vec![1,1,11])),
+		commitments: dummy_candidate_commitments(dummy_head_data()),
 	}
 }
 
@@ -49,7 +49,7 @@ pub fn dummy_candidate_receipt_bad_sig(relay_parent: Hash, commitments: Option<H
 		commitments_hash: if let Some(c) = commitments {
 			c
 		} else {
-			dummy_candidate_commitments(HeadData(vec![1,1,11])).hash()
+			dummy_candidate_commitments(dummy_head_data()).hash()
 		},
 		descriptor: dummy_candidate_descriptor_bad_sig(relay_parent),
 	}
@@ -84,7 +84,7 @@ pub fn dummy_candidate_descriptor_bad_sig(relay_parent: Hash) -> CandidateDescri
 		erasure_root: zeros,
 		signature: CollatorSignature::from(sr25519::Signature([0u8;64])),
 		para_head: zeros,
-		validation_code_hash: ValidationCode(vec![1,2,3]).hash(),
+		validation_code_hash: dummy_validation_code().hash(),
 	}
 }
 
@@ -97,6 +97,11 @@ pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateD
 
 pub fn dummy_validation_code() -> ValidationCode {
 	ValidationCode(vec![1,2,3])
+}
+
+pub fn dummy_head_data() -> HeadData {
+	// HeadData(vec![1,1,11])
+	HeadData(vec![0xFF; 129])
 }
 
 /// Create a new candidate descripter, and applies a valid signature

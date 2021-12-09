@@ -38,9 +38,10 @@ use primitives::{
 	},
 };
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::sr25519;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use std::{sync::Arc, default};
+use std::{sync::Arc};
+use test_helpers::{dummy_candidate_descriptor, dummy_hash};
+use sp_core::sr25519;
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -256,14 +257,14 @@ impl std::default::Default for TestCandidateBuilder {
 		let zeros = Hash::zero();
 		Self {
 			para_id: 0.into(),
-			head_data: HeadData::from(vec![1,2,3]),
+			head_data: Default::default(),
 			para_head_hash: None,
 			pov_hash: zeros,
 			relay_parent: zeros,
 			persisted_validation_data_hash: zeros,
 			new_validation_code: None,
-			validation_code: ValidationCode(vec![1,2,3]),
-			hrmp_watermark: 0.into(),
+			validation_code: Default::default(),
+			hrmp_watermark: 0u32.into(),
 		}
 	}
 }
@@ -409,9 +410,7 @@ fn bitfield_checks() {
 						availability_votes: default_availability_votes(),
 						core: Default::default(),
 						hash: Default::default(),
-						descriptor: CandidateDescriptor::dummy(CollatorId::from(
-							sr25519::Public::from_raw([42; 32]),
-						)),
+						descriptor: dummy_candidate_descriptor(dummy_hash()),
 						backers: Default::default(),
 						relay_parent_number: Default::default(),
 						backed_in_number: Default::default(),

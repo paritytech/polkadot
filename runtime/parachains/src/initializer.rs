@@ -340,6 +340,8 @@ mod tests {
 		System,
 	};
 	use primitives::v1::Id as ParaId;
+	use primitives::v1::HeadData;
+	use test_helpers::{dummy_validation_code};
 
 	use frame_support::{
 		assert_ok,
@@ -426,8 +428,8 @@ mod tests {
 
 		let mock_genesis = crate::paras::ParaGenesisArgs {
 			parachain: true,
-			genesis_head: HeadData(vec![u8;129]),
-			validation_code: ValidationCode(vec![1,2,3]),
+			genesis_head: HeadData(vec![4, 5, 6]),
+			validation_code: dummy_validation_code() ,
 		};
 
 		new_test_ext(MockGenesisConfig {

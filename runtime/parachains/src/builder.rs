@@ -28,8 +28,9 @@ use primitives::v1::{
 	Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
 	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
 	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
+	CollatorSignature
 };
-use sp_application_crypto::sr25519;
+use sp_core::sr25519;
 use sp_core::H256;
 use sp_runtime::{
 	generic::Digest,
@@ -40,6 +41,10 @@ use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, v
 
 fn dummy_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
+}
+
+fn dummy_head_data() -> HeadData {
+	HeadData(vec![0xFF, 129])
 }
 
 /// Grab an account, seeded by a name and index.
@@ -233,6 +238,20 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		(para_id, core_idx, group_idx)
 	}
 
+	fn candidate_descriptor_mock() -> CandidateDescriptor<T::Hash> {
+		CandidateDescriptor::<T::Hash> {
+			para_id: 0.into(),
+			relay_parent: Default::default(),
+			collator: CollatorId::from(sr25519::Public::from_raw([42u8; 32])),
+			persisted_validation_data_hash: Default::default(),
+			pov_hash: Default::default(),
+			erasure_root: Default::default(),
+			signature: CollatorSignature::from(sr25519::Signature([42u8; 64])),
+			para_head: Default::default(),
+			validation_code_hash: dummy_validation_code().hash(),
+		}
+	}
+
 	/// Create a mock of `CandidatePendingAvailability`.
 	fn candidate_availability_mock(
 		group_idx: GroupIndex,
@@ -241,9 +260,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		availability_votes: BitVec<BitOrderLsb0, u8>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
-			core_idx,                                                                          // core
-			candidate_hash,                                                                    // hash
-			CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32]))), // candidate descriptor
+			core_idx,                          // core
+			candidate_hash,                    // hash
+			Self::candidate_descriptor_mock(), // candidate descriptor
 			availability_votes, // availability votes
 			Default::default(), // backers
 			Zero::zero(),       // relay parent
@@ -316,7 +335,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
-					genesis_head: dummy_genesis_head_data(),
+					genesis_head: dummy_head_data(),
 					validation_code: dummy_validation_code(),
 					parachain: true,
 				},
