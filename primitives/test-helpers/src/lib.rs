@@ -169,3 +169,34 @@ pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(descriptor: &mu
 	let signature = collator.sign(&payload).into();
 	descriptor.signature = signature;
 }
+
+pub struct TestCandidateBuilder {
+	pub para_id: ParaId,
+	pub pov_hash: Hash,
+	pub relay_parent: Hash,
+	pub commitments_hash: Hash,
+}
+
+impl std::default::Default for TestCandidateBuilder {
+	fn default() -> Self {
+		let zeros = Hash::zero();
+		Self {
+			para_id: 0.into(),
+			pov_hash: zeros,
+			relay_parent: zeros,
+			commitments_hash: zeros,
+		}
+	}
+}
+
+impl TestCandidateBuilder {
+	pub fn build(self) -> CandidateReceipt {
+		let mut descriptor = dummy_candidate_descriptor(self.relay_parent);
+		descriptor.para_id = self.para_id;
+		descriptor.pov_hash = self.pov_hash;
+		CandidateReceipt {
+			descriptor,
+			commitments_hash: self.commitments_hash,
+		}
+	}
+}
