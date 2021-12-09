@@ -122,10 +122,3 @@ pub struct Cli {
 	pub run: RunCmd,
 }
 
-impl Cli {
-	/// Updates the prometheus metric prefix.
-	/// Must be called before `CliConfiguration::create_configuration()`.
-	pub fn update_prometheus_metric_prefix(&mut self, prefix: &'static str) {
-		self.run.base.prometheus_metric_prefix = prefix;
-	}
-}

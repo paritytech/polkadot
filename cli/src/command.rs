@@ -283,9 +283,6 @@ pub fn run_with_wasm_metrics() -> Result<()> {
 pub fn run() -> Result<()> {
 	let mut cli: Cli = Cli::from_args();
 
-	// Override the default substrate metric prefix.
-	cli.update_prometheus_metric_prefix("polkadot");
-
 	match &cli.subcommand {
 		// TODO: gate by feature `runtime_metrics`.
 		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
