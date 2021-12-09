@@ -150,7 +150,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	}
 }
 
-// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// We can't bound this on `Payload: Into<RealPayload>` because that conversion consumes
 // the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
 // because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
 // own trait which does what we need: EncodeAs.
@@ -214,7 +214,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
-		// equivalent to (real_payload, context).encode()
+		// equivalent to (`real_payload`, context).encode()
 		let mut out = payload.encode_as();
 		out.extend(context.encode());
 		out
