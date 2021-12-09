@@ -34,8 +34,8 @@ use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
 
 use ::test_helpers::{
-	dummy_committed_candidate_receipt, dummy_hash, dummy_validation_code,
-	dummy_candidate_receipt_bad_sig
+	dummy_candidate_receipt_bad_sig, dummy_committed_candidate_receipt, dummy_hash,
+	dummy_validation_code,
 };
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -1461,7 +1461,8 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let fake_attestation = |idx: u32| {
-		let candidate = dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
+		let candidate =
+			dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
 		let hash = candidate.hash();
 		let mut data = vec![0; 64];
 		data[0..32].copy_from_slice(hash.0.as_bytes());
