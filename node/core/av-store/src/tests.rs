@@ -26,8 +26,8 @@ use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	CandidateDescriptor, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
-	Id as ParaId, PersistedValidationData, ValidatorId,
+	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
+	PersistedValidationData, ValidatorId,
 };
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
@@ -47,7 +47,7 @@ const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns:
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
 
-use ::test_helpers::{dummy_candidate_descriptor, TestCandidateBuilder};
+use ::test_helpers::{TestCandidateBuilder};
 
 
 #[derive(Clone)]

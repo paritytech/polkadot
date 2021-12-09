@@ -26,9 +26,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
-	CandidateEvent, CollatorId, CoreIndex, GroupIndex, Header, Id as ParaId, ValidatorSignature,
+	CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, ValidatorSignature,
 };
-use sp_application_crypto::sr25519;
 use std::time::Duration;
 
 use assert_matches::assert_matches;
@@ -52,7 +51,7 @@ use super::{
 	},
 };
 
-use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_receipt_bad_sig};
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
 

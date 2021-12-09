@@ -34,6 +34,7 @@ use std::{
 	time::Duration,
 };
 use thiserror::Error;
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 // basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 // you can leave the subsystem itself to the job manager.
@@ -82,7 +83,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 				sender
 					.send_message(CollatorProtocolMessage::Invalid(
 						Default::default(),
-						Default::default(),
+						dummy_candidate_receipt(dummy_hash()),
 					))
 					.await;
 			}

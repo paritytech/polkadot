@@ -25,7 +25,7 @@ use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
-use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor, dummy_candidate_receipt};
+use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor};
 
 #[test]
 fn correctly_checks_included_assumption() {
