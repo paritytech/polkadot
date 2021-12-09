@@ -297,9 +297,12 @@ impl<T: Config> Pallet<T> {
 			mut disputes,
 		} = data;
 		sp_io::init_tracing();
-		let mut prefilter_weight_metric = CounterVec::new("polkadot_create_inherent_prefilter_weight");
-		let mut bitfields_processed_metric = CounterVec::new("polkadot_create_inherent_bitfields_processed");
-		let mut candidates_processed_metric = CounterVec::new("polkadot_create_inherent_candidates_processed");
+		let mut prefilter_weight_metric =
+			CounterVec::new("polkadot_create_inherent_prefilter_weight");
+		let mut bitfields_processed_metric =
+			CounterVec::new("polkadot_create_inherent_bitfields_processed");
+		let mut candidates_processed_metric =
+			CounterVec::new("polkadot_create_inherent_candidates_processed");
 		let mut total_weight_metric = CounterVec::new("create_inherent_total_weight");
 
 		log::debug!(
@@ -446,7 +449,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		candidates_processed_metric.inc_by(backed_candidates.len().try_into().unwrap_or_default());
-		
+
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {

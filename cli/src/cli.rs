@@ -121,4 +121,3 @@ pub struct Cli {
 	#[structopt(flatten)]
 	pub run: RunCmd,
 }
-

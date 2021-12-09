@@ -19,7 +19,7 @@
 //! Builds on top of Substrate wasm tracing support.
 
 use codec::Decode;
-use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate, RuntimeMetricLabel, AsStr};
+use primitives::v0::{AsStr, RuntimeMetricLabel, RuntimeMetricOp, RuntimeMetricUpdate};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex},
@@ -51,7 +51,10 @@ impl RuntimeMetricsProvider {
 	) -> Result<(), PrometheusError> {
 		if !self.1.counter_vecs.lock().expect("bad lock").contains_key(metric_name) {
 			let counter_vec = register(
-				CounterVec::new(Opts::new(metric_name, description), &[label.as_str().expect("invalid metric label")])?,
+				CounterVec::new(
+					Opts::new(metric_name, description),
+					&[label.as_str().expect("invalid metric label")],
+				)?,
 				&self.0,
 			)?;
 
@@ -87,7 +90,13 @@ impl RuntimeMetricsProvider {
 impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 	fn handle_span(&self, _span: &sc_tracing::SpanDatum) {}
 	fn handle_event(&self, event: &sc_tracing::TraceEvent) {
-		if event.values.string_values.get("target").unwrap_or(&String::default()).ne("metrics") {
+		if event
+			.values
+			.string_values
+			.get("target")
+			.unwrap_or(&String::default())
+			.ne("metrics")
+		{
 			return
 		}
 

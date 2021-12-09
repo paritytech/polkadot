@@ -17,13 +17,13 @@
 //! Runtime metric interface similar to native Prometheus metrics.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-use primitives::v0::{RuntimeMetricLabels, RuntimeMetricLabelValues};
+use primitives::v0::{RuntimeMetricLabelValues, RuntimeMetricLabels};
 
 #[cfg(not(feature = "std"))]
 use parity_scale_codec::Encode;
 
 #[cfg(not(feature = "std"))]
-use primitives::v0::{RuntimeMetricUpdate,RuntimeMetricOp};
+use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
 
 #[cfg(not(feature = "std"))]
 pub struct CounterVec {
@@ -40,11 +40,7 @@ impl CounterVec {
 	}
 
 	pub fn new_with_labels(name: &'static str, labels: RuntimeMetricLabels) -> Self {
-		CounterVec {
-			name,
-			labels,
-			label_values: RuntimeMetricLabelValues::default(),
-		}
+		CounterVec { name, labels, label_values: RuntimeMetricLabelValues::default() }
 	}
 	/// Set label values.
 	pub fn with_label_values(&mut self, label_values: RuntimeMetricLabelValues) -> &Self {
@@ -56,8 +52,9 @@ impl CounterVec {
 	pub fn inc_by(&mut self, value: u64) {
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: sp_std::vec::Vec::from(self.name),
-			op: RuntimeMetricOp::Increment(value)
-		}.encode();
+			op: RuntimeMetricOp::Increment(value),
+		}
+		.encode();
 
 		// This is safe, we only care about the metric name which is static str.
 		unsafe {
@@ -80,8 +77,12 @@ pub struct CounterVec;
 /// Dummy implementation.
 #[cfg(feature = "std")]
 impl CounterVec {
-	pub fn new(_: &'static str) -> Self { CounterVec }
-	pub fn new_with_labels(_: &'static str, _: RuntimeMetricLabels) -> Self { CounterVec }
+	pub fn new(_: &'static str) -> Self {
+		CounterVec
+	}
+	pub fn new_with_labels(_: &'static str, _: RuntimeMetricLabels) -> Self {
+		CounterVec
+	}
 
 	pub fn with_label_values(&mut self, _: RuntimeMetricLabelValues) -> &Self {
 		self
