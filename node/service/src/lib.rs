@@ -698,7 +698,10 @@ where
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
-		if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+		if config.chain_spec.is_rococo() ||
+			config.chain_spec.is_wococo() ||
+			config.chain_spec.is_versi()
+		{
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
 			// production to 1 block per hour.
@@ -764,7 +767,7 @@ where
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if chain_spec.is_rococo() || chain_spec.is_wococo() {
+	if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -1070,7 +1073,7 @@ where
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
+	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
@@ -1201,7 +1204,10 @@ pub fn new_chain_ops(
 	let telemetry_worker_handle = None;
 
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
+	{
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
@@ -1234,7 +1240,10 @@ pub fn build_full(
 	overseer_gen: impl OverseerGen,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
+	{
 		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
 			is_collator,

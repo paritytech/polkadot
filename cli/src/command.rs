@@ -153,7 +153,11 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_wococo() {
+				if self.run.force_rococo ||
+					chain_spec.is_rococo() ||
+					chain_spec.is_wococo() ||
+					chain_spec.is_versi()
+				{
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
@@ -167,6 +171,7 @@ impl SubstrateCli for Cli {
 	}
 
 	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
+		dbg!(spec.id());
 		#[cfg(feature = "kusama-native")]
 		if spec.is_kusama() {
 			return &service::kusama_runtime::VERSION
