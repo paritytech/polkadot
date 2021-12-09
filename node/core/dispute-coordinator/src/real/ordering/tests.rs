@@ -42,10 +42,6 @@ use polkadot_primitives::v1::{
 
 use super::OrderingProvider;
 
-// fn make_invalid_candidate_receipt() -> CandidateReceipt {
-// 	dummy_candidate_receipt(dummy_hash())
-// }
-
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
 struct TestState {

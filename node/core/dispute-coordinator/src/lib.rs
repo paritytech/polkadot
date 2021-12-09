@@ -26,7 +26,7 @@
 //! back to this subsystem.
 
 #![forbid(unused_must_use)]
-// #![forbid(unused_crate_dependencies)]
+#![forbid(unused_crate_dependencies)]
 
 mod metrics;
 

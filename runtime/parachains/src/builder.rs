@@ -292,7 +292,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			upward_messages: vec![],
 			horizontal_messages: vec![],
 			new_validation_code: None,
-			head_data: mock_head_data(),
+			head_data: Self::mock_head_data(),
 			processed_downward_messages: 0,
 			hrmp_watermark: 0u32.into()
 		};

@@ -91,7 +91,7 @@ impl ParathreadClaimQueue {
 
 impl Default for ParathreadClaimQueue {
 	fn default() -> Self {
-		Self { queue: Vec::new(), next_core_offset: 0 }
+		Self { queue: vec![], next_core_offset: 0 }
 	}
 }
 

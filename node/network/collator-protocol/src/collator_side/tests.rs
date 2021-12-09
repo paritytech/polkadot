@@ -103,7 +103,7 @@ impl Default for TestState {
 				validators: validator_public,
 				discovery_keys,
 				validator_groups,
-				assignment_keys: Vec::new(),
+				assignment_keys: vec![],
 				n_cores: 0,
 				zeroth_delay_tranche_width: 0,
 				relay_vrf_modulo_samples: 0,

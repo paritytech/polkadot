@@ -29,6 +29,5 @@ assert_matches = "1.4.0"
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 
-
 [features]
 default = []

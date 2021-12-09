@@ -41,7 +41,7 @@ use sc_keystore::LocalKeystore;
 use sp_core::sr25519;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
-use test_helpers::{dummy_candidate_descriptor, dummy_hash, dummy_validation_code};
+use test_helpers::{dummy_candidate_descriptor, dummy_hash, dummy_validation_code, dummy_collator, dummy_collator_signature};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -280,8 +280,8 @@ impl TestCandidateBuilder {
 				validation_code_hash: self.validation_code.hash(),
 				para_head: self.para_head_hash.unwrap_or_else(|| self.head_data.hash()),
 				erasure_root: Default::default(),
-				signature: Default::default(),
-				collator: CollatorId::from(sr25519::Public::from_raw([42; 32])),
+				signature: dummy_collator_signature(),
+				collator: dummy_collator_id(),
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,

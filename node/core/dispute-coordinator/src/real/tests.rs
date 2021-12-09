@@ -55,6 +55,7 @@ use polkadot_primitives::v1::{
 	Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId,
 	ValidatorIndex,
 };
+use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 
 use crate::{
 	metrics::Metrics,
@@ -70,8 +71,6 @@ use super::{
 	db::v1::DbBackend,
 	status::{Clock, Timestamp},
 };
-
-use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 

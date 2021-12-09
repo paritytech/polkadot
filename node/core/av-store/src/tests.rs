@@ -36,6 +36,7 @@ use polkadot_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use sp_keyring::Sr25519Keyring;
+use ::test_helpers::TestCandidateBuilder;
 
 mod columns {
 	pub const DATA: u32 = 0;
@@ -46,8 +47,6 @@ mod columns {
 const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns::META };
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
-
-use ::test_helpers::TestCandidateBuilder;
 
 #[derive(Clone)]
 struct TestClock {
