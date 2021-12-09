@@ -17,8 +17,8 @@
 mod handle_new_activations {
 	use super::super::*;
 	use ::test_helpers::{
-		dummy_collator, dummy_collator_signature, dummy_digest, dummy_hash, dummy_head_data,
-		dummy_validation_code, dummy_validator,
+		dummy_hash, dummy_head_data,
+		dummy_validator,
 	};
 	use futures::{
 		lock::Mutex,

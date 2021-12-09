@@ -457,17 +457,11 @@ pub fn tranches_to_approve(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	use crate::BTreeMap;
 	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 	use polkadot_primitives::v1::GroupIndex;
-
-	use polkadot_primitives::v1::PersistedValidationData;
-
 	use bitvec::vec::BitVec;
-
-	use ::test_helpers::{dummy_candidate_receipt, dummy_digest, dummy_hash};
-
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use crate::approval_db;
 
 	#[test]
