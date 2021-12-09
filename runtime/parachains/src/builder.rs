@@ -41,10 +41,6 @@ fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
 }
 
-fn mock_head_data() -> HeadData {
-	HeadData(vec![0xFF, 129])
-}
-
 /// Grab an account, seeded by a name and index.
 ///
 /// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
@@ -236,6 +232,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		(para_id, core_idx, group_idx)
 	}
 
+	fn mock_head_data() -> HeadData {
+		let max_head_size = configuration::Pallet::<T>::config().max_head_data_size;
+		HeadData(vec![0xFF; max_head_size as usize])
+	}
+
 	fn candidate_descriptor_mock() -> CandidateDescriptor<T::Hash> {
 		CandidateDescriptor::<T::Hash> {
 			para_id: 0.into(),
@@ -333,7 +334,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
-					genesis_head: mock_head_data(),
+					genesis_head: Self::mock_head_data(),
 					validation_code: mock_validation_code(),
 					parachain: true,
 				},
@@ -482,7 +483,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				let collator_public = CollatorId::generate_pair(None);
 				let header = Self::header(self.block_number.clone());
 				let relay_parent = header.hash();
-				let head_data: HeadData = Default::default();
+				let head_data = Self::mock_head_data();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
 					parent_head: head_data.clone(),
 					relay_parent_number: self.relay_parent_number(),
