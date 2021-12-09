@@ -55,39 +55,41 @@ use sp_std::{
 	vec::Vec,
 };
 
+use polkadot_runtime_metrics::CounterVec;
+
 // TODO: Find a better place for all of this stuff:
-#[cfg(not(feature = "std"))]
-use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
+// #[cfg(not(feature = "std"))]
+// use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
 
-// TODO: implement a define_metric macro that builds a metric object
-// with the Prometheus interface.
-#[cfg(not(feature = "std"))]
-/// Increment counter vec metric by specified value.
-macro_rules! inc_counter_vec {
-	($metric:ident, $value:expr) => {
-		let metric_update = RuntimeMetricUpdate {
-			metric_name: sp_std::vec::Vec::from(stringify!($metric)),
-			op: RuntimeMetricOp::Increment($value.try_into().unwrap_or(0))
-		}.encode();
+// // TODO: implement a define_metric macro that builds a metric object
+// // with the Prometheus interface.
+// #[cfg(not(feature = "std"))]
+// /// Increment counter vec metric by specified value.
+// macro_rules! inc_counter_vec {
+// 	($metric:ident, $value:expr) => {
+// 		let metric_update = RuntimeMetricUpdate {
+// 			metric_name: sp_std::vec::Vec::from(stringify!($metric)),
+// 			op: RuntimeMetricOp::Increment($value.try_into().unwrap_or(0))
+// 		}.encode();
 
-		// This is safe, we only care about the metric name being a valid utf8 str,
-		// which is enforced above.
-		unsafe {
-			let update_op = sp_std::str::from_utf8_unchecked(&metric_update);
+// 		// This is safe, we only care about the metric name being a valid utf8 str,
+// 		// which is enforced above.
+// 		unsafe {
+// 			let update_op = sp_std::str::from_utf8_unchecked(&metric_update);
 
-			sp_tracing::event!(
-				target: "metrics",
-				sp_tracing::Level::TRACE,
-				update_op
-			);
-		}
-	};
-}
+// 			sp_tracing::event!(
+// 				target: "metrics",
+// 				sp_tracing::Level::TRACE,
+// 				update_op
+// 			);
+// 		}
+// 	};
+// }
 
-#[cfg(feature = "std")]
-macro_rules! inc_counter_vec {
-	($metric:ident, $value:expr) => {};
-}
+// #[cfg(feature = "std")]
+// macro_rules! inc_counter_vec {
+// 	($metric:ident, $value:expr) => {};
+// }
 
 mod misc;
 mod weights;
@@ -295,6 +297,10 @@ impl<T: Config> Pallet<T> {
 			mut disputes,
 		} = data;
 		sp_io::init_tracing();
+		let mut prefilter_weight_metric = CounterVec::new("polkadot_create_inherent_prefilter_weight");
+		let mut bitfields_processed_metric = CounterVec::new("polkadot_create_inherent_bitfields_processed");
+		let mut candidates_processed_metric = CounterVec::new("polkadot_create_inherent_candidates_processed");
+		let mut total_weight_metric = CounterVec::new("create_inherent_total_weight");
 
 		log::debug!(
 			target: LOG_TARGET,
@@ -319,10 +325,7 @@ impl<T: Config> Pallet<T> {
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-		inc_counter_vec!(
-			create_inherent_prefilter_weight,
-			candidate_weight + bitfields_weight + disputes_weight
-		);
+		prefilter_weight_metric.inc_by(candidate_weight + bitfields_weight + disputes_weight);
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
 		let total_weight = {
@@ -411,8 +414,7 @@ impl<T: Config> Pallet<T> {
 			disputed_bitfield
 		};
 
-		inc_counter_vec!(create_inherent_bitfields_processed, signed_bitfields.len());
-
+		bitfields_processed_metric.inc_by(signed_bitfields.len().try_into().unwrap_or_default());
 		// Process new availability bitfields, yielding any availability cores whose
 		// work has now concluded.
 		let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
@@ -443,8 +445,8 @@ impl<T: Config> Pallet<T> {
 			&scheduled[..],
 		);
 
-		inc_counter_vec!(create_inherent_candidates_processed, backed_candidates.len());
-
+		candidates_processed_metric.inc_by(backed_candidates.len().try_into().unwrap_or_default());
+		
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
@@ -473,7 +475,7 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		inc_counter_vec!(create_inherent_total_weight, total_weight);
+		total_weight_metric.inc_by(total_weight);
 
 		Ok(Some(total_weight).into())
 	}

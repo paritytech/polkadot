@@ -43,6 +43,7 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 
 rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
+polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 
 [dev-dependencies]
 futures = "0.3.17"
@@ -83,6 +84,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"log/std",
+	"polkadot-runtime-metrics/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -99,4 +101,4 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-vesting/try-runtime",
 ]
-with-tracing = ["sp-tracing/with-tracing"]
+with-tracing = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/with-tracing"]
