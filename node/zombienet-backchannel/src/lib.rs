@@ -43,7 +43,7 @@ pub struct BackchannelItem {
 	value: String,
 }
 
-pub const ZOMBIENET: &str = "ZOMBIENET_BACKCHANNEL🧟🧟🧟";
+pub const ZOMBIENET: &str = "🧟ZOMBIENET🧟";
 
 impl ZombienetBackchannel {
 	pub async fn init() -> Result<ZombienetBackchannel, BackchannelError> {
