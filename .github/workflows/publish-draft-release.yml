@@ -125,7 +125,7 @@ jobs:
         with:
           name: release-notes-context
           path: |
-            ./bin/changelog/context.json
+            polkadot/scripts/changelog/context.json
             **/*_srtool_output.json
 
       - name: Create draft release
