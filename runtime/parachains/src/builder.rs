@@ -37,11 +37,11 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
 
-fn dummy_validation_code() -> ValidationCode {
+fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
 }
 
-fn dummy_head_data() -> HeadData {
+fn mock_head_data() -> HeadData {
 	HeadData(vec![0xFF, 129])
 }
 
@@ -246,7 +246,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			erasure_root: Default::default(),
 			signature: CollatorSignature::from(sr25519::Signature([42u8; 64])),
 			para_head: Default::default(),
-			validation_code_hash: dummy_validation_code().hash(),
+			validation_code_hash: mock_validation_code().hash(),
 		}
 	}
 
@@ -333,8 +333,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
-					genesis_head: dummy_head_data(),
-					validation_code: dummy_validation_code(),
+					genesis_head: mock_head_data(),
+					validation_code: mock_validation_code(),
 					parachain: true,
 				},
 			)
@@ -492,7 +492,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				.hash();
 
 				let pov_hash = Default::default();
-				let validation_code_hash = dummy_validation_code().hash();
+				let validation_code_hash = mock_validation_code().hash();
 				let payload = collator_signature_payload(
 					&relay_parent,
 					&para_id,
@@ -527,7 +527,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						upward_messages: Vec::new(),
 						horizontal_messages: Vec::new(),
 						new_validation_code: includes_code_upgrade
-							.map(|v| ValidationCode(vec![0u8; v as usize])),
+							.map(|v| ValidationCode(vec![42u8; v as usize])),
 						head_data,
 						processed_downward_messages: 0,
 						hrmp_watermark: self.relay_parent_number(),
