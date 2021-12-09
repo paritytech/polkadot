@@ -25,6 +25,9 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
+#![forbid(unused_must_use)]
+#![forbid(unused_crate_dependencies)]
+
 mod metrics;
 
 #[cfg(feature = "disputes")]
