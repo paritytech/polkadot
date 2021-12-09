@@ -44,7 +44,6 @@ use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
@@ -71,6 +70,8 @@ use super::{
 	db::v1::DbBackend,
 	status::{Clock, Timestamp},
 };
+
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash, dummy_collator, dummy_head_data, dummy_digest};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -181,9 +182,9 @@ impl TestState {
 		let block_header = Header {
 			parent_hash,
 			number: block_number,
-			digest: Default::default(),
-			state_root: Default::default(),
-			extrinsics_root: Default::default(),
+			digest: dummy_digest(),
+			state_root: dummy_hash(),
+			extrinsics_root: dummy_hash(),
 		};
 		let block_hash = block_header.hash();
 
@@ -365,7 +366,7 @@ async fn participation_with_distribution(
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
 	let mut candidate_receipt =
-		dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
+		dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }

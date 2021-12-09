@@ -41,7 +41,7 @@ use sc_keystore::LocalKeystore;
 use sp_core::sr25519;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
-use test_helpers::{dummy_candidate_descriptor, dummy_hash};
+use test_helpers::{dummy_validation_code, dummy_candidate_descriptor, dummy_hash};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -263,7 +263,7 @@ impl std::default::Default for TestCandidateBuilder {
 			relay_parent: zeros,
 			persisted_validation_data_hash: zeros,
 			new_validation_code: None,
-			validation_code: Default::default(),
+			validation_code: dummy_validation_code(),
 			hrmp_watermark: 0u32.into(),
 		}
 	}

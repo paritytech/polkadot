@@ -23,10 +23,12 @@
 //! contain randomness based data.
 use polkadot_primitives::v1::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
-	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
+	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash, ValidatorId,
 };
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
+use sp_runtime::generic::Digest;
+
 
 /// Creates a candidate receipt without
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
@@ -78,6 +80,11 @@ pub fn dummy_hash() -> Hash {
 	Hash::zero()
 }
 
+/// Create meaningless dummy digest.
+pub fn dummy_digest() -> Digest {
+	Digest::default()
+}
+
 pub fn dummy_candidate_descriptor_bad_sig(relay_parent: Hash) -> CandidateDescriptor<Hash> {
 	let zeros = Hash::zero();
 	CandidateDescriptor::<Hash> {
@@ -114,12 +121,15 @@ pub fn dummy_validation_code() -> ValidationCode {
 }
 
 pub fn dummy_head_data() -> HeadData {
-	// HeadData(vec![1,1,11])
-	HeadData(vec![0xFF; 129])
+	HeadData(vec![])
 }
 
 pub fn dummy_collator() -> CollatorId {
 	CollatorId::from(sr25519::Public::from_raw([0; 32]))
+}
+
+pub fn dummy_validator() -> ValidatorId {
+	ValidatorId::from(sr25519::Public::from_raw([0; 32]))
 }
 
 pub fn dummy_collator_signature() -> CollatorSignature {

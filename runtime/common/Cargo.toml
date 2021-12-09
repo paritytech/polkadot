@@ -59,6 +59,7 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "m
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.72"
 libsecp256k1 = "0.7.0"
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 
 [features]
 default = ["std"]

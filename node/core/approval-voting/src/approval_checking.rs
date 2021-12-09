@@ -458,10 +458,15 @@ pub fn tranches_to_approve(
 mod tests {
 	use super::*;
 
+	use crate::BTreeMap;
 	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 	use polkadot_primitives::v1::GroupIndex;
 
-	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
+	use polkadot_primitives::v1::PersistedValidationData;
+
+	use bitvec::vec::BitVec;
+
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_digest};
 
 	use crate::approval_db;
 
@@ -470,14 +475,14 @@ mod tests {
 		let candidate = approval_db::v1::CandidateEntry {
 			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
-			approvals: Default::default(),
+			block_assignments: BTreeMap::default(),
+			approvals: BitVec::default(),
 		}
 		.into();
 
 		let approval_entry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: Default::default(),
+			assignments: BitVec::default(),
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -503,7 +508,7 @@ mod tests {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
 			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
+			block_assignments: BTreeMap::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}
 		.into();
@@ -575,7 +580,7 @@ mod tests {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
 			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
+			block_assignments: BTreeMap::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}
 		.into();
@@ -1035,7 +1040,7 @@ mod tests {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
 			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
+			block_assignments: BTreeMap::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 3],
 		}
 		.into();

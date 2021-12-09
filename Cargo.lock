@@ -6035,6 +6035,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-network",
  "sp-consensus",
  "sp-core",
@@ -6054,6 +6055,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-maybe-compressed-blob",
  "thiserror",
@@ -6589,6 +6591,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-application-crypto",
  "sp-keyring",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6737,6 +6740,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "polkadot-runtime-parachains",
  "rustc-hex",
  "scale-info",

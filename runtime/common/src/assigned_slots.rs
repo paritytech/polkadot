@@ -556,6 +556,8 @@ mod tests {
 		traits::{BlakeTwo256, IdentityLookup},
 		DispatchError::BadOrigin,
 	};
+	use ::test_helpers::{dummy_validator, dummy_head_data, dummy_validation_code, dummy_hash};
+
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -748,8 +750,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1)));
 
@@ -768,8 +769,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			// Register lease in current lease period
@@ -801,22 +801,19 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				2,
 				ParaId::from(2),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				3,
 				ParaId::from(3),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
@@ -838,8 +835,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_eq!(AssignedSlots::permanent_slot_count(), 0);
@@ -909,8 +905,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1)));
 
@@ -933,8 +928,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			// Register lease in current lease period
@@ -976,8 +970,8 @@ mod tests {
 				assert_ok!(TestRegistrar::<Test>::register(
 					n,
 					ParaId::from(n as u32),
-					Default::default(),
-					Default::default()
+					dummy_head_data(),
+					dummy_validation_code()
 				));
 
 				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
@@ -993,8 +987,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				7,
 				ParaId::from(7),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
@@ -1015,8 +1008,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1)), None);
@@ -1092,8 +1084,8 @@ mod tests {
 				assert_ok!(TestRegistrar::<Test>::register(
 					n,
 					ParaId::from(n as u32),
-					Default::default(),
-					Default::default()
+					dummy_head_data(),
+					dummy_validation_code()
 				));
 
 				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
@@ -1215,8 +1207,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
@@ -1241,8 +1232,7 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+dummy_head_data(), dummy_validation_code(),
 			));
 
 			assert_ok!(AssignedSlots::assign_temp_parachain_slot(
