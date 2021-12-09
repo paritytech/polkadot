@@ -21,7 +21,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
-use application_crypto::{KeyTypeId, sr25519};
+use application_crypto::{sr25519, KeyTypeId};
 use inherents::InherentIdentifier;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Header as HeaderT};
@@ -365,9 +365,9 @@ impl CandidateDescriptor<Hash> {
 			persisted_validation_data_hash: zeros,
 			pov_hash: zeros,
 			erasure_root: zeros,
-			signature: CollatorSignature::from(sr25519::Signature([0u8;64])),
+			signature: CollatorSignature::from(sr25519::Signature([0u8; 64])),
 			para_head: zeros,
-			validation_code_hash: ValidationCode(vec![1,2,3]).hash(),
+			validation_code_hash: ValidationCode(vec![1, 2, 3]).hash(),
 		}
 	}
 }

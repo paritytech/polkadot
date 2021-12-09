@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
 use polkadot_primitives::v1::{BlockNumber, CandidateReceipt, Hash};
-use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 use crate::real::ordering::CandidateComparator;
 

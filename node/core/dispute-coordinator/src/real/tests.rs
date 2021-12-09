@@ -44,6 +44,7 @@ use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
@@ -52,10 +53,9 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	Hash, HashT, Header, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId,
-	ValidatorIndex, MultiDisputeStatementSet,
+	Hash, HashT, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidatorId, ValidatorIndex,
 };
-use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_receipt_bad_sig};
 
 use crate::{
 	metrics::Metrics,
@@ -364,10 +364,8 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-	let mut candidate_receipt = dummy_candidate_receipt_bad_sig(
-		Default::default(),
-		Some(Default::default())
-	);
+	let mut candidate_receipt =
+		dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }

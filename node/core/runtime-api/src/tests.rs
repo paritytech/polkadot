@@ -16,6 +16,7 @@
 
 use super::*;
 
+use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
@@ -30,7 +31,6 @@ use std::{
 	collections::{BTreeMap, HashMap},
 	sync::{Arc, Mutex},
 };
-use ::test_helpers::{dummy_validation_code, dummy_committed_candidate_receipt};
 
 #[derive(Default, Clone)]
 struct MockRuntimeApi {
@@ -587,7 +587,9 @@ fn requests_candidate_pending_availability() {
 	let candidate_receipt = dummy_committed_candidate_receipt(relay_parent);
 
 	let mut runtime_api = MockRuntimeApi::default();
-	runtime_api.candidate_pending_availability.insert(para_a, candidate_receipt.clone());
+	runtime_api
+		.candidate_pending_availability
+		.insert(para_a, candidate_receipt.clone());
 	let runtime_api = Arc::new(runtime_api);
 
 	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);

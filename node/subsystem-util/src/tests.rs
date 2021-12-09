@@ -25,6 +25,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 use polkadot_primitives::v1::Hash;
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use std::{
 	pin::Pin,
 	sync::{
@@ -34,7 +35,6 @@ use std::{
 	time::Duration,
 };
 use thiserror::Error;
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 // basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 // you can leave the subsystem itself to the job manager.

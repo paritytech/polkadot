@@ -18,7 +18,7 @@ use super::*;
 use futures::{executor::block_on, pin_mut};
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
-use test_helpers::{dummy_candidate_descriptor};
+use test_helpers::dummy_candidate_descriptor;
 
 fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 	CoreState::Occupied(OccupiedCore {

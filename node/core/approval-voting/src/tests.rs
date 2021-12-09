@@ -1133,9 +1133,7 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
-		let candidate_hash =
-			dummy_candidate_receipt(block_hash)
-				.hash();
+		let candidate_hash = dummy_candidate_receipt(block_hash).hash();
 		let session_index = 1;
 
 		let rx = check_and_import_approval(
@@ -1171,7 +1169,8 @@ fn subsystem_rejects_approval_before_assignment() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
+			let mut candidate_receipt =
+				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1361,7 +1360,8 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
+			let mut candidate_receipt =
+				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1426,7 +1426,8 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt =  dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
+			let mut candidate_receipt =
+				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -2185,8 +2186,7 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt =
-			dummy_candidate_receipt(block_hash);
+		let candidate_receipt = dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;
@@ -2320,8 +2320,7 @@ where
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt =
-			dummy_candidate_receipt(block_hash);
+		let candidate_receipt = dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;

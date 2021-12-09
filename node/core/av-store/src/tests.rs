@@ -47,8 +47,7 @@ const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns:
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
 
-use ::test_helpers::{TestCandidateBuilder};
-
+use ::test_helpers::TestCandidateBuilder;
 
 #[derive(Clone)]
 struct TestClock {

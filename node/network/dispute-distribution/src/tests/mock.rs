@@ -33,10 +33,10 @@ use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
+	ValidatorId, ValidatorIndex,
 };
-use polkadot_primitives_test_helpers::{dummy_candidate_descriptor};
+use polkadot_primitives_test_helpers::dummy_candidate_descriptor;
 
 pub const MOCK_SESSION_INDEX: SessionIndex = 1;
 pub const MOCK_NEXT_SESSION_INDEX: SessionIndex = 2;

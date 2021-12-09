@@ -459,7 +459,7 @@ mod tests {
 	use super::*;
 
 	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-	use polkadot_primitives::v1::{GroupIndex};
+	use polkadot_primitives::v1::GroupIndex;
 
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 

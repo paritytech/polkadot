@@ -33,16 +33,16 @@ use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CollatorPair, GroupRotationInfo,
-	ScheduledCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
+	SessionInfo, ValidatorId, ValidatorIndex,
 };
+use polkadot_primitives_test_helpers::TestCandidateBuilder;
 use polkadot_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_subsystem_testhelpers as test_helpers;
-use polkadot_primitives_test_helpers::{TestCandidateBuilder};
 
 #[derive(Clone)]
 struct TestState {

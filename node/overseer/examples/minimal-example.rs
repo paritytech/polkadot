@@ -22,6 +22,7 @@ use futures::{channel::oneshot, pending, pin_mut, select, stream, FutureExt, Str
 use futures_timer::Delay;
 use std::time::Duration;
 
+use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use polkadot_node_primitives::{BlockData, PoV};
 use polkadot_node_subsystem_types::messages::{
 	CandidateBackingMessage, CandidateValidationMessage,
@@ -32,8 +33,7 @@ use polkadot_overseer::{
 	gen::{FromOverseer, SpawnedSubsystem},
 	AllMessages, HeadSupportsParachains, OverseerSignal, SubsystemError,
 };
-use polkadot_primitives::v1::{Hash};
-use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
+use polkadot_primitives::v1::Hash;
 
 struct AlwaysSupportsParachains;
 impl HeadSupportsParachains for AlwaysSupportsParachains {

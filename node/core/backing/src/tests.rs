@@ -33,7 +33,9 @@ use sp_tracing as _;
 use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
 
-use ::test_helpers::{dummy_validation_code, dummy_hash, dummy_candidate_receipt, dummy_committed_candidate_receipt};
+use ::test_helpers::{
+	dummy_candidate_receipt, dummy_committed_candidate_receipt, dummy_hash, dummy_validation_code,
+};
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -192,7 +194,7 @@ impl TestCandidateBuilder {
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
 				collator: CollatorId::from(sp_keyring::AccountKeyring::Two.public()),
-				signature: sr25519::Signature([0u8;64]).into(),
+				signature: sr25519::Signature([0u8; 64]).into(),
 				para_head: dummy_hash(),
 				validation_code_hash: dummy_validation_code().hash(),
 				persisted_validation_data_hash: dummy_hash(),

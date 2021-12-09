@@ -23,15 +23,13 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
-	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
-	Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
+	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
+	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
 	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
 	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
-	CollatorSignature
 };
-use sp_core::sr25519;
-use sp_core::H256;
+use sp_core::{sr25519, H256};
 use sp_runtime::{
 	generic::Digest,
 	traits::{Header as HeaderT, One, Zero},
@@ -263,11 +261,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			core_idx,                          // core
 			candidate_hash,                    // hash
 			Self::candidate_descriptor_mock(), // candidate descriptor
-			availability_votes, // availability votes
-			Default::default(), // backers
-			Zero::zero(),       // relay parent
-			One::one(),         // relay chain block this was backed in
-			group_idx,          // backing group
+			availability_votes,                // availability votes
+			Default::default(),                // backers
+			Zero::zero(),                      // relay parent
+			One::one(),                        // relay chain block this was backed in
+			group_idx,                         // backing group
 		)
 	}
 

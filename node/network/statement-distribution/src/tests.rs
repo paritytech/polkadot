@@ -29,6 +29,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::v1::{SessionInfo, ValidationCode};
+use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
@@ -39,9 +40,6 @@ use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
-use polkadot_primitives_test_helpers::{
-	dummy_hash, dummy_committed_candidate_receipt
-};
 
 #[test]
 fn active_head_accepts_only_2_seconded_per_validator() {

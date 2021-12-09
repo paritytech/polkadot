@@ -575,6 +575,7 @@ pub(crate) async fn handle_new_head(
 pub(crate) mod tests {
 	use super::*;
 	use crate::approval_db::v1::DbBackend;
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
 	use kvdb::KeyValueDB;
 	use merlin::Transcript;
@@ -582,7 +583,6 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
-	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,

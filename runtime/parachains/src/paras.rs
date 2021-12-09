@@ -1101,7 +1101,7 @@ mod tests {
 		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
-	use test_helpers::{dummy_validation_code, dummy_head_data};
+	use test_helpers::{dummy_head_data, dummy_validation_code};
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
@@ -1325,9 +1325,7 @@ mod tests {
 		new_test_ext(genesis_config).execute_with(|| {
 			let id_a = ParaId::from(0u32);
 
-			assert_eq!(
-				Paras::para_head(&id_a), Some(dummy_head_data())
-			);
+			assert_eq!(Paras::para_head(&id_a), Some(dummy_head_data()));
 
 			Paras::note_new_head(id_a, vec![1, 2, 3].into(), 0);
 

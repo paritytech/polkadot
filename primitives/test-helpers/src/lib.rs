@@ -22,11 +22,11 @@
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
 use polkadot_primitives::v1::{
-	HeadData, ValidationCodeHash, CommittedCandidateReceipt, CandidateReceipt, CandidateDescriptor,
-	Hash, Id as ParaId, ValidationCode, CandidateCommitments, CollatorId, CollatorSignature
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
+	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 };
-use sp_keyring::Sr25519Keyring;
 use sp_application_crypto::sr25519;
+use sp_keyring::Sr25519Keyring;
 
 /// Creates a candidate receipt without
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
@@ -37,14 +37,19 @@ pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateRece
 }
 
 /// Creates a committed candidate receipt without
-pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CommittedCandidateReceipt<H> {
+pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(
+	relay_parent: H,
+) -> CommittedCandidateReceipt<H> {
 	CommittedCandidateReceipt::<H> {
 		descriptor: dummy_candidate_descriptor::<H>(relay_parent),
 		commitments: dummy_candidate_commitments(dummy_head_data()),
 	}
 }
 
-pub fn dummy_candidate_receipt_bad_sig(relay_parent: Hash, commitments: Option<Hash>) -> CandidateReceipt<Hash> {
+pub fn dummy_candidate_receipt_bad_sig(
+	relay_parent: Hash,
+	commitments: Option<Hash>,
+) -> CandidateReceipt<Hash> {
 	CandidateReceipt::<Hash> {
 		commitments_hash: if let Some(c) = commitments {
 			c
@@ -66,7 +71,6 @@ pub fn dummy_candidate_commitments(head_data: HeadData) -> CandidateCommitments 
 	}
 }
 
-
 /// Create meaningless dummy hash.
 pub fn dummy_hash() -> Hash {
 	// TODO make this PRNG based
@@ -82,21 +86,30 @@ pub fn dummy_candidate_descriptor_bad_sig(relay_parent: Hash) -> CandidateDescri
 		persisted_validation_data_hash: zeros,
 		pov_hash: zeros,
 		erasure_root: zeros,
-		signature: CollatorSignature::from(sr25519::Signature([0u8;64])),
+		signature: CollatorSignature::from(sr25519::Signature([0u8; 64])),
 		para_head: zeros,
 		validation_code_hash: dummy_validation_code().hash(),
 	}
 }
 
-pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateDescriptor<H>{
+pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateDescriptor<H> {
 	let collator = sp_keyring::Sr25519Keyring::Ferdie;
 	let invalid = Hash::zero();
-	let descriptor = make_valid_candidate_descriptor(1.into(), relay_parent, invalid, invalid, invalid, invalid, invalid, collator);
+	let descriptor = make_valid_candidate_descriptor(
+		1.into(),
+		relay_parent,
+		invalid,
+		invalid,
+		invalid,
+		invalid,
+		invalid,
+		collator,
+	);
 	descriptor
 }
 
 pub fn dummy_validation_code() -> ValidationCode {
-	ValidationCode(vec![1,2,3])
+	ValidationCode(vec![1, 2, 3])
 }
 
 pub fn dummy_head_data() -> HeadData {
@@ -143,7 +156,10 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 }
 
 /// After manually modifyin the candidate descriptor, resign with a defined collator key.
-pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(descriptor: &mut CandidateDescriptor<H>, collator: Sr25519Keyring) {
+pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(
+	descriptor: &mut CandidateDescriptor<H>,
+	collator: Sr25519Keyring,
+) {
 	descriptor.collator = collator.public().into();
 	let payload = polkadot_primitives::v1::collator_signature_payload::<H>(
 		&descriptor.relay_parent,
@@ -166,12 +182,7 @@ pub struct TestCandidateBuilder {
 impl std::default::Default for TestCandidateBuilder {
 	fn default() -> Self {
 		let zeros = Hash::zero();
-		Self {
-			para_id: 0.into(),
-			pov_hash: zeros,
-			relay_parent: zeros,
-			commitments_hash: zeros,
-		}
+		Self { para_id: 0.into(), pov_hash: zeros, relay_parent: zeros, commitments_hash: zeros }
 	}
 }
 
@@ -180,9 +191,6 @@ impl TestCandidateBuilder {
 		let mut descriptor = dummy_candidate_descriptor(self.relay_parent);
 		descriptor.para_id = self.para_id;
 		descriptor.pov_hash = self.pov_hash;
-		CandidateReceipt {
-			descriptor,
-			commitments_hash: self.commitments_hash,
-		}
+		CandidateReceipt { descriptor, commitments_hash: self.commitments_hash }
 	}
 }

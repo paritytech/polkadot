@@ -22,6 +22,7 @@ use futures::FutureExt;
 use parity_scale_codec::Encode;
 use sp_core::testing::TaskExecutor;
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -38,7 +39,6 @@ use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateEvent, CandidateReceipt, CollatorId, CoreIndex, GroupIndex,
 	Hash, HashT, HeadData,
 };
-use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_receipt_bad_sig};
 
 use super::OrderingProvider;
 
@@ -150,18 +150,12 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 #[test]
 fn ordering_provider_provides_ordering_when_initialized() {
 	// TODO
-	let candidate = dummy_candidate_receipt_bad_sig(
-		Default::default(),
-		Some(Default::default())
-	);
+	let candidate = dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
 	futures::executor::block_on(async {
 		let mut state = TestState::new().await;
 		let r = state
 			.ordering
-			.candidate_comparator(
-				state.ctx.sender(),
-				&candidate
-			)
+			.candidate_comparator(state.ctx.sender(), &candidate)
 			.await
 			.unwrap();
 		assert!(r.is_none());
@@ -169,10 +163,7 @@ fn ordering_provider_provides_ordering_when_initialized() {
 		state.process_active_leaves_update().await;
 		let r = state
 			.ordering
-			.candidate_comparator(
-				state.ctx.sender(),
-				&candidate
-			)
+			.candidate_comparator(state.ctx.sender(), &candidate)
 			.await
 			.unwrap();
 		assert!(r.is_some());

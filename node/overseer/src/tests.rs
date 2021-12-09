@@ -17,6 +17,7 @@
 use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
+use ::test_helpers::{dummy_candidate_descriptor, dummy_candidate_receipt, dummy_hash};
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 use polkadot_node_primitives::{
 	BlockData, CollationGenerationConfig, CollationResult, DisputeMessage, InvalidDisputeVote, PoV,
@@ -28,10 +29,9 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v1::{
-	CandidateHash, CollatorPair,
-	InvalidDisputeStatementKind, ValidDisputeStatementKind, ValidatorIndex,
+	CandidateHash, CollatorPair, InvalidDisputeStatementKind, ValidDisputeStatementKind,
+	ValidatorIndex,
 };
-use ::test_helpers::{dummy_candidate_descriptor, dummy_hash, dummy_candidate_receipt};
 
 use crate::{
 	self as overseer,

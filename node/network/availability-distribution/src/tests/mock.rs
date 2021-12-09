@@ -27,8 +27,8 @@ use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore,
 	PersistedValidationData, SessionInfo, ValidatorIndex,
 };
-use sp_core::sr25519;
 use polkadot_primitives_test_helpers::{dummy_hash, dummy_validation_code};
+use sp_core::sr25519;
 
 /// Create dummy session info with two validator groups.
 pub fn make_session_info() -> SessionInfo {

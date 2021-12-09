@@ -1,8 +1,7 @@
 use super::*;
+use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
 use polkadot_primitives::v1::{OccupiedCore, ScheduledCore};
-use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
-
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -194,6 +193,7 @@ mod select_availability_bitfields {
 
 mod select_candidates {
 	use super::{super::*, build_occupied_core, default_bitvec, occupied_core, scheduled_core};
+	use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 	use polkadot_node_subsystem::messages::{
 		AllMessages, RuntimeApiMessage,
 		RuntimeApiRequest::{
@@ -202,10 +202,8 @@ mod select_candidates {
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 	use polkadot_primitives::v1::{
-		BlockNumber, CandidateCommitments,
-		CommittedCandidateReceipt, PersistedValidationData,
+		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
 	};
-	use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 

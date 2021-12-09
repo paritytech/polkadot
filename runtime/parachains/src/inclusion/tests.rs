@@ -38,10 +38,10 @@ use primitives::{
 	},
 };
 use sc_keystore::LocalKeystore;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use std::{sync::Arc};
-use test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use sp_core::sr25519;
+use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use std::sync::Arc;
+use test_helpers::{dummy_candidate_descriptor, dummy_hash};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();

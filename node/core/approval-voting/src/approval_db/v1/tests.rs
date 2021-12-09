@@ -22,10 +22,10 @@ use crate::{
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
 use kvdb::KeyValueDB;
-use polkadot_primitives::v1::{Id as ParaId};
+use polkadot_primitives::v1::Id as ParaId;
 use std::{collections::HashMap, sync::Arc};
 
-use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_candidate_receipt_bad_sig};
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -75,9 +75,7 @@ fn read_write() {
 
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
-	let candidate_hash =
-		dummy_candidate_receipt_bad_sig(dummy_hash(), None)
-			.hash();
+	let candidate_hash = dummy_candidate_receipt_bad_sig(dummy_hash(), None).hash();
 
 	let range = StoredBlockRange(10, 20);
 	let at_height = vec![hash_a, hash_b];
