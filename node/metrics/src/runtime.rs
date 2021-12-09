@@ -19,7 +19,7 @@
 //! Builds on top of Substrate wasm tracing support.
 
 use codec::Decode;
-use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
+use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate, RuntimeMetricLabel, AsStr};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex},
@@ -32,31 +32,10 @@ use substrate_prometheus_endpoint::{register, CounterVec, Opts, PrometheusError,
 pub struct Metrics {
 	counter_vecs: Arc<Mutex<HashMap<String, CounterVec<U64>>>>,
 }
-
 /// Runtime metrics wrapper.
 #[derive(Clone)]
 pub struct RuntimeMetricsProvider(Registry, Metrics);
 
-/// A set of metric labels.
-#[derive(Clone)]
-pub struct RuntimeMetricLabels(Vec<RuntimeMetricLabel>);
-
-/// A metric label value.
-#[derive(Clone)]
-pub struct RuntimeMetricLabel(&'static str);
-
-impl RuntimeMetricLabel {
-	/// Returns the inner static string.
-	pub fn as_str(&self) -> &'static str {
-		self.0
-	}
-}
-
-impl From<&'static str> for RuntimeMetricLabel {
-	fn from(s: &'static str) -> Self {
-		Self(s)
-	}
-}
 impl RuntimeMetricsProvider {
 	/// Creates new instance.
 	pub fn new(metrics_registry: Registry) -> Self {
@@ -72,7 +51,7 @@ impl RuntimeMetricsProvider {
 	) -> Result<(), PrometheusError> {
 		if !self.1.counter_vecs.lock().expect("bad lock").contains_key(metric_name) {
 			let counter_vec = register(
-				CounterVec::new(Opts::new(metric_name, description), &[label.as_str()])?,
+				CounterVec::new(Opts::new(metric_name, description), &[label.as_str().expect("invalid metric label")])?,
 				&self.0,
 			)?;
 
@@ -97,7 +76,7 @@ impl RuntimeMetricsProvider {
 					.expect("bad lock")
 					.get_mut(name)
 					.unwrap()
-					.with_label_values(&[label.as_str()])
+					.with_label_values(&[label.as_str().expect("invalid metric label")])
 					.inc_by(value);
 			},
 			Err(_) => {},
@@ -108,20 +87,21 @@ impl RuntimeMetricsProvider {
 impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 	fn handle_span(&self, _span: &sc_tracing::SpanDatum) {}
 	fn handle_event(&self, event: &sc_tracing::TraceEvent) {
-		let target = event.values.string_values.get("target");
-		if target.is_none() || target.unwrap().ne("metrics") {
+		if event.values.string_values.get("target").unwrap_or(&String::default()).ne("metrics") {
 			return
 		}
 
 		if let Some(update_op_str) = event.values.string_values.get("params").cloned() {
 			// TODO: Fix ugly hack because the payload comes in as a formatted string.
 			const SKIP_CHARS: usize = " { update_op: ".len();
-
+			println!("Decoding: {:?}", update_op_str);
 			match RuntimeMetricUpdate::decode(&mut update_op_str[SKIP_CHARS..].as_bytes()) {
 				Ok(update_op) => {
+					println!("Received metric: {:?}", update_op);
 					self.parse_metric_update(update_op);
 				},
 				Err(e) => {
+					println!("Failed to decode metric: {:?}", e);
 					tracing::error!("TraceEvent decode failed: {:?}", e);
 				},
 			}
@@ -147,6 +127,6 @@ pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Con
 		}
 		let registry = config.prometheus_registry().cloned().unwrap();
 		let metrics_provider = RuntimeMetricsProvider::new(registry);
-		logger_builder.with_custom_profiling(vec![Box::new(metrics_provider)]);
+		logger_builder.with_custom_profiling(Box::new(metrics_provider));
 	}
 }
