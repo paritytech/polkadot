@@ -72,7 +72,7 @@ use super::{
 };
 
 use ::test_helpers::{
-	dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_digest,
+	dummy_candidate_receipt_bad_sig, dummy_digest,
 	dummy_hash,
 };
 
