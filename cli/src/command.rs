@@ -178,7 +178,7 @@ impl SubstrateCli for Cli {
 		}
 
 		#[cfg(feature = "rococo-native")]
-		if spec.is_rococo() || spec.is_wococo() {
+		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
 			return &service::rococo_runtime::VERSION
 		}
 
