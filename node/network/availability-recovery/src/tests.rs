@@ -31,17 +31,19 @@ use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CollatorId, HeadData, PersistedValidationData,
+	AuthorityDiscoveryId, HeadData, PersistedValidationData,
 };
 use polkadot_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_testhelpers as test_helpers;
-use sp_application_crypto::sr25519;
+use polkadot_subsystem_test_helpers::{
+	TestSubsystemContextHandle, make_subsystem_context
+};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
-type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
+type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
 fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseConfig)>>(
 	test: impl FnOnce(VirtualOverseer, RequestResponseConfig) -> T,
@@ -53,7 +55,7 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 
 	let pool = sp_core::testing::TaskExecutor::new();
 
-	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
+	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
 	let subsystem =
@@ -87,7 +89,7 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 
 	let pool = sp_core::testing::TaskExecutor::new();
 
-	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
+	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
 	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
@@ -121,7 +123,7 @@ macro_rules! delay {
 }
 
 async fn overseer_signal(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
+	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 	signal: OverseerSignal,
 ) {
 	delay!(50);
@@ -133,7 +135,7 @@ async fn overseer_signal(
 }
 
 async fn overseer_send(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
+	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 	msg: AvailabilityRecoveryMessage,
 ) {
 	tracing::trace!(msg = ?msg, "sending message");
@@ -145,7 +147,7 @@ async fn overseer_send(
 }
 
 async fn overseer_recv(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
+	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 ) -> AllMessages {
 	tracing::trace!("waiting for message ...");
 	let msg = overseer.recv().timeout(TIMEOUT).await.expect("TIMEOUT is enough to recv.");
@@ -425,8 +427,7 @@ impl Default for TestState {
 
 		let current = Hash::repeat_byte(1);
 
-		let mut candidate =
-			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+		let mut candidate = dummy_candidate_receipt(dummy_hash());
 
 		let session_index = 10;
 
@@ -518,8 +519,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 		let (tx, rx) = oneshot::channel();
 
 		// Test another candidate, send no chunks.
-		let mut new_candidate =
-			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+		let mut new_candidate = dummy_candidate_receipt(dummy_hash());
 
 		new_candidate.descriptor.relay_parent = test_state.candidate.descriptor.relay_parent;
 
@@ -605,8 +605,7 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 		let (tx, rx) = oneshot::channel();
 
 		// Test another candidate, send no chunks.
-		let mut new_candidate =
-			CandidateReceipt::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])));
+		let mut new_candidate = dummy_candidate_receipt(dummy_hash());
 
 		new_candidate.descriptor.relay_parent = test_state.candidate.descriptor.relay_parent;
 
