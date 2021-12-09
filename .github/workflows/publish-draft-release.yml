@@ -98,7 +98,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NO_CACHE: 1
           DEBUG: 1
-          SHELL_DIGEST: ${{ github.workspace}}/shell-srtool-json/shell_srtool_output.json
           WESTMINT_DIGEST: ${{ github.workspace}}/westmint-srtool-json/westmint_srtool_output.json
           STATEMINE_DIGEST: ${{ github.workspace}}/statemine-srtool-json/statemine_srtool_output.json
           STATEMINT_DIGEST: ${{ github.workspace}}/statemint-srtool-json/statemint_srtool_output.json
@@ -107,7 +106,6 @@ jobs:
           HIDE_SRTOOL_ROCOCO: false
         run: |
           find ${{env.GITHUB_WORKSPACE}} -type f -name "*_srtool_output.json"
-          ls -al $SHELL_DIGEST
           ls -al $WESTMINT_DIGEST
           ls -al $STATEMINE_DIGEST
           ls -al $STATEMINT_DIGEST
