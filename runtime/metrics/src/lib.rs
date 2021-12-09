@@ -34,21 +34,23 @@ pub struct CounterVec {
 
 #[cfg(not(feature = "std"))]
 impl CounterVec {
-	/// Create a new counter vec metric.
+	/// Create a new counter metric.
 	pub fn new(name: &'static str) -> Self {
 		Self::new_with_labels(name, sp_std::vec::Vec::new())
 	}
 
+	/// Create a new counter metric with specified `labels`.
 	pub fn new_with_labels(name: &'static str, labels: RuntimeMetricLabels) -> Self {
 		CounterVec { name, labels, label_values: RuntimeMetricLabelValues::default() }
 	}
+
 	/// Set label values.
 	pub fn with_label_values(&mut self, label_values: RuntimeMetricLabelValues) -> &Self {
 		self.label_values = label_values;
 		self
 	}
 
-	/// Increment metric by value.
+	/// Increment by `value`.
 	pub fn inc_by(&mut self, value: u64) {
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: sp_std::vec::Vec::from(self.name),
@@ -56,14 +58,15 @@ impl CounterVec {
 		}
 		.encode();
 
-		// This is safe, we only care about the metric name which is static str.
+		// `from_utf8_unchecked` is safe, we only care about the `metric_name` which is static str.
 		unsafe {
-			let update_op = sp_std::str::from_utf8_unchecked(&metric_update);
+			let update_op =
+				bs58::encode(sp_std::str::from_utf8_unchecked(&metric_update)).into_string();
 
 			sp_tracing::event!(
 				target: "metrics",
 				sp_tracing::Level::TRACE,
-				update_op = update_op
+				update_op = update_op.as_str()
 			);
 		}
 

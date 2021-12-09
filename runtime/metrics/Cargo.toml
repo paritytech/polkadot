@@ -10,6 +10,8 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 parity-scale-codec = { version = "2.3.1", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
+bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
+
 [features]
 default = ["std"]
 no_std = []
@@ -18,5 +20,6 @@ std = [
 	"sp-tracing/std",
     "parity-scale-codec/std",
     "primitives/std",
+    "bs58/std"
 ]
 with-tracing = ["sp-tracing/with-tracing"]
