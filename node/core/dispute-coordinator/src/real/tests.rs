@@ -72,8 +72,8 @@ use super::{
 };
 
 use ::test_helpers::{
-	dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_collator, dummy_digest,
-	dummy_hash, dummy_head_data,
+	dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_digest,
+	dummy_hash,
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
@@ -375,7 +375,10 @@ fn make_valid_candidate_receipt() -> CandidateReceipt {
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
 	// Commitments hash will be 0, which is not correct:
-	dummy_candidate_receipt(dummy_hash())
+	dummy_candidate_receipt_bad_sig(
+		Default::default(),
+		Some(Default::default())
+	)
 }
 
 #[test]
