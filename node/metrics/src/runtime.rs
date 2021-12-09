@@ -100,12 +100,12 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 			return
 		}
 
-		if let Some(update_op_bs48) = event.values.string_values.get("params").cloned() {
+		if let Some(update_op_bs58) = event.values.string_values.get("params").cloned() {
 			// TODO: Fix ugly hack because the payload comes in as a formatted string.
 
 			// Deserialize the metric update struct.
 			match RuntimeMetricUpdate::decode(
-				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs48).as_ref(),
+				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs58).as_ref(),
 			) {
 				Ok(update_op) => {
 					println!("Received metric: {:?}", update_op);
