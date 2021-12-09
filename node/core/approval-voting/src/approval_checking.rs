@@ -457,12 +457,10 @@ pub fn tranches_to_approve(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::BTreeMap;
-	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-	use polkadot_primitives::v1::GroupIndex;
-	use bitvec::vec::BitVec;
+	use crate::{approval_db, BTreeMap};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
-	use crate::approval_db;
+	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0, vec::BitVec};
+	use polkadot_primitives::v1::GroupIndex;
 
 	#[test]
 	fn pending_is_not_approved() {

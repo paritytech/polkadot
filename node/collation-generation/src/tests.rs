@@ -16,10 +16,7 @@
 
 mod handle_new_activations {
 	use super::super::*;
-	use ::test_helpers::{
-		dummy_hash, dummy_head_data,
-		dummy_validator,
-	};
+	use ::test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
 	use futures::{
 		lock::Mutex,
 		task::{Context as FuturesContext, Poll},
