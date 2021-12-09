@@ -38,7 +38,6 @@ use primitives::{
 	},
 };
 use sc_keystore::LocalKeystore;
-use sp_core::sr25519;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
 use test_helpers::{
@@ -284,7 +283,7 @@ impl TestCandidateBuilder {
 				para_head: self.para_head_hash.unwrap_or_else(|| self.head_data.hash()),
 				erasure_root: Default::default(),
 				signature: dummy_collator_signature(),
-				collator: dummy_collator_id(),
+				collator: dummy_collator(),
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
