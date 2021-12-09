@@ -253,7 +253,7 @@ pub type SignedExtra =
 
 /// Parameters which are part of the payload used to produce transaction signature,
 /// but don't end up in the transaction itself (i.e. inherent part of the runtime).
-pub type AdditionalSigned = (u32, u32, Hash, Hash, (), (), ());
+pub type AdditionalSigned = ((), u32, u32, Hash, Hash, (), (), ());
 
 /// A simplified version of signed extensions meant for producing signed transactions
 /// and signed payload in the client code.
