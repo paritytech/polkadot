@@ -22,7 +22,7 @@ use futures::FutureExt;
 use parity_scale_codec::Encode;
 use sp_core::testing::TaskExecutor;
 
-use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
+use ::test_helpers::{dummy_collator, dummy_collator_signature, dummy_hash};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -36,8 +36,8 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{
-	BlakeTwo256, BlockNumber, CandidateEvent, CoreIndex, GroupIndex,
-	Hash, HashT, HeadData,
+	BlakeTwo256, BlockNumber, CandidateDescriptor, CandidateEvent, CandidateReceipt, CoreIndex,
+	GroupIndex, Hash, HashT, HeadData,
 };
 
 use super::OrderingProvider;
@@ -95,12 +95,14 @@ fn launch_virtual_overseer(ctx: &mut impl SubsystemContext, ctx_handle: VirtualO
 }
 
 async fn virtual_overseer(mut ctx_handle: VirtualOverseer) {
-	let ev = vec![CandidateEvent::CandidateIncluded(
-		dummy_candidate_receipt(dummy_hash()),
-		HeadData::default(),
-		CoreIndex::from(0),
-		GroupIndex::from(0),
-	)];
+	let create_ev = |relay_parent: Hash| {
+		vec![CandidateEvent::CandidateIncluded(
+			make_candidate_receipt(relay_parent),
+			HeadData::default(),
+			CoreIndex::from(0),
+			GroupIndex::from(0),
+		)]
+	};
 
 	assert_matches!(
 		ctx_handle.recv().await,
@@ -116,17 +118,17 @@ async fn virtual_overseer(mut ctx_handle: VirtualOverseer) {
 	assert_matches!(
 		ctx_handle.recv().await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				_,
+				relay_parent,
 				RuntimeApiRequest::CandidateEvents(
 					tx,
 					)
 				)) => {
-			tx.send(Ok(ev)).unwrap();
+			tx.send(Ok(create_ev(relay_parent))).unwrap();
 		}
 	);
 	assert_matches!(
 		ctx_handle.recv().await,
-		AllMessages::ChainApi(ChainApiMessage::BlockNumber(_, tx)) => {
+		AllMessages::ChainApi(ChainApiMessage::BlockNumber(_relay_parent, tx)) => {
 			tx.send(Ok(Some(1))).unwrap();
 		}
 	);
@@ -147,10 +149,26 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 	BlakeTwo256::hash(&n.encode())
 }
 
+fn make_candidate_receipt(_relay_parent: Hash) -> CandidateReceipt {
+	let zeros = dummy_hash();
+	let descriptor = CandidateDescriptor {
+		para_id: 0.into(),
+		relay_parent: get_block_number_hash(2),
+		collator: dummy_collator(),
+		persisted_validation_data_hash: zeros,
+		pov_hash: zeros,
+		erasure_root: zeros,
+		signature: dummy_collator_signature(),
+		para_head: zeros,
+		validation_code_hash: zeros.into(),
+	};
+	let candidate = CandidateReceipt { descriptor, commitments_hash: zeros };
+	candidate
+}
+
 #[test]
 fn ordering_provider_provides_ordering_when_initialized() {
-	// TODO
-	let candidate = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
+	let candidate = make_candidate_receipt(get_block_number_hash(1));
 	futures::executor::block_on(async {
 		let mut state = TestState::new().await;
 		let r = state
@@ -158,15 +176,12 @@ fn ordering_provider_provides_ordering_when_initialized() {
 			.candidate_comparator(state.ctx.sender(), &candidate)
 			.await
 			.unwrap();
-		assert!(r.is_none());
+		assert_matches!(r, None);
 		// After next active leaves update we should have a comparator:
 		state.process_active_leaves_update().await;
-		let r = state
-			.ordering
-			.candidate_comparator(state.ctx.sender(), &candidate)
-			.await
-			.unwrap();
-		assert!(r.is_some());
-		assert_eq!(r.unwrap().relay_parent_block_number, 1);
+		let r = state.ordering.candidate_comparator(state.ctx.sender(), &candidate).await;
+		assert_matches!(r, Ok(Some(r2)) => {
+			assert_eq!(r2.relay_parent_block_number, 1);
+		});
 	});
 }

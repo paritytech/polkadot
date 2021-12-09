@@ -61,9 +61,9 @@ pub fn dummy_candidate_receipt_bad_sig(
 	}
 }
 
-pub fn dummy_candidate_commitments(head_data: HeadData) -> CandidateCommitments {
+pub fn dummy_candidate_commitments(head_data: impl Into<Option<HeadData>>) -> CandidateCommitments {
 	CandidateCommitments {
-		head_data,
+		head_data: head_data.into().unwrap_or(HeadData(vec![])),
 		upward_messages: vec![],
 		new_validation_code: None,
 		horizontal_messages: vec![],
@@ -116,6 +116,14 @@ pub fn dummy_validation_code() -> ValidationCode {
 pub fn dummy_head_data() -> HeadData {
 	// HeadData(vec![1,1,11])
 	HeadData(vec![0xFF; 129])
+}
+
+pub fn dummy_collator() -> CollatorId {
+	CollatorId::from(sr25519::Public::from_raw([0; 32]))
+}
+
+pub fn dummy_collator_signature() -> CollatorSignature {
+	CollatorSignature::from(sr25519::Signature([0u8; 64]))
 }
 
 /// Create a new candidate descripter, and applies a valid signature
