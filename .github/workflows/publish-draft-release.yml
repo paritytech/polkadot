@@ -72,7 +72,7 @@ jobs:
           path: polkadot
 
       - name: Set up Ruby
-        uses: actions/setup-ruby@v1
+        uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.0.0
 
@@ -151,9 +151,9 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v2
       - name: Set up Ruby 2.7
-        uses: actions/setup-ruby@v1
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 2.7
+          ruby-version: 3.0.0
       - name: Get runtime version
         id: get-runtime-ver
         run: |
