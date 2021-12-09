@@ -150,7 +150,7 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 #[test]
 fn ordering_provider_provides_ordering_when_initialized() {
 	// TODO
-	let candidate = dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
+	let candidate = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 	futures::executor::block_on(async {
 		let mut state = TestState::new().await;
 		let r = state

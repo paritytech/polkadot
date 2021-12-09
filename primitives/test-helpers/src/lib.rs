@@ -48,14 +48,15 @@ pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(
 
 pub fn dummy_candidate_receipt_bad_sig(
 	relay_parent: Hash,
-	commitments: Option<Hash>,
+	commitments: impl Into<Option<Hash>>,
 ) -> CandidateReceipt<Hash> {
+	let commitments_hash = if let Some(commitments) = commitments.into() {
+		commitments
+	} else {
+		dummy_candidate_commitments(dummy_head_data()).hash()
+	};
 	CandidateReceipt::<Hash> {
-		commitments_hash: if let Some(c) = commitments {
-			c
-		} else {
-			dummy_candidate_commitments(dummy_head_data()).hash()
-		},
+		commitments_hash,
 		descriptor: dummy_candidate_descriptor_bad_sig(relay_parent),
 	}
 }
