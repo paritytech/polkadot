@@ -499,18 +499,6 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-impl CommittedCandidateReceipt<Hash> {
-	/// Create a dummy `CommittedCandidateReceipt` with the given `collator` used in the
-	/// `descriptor`.
-	#[cfg(any(feature = "runtime-benchmarks", test))]
-	pub fn dummy(collator: CollatorId) -> Self {
-		Self {
-			descriptor: CandidateDescriptor::<Hash>::dummy(collator),
-			commitments: Default::default(),
-		}
-	}
-}
-
 /// The validation data provides information about how to create the inputs for validation of a candidate.
 /// This information is derived from the chain state and will vary from para to para, although some
 /// fields may be the same for every para.
