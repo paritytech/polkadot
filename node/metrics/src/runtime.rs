@@ -100,11 +100,13 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 			return
 		}
 
-		if let Some(update_op_str) = event.values.string_values.get("params").cloned() {
+		if let Some(update_op_bs48) = event.values.string_values.get("params").cloned() {
 			// TODO: Fix ugly hack because the payload comes in as a formatted string.
-			const SKIP_CHARS: usize = " { update_op: ".len();
-			println!("Decoding: {:?}", update_op_str);
-			match RuntimeMetricUpdate::decode(&mut update_op_str[SKIP_CHARS..].as_bytes()) {
+
+			// Deserialize the metric update struct.
+			match RuntimeMetricUpdate::decode(
+				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs48).as_ref(),
+			) {
 				Ok(update_op) => {
 					println!("Received metric: {:?}", update_op);
 					self.parse_metric_update(update_op);
@@ -125,6 +127,23 @@ impl RuntimeMetricsProvider {
 				self.inc_counter_by(update.metric_name(), value, "test_label".into());
 			},
 		}
+	}
+
+	// Returns the `bs58` encoded metric update operation.
+	fn parse_event_params(event_params: &String) -> Vec<u8> {
+		println!("params: {}", event_params);
+
+		// Shave " }" suffix.
+		let new_len = event_params.len() - 2;
+		let event_params = &event_params[..new_len];
+
+		// Shave " { update_op: " prefix.
+		const SKIP_CHARS: usize = " { update_op: ".len();
+		let metric_update_op = &event_params[SKIP_CHARS..];
+
+		println!("Metric updatet op {}", metric_update_op);
+
+		bs58::decode(metric_update_op.as_bytes()).into_vec().unwrap_or_default()
 	}
 }
 
