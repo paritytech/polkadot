@@ -28,6 +28,7 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+
       - name: Cache target dir
         uses: actions/cache@v2
         with:
@@ -36,6 +37,7 @@ jobs:
           restore-keys: |
             srtool-target-${{ matrix.runtime }}-
             srtool-target-
+
       - name: Build ${{ matrix.runtime }} runtime
         id: srtool_build
         uses: chevdor/srtool-actions@v0.3.0
@@ -43,14 +45,17 @@ jobs:
           # This is the default with chevdor/srtool-actions@v0.3.0 but we make it clear
           image: paritytech/srtool
           chain: ${{ matrix.runtime }}
+
       - name: Store srtool digest to disk
         run: |
           echo '${{ steps.srtool_build.outputs.json }}' | jq > ${{ matrix.runtime }}_srtool_output.json
+
       - name: Upload ${{ matrix.runtime }} srtool json
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.runtime }}-srtool-json
           path: ${{ matrix.runtime }}_srtool_output.json
+
       - name: Upload ${{ matrix.runtime }} runtime
         uses: actions/upload-artifact@v2
         with:
@@ -108,7 +113,6 @@ jobs:
           ls -al $WESTEND_DIGEST
           ls -al $KUSAMA_DIGEST
           ls -al $POLKADOT_DIGEST
-          ls -al $ROCOCO_DIGEST
 
           cd polkadot/scripts/changelog
 

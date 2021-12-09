@@ -63,9 +63,9 @@ else
   logger.debug("Re-using:#{substrate_data}")
 end
 
-KUSAMA_DIGEST = ENV['SHELL_DIGEST'] || 'digests/kusama_srtool_output.json'
-WESTEND_DIGEST = ENV['WESTMINT_DIGEST'] || 'digests/westend_srtool_output.json'
-POLKADOT_DIGEST = ENV['STATEMINE_DIGEST'] || 'digests/polkadot_srtool_output.json'
+KUSAMA_DIGEST = ENV['KUSAMA_DIGEST'] || 'digests/kusama_srtool_output.json'
+WESTEND_DIGEST = ENV['WESTEND_DIGEST'] || 'digests/westend_srtool_output.json'
+POLKADOT_DIGEST = ENV['POLKADOT_DIGEST'] || 'digests/polkadot_srtool_output.json'
 
 # Here we compose all the pieces together into one
 # single big json file.
