@@ -44,14 +44,12 @@ pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> Com
 	}
 }
 
-// pub fn dummy_candidate_receipt_bad_sig<H: AsRef<[u8]>>(relay_parent: H, commitments: Option<Hash>) -> CandidateReceipt<Hash> {
 pub fn dummy_candidate_receipt_bad_sig(relay_parent: Hash, commitments: Option<Hash>) -> CandidateReceipt<Hash> {
 	CandidateReceipt::<Hash> {
 		commitments_hash: if let Some(c) = commitments {
 			c
 		} else {
 			dummy_candidate_commitments(HeadData(vec![1,1,11])).hash()
-			// Default::default()
 		},
 		descriptor: dummy_candidate_descriptor_bad_sig(relay_parent),
 	}
@@ -75,25 +73,8 @@ pub fn dummy_hash() -> Hash {
 	Hash::zero()
 }
 
-// pub fn dummy_candidate_descriptor_bad_sig<H: AsRef<[u8]>>(relay_parent: H) -> CandidateDescriptor<Hash> {
 pub fn dummy_candidate_descriptor_bad_sig(relay_parent: Hash) -> CandidateDescriptor<Hash> {
-	// let invalid = Hash::zero();
-	// CandidateDescriptor {
-	// 	para_id: 0.into(),
-	// 	relay_parent,
-	// 	collator: CollatorId::from(sr25519::Public::from_raw([42; 32])),
-	// 	persisted_validation_data_hash: invalid,
-	// 	pov_hash: invalid,
-	// 	erasure_root: invalid,
-	// 	signature: CollatorSignature::from(sr25519::Signature([0u8;64])),
-	// 	para_head: invalid,
-	// 	validation_code_hash: invalid.into(),
-	// }
-
-	// CandidateDescriptor::dummy(CollatorId::from(sr25519::Public::from_raw([42; 32])))
-
 	let zeros = Hash::zero();
-	// let zeros = Default::default();
 	CandidateDescriptor::<Hash> {
 		para_id: 0.into(),
 		relay_parent,
