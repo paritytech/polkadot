@@ -288,7 +288,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			candidate_hash,
 			availability_votes,
 		);
-		let commitments = CandidateCommitments::<u32>::default();
+		let commitments = CandidateCommitments::<u32> {
+			upward_messages: vec![],
+			horizontal_messages: vec![],
+			new_validation_code: None,
+			head_data: mock_head_data(),
+			processed_downward_messages: 0,
+			hrmp_watermark: 0u32.into()
+		};
 		inclusion::PendingAvailability::<T>::insert(para_id, candidate_availability);
 		inclusion::PendingAvailabilityCommitments::<T>::insert(&para_id, commitments);
 	}

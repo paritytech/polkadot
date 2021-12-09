@@ -32,7 +32,6 @@ use sp_keystore::{CryptoStore, SyncCryptoStore};
 use sp_tracing as _;
 use statement_table::v1::Misbehavior;
 use std::collections::HashMap;
-
 use ::test_helpers::{
 	dummy_candidate_receipt_bad_sig, dummy_committed_candidate_receipt, dummy_hash,
 	dummy_validation_code,

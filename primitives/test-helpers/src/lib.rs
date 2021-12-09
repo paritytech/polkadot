@@ -136,7 +136,7 @@ pub fn dummy_collator_signature() -> CollatorSignature {
 	CollatorSignature::from(sr25519::Signature([0u8; 64]))
 }
 
-/// Create a new candidate descripter, and applies a valid signature
+/// Create a new candidate descriptor, and applies a valid signature
 /// using the provided `CollatorId` key.
 pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	para_id: ParaId,
