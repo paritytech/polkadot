@@ -5820,6 +5820,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.4",
  "sc-network",
  "sp-core",
@@ -5848,6 +5849,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.4",
  "sc-network",
  "sp-application-crypto",
@@ -5865,9 +5867,11 @@ dependencies = [
  "futures 0.3.18",
  "log",
  "polkadot-node-core-pvf",
+ "polkadot-performance-test",
  "polkadot-service",
  "sc-cli",
  "sc-service",
+ "sc-tracing",
  "sp-core",
  "sp-trie",
  "structopt",
@@ -5926,6 +5930,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-network",
  "sp-core",
  "sp-keyring",
@@ -5966,6 +5971,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sc-network",
  "sp-application-crypto",
@@ -6031,6 +6037,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-network",
  "sp-consensus",
  "sp-core",
@@ -6050,6 +6057,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-maybe-compressed-blob",
  "thiserror",
@@ -6078,6 +6086,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand_core 0.5.1",
  "sc-keystore",
  "schnorrkel",
@@ -6113,6 +6122,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-keyring",
  "thiserror",
@@ -6132,6 +6142,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "polkadot-statement-table",
  "sc-keystore",
  "sp-application-crypto",
@@ -6152,6 +6163,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-keystore",
  "thiserror",
  "tracing",
@@ -6173,6 +6185,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-keyring",
  "sp-maybe-compressed-blob",
@@ -6224,8 +6237,6 @@ name = "polkadot-node-core-dispute-coordinator"
 version = "0.9.13"
 dependencies = [
  "assert_matches",
- "bitvec",
- "derive_more",
  "futures 0.3.18",
  "kvdb",
  "kvdb-memorydb",
@@ -6235,6 +6246,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sp-core",
  "sp-keyring",
@@ -6270,6 +6282,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-application-crypto",
  "sp-keystore",
  "thiserror",
@@ -6322,6 +6335,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sp-api",
  "sp-authority-discovery",
  "sp-consensus-babe",
@@ -6464,6 +6478,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-overseer",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.4",
  "sp-application-crypto",
  "sp-core",
@@ -6490,6 +6505,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-overseer-gen",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -6541,6 +6557,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-performance-test"
+version = "0.9.13"
+dependencies = [
+ "env_logger 0.9.0",
+ "kusama-runtime",
+ "log",
+ "polkadot-erasure-coding",
+ "polkadot-node-core-pvf",
+ "polkadot-node-primitives",
+ "quote",
+ "thiserror",
+]
+
+[[package]]
 name = "polkadot-primitives"
 version = "0.9.13"
 dependencies = [
@@ -6567,6 +6597,16 @@ dependencies = [
  "sp-std",
  "sp-trie",
  "sp-version",
+]
+
+[[package]]
+name = "polkadot-primitives-test-helpers"
+version = "0.9.13"
+dependencies = [
+ "polkadot-primitives",
+ "sp-application-crypto",
+ "sp-keyring",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6715,6 +6755,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "polkadot-runtime-parachains",
  "rustc-hex",
  "scale-info",
@@ -6760,6 +6801,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.4",
  "rand_chacha 0.3.1",
  "rustc-hex",
@@ -6952,6 +6994,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sc-network",
  "sp-application-crypto",
@@ -9062,18 +9105,18 @@ checksum = "f97841a747eef040fcd2e7b3b9a220a7205926e60488e673d9e4926d27772ce5"
 
 [[package]]
 name = "serde"
-version = "1.0.130"
+version = "1.0.131"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f12d06de37cf59146fbdecab66aa99f9fe4f78722e3607577a5375d66bd0c913"
+checksum = "b4ad69dfbd3e45369132cc64e6748c2d65cdfb001a2b1c232d128b4ad60561c1"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.130"
+version = "1.0.131"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7bc1a1ab1961464eae040d96713baa5a724a8152c1222492465b54322ec508b"
+checksum = "b710a83c4e0dff6a3d511946b95274ad9ca9e5d3ae497b63fda866ac955358d2"
 dependencies = [
  "proc-macro2",
  "quote",

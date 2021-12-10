@@ -44,6 +44,7 @@ use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
+use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
@@ -52,7 +53,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v1::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, HashT,
-	Header, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId,
+	ValidatorIndex,
 };
 
 use crate::{
@@ -179,9 +181,9 @@ impl TestState {
 		let block_header = Header {
 			parent_hash,
 			number: block_number,
-			digest: Default::default(),
-			state_root: Default::default(),
-			extrinsics_root: Default::default(),
+			digest: dummy_digest(),
+			state_root: dummy_hash(),
+			extrinsics_root: dummy_hash(),
 		};
 		let block_hash = block_header.hash();
 
@@ -251,7 +253,11 @@ impl TestState {
 				RuntimeApiRequest::FetchOnChainVotes(tx),
 			)) => {
 				//add some `BackedCandidates` or resolved disputes here as needed
-				tx.send(Ok(Some(ScrapedOnChainVotes::default()))).unwrap();
+				tx.send(Ok(Some(ScrapedOnChainVotes {
+					session,
+					backing_validators_per_candidate: Vec::default(),
+					disputes: MultiDisputeStatementSet::default(),
+				}))).unwrap();
 			}
 		)
 	}
@@ -358,14 +364,14 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-	let mut candidate_receipt = CandidateReceipt::default();
+	let mut candidate_receipt = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
 	// Commitments hash will be 0, which is not correct:
-	CandidateReceipt::default()
+	dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()))
 }
 
 #[test]

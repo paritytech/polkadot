@@ -71,7 +71,7 @@ pub(crate) enum FullCheck {
 
 /// A backed candidate pending availability.
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(test, derive(Debug, Default))]
+#[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
