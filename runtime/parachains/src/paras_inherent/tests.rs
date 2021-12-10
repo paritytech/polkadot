@@ -27,7 +27,7 @@ mod enter {
 		mock::{new_test_ext, MockGenesisConfig, Test},
 	};
 	use frame_support::assert_ok;
-	use sp_core::crypto::UncheckedFrom
+	use sp_core::crypto::UncheckedFrom;
 	use sp_std::collections::btree_map::BTreeMap;
 
 	struct TestConfig {
