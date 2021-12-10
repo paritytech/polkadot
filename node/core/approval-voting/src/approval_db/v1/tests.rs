@@ -25,6 +25,8 @@ use kvdb::KeyValueDB;
 use polkadot_primitives::v1::Id as ParaId;
 use std::{collections::HashMap, sync::Arc};
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
+
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
 
@@ -59,7 +61,7 @@ fn make_block_entry(
 }
 
 fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
-	let mut c = CandidateReceipt::default();
+	let mut c = dummy_candidate_receipt(dummy_hash());
 
 	c.descriptor.para_id = para_id;
 	c.descriptor.relay_parent = relay_parent;
@@ -73,7 +75,7 @@ fn read_write() {
 
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
-	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
+	let candidate_hash = dummy_candidate_receipt_bad_sig(dummy_hash(), None).hash();
 
 	let range = StoredBlockRange(10, 20);
 	let at_height = vec![hash_a, hash_b];
@@ -82,7 +84,7 @@ fn read_write() {
 		make_block_entry(hash_a, Default::default(), 1, vec![(CoreIndex(0), candidate_hash)]);
 
 	let candidate_entry = CandidateEntry {
-		candidate: Default::default(),
+		candidate: dummy_candidate_receipt_bad_sig(dummy_hash(), None),
 		session: 5,
 		block_assignments: vec![(
 			hash_a,

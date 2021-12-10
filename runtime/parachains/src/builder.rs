@@ -23,13 +23,13 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
-	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
-	Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
+	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
+	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
 	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
 	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
-use sp_core::H256;
+use sp_core::{sr25519, H256};
 use sp_runtime::{
 	generic::Digest,
 	traits::{Header as HeaderT, One, Zero},
@@ -37,7 +37,7 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
 
-fn dummy_validation_code() -> ValidationCode {
+fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
 }
 
@@ -47,7 +47,7 @@ fn dummy_validation_code() -> ValidationCode {
 /// "features = runtime-benchmarks".
 fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
-	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
+	AccountId::decode(&mut &entropy[..]).expect("256 bit input is valid. qed.")
 }
 
 /// Create a 32 byte slice based on the given number.
@@ -232,6 +232,25 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		(para_id, core_idx, group_idx)
 	}
 
+	fn mock_head_data() -> HeadData {
+		let max_head_size = configuration::Pallet::<T>::config().max_head_data_size;
+		HeadData(vec![0xFF; max_head_size as usize])
+	}
+
+	fn candidate_descriptor_mock() -> CandidateDescriptor<T::Hash> {
+		CandidateDescriptor::<T::Hash> {
+			para_id: 0.into(),
+			relay_parent: Default::default(),
+			collator: CollatorId::from(sr25519::Public::from_raw([42u8; 32])),
+			persisted_validation_data_hash: Default::default(),
+			pov_hash: Default::default(),
+			erasure_root: Default::default(),
+			signature: CollatorSignature::from(sr25519::Signature([42u8; 64])),
+			para_head: Default::default(),
+			validation_code_hash: mock_validation_code().hash(),
+		}
+	}
+
 	/// Create a mock of `CandidatePendingAvailability`.
 	fn candidate_availability_mock(
 		group_idx: GroupIndex,
@@ -240,14 +259,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		availability_votes: BitVec<BitOrderLsb0, u8>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
-			core_idx,           // core
-			candidate_hash,     // hash
-			Default::default(), // candidate descriptor
-			availability_votes, // availability votes
-			Default::default(), // backers
-			Zero::zero(),       // relay parent
-			One::one(),         // relay chain block this was backed in
-			group_idx,          // backing group
+			core_idx,                          // core
+			candidate_hash,                    // hash
+			Self::candidate_descriptor_mock(), // candidate descriptor
+			availability_votes,                // availability votes
+			Default::default(),                // backers
+			Zero::zero(),                      // relay parent
+			One::one(),                        // relay chain block this was backed in
+			group_idx,                         // backing group
 		)
 	}
 
@@ -269,7 +288,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			candidate_hash,
 			availability_votes,
 		);
-		let commitments = CandidateCommitments::<u32>::default();
+		let commitments = CandidateCommitments::<u32> {
+			upward_messages: vec![],
+			horizontal_messages: vec![],
+			new_validation_code: None,
+			head_data: Self::mock_head_data(),
+			processed_downward_messages: 0,
+			hrmp_watermark: 0u32.into(),
+		};
 		inclusion::PendingAvailability::<T>::insert(para_id, candidate_availability);
 		inclusion::PendingAvailabilityCommitments::<T>::insert(&para_id, commitments);
 	}
@@ -315,8 +341,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
-					genesis_head: Default::default(),
-					validation_code: dummy_validation_code(),
+					genesis_head: Self::mock_head_data(),
+					validation_code: mock_validation_code(),
 					parachain: true,
 				},
 			)
@@ -464,7 +490,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				let collator_public = CollatorId::generate_pair(None);
 				let header = Self::header(self.block_number.clone());
 				let relay_parent = header.hash();
-				let head_data: HeadData = Default::default();
+				let head_data = Self::mock_head_data();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
 					parent_head: head_data.clone(),
 					relay_parent_number: self.relay_parent_number(),
@@ -474,7 +500,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				.hash();
 
 				let pov_hash = Default::default();
-				let validation_code_hash = dummy_validation_code().hash();
+				let validation_code_hash = mock_validation_code().hash();
 				let payload = collator_signature_payload(
 					&relay_parent,
 					&para_id,
@@ -509,7 +535,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						upward_messages: Vec::new(),
 						horizontal_messages: Vec::new(),
 						new_validation_code: includes_code_upgrade
-							.map(|v| ValidationCode(vec![0u8; v as usize])),
+							.map(|v| ValidationCode(vec![42u8; v as usize])),
 						head_data,
 						processed_downward_messages: 0,
 						hrmp_watermark: self.relay_parent_number(),

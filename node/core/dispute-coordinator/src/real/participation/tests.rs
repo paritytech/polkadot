@@ -22,6 +22,9 @@ use std::{sync::Arc, time::Duration};
 use sp_core::testing::TaskExecutor;
 
 use super::*;
+use ::test_helpers::{
+	dummy_candidate_commitments, dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash,
+};
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::{AvailableData, BlockData, InvalidCandidate, PoV};
 use polkadot_node_subsystem::{
@@ -35,7 +38,9 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, HashT, Header, ValidationCode};
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, HashT, Header, PersistedValidationData, ValidationCode,
+};
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
@@ -62,7 +67,7 @@ async fn participate_with_commitments_hash(
 	commitments_hash: Hash,
 ) -> Result<()> {
 	let candidate_receipt = {
-		let mut receipt = CandidateReceipt::default();
+		let mut receipt = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 		receipt.commitments_hash = commitments_hash;
 		receipt
 	};
@@ -82,9 +87,9 @@ async fn activate_leaf(
 	let block_header = Header {
 		parent_hash: BlakeTwo256::hash(&block_number.encode()),
 		number: block_number,
-		digest: Default::default(),
-		state_root: Default::default(),
-		extrinsics_root: Default::default(),
+		digest: dummy_digest(),
+		state_root: dummy_hash(),
+		extrinsics_root: dummy_hash(),
 	};
 
 	let block_hash = block_header.hash();
@@ -113,7 +118,7 @@ pub async fn participation_full_happy_path(ctx_handle: &mut VirtualOverseer) {
 	AllMessages::CandidateValidation(
 		CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-		tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default()))).unwrap();
+		tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
 	},
 	"overseer did not receive candidate validation message",
 	);
@@ -135,8 +140,10 @@ pub async fn participation_missing_availability(ctx_handle: &mut VirtualOverseer
 async fn recover_available_data(virtual_overseer: &mut VirtualOverseer) {
 	let pov_block = PoV { block_data: BlockData(Vec::new()) };
 
-	let available_data =
-		AvailableData { pov: Arc::new(pov_block), validation_data: Default::default() };
+	let available_data = AvailableData {
+		pov: Arc::new(pov_block),
+		validation_data: PersistedValidationData::default(),
+	};
 
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -456,7 +463,7 @@ fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
 				// this should lead to a commitments hash mismatch
 				commitments.processed_downward_messages = 42;
 
-				tx.send(Ok(ValidationResult::Valid(commitments, Default::default()))).unwrap();
+				tx.send(Ok(ValidationResult::Valid(commitments, PersistedValidationData::default()))).unwrap();
 			},
 			"overseer did not receive candidate validation message",
 		);
@@ -494,7 +501,7 @@ fn cast_valid_vote_if_validation_passes() {
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default()))).unwrap();
+				tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
 			},
 			"overseer did not receive candidate validation message",
 		);

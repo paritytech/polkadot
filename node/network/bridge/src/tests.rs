@@ -34,6 +34,7 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives_test_helpers::dummy_collator_signature;
 use polkadot_subsystem::{
 	jaeger,
 	messages::{
@@ -1158,8 +1159,8 @@ fn send_messages_to_peers() {
 		{
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
-				Default::default(),
-				Default::default(),
+				0_u32.into(),
+				dummy_collator_signature(),
 			);
 
 			let message =
