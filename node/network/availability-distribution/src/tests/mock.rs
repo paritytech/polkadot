@@ -27,7 +27,9 @@ use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore,
 	PersistedValidationData, SessionInfo, ValidatorIndex,
 };
-use polkadot_primitives_test_helpers::{dummy_hash, dummy_validation_code};
+use polkadot_primitives_test_helpers::{
+	dummy_collator, dummy_collator_signature, dummy_hash, dummy_validation_code,
+};
 use sp_core::sr25519;
 
 /// Create dummy session info with two validator groups.
@@ -116,9 +118,9 @@ impl TestCandidateBuilder {
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
-				collator: CollatorId::from(sr25519::Public::from_raw([42; 32])),
+				collator: dummy_collator(),
 				persisted_validation_data_hash: dummy_hash(),
-				signature: sr25519::Signature::from_raw([42; 64]).into(),
+				signature: dummy_collator_signature(),
 				para_head: dummy_hash(),
 				validation_code_hash: dummy_validation_code().hash(),
 			},

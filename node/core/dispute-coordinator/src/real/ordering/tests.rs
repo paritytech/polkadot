@@ -145,11 +145,11 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 	BlakeTwo256::hash(&n.encode())
 }
 
-fn make_candidate_receipt(_relay_parent: Hash) -> CandidateReceipt {
+fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	let zeros = dummy_hash();
 	let descriptor = CandidateDescriptor {
 		para_id: 0.into(),
-		relay_parent: get_block_number_hash(2),
+		relay_parent,
 		collator: dummy_collator(),
 		persisted_validation_data_hash: zeros,
 		pov_hash: zeros,
