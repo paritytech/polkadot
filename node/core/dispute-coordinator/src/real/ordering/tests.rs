@@ -164,7 +164,7 @@ fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 
 #[test]
 fn ordering_provider_provides_ordering_when_initialized() {
-	let candidate = make_candidate_receipt(get_block_number_hash(1));
+	let candidate = make_candidate_receipt(get_block_number_hash(2));
 	futures::executor::block_on(async {
 		let mut state = TestState::new().await;
 		let r = state
