@@ -64,4 +64,4 @@ rococo-native = [ "service/rococo-native" ]
 
 malus = [ "full-node", "service/malus" ]
 disputes = [ "service/disputes" ]
-with-tracing = ["service/with-tracing"]
+with-tracing = ["service/with-tracing", "polkadot-node-metrics/with-tracing"]

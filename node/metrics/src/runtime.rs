@@ -17,6 +17,7 @@
 //! Runtime Metrics helpers.
 //!
 //! Builds on top of Substrate wasm tracing support.
+#![cfg(feature = "with-tracing")]
 
 use codec::Decode;
 use primitives::v1::{
@@ -128,6 +129,7 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 }
 
 impl RuntimeMetricsProvider {
+	// Parse end execute the update operation.
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
 		match update.op {
 			RuntimeMetricOp::Register(ref params) => {

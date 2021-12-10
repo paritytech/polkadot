@@ -29,8 +29,18 @@ pub use metered_channel as metered;
 /// Cyclic metric collection support.
 pub mod metronome;
 pub use self::metronome::Metronome;
+
+#[cfg(feature = "with-tracing")]
 pub mod runtime;
+#[cfg(feature = "with-tracing")]
 pub use self::runtime::logger_hook;
+
+/// Export a dummy logger hook when `wasm tracing` is not enabled.
+#[cfg(not(feature = "with-tracing"))]
+pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
+	|_logger_builder, _config| {}
+}
+
 
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {

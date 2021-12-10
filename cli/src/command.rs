@@ -284,7 +284,6 @@ pub fn run() -> Result<()> {
 	let cli: Cli = Cli::from_args();
 
 	match &cli.subcommand {
-		// TODO: gate by feature `runtime_metrics`.
 		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
