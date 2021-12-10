@@ -22,8 +22,7 @@ use std::{
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem::{
-	messages::{AllMessages, ChainApiMessage},
-	ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
+	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
@@ -237,7 +236,7 @@ impl OrderingProvider {
 
 async fn send_message_fatal<Sender, Response>(
 	sender: &mut Sender,
-	message: impl Into<AllMessages>,
+	message: ChainApiMessage,
 	receiver: oneshot::Receiver<std::result::Result<Response, ChainApiError>>,
 ) -> FatalResult<Response>
 where
