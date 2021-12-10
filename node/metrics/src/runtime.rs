@@ -19,14 +19,16 @@
 //! Builds on top of Substrate wasm tracing support.
 
 use codec::Decode;
-use primitives::v0::{AsStr, RuntimeMetricLabel, RuntimeMetricOp, RuntimeMetricUpdate};
+use primitives::v1::{AsStr, RuntimeMetricLabel, RuntimeMetricOp, RuntimeMetricUpdate};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex},
 };
 use substrate_prometheus_endpoint::{register, CounterVec, Opts, PrometheusError, Registry, U64};
 
-/// We only support CounterVec for now.
+const LOG_TARGET: &'static str = "metrics::runtime";
+
+/// Support only CounterVec for now.
 /// TODO: add more when needed.
 #[derive(Clone, Default)]
 pub struct Metrics {
@@ -49,22 +51,29 @@ impl RuntimeMetricsProvider {
 		description: &str,
 		label: RuntimeMetricLabel,
 	) -> Result<(), PrometheusError> {
-		if !self.1.counter_vecs.lock().expect("bad lock").contains_key(metric_name) {
-			let counter_vec = register(
-				CounterVec::new(
-					Opts::new(metric_name, description),
-					&[label.as_str().expect("invalid metric label")],
-				)?,
-				&self.0,
-			)?;
+		match self.1.counter_vecs.lock() {
+			Ok(mut unlocked_hashtable) => {
+				if unlocked_hashtable.contains_key(metric_name) {
+					return Ok(())
+				}
 
-			self.1
-				.counter_vecs
-				.lock()
-				.expect("bad lock")
-				.insert(metric_name.to_owned(), counter_vec);
+				unlocked_hashtable.insert(
+					metric_name.to_owned(),
+					register(
+						CounterVec::new(
+							Opts::new(metric_name, description),
+							&[label.as_str().unwrap_or("default")],
+						)?,
+						&self.0,
+					)?,
+				);
+			},
+			Err(e) => tracing::error!(
+				target: LOG_TARGET,
+				"Failed to acquire the `counter_vecs` lock: {:?}",
+				e
+			);
 		}
-
 		Ok(())
 	}
 
@@ -72,17 +81,27 @@ impl RuntimeMetricsProvider {
 	pub fn inc_counter_by(&self, name: &str, value: u64, label: RuntimeMetricLabel) {
 		match self.register_countervec(name, "default description", label.clone()) {
 			Ok(_) => {
-				// The metric is in the hashmap, unwrap won't panic.
-				self.1
-					.counter_vecs
-					.lock()
-					.expect("bad lock")
-					.get_mut(name)
-					.unwrap()
-					.with_label_values(&[label.as_str().expect("invalid metric label")])
-					.inc_by(value);
+				let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
+					if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
+						counter_vec
+							.with_label_values(&[label.as_str().expect("invalid metric label")])
+							.inc_by(value);
+					} else {
+						tracing::error!(
+							target: LOG_TARGET,
+							"Cannot increment counter `{}`, metric not in hashtable",
+							name
+						);
+					}
+				});
 			},
-			Err(_) => {},
+			Err(e) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					"Faied to register metric `{}`: {:?}",
+					name, e
+				);
+			}
 		}
 	}
 }
@@ -101,11 +120,9 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 		}
 
 		if let Some(update_op_bs58) = event.values.string_values.get("params").cloned() {
-			// TODO: Fix ugly hack because the payload comes in as a formatted string.
-
 			// Deserialize the metric update struct.
 			match RuntimeMetricUpdate::decode(
-				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs58).as_ref(),
+				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs58).unwrap_or_default().as_slice(),
 			) {
 				Ok(update_op) => {
 					println!("Received metric: {:?}", update_op);
@@ -130,20 +147,21 @@ impl RuntimeMetricsProvider {
 	}
 
 	// Returns the `bs58` encoded metric update operation.
-	fn parse_event_params(event_params: &String) -> Vec<u8> {
-		println!("params: {}", event_params);
-
+	fn parse_event_params(event_params: &String) -> Option<Vec<u8>> {
 		// Shave " }" suffix.
-		let new_len = event_params.len() - 2;
+		let new_len = event_params.len().saturating_sub(2);
 		let event_params = &event_params[..new_len];
 
 		// Shave " { update_op: " prefix.
-		const SKIP_CHARS: usize = " { update_op: ".len();
-		let metric_update_op = &event_params[SKIP_CHARS..];
-
-		println!("Metric updatet op {}", metric_update_op);
-
-		bs58::decode(metric_update_op.as_bytes()).into_vec().unwrap_or_default()
+		const SKIP_CHARS: &'static str = " { update_op: ";
+		if SKIP_CHARS.len() < event_params.len()  {
+			if SKIP_CHARS.eq_ignore_ascii_case(&event_params[..SKIP_CHARS.len()]) {
+				return bs58::decode(&event_params[SKIP_CHARS.len()..].as_bytes()).into_vec().ok()
+			} 
+		}
+		
+		// No event was parsed
+		None
 	}
 }
 

@@ -15,15 +15,19 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Runtime metric interface similar to native Prometheus metrics.
+//! 
+//! This is intended to be used only for testing and debugging and **must never 
+//! be used in production**. It requires the Substrate wasm tracing support
+//! and command line configuration: `--tracing-targets wasm_tracing=trace`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-use primitives::v0::{RuntimeMetricLabelValues, RuntimeMetricLabels};
+use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricLabels};
 
 #[cfg(not(feature = "std"))]
 use parity_scale_codec::Encode;
 
 #[cfg(not(feature = "std"))]
-use primitives::v0::{RuntimeMetricOp, RuntimeMetricUpdate};
+use primitives::v1::{RuntimeMetricOp, RuntimeMetricUpdate};
 
 #[cfg(not(feature = "std"))]
 pub struct CounterVec {

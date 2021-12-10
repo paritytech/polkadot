@@ -1416,6 +1416,80 @@ pub fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
+// TODO: add feature gate.
+/// Runtime metric operations.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum RuntimeMetricOp {
+	/// Increment metric by value.
+	Increment(u64),
+}
+
+/// Runtime metric update event.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct RuntimeMetricUpdate {
+	/// The name of the metric.
+	pub metric_name: Vec<u8>,
+	/// The operation applied to the metric.
+	pub op: RuntimeMetricOp,
+}
+
+impl RuntimeMetricUpdate {
+	/// Returns the metric name.
+	pub fn metric_name(&self) -> &str {
+		#[cfg(feature = "std")]
+		return std::str::from_utf8(&self.metric_name).unwrap_or("invalid_metric_name");
+
+		#[cfg(not(feature = "std"))]
+		return sp_std::str::from_utf8(&self.metric_name).unwrap_or("invalid_metric_name");
+	}
+}
+
+/// A set of metric labels.
+pub type RuntimeMetricLabels = Vec<RuntimeMetricLabel>;
+
+/// A metric label.
+#[derive(Clone, Default)]
+pub struct RuntimeMetricLabel(Vec<u8>);
+
+/// A metric label value.
+#[derive(Clone, Default)]
+pub struct RuntimeMetricLabelValue(Vec<u8>);
+
+/// A set of metric label values.
+pub type RuntimeMetricLabelValues = Vec<RuntimeMetricLabelValue>;
+
+/// Trait for converting Vec<u8> to &str.
+pub trait AsStr {
+	/// Return a str reference.
+	fn as_str(&self) -> Option<&str>;
+}
+
+impl AsStr for RuntimeMetricLabel {
+	fn as_str(&self) -> Option<&str> {
+		sp_std::str::from_utf8(&self.0).ok()
+	}
+}
+
+impl AsStr for RuntimeMetricLabelValue {
+	fn as_str(&self) -> Option<&str> {
+		sp_std::str::from_utf8(&self.0).ok()
+	}
+}
+
+impl From<&'static str> for RuntimeMetricLabel {
+	fn from(s: &'static str) -> Self {
+		Self(s.as_bytes().to_vec())
+	}
+}
+
+impl From<&'static str> for RuntimeMetricLabelValue {
+	fn from(s: &'static str) -> Self {
+		Self(s.as_bytes().to_vec())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
