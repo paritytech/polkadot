@@ -90,10 +90,6 @@ mod handle_new_activations {
 		ScheduledCore { para_id: para_id.into(), collator: None }
 	}
 
-	fn dummy_pubkey() -> polkadot_primitives::v1::ValidatorId {
-		sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 32])
-	}
-
 	#[test]
 	fn requests_availability_per_relay_parent() {
 		let activated_hashes: Vec<Hash> =

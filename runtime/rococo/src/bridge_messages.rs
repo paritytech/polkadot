@@ -428,8 +428,6 @@ mod tests {
 
 	#[test]
 	fn ensure_rococo_tx_extra_bytes_constant_is_correct() {
-		use sp_core::crypto::UncheckedFrom;
-
 		// **NOTE**: this test checks that we're computing transaction fee (for bridged chain, which, in
 		// case of Rococo<>Wococo, means any chain) on-chain properly. If this assert fails:
 		//

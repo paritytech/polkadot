@@ -368,41 +368,6 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 	}
 }
 
-impl<H: Default> CandidateDescriptor<H> {
-	/// The default value but the collator ID and signature must be specified since there is
-	/// sensible default for this.
-	pub fn default_with(collator: CollatorId, signature: CollatorSignature) -> Self {
-		Self {
-			para_id: Default::default(),
-			relay_parent: Default::default(),
-			collator,
-			persisted_validation_data_hash: Default::default(),
-			pov_hash: Default::default(),
-			erasure_root: Default::default(),
-			signature,
-			para_head: Default::default(),
-			validation_code_hash: Default::default(),
-		}
-	}
-}
-
-#[cfg(feature = "std")]
-fn dummy_collator_id() -> CollatorId {
-	primitives::crypto::UncheckedFrom::unchecked_from([1u8; 32])
-}
-
-#[cfg(feature = "std")]
-fn dummy_signature() -> CollatorSignature {
-	primitives::crypto::UncheckedFrom::unchecked_from([1u8; 64])
-}
-
-#[cfg(feature = "std")]
-impl<H: Default> Default for CandidateDescriptor<H> {
-	fn default() -> Self {
-		Self::default_with(dummy_collator_id(), dummy_signature())
-	}
-}
-
 /// A candidate-receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, MallocSizeOf))]
