@@ -1,4 +1,4 @@
-# Exposed ports: 10016, 10116, 10216, 10316, 10416
+# Exposed ports: 10016, 10116, 10216, 10316, 10416, 10516, 10716
 
 version: '3.5'
 services:
@@ -52,6 +52,7 @@ services:
   relay-messages-millau-to-rialto-generator:
     <<: *sub-bridge-relay
     environment:
+      RUST_LOG: bridge=trace
       MSG_EXCHANGE_GEN_SECONDARY_LANE: "00000001"
     entrypoint: /entrypoints/relay-messages-to-rialto-generator-entrypoint.sh
     ports:
@@ -59,13 +60,24 @@ services:
     depends_on:
       - relay-millau-rialto
 
+  relay-messages-millau-to-rialto-resubmitter:
+    <<: *sub-bridge-relay
+    environment:
+      RUST_LOG: bridge=trace
+    entrypoint: /entrypoints/relay-messages-to-rialto-resubmitter-entrypoint.sh
+    ports:
+      - "10316:9616"
+    depends_on:
+      - relay-messages-millau-to-rialto-generator
+
   relay-messages-rialto-to-millau-lane-00000001:
     <<: *sub-bridge-relay
     environment:
+      RUST_LOG: bridge=trace
       MSG_EXCHANGE_GEN_LANE: "00000001"
     entrypoint: /entrypoints/relay-messages-rialto-to-millau-entrypoint.sh
     ports:
-      - "10316:9616"
+      - "10416:9616"
     depends_on:
       - relay-millau-rialto
 
@@ -75,7 +87,15 @@ services:
       MSG_EXCHANGE_GEN_SECONDARY_LANE: "00000001"
     entrypoint: /entrypoints/relay-messages-to-millau-generator-entrypoint.sh
     ports:
-      - "10416:9616"
+      - "10516:9616"
+    depends_on:
+      - relay-millau-rialto
+
+  relay-token-swap-generator:
+    <<: *sub-bridge-relay
+    entrypoint: /entrypoints/relay-token-swap-generator-entrypoint.sh
+    ports:
+      - "10716:9616"
     depends_on:
       - relay-millau-rialto
 

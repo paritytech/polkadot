@@ -31,7 +31,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  PIPELINE_SCRIPTS_TAG:            "v0.1"
+  PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
   cache:                           {}
@@ -201,7 +201,10 @@ test-build-linux-stable:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/release/polkadot ./artifacts/.
-    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - pushd artifacts
+    - sha256sum polkadot | tee polkadot.sha256
+    - shasum -c polkadot.sha256
+    - popd
     - EXTRATAG="$(./artifacts/polkadot --version |
         sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
     - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
@@ -300,11 +303,13 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
+        $CARGO_UPDATE_CRATES
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
 check-transaction-versions:
   stage:                           build

@@ -1009,7 +1009,7 @@ where
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		NewGossipTopology(..) => {
-			// impossibru!
+			// impossible!
 		},
 		PeerViewChange(peer_id, view) => {
 			handle_peer_view_change(state, peer_id, view).await?;
@@ -1254,7 +1254,7 @@ async fn handle_collation_fetched_result<Context>(
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	// If no prior collation for this relay parent has been seconded, then
-	// memoize the collation_event for that relay_parent, such that we may
+	// memorize the `collation_event` for that `relay_parent`, such that we may
 	// notify the collator of their successful second backing
 	let relay_parent = collation_event.1.relay_parent;
 
@@ -1392,7 +1392,7 @@ async fn poll_collation_response(
 					"Fetching collation failed due to network error"
 				);
 				// A minor decrease in reputation for any network failure seems
-				// sensible. In theory this could be exploited, by DoSing this node,
+				// sensible. In theory this could be exploited, by Dosing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
 				CollationFetchResult::Error(COST_NETWORK_ERROR)
@@ -1406,7 +1406,7 @@ async fn poll_collation_response(
 					"Request timed out"
 				);
 				// A minor decrease in reputation for any network failure seems
-				// sensible. In theory this could be exploited, by DoSing this node,
+				// sensible. In theory this could be exploited, by Dosing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
 				CollationFetchResult::Error(COST_REQUEST_TIMED_OUT)

@@ -36,10 +36,7 @@ use primitives::v1::{
 	ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{
-	traits::{One, Saturating},
-	DispatchError,
-};
+use sp_runtime::{traits::One, DispatchError};
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 pub use pallet::*;
@@ -359,7 +356,7 @@ impl<T: Config> Pallet<T> {
 			<AvailabilityBitfields<T>>::insert(&validator_index, record);
 		}
 
-		let mut enacted_candidate_weight = 0;
+		let mut enacted_candidate_weight: Weight = 0;
 		let threshold = availability_threshold(validators.len());
 
 		let mut freed_cores = Vec::with_capacity(expected_bits);
@@ -982,7 +979,6 @@ impl<T: Config> CandidateCheckContext<T> {
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
 	) -> Result<(), Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
-		let now = self.now;
 
 		// we require that the candidate is in the context of the parent block.
 		ensure!(
@@ -994,7 +990,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			Error::<T>::NotCollatorSigned,
 		);
 
-		let validation_code_hash = <paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
+		let validation_code_hash = <paras::Pallet<T>>::current_code_hash(para_id)
 			// A candidate for a parachain without current validation code is not scheduled.
 			.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
 		ensure!(
@@ -1048,13 +1044,10 @@ impl<T: Config> CandidateCheckContext<T> {
 
 		// if any, the code upgrade attempt is allowed.
 		if let Some(new_validation_code) = new_validation_code {
-			let valid_upgrade_attempt = <paras::Pallet<T>>::last_code_upgrade(para_id, true)
-				.map_or(true, |last| {
-					last <= self.relay_parent_number &&
-						self.relay_parent_number.saturating_sub(last) >=
-							self.config.validation_upgrade_frequency
-				});
-			ensure!(valid_upgrade_attempt, AcceptanceCheckErr::PrematureCodeUpgrade);
+			ensure!(
+				<paras::Pallet<T>>::can_upgrade_validation_code(para_id),
+				AcceptanceCheckErr::PrematureCodeUpgrade,
+			);
 			ensure!(
 				new_validation_code.0.len() <= self.config.max_code_size as _,
 				AcceptanceCheckErr::NewCodeTooLarge,

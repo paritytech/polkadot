@@ -105,6 +105,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -216,6 +217,7 @@ impl slots::Config for Test {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = LeaseOffset;
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::slots::TestWeightInfo;
 }
 
