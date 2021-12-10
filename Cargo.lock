@@ -6240,6 +6240,7 @@ dependencies = [
  "futures 0.3.18",
  "kvdb",
  "kvdb-memorydb",
+ "lru 0.7.0",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",

@@ -20,6 +20,7 @@ use std::{
 };
 
 use futures::{channel::oneshot, future::join_all, FutureExt};
+use lru::LruCache;
 
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
@@ -35,6 +36,8 @@ use super::{
 #[cfg(test)]
 mod tests;
 
+const LRU_OBSERVED_BLOCKS_CAPACITY: usize = 20;
+
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
 	/// All candidates we have seen included, which not yet have been finalized.
@@ -43,10 +46,13 @@ pub struct OrderingProvider {
 	///
 	/// We need this to clean up `included_candidates` on `ActiveLeavesUpdate`.
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
-	/// Hash of the latest relay block observed by the provider. It's assumed that
-	/// all ancestors of this block are already processed, i.e. we have saved corresponding
-	/// included candidates.
-	last_observed_block: Hash,
+	/// Latest relay blocks observed by the provider. We assume that ancestors of
+	/// the least recently used block in this cache are __very likely__ to be
+	/// already processed, i.e. we have saved corresponding included candidates.
+	///
+	/// Note that the assumption is not strict and the cache exists for optimization
+	/// purpose.
+	last_observed_blocks: LruCache<BlockNumber, Hash>,
 }
 
 /// `Comparator` for ordering of disputes for candidates.
@@ -131,19 +137,21 @@ impl OrderingProvider {
 		// Try to fetch the latest finalized block. Storing it in `last_observed_block`
 		// will enforce traversing non-finalized ancestors of `initial_head` in
 		// `process_active_leaves_update`.
-		let leaf = initial_head.hash;
-		let last_observed_block = get_finalized_block_hash(sender).await?.unwrap_or_else(|| {
+		let (block_number, hash) = get_finalized_block(sender).await?.unwrap_or_else(|| {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"No finalized block returned by the Chain API during start up: initial head ancestors will be ignored"
 			);
-			leaf
+			(initial_head.number, initial_head.hash)
 		});
+
+		let mut lru_cache = LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY);
+		lru_cache.put(block_number, hash);
 
 		let mut s = Self {
 			included_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
-			last_observed_block,
+			last_observed_blocks: lru_cache,
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -188,8 +196,14 @@ impl OrderingProvider {
 		update: &ActiveLeavesUpdate,
 	) -> Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
-			// Fetch ancestors of the activated leaf up until the cached one.
-			let ancestors = get_block_ancestors(sender, activated.hash, self.last_observed_block)
+			// Fetch ancestors of the activated leaf up until the last one in
+			// the LRU cache.
+			let last_observed_block = self.last_observed_blocks.peek_lru().expect(
+				"at least one value is stored in cache during initialization,
+				the capacity is greater than 0 and we never pop values from it,
+				thus, peek always returns `Some`; qed.",
+			);
+			let ancestors = get_block_ancestors(sender, activated.hash, *last_observed_block.1)
 				.await
 				.unwrap_or_default();
 			let blocks_to_process =
@@ -213,7 +227,7 @@ impl OrderingProvider {
 				}
 			}
 
-			self.last_observed_block = activated.hash;
+			self.last_observed_blocks.put(activated.number, activated.hash);
 		}
 
 		Ok(())
@@ -258,14 +272,20 @@ async fn get_block_number(
 	send_message_fatal(sender, ChainApiMessage::BlockNumber(relay_parent, tx), rx).await
 }
 
-async fn get_finalized_block_hash(sender: &mut impl SubsystemSender) -> FatalResult<Option<Hash>> {
+async fn get_finalized_block(
+	sender: &mut impl SubsystemSender,
+) -> FatalResult<Option<(BlockNumber, Hash)>> {
 	let (number_tx, number_rx) = oneshot::channel();
 	let number =
 		send_message_fatal(sender, ChainApiMessage::FinalizedBlockNumber(number_tx), number_rx)
 			.await?;
 
 	let (hash_tx, hash_rx) = oneshot::channel();
-	send_message_fatal(sender, ChainApiMessage::FinalizedBlockHash(number, hash_tx), hash_rx).await
+	let maybe_hash =
+		send_message_fatal(sender, ChainApiMessage::FinalizedBlockHash(number, hash_tx), hash_rx)
+			.await?;
+
+	Ok(Some(number).zip(maybe_hash))
 }
 
 /// Returns ancestors of `head` in the descending order, stopping
@@ -291,7 +311,7 @@ where
 		return Ok(ancestors)
 	}
 
-	let finalized_block_hash = if let Ok(Some(hash)) = get_finalized_block_hash(sender).await {
+	let (_, finalized_block_hash) = if let Ok(Some(hash)) = get_finalized_block(sender).await {
 		hash
 	} else {
 		return Ok(ancestors)
@@ -333,6 +353,8 @@ where
 			receivers.push(fut);
 		}
 
+		// Return early if we received error or no block number for any of
+		// provided hashes.
 		let block_numbers =
 			match join_all(receivers).await.into_iter().collect::<Option<Vec<u32>>>() {
 				Some(block_numbers) => block_numbers,
