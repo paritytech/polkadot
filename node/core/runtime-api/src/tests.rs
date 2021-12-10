@@ -16,9 +16,10 @@
 
 use super::*;
 
+use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
-use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
@@ -208,7 +209,7 @@ sp_api::mock_impl_runtime_apis! {
 
 #[test]
 fn requests_authorities() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -234,7 +235,7 @@ fn requests_authorities() {
 
 #[test]
 fn requests_validators() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -260,7 +261,7 @@ fn requests_validators() {
 
 #[test]
 fn requests_validator_groups() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -286,7 +287,7 @@ fn requests_validator_groups() {
 
 #[test]
 fn requests_availability_cores() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -312,7 +313,7 @@ fn requests_availability_cores() {
 
 #[test]
 fn requests_persisted_validation_data() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
@@ -358,7 +359,7 @@ fn requests_persisted_validation_data() {
 
 #[test]
 fn requests_assumed_validation_data() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
@@ -410,7 +411,7 @@ fn requests_assumed_validation_data() {
 
 #[test]
 fn requests_check_validation_outputs() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
@@ -457,7 +458,7 @@ fn requests_check_validation_outputs() {
 
 #[test]
 fn requests_session_index_for_child() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -481,12 +482,26 @@ fn requests_session_index_for_child() {
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
 
+fn dummy_session_info() -> SessionInfo {
+	SessionInfo {
+		validators: vec![],
+		discovery_keys: vec![],
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 4u32,
+		zeroth_delay_tranche_width: 0u32,
+		relay_vrf_modulo_samples: 0u32,
+		n_delay_tranches: 2u32,
+		no_show_slots: 0u32,
+		needed_approvals: 1u32,
+	}
+}
 #[test]
 fn requests_session_info() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let session_index = 1;
-	runtime_api.session_info.insert(session_index, Default::default());
+	runtime_api.session_info.insert(session_index, dummy_session_info());
 	let runtime_api = Arc::new(runtime_api);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
@@ -506,7 +521,7 @@ fn requests_session_info() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(dummy_session_info()));
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -516,15 +531,16 @@ fn requests_session_info() {
 
 #[test]
 fn requests_validation_code() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
 	let spawner = sp_core::testing::TaskExecutor::new();
+	let validation_code = dummy_validation_code();
 
 	let mut runtime_api = MockRuntimeApi::default();
-	runtime_api.validation_code.insert(para_a, Default::default());
+	runtime_api.validation_code.insert(para_a, validation_code.clone());
 	let runtime_api = Arc::new(runtime_api);
 
 	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
@@ -541,7 +557,7 @@ fn requests_validation_code() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(validation_code));
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
@@ -563,14 +579,17 @@ fn requests_validation_code() {
 
 #[test]
 fn requests_candidate_pending_availability() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
 	let spawner = sp_core::testing::TaskExecutor::new();
+	let candidate_receipt = dummy_committed_candidate_receipt(relay_parent);
 
 	let mut runtime_api = MockRuntimeApi::default();
-	runtime_api.candidate_pending_availability.insert(para_a, Default::default());
+	runtime_api
+		.candidate_pending_availability
+		.insert(para_a, candidate_receipt.clone());
 	let runtime_api = Arc::new(runtime_api);
 
 	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
@@ -587,7 +606,7 @@ fn requests_candidate_pending_availability() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(candidate_receipt));
 
 		let (tx, rx) = oneshot::channel();
 
@@ -610,7 +629,7 @@ fn requests_candidate_pending_availability() {
 
 #[test]
 fn requests_candidate_events() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -636,7 +655,7 @@ fn requests_candidate_events() {
 
 #[test]
 fn requests_dmq_contents() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
@@ -684,7 +703,7 @@ fn requests_dmq_contents() {
 
 #[test]
 fn requests_inbound_hrmp_channels_contents() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
 	let para_a = 99.into();
@@ -741,7 +760,7 @@ fn requests_inbound_hrmp_channels_contents() {
 
 #[test]
 fn requests_validation_code_by_hash() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let (runtime_api, validation_code) = {
@@ -784,7 +803,7 @@ fn requests_validation_code_by_hash() {
 
 #[test]
 fn multiple_requests_in_parallel_are_working() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -826,7 +845,7 @@ fn multiple_requests_in_parallel_are_working() {
 
 #[test]
 fn request_babe_epoch() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let epoch = BabeEpoch {
 		epoch_index: 100,
