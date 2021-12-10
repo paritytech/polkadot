@@ -167,7 +167,7 @@ impl TestState {
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
 	async fn run_inner(mut self, mut harness: TestHarness) {
-		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
+		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block):
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
 			advanced.next();
@@ -197,13 +197,14 @@ impl TestState {
 		// lock ;-)
 		let update_tx = tx.clone();
 		harness.pool.spawn(
-			"Sending active leaves updates",
+			"sending-active-leaves-updates",
+			None,
 			async move {
 				for update in updates {
 					overseer_signal(update_tx.clone(), OverseerSignal::ActiveLeaves(update)).await;
 					// We need to give the subsystem a little time to do its job, otherwise it will
 					// cancel jobs as obsolete:
-					Delay::new(Duration::from_millis(20)).await;
+					Delay::new(Duration::from_millis(100)).await;
 				}
 			}
 			.boxed(),
@@ -215,7 +216,7 @@ impl TestState {
 			match msg {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
 					reqs,
-					IfDisconnected::TryConnect,
+					IfDisconnected::ImmediateError,
 				)) => {
 					for req in reqs {
 						// Forward requests:
@@ -308,7 +309,8 @@ fn to_incoming_req(
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>) =
 				oneshot::channel();
 			executor.spawn(
-				"Message forwarding",
+				"message-forwarding",
+				None,
 				async {
 					let response = rx.await;
 					let payload = response.expect("Unexpected canceled request").result;

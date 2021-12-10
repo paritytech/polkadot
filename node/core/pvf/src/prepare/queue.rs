@@ -17,9 +17,7 @@
 //! A queue that handles requests for PVF preparation.
 
 use super::pool::{self, Worker};
-use crate::{
-	artifacts::ArtifactId, error::PrepareError, metrics::Metrics, Priority, Pvf, LOG_TARGET,
-};
+use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -44,8 +42,9 @@ pub struct FromQueue {
 	/// Identifier of an artifact.
 	pub(crate) artifact_id: ArtifactId,
 	/// Outcome of the PVF processing. [`Ok`] indicates that compiled artifact
-	/// is successfully stored on disk. Otherwise, an [error](PrepareError) is supplied.
-	pub(crate) result: Result<(), PrepareError>,
+	/// is successfully stored on disk. Otherwise, an [error](crate::error::PrepareError)
+	/// is supplied.
+	pub(crate) result: PrepareResult,
 }
 
 #[derive(Default)]
@@ -252,7 +251,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 
 	if let Some(available) = find_idle_worker(queue) {
 		// This may seem not fair (w.r.t priority) on the first glance, but it should be. This is
-		// because as soon as a worker finishes with the job it's immediatelly given the next one.
+		// because as soon as a worker finishes with the job it's immediately given the next one.
 		assign(queue, available, job).await?;
 	} else {
 		spawn_extra_worker(queue, priority.is_critical()).await?;
@@ -327,7 +326,7 @@ async fn handle_worker_concluded(
 	queue: &mut Queue,
 	worker: Worker,
 	rip: bool,
-	result: Result<(), PrepareError>,
+	result: PrepareResult,
 ) -> Result<(), Fatal> {
 	queue.metrics.prepare_concluded();
 
@@ -336,7 +335,7 @@ async fn handle_worker_concluded(
 			match $expr {
 				Some(v) => v,
 				None => {
-					// Precondition of calling this is that the $expr is never none;
+					// Precondition of calling this is that the `$expr` is never none;
 					// Assume the conditions holds, then this never is not hit;
 					// qed.
 					never!("never_none, {}", stringify!($expr));
@@ -529,6 +528,7 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::error::PrepareError;
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -794,7 +794,7 @@ mod tests {
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 
-		// Now, to the interesting part. After the queue normally issues the start_work command to
+		// Now, to the interesting part. After the queue normally issues the `start_work` command to
 		// the pool, before receiving the command the queue may report that the worker ripped.
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		test.send_from_pool(pool::FromPool::Rip(w1));

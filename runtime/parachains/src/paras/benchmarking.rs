@@ -47,7 +47,7 @@ fn generate_disordered_pruning<T: Config>() {
 	<Pallet<T> as Store>::PastCodePruning::put(needs_pruning);
 }
 
-fn generate_disordered_upgrades<T: Config>() {
+pub(crate) fn generate_disordered_upgrades<T: Config>() {
 	let mut upgrades = Vec::new();
 	let mut cooldowns = Vec::new();
 
@@ -108,7 +108,7 @@ benchmarks! {
 		let s in 1 .. MAX_HEAD_DATA_SIZE;
 		let para_id = ParaId::from(1000);
 		let new_head = HeadData(vec![0; s as usize]);
-		// schedule an expired code upgrade for this para_id so that force_note_new_head would use
+		// schedule an expired code upgrade for this `para_id` so that force_note_new_head would use
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
 		let config = HostConfiguration::<T::BlockNumber>::default();

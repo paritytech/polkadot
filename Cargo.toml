@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -17,8 +17,8 @@ color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.2"
-nix = "0.20.0"
+assert_cmd = "2.0.2"
+nix = "0.23.0"
 tempfile = "3.2.0"
 
 [workspace]
@@ -56,7 +56,6 @@ members = [
 	"node/core/chain-api",
 	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
-	"node/core/dispute-participation",
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
@@ -85,6 +84,7 @@ members = [
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
+	"node/test/performance-test",
 	"node/test/service",
 	"node/test/polkadot-simnet/common",
 	"node/test/polkadot-simnet/node",
@@ -258,7 +258,6 @@ sp-consensus-vrf = { git="https://github.com/cheme/substrate", branch="state-upd
 sp-consensus-aura = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 sp-wasm-interface = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 sc-finality-grandpa-rpc = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
-sc-light = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 sc-sync-state-rpc = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 sp-arithmetic = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 sp-storage = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
@@ -304,3 +303,6 @@ beefy-gadget = { git="https://github.com/cheme/substrate", branch="state-update4
 beefy-gadget-rpc = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 beefy-merkle-tree = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 beefy-primitives = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
+sc-offchain = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
+pallet-bags-list-remote-tests = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
+

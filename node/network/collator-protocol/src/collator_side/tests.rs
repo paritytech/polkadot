@@ -16,7 +16,7 @@
 
 use super::*;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future, Future, SinkExt};
@@ -68,7 +68,6 @@ impl TestCandidateBuilder {
 #[derive(Clone)]
 struct TestState {
 	para_id: ParaId,
-	validators: Vec<Sr25519Keyring>,
 	session_info: SessionInfo,
 	group_rotation_info: GroupRotationInfo,
 	validator_peer_id: Vec<PeerId>,
@@ -121,7 +120,6 @@ impl Default for TestState {
 
 		Self {
 			para_id,
-			validators,
 			session_info: SessionInfo {
 				validators: validator_public,
 				discovery_keys,
@@ -311,7 +309,7 @@ async fn distribute_collation(
 	// whether or not we expect a connection request or not.
 	should_connect: bool,
 ) -> DistributeCollation {
-	// Now we want to distribute a PoVBlock
+	// Now we want to distribute a `PoVBlock`
 	let pov_block = PoV { block_data: BlockData(vec![42, 43, 44]) };
 
 	let pov_hash = pov_block.hash();
@@ -405,7 +403,7 @@ async fn connect_peer(
 		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			polkadot_node_network_protocol::ObservedRole::Authority,
-			authority_id,
+			authority_id.map(|v| HashSet::from([v])),
 		)),
 	)
 	.await;
@@ -531,7 +529,7 @@ fn advertise_and_send_collation() {
 
 		// We declare to the connected validators that we are a collator.
 		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
+		// previously connected to.
 		for peer_id in test_state.current_group_validator_peer_ids() {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
 		}
@@ -897,7 +895,7 @@ where
 
 		// We declare to the connected validators that we are a collator.
 		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
+		// previously connected to.
 		for peer_id in test_state.current_group_validator_peer_ids() {
 			expect_declare_msg(virtual_overseer, &test_state, &peer_id).await;
 		}

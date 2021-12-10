@@ -23,8 +23,8 @@
 use assert_matches::assert_matches;
 use bp_header_chain::justification::{verify_justification, Error, GrandpaJustification};
 use bp_test_utils::{
-	header_id, make_justification_for_header, signed_precommit, test_header, Account, JustificationGeneratorParams,
-	ALICE, BOB, CHARLIE, DAVE, EVE, TEST_GRANDPA_SET_ID,
+	header_id, make_justification_for_header, signed_precommit, test_header, Account,
+	JustificationGeneratorParams, ALICE, BOB, CHARLIE, DAVE, EVE, TEST_GRANDPA_SET_ID,
 };
 use finality_grandpa::voter_set::VoterSet;
 use sp_finality_grandpa::{AuthorityId, AuthorityWeight};
@@ -44,18 +44,22 @@ impl AncestryChain {
 }
 
 impl finality_grandpa::Chain<TestHash, TestNumber> for AncestryChain {
-	fn ancestry(&self, base: TestHash, block: TestHash) -> Result<Vec<TestHash>, finality_grandpa::Error> {
+	fn ancestry(
+		&self,
+		base: TestHash,
+		block: TestHash,
+	) -> Result<Vec<TestHash>, finality_grandpa::Error> {
 		let mut route = Vec::new();
 		let mut current_hash = block;
 		loop {
 			if current_hash == base {
-				break;
+				break
 			}
 			match self.0.parents.get(&current_hash).cloned() {
 				Some(parent_hash) => {
 					current_hash = parent_hash;
 					route.push(current_hash);
-				}
+				},
 				_ => return Err(finality_grandpa::Error::NotDescendent),
 			}
 		}
@@ -81,14 +85,11 @@ fn minimal_accounts_set() -> Vec<(Account, AuthorityWeight)> {
 	vec![(ALICE, 1), (BOB, 1), (CHARLIE, 1), (DAVE, 1)]
 }
 
-/// Get a minimal subset of GRANDPA authorities that have enough cumulative vote weight to justify a header finality.
+/// Get a minimal subset of GRANDPA authorities that have enough cumulative vote weight to justify a
+/// header finality.
 pub fn minimal_voter_set() -> VoterSet<AuthorityId> {
-	VoterSet::new(
-		minimal_accounts_set()
-			.iter()
-			.map(|(id, w)| (AuthorityId::from(*id), *w)),
-	)
-	.unwrap()
+	VoterSet::new(minimal_accounts_set().iter().map(|(id, w)| (AuthorityId::from(*id), *w)))
+		.unwrap()
 }
 
 /// Make a valid GRANDPA justification with sensible defaults.
@@ -174,14 +175,8 @@ fn same_result_when_justification_contains_duplicate_vote() {
 	let mut justification = make_default_justification(&test_header(1));
 	// the justification may contain exactly the same vote (i.e. same precommit and same signature)
 	// multiple times && it isn't treated as an error by original implementation
-	justification
-		.commit
-		.precommits
-		.push(justification.commit.precommits[0].clone());
-	justification
-		.commit
-		.precommits
-		.push(justification.commit.precommits[0].clone());
+	justification.commit.precommits.push(justification.commit.precommits[0].clone());
+	justification.commit.precommits.push(justification.commit.precommits[0].clone());
 
 	// our implementation succeeds
 	assert_eq!(

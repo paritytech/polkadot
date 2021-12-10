@@ -62,7 +62,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 	type RunArgs = bool;
 	type Metrics = ();
 
-	const NAME: &'static str = "FakeCollatorProtocolJob";
+	const NAME: &'static str = "fake-collator-protocol-job";
 
 	/// Run a job for the parent block indicated
 	//
@@ -199,7 +199,7 @@ fn test_subsystem_impl_and_name_derivation() {
 
 	let SpawnedSubsystem { name, .. } =
 		FakeCollatorProtocolSubsystem::new(pool, false, ()).start(context);
-	assert_eq!(name, "FakeCollatorProtocol");
+	assert_eq!(name, "fake-collator-protocol");
 }
 
 #[test]
