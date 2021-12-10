@@ -157,7 +157,7 @@ fn polkadot_testnet_genesis(
 		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: runtime::VestingConfig { vesting: vec![] },
-		sudo: runtime::SudoConfig { key: root_key },
+		sudo: runtime::SudoConfig { key: Some(root_key) },
 		configuration: runtime::ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 10u32,

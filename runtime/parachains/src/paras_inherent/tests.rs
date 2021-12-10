@@ -717,6 +717,10 @@ mod sanitizers {
 		val_ids.iter().map(|v| v.public().into()).collect()
 	}
 
+	fn dummy_signature() -> primitives::v1::ValidatorSignature {
+		sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
+	}
+
 	#[test]
 	fn bitfields() {
 		let header = default_header();
@@ -928,7 +932,7 @@ mod sanitizers {
 			let last_bit_idx = unchecked_bitfields.len() - 1;
 			unchecked_bitfields
 				.get_mut(last_bit_idx)
-				.and_then(|u| Some(u.set_signature(ValidatorSignature::default())))
+				.and_then(|u| Some(u.set_signature(dummy_signature())))
 				.expect("we are accessing a valid index");
 			assert_eq!(
 				&sanitize_bitfields::<Test>(

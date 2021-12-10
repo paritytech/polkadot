@@ -365,7 +365,7 @@ pub mod pallet {
 		pub fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
-			PaymentAccount::<T>::set(who.clone());
+			PaymentAccount::<T>::put(who.clone());
 			Self::deposit_event(Event::<T>::PaymentAccountSet(who));
 			Ok(())
 		}
@@ -714,7 +714,7 @@ mod tests {
 				Origin::signed(configuration_origin()),
 				payment_account.clone()
 			));
-			assert_eq!(PaymentAccount::<Test>::get(), payment_account);
+			assert_eq!(PaymentAccount::<Test>::get(), Some(payment_account));
 		});
 	}
 

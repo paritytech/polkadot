@@ -428,6 +428,8 @@ mod tests {
 
 	#[test]
 	fn ensure_rococo_tx_extra_bytes_constant_is_correct() {
+		use sp_core::crypto::UncheckedFrom;
+
 		// **NOTE**: this test checks that we're computing transaction fee (for bridged chain, which, in
 		// case of Rococo<>Wococo, means any chain) on-chain properly. If this assert fails:
 		//
@@ -449,8 +451,9 @@ mod tests {
 				primitives::v1::Balance::MAX,
 			),
 		);
+		use parity_scale_codec::Decode;
 		let extra_bytes_in_transaction = crate::Address::default().encoded_size() +
-			crate::Signature::default().encoded_size() +
+			crate::Signature::decode(&mut sp_runtime::traits::TrailingZeroInput::zeroes()).unwrap().encoded_size() +
 			signed_extra.encoded_size();
 		assert!(
 			TX_EXTRA_BYTES as usize >= extra_bytes_in_transaction,

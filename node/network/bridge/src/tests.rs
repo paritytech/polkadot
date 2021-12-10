@@ -868,7 +868,7 @@ fn relays_collation_protocol_messages() {
 		let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 			Sr25519Keyring::Alice.public().into(),
 			Default::default(),
-			Default::default(),
+			dummy_signature(),
 		);
 
 		let message =
@@ -1076,6 +1076,10 @@ fn view_finalized_number_can_not_go_down() {
 	});
 }
 
+fn dummy_signature() -> polkadot_primitives::v1::CollatorSignature {
+	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
+}
+
 #[test]
 fn send_messages_to_peers() {
 	test_harness(done_syncing_oracle(), |test_harness| async move {
@@ -1159,7 +1163,7 @@ fn send_messages_to_peers() {
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
 				Default::default(),
-				Default::default(),
+				dummy_signature(),
 			);
 
 			let message =

@@ -89,6 +89,10 @@ mod handle_new_activations {
 		ScheduledCore { para_id: para_id.into(), collator: None }
 	}
 
+	fn dummy_pubkey() -> polkadot_primitives::v1::ValidatorId {
+		sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 32])
+	}
+
 	#[test]
 	fn requests_availability_per_relay_parent() {
 		let activated_hashes: Vec<Hash> =
@@ -106,7 +110,7 @@ mod handle_new_activations {
 						tx.send(Ok(vec![])).unwrap();
 					}
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::Validators(tx)))) => {
-						tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						tx.send(Ok(vec![dummy_pubkey(); 3])).unwrap();
 					}
 					Some(msg) => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
 				}
@@ -183,7 +187,7 @@ mod handle_new_activations {
 						_hash,
 						RuntimeApiRequest::Validators(tx),
 					))) => {
-						tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						tx.send(Ok(vec![dummy_pubkey(); 3])).unwrap();
 					},
 					Some(msg) => {
 						panic!("didn't expect any other overseer requests; got {:?}", msg)
@@ -254,7 +258,7 @@ mod handle_new_activations {
 						_hash,
 						RuntimeApiRequest::Validators(tx),
 					))) => {
-						tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						tx.send(Ok(vec![dummy_pubkey(); 3])).unwrap();
 					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,

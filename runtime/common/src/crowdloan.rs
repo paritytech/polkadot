@@ -831,7 +831,7 @@ mod tests {
 	use sp_keystore::{testing::KeyStore, KeystoreExt};
 	use sp_runtime::{
 		testing::Header,
-		traits::{BlakeTwo256, IdentityLookup},
+		traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
 		DispatchResult,
 	};
 
@@ -1296,7 +1296,8 @@ mod tests {
 			let payload = (0u32, 1u64, 0u64, 49u64);
 			let valid_signature =
 				crypto::create_ed25519_signature(&payload.encode(), pubkey.clone());
-			let invalid_signature = MultiSignature::default();
+			let invalid_signature = MultiSignature::decode(&mut TrailingZeroInput::zeroes())
+				.unwrap();
 
 			// Invalid signature
 			assert_noop!(

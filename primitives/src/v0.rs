@@ -335,18 +335,6 @@ pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	pub commitments: CandidateCommitments<H>,
 }
 
-#[allow(dead_code)]
-#[cfg(feature = "std")]
-fn dummy_collator_id() -> CollatorId {
-	primitives::crypto::UncheckedFrom::unchecked_from([1u8; 32])
-}
-
-#[allow(dead_code)]
-#[cfg(feature = "std")]
-fn dummy_signature() -> CollatorSignature {
-	primitives::crypto::UncheckedFrom::unchecked_from([1u8; 64])
-}
-
 impl<H: AsRef<[u8]>, N> CandidateReceipt<H, N> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {

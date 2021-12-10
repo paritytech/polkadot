@@ -541,7 +541,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		im_online: Default::default(),
 		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		vesting: westend::VestingConfig { vesting: vec![] },
-		sudo: westend::SudoConfig { key: endowed_accounts[0].clone() },
+		sudo: westend::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 		hrmp: Default::default(),
 		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
@@ -1034,7 +1034,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		collective: Default::default(),
 		membership: Default::default(),
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
-		sudo: rococo_runtime::SudoConfig { key: endowed_accounts[0].clone() },
+		sudo: rococo_runtime::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
@@ -1470,7 +1470,7 @@ pub fn westend_testnet_genesis(
 		im_online: Default::default(),
 		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		vesting: westend::VestingConfig { vesting: vec![] },
-		sudo: westend::SudoConfig { key: root_key },
+		sudo: westend::SudoConfig { key: Some(root_key) },
 		hrmp: Default::default(),
 		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
@@ -1541,7 +1541,7 @@ pub fn rococo_testnet_genesis(
 		collective: Default::default(),
 		membership: Default::default(),
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
-		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
+		sudo: rococo_runtime::SudoConfig { key: Some(root_key.clone()) },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
