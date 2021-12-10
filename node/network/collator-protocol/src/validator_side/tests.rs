@@ -30,8 +30,11 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	CandidateDescriptor, CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore,
-	ScheduledCore, ValidatorId, ValidatorIndex,
+	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
+	ValidatorId, ValidatorIndex,
+};
+use polkadot_primitives_test_helpers::{
+	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
 };
 use polkadot_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_subsystem_testhelpers as test_helpers;
@@ -89,7 +92,7 @@ impl Default for TestState {
 				group_responsible: GroupIndex(0),
 				candidate_hash: Default::default(),
 				candidate_descriptor: {
-					let mut d = CandidateDescriptor::default();
+					let mut d = dummy_candidate_descriptor(dummy_hash());
 					d.para_id = chain_ids[1];
 
 					d
@@ -551,7 +554,8 @@ fn fetch_collations_works() {
 		);
 
 		let pov = PoV { block_data: BlockData(vec![]) };
-		let mut candidate_a = CandidateReceipt::default();
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
@@ -643,7 +647,8 @@ fn fetch_collations_works() {
 				.await;
 
 		let pov = PoV { block_data: BlockData(vec![1]) };
-		let mut candidate_a = CandidateReceipt::default();
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = second;
 
@@ -767,7 +772,8 @@ fn fetch_next_collation_on_invalid_collation() {
 		.await;
 
 		let pov = PoV { block_data: BlockData(vec![]) };
-		let mut candidate_a = CandidateReceipt::default();
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel

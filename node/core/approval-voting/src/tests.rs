@@ -51,6 +51,8 @@ use super::{
 	},
 };
 
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig};
+
 const SLOT_DURATION_MILLIS: u64 = 5000;
 
 #[derive(Clone)]
@@ -547,9 +549,8 @@ where
 }
 
 fn make_candidate(para_id: ParaId, hash: &Hash) -> CandidateReceipt {
-	let mut r = CandidateReceipt::default();
+	let mut r = dummy_candidate_receipt_bad_sig(hash.clone(), Some(Default::default()));
 	r.descriptor.para_id = para_id;
-	r.descriptor.relay_parent = hash.clone();
 	r
 }
 
@@ -1132,7 +1133,7 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
-		let candidate_hash = CandidateReceipt::<Hash>::default().hash();
+		let candidate_hash = dummy_candidate_receipt(block_hash).hash();
 		let session_index = 1;
 
 		let rx = check_and_import_approval(
@@ -1168,7 +1169,8 @@ fn subsystem_rejects_approval_before_assignment() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+			let mut candidate_receipt =
+				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1358,7 +1360,8 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+			let mut candidate_receipt =
+				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1423,7 +1426,8 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_hash = {
-			let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+			let mut candidate_receipt =
+				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
 			candidate_receipt.descriptor.para_id = 0.into();
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
@@ -1886,12 +1890,12 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_receipt1 = {
-			let mut receipt = CandidateReceipt::<Hash>::default();
+			let mut receipt = dummy_candidate_receipt(block_hash);
 			receipt.descriptor.para_id = 1.into();
 			receipt
 		};
 		let candidate_receipt2 = {
-			let mut receipt = CandidateReceipt::<Hash>::default();
+			let mut receipt = dummy_candidate_receipt(block_hash);
 			receipt.descriptor.para_id = 2.into();
 			receipt
 		};
@@ -2032,9 +2036,8 @@ fn approved_ancestor_test(
 			.iter()
 			.enumerate()
 			.map(|(i, hash)| {
-				let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+				let mut candidate_receipt = dummy_candidate_receipt(*hash);
 				candidate_receipt.descriptor.para_id = i.into();
-				candidate_receipt.descriptor.relay_parent = *hash;
 				candidate_receipt
 			})
 			.collect();
@@ -2183,7 +2186,7 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt = CandidateReceipt::<Hash>::default();
+		let candidate_receipt = dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;
@@ -2317,7 +2320,7 @@ where
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt = CandidateReceipt::<Hash>::default();
+		let candidate_receipt = dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
 		let candidate_index = 0;

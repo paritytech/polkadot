@@ -24,3 +24,4 @@ polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3"
+polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

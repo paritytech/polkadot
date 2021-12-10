@@ -49,7 +49,7 @@ use crate::{configuration, initializer::SessionChangeNotification, paras};
 pub use pallet::*;
 
 /// A queued parathread entry, pre-assigned to a core.
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct QueuedParathread {
 	claim: ParathreadEntry,
@@ -57,7 +57,7 @@ pub struct QueuedParathread {
 }
 
 /// The queue of all parathread claims.
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
@@ -86,6 +86,12 @@ impl ParathreadClaimQueue {
 	fn get_next_on_core(&self, core_offset: u32) -> Option<&ParathreadEntry> {
 		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
 		pos.map(|i| &self.queue[i].claim)
+	}
+}
+
+impl Default for ParathreadClaimQueue {
+	fn default() -> Self {
+		Self { queue: vec![], next_core_offset: 0 }
 	}
 }
 
