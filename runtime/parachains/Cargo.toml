@@ -49,7 +49,7 @@ hex-literal = "0.3.4"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
 
 [features]
 default = ["std"]

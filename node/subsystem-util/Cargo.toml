@@ -37,3 +37,5 @@ futures = { version = "0.3.17", features = ["thread-pool"] }
 log = "0.4.13"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 lazy_static = "1.4.0"
+polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
+

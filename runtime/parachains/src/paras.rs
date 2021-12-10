@@ -456,13 +456,20 @@ pub mod pallet {
 			new_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para).unwrap_or_default();
+			let maybe_prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para);
 			let new_code_hash = new_code.hash();
 			Self::increase_code_ref(&new_code_hash, &new_code);
 			<Self as Store>::CurrentCodeHash::insert(&para, new_code_hash);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			Self::note_past_code(para, now, now, prior_code_hash);
+			if let Some(prior_code_hash) = maybe_prior_code_hash {
+				Self::note_past_code(para, now, now, prior_code_hash);
+			} else {
+				log::error!(
+					"Pallet paras storage is inconsistent, prior code not found {:?}",
+					&para
+				);
+			}
 			Self::deposit_event(Event::CurrentCodeUpdated(para));
 			Ok(())
 		}
@@ -959,8 +966,13 @@ impl<T: Config> Pallet<T> {
 				<Self as Store>::UpgradeGoAheadSignal::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
-				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or_default();
-				let prior_code_hash = CurrentCodeHash::<T>::get(&id).unwrap_or_default();
+				let new_code_hash = if let Some(new_code_hash) = FutureCodeHash::<T>::take(&id) {
+					new_code_hash
+				} else {
+					log::error!("Missing future code hash for {:?}", &id);
+					return T::DbWeight::get().reads_writes(3, 1 + 3)
+				};
+				let prior_code_hash = CurrentCodeHash::<T>::get(&id);
 				CurrentCodeHash::<T>::insert(&id, &new_code_hash);
 
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
@@ -969,7 +981,12 @@ impl<T: Config> Pallet<T> {
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Pallet<T>>::block_number();
 
-				let weight = Self::note_past_code(id, expected_at, now, prior_code_hash);
+				let weight = if let Some(prior_code_hash) = prior_code_hash {
+					Self::note_past_code(id, expected_at, now, prior_code_hash)
+				} else {
+					log::error!("Missing prior code hash for {:?}", &id);
+					0 as Weight
+				};
 
 				// add 1 to writes due to heads update.
 				weight + T::DbWeight::get().reads_writes(3, 1 + 3)
@@ -1078,6 +1095,7 @@ mod tests {
 	use super::*;
 	use frame_support::{assert_err, assert_ok};
 	use primitives::v1::BlockNumber;
+	use test_helpers::{dummy_head_data, dummy_validation_code};
 
 	use crate::{
 		configuration::HostConfiguration,
@@ -1195,7 +1213,7 @@ mod tests {
 					1000.into(),
 					ParaGenesisArgs {
 						parachain: false,
-						genesis_head: Default::default(),
+						genesis_head: dummy_head_data(),
 						validation_code: ValidationCode(vec![]),
 					}
 				),
@@ -1206,7 +1224,7 @@ mod tests {
 				1000.into(),
 				ParaGenesisArgs {
 					parachain: false,
-					genesis_head: Default::default(),
+					genesis_head: dummy_head_data(),
 					validation_code: ValidationCode(vec![1]),
 				}
 			));
@@ -1221,16 +1239,16 @@ mod tests {
 				0u32.into(),
 				ParaGenesisArgs {
 					parachain: true,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 			(
 				1u32.into(),
 				ParaGenesisArgs {
 					parachain: false,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 		];
@@ -1248,7 +1266,7 @@ mod tests {
 			let id = ParaId::from(0u32);
 			let at_block: BlockNumber = 10;
 			let included_block: BlockNumber = 12;
-			let validation_code = ValidationCode(vec![1, 2, 3]);
+			let validation_code = ValidationCode(vec![4, 5, 6]);
 
 			Paras::increase_code_ref(&validation_code.hash(), &validation_code);
 			<Paras as Store>::PastCodeHash::insert(&(id, at_block), &validation_code.hash());
@@ -1289,8 +1307,8 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
-				validation_code: Default::default(),
+				genesis_head: dummy_head_data(),
+				validation_code: dummy_validation_code(),
 			},
 		)];
 
@@ -1306,7 +1324,7 @@ mod tests {
 		new_test_ext(genesis_config).execute_with(|| {
 			let id_a = ParaId::from(0u32);
 
-			assert_eq!(Paras::para_head(&id_a), Some(Default::default()));
+			assert_eq!(Paras::para_head(&id_a), Some(dummy_head_data()));
 
 			Paras::note_new_head(id_a, vec![1, 2, 3].into(), 0);
 
@@ -1322,16 +1340,16 @@ mod tests {
 				0u32.into(),
 				ParaGenesisArgs {
 					parachain: true,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 			(
 				1u32.into(),
 				ParaGenesisArgs {
 					parachain: false,
-					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					genesis_head: dummy_head_data(),
+					validation_code: dummy_validation_code(),
 				},
 			),
 		];
@@ -1375,7 +1393,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_head_data(),
 				validation_code: original_code.clone(),
 			},
 		)];
@@ -1482,7 +1500,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_head_data(),
 				validation_code: original_code.clone(),
 			},
 		)];
@@ -1570,7 +1588,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_head_data(),
 				validation_code: vec![1, 2, 3].into(),
 			},
 		)];
@@ -1625,7 +1643,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_head_data(),
 				validation_code: original_code.clone(),
 			},
 		)];
@@ -1808,7 +1826,7 @@ mod tests {
 			0u32.into(),
 			ParaGenesisArgs {
 				parachain: true,
-				genesis_head: Default::default(),
+				genesis_head: dummy_head_data(),
 				validation_code: vec![1, 2, 3].into(),
 			},
 		)];

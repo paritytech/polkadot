@@ -98,6 +98,12 @@ impl ParathreadClaimQueue {
 	}
 }
 
+impl Default for ParathreadClaimQueue {
+	fn default() -> Self {
+		Self { queue: vec![], next_core_offset: 0 }
+	}
+}
+
 /// Reasons a core might be freed
 #[derive(Clone, Copy)]
 pub enum FreedReason {

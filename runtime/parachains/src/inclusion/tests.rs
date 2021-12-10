@@ -40,6 +40,10 @@ use primitives::{
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
+use test_helpers::{
+	dummy_candidate_descriptor, dummy_collator, dummy_collator_signature, dummy_hash,
+	dummy_validation_code,
+};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -58,7 +62,7 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
 						id,
 						ParaGenesisArgs {
 							genesis_head: Vec::new().into(),
-							validation_code: Vec::new().into(),
+							validation_code: dummy_validation_code(),
 							parachain: is_chain,
 						},
 					)
@@ -238,7 +242,6 @@ pub(crate) async fn sign_bitfield(
 	.unwrap()
 }
 
-#[derive(Default)]
 pub(crate) struct TestCandidateBuilder {
 	pub(crate) para_id: ParaId,
 	pub(crate) head_data: HeadData,
@@ -251,6 +254,23 @@ pub(crate) struct TestCandidateBuilder {
 	pub(crate) hrmp_watermark: BlockNumber,
 }
 
+impl std::default::Default for TestCandidateBuilder {
+	fn default() -> Self {
+		let zeros = Hash::zero();
+		Self {
+			para_id: 0.into(),
+			head_data: Default::default(),
+			para_head_hash: None,
+			pov_hash: zeros,
+			relay_parent: zeros,
+			persisted_validation_data_hash: zeros,
+			new_validation_code: None,
+			validation_code: dummy_validation_code(),
+			hrmp_watermark: 0u32.into(),
+		}
+	}
+}
+
 impl TestCandidateBuilder {
 	pub(crate) fn build(self) -> CommittedCandidateReceipt {
 		CommittedCandidateReceipt {
@@ -261,7 +281,9 @@ impl TestCandidateBuilder {
 				persisted_validation_data_hash: self.persisted_validation_data_hash,
 				validation_code_hash: self.validation_code.hash(),
 				para_head: self.para_head_hash.unwrap_or_else(|| self.head_data.hash()),
-				..Default::default()
+				erasure_root: Default::default(),
+				signature: dummy_collator_signature(),
+				collator: dummy_collator(),
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
@@ -388,7 +410,13 @@ fn bitfield_checks() {
 					p_id,
 					CandidatePendingAvailability {
 						availability_votes: default_availability_votes(),
-						..Default::default()
+						core: Default::default(),
+						hash: Default::default(),
+						descriptor: dummy_candidate_descriptor(dummy_hash()),
+						backers: Default::default(),
+						relay_parent_number: Default::default(),
+						backed_in_number: Default::default(),
+						backing_group: Default::default(),
 					},
 				)
 			}

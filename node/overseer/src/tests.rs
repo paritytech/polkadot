@@ -17,6 +17,7 @@
 use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
+use ::test_helpers::{dummy_candidate_descriptor, dummy_candidate_receipt, dummy_hash};
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 use polkadot_node_primitives::{
 	BlockData, CollationGenerationConfig, CollationResult, DisputeMessage, InvalidDisputeVote, PoV,
@@ -110,7 +111,7 @@ where
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
-							Default::default(),
+							dummy_candidate_descriptor(dummy_hash()),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
@@ -793,9 +794,9 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
 	CandidateValidationMessage::ValidateFromChainState(
-		Default::default(),
+		dummy_candidate_descriptor(dummy_hash()),
 		pov,
-		Default::default(),
+		Duration::default(),
 		sender,
 	)
 }
@@ -844,7 +845,7 @@ fn test_statement_distribution_msg() -> StatementDistributionMessage {
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 	let (sender, _) = oneshot::channel();
 	AvailabilityRecoveryMessage::RecoverAvailableData(
-		Default::default(),
+		dummy_candidate_receipt(dummy_hash()),
 		Default::default(),
 		None,
 		sender,
@@ -890,7 +891,7 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 	let dummy_dispute_message = UncheckedDisputeMessage {
-		candidate_receipt: Default::default(),
+		candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 		session_index: 0,
 		invalid_vote: InvalidDisputeVote {
 			validator_index: ValidatorIndex(0),

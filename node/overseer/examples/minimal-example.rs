@@ -22,6 +22,7 @@ use futures::{channel::oneshot, pending, pin_mut, select, stream, FutureExt, Str
 use futures_timer::Delay;
 use std::time::Duration;
 
+use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use polkadot_node_primitives::{BlockData, PoV};
 use polkadot_node_subsystem_types::messages::{
 	CandidateBackingMessage, CandidateValidationMessage,
@@ -73,7 +74,7 @@ impl Subsystem1 {
 			let (tx, _) = oneshot::channel();
 
 			let msg = CandidateValidationMessage::ValidateFromChainState(
-				Default::default(),
+				dummy_candidate_descriptor(dummy_hash()),
 				PoV { block_data: BlockData(Vec::new()) }.into(),
 				Default::default(),
 				tx,
