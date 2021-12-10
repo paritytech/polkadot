@@ -2046,7 +2046,8 @@ mod test_fees {
 	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 	use pallet_transaction_payment::Multiplier;
 	use separator::Separatable;
-	use sp_runtime::{assert_eq_error_rate, FixedPointNumber, traits::TrailingZeroInput};
+	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
+	use keyring::Sr25519Keyring::Charlie;
 
 	#[test]
 	fn payout_weight_portion() {
@@ -2083,9 +2084,8 @@ mod test_fees {
 	#[ignore]
 	fn transfer_cost_min_multiplier() {
 		let min_multiplier = runtime_common::MinimumMultiplier::get();
-		let dummy_dest = Decode::decode(&mut TrailingZeroInput::new(&[1; 32][..])).unwrap();
 		let call = pallet_balances::Call::<Runtime>::transfer_keep_alive {
-			dest: dummy_dest,
+			dest: Charlie.to_account_id().into(),
 			value: Default::default(),
 		};
 		let info = call.get_dispatch_info();
