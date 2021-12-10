@@ -635,10 +635,11 @@ impl<T: Config> Pallet<T> {
 
 		winning_ranges
 			.into_iter()
-			.filter_map(|range| winning[range as u8 as usize]
-				.take()
-				.map(|(bidder, para, amount)| (bidder, para, amount, range))
-			)
+			.filter_map(|range| {
+				winning[range as u8 as usize]
+					.take()
+					.map(|(bidder, para, amount)| (bidder, para, amount, range))
+			})
 			.collect::<Vec<_>>()
 	}
 }

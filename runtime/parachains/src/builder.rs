@@ -32,7 +32,7 @@ use primitives::v1::{
 use sp_core::{sr25519, H256};
 use sp_runtime::{
 	generic::Digest,
-	traits::{Header as HeaderT, One, Zero, TrailingZeroInput},
+	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};

@@ -2044,10 +2044,10 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
 	use separator::Separatable;
 	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
-	use keyring::Sr25519Keyring::Charlie;
 
 	#[test]
 	fn payout_weight_portion() {
