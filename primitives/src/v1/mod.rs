@@ -1462,7 +1462,6 @@ fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
 	return sp_std::str::from_utf8(v).unwrap_or(default)
 }
 
-
 impl RuntimeMetricRegisterParams {
 	/// Returns the metric description.
 	pub fn description(&self) -> &str {
