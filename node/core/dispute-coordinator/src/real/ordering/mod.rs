@@ -22,13 +22,14 @@ use std::{
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender,
+	messages::{AllMessages, ChainApiMessage},
+	ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
 use super::{
-	error::{Fatal, FatalResult, Result},
+	error::{Fatal, FatalResult, NonFatalResult, Result},
 	LOG_TARGET,
 };
 
@@ -43,6 +44,10 @@ pub struct OrderingProvider {
 	///
 	/// We need this to clean up `included_candidates` on `ActiveLeavesUpdate`.
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
+	/// Hash of the latest relay block observed by the provider. It's assumed that
+	/// all ancestors of this block are already processed, i.e. we have saved corresponding
+	/// included candidates.
+	last_observed_block: Hash,
 }
 
 /// `Comparator` for ordering of disputes for candidates.
@@ -124,9 +129,22 @@ impl OrderingProvider {
 		sender: &mut Sender,
 		initial_head: ActivatedLeaf,
 	) -> Result<Self> {
+		// Try to fetch the latest finalized block. Storing it in `last_observed_block`
+		// will enforce traversing non-finalized ancestors of `initial_head` in
+		// `process_active_leaves_update`.
+		let leaf = initial_head.hash;
+		let last_observed_block = get_finalized_block_hash(sender).await?.unwrap_or_else(|| {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"No finalized block returned by the Chain API during start up: initial head ancestors will be ignored"
+			);
+			leaf
+		});
+
 		let mut s = Self {
 			included_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
+			last_observed_block,
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -171,22 +189,32 @@ impl OrderingProvider {
 		update: &ActiveLeavesUpdate,
 	) -> Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
-			// Get included events:
-			let included = get_candidate_events(sender, activated.hash)
-				.await?
-				.into_iter()
-				.filter_map(|ev| match ev {
-					CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
-					_ => None,
-				});
-			for receipt in included {
-				let candidate_hash = receipt.hash();
-				self.included_candidates.insert(candidate_hash);
-				self.candidates_by_block_number
-					.entry(activated.number)
-					.or_default()
-					.insert(candidate_hash);
+			// Fetch ancestors of the activated leaf up until the cached one.
+			let ancestors =
+				get_block_ancestors_hashes(sender, activated.hash, self.last_observed_block)
+					.await
+					.unwrap_or_default();
+			let blocks_to_process = std::iter::once(activated.hash).chain(ancestors);
+			for block_hash in blocks_to_process {
+				// Get included events:
+				let included = get_candidate_events(sender, block_hash)
+					.await?
+					.into_iter()
+					.filter_map(|ev| match ev {
+						CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
+						_ => None,
+					});
+				for receipt in included {
+					let candidate_hash = receipt.hash();
+					self.included_candidates.insert(candidate_hash);
+					self.candidates_by_block_number
+						.entry(activated.number)
+						.or_default()
+						.insert(candidate_hash);
+				}
 			}
+
+			self.last_observed_block = activated.hash;
 		}
 
 		Ok(())
@@ -207,14 +235,94 @@ impl OrderingProvider {
 	}
 }
 
+async fn send_message_fatal<Sender, Response>(
+	sender: &mut Sender,
+	message: impl Into<AllMessages>,
+	receiver: oneshot::Receiver<std::result::Result<Response, ChainApiError>>,
+) -> FatalResult<Response>
+where
+	Sender: SubsystemSender,
+{
+	sender.send_message(message.into()).await;
+
+	receiver
+		.await
+		.map_err(|_| Fatal::ChainApiSenderDropped)?
+		.map_err(Fatal::ChainApi)
+}
+
 async fn get_block_number(
 	sender: &mut impl SubsystemSender,
 	relay_parent: Hash,
 ) -> FatalResult<Option<BlockNumber>> {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx).into()).await;
+	send_message_fatal(sender, ChainApiMessage::BlockNumber(relay_parent, tx), rx).await
+}
 
-	rx.await
-		.map_err(|_| Fatal::CanceledBlockNumber)?
-		.map_err(Fatal::ChainApiBlockNumber)
+async fn get_finalized_block_hash(sender: &mut impl SubsystemSender) -> FatalResult<Option<Hash>> {
+	let (number_tx, number_rx) = oneshot::channel();
+	let number =
+		send_message_fatal(sender, ChainApiMessage::FinalizedBlockNumber(number_tx), number_rx)
+			.await?;
+
+	let (hash_tx, hash_rx) = oneshot::channel();
+	send_message_fatal(sender, ChainApiMessage::FinalizedBlockHash(number, hash_tx), hash_rx).await
+}
+
+/// Returns ancestor hashes of `head` in the descending order, stopping
+/// either at `last_observed_hash` or the genesis block.
+///
+/// Suited specifically for querying non-finalized chains, thus doesn't
+/// rely on block numbers.
+///
+/// The caller must ensure that `last_observed_hash` is indeed an ancestor
+/// of `head` in order to avoid traversing the whole chain.
+/// Both `head` and `last_observed_hash` are **not** included in the result.
+async fn get_block_ancestors_hashes<Sender>(
+	sender: &mut Sender,
+	mut head: Hash,
+	last_observed_hash: Hash,
+) -> NonFatalResult<Vec<Hash>>
+where
+	Sender: SubsystemSender,
+{
+	const ANCESTRY_STEP: usize = 4;
+
+	let mut ancestors = Vec::new();
+
+	if head == last_observed_hash {
+		return Ok(ancestors)
+	}
+
+	loop {
+		let (tx, rx) = oneshot::channel();
+		let hashes = {
+			sender
+				.send_message(
+					ChainApiMessage::Ancestors {
+						hash: head,
+						k: ANCESTRY_STEP,
+						response_channel: tx,
+					}
+					.into(),
+				)
+				.await;
+
+			rx.await??
+		};
+
+		for hash in &hashes {
+			if *hash == last_observed_hash {
+				return Ok(ancestors)
+			}
+
+			ancestors.push(*hash);
+		}
+
+		match hashes.last() {
+			Some(last_hash) => head = *last_hash,
+			None => break,
+		}
+	}
+	return Ok(ancestors)
 }

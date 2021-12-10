@@ -86,11 +86,11 @@ pub enum Fatal {
 	#[error("Writing to database failed: {0}")]
 	DbWriteFailed(std::io::Error),
 
-	#[error("Oneshow for receiving block number from chain API got cancelled")]
-	CanceledBlockNumber,
+	#[error("Oneshot for receiving response from chain API got cancelled")]
+	ChainApiSenderDropped,
 
-	#[error("Retrieving block number from chain API failed with error: {0}")]
-	ChainApiBlockNumber(ChainApiError),
+	#[error("Retrieving response from chain API unexpectedly failed with error: {0}")]
+	ChainApi(#[from] ChainApiError),
 }
 
 #[derive(Debug, thiserror::Error)]
