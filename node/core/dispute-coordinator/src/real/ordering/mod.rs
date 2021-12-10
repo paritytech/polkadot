@@ -285,7 +285,7 @@ async fn get_block_ancestors_hashes<Sender>(
 where
 	Sender: SubsystemSender,
 {
-	const ANCESTRY_STEP: usize = 4;
+	const ANCESTRY_STEP: usize = 10;
 
 	let mut ancestors = Vec::new();
 
