@@ -85,6 +85,7 @@ members = [
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
+	"node/test/performance-test",
 	"node/test/service",
 	"node/test/polkadot-simnet/common",
 	"node/test/polkadot-simnet/node",
