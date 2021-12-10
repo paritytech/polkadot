@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Runtime metric interface similar to native Prometheus metrics.
-//! 
-//! This is intended to be used only for testing and debugging and **must never 
+//!
+//! This is intended to be used only for testing and debugging and **must never
 //! be used in production**. It requires the Substrate wasm tracing support
 //! and command line configuration: `--tracing-targets wasm_tracing=trace`.
 
@@ -27,7 +27,7 @@ use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricLabels};
 use parity_scale_codec::Encode;
 
 #[cfg(not(feature = "std"))]
-use primitives::v1::{ RuntimeMetricOp, RuntimeMetricUpdate,RuntimeMetricRegisterParams };
+use primitives::v1::{RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate};
 
 #[cfg(not(feature = "std"))]
 pub struct CounterVec {
@@ -43,11 +43,18 @@ impl CounterVec {
 	}
 
 	/// Create a new counter metric with specified `labels`.
-	pub fn new_with_labels(name: &'static str, description: &'static str, labels: RuntimeMetricLabels) -> Self {
+	pub fn new_with_labels(
+		name: &'static str,
+		description: &'static str,
+		labels: RuntimeMetricLabels,
+	) -> Self {
 		// Send a register metric operation to node side.
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: sp_std::vec::Vec::from(name),
-			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(sp_std::vec::Vec::from(description),labels)),
+			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(
+				sp_std::vec::Vec::from(description),
+				labels,
+			)),
 		}
 		.encode();
 
@@ -105,7 +112,11 @@ impl CounterVec {
 	pub fn new(_: &'static str) -> Self {
 		CounterVec
 	}
-	pub fn new_with_labels(_name: &'static str, _description: &'static str, _labels: RuntimeMetricLabels) -> Self {
+	pub fn new_with_labels(
+		_name: &'static str,
+		_description: &'static str,
+		_labels: RuntimeMetricLabels,
+	) -> Self {
 		CounterVec
 	}
 

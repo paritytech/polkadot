@@ -1438,9 +1438,7 @@ pub struct RuntimeMetricRegisterParams {
 impl RuntimeMetricRegisterParams {
 	/// Create new metric registration params.
 	pub fn new(description: Vec<u8>, labels: RuntimeMetricLabels) -> Self {
-		Self {
-			description, labels
-		}
+		Self { description, labels }
 	}
 }
 
@@ -1456,10 +1454,10 @@ pub struct RuntimeMetricUpdate {
 
 fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
 	#[cfg(feature = "std")]
-	return std::str::from_utf8(v).unwrap_or(default);
+	return std::str::from_utf8(v).unwrap_or(default)
 
 	#[cfg(not(feature = "std"))]
-	return sp_std::str::from_utf8(v).unwrap_or(default);
+	return sp_std::str::from_utf8(v).unwrap_or(default)
 }
 
 impl RuntimeMetricRegisterParams {
@@ -1477,7 +1475,10 @@ impl RuntimeMetricRegisterParams {
 impl RuntimeMetricLabels {
 	/// Returns a labels as Vec<&str>.
 	pub fn as_str(&self) -> Vec<&str> {
-		self.0.iter().map(|label_vec| vec_to_str(&label_vec.0, "invalid_label")).collect()
+		self.0
+			.iter()
+			.map(|label_vec| vec_to_str(&label_vec.0, "invalid_label"))
+			.collect()
 	}
 
 	/// Return the inner values as vec.
@@ -1488,7 +1489,9 @@ impl RuntimeMetricLabels {
 
 impl From<Vec<&'static str>> for RuntimeMetricLabels {
 	fn from(v: Vec<&'static str>) -> RuntimeMetricLabels {
-		RuntimeMetricLabels(v.iter().map(|label| RuntimeMetricLabel(label.as_bytes().to_vec())).collect())
+		RuntimeMetricLabels(
+			v.iter().map(|label| RuntimeMetricLabel(label.as_bytes().to_vec())).collect(),
+		)
 	}
 }
 

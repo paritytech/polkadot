@@ -19,7 +19,9 @@
 //! Builds on top of Substrate wasm tracing support.
 
 use codec::Decode;
-use primitives::v1::{RuntimeMetricOp, RuntimeMetricUpdate, RuntimeMetricRegisterParams, RuntimeMetricLabelValues};
+use primitives::v1::{
+	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex},
@@ -48,7 +50,7 @@ impl RuntimeMetricsProvider {
 	pub fn register_countervec(
 		&self,
 		metric_name: &str,
-		params: &RuntimeMetricRegisterParams
+		params: &RuntimeMetricRegisterParams,
 	) -> Result<(), PrometheusError> {
 		match self.1.counter_vecs.lock() {
 			Ok(mut unlocked_hashtable) => {
@@ -71,7 +73,7 @@ impl RuntimeMetricsProvider {
 				target: LOG_TARGET,
 				"Failed to acquire the `counter_vecs` lock: {:?}",
 				e
-			)
+			),
 		}
 		Ok(())
 	}
@@ -80,9 +82,7 @@ impl RuntimeMetricsProvider {
 	pub fn inc_counter_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
 		let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
 			if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
-				counter_vec
-					.with_label_values(&labels.as_str())
-					.inc_by(value);
+				counter_vec.with_label_values(&labels.as_str()).inc_by(value);
 			} else {
 				tracing::error!(
 					target: LOG_TARGET,
@@ -110,7 +110,9 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 		if let Some(update_op_bs58) = event.values.string_values.get("params").cloned() {
 			// Deserialize the metric update struct.
 			match RuntimeMetricUpdate::decode(
-				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs58).unwrap_or_default().as_slice(),
+				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs58)
+					.unwrap_or_default()
+					.as_slice(),
 			) {
 				Ok(update_op) => {
 					println!("Received metric: {:?}", update_op);
@@ -128,8 +130,11 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 impl RuntimeMetricsProvider {
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
 		match update.op {
-			RuntimeMetricOp::Register(ref params) => { let _ = self.register_countervec(update.metric_name(), &params); }
-			RuntimeMetricOp::Increment(value, ref labels) => self.inc_counter_by(update.metric_name(), value, labels)
+			RuntimeMetricOp::Register(ref params) => {
+				let _ = self.register_countervec(update.metric_name(), &params);
+			},
+			RuntimeMetricOp::Increment(value, ref labels) =>
+				self.inc_counter_by(update.metric_name(), value, labels),
 		}
 	}
 
@@ -141,10 +146,10 @@ impl RuntimeMetricsProvider {
 
 		// Shave " { update_op: " prefix.
 		const SKIP_CHARS: &'static str = " { update_op: ";
-		if SKIP_CHARS.len() < event_params.len()  {
+		if SKIP_CHARS.len() < event_params.len() {
 			if SKIP_CHARS.eq_ignore_ascii_case(&event_params[..SKIP_CHARS.len()]) {
 				return bs58::decode(&event_params[SKIP_CHARS.len()..].as_bytes()).into_vec().ok()
-			} 
+			}
 		}
 
 		// No event was parsed
