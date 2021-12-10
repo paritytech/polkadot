@@ -12,11 +12,13 @@ tracing = "0.1.29"
 
 metered-channel = { path = "../metered-channel" }
 
+# Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "2.2.0" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
 log = "0.4.13"
