@@ -65,15 +65,6 @@ pub struct ParathreadClaimQueue {
 	next_core_offset: u32,
 }
 
-impl Default for ParathreadClaimQueue {
-	fn default() -> Self {
-		Self {
-			queue: vec![],
-			next_core_offset: 0,
-		}
-	}
-}
-
 impl ParathreadClaimQueue {
 	/// Queue a parathread entry to be processed.
 	///
@@ -95,6 +86,12 @@ impl ParathreadClaimQueue {
 	fn get_next_on_core(&self, core_offset: u32) -> Option<&ParathreadEntry> {
 		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
 		pos.map(|i| &self.queue[i].claim)
+	}
+}
+
+impl Default for ParathreadClaimQueue {
+	fn default() -> Self {
+		Self { queue: vec![], next_core_offset: 0 }
 	}
 }
 

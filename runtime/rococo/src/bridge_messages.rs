@@ -374,7 +374,8 @@ mod tests {
 	use super::*;
 	use bp_messages::{target_chain::ProvedLaneMessages, MessageData, MessageKey};
 	use bridge_runtime_common::messages;
-	use parity_scale_codec::Encode;
+	use parity_scale_codec::{Encode, Decode};
+	use sp_runtime::traits::TrailingZeroInput;
 
 	#[test]
 	fn ensure_rococo_messages_weights_are_correct() {
@@ -449,10 +450,10 @@ mod tests {
 				primitives::v1::Balance::MAX,
 			),
 		);
-		use parity_scale_codec::Decode;
-		let extra_bytes_in_transaction = crate::Address::default().encoded_size() +
-			crate::Signature::decode(&mut sp_runtime::traits::TrailingZeroInput::zeroes()).unwrap().encoded_size() +
-			signed_extra.encoded_size();
+		let zeroes = TrailingZeroInput::zeroes();
+		let extra_bytes_in_transaction = signed_extra.encoded_size()
+			+ crate::Address::decode(&mut zeroes).unwrap().encoded_size()
+			+ crate::Signature::decode(&mut zeroes).unwrap().encoded_size();
 		assert!(
 			TX_EXTRA_BYTES as usize >= extra_bytes_in_transaction,
 			"Hardcoded number of extra bytes in Rococo transaction {} is lower than actual value: {}",

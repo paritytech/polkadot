@@ -27,6 +27,7 @@ mod enter {
 		mock::{new_test_ext, MockGenesisConfig, Test},
 	};
 	use frame_support::assert_ok;
+	use sp_core::crypto::UncheckedFrom
 	use sp_std::collections::btree_map::BTreeMap;
 
 	struct TestConfig {
@@ -717,10 +718,6 @@ mod sanitizers {
 		val_ids.iter().map(|v| v.public().into()).collect()
 	}
 
-	fn dummy_signature() -> primitives::v1::ValidatorSignature {
-		sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
-	}
-
 	#[test]
 	fn bitfields() {
 		let header = default_header();
@@ -925,14 +922,13 @@ mod sanitizers {
 
 		// check the validators signature
 		{
-			use primitives::v1::ValidatorSignature;
 			let mut unchecked_bitfields = unchecked_bitfields.clone();
 
 			// insert a bad signature for the last bitfield
 			let last_bit_idx = unchecked_bitfields.len() - 1;
 			unchecked_bitfields
 				.get_mut(last_bit_idx)
-				.and_then(|u| Some(u.set_signature(dummy_signature())))
+				.and_then(|u| Some(u.set_signature(UncheckedFrom::unchecked_from([1u8; 64]))))
 				.expect("we are accessing a valid index");
 			assert_eq!(
 				&sanitize_bitfields::<Test>(
