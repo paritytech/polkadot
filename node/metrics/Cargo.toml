@@ -3,7 +3,7 @@ name = "polkadot-node-metrics"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
-description = "Subsystem traits and message definitions"
+description = "Subsystem metric helpers"
 
 [dependencies]
 futures = "0.3.17"
