@@ -104,17 +104,24 @@ impl PunishValidators for () {
 ///
 /// Allows decoupling parachains handling from disputes so that it can
 /// potentially be disabled when instantiating a specific runtime.
+///
+/// Returns `Ok(())` if no duplicates were present, `Err(())` otherwise.
+///
+/// Unsorted data does not change the return value, while the node side
+/// is generally expected to pass them in sorted.
 pub trait DisputesHandler<BlockNumber> {
 	/// Whether the chain is frozen, if the chain is frozen it will not accept
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
 
 	/// Remove dispute statement duplicates and sort the non-duplicates based on
-	/// local (front) vs remotes (back) and age (younger with lower indices).
-	fn deduplicate_and_sort_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+	/// local (lower indicies) vs remotes (higher indices) and age (older with lower indices).
+	fn deduplicate_and_sort_dispute_data(
+		statement_sets: &mut MultiDisputeStatementSet,
+	) -> Result<(), ()> {
 		// TODO: Consider trade-of to avoid `O(n * log(n))` average lookups of `included_state`
 		// TODO: instead make a single pass and store the values.
-
+		let n = disputes.len();
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
@@ -132,13 +139,22 @@ pub trait DisputesHandler<BlockNumber> {
 			}
 		});
 		disputes.dedup();
+
+		// if there were any duplicates, indicate that to the caller.
+		if n == disputes.len() {
+			Ok(())
+		} else {
+			Err(())
+		}
 	}
 
-	/// Filter a single multi dispute statement set.
+	/// Filter a single dispute statement set.
 	///
 	/// Used in cases where more granular control is required, i.e. when
 	/// accounting for maximum block weight.
-	fn filter_dispute_data(statement_set: &mut DisputeStatementSet);
+	fn filter_dispute_data(
+		statement_set: DisputeStatementSet,
+	) -> Option<CheckedDisputeStatementSet>;
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
@@ -221,14 +237,17 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		pallet::Pallet::<T>::is_frozen()
 	}
 
-
-
-	fn filter_multi_dispute_data<F>(statement_sets: &mut MultiDisputeStatementSet, F: filter) where F: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet> {
-		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets, filter)
+	fn filter_multi_dispute_data<ValidityCheckFn>(
+		sets: &mut MultiDisputeStatementSet,
+		check_filter_map: ValidityCheckFn,
+	) where
+		F: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
+	{
+		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets, check_filter_map)
 	}
 
-	fn filter_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		pallet::Pallet::<T>::filter_dispute_data(statement_sets)
+	fn filter_dispute_data(set: DisputeStatementSet) -> CheckedDisputeStatementSet {
+		pallet::Pallet::<T>::filter_dispute_data(&set).filter_statement_set(set)
 	}
 
 	fn provide_multi_dispute_data(
@@ -629,7 +648,7 @@ impl StatementSetFilter {
 	fn filter_statement_set(
 		self,
 		mut statement_set: DisputeStatementSet,
-	) -> Option<DisputeStatementSet> {
+	) -> Option<CheckedDisputeStatementSet> {
 		match self {
 			StatementSetFilter::RemoveAll => None,
 			StatementSetFilter::RemoveIndices(mut indices) => {
@@ -645,7 +664,8 @@ impl StatementSetFilter {
 				if statement_set.statements.is_empty() {
 					None
 				} else {
-					Some(statement_set)
+					// we just checked correctness when filtering.
+					Some(CheckedDisputeStatementSet::from_unchecked(statement_set))
 				}
 			},
 		}
@@ -750,21 +770,6 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	/// Remove any duplicates from the statement set.
-	///
-	/// Returns `Ok(())` if no duplicates were present, `Err(())` if duplicates were found.
-	///
-	/// # Warning
-	///
-	/// Re-orders the multi statement sets.
-	///
-	pub(crate) fn deduplicate_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) -> Result<(), ()> {
-		let orig = statement_sets.len();
-		statement_sets.sort();
-		statement_sets.dedup();
-		statement_sets.len()
-	}
-
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
 	///
@@ -789,27 +794,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Ok(fresh)
-	}
-
-	/// Removes all duplicate disputes.
-	fn filter_multi_dispute_data<F: FnMut(DisputeStatementSet, I) -> bool, I:FnMut(DisputeStatementSet) -> Option<DisputeStatementSet>>(statement_sets: &mut MultiDisputeStatementSet, multi_set_filter: F) {
-		frame_support::storage::with_transaction(|| {
-			let config = <configuration::Pallet<T>>::config();
-			let max_spam_slots = config.dispute_max_spam_slots;
-			let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
-
-			let old_statement_sets = sp_std::mem::take(statement_sets);
-
-
-			let mut set_filter = move |set| {
-				Self::filter_multi_dispute_data(post_conclusion_acceptance_period, max_spam_slots, &set);
-				filter.filter_statement_set(set)
-			};
-
-			multi_set_filter(&mut dedup_vec, set_filter);
-
-			TransactionOutcome::Rollback(())
-		})
 	}
 
 	// Given a statement set, this produces a filter to be applied to the statement set.
@@ -1049,7 +1033,13 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::SingleSidedDispute,
 		);
 
-		fn apply_spam_slot_changes(session: SessionIndex, candidate_hash: CandidateHash, summary: ImportSummary, max_spam_slots: u32, n_validators: usize) -> Result<()> {
+		fn apply_spam_slot_changes(
+			session: SessionIndex,
+			candidate_hash: CandidateHash,
+			summary: ImportSummary,
+			max_spam_slots: u32,
+			n_validators: usize,
+		) -> Result<()> {
 			// Apply spam slot changes. Bail early if too many occupied.
 			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
 			if !is_local {
@@ -1063,10 +1053,7 @@ impl<T: Config> Pallet<T> {
 
 					match spam_slot_change {
 						SpamSlotChange::Inc => {
-							ensure!(
-								*spam_slot < max_spam_slots,
-								Error::<T>::PotentialSpam,
-							);
+							ensure!(*spam_slot < max_spam_slots, Error::<T>::PotentialSpam,);
 
 							*spam_slot += 1;
 						},
@@ -1079,10 +1066,21 @@ impl<T: Config> Pallet<T> {
 			}
 			Ok(())
 		}
-		apply_spam_slot_changes(set.session, set.candidate_hash, summary, config.dispute_max_spam_slots, n_validators);
+		apply_spam_slot_changes(
+			set.session,
+			set.candidate_hash,
+			summary,
+			config.dispute_max_spam_slots,
+			n_validators,
+		);
 
-		fn deposit_dispute_events(session: SessionIndex, candidate_hash: CandidateHash, summary: Summary, fresh: bool, is_local: bool)
-		{
+		fn deposit_dispute_events(
+			session: SessionIndex,
+			candidate_hash: CandidateHash,
+			summary: Summary,
+			fresh: bool,
+			is_local: bool,
+		) {
 			if fresh {
 				Self::deposit_event(Event::DisputeInitiated(
 					candidate_hash,

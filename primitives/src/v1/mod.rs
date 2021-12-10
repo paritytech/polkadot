@@ -1288,6 +1288,31 @@ pub struct DisputeStatementSet {
 /// A set of dispute statements.
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
+/// A _checked_ set of dispute statements.
+pub struct CheckedDisputeStatementSet(DisputeStatementSet);
+
+impl AsRef<DisputeStatementSet> for CheckedMultiDisputeStatementSet {
+	fn as_ref(&self) -> &DisputeStatementSet {
+		self.0
+	}
+}
+
+impl Into<DisputeStatementSet> for CheckedMultiDisputeStatementSet {
+	fn into(self) -> DisputeStatementSet {
+		self.0
+	}
+}
+
+impl CheckedMultiDisputeStatementSet {
+	/// Convert from an unchecked, checking _must_ be done in the context.
+	pub fn from_unchecked(unchecked: DisputeStatementSet) -> Self {
+		Self(unchecked)
+	}
+}
+
+/// A set of _checked_ dispute statements.
+pub type CheckedMultiDisputeStatementSet = Vec<CheckedDisputeStatementSet>;
+
 /// The entire state of a dispute.
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, TypeInfo)]
 pub struct DisputeState<N = BlockNumber> {
