@@ -30,7 +30,7 @@ use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
 
-/// Creates a candidate receipt without
+/// Creates a candidate receipt with filler data.
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
 	CandidateReceipt::<H> {
 		commitments_hash: dummy_candidate_commitments(dummy_head_data()).hash(),
@@ -38,7 +38,7 @@ pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateRece
 	}
 }
 
-/// Creates a committed candidate receipt without
+/// Creates a committed candidate receipt with filler data.
 pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(
 	relay_parent: H,
 ) -> CommittedCandidateReceipt<H> {
@@ -48,6 +48,8 @@ pub fn dummy_committed_candidate_receipt<H: AsRef<[u8]>>(
 	}
 }
 
+/// Create a candidate receipt with a bogus signature and filler data. Optionally set the commitment
+/// hash with the `commitments` arg.
 pub fn dummy_candidate_receipt_bad_sig(
 	relay_parent: Hash,
 	commitments: impl Into<Option<Hash>>,
@@ -63,9 +65,10 @@ pub fn dummy_candidate_receipt_bad_sig(
 	}
 }
 
+/// Create candidate commitments with filler data.
 pub fn dummy_candidate_commitments(head_data: impl Into<Option<HeadData>>) -> CandidateCommitments {
 	CandidateCommitments {
-		head_data: head_data.into().unwrap_or(HeadData(vec![])),
+		head_data: head_data.into().unwrap_or(dummy_head_data()),
 		upward_messages: vec![],
 		new_validation_code: None,
 		horizontal_messages: vec![],
@@ -85,21 +88,23 @@ pub fn dummy_digest() -> Digest {
 	Digest::default()
 }
 
+/// Create a candidate descriptor with a bogus signature and filler data.
 pub fn dummy_candidate_descriptor_bad_sig(relay_parent: Hash) -> CandidateDescriptor<Hash> {
 	let zeros = Hash::zero();
 	CandidateDescriptor::<Hash> {
 		para_id: 0.into(),
 		relay_parent,
-		collator: CollatorId::from(sr25519::Public::from_raw([42; 32])),
+		collator: dummy_collator(),
 		persisted_validation_data_hash: zeros,
 		pov_hash: zeros,
 		erasure_root: zeros,
-		signature: CollatorSignature::from(sr25519::Signature([0u8; 64])),
+		signature: dummy_collator_signature(),
 		para_head: zeros,
 		validation_code_hash: dummy_validation_code().hash(),
 	}
 }
 
+/// Create a candidate descriptor with filler data.
 pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateDescriptor<H> {
 	let collator = sp_keyring::Sr25519Keyring::Ferdie;
 	let invalid = Hash::zero();
@@ -116,28 +121,33 @@ pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateD
 	descriptor
 }
 
+/// Create meaningless validation code.
 pub fn dummy_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
 }
 
+/// Create meaningless head data.
 pub fn dummy_head_data() -> HeadData {
 	HeadData(vec![])
 }
 
+/// Create a meaningless collator id.
 pub fn dummy_collator() -> CollatorId {
 	CollatorId::from(sr25519::Public::from_raw([0; 32]))
 }
 
+/// Create a meaningless validator id.
 pub fn dummy_validator() -> ValidatorId {
 	ValidatorId::from(sr25519::Public::from_raw([0; 32]))
 }
 
+/// Create a meaningless collator signature.
 pub fn dummy_collator_signature() -> CollatorSignature {
 	CollatorSignature::from(sr25519::Signature([0u8; 64]))
 }
 
-/// Create a new candidate descriptor, and applies a valid signature
-/// using the provided `CollatorId` key.
+/// Create a new candidate descriptor, and apply a valid signature
+/// using the provided `collator` key.
 pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	para_id: ParaId,
 	relay_parent: H,
@@ -174,7 +184,7 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	descriptor
 }
 
-/// After manually modifyin the candidate descriptor, resign with a defined collator key.
+/// After manually modifying the candidate descriptor, resign with a defined collator key.
 pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(
 	descriptor: &mut CandidateDescriptor<H>,
 	collator: Sr25519Keyring,
@@ -191,6 +201,7 @@ pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(
 	descriptor.signature = signature;
 }
 
+/// Builder for `CandidateReceipt`.
 pub struct TestCandidateBuilder {
 	pub para_id: ParaId,
 	pub pov_hash: Hash,
@@ -206,6 +217,7 @@ impl std::default::Default for TestCandidateBuilder {
 }
 
 impl TestCandidateBuilder {
+	/// Build a `CandidateReceipt`.
 	pub fn build(self) -> CandidateReceipt {
 		let mut descriptor = dummy_candidate_descriptor(self.relay_parent);
 		descriptor.para_id = self.para_id;
