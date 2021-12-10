@@ -42,7 +42,7 @@ where
 	pub fn new(root: H::Out, proof: StorageProof) -> Result<Self, Error> {
 		let db = proof.into_memory_db();
 		if !db.contains(&root, EMPTY_PREFIX) {
-			return Err(Error::StorageRootMismatch);
+			return Err(Error::StorageRootMismatch)
 		}
 
 		let checker = StorageProofChecker { root, db };
@@ -53,7 +53,8 @@ where
 	/// incomplete or otherwise invalid proof, this returns an error.
 	pub fn read_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
 		// LayoutV1 or LayoutV0 is identical for proof that only read values.
-		read_trie_value::<LayoutV1<H>, _>(&self.db, &self.root, key).map_err(|_| Error::StorageValueUnavailable)
+		read_trie_value::<LayoutV1<H>, _>(&self.db, &self.root, key)
+			.map_err(|_| Error::StorageValueUnavailable)
 	}
 }
 
@@ -103,7 +104,8 @@ pub mod tests {
 		let (root, proof) = craft_valid_storage_proof();
 
 		// check proof in runtime
-		let checker = <StorageProofChecker<sp_core::Blake2Hasher>>::new(root, proof.clone()).unwrap();
+		let checker =
+			<StorageProofChecker<sp_core::Blake2Hasher>>::new(root, proof.clone()).unwrap();
 		assert_eq!(checker.read_value(b"key1"), Ok(Some(b"value1".to_vec())));
 		assert_eq!(checker.read_value(b"key2"), Ok(Some(b"value2".to_vec())));
 		assert_eq!(checker.read_value(b"key11111"), Err(Error::StorageValueUnavailable));

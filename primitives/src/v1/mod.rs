@@ -327,8 +327,8 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -407,8 +407,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -509,8 +509,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -534,6 +534,8 @@ impl CandidateCommitments {
 }
 
 /// A bitfield concerning availability of backed candidates.
+///
+/// Every bit refers to an availability core index.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 
@@ -1093,7 +1095,7 @@ pub struct AbridgedHostConfiguration {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum frequency at which parachains can update their validation code.
+	/// The minimum period, in blocks, between which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
@@ -1188,8 +1190,8 @@ pub enum ConsensusLog {
 
 impl ConsensusLog {
 	/// Attempt to convert a reference to a generic digest item into a consensus log.
-	pub fn from_digest_item<H>(
-		digest_item: &runtime_primitives::DigestItem<H>,
+	pub fn from_digest_item(
+		digest_item: &runtime_primitives::DigestItem,
 	) -> Result<Option<Self>, parity_scale_codec::Error> {
 		match digest_item {
 			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
@@ -1199,8 +1201,8 @@ impl ConsensusLog {
 	}
 }
 
-impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
-	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+impl From<ConsensusLog> for runtime_primitives::DigestItem {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem {
 		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
 	}
 }
@@ -1273,6 +1275,17 @@ impl DisputeStatement {
 		match *self {
 			DisputeStatement::Valid(_) => false,
 			DisputeStatement::Invalid(_) => true,
+		}
+	}
+
+	/// Statement is backing statement.
+	pub fn is_backing(&self) -> bool {
+		match *self {
+			Self::Valid(ValidDisputeStatementKind::BackingSeconded(_)) |
+			Self::Valid(ValidDisputeStatementKind::BackingValid(_)) => true,
+			Self::Valid(ValidDisputeStatementKind::Explicit) |
+			Self::Valid(ValidDisputeStatementKind::ApprovalChecking) |
+			Self::Invalid(_) => false,
 		}
 	}
 }
@@ -1363,6 +1376,31 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
+}
+
+/// A statement from the specified validator whether the given validation code passes PVF
+/// pre-checking or not anchored to the given session index.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	/// `true` if the subject passed pre-checking and `false` otherwise.
+	pub accept: bool,
+	/// The validation code hash that was checked.
+	pub subject: ValidationCodeHash,
+	/// The index of a session during which this statement is considered valid.
+	pub session_index: SessionIndex,
+	/// The index of the validator from which this statement originates.
+	pub validator_index: ValidatorIndex,
+}
+
+impl PvfCheckStatement {
+	/// Produce the payload used for signing this type of statement.
+	///
+	/// It is expected that it will be signed by the validator at `validator_index` in the
+	/// `session_index`.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
 }
 
 /// The maximum number of validators `f` which may safely be faulty.

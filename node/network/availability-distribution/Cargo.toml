@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-availability-distribution"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -18,7 +18,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
 rand = "0.8.3"
-derive_more = "0.99.11"
+derive_more = "0.99.17"
 lru = "0.7.0"
 
 [dev-dependencies]

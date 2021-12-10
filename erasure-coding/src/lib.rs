@@ -135,7 +135,7 @@ pub fn obtain_chunks_v1(n_validators: usize, data: &AvailableData) -> Result<Vec
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-fn obtain_chunks<T: Encode>(n_validators: usize, data: &T) -> Result<Vec<Vec<u8>>, Error> {
+pub fn obtain_chunks<T: Encode>(n_validators: usize, data: &T) -> Result<Vec<Vec<u8>>, Error> {
 	let params = code_params(n_validators)?;
 	let encoded = data.encode();
 
@@ -186,7 +186,7 @@ where
 /// are provided, recovery is not possible.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T, Error>
+pub fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T, Error>
 where
 	I: IntoIterator<Item = (&'a [u8], usize)>,
 {

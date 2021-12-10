@@ -1964,7 +1964,7 @@ mod tests {
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 80);
 
 			// Then deregister one parachain, but don't wait two sessions until it takes effect.
-			// Instead, para_b will confirm the request, which will take place the same time
+			// Instead, `para_b` will confirm the request, which will take place the same time
 			// the offboarding should happen.
 			deregister_parachain(para_a);
 			run_to_block(9, Some(vec![9]));
@@ -1973,7 +1973,7 @@ mod tests {
 			assert!(!channel_exists(para_a, para_b));
 			run_to_block(10, Some(vec![10]));
 
-			// The outcome we expect is para_b should receive the refund.
+			// The outcome we expect is `para_b` should receive the refund.
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();

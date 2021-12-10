@@ -6,13 +6,13 @@ edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0" }
-headers-relay = { path = "../headers" }
+codec = { package = "parity-scale-codec", version = "2.2.0" }
 relay-substrate-client = { path = "../client-substrate" }
 relay-utils = { path = "../utils" }
 
 # Bridge dependencies
 
+bp-rialto = { path = "../../primitives/chain-rialto" }
 rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
@@ -21,5 +21,4 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

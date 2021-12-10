@@ -183,51 +183,50 @@ The implementation is yet to be completed, see the [implementation PR](https://g
 struct BehaveMaleficient;
 
 impl OverseerGen for BehaveMaleficient {
-	fn generate<'a, Spawner, RuntimeClient>(
-		&self,
-		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
-	where
-		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-		Spawner: 'static + SpawnNamed + Clone + Unpin,
-	{
-		let spawner = args.spawner.clone();
-		let leaves = args.leaves.clone();
-		let runtime_client = args.runtime_client.clone();
-		let registry = args.registry.clone();
-		let candidate_validation_config = args.candidate_validation_config.clone();
-		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.
+ fn generate<'a, Spawner, RuntimeClient>(
+  &self,
+  args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+ ) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
+ where
+  RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
+  RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+  Spawner: 'static + SpawnNamed + Clone + Unpin,
+ {
+  let spawner = args.spawner.clone();
+  let leaves = args.leaves.clone();
+  let runtime_client = args.runtime_client.clone();
+  let registry = args.registry.clone();
+  let candidate_validation_config = args.candidate_validation_config.clone();
+  // modify the subsystem(s) as needed:
+  let all_subsystems = create_default_subsystems(args)?.
         // or spawn an entirely new set
 
         replace_candidate_validation(
-			// create the filtered subsystem
-			FilteredSubsystem::new(
-				CandidateValidationSubsystem::with_config(
-					candidate_validation_config,
-					Metrics::register(registry)?,
-				),
+   // create the filtered subsystem
+   FilteredSubsystem::new(
+    CandidateValidationSubsystem::with_config(
+     candidate_validation_config,
+     Metrics::register(registry)?,
+    ),
                 // an implementation of
-				Skippy::default(),
-			),
-		);
+    Skippy::default(),
+   ),
+  );
 
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner, connector)
-			.map_err(|e| e.into())
+  Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+   .map_err(|e| e.into())
 
         // A builder pattern will simplify this further
         // WIP https://github.com/paritytech/polkadot/pull/2962
-	}
+ }
 }
 
 fn main() -> eyre::Result<()> {
-	color_eyre::install()?;
-	let cli = Cli::from_args();
-	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, BehaveMaleficient)?;
-	Ok(())
+ color_eyre::install()?;
+ let cli = Cli::from_args();
+ assert_matches::assert_matches!(cli.subcommand, None);
+ polkadot_cli::run_node(cli, BehaveMaleficient)?;
+ Ok(())
 }
 ```
 

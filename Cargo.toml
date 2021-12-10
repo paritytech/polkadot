@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -17,8 +17,8 @@ color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.2"
-nix = "0.20.0"
+assert_cmd = "2.0.2"
+nix = "0.23.0"
 tempfile = "3.2.0"
 
 [workspace]
@@ -56,7 +56,6 @@ members = [
 	"node/core/chain-api",
 	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
-	"node/core/dispute-participation",
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
@@ -85,6 +84,7 @@ members = [
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
+	"node/test/performance-test",
 	"node/test/service",
 	"node/test/polkadot-simnet/common",
 	"node/test/polkadot-simnet/node",

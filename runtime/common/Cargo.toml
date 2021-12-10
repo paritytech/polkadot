@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -52,13 +52,13 @@ slot-range-helper = { path = "slot_range_helper", default-features = false }
 xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.23.0"
-serde_json = "1.0.69"
+serde_json = "1.0.72"
 libsecp256k1 = "0.7.0"
 
 [features]
@@ -103,7 +103,7 @@ std = [
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
 	"libsecp256k1/static-context",
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",

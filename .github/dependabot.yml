@@ -16,5 +16,6 @@ updates:
       - dependency-name: "try-runtime-*"
       - dependency-name: "test-runner"
       - dependency-name: "generate-bags"
+      - dependency-name: "sub-tokens"
     schedule:
       interval: "daily"

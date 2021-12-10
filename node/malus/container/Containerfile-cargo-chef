@@ -1,0 +1,155 @@
+#
+### Builder stage
+#
+
+FROM rust as builder
+
+WORKDIR /usr/src/polkadot-malus
+RUN apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
+    clang \
+    curl \
+    cmake \
+    libssl1.1 \
+    libssl-dev \
+    pkg-config
+
+RUN export PATH="$PATH:$HOME/.cargo/bin" && \
+    rustup toolchain install nightly && \
+    rustup target add wasm32-unknown-unknown --toolchain nightly && \
+    rustup default stable
+
+COPY polkadot/  /usr/src/polkadot-malus/polkadot/
+COPY substrate/  /usr/src/polkadot-malus/substrate/
+
+WORKDIR /usr/src/polkadot-malus/polkadot
+
+RUN cargo build -p polkadot-test-malus --release
+RUN cp -v /usr/src/polkadot-malus/polkadot/target/release/malus /usr/local/bin
+
+# check if executable works in this container
+RUN /usr/local/bin/malus $VARIANT --version
+
+#
+### Runtime
+#
+
+FROM debian:buster-slim as runtime
+RUN apt-get update && \
+    apt-get install -y curl tini
+
+COPY --from=builder /usr/src/polkadot-malus/polkadot/target/release/malus /usr/local/bin
+# Non-root user for security purposes.
+#
+# UIDs below 10,000 are a security risk, as a container breakout could result
+# in the container being ran as a more privileged user on the host kernel with
+# the same UID.
+#
+# Static GID/UID is also useful for chown'ing files outside the container where
+# such a user does not exist.
+RUN groupadd --gid 10001 nonroot && \
+    useradd  --home-dir /home/nonroot \
+            --create-home \
+            --shell /bin/bash \
+            --gid nonroot \
+            --groups nonroot \
+            --uid 10000 nonroot
+WORKDIR /home/nonroot/polkadot-malus
+
+RUN chown -R nonroot. /home/nonroot
+
+# Use the non-root user to run our application
+# Tell run test script that it runs in container
+USER nonroot
+# check if executable works in this container
+RUN /usr/local/bin/malus --version
+# Tini allows us to avoid several Docker edge cases, see https://github.com/krallin/tini.
+ENTRYPOINT ["tini", "--", "/usr/local/bin/malus"]
+
+
+
+
+FROM rust:1.54.0 as planner
+WORKDIR /usr/src/polkadot-malus
+# We only pay the installation cost once,
+# it will be cached from the second build onwards
+RUN cargo install cargo-chef
+COPY polkadot/  /usr/src/polkadot-malus/polkadot/
+COPY substrate/  /usr/src/polkadot-malus/substrate/
+WORKDIR /usr/src/polkadot-malus/polkadot
+RUN cargo chef prepare  --recipe-path recipe.json
+
+
+FROM rust:1.54.0 as cacher
+WORKDIR /usr/src/polkadot-malus/polkadot
+RUN cargo install cargo-chef
+RUN apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
+    clang \
+    curl \
+    cmake \
+    libssl1.1 \
+    libssl-dev \
+    pkg-config
+RUN export PATH="$PATH:$HOME/.cargo/bin" && \
+    rustup toolchain install nightly && \
+    rustup target add wasm32-unknown-unknown --toolchain nightly && \
+    rustup default stable
+COPY --from=planner /usr/src/polkadot-malus/polkadot/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+
+FROM rust:1.54.0 as builder
+WORKDIR /usr/src/polkadot-malus
+COPY polkadot/  /usr/src/polkadot-malus/polkadot/
+COPY substrate/  /usr/src/polkadot-malus/substrate/
+# Copy over the cached dependencies
+WORKDIR /usr/src/polkadot-malus/polkadot
+COPY --from=cacher /usr/src/polkadot-malus/polkadot/target target
+COPY --from=cacher $CARGO_HOME $CARGO_HOME
+RUN apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
+    clang \
+    curl \
+    cmake \
+    libssl1.1 \
+    libssl-dev \
+    pkg-config
+RUN export PATH="$PATH:$HOME/.cargo/bin" && \
+    rustup toolchain install nightly && \
+    rustup target add wasm32-unknown-unknown --toolchain nightly && \
+    rustup default stable
+RUN cargo build -p polkadot-test-malus --release
+
+
+FROM debian:buster-slim as runtime
+RUN apt-get update && \
+    apt-get install -y curl tini
+COPY --from=builder /usr/src/polkadot-malus/polkadot/target/release/malus /usr/local/bin
+# Non-root user for security purposes.
+#
+# UIDs below 10,000 are a security risk, as a container breakout could result
+# in the container being ran as a more privileged user on the host kernel with
+# the same UID.
+#
+# Static GID/UID is also useful for chown'ing files outside the container where
+# such a user does not exist.
+RUN groupadd --gid 10001 nonroot && \
+    useradd  --home-dir /home/nonroot \
+            --create-home \
+            --shell /bin/bash \
+            --gid nonroot \
+            --groups nonroot \
+            --uid 10000 nonroot
+WORKDIR /home/nonroot/polkadot-malus
+RUN chown -R nonroot. /home/nonroot
+# Use the non-root user to run our application
+# Tell run test script that it runs in container
+USER nonroot
+# check if executable works in this container
+RUN /usr/local/bin/malus --version
+# Tini allows us to avoid several Docker edge cases, see https://github.com/krallin/tini.
+ENTRYPOINT ["/usr/local/bin/malus"]

@@ -16,7 +16,7 @@
 
 //! Authority discovery service interfacing.
 
-use std::fmt::Debug;
+use std::{collections::HashSet, fmt::Debug};
 
 use async_trait::async_trait;
 
@@ -34,12 +34,12 @@ pub trait AuthorityDiscovery: Send + Debug + 'static {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>>;
+	) -> Option<HashSet<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId>;
+	) -> Option<HashSet<AuthorityDiscoveryId>>;
 }
 
 #[async_trait]
@@ -47,14 +47,14 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>> {
+	) -> Option<HashSet<Multiaddr>> {
 		AuthorityDiscoveryService::get_addresses_by_authority_id(self, authority).await
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId> {
-		AuthorityDiscoveryService::get_authority_id_by_peer_id(self, peer_id).await
+	) -> Option<HashSet<AuthorityDiscoveryId>> {
+		AuthorityDiscoveryService::get_authority_ids_by_peer_id(self, peer_id).await
 	}
 }

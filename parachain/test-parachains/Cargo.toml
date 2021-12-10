@@ -1,6 +1,6 @@
 [package]
 name = "test-parachains"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Integration tests using the test-parachains"
 edition = "2018"

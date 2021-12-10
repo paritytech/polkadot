@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{mock::*, *};
+use super::{mock::*, test_utils::*, *};
 use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
 use xcm::latest::prelude::*;
 use xcm_executor::{traits::*, Config, XcmExecutor};
@@ -598,7 +598,7 @@ fn transacting_should_respect_max_weight_requirement() {
 	}]);
 	let weight_limit = 60;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
-	assert_eq!(r, Outcome::Incomplete(50, XcmError::TooMuchWeightRequired));
+	assert_eq!(r, Outcome::Incomplete(50, XcmError::MaxWeightInvalid));
 }
 
 #[test]
