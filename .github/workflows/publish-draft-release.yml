@@ -87,7 +87,7 @@ jobs:
       - name: Prepare tooling
         run: |
           cd polkadot/scripts/changelog
-          gem install bundler changelogerator
+          gem install bundler changelogerator:0.9.1
           bundle install
           changelogerator --help
 
