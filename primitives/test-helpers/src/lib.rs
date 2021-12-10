@@ -79,7 +79,6 @@ pub fn dummy_candidate_commitments(head_data: impl Into<Option<HeadData>>) -> Ca
 
 /// Create meaningless dummy hash.
 pub fn dummy_hash() -> Hash {
-	// TODO make this PRNG based
 	Hash::zero()
 }
 
