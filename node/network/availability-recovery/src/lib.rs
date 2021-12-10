@@ -689,14 +689,14 @@ impl Future for RecoveryHandle {
 
 /// Cached result of an availability recovery operation.
 #[derive(Debug, Clone)]
-enum CachedValidity {
+enum CachedRecovery {
 	/// Availability was successfully retrieved before.
 	Valid(AvailableData),
 	/// Availability was successfully retrieved before, but was found to be invalid.
 	Invalid,
 }
 
-impl CachedValidity {
+impl CachedRecovery {
 	/// Convert back to	`Result` to deliver responses.
 	fn into_result(self) -> Result<AvailableData, RecoveryError> {
 		match self {
@@ -706,9 +706,9 @@ impl CachedValidity {
 	}
 }
 
-impl TryFrom<Result<AvailableData, RecoveryError>> for CachedValidity {
+impl TryFrom<Result<AvailableData, RecoveryError>> for CachedRecovery {
 	type Error = ();
-	fn try_from(o: Result<AvailableData, RecoveryError>) -> Result<CachedValidity, Self::Error> {
+	fn try_from(o: Result<AvailableData, RecoveryError>) -> Result<CachedRecovery, Self::Error> {
 		match o {
 			Ok(d) => Ok(Self::Valid(d)),
 			Err(RecoveryError::Invalid) => Ok(Self::Invalid),
@@ -728,7 +728,7 @@ struct State {
 	live_block: (BlockNumber, Hash),
 
 	/// An LRU cache of recently recovered data.
-	availability_lru: LruCache<CandidateHash, CachedValidity>,
+	availability_lru: LruCache<CandidateHash, CachedRecovery>,
 }
 
 impl Default for State {
@@ -1007,8 +1007,8 @@ impl AvailabilityRecoverySubsystem {
 				}
 				output = state.ongoing_recoveries.select_next_some() => {
 					if let Some((candidate_hash, result)) = output {
-						if let Ok(result) = CachedValidity::try_from(result) {
-							state.availability_lru.put(candidate_hash, result);
+						if let Ok(recovery) = CachedRecovery::try_from(result) {
+							state.availability_lru.put(candidate_hash, recovery);
 						}
 					}
 				}
