@@ -247,6 +247,7 @@ mod multiplier_tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	fn run_with_system_weight<F>(w: Weight, mut assertions: F)

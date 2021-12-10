@@ -14,9 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-fn main() {
-	if let Ok(profile) = std::env::var("PROFILE") {
-		println!("cargo:rustc-cfg=build_type=\"{}\"", profile);
-	}
-	substrate_build_script_utils::generate_cargo_keys();
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+	#[error(transparent)]
+	PolkadotService(#[from] service::Error),
+
+	#[error(transparent)]
+	SubstrateCli(#[from] sc_cli::Error),
+
+	#[error(transparent)]
+	SubstrateService(#[from] sc_service::Error),
+
+	#[error(transparent)]
+	SubstrateTracing(#[from] sc_tracing::logging::Error),
+
+	#[error(transparent)]
+	PerfCheck(#[from] polkadot_performance_test::PerfCheckError),
+
+	#[error("Other: {0}")]
+	Other(String),
 }

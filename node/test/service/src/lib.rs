@@ -188,6 +188,7 @@ pub fn node_config(
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
+		runtime_cache_size: 2,
 		announce_block: true,
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
