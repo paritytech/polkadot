@@ -19,7 +19,7 @@ use std::{
 	collections::{BTreeMap, HashSet},
 };
 
-use futures::channel::oneshot;
+use futures::{channel::oneshot, future::join_all, FutureExt};
 
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
@@ -189,12 +189,12 @@ impl OrderingProvider {
 	) -> Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
 			// Fetch ancestors of the activated leaf up until the cached one.
-			let ancestors =
-				get_block_ancestors_hashes(sender, activated.hash, self.last_observed_block)
-					.await
-					.unwrap_or_default();
-			let blocks_to_process = std::iter::once(activated.hash).chain(ancestors);
-			for block_hash in blocks_to_process {
+			let ancestors = get_block_ancestors(sender, activated.hash, self.last_observed_block)
+				.await
+				.unwrap_or_default();
+			let blocks_to_process =
+				std::iter::once((activated.number, activated.hash)).chain(ancestors);
+			for (block_num, block_hash) in blocks_to_process {
 				// Get included events:
 				let included = get_candidate_events(sender, block_hash)
 					.await?
@@ -207,7 +207,7 @@ impl OrderingProvider {
 					let candidate_hash = receipt.hash();
 					self.included_candidates.insert(candidate_hash);
 					self.candidates_by_block_number
-						.entry(activated.number)
+						.entry(block_num)
 						.or_default()
 						.insert(candidate_hash);
 				}
@@ -268,20 +268,18 @@ async fn get_finalized_block_hash(sender: &mut impl SubsystemSender) -> FatalRes
 	send_message_fatal(sender, ChainApiMessage::FinalizedBlockHash(number, hash_tx), hash_rx).await
 }
 
-/// Returns ancestor hashes of `head` in the descending order, stopping
-/// either at `last_observed_hash` or the genesis block.
+/// Returns ancestors of `head` in the descending order, stopping
+/// either at `last_observed_hash` or the latest  finalized block.
 ///
-/// Suited specifically for querying non-finalized chains, thus doesn't
-/// rely on block numbers.
+/// Suited specifically for querying non-finalized chains, thus
+/// doesn't rely on block numbers.
 ///
-/// The caller must ensure that `last_observed_hash` is indeed an ancestor
-/// of `head` in order to avoid traversing the whole chain.
 /// Both `head` and `last_observed_hash` are **not** included in the result.
-async fn get_block_ancestors_hashes<Sender>(
+async fn get_block_ancestors<Sender>(
 	sender: &mut Sender,
 	mut head: Hash,
 	last_observed_hash: Hash,
-) -> NonFatalResult<Vec<Hash>>
+) -> NonFatalResult<Vec<(BlockNumber, Hash)>>
 where
 	Sender: SubsystemSender,
 {
@@ -292,6 +290,12 @@ where
 	if head == last_observed_hash {
 		return Ok(ancestors)
 	}
+
+	let finalized_block_hash = if let Ok(Some(hash)) = get_finalized_block_hash(sender).await {
+		hash
+	} else {
+		return Ok(ancestors)
+	};
 
 	loop {
 		let (tx, rx) = oneshot::channel();
@@ -310,12 +314,37 @@ where
 			rx.await??
 		};
 
+		// Try to fetch block numbers for the obtained block hashes.
+		let mut receivers = Vec::with_capacity(hashes.len());
 		for hash in &hashes {
-			if *hash == last_observed_hash {
+			let (tx, rx) = oneshot::channel();
+			sender.send_message(ChainApiMessage::BlockNumber(*hash, tx).into()).await;
+
+			let fut =
+				rx.map(
+					|resp| {
+						if let Ok(Ok(maybe_block_num)) = resp {
+							maybe_block_num
+						} else {
+							None
+						}
+					},
+				);
+			receivers.push(fut);
+		}
+
+		let block_numbers =
+			match join_all(receivers).await.into_iter().collect::<Option<Vec<u32>>>() {
+				Some(block_numbers) => block_numbers,
+				None => return Ok(ancestors),
+			};
+
+		for (block_number, hash) in block_numbers.iter().zip(&hashes) {
+			if *hash == last_observed_hash || *hash == finalized_block_hash {
 				return Ok(ancestors)
 			}
 
-			ancestors.push(*hash);
+			ancestors.push((*block_number, *hash));
 		}
 
 		match hashes.last() {
