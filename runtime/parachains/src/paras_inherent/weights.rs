@@ -80,12 +80,12 @@ pub fn paras_inherent_total_weight<T: Config>(
 		.saturating_add(dispute_statements_weight::<T>(disputes))
 }
 
-pub fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
+pub fn dispute_statements_weight<T: Config, D: AsRef<DisputeStatementSet> >(disputes: &[DSS]) -> Weight {
 	disputes
 		.iter()
 		.map(|d| {
 			<<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
-				d.statements.len() as u32
+				d.as_ref().statements.len() as u32
 			)
 		})
 		.fold(0, |acc, x| acc.saturating_add(x))

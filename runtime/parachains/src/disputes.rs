@@ -109,15 +109,41 @@ pub trait DisputesHandler<BlockNumber> {
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
 
-	/// Handler for filtering any dispute statements before including them as part
-	/// of inherent data. This can be useful to filter out ancient and duplicate
-	/// dispute statements.
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet);
+	/// Remove dispute statement duplicates and sort the non-duplicates based on
+	/// local (front) vs remotes (back) and age (younger with lower indices).
+	fn deduplicate_and_sort_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		// TODO: Consider trade-of to avoid `O(n * log(n))` average lookups of `included_state`
+		// TODO: instead make a single pass and store the values.
+
+		// Sort the dispute statements according to the following prioritization:
+		//  1. Prioritize local disputes over remote disputes.
+		//  2. Prioritize older disputes over newer disputes.
+		disputes.sort_by(|a: &DisputesStatementSet, b: &DisputesStatementSet| {
+			let a_local_block = T::DisputesHandler::included_state(a.session, a.candidate_hash);
+			let b_local_block = T::DisputesHandler::included_state(b.session, b.candidate_hash);
+			match (a_local_block, b_local_block) {
+				// Prioritize local disputes over remote disputes.
+				(None, Some(_)) => Ordering::Greater,
+				(Some(_), None) => Ordering::Less,
+				// For local disputes, prioritize those that occur at an earlier height.
+				(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
+				// Prioritize earlier remote disputes using session as rough proxy.
+				(None, None) => a.session.cmp(&b.session),
+			}
+		});
+		disputes.dedup();
+	}
+
+	/// Filter a single multi dispute statement set.
+	///
+	/// Used in cases where more granular control is required, i.e. when
+	/// accounting for maximum block weight.
+	fn filter_dispute_data(statement_set: &mut DisputeStatementSet);
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
 	fn provide_multi_dispute_data(
-		statement_sets: MultiDisputeStatementSet,
+		statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
 
 	/// Note that the given candidate has been included.
@@ -149,11 +175,15 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 		false
 	}
 
+	fn deduplicate_and_sort_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		statement_sets.clear()
+	}
+
 	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
 		statement_sets.clear()
 	}
 
-	fn provide_multi_dispute_data(
+	fn provide_multi_dispute_data<CheckFn>(
 		_statement_sets: MultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		Ok(Vec::new())
@@ -191,8 +221,14 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		pallet::Pallet::<T>::is_frozen()
 	}
 
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets)
+
+
+	fn filter_multi_dispute_data<F>(statement_sets: &mut MultiDisputeStatementSet, F: filter) where F: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet> {
+		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets, filter)
+	}
+
+	fn filter_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		pallet::Pallet::<T>::filter_dispute_data(statement_sets)
 	}
 
 	fn provide_multi_dispute_data(
@@ -714,8 +750,25 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
+	/// Remove any duplicates from the statement set.
+	///
+	/// Returns `Ok(())` if no duplicates were present, `Err(())` if duplicates were found.
+	///
+	/// # Warning
+	///
+	/// Re-orders the multi statement sets.
+	///
+	pub(crate) fn deduplicate_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) -> Result<(), ()> {
+		let orig = statement_sets.len();
+		statement_sets.sort();
+		statement_sets.dedup();
+		statement_sets.len()
+	}
+
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
+	///
+	/// Assumes `statement_sets` were already de-duplicated.
 	///
 	/// # Warning
 	///
@@ -726,19 +779,6 @@ impl<T: Config> Pallet<T> {
 		statement_sets: MultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		let config = <configuration::Pallet<T>>::config();
-
-		// Deduplicate.
-		{
-			let mut targets: Vec<_> =
-				statement_sets.iter().map(|set| (set.candidate_hash.0, set.session)).collect();
-
-			targets.sort();
-
-			let submitted = targets.len();
-			targets.dedup();
-
-			ensure!(submitted == targets.len(), Error::<T>::DuplicateDisputeStatementSets);
-		}
 
 		let mut fresh = Vec::with_capacity(statement_sets.len());
 		for statement_set in statement_sets {
@@ -752,28 +792,22 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Removes all duplicate disputes.
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+	fn filter_multi_dispute_data<F: FnMut(DisputeStatementSet, I) -> bool, I:FnMut(DisputeStatementSet) -> Option<DisputeStatementSet>>(statement_sets: &mut MultiDisputeStatementSet, multi_set_filter: F) {
 		frame_support::storage::with_transaction(|| {
 			let config = <configuration::Pallet<T>>::config();
+			let max_spam_slots = config.dispute_max_spam_slots;
+			let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 			let old_statement_sets = sp_std::mem::take(statement_sets);
 
-			// Deduplicate.
-			let dedup_iter = {
-				let mut targets = BTreeSet::new();
-				old_statement_sets.into_iter().filter(move |set| {
-					let target = (set.candidate_hash, set.session);
-					targets.insert(target)
-				})
+
+			let mut set_filter = move |set| {
+				Self::filter_multi_dispute_data(post_conclusion_acceptance_period, max_spam_slots, &set);
+				filter.filter_statement_set(set)
 			};
 
-			*statement_sets = dedup_iter
-				.filter_map(|set| {
-					let filter = Self::filter_dispute_data(&config, &set);
+			multi_set_filter(&mut dedup_vec, set_filter);
 
-					filter.filter_statement_set(set)
-				})
-				.collect();
 			TransactionOutcome::Rollback(())
 		})
 	}
@@ -784,9 +818,9 @@ impl<T: Config> Pallet<T> {
 	// Votes which are duplicate or already known by the chain are filtered out.
 	// The entire set is removed if the dispute is ancient or concluded.
 	fn filter_dispute_data(
+		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as Config>::BlockNumber,
 		max_spam_slots: u32,
-		set: &DisputeStatementSet,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
