@@ -1421,8 +1421,27 @@ pub fn supermajority_threshold(n: usize) -> usize {
 #[derive(Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum RuntimeMetricOp {
+	/// Register a new metric.
+	Register(RuntimeMetricRegisterParams),
 	/// Increment metric by value.
-	Increment(u64),
+	Increment(u64, RuntimeMetricLabelValues),
+}
+
+/// Metric registration parameters.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct RuntimeMetricRegisterParams {
+	description: Vec<u8>,
+	labels: RuntimeMetricLabels,
+}
+
+impl RuntimeMetricRegisterParams {
+	/// Create new metric registration params.
+	pub fn new(description: Vec<u8>, labels: RuntimeMetricLabels) -> Self {
+		Self {
+			description, labels
+		}
+	}
 }
 
 /// Runtime metric update event.
@@ -1435,30 +1454,66 @@ pub struct RuntimeMetricUpdate {
 	pub op: RuntimeMetricOp,
 }
 
+fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
+	#[cfg(feature = "std")]
+	return std::str::from_utf8(v).unwrap_or(default);
+
+	#[cfg(not(feature = "std"))]
+	return sp_std::str::from_utf8(v).unwrap_or(default);
+}
+
+impl RuntimeMetricRegisterParams {
+	/// Returns the metric description.
+	pub fn description(&self) -> &str {
+		vec_to_str(&self.description, "No description provided.")
+	}
+
+	/// Returns a labels as Vec<&str>.
+	pub fn labels(&self) -> Vec<&str> {
+		self.labels.as_str()
+	}
+}
+
+impl RuntimeMetricLabels {
+	/// Returns a labels as Vec<&str>.
+	pub fn as_str(&self) -> Vec<&str> {
+		self.0.iter().map(|label_vec| vec_to_str(&label_vec.0, "invalid_label")).collect()
+	}
+
+	/// Return the inner values as vec.
+	pub fn clear(&mut self) {
+		self.0.clear();
+	}
+}
+
+impl From<Vec<&'static str>> for RuntimeMetricLabels {
+	fn from(v: Vec<&'static str>) -> RuntimeMetricLabels {
+		RuntimeMetricLabels(v.iter().map(|label| RuntimeMetricLabel(label.as_bytes().to_vec())).collect())
+	}
+}
+
 impl RuntimeMetricUpdate {
 	/// Returns the metric name.
 	pub fn metric_name(&self) -> &str {
-		#[cfg(feature = "std")]
-		return std::str::from_utf8(&self.metric_name).unwrap_or("invalid_metric_name");
-
-		#[cfg(not(feature = "std"))]
-		return sp_std::str::from_utf8(&self.metric_name).unwrap_or("invalid_metric_name");
+		vec_to_str(&self.metric_name, "invalid_metric_name")
 	}
 }
 
 /// A set of metric labels.
-pub type RuntimeMetricLabels = Vec<RuntimeMetricLabel>;
+#[derive(Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct RuntimeMetricLabels(Vec<RuntimeMetricLabel>);
 
 /// A metric label.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct RuntimeMetricLabel(Vec<u8>);
 
 /// A metric label value.
-#[derive(Clone, Default)]
-pub struct RuntimeMetricLabelValue(Vec<u8>);
+pub type RuntimeMetricLabelValue = RuntimeMetricLabel;
 
 /// A set of metric label values.
-pub type RuntimeMetricLabelValues = Vec<RuntimeMetricLabelValue>;
+pub type RuntimeMetricLabelValues = RuntimeMetricLabels;
 
 /// Trait for converting Vec<u8> to &str.
 pub trait AsStr {
@@ -1472,19 +1527,7 @@ impl AsStr for RuntimeMetricLabel {
 	}
 }
 
-impl AsStr for RuntimeMetricLabelValue {
-	fn as_str(&self) -> Option<&str> {
-		sp_std::str::from_utf8(&self.0).ok()
-	}
-}
-
 impl From<&'static str> for RuntimeMetricLabel {
-	fn from(s: &'static str) -> Self {
-		Self(s.as_bytes().to_vec())
-	}
-}
-
-impl From<&'static str> for RuntimeMetricLabelValue {
 	fn from(s: &'static str) -> Self {
 		Self(s.as_bytes().to_vec())
 	}

@@ -269,6 +269,14 @@ impl<T: Config> Pallet<T> {
 		let mut candidates_processed_metric =
 			CounterVec::new("polkadot_create_inherent_candidates_processed");
 		let mut total_weight_metric = CounterVec::new("create_inherent_total_weight");
+		let mut disputes_processed = CounterVec::new_with_labels(
+			"polkadot_create_inherent_disputes_processed", 
+			"Counts the how many dispute signatures have been checked",
+			sp_std::vec!["validity".into()].into()
+		);
+
+		disputes_processed.with_label_values(sp_std::vec!["valid".into()].into()).inc_by(100);
+		disputes_processed.with_label_values(sp_std::vec!["invalid".into()].into()).inc_by(200);
 
 		log::debug!(
 			target: LOG_TARGET,

@@ -19,7 +19,7 @@
 //! Builds on top of Substrate wasm tracing support.
 
 use codec::Decode;
-use primitives::v1::{AsStr, RuntimeMetricLabel, RuntimeMetricOp, RuntimeMetricUpdate};
+use primitives::v1::{RuntimeMetricOp, RuntimeMetricUpdate, RuntimeMetricRegisterParams, RuntimeMetricLabelValues};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex},
@@ -48,8 +48,7 @@ impl RuntimeMetricsProvider {
 	pub fn register_countervec(
 		&self,
 		metric_name: &str,
-		description: &str,
-		label: RuntimeMetricLabel,
+		params: &RuntimeMetricRegisterParams
 	) -> Result<(), PrometheusError> {
 		match self.1.counter_vecs.lock() {
 			Ok(mut unlocked_hashtable) => {
@@ -61,8 +60,8 @@ impl RuntimeMetricsProvider {
 					metric_name.to_owned(),
 					register(
 						CounterVec::new(
-							Opts::new(metric_name, description),
-							&[label.as_str().unwrap_or("default")],
+							Opts::new(metric_name, params.description()),
+							&params.labels(),
 						)?,
 						&self.0,
 					)?,
@@ -72,37 +71,26 @@ impl RuntimeMetricsProvider {
 				target: LOG_TARGET,
 				"Failed to acquire the `counter_vecs` lock: {:?}",
 				e
-			);
+			)
 		}
 		Ok(())
 	}
 
 	/// Increment a counter vec by a value.
-	pub fn inc_counter_by(&self, name: &str, value: u64, label: RuntimeMetricLabel) {
-		match self.register_countervec(name, "default description", label.clone()) {
-			Ok(_) => {
-				let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
-					if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
-						counter_vec
-							.with_label_values(&[label.as_str().expect("invalid metric label")])
-							.inc_by(value);
-					} else {
-						tracing::error!(
-							target: LOG_TARGET,
-							"Cannot increment counter `{}`, metric not in hashtable",
-							name
-						);
-					}
-				});
-			},
-			Err(e) => {
+	pub fn inc_counter_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
+		let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
+			if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
+				counter_vec
+					.with_label_values(&labels.as_str())
+					.inc_by(value);
+			} else {
 				tracing::error!(
 					target: LOG_TARGET,
-					"Faied to register metric `{}`: {:?}",
-					name, e
+					"Cannot increment counter `{}`, metric not in registered or present in hashtable",
+					name
 				);
 			}
-		}
+		});
 	}
 }
 
@@ -140,9 +128,8 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 impl RuntimeMetricsProvider {
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
 		match update.op {
-			RuntimeMetricOp::Increment(value) => {
-				self.inc_counter_by(update.metric_name(), value, "test_label".into());
-			},
+			RuntimeMetricOp::Register(ref params) => { let _ = self.register_countervec(update.metric_name(), &params); }
+			RuntimeMetricOp::Increment(value, ref labels) => self.inc_counter_by(update.metric_name(), value, labels)
 		}
 	}
 
@@ -159,7 +146,7 @@ impl RuntimeMetricsProvider {
 				return bs58::decode(&event_params[SKIP_CHARS.len()..].as_bytes()).into_vec().ok()
 			} 
 		}
-		
+
 		// No event was parsed
 		None
 	}
