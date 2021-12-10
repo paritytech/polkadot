@@ -291,7 +291,7 @@ impl<T: Config> Pallet<T> {
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
-		let total_consumed_weight = enforce_weight_limit(candidates_weight, bitfields_weight, disputes_weight, &mut disputes, max_block_weight, &mut rng);
+		let (checked_disputes, total_consumed_weight) = enforce_weight_limit_and_sanitize_disputes(candidates_weight, bitfields_weight, disputes_weight, &mut disputes, max_block_weight, &mut rng);
 
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
@@ -455,10 +455,20 @@ impl<T: Config> Pallet<T> {
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
-		// Limit the disputes first, since the following statements depend on the votes include here.
-		let remaining_weight = limit_disputes::<T>(&mut disputes, |dispute_set| { true }, max_block_weight, &mut rng);
 
-		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
+		T::DisputesHandler::deduplicate_disputes_data(&mut disputes);
+
+		let dispute_statement_set_valid = move |dispute_statement_set: DisputeStatementSet| {
+			T::DisputesHandler::filter_dispute_data(&mut dispute_statement_set);
+		};
+
+		// Limit the disputes first, since the following statements depend on the votes include here.
+		let remaining_weight = limit_disputes::<T>(
+			&mut disputes,
+			dispute_statement_set_valid,
+			max_block_weight,
+			&mut rng);
+
 
 		let (mut backed_candidates, mut bitfields) =
 			frame_support::storage::with_transaction(|| {
@@ -679,41 +689,40 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// If disputes themselves exceed the weight limit, picks random ones.
 ///
 /// Guarantees that all remaining `disputes` are signature verified.
-fn enforce_weight_limit<T: Config>(
+fn enforce_weight_limit_and_sanitize_disputes<T: Config>(
 	candidates_weight: Weight,
 	bitfields_weight: Weight,
 	disputes_weight: Weight,
 	disputes: &mut MultiDisputeStatementSet,
 	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
-) -> Weight {
+) -> (Vec<CheckedDisputeStatementSet>, Weight) {
+	if candidate_weight
+		.saturating_add(bitfields_weight)
+		.saturating_add(disputes_weight) >
+		max_block_weight
 	{
-		if candidate_weight
-			.saturating_add(bitfields_weight)
-			.saturating_add(disputes_weight) >
-			max_block_weight
-		{
-			// if the total weight is over the max block weight, first try clearing backed
-			// candidates and bitfields.
-			backed_candidates.clear();
-			candidate_weight = 0;
-			signed_bitfields.clear();
-			bitfields_weight = 0;
-		}
-
-		if disputes_weight > max_block_weight {
-			// if disputes are by themselves overweight already, trim the disputes.
-			debug_assert!(candidate_weight == 0 && bitfields_weight == 0);
-
-			let remaining_weight =
-				limit_disputes::<T>(&mut disputes, |_| { true }, max_block_weight, &mut rng);
-			remaining_weight
-		} else {
-			candidate_weight
-				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight)
-		}
+		// Don't mess around, this should have been done by the block producer/author:
+		// If the total weight is over the max block weight, first try clearing backed
+		// candidates and bitfields.
+		backed_candidates.clear();
+		candidate_weight = 0;
+		signed_bitfields.clear();
+		bitfields_weight = 0;
 	}
+
+	// if disputes are by themselves overweight already, trim the disputes.
+	let (checked_disputes, checked_disputes_weight) =
+		limit_and_sanitize_disputes::<T>(&mut disputes, |_| {
+				true /* FIXME TODO XXX */
+		}, max_block_weight, &mut rng);
+
+	(
+		checked_disputes,
+		checked_disputes_weight
+			.saturating_add(bitfields_weight)
+			.saturating_add(candidate_weight)
+	)
 }
 
 /// Considers an upper threshold that the inherent data must not exceed.
@@ -724,7 +733,7 @@ fn enforce_weight_limit<T: Config>(
 /// Otherwise tries to include all disputes, and then tries to fill the remaining space with bitfields and then candidates.
 ///
 /// The selection process is random. For candidates, there is an exception for code upgrades as they are preferred.
-/// And for disputes, local and older disputes are preferred (see `limit_disputes`).
+/// And for disputes, local and older disputes are preferred (see `limit_and_sanitize_disputes`).
 /// for backed candidates, since with a increasing number of parachains their chances of
 /// inclusion become slim. All backed candidates  are checked beforehands in `fn create_inherent_inner`
 /// which guarantees sanity.
@@ -974,33 +983,51 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	entropy
 }
 
+///
+/// Helper to sanitize all disputes in a set, avoid when in doubt
+/// and prefer `limit_and_sanitize_disputes`.
+fn sanitize_disputes<T: Config, CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>>(
+	disputes: MultiDisputeStatementSet,
+	dispute_statement_set_valid: CheckValidityFn,
+) -> (Vec<CheckedDisputeStatementSet>, Weight) {
+	let checked = disputes.into_iter().filter_map(|dss| {
+		dispute_statement_set_valid(dss)
+	}).collect::<Vec<CheckedDisputeStatementSet>>();
+
+	let checked_disputes_weight = dispute_statements_weight::<T, CheckedDisputeStatementSet>(&checked);
+	(checked, checked_disputes_weight)
+}
+
 /// Limit disputes in place.
 ///
+/// Assumes ordering of disputes, retains sorting of the statement.
+///
+/// Prime source of overload safety for dispute votes:
+/// 1. Check accumulated weight does not exceed the maximum block weight.
+/// 2. If exceeded:
+///   1. Check validity of all dispute statements sequentially
+/// 2. If not exceeded:
+///   1. Sort the disputes based on locality and age, locality first.
+///   1. Split the array
+///   1. Prefer local ones over remote disputes
+///   1. If weight is exceeded by locals, pick the older ones (lower indices)
+///      until the weight limit is reached.
+///   1. If weight is exceeded by locals and remotes, pick remotes
+///      randomly and check validity one by one.
+///
 /// Returns the unused weight of `max_consumable_weight`.
-fn limit_disputes<T: Config, F: FnMut(MultiDisputeStatement) -> bool >(
-	disputes: &mut MultiDisputeStatementSet,
-	dispute_statement_valid: F,
+fn limit_and_sanitize_disputes<T: Config, CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>>(
+	disputes: MultiDisputeStatementSet,
+	dispute_statement_set_valid: CheckValidityFn,
 	mut max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
-) -> Weight {
+) -> (Vec<CheckedDisputeStatementSet>, Weight) {
+	// The total weight iff all disputes would be included
 	let disputes_weight = dispute_statements_weight::<T>(&disputes);
+
 	if disputes_weight > max_consumable_weight {
-		// Sort the dispute statements according to the following prioritization:
-		//  1. Prioritize local disputes over remote disputes.
-		//  2. Prioritize older disputes over newer disputes.
-		disputes.sort_by(|a, b| {
-			let a_local_block = T::DisputesHandler::included_state(a.session, a.candidate_hash);
-			let b_local_block = T::DisputesHandler::included_state(b.session, b.candidate_hash);
-			match (a_local_block, b_local_block) {
-				// Prioritize local disputes over remote disputes.
-				(None, Some(_)) => Ordering::Greater,
-				(Some(_), None) => Ordering::Less,
-				// For local disputes, prioritize those that occur at an earlier height.
-				(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
-				// Prioritize earlier remote disputes using session as rough proxy.
-				(None, None) => a.session.cmp(&b.session),
-			}
-		});
+
+		let mut checked = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Since the disputes array is sorted, we may use binary search to find the beginning of
 		// remote disputes
@@ -1022,18 +1049,16 @@ fn limit_disputes<T: Config, F: FnMut(MultiDisputeStatement) -> bool >(
 		let remote_disputes = disputes.split_off(idx);
 
 		// Select disputes in-order until the remaining weight is attained
-		disputes.retain(|d| {
+		disputes.iter().for_each(|dss| {
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
-				d.statements.len() as u32,
+				dss.statements.len() as u32,
 			);
 			if max_consumable_weight >= dispute_weight {
 				// only apply the weight if the validity check passes
-				if dispute_statement_valid(d) {
+				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
 					max_consumable_weight -= dispute_weight;
+					checked.push(checked)
 				}
-				true
-			} else {
-				false
 			}
 		});
 
@@ -1041,7 +1066,7 @@ fn limit_disputes<T: Config, F: FnMut(MultiDisputeStatement) -> bool >(
 		let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
 
 		// Select remote disputes at random until the block is full
-		let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
+		let (acc_remote_disputes_weight, mut indices) = random_sel::<u32, _>(
 			rng,
 			d,
 			vec![],
@@ -1049,16 +1074,16 @@ fn limit_disputes<T: Config, F: FnMut(MultiDisputeStatement) -> bool >(
 			remaining_weight,
 		);
 
-		// Collect all remote disputes
-		let mut remote_disputes =
-			indices.into_iter().map(|idx| disputes[idx].clone()).collect::<Vec<_>>();
+		// Sort the indices, to retain the same sorting as the input.
+		indices.sort();
 
-		// Construct the full list of selected disputes
-		disputes.append(&mut remote_disputes);
+		// Add the remote disputes
+		indices.into_iter().for_each(|idx| checked.push(disputes[idx]));
 
 		// Update the remaining weight
-		max_consumable_weight = max_consumable_weight.saturating_sub(acc_remote_disputes_weight);
+		(checked, max_consumable_weight.saturating_sub(acc_remote_disputes_weight))
+	} else {
+		// Go through all of them, and just apply the filter, they would all fit
+		sanitize_disputes::<T>(disputes, dispute_statement_set_valid)
 	}
-
-	max_consumable_weight
 }
