@@ -19,9 +19,9 @@
 use crate::*;
 use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 use pallet_transaction_payment::Multiplier;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Encode, Decode};
 use separator::Separatable;
-use sp_runtime::FixedPointNumber;
+use sp_runtime::{FixedPointNumber, traits::TrailingZeroInput};
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -79,8 +79,9 @@ fn block_cost() {
 #[ignore]
 fn transfer_cost_min_multiplier() {
 	let min_multiplier = runtime_common::MinimumMultiplier::get();
+	let dummy_dest = Decode::decode(&mut TrailingZeroInput::new(&[1; 32][..])).unwrap();
 	let call = pallet_balances::Call::<Runtime>::transfer_keep_alive {
-		dest: Default::default(),
+		dest: dummy_dest,
 		value: Default::default(),
 	};
 	let info = call.get_dispatch_info();

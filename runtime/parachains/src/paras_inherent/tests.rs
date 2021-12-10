@@ -27,7 +27,6 @@ mod enter {
 		mock::{new_test_ext, MockGenesisConfig, Test},
 	};
 	use frame_support::assert_ok;
-	use sp_core::crypto::UncheckedFrom;
 	use sp_std::collections::btree_map::BTreeMap;
 
 	struct TestConfig {
@@ -705,6 +704,7 @@ mod sanitizers {
 		AvailabilityBitfield, GroupIndex, Hash, Id as ParaId, SignedAvailabilityBitfield,
 		ValidatorIndex,
 	};
+	use sp_core::crypto::UncheckedFrom;
 
 	use crate::mock::Test;
 	use futures::executor::block_on;

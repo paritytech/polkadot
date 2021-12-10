@@ -450,7 +450,7 @@ mod tests {
 				primitives::v1::Balance::MAX,
 			),
 		);
-		let zeroes = TrailingZeroInput::zeroes();
+		let mut zeroes = TrailingZeroInput::zeroes();
 		let extra_bytes_in_transaction = signed_extra.encoded_size()
 			+ crate::Address::decode(&mut zeroes).unwrap().encoded_size()
 			+ crate::Signature::decode(&mut zeroes).unwrap().encoded_size();
