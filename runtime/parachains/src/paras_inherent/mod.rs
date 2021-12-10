@@ -291,7 +291,14 @@ impl<T: Config> Pallet<T> {
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
-		let (checked_disputes, total_consumed_weight) = enforce_weight_limit_and_sanitize_disputes(candidates_weight, bitfields_weight, disputes_weight, &mut disputes, max_block_weight, &mut rng);
+		let (checked_disputes, total_consumed_weight) = enforce_weight_limit_and_sanitize_disputes(
+			candidates_weight,
+			bitfields_weight,
+			disputes_weight,
+			&mut disputes,
+			max_block_weight,
+			&mut rng,
+		);
 
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
@@ -451,15 +458,13 @@ impl<T: Config> Pallet<T> {
 		let validator_public = shared::Pallet::<T>::active_validator_keys();
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
-
 		T::DisputesHandler::deduplicate_disputes_data(&mut disputes);
 
-		let dispute_statement_set_valid = move |dispute_statement_set: DisputeStatementSet| {
-			T::DisputesHandler::filter_dispute_data(&mut dispute_statement_set);
+		let dispute_statement_set_valid = move |set: DisputeStatementSet| {
+			T::DisputesHandler::filter_dispute_data(set);
 		};
 
 		// Limit the disputes first, since the following statements depend on the votes include here.
@@ -467,8 +472,8 @@ impl<T: Config> Pallet<T> {
 			&mut disputes,
 			dispute_statement_set_valid,
 			max_block_weight,
-			&mut rng);
-
+			&mut rng,
+		);
 
 		let (mut backed_candidates, mut bitfields) =
 			frame_support::storage::with_transaction(|| {
@@ -682,7 +687,6 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	(weight_acc, picked_indices)
 }
 
-
 /// Harshly enforces a weight limit.
 ///
 /// If the weight limit is exceeded, removes everything but disputes.
@@ -711,17 +715,23 @@ fn enforce_weight_limit_and_sanitize_disputes<T: Config>(
 		bitfields_weight = 0;
 	}
 
+	let config = <configuration::Pallet<T>>::config();
+	let max_spam_slots = config.dispute_max_spam_slots;
+	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
+
 	// if disputes are by themselves overweight already, trim the disputes.
-	let (checked_disputes, checked_disputes_weight) =
-		limit_and_sanitize_disputes::<T>(&mut disputes, |_| {
-				true /* FIXME TODO XXX */
-		}, max_block_weight, &mut rng);
+	let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T>(
+		&mut disputes,
+		|set| T::DisputesHandler::filter_dispute_data(set),
+		max_block_weight,
+		&mut rng,
+	);
 
 	(
 		checked_disputes,
 		checked_disputes_weight
 			.saturating_add(bitfields_weight)
-			.saturating_add(candidate_weight)
+			.saturating_add(candidate_weight),
 	)
 }
 
@@ -986,15 +996,20 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 ///
 /// Helper to sanitize all disputes in a set, avoid when in doubt
 /// and prefer `limit_and_sanitize_disputes`.
-fn sanitize_disputes<T: Config, CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>>(
+fn sanitize_disputes<
+	T: Config,
+	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
+>(
 	disputes: MultiDisputeStatementSet,
 	dispute_statement_set_valid: CheckValidityFn,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
-	let checked = disputes.into_iter().filter_map(|dss| {
-		dispute_statement_set_valid(dss)
-	}).collect::<Vec<CheckedDisputeStatementSet>>();
+	let checked = disputes
+		.into_iter()
+		.filter_map(|dss| dispute_statement_set_valid(dss))
+		.collect::<Vec<CheckedDisputeStatementSet>>();
 
-	let checked_disputes_weight = dispute_statements_weight::<T, CheckedDisputeStatementSet>(&checked);
+	let checked_disputes_weight =
+		dispute_statements_weight::<T, CheckedDisputeStatementSet>(&checked);
 	(checked, checked_disputes_weight)
 }
 
@@ -1016,7 +1031,10 @@ fn sanitize_disputes<T: Config, CheckValidityFn: FnMut(DisputeStatementSet) -> O
 ///      randomly and check validity one by one.
 ///
 /// Returns the unused weight of `max_consumable_weight`.
-fn limit_and_sanitize_disputes<T: Config, CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>>(
+fn limit_and_sanitize_disputes<
+	T: Config,
+	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
+>(
 	disputes: MultiDisputeStatementSet,
 	dispute_statement_set_valid: CheckValidityFn,
 	mut max_consumable_weight: Weight,
@@ -1026,7 +1044,6 @@ fn limit_and_sanitize_disputes<T: Config, CheckValidityFn: FnMut(DisputeStatemen
 	let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
 	if disputes_weight > max_consumable_weight {
-
 		let mut checked = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Since the disputes array is sorted, we may use binary search to find the beginning of
