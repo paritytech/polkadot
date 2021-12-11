@@ -63,6 +63,7 @@ pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+polkadot-runtime-constants = { package = "polkadot-runtime-constants", path = "./constants", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -151,6 +152,7 @@ std = [
 	"sp-staking/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
+	"polkadot-runtime-constants/std",
 	"sp-version/std",
 	"serde_derive",
 	"serde/std",

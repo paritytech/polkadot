@@ -19,6 +19,7 @@ smallvec = "1.6.1"
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+kusama-runtime-constants = { package = "kusama-runtime-constants", path = "./constants", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -171,6 +172,7 @@ std = [
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
 	"beefy-primitives/std",
+	"kusama-runtime-constants/std",
 	"pallet-mmr-primitives/std",
 	"xcm/std",
 	"xcm-executor/std",

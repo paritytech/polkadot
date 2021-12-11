@@ -58,6 +58,7 @@ authority-discovery-primitives = { package = "sp-authority-discovery", git = "ht
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+rococo-runtime-constants = { package = "rococo-runtime-constants", path = "./constants", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }

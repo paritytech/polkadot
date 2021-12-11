@@ -81,9 +81,8 @@ pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-pub mod constants;
+use test_runtime_constants::{currency::*, fee::*, time::*};
 pub mod xcm_config;
-use constants::{currency::*, fee::*, time::*};
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
