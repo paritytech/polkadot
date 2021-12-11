@@ -990,6 +990,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn note_new_head_weight() -> Weight {
 		T::DbWeight::get().reads_writes(6, 6)
 	}
+
 	/// Returns the current lifecycle state of the para.
 	pub fn lifecycle(id: ParaId) -> Option<ParaLifecycle> {
 		ParaLifecycles::<T>::get(&id)
