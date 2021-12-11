@@ -39,6 +39,8 @@ use frame_support::{
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, ops::RangeInclusive};
 
+use rococo_runtime_constants::fee::WeightToFee;
+
 /// Maximal number of pending outbound messages.
 const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
 	bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
@@ -138,7 +140,7 @@ impl<B, GI> ThisChainWithMessages for RococoLikeChain<B, GI> {
 				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier(),
-			|weight| crate::constants::fee::WeightToFee::calc(&weight),
+			|weight| WeightToFee::calc(&weight),
 			transaction,
 		)
 	}
@@ -195,7 +197,7 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier(),
-			|weight| crate::constants::fee::WeightToFee::calc(&weight),
+			|weight| WeightToFee::calc(&weight),
 			transaction,
 		)
 	}

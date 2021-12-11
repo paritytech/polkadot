@@ -280,9 +280,9 @@ fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64
 			.get_value() as u64
 	};
 
-	let activated = extract("parachain_activated_heads_total");
-	let deactivated = extract("parachain_deactivated_heads_total");
-	let relayed = extract("parachain_messages_relayed_total");
+	let activated = extract("polkadot_parachain_activated_heads_total");
+	let deactivated = extract("polkadot_parachain_deactivated_heads_total");
+	let relayed = extract("polkadot_parachain_messages_relayed_total");
 	let mut result = HashMap::new();
 	result.insert("activated", activated);
 	result.insert("deactivated", deactivated);

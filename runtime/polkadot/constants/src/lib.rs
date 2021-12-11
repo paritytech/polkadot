@@ -14,17 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+pub use self::currency::DOLLARS;
+
 /// Money matters.
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const UNITS: Balance = 1_000_000_000_000;
-	pub const CENTS: Balance = UNITS / 100;
-	pub const MILLICENTS: Balance = CENTS / 1_000;
-	pub const GRAND: Balance = CENTS * 100_000;
+	pub const UNITS: Balance = 10_000_000_000;
+	pub const DOLLARS: Balance = UNITS; // 10_000_000_000
+	pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
+	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 100 * CENTS + (bytes as Balance) * 5 * MILLICENTS
+		items as Balance * 20 * DOLLARS + (bytes as Balance) * 100 * MILLICENTS
 	}
 }
 
@@ -33,12 +37,13 @@ pub mod time {
 	use primitives::v0::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 60;
 	pub const DAYS: BlockNumber = HOURS * 24;
+	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
@@ -49,7 +54,7 @@ pub mod fee {
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
-	use primitives::v1::Balance;
+	use primitives::v0::Balance;
 	use runtime_common::ExtrinsicBaseWeight;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
@@ -61,7 +66,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0,` MAXIMUM_BLOCK_WEIGHT`]
+	///   - [0, `MAXIMUM_BLOCK_WEIGHT`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
@@ -71,7 +76,7 @@ pub mod fee {
 	impl WeightToFeePolynomial for WeightToFee {
 		type Balance = Balance;
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-			// in Westend, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
+			// in Polkadot, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
 			let p = super::currency::CENTS;
 			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
 			smallvec![WeightToFeeCoefficient {
@@ -87,7 +92,7 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use super::{
-		currency::{CENTS, MILLICENTS},
+		currency::{CENTS, DOLLARS, MILLICENTS},
 		fee::WeightToFee,
 	};
 	use frame_support::weights::WeightToFeePolynomial;
@@ -96,10 +101,10 @@ mod tests {
 	#[test]
 	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
 	fn full_block_fee_is_correct() {
-		// A full block should cost 1,600 CENTS
+		// A full block should cost 16 DOLLARS
 		println!("Base: {}", ExtrinsicBaseWeight::get());
 		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * 100 * CENTS;
+		let y = 16 * DOLLARS;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}
 

@@ -46,6 +46,8 @@ pub(crate) mod benchmarking;
 
 pub use pallet::*;
 
+const LOG_TARGET: &str = "runtime::paras";
+
 // the two key times necessary to track for every code replacement.
 #[derive(Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
@@ -466,6 +468,7 @@ pub mod pallet {
 				Self::note_past_code(para, now, now, prior_code_hash);
 			} else {
 				log::error!(
+					target: LOG_TARGET,
 					"Pallet paras storage is inconsistent, prior code not found {:?}",
 					&para
 				);
@@ -969,10 +972,10 @@ impl<T: Config> Pallet<T> {
 				let new_code_hash = if let Some(new_code_hash) = FutureCodeHash::<T>::take(&id) {
 					new_code_hash
 				} else {
-					log::error!("Missing future code hash for {:?}", &id);
+					log::error!(target: LOG_TARGET, "Missing future code hash for {:?}", &id);
 					return T::DbWeight::get().reads_writes(3, 1 + 3)
 				};
-				let prior_code_hash = CurrentCodeHash::<T>::get(&id);
+				let maybe_prior_code_hash = CurrentCodeHash::<T>::get(&id);
 				CurrentCodeHash::<T>::insert(&id, &new_code_hash);
 
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
@@ -981,10 +984,10 @@ impl<T: Config> Pallet<T> {
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Pallet<T>>::block_number();
 
-				let weight = if let Some(prior_code_hash) = prior_code_hash {
+				let weight = if let Some(prior_code_hash) = maybe_prior_code_hash {
 					Self::note_past_code(id, expected_at, now, prior_code_hash)
 				} else {
-					log::error!("Missing prior code hash for {:?}", &id);
+					log::error!(target: LOG_TARGET, "Missing prior code hash for para {:?}", &id);
 					0 as Weight
 				};
 
