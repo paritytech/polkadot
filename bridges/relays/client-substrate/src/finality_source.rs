@@ -16,10 +16,12 @@
 
 //! Default generic implementation of finality source for basic Substrate client.
 
-use crate::chain::{BlockWithJustification, Chain};
-use crate::client::Client;
-use crate::error::Error;
-use crate::sync_header::SyncHeader;
+use crate::{
+	chain::{BlockWithJustification, Chain},
+	client::Client,
+	error::Error,
+	sync_header::SyncHeader,
+};
 
 use async_std::sync::{Arc, Mutex};
 use async_trait::async_trait;
@@ -43,12 +45,11 @@ pub struct FinalitySource<C: Chain, P> {
 
 impl<C: Chain, P> FinalitySource<C, P> {
 	/// Create new headers source using given client.
-	pub fn new(client: Client<C>, maximal_header_number: Option<RequiredHeaderNumberRef<C>>) -> Self {
-		FinalitySource {
-			client,
-			maximal_header_number,
-			_phantom: Default::default(),
-		}
+	pub fn new(
+		client: Client<C>,
+		maximal_header_number: Option<RequiredHeaderNumberRef<C>>,
+	) -> Self {
+		FinalitySource { client, maximal_header_number, _phantom: Default::default() }
 	}
 
 	/// Returns reference to the underlying RPC client.
@@ -122,7 +123,9 @@ where
 
 		let justification = signed_block
 			.justification()
-			.map(|raw_justification| GrandpaJustification::<C::Header>::decode(&mut raw_justification.as_slice()))
+			.map(|raw_justification| {
+				GrandpaJustification::<C::Header>::decode(&mut raw_justification.as_slice())
+			})
 			.transpose()
 			.map_err(Error::ResponseParseFailed)?;
 
@@ -132,27 +135,35 @@ where
 	async fn finality_proofs(&self) -> Result<Self::FinalityProofsStream, Error> {
 		Ok(unfold(
 			self.client.clone().subscribe_justifications().await?,
-			move |mut subscription| async move {
+			move |subscription| async move {
 				loop {
-					let next_justification = subscription.next().await?;
+					let log_error = |err| {
+						log::error!(
+							target: "bridge",
+							"Failed to read justification target from the {} justifications stream: {:?}",
+							P::SOURCE_NAME,
+							err,
+						);
+					};
+
+					let next_justification = subscription
+						.next()
+						.await
+						.map_err(|err| log_error(err.to_string()))
+						.ok()??;
+
 					let decoded_justification =
-						GrandpaJustification::<C::Header>::decode(&mut &next_justification.0[..]);
+						GrandpaJustification::<C::Header>::decode(&mut &next_justification[..]);
 
 					let justification = match decoded_justification {
 						Ok(j) => j,
 						Err(err) => {
-							log::error!(
-								target: "bridge",
-								"Failed to decode justification target from the {} justifications stream: {:?}",
-								P::SOURCE_NAME,
-								err,
-							);
-
-							continue;
-						}
+							log_error(format!("decode failed with error {:?}", err));
+							continue
+						},
 					};
 
-					return Some((justification, subscription));
+					return Some((justification, subscription))
 				}
 			},
 		)

@@ -1364,35 +1364,35 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			signed_statements_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_candidate_backing_signed_statements_total",
+					"polkadot_parachain_candidate_backing_signed_statements_total",
 					"Number of statements signed.",
 				)?,
 				registry,
 			)?,
 			candidates_seconded_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_candidate_backing_candidates_seconded_total",
+					"polkadot_parachain_candidate_backing_candidates_seconded_total",
 					"Number of candidates seconded.",
 				)?,
 				registry,
 			)?,
 			process_second: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_backing_process_second",
+					"polkadot_parachain_candidate_backing_process_second",
 					"Time spent within `candidate_backing::process_second`",
 				))?,
 				registry,
 			)?,
 			process_statement: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_backing_process_statement",
+					"polkadot_parachain_candidate_backing_process_statement",
 					"Time spent within `candidate_backing::process_statement`",
 				))?,
 				registry,
 			)?,
 			get_backed_candidates: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_backing_get_backed_candidates",
+					"polkadot_parachain_candidate_backing_get_backed_candidates",
 					"Time spent within `candidate_backing::get_backed_candidates`",
 				))?,
 				registry,

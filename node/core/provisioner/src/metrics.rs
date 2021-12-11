@@ -23,11 +23,11 @@ struct MetricsInner {
 	request_inherent_data: prometheus::Histogram,
 	provisionable_data: prometheus::Histogram,
 
-	/// The `dispute_statement_*` metrics track how many disputes/votes the runtime will have to process. It will count
+	/// The following metrics track how many disputes/votes the runtime will have to process. These will count
 	/// all recent statements meaning every dispute from last sessions: 10 min on Rococo, 60 min on Kusama and
 	/// 4 hours on Polkadot. The metrics are updated only when the node authors a block, so values vary across nodes.
-	dispute_statement_sets_requested: prometheus::Counter<prometheus::U64>,
-	dispute_statements_requested: prometheus::CounterVec<prometheus::U64>,
+	inherent_data_dispute_statement_sets: prometheus::Counter<prometheus::U64>,
+	inherent_data_dispute_statements: prometheus::CounterVec<prometheus::U64>,
 }
 
 /// Provisioner metrics.
@@ -61,7 +61,7 @@ impl Metrics {
 	pub(crate) fn inc_valid_statements_by(&self, votes: usize) {
 		if let Some(metrics) = &self.0 {
 			metrics
-				.dispute_statements_requested
+				.inherent_data_dispute_statements
 				.with_label_values(&["valid"])
 				.inc_by(votes.try_into().unwrap_or(0));
 		}
@@ -70,7 +70,7 @@ impl Metrics {
 	pub(crate) fn inc_invalid_statements_by(&self, votes: usize) {
 		if let Some(metrics) = &self.0 {
 			metrics
-				.dispute_statements_requested
+				.inherent_data_dispute_statements
 				.with_label_values(&["invalid"])
 				.inc_by(votes.try_into().unwrap_or(0));
 		}
@@ -79,7 +79,7 @@ impl Metrics {
 	pub(crate) fn inc_dispute_statement_sets_by(&self, disputes: usize) {
 		if let Some(metrics) = &self.0 {
 			metrics
-				.dispute_statement_sets_requested
+				.inherent_data_dispute_statement_sets
 				.inc_by(disputes.try_into().unwrap_or(0));
 		}
 	}
@@ -91,7 +91,7 @@ impl metrics::Metrics for Metrics {
 			inherent_data_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_inherent_data_requests_total",
+						"polkadot_parachain_inherent_data_requests_total",
 						"Number of InherentData requests served by provisioner.",
 					),
 					&["success"],
@@ -100,32 +100,32 @@ impl metrics::Metrics for Metrics {
 			)?,
 			request_inherent_data: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_provisioner_request_inherent_data_time",
+					"polkadot_parachain_provisioner_request_inherent_data_time",
 					"Time spent within `provisioner::request_inherent_data`",
 				))?,
 				registry,
 			)?,
 			provisionable_data: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_provisioner_provisionable_data_time",
+					"polkadot_parachain_provisioner_provisionable_data_time",
 					"Time spent within `provisioner::provisionable_data`",
 				))?,
 				registry,
 			)?,
-			dispute_statements_requested: prometheus::register(
+			inherent_data_dispute_statements: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_inherent_dispute_statements_requested",
-						"Number of inherent dispute statements requested.",
+						"polkadot_parachain_inherent_data_dispute_statements",
+						"Number of dispute statements passed to `create_inherent()`.",
 					),
 					&["validity"],
 				)?,
 				&registry,
 			)?,
-			dispute_statement_sets_requested: prometheus::register(
+			inherent_data_dispute_statement_sets: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_inherent_dispute_statement_sets_requested",
-					"Number of inherent DisputeStatementSets requested.",
+					"polkadot_parachain_inherent_data_dispute_statement_sets",
+					"Number of dispute statements sets passed to `create_inherent()`.",
 				)?,
 				registry,
 			)?,

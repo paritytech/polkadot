@@ -327,7 +327,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
@@ -370,7 +370,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 
 /// A candidate-receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Debug, MallocSizeOf))]
 pub struct CandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -395,7 +395,7 @@ impl<H> CandidateReceipt<H> {
 
 /// All data pertaining to the execution of a para candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
@@ -407,7 +407,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
@@ -509,8 +509,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf, Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -560,7 +560,6 @@ pub type UncheckedSignedAvailabilityBitfields = Vec<UncheckedSignedAvailabilityB
 
 /// A backed (or backable, depending on context) candidate.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Default))]
 pub struct BackedCandidate<H = Hash> {
 	/// The candidate referred to.
 	pub candidate: CommittedCandidateReceipt<H>,
@@ -669,12 +668,12 @@ impl From<u32> for GroupIndex {
 }
 
 /// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadEntry {
 	/// The claim.
@@ -819,7 +818,7 @@ impl<H, N> OccupiedCore<H, N> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -899,7 +898,7 @@ pub enum CandidateEvent<H = Hash> {
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
 	///
@@ -949,7 +948,7 @@ pub struct SessionInfo {
 
 /// Scraped runtime backing votes and resolved disputes.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// The session in which the block was included.
 	pub session: SessionIndex,
@@ -1095,7 +1094,7 @@ pub struct AbridgedHostConfiguration {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum frequency at which parachains can update their validation code.
+	/// The minimum period, in blocks, between which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
@@ -1376,6 +1375,31 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
+}
+
+/// A statement from the specified validator whether the given validation code passes PVF
+/// pre-checking or not anchored to the given session index.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	/// `true` if the subject passed pre-checking and `false` otherwise.
+	pub accept: bool,
+	/// The validation code hash that was checked.
+	pub subject: ValidationCodeHash,
+	/// The index of a session during which this statement is considered valid.
+	pub session_index: SessionIndex,
+	/// The index of the validator from which this statement originates.
+	pub validator_index: ValidatorIndex,
+}
+
+impl PvfCheckStatement {
+	/// Produce the payload used for signing this type of statement.
+	///
+	/// It is expected that it will be signed by the validator at `validator_index` in the
+	/// `session_index`.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
 }
 
 /// The maximum number of validators `f` which may safely be faulty.

@@ -17,6 +17,7 @@
 //! A mock runtime for XCM benchmarking.
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
+use frame_benchmarking::BenchmarkError;
 use frame_support::{parameter_types, traits::Everything};
 use sp_core::H256;
 use sp_runtime::{
@@ -72,6 +73,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -145,11 +147,14 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
-	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
 			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
 
 		Ok(valid_destination)
+	}
+	fn worst_case_holding() -> MultiAssets {
+		crate::mock_worst_case_holding()
 	}
 }
 

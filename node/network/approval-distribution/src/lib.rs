@@ -1303,42 +1303,42 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			assignments_imported_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_assignments_imported_total",
+					"polkadot_parachain_assignments_imported_total",
 					"Number of valid assignments imported locally or from other peers.",
 				)?,
 				registry,
 			)?,
 			approvals_imported_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_approvals_imported_total",
+					"polkadot_parachain_approvals_imported_total",
 					"Number of valid approvals imported locally or from other peers.",
 				)?,
 				registry,
 			)?,
 			unified_with_peer_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_unified_with_peer_total",
+					"polkadot_parachain_unified_with_peer_total",
 					"Number of times `unify_with_peer` is called.",
 				)?,
 				registry,
 			)?,
 			time_unify_with_peer: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_time_unify_with_peer",
+					"polkadot_parachain_time_unify_with_peer",
 					"Time spent within fn `unify_with_peer`.",
 				))?,
 				registry,
 			)?,
 			time_import_pending_now_known: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_time_import_pending_now_known",
+					"polkadot_parachain_time_import_pending_now_known",
 					"Time spent on importing pending assignments and approvals.",
 				))?,
 				registry,
 			)?,
 			time_awaiting_approval_voting: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_time_awaiting_approval_voting",
+					"polkadot_parachain_time_awaiting_approval_voting",
 					"Time spent awaiting a reply from the Approval Voting Subsystem.",
 				))?,
 				registry,

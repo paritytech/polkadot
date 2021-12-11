@@ -10,8 +10,8 @@ parity-scale-codec = { version = "2.3.1", default-features = false, features = [
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-serde = { version = "1.0.130", features = [ "derive" ], optional = true }
-derive_more = "0.99.14"
+serde = { version = "1.0.131", features = [ "derive" ], optional = true }
+derive_more = "0.99.17"
 bitflags = "1.3.2"
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -50,8 +50,8 @@ hex-literal = "0.3.4"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 
 [features]
 default = ["std"]
@@ -74,6 +74,7 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"pallet-authorship/std",
+	"pallet-babe/std",
 	"pallet-balances/std",
 	"pallet-session/std",
 	"pallet-staking/std",
@@ -85,7 +86,7 @@ std = [
 	"log/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"primitives/runtime-benchmarks",

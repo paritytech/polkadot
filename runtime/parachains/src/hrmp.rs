@@ -37,7 +37,6 @@ pub use pallet::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-mod weights;
 
 pub trait WeightInfo {
 	fn hrmp_init_open_channel() -> Weight;
@@ -50,7 +49,11 @@ pub trait WeightInfo {
 	fn clean_open_channel_requests(c: u32) -> Weight;
 }
 
+/// A weight info that is only suitable for testing.
+#[cfg(feature = "std")]
 pub struct TestWeightInfo;
+
+#[cfg(feature = "std")]
 impl WeightInfo for TestWeightInfo {
 	fn hrmp_accept_open_channel() -> Weight {
 		1000_000_000
@@ -500,7 +503,7 @@ pub mod pallet {
 		///
 		/// Origin must be Root.
 		///
-		/// Number of inbound and outbound channels for `para` must be provided as witness data.
+		/// Number of inbound and outbound channels for `para` must be provided as witness data of weighing.
 		#[pallet::weight(<T as Config>::WeightInfo::force_clean_hrmp(*_inbound, *_outbound))]
 		pub fn force_clean_hrmp(
 			origin: OriginFor<T>,
@@ -518,7 +521,7 @@ pub mod pallet {
 		/// If there are pending HRMP open channel requests, you can use this
 		/// function process all of those requests immediately.
 		///
-		/// Total number of opening channels must be provided as witness data.
+		/// Total number of opening channels must be provided as witness data of weighing.
 		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_open(*_channels))]
 		pub fn force_process_hrmp_open(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -532,7 +535,7 @@ pub mod pallet {
 		/// If there are pending HRMP close channel requests, you can use this
 		/// function process all of those requests immediately.
 		///
-		/// Total number of closing channels must be provided as witness data.
+		/// Total number of closing channels must be provided as witness data of weighing.
 		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_close(*_channels))]
 		pub fn force_process_hrmp_close(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -1128,7 +1131,7 @@ impl<T: Config> Pallet<T> {
 			config.hrmp_sender_deposit.unique_saturated_into(),
 		)?;
 
-		// mutating storage -- shall not bail henceforth.
+		// mutating storage directly now -- shall not bail henceforth.
 
 		<Self as Store>::HrmpOpenChannelRequestCount::insert(&origin, open_req_cnt + 1);
 		<Self as Store>::HrmpOpenChannelRequests::insert(
@@ -2070,7 +2073,7 @@ mod tests {
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 80);
 
 			// Then deregister one parachain, but don't wait two sessions until it takes effect.
-			// Instead, para_b will confirm the request, which will take place the same time
+			// Instead, `para_b` will confirm the request, which will take place the same time
 			// the offboarding should happen.
 			deregister_parachain(para_a);
 			run_to_block(9, Some(vec![9]));
@@ -2079,7 +2082,7 @@ mod tests {
 			assert!(!channel_exists(para_a, para_b));
 			run_to_block(10, Some(vec![10]));
 
-			// The outcome we expect is para_b should receive the refund.
+			// The outcome we expect is `para_b` should receive the refund.
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();

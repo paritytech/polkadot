@@ -18,6 +18,7 @@ hfuzz_workspace
 
 .DS_Store
 
+.cargo
 .idea
 .vscode
 *.iml

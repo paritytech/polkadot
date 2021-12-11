@@ -6,7 +6,7 @@ edition = "2018"
 description = "Primitives types for the Node-side"
 
 [dependencies]
-async-trait = "0.1.51"
+async-trait = "0.1.52"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
@@ -14,6 +14,6 @@ parity-scale-codec = { version = "2.3.1", default-features = false, features = [
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.23", features = ["derive"] }
-derive_more = "0.99.11"
+derive_more = "0.99.17"
 futures = "0.3.17"
 thiserror = "1.0.30"
