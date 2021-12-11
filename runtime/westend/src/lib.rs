@@ -98,8 +98,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-pub mod constants;
-use constants::{currency::*, fee::*, time::*};
+use westend_runtime_constants::{currency::*, fee::*, time::*};
 
 // Weights used in the runtime
 mod weights;

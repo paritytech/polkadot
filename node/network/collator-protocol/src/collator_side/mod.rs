@@ -116,28 +116,28 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			advertisements_made: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_collation_advertisements_made_total",
+					"polkadot_parachain_collation_advertisements_made_total",
 					"A number of collation advertisements sent to validators.",
 				)?,
 				registry,
 			)?,
 			collations_send_requested: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_collations_sent_requested_total",
+					"polkadot_parachain_collations_sent_requested_total",
 					"A number of collations requested to be sent to validators.",
 				)?,
 				registry,
 			)?,
 			collations_sent: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_collations_sent_total",
+					"polkadot_parachain_collations_sent_total",
 					"A number of collations sent to validators.",
 				)?,
 				registry,
 			)?,
 			process_msg: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_collator_protocol_collator_process_msg",
+					"polkadot_parachain_collator_protocol_collator_process_msg",
 					"Time spent within `collator_protocol_collator::process_msg`",
 				))?,
 				registry,
