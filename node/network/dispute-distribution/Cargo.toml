@@ -22,7 +22,7 @@ thiserror = "1.0.30"
 lru = "0.7.0"
 
 [dev-dependencies]
-async-trait = "0.1.51"
+async-trait = "0.1.52"
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
