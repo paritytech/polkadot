@@ -42,7 +42,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_preimage`.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> pallet_preimage::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_preimage::weights::WeightInfo for WeightInfo<T> {
 	// Storage: Preimage PreimageFor (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	fn note_preimage(s: u32, ) -> Weight {
