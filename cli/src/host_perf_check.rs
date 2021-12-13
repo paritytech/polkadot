@@ -23,6 +23,8 @@ use polkadot_performance_test::{
 use std::time::Duration;
 
 pub fn host_perf_check() -> Result<(), PerfCheckError> {
+	let pvf_prepare_time_limit = time_limit_from_baseline(PVF_PREPARE_TIME_LIMIT);
+	let erasure_coding_time_limit = time_limit_from_baseline(ERASURE_CODING_TIME_LIMIT);
 	let wasm_code =
 		polkadot_performance_test::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
@@ -32,17 +34,23 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 
 	info!("Running the performance checks...");
 
-	perf_check("PVF-prepare", PVF_PREPARE_TIME_LIMIT, || measure_pvf_prepare(code.as_ref()))?;
+	perf_check("PVF-prepare", pvf_prepare_time_limit, || measure_pvf_prepare(code.as_ref()))?;
 
-	perf_check("Erasure-coding", ERASURE_CODING_TIME_LIMIT, || {
+	perf_check("Erasure-coding", erasure_coding_time_limit, || {
 		measure_erasure_coding(ERASURE_CODING_N_VALIDATORS, code.as_ref())
 	})?;
 
 	Ok(())
 }
 
+/// Returns a no-warning threshold for the given time limit.
 fn green_threshold(duration: Duration) -> Duration {
 	duration * 4 / 5
+}
+
+/// Returns an extended time limit to be used for the actual check.
+fn time_limit_from_baseline(duration: Duration) -> Duration {
+	duration * 3 / 2
 }
 
 fn perf_check(
