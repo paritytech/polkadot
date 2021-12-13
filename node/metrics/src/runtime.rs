@@ -120,12 +120,10 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 					.as_slice(),
 			) {
 				Ok(update_op) => {
-					println!("Received metric: {:?}", update_op);
 					self.parse_metric_update(update_op);
 				},
 				Err(e) => {
-					println!("Failed to decode metric: {:?}", e);
-					tracing::error!("TraceEvent decode failed: {:?}", e);
+					tracing::error!(target: LOG_TARGET, "TraceEvent decode failed: {:?}", e);
 				},
 			}
 		}
