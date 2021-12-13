@@ -44,7 +44,7 @@ use {
 	},
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	polkadot_overseer::BlockInfo,
-	sc_client_api::ExecutorProvider,
+	sc_client_api::{BlockBackend, ExecutorProvider},
 	sp_trie::PrefixedMemoryDB,
 	tracing::info,
 };
@@ -742,14 +742,22 @@ where
 
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
+	let genesis_hash = client.block_hash(0).ok().flatten().unwrap_or_default();
+	let chain_prefix = match chain_spec.fork_id() {
+		Some(fork_id) => format!("/{}/{}", genesis_hash, fork_id),
+		None => format!("/{}", genesis_hash),
+	};
 
 	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
-	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+	config.network.extra_sets.push(grandpa::grandpa_peers_set_config(&chain_prefix));
 
 	if chain_spec.is_rococo() || chain_spec.is_wococo() {
-		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+		config
+			.network
+			.extra_sets
+			.push(beefy_gadget::beefy_peers_set_config(&chain_prefix));
 	}
 
 	{
@@ -1063,6 +1071,7 @@ where
 			signed_commitment_sender: beefy_link,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
+			protocol_name_prefix: chain_prefix.clone(),
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
@@ -1087,6 +1096,7 @@ where
 		keystore: keystore_opt,
 		local_role: role,
 		telemetry: telemetry.as_ref().map(|x| x.handle()),
+		protocol_name_prefix: chain_prefix,
 	};
 
 	let enable_grandpa = !disable_grandpa;
