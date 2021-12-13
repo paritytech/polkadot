@@ -16,11 +16,11 @@
 
 //! Runtime Metrics helpers.
 //!
-//! A runtime metric provider implementation that builds on top of Substrate wasm 
+//! A runtime metric provider implementation that builds on top of Substrate wasm
 //! tracing support. This requires that the custom profiler (`TraceHandler`) to be
 //! registered in substrate via a `logger_hook()`. Events emitted from runtime are
 //! then captured/processed by the `TraceHandler` implementation.
-//! 
+//!
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
