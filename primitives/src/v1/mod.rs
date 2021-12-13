@@ -1467,14 +1467,14 @@ impl RuntimeMetricRegisterParams {
 		vec_to_str(&self.description, "No description provided.")
 	}
 
-	/// Returns a labels as Vec<&str>.
+	/// Returns a labels as `Vec<&str>`.
 	pub fn labels(&self) -> Vec<&str> {
 		self.labels.as_str()
 	}
 }
 
 impl RuntimeMetricLabels {
-	/// Returns a labels as Vec<&str>.
+	/// Returns a labels as `Vec<&str>`.
 	pub fn as_str(&self) -> Vec<&str> {
 		self.0
 			.iter()
@@ -1519,7 +1519,7 @@ pub type RuntimeMetricLabelValue = RuntimeMetricLabel;
 /// A set of metric label values.
 pub type RuntimeMetricLabelValues = RuntimeMetricLabels;
 
-/// Trait for converting Vec<u8> to &str.
+/// Trait for converting Vec<u8> to `&str`.
 pub trait AsStr {
 	/// Return a str reference.
 	fn as_str(&self) -> Option<&str>;

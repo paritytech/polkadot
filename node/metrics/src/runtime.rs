@@ -34,8 +34,9 @@ use std::{
 use substrate_prometheus_endpoint::{register, CounterVec, Opts, PrometheusError, Registry, U64};
 
 const LOG_TARGET: &'static str = "metrics::runtime";
+const METRIC_PREFIX: &'static str = "polkadot";
 
-/// Support only CounterVec for now.
+/// Support only `CounterVec` for now.
 /// TODO: add more when needed.
 #[derive(Clone, Default)]
 pub struct Metrics {
@@ -67,7 +68,7 @@ impl RuntimeMetricsProvider {
 					metric_name.to_owned(),
 					register(
 						CounterVec::new(
-							Opts::new(metric_name, params.description()),
+							Opts::new(format!("{}_{}", METRIC_PREFIX, metric_name), params.description()),
 							&params.labels(),
 						)?,
 						&self.0,
@@ -161,7 +162,7 @@ impl RuntimeMetricsProvider {
 	}
 }
 
-/// Returns the custom profiling closure that we'll apply to the LoggerBuilder.
+/// Returns the custom profiling closure that we'll apply to the `LoggerBuilder`.
 pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
 	|logger_builder, config| {
 		if config.prometheus_registry().is_none() {

@@ -263,14 +263,14 @@ impl<T: Config> Pallet<T> {
 		} = data;
 		sp_io::init_tracing();
 		let mut prefilter_weight_metric =
-			CounterVec::new("polkadot_create_inherent_prefilter_weight");
+			CounterVec::new("create_inherent_prefilter_weight");
 		let mut bitfields_processed_metric =
-			CounterVec::new("polkadot_create_inherent_bitfields_processed");
+			CounterVec::new("create_inherent_bitfields_processed");
 		let mut candidates_processed_metric =
-			CounterVec::new("polkadot_create_inherent_candidates_processed");
+			CounterVec::new("create_inherent_candidates_processed");
 		let mut total_weight_metric = CounterVec::new("create_inherent_total_weight");
 		let mut disputes_processed = CounterVec::new_with_labels(
-			"polkadot_create_inherent_disputes_processed",
+			"create_inherent_disputes_processed",
 			"Counts the how many dispute signatures have been checked",
 			sp_std::vec!["validity".into()].into(),
 		);
