@@ -53,7 +53,7 @@ use polkadot_subsystem::{
 		DisputeCoordinatorMessage, ImportStatementsResult, ProvisionableData, ProvisionerMessage,
 		RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
 	},
-	overseer, PerLeafSpan, Stage, SubsystemSender,
+	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -1180,13 +1180,13 @@ impl util::JobTrait for CandidateBackingJob {
 	const NAME: &'static str = "candidate-backing-job";
 
 	fn run<S: SubsystemSender>(
-		parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let parent = leaf.hash;
 		async move {
 			macro_rules! try_runtime_api {
 				($x: expr) => {
@@ -1208,7 +1208,7 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
-			let span = PerLeafSpan::new(span, "backing");
+			let span = PerLeafSpan::new(leaf.span, "backing");
 			let _span = span.child("runtime-apis");
 
 			let (validators, groups, session_index, cores) = futures::try_join!(
