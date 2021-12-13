@@ -64,12 +64,16 @@ impl RuntimeMetricsProvider {
 					return Ok(())
 				}
 
+				let metric_name = format!("{}_{}", METRIC_PREFIX, metric_name);
 				unlocked_hashtable.insert(
 					metric_name.to_owned(),
 					register(
 						CounterVec::new(
-							Opts::new(format!("{}_{}", METRIC_PREFIX, metric_name), params.description()),
-							&params.labels(),
+							Opts::new(
+								metric_name,
+								params.description(),
+							),
+							&params.labels().unwrap_or_default(),
 						)?,
 						&self.0,
 					)?,
@@ -85,10 +89,19 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Increment a counter vec by a value.
-	pub fn inc_counter_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
+	pub fn inc_counter_by(
+		&self,
+		name: &str,
+		value: u64,
+		labels: Option<&RuntimeMetricLabelValues>,
+	) {
 		let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
 			if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
-				counter_vec.with_label_values(&labels.as_str()).inc_by(value);
+
+				match labels {
+					Some(labels) => counter_vec.with_label_values(&labels.as_str()).inc_by(value),
+					None => counter_vec.with_label_values(&vec![""]).inc_by(value),
+				}
 			} else {
 				tracing::error!(
 					target: LOG_TARGET,
@@ -139,7 +152,7 @@ impl RuntimeMetricsProvider {
 				let _ = self.register_countervec(update.metric_name(), &params);
 			},
 			RuntimeMetricOp::Increment(value, ref labels) =>
-				self.inc_counter_by(update.metric_name(), value, labels),
+				self.inc_counter_by(update.metric_name(), value, labels.as_ref()),
 		}
 	}
 

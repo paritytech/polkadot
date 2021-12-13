@@ -1423,7 +1423,7 @@ pub enum RuntimeMetricOp {
 	/// Register a new metric.
 	Register(RuntimeMetricRegisterParams),
 	/// Increment metric by value.
-	Increment(u64, RuntimeMetricLabelValues),
+	Increment(u64, Option<RuntimeMetricLabelValues>),
 }
 
 /// Metric registration parameters.
@@ -1431,12 +1431,12 @@ pub enum RuntimeMetricOp {
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct RuntimeMetricRegisterParams {
 	description: Vec<u8>,
-	labels: RuntimeMetricLabels,
+	labels: Option<RuntimeMetricLabels>,
 }
 
 impl RuntimeMetricRegisterParams {
 	/// Create new metric registration params.
-	pub fn new(description: Vec<u8>, labels: RuntimeMetricLabels) -> Self {
+	pub fn new(description: Vec<u8>, labels: Option<RuntimeMetricLabels>) -> Self {
 		Self { description, labels }
 	}
 }
@@ -1451,12 +1451,6 @@ pub struct RuntimeMetricUpdate {
 	pub op: RuntimeMetricOp,
 }
 
-#[cfg(feature = "std")]
-fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
-	return std::str::from_utf8(v).unwrap_or(default)
-}
-
-#[cfg(not(feature = "std"))]
 fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
 	return sp_std::str::from_utf8(v).unwrap_or(default)
 }
@@ -1467,9 +1461,9 @@ impl RuntimeMetricRegisterParams {
 		vec_to_str(&self.description, "No description provided.")
 	}
 
-	/// Returns a labels as `Vec<&str>`.
-	pub fn labels(&self) -> Vec<&str> {
-		self.labels.as_str()
+	/// Returns a label names as an `Option` of `Vec<&str>`.
+	pub fn labels(&self) -> Option<Vec<&str>> {
+		self.labels.as_ref().map(|labels| labels.as_str())
 	}
 }
 
@@ -1488,8 +1482,8 @@ impl RuntimeMetricLabels {
 	}
 }
 
-impl From<Vec<&'static str>> for RuntimeMetricLabels {
-	fn from(v: Vec<&'static str>) -> RuntimeMetricLabels {
+impl From<&[&'static str]> for RuntimeMetricLabels {
+	fn from(v: &[&'static str]) -> RuntimeMetricLabels {
 		RuntimeMetricLabels(
 			v.iter().map(|label| RuntimeMetricLabel(label.as_bytes().to_vec())).collect(),
 		)

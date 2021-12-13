@@ -21,39 +21,40 @@
 //! and command line configuration: `--tracing-targets wasm_tracing=trace`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricLabels};
 
 #[cfg(not(feature = "std"))]
 use parity_scale_codec::Encode;
 
 #[cfg(not(feature = "std"))]
-use primitives::v1::{RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate};
+use primitives::v1::{
+	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+};
 
 #[cfg(not(feature = "std"))]
 pub struct CounterVec {
 	name: &'static str,
-	label_values: RuntimeMetricLabelValues,
+	label_values: Option<RuntimeMetricLabelValues>,
 }
 
 #[cfg(not(feature = "std"))]
 impl CounterVec {
 	/// Create a new counter metric.
-	pub fn new(name: &'static str) -> Self {
-		Self::new_with_labels(name, "No description provided", RuntimeMetricLabels::default())
+	pub fn new(name: &'static str, description: &'static str) -> Self {
+		Self::new_with_labels(name, description, &sp_std::vec::Vec::new())
 	}
 
 	/// Create a new counter metric with specified `labels`.
 	pub fn new_with_labels(
 		name: &'static str,
 		description: &'static str,
-		labels: RuntimeMetricLabels,
+		labels: &[&'static str],
 	) -> Self {
 		// Send a register metric operation to node side.
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: sp_std::vec::Vec::from(name),
 			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(
 				sp_std::vec::Vec::from(description),
-				labels,
+				Some(labels.into()),
 			)),
 		}
 		.encode();
@@ -70,12 +71,12 @@ impl CounterVec {
 			);
 		}
 
-		CounterVec { name, label_values: RuntimeMetricLabelValues::default() }
+		CounterVec { name, label_values: None }
 	}
 
 	/// Set label values.
-	pub fn with_label_values(&mut self, label_values: RuntimeMetricLabelValues) -> &mut Self {
-		self.label_values = label_values;
+	pub fn with_label_values(&mut self, label_values: &[&'static str]) -> &mut Self {
+		self.label_values = Some(label_values.into());
 		self
 	}
 
@@ -83,7 +84,7 @@ impl CounterVec {
 	pub fn inc_by(&mut self, value: u64) {
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: sp_std::vec::Vec::from(self.name),
-			op: RuntimeMetricOp::Increment(value, self.label_values.clone()),
+			op: RuntimeMetricOp::Increment(value, self.label_values.take()),
 		}
 		.encode();
 
@@ -98,8 +99,6 @@ impl CounterVec {
 				update_op = update_op.as_str()
 			);
 		}
-
-		self.label_values.clear();
 	}
 }
 
@@ -109,18 +108,18 @@ pub struct CounterVec;
 /// Dummy implementation.
 #[cfg(feature = "std")]
 impl CounterVec {
-	pub fn new(_: &'static str) -> Self {
+	pub fn new(_name: &'static str, _description: &'static str) -> Self {
 		CounterVec
 	}
 	pub fn new_with_labels(
 		_name: &'static str,
 		_description: &'static str,
-		_labels: RuntimeMetricLabels,
+		_labels: &[&'static str],
 	) -> Self {
 		CounterVec
 	}
 
-	pub fn with_label_values(&mut self, _: RuntimeMetricLabelValues) -> &mut Self {
+	pub fn with_label_values(&mut self, _label_values: &[&'static str]) -> &mut Self {
 		self
 	}
 
