@@ -101,4 +101,4 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-vesting/try-runtime",
 ]
-with-tracing = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/with-tracing"]
+runtime-metrics = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/runtime-metrics"]

@@ -22,4 +22,4 @@ std = [
     "primitives/std",
     "bs58/std"
 ]
-with-tracing = ["sp-tracing/with-tracing"]
+runtime-metrics = ["sp-tracing/with-tracing"]
