@@ -171,7 +171,6 @@ impl SubstrateCli for Cli {
 	}
 
 	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
-		dbg!(spec.id());
 		#[cfg(feature = "kusama-native")]
 		if spec.is_kusama() {
 			return &service::kusama_runtime::VERSION
