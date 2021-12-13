@@ -22,6 +22,7 @@
 //! this module.
 
 use crate::{
+	configuration,
 	disputes::DisputesHandler,
 	inclusion,
 	inclusion::{CandidateCheckContext, FullCheck},
@@ -39,11 +40,11 @@ use frame_support::{
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, CurrentBlockRandomness};
 use primitives::v1::{
-	BackedCandidate, CandidateHash, CoreIndex, DisputeStatementSet,
-	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
-	SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
-	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
-	PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, CandidateHash, CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet,
+	CoreIndex, DisputeStatementSet, InherentData as ParachainsInherentData,
+	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SigningContext,
+	UncheckedSignedAvailabilityBitfield, UncheckedSignedAvailabilityBitfields, ValidatorId,
+	ValidatorIndex, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::{seq::SliceRandom, SeedableRng};
 
@@ -62,8 +63,9 @@ mod weights;
 pub use self::{
 	misc::IndexedRetain,
 	weights::{
-		backed_candidate_weight, backed_candidates_weight, dispute_statements_weight,
-		paras_inherent_total_weight, signed_bitfields_weight, TestWeightInfo, WeightInfo,
+		backed_candidate_weight, backed_candidates_weight, dispute_statement_set_weight,
+		multi_dispute_statement_sets_weight, paras_inherent_total_weight, signed_bitfields_weight,
+		TestWeightInfo, WeightInfo,
 	},
 };
 
@@ -284,7 +286,7 @@ impl<T: Config> Pallet<T> {
 
 		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
-		let disputes_weight = dispute_statements_weight::<T>(&disputes);
+		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
@@ -293,37 +295,69 @@ impl<T: Config> Pallet<T> {
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
-		let (checked_disputes, total_consumed_weight) = enforce_weight_limit_and_sanitize_disputes(
-			candidates_weight,
-			bitfields_weight,
-			disputes_weight,
-			&mut disputes,
-			max_block_weight,
-			&mut rng,
-		);
+		let (checked_disputes, total_consumed_weight) = {
+			if candidates_weight
+				.saturating_add(bitfields_weight)
+				.saturating_add(disputes_weight) >
+				max_block_weight
+			{
+				// Don't mess around, this should have been done by the block producer/author:
+				// If the total weight is over the max block weight, first try clearing backed
+				// candidates and bitfields.
+				backed_candidates.clear();
+				candidates_weight = 0;
+				signed_bitfields.clear();
+				bitfields_weight = 0;
+			}
+
+			let config = <configuration::Pallet<T>>::config();
+			let max_spam_slots = config.dispute_max_spam_slots;
+			let post_conclusion_acceptance_period =
+				config.dispute_post_conclusion_acceptance_period;
+
+			// if disputes are by themselves overweight already, trim the disputes.
+			let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T, _>(
+				disputes,
+				|set| {
+					T::DisputesHandler::filter_dispute_data(
+						set,
+						max_spam_slots,
+						post_conclusion_acceptance_period,
+					)
+				},
+				max_block_weight,
+				&mut rng,
+			);
+			(checked_disputes, checked_disputes_weight)
+		};
 
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
 		// Handle disputes logic.
 		let current_session = <shared::Pallet<T>>::session_index();
 		let disputed_bitfield = {
-			let new_current_dispute_sets: Vec<_> = disputes
+			let new_current_dispute_sets: Vec<_> = checked_disputes
 				.iter()
+				.map(AsRef::as_ref)
 				.filter(|s| s.session == current_session)
 				.map(|s| (s.session, s.candidate_hash))
 				.collect();
 
 			// Note that `provide_multi_dispute_data` will iterate, verify, and import each
 			// dispute; so the input here must be reasonably bounded.
+<<<<<<< HEAD
 			let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 			METRICS.on_disputes_imported(disputes.len() as u64);
 
+=======
+			let _ = T::DisputesHandler::provide_multi_dispute_data(checked_disputes.clone())?;
+>>>>>>> 76647cc2df (refactor and minimize inherent checks)
 			if T::DisputesHandler::is_frozen() {
 				// Relay chain freeze, at this point we will not include any parachain blocks.
 				METRICS.on_relay_chain_freeze();
 
 				// The relay chain we are currently on is invalid. Proceed no further on parachains.
-				return Ok(Some(dispute_statements_weight::<T>(&disputes)).into())
+				return Ok(Some(total_consumed_weight).into())
 			}
 
 			// Process the dispute sets of the current session.
@@ -420,6 +454,7 @@ impl<T: Config> Pallet<T> {
 		)?;
 
 		METRICS.on_disputes_included(disputes.len() as u64);
+		let disputes = checked_disputes.into_iter().map(|x| x.into()).collect::<Vec<_>>();
 
 		// The number of disputes included in a block is
 		// limited by the weight as well as the number of candidate blocks.
@@ -436,7 +471,7 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		METRICS.on_after_filter(total_weight);
+		METRICS.on_after_filter(total_consumed_weight);
 
 		Ok(Some(total_consumed_weight).into())
 	}
@@ -486,120 +521,127 @@ impl<T: Config> Pallet<T> {
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
-		T::DisputesHandler::deduplicate_disputes_data(&mut disputes);
+		T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes);
 
-		let dispute_statement_set_valid = move |set: DisputeStatementSet| {
-			T::DisputesHandler::filter_dispute_data(set);
-		};
+		let config = <configuration::Pallet<T>>::config();
+		let max_spam_slots = config.dispute_max_spam_slots;
+		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
-		// Limit the disputes first, since the following statements depend on the votes include here.
-		let remaining_weight = limit_disputes::<T>(
-			&mut disputes,
-			dispute_statement_set_valid,
-			max_block_weight,
-			&mut rng,
-		);
+		let (
+			mut backed_candidates,
+			mut bitfields,
+			mut checked_disputes_sets,
+			checked_disputes_sets_consumed_weight,
+		) = frame_support::storage::with_transaction(|| {
+			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
+				T::DisputesHandler::filter_dispute_data(
+					set,
+					max_spam_slots,
+					post_conclusion_acceptance_period,
+				)
+			};
 
-		let (mut backed_candidates, mut bitfields) =
-			frame_support::storage::with_transaction(|| {
-				// we don't care about fresh or not disputes
-				// this writes them to storage, so let's query it via those means
-				// if this fails for whatever reason, that's ok
-				let _ =
-					T::DisputesHandler::provide_multi_dispute_data(disputes.clone()).map_err(|e| {
-						log::warn!(
-							target: LOG_TARGET,
-							"MultiDisputesData failed to update: {:?}",
-							e
-						);
-						e
-					});
-
-				// Contains the disputes that are concluded in the current session only,
-				// since these are the only ones that are relevant for the occupied cores
-				// and lightens the load on `collect_disputed` significantly.
-				// Cores can't be occupied with candidates of the previous sessions, and only
-				// things with new votes can have just concluded. We only need to collect
-				// cores with disputes that conclude just now, because disputes that
-				// concluded longer ago have already had any corresponding cores cleaned up.
-				let current_concluded_invalid_disputes = disputes
-					.iter()
-					.filter(|dss| dss.session == current_session)
-					.map(|dss| (dss.session, dss.candidate_hash))
-					.filter(|(session, candidate)| {
-						<T>::DisputesHandler::concluded_invalid(*session, *candidate)
-					})
-					.map(|(_session, candidate)| candidate)
-					.collect::<BTreeSet<CandidateHash>>();
-
-				// All concluded invalid disputes, that are relevant for the set of candidates
-				// the inherent provided.
-				let concluded_invalid_disputes = backed_candidates
-					.iter()
-					.map(|backed_candidate| backed_candidate.hash())
-					.filter(|candidate| {
-						<T>::DisputesHandler::concluded_invalid(current_session, *candidate)
-					})
-					.collect::<BTreeSet<CandidateHash>>();
-
-				let mut freed_disputed: Vec<_> =
-					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
-						.into_iter()
-						.map(|core| (core, FreedReason::Concluded))
-						.collect();
-
-				let disputed_bitfield =
-					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
-
-				if !freed_disputed.is_empty() {
-					// unstable sort is fine, because core indices are unique
-					// i.e. the same candidate can't occupy 2 cores at once.
-					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-					<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
-				}
-
-				// The following 3 calls are equiv to a call to `process_bitfields`
-				// but we can retain access to `bitfields`.
-				let bitfields = sanitize_bitfields::<T>(
-					bitfields,
-					disputed_bitfield,
-					expected_bits,
-					parent_hash,
-					current_session,
-					&validator_public[..],
-					FullCheck::Skip,
+			// Limit the disputes first, since the following statements depend on the votes include here.
+			let (checked_disputes_sets, checked_disputes_sets_consumed_weight) =
+				limit_and_sanitize_disputes::<T, _>(
+					disputes,
+					dispute_statement_set_valid,
+					max_block_weight,
+					&mut rng,
 				);
 
-				let freed_concluded =
-					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
-						_,
-						false,
-					>(
-						expected_bits,
-						&validator_public[..],
-						bitfields.clone(),
-						<scheduler::Pallet<T>>::core_para,
-					);
+			// we don't care about fresh or not disputes
+			// this writes them to storage, so let's query it via those means
+			// if this fails for whatever reason, that's ok
+			let _ = T::DisputesHandler::provide_multi_dispute_data(checked_disputes_sets.clone())
+				.map_err(|e| {
+					log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
+					e
+				});
 
-				let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
+			// Contains the disputes that are concluded in the current session only,
+			// since these are the only ones that are relevant for the occupied cores
+			// and lightens the load on `collect_disputed` significantly.
+			// Cores can't be occupied with candidates of the previous sessions, and only
+			// things with new votes can have just concluded. We only need to collect
+			// cores with disputes that conclude just now, because disputes that
+			// concluded longer ago have already had any corresponding cores cleaned up.
+			let current_concluded_invalid_disputes = checked_disputes_sets
+				.iter()
+				.map(AsRef::as_ref)
+				.filter(|dss| dss.session == current_session)
+				.map(|dss| (dss.session, dss.candidate_hash))
+				.filter(|(session, candidate)| {
+					<T>::DisputesHandler::concluded_invalid(*session, *candidate)
+				})
+				.map(|(_session, candidate)| candidate)
+				.collect::<BTreeSet<CandidateHash>>();
 
-				<scheduler::Pallet<T>>::clear();
-				let now = <frame_system::Pallet<T>>::block_number();
-				<scheduler::Pallet<T>>::schedule(freed, now);
+			// All concluded invalid disputes, that are relevant for the set of candidates
+			// the inherent provided.
+			let concluded_invalid_disputes = backed_candidates
+				.iter()
+				.map(|backed_candidate| backed_candidate.hash())
+				.filter(|candidate| {
+					<T>::DisputesHandler::concluded_invalid(current_session, *candidate)
+				})
+				.collect::<BTreeSet<CandidateHash>>();
 
-				let scheduled = <scheduler::Pallet<T>>::scheduled();
+			let mut freed_disputed: Vec<_> =
+				<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
+					.into_iter()
+					.map(|core| (core, FreedReason::Concluded))
+					.collect();
 
-				let relay_parent_number = now - One::one();
+			let disputed_bitfield =
+				create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
 
-				let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
-				let backed_candidates = sanitize_backed_candidates::<T, _>(
-					parent_hash,
-					backed_candidates,
-					move |candidate_idx: usize,
-					      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
-					      -> bool {
-						// never include a concluded-invalid candidate
-						concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
+			if !freed_disputed.is_empty() {
+				// unstable sort is fine, because core indices are unique
+				// i.e. the same candidate can't occupy 2 cores at once.
+				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+				<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
+			}
+
+			// The following 3 calls are equiv to a call to `process_bitfields`
+			// but we can retain access to `bitfields`.
+			let bitfields = sanitize_bitfields::<T>(
+				bitfields,
+				disputed_bitfield,
+				expected_bits,
+				parent_hash,
+				current_session,
+				&validator_public[..],
+				FullCheck::Skip,
+			);
+
+			let freed_concluded =
+				<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<_, false>(
+					expected_bits,
+					&validator_public[..],
+					bitfields.clone(),
+					<scheduler::Pallet<T>>::core_para,
+				);
+
+			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
+
+			<scheduler::Pallet<T>>::clear();
+			let now = <frame_system::Pallet<T>>::block_number();
+			<scheduler::Pallet<T>>::schedule(freed, now);
+
+			let scheduled = <scheduler::Pallet<T>>::scheduled();
+
+			let relay_parent_number = now - One::one();
+
+			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+			let backed_candidates = sanitize_backed_candidates::<T, _>(
+				parent_hash,
+				backed_candidates,
+				move |candidate_idx: usize,
+				      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
+				      -> bool {
+					// never include a concluded-invalid candidate
+					concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
 							// Instead of checking the candidates with code upgrades twice
 							// move the checking up here and skip it in the training wheels fallback.
 							// That way we avoid possible duplicate checks while assuring all
@@ -607,25 +649,38 @@ impl<T: Config> Pallet<T> {
 							check_ctx
 								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
 								.is_err()
-					},
-					&scheduled[..],
-				);
+				},
+				&scheduled[..],
+			);
 
-				frame_support::storage::TransactionOutcome::Rollback((
-					// filtered backed candidates
-					backed_candidates,
-					// filtered bitfields
-					bitfields,
-				))
-			});
+			frame_support::storage::TransactionOutcome::Rollback((
+				// filtered backed candidates
+				backed_candidates,
+				// filtered bitfields
+				bitfields,
+				// checked disputes sets
+				checked_disputes_sets,
+				checked_disputes_sets_consumed_weight,
+			))
+		});
 
-		// Assure the maximum block weight is adhered.
-		let _consumed_weight = apply_weight_limit::<T>(
+		// Assure the maximum block weight is adhered, by limiting bitfields and backed
+		// candidates. Dispute statement sets were already limited before.
+		let actual_weight = apply_weight_limit::<T>(
 			&mut backed_candidates,
 			&mut bitfields,
-			remaining_weight,
+			max_block_weight.saturating_sub(checked_disputes_sets_consumed_weight),
 			&mut rng,
 		);
+
+		if actual_weight > max_block_weight {
+			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
+		}
+
+		let disputes = checked_disputes_sets
+			.into_iter()
+			.map(|checked| checked.into())
+			.collect::<Vec<_>>();
 
 		Some(ParachainsInherentData::<T::Header> {
 			bitfields,
@@ -712,54 +767,6 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	(weight_acc, picked_indices)
 }
 
-/// Harshly enforces a weight limit.
-///
-/// If the weight limit is exceeded, removes everything but disputes.
-/// If disputes themselves exceed the weight limit, picks random ones.
-///
-/// Guarantees that all remaining `disputes` are signature verified.
-fn enforce_weight_limit_and_sanitize_disputes<T: Config>(
-	candidates_weight: Weight,
-	bitfields_weight: Weight,
-	disputes_weight: Weight,
-	disputes: &mut MultiDisputeStatementSet,
-	max_block_weight: Weight,
-	rng: &mut rand_chacha::ChaChaRng,
-) -> (Vec<CheckedDisputeStatementSet>, Weight) {
-	if candidate_weight
-		.saturating_add(bitfields_weight)
-		.saturating_add(disputes_weight) >
-		max_block_weight
-	{
-		// Don't mess around, this should have been done by the block producer/author:
-		// If the total weight is over the max block weight, first try clearing backed
-		// candidates and bitfields.
-		backed_candidates.clear();
-		candidate_weight = 0;
-		signed_bitfields.clear();
-		bitfields_weight = 0;
-	}
-
-	let config = <configuration::Pallet<T>>::config();
-	let max_spam_slots = config.dispute_max_spam_slots;
-	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
-
-	// if disputes are by themselves overweight already, trim the disputes.
-	let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T>(
-		&mut disputes,
-		|set| T::DisputesHandler::filter_dispute_data(set),
-		max_block_weight,
-		&mut rng,
-	);
-
-	(
-		checked_disputes,
-		checked_disputes_weight
-			.saturating_add(bitfields_weight)
-			.saturating_add(candidate_weight),
-	)
-}
-
 /// Considers an upper threshold that the inherent data must not exceed.
 ///
 /// If there is sufficient space, all bitfields and all candidates
@@ -787,7 +794,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// candidates + bitfields fit into the block
-	if remaining_weight >= total {
+	if max_block_weight >= total {
 		return total
 	}
 
@@ -803,14 +810,16 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
-	if let Some(remaining_weight) = remaining_weight.checked_sub(total_bitfields_weight) {
+	if let Some(max_to_be_consumed_block_weight) =
+		max_block_weight.checked_sub(total_bitfields_weight)
+	{
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
 				candidates.clone(),
 				preferred_indices,
 				|c| backed_candidate_weight::<T>(c),
-				remaining_weight,
+				max_to_be_consumed_block_weight,
 			);
 		candidates.indexed_retain(|idx, _backed_candidate| indices.binary_search(&idx).is_ok());
 		// pick all bitfields, and
@@ -828,7 +837,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		bitfields.clone(),
 		vec![],
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
-		remaining_weight,
+		max_block_weight,
 	);
 
 	bitfields.indexed_retain(|idx, _bitfield| indices.binary_search(&idx).is_ok());
@@ -1029,15 +1038,14 @@ fn sanitize_disputes<
 	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
 >(
 	disputes: MultiDisputeStatementSet,
-	dispute_statement_set_valid: CheckValidityFn,
+	mut dispute_statement_set_valid: CheckValidityFn,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
 	let checked = disputes
 		.into_iter()
 		.filter_map(|dss| dispute_statement_set_valid(dss))
 		.collect::<Vec<CheckedDisputeStatementSet>>();
 
-	let checked_disputes_weight =
-		dispute_statements_weight::<T, CheckedDisputeStatementSet>(&checked);
+	let checked_disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&checked);
 	(checked, checked_disputes_weight)
 }
 
@@ -1063,16 +1071,16 @@ fn limit_and_sanitize_disputes<
 	T: Config,
 	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
 >(
-	disputes: MultiDisputeStatementSet,
-	dispute_statement_set_valid: CheckValidityFn,
+	mut disputes: MultiDisputeStatementSet,
+	mut dispute_statement_set_valid: CheckValidityFn,
 	mut max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
 	// The total weight iff all disputes would be included
-	let disputes_weight = dispute_statements_weight::<T>(&disputes);
+	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 	if disputes_weight > max_consumable_weight {
-		let mut checked = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
+		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Since the disputes array is sorted, we may use binary search to find the beginning of
 		// remote disputes
@@ -1102,7 +1110,7 @@ fn limit_and_sanitize_disputes<
 				// only apply the weight if the validity check passes
 				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
 					max_consumable_weight -= dispute_weight;
-					checked.push(checked)
+					checked_acc.push(checked)
 				}
 			}
 		});
@@ -1116,19 +1124,23 @@ fn limit_and_sanitize_disputes<
 			d,
 			vec![],
 			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
-			remaining_weight,
+			max_consumable_weight,
 		);
 
 		// Sort the indices, to retain the same sorting as the input.
 		indices.sort();
 
-		// Add the remote disputes
-		indices.into_iter().for_each(|idx| checked.push(disputes[idx]));
+		// Add the remote disputes after checking their validity.
+		checked_acc.extend(
+			indices
+				.into_iter()
+				.filter_map(|idx| dispute_statement_set_valid(remote_disputes[idx].clone())),
+		);
 
 		// Update the remaining weight
-		(checked, max_consumable_weight.saturating_sub(acc_remote_disputes_weight))
+		(checked_acc, max_consumable_weight.saturating_sub(acc_remote_disputes_weight))
 	} else {
 		// Go through all of them, and just apply the filter, they would all fit
-		sanitize_disputes::<T>(disputes, dispute_statement_set_valid)
+		sanitize_disputes::<T, _>(disputes, dispute_statement_set_valid)
 	}
 }

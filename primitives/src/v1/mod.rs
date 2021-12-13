@@ -1285,25 +1285,32 @@ pub struct DisputeStatementSet {
 	pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
 
+impl AsRef<DisputeStatementSet> for DisputeStatementSet {
+	fn as_ref(&self) -> &DisputeStatementSet {
+		&self
+	}
+}
+
 /// A set of dispute statements.
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 /// A _checked_ set of dispute statements.
+#[derive(Clone)]
 pub struct CheckedDisputeStatementSet(DisputeStatementSet);
 
-impl AsRef<DisputeStatementSet> for CheckedMultiDisputeStatementSet {
+impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {
 	fn as_ref(&self) -> &DisputeStatementSet {
-		self.0
+		&self.0
 	}
 }
 
-impl Into<DisputeStatementSet> for CheckedMultiDisputeStatementSet {
+impl Into<DisputeStatementSet> for CheckedDisputeStatementSet {
 	fn into(self) -> DisputeStatementSet {
 		self.0
 	}
 }
 
-impl CheckedMultiDisputeStatementSet {
+impl CheckedDisputeStatementSet {
 	/// Convert from an unchecked, checking _must_ be done in the context.
 	pub fn from_unchecked(unchecked: DisputeStatementSet) -> Self {
 		Self(unchecked)

@@ -26,8 +26,9 @@ use frame_support::{ensure, storage::TransactionOutcome, traits::Get, weights::W
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
-	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
+	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
+	DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
 	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -109,7 +110,7 @@ impl PunishValidators for () {
 ///
 /// Unsorted data does not change the return value, while the node side
 /// is generally expected to pass them in sorted.
-pub trait DisputesHandler<BlockNumber> {
+pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Whether the chain is frozen, if the chain is frozen it will not accept
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
@@ -119,15 +120,17 @@ pub trait DisputesHandler<BlockNumber> {
 	fn deduplicate_and_sort_dispute_data(
 		statement_sets: &mut MultiDisputeStatementSet,
 	) -> Result<(), ()> {
+		use core::cmp::Ordering;
+
 		// TODO: Consider trade-of to avoid `O(n * log(n))` average lookups of `included_state`
 		// TODO: instead make a single pass and store the values.
-		let n = disputes.len();
+		let n = statement_sets.len();
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
-		disputes.sort_by(|a: &DisputesStatementSet, b: &DisputesStatementSet| {
-			let a_local_block = T::DisputesHandler::included_state(a.session, a.candidate_hash);
-			let b_local_block = T::DisputesHandler::included_state(b.session, b.candidate_hash);
+		statement_sets.sort_by(|a: &DisputeStatementSet, b: &DisputeStatementSet| {
+			let a_local_block = Self::included_state(a.session, a.candidate_hash);
+			let b_local_block = Self::included_state(b.session, b.candidate_hash);
 			match (a_local_block, b_local_block) {
 				// Prioritize local disputes over remote disputes.
 				(None, Some(_)) => Ordering::Greater,
@@ -138,10 +141,10 @@ pub trait DisputesHandler<BlockNumber> {
 				(None, None) => a.session.cmp(&b.session),
 			}
 		});
-		disputes.dedup();
+		statement_sets.dedup();
 
 		// if there were any duplicates, indicate that to the caller.
-		if n == disputes.len() {
+		if n == statement_sets.len() {
 			Ok(())
 		} else {
 			Err(())
@@ -154,6 +157,8 @@ pub trait DisputesHandler<BlockNumber> {
 	/// accounting for maximum block weight.
 	fn filter_dispute_data(
 		statement_set: DisputeStatementSet,
+		max_spam_slots: u32,
+		post_conclusion_acceptance_period: BlockNumber,
 	) -> Option<CheckedDisputeStatementSet>;
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
@@ -186,21 +191,28 @@ pub trait DisputesHandler<BlockNumber> {
 	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumber>);
 }
 
-impl<BlockNumber> DisputesHandler<BlockNumber> for () {
+impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	fn is_frozen() -> bool {
 		false
 	}
 
-	fn deduplicate_and_sort_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		statement_sets.clear()
+	fn deduplicate_and_sort_dispute_data(
+		statement_sets: &mut MultiDisputeStatementSet,
+	) -> Result<(), ()> {
+		statement_sets.clear();
+		Ok(())
 	}
 
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		statement_sets.clear()
+	fn filter_dispute_data(
+		set: DisputeStatementSet,
+		max_spam_slots: u32,
+		post_conclusion_acceptance_period: BlockNumber,
+	) -> Option<CheckedDisputeStatementSet> {
+		None
 	}
 
-	fn provide_multi_dispute_data<CheckFn>(
-		_statement_sets: MultiDisputeStatementSet,
+	fn provide_multi_dispute_data(
+		_statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		Ok(Vec::new())
 	}
@@ -232,26 +244,29 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {}
 }
 
-impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
+impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T>
+where
+	T::BlockNumber: Ord,
+{
 	fn is_frozen() -> bool {
 		pallet::Pallet::<T>::is_frozen()
 	}
 
-	fn filter_multi_dispute_data<ValidityCheckFn>(
-		sets: &mut MultiDisputeStatementSet,
-		check_filter_map: ValidityCheckFn,
-	) where
-		F: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
-	{
-		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets, check_filter_map)
-	}
-
-	fn filter_dispute_data(set: DisputeStatementSet) -> CheckedDisputeStatementSet {
-		pallet::Pallet::<T>::filter_dispute_data(&set).filter_statement_set(set)
+	fn filter_dispute_data(
+		set: DisputeStatementSet,
+		max_spam_slots: u32,
+		post_conclusion_acceptance_period: T::BlockNumber,
+	) -> Option<CheckedDisputeStatementSet> {
+		pallet::Pallet::<T>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			max_spam_slots,
+		)
+		.filter_statement_set(set)
 	}
 
 	fn provide_multi_dispute_data(
-		statement_sets: MultiDisputeStatementSet,
+		statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		pallet::Pallet::<T>::provide_multi_dispute_data(statement_sets)
 	}
@@ -781,12 +796,13 @@ impl<T: Config> Pallet<T> {
 	/// and to fail the extrinsic on error. As invalid inherents are not allowed, the dirty state
 	/// is not committed.
 	pub(crate) fn provide_multi_dispute_data(
-		statement_sets: MultiDisputeStatementSet,
+		statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		let config = <configuration::Pallet<T>>::config();
 
 		let mut fresh = Vec::with_capacity(statement_sets.len());
 		for statement_set in statement_sets {
+			let statement_set: DisputeStatementSet = statement_set.into();
 			let dispute_target = (statement_set.session, statement_set.candidate_hash);
 			if Self::provide_dispute_data(&config, statement_set)? {
 				fresh.push(dispute_target);
@@ -803,7 +819,7 @@ impl<T: Config> Pallet<T> {
 	// The entire set is removed if the dispute is ancient or concluded.
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
-		post_conclusion_acceptance_period: <T as Config>::BlockNumber,
+		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
 		max_spam_slots: u32,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
@@ -1033,107 +1049,83 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::SingleSidedDispute,
 		);
 
-		fn apply_spam_slot_changes(
-			session: SessionIndex,
-			candidate_hash: CandidateHash,
-			summary: ImportSummary,
-			max_spam_slots: u32,
-			n_validators: usize,
-		) -> Result<()> {
-			// Apply spam slot changes. Bail early if too many occupied.
-			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
-			if !is_local {
-				let mut spam_slots: Vec<u32> =
-					SpamSlots::<T>::get(&session).unwrap_or_else(|| vec![0; n_validators]);
+		let session = set.session;
+		let candidate_hash = set.candidate_hash;
+		let summary = summary;
+		let max_spam_slots = config.dispute_max_spam_slots;
 
-				for (validator_index, spam_slot_change) in summary.spam_slot_changes {
-					let spam_slot = spam_slots
-						.get_mut(validator_index.0 as usize)
-						.expect("index is in-bounds, as checked above; qed");
+		// Apply spam slot changes. Bail early if too many occupied.
+		let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
+		if !is_local {
+			let mut spam_slots: Vec<u32> =
+				SpamSlots::<T>::get(&session).unwrap_or_else(|| vec![0; n_validators]);
 
-					match spam_slot_change {
-						SpamSlotChange::Inc => {
-							ensure!(*spam_slot < max_spam_slots, Error::<T>::PotentialSpam,);
+			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
+				let spam_slot = spam_slots
+					.get_mut(validator_index.0 as usize)
+					.expect("index is in-bounds, as checked above; qed");
 
-							*spam_slot += 1;
-						},
-						SpamSlotChange::Dec => {
-							*spam_slot = spam_slot.saturating_sub(1);
-						},
-					}
+				match spam_slot_change {
+					SpamSlotChange::Inc => {
+						ensure!(*spam_slot < max_spam_slots, Error::<T>::PotentialSpam,);
+
+						*spam_slot += 1;
+					},
+					SpamSlotChange::Dec => {
+						*spam_slot = spam_slot.saturating_sub(1);
+					},
 				}
-				SpamSlots::<T>::insert(&session, spam_slots);
 			}
-			Ok(())
+			SpamSlots::<T>::insert(&session, spam_slots);
 		}
-		apply_spam_slot_changes(
-			set.session,
-			set.candidate_hash,
-			summary,
-			config.dispute_max_spam_slots,
-			n_validators,
-		);
 
-		fn deposit_dispute_events(
-			session: SessionIndex,
-			candidate_hash: CandidateHash,
-			summary: Summary,
-			fresh: bool,
-			is_local: bool,
-		) {
-			if fresh {
-				Self::deposit_event(Event::DisputeInitiated(
+		if fresh {
+			Self::deposit_event(Event::DisputeInitiated(
+				candidate_hash,
+				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
+			));
+		}
+
+		{
+			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+				Self::deposit_event(Event::DisputeConcluded(candidate_hash, DisputeResult::Valid));
+			}
+
+			// It is possible, although unexpected, for a dispute to conclude twice.
+			// This would require f+1 validators to vote in both directions.
+			// A dispute cannot conclude more than once in each direction.
+
+			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+				Self::deposit_event(Event::DisputeConcluded(
 					candidate_hash,
-					if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
+					DisputeResult::Invalid,
 				));
 			}
-
-			{
-				if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-					Self::deposit_event(Event::DisputeConcluded(
-						candidate_hash,
-						DisputeResult::Valid,
-					));
-				}
-
-				// It is possible, although unexpected, for a dispute to conclude twice.
-				// This would require f+1 validators to vote in both directions.
-				// A dispute cannot conclude more than once in each direction.
-
-				if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-					Self::deposit_event(Event::DisputeConcluded(
-						candidate_hash,
-						DisputeResult::Invalid,
-					));
-				}
-			}
-
-			// Reward statements.
-			T::RewardValidators::reward_dispute_statement(
-				session,
-				summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
-			);
-
-			// Slash participants on a losing side.
-			{
-				// a valid candidate, according to 2/3. Punish those on the 'against' side.
-				T::PunishValidators::punish_against_valid(session, summary.slash_against);
-
-				// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-				T::PunishValidators::punish_for_invalid(session, summary.slash_for);
-			}
-
-			<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
-
-			// Freeze if just concluded against some local candidate
-			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-				if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
-					Self::revert_and_freeze(revert_to);
-				}
-			}
 		}
 
-		deposit_dispute_events(set.session, set.candidate_hash, summary, fresh, is_local);
+		// Reward statements.
+		T::RewardValidators::reward_dispute_statement(
+			session,
+			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
+		);
+
+		// Slash participants on a losing side.
+		{
+			// a valid candidate, according to 2/3. Punish those on the 'against' side.
+			T::PunishValidators::punish_against_valid(session, summary.slash_against);
+
+			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
+			T::PunishValidators::punish_for_invalid(session, summary.slash_for);
+		}
+
+		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
+
+		// Freeze if just concluded against some local candidate
+		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+			if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
+				Self::revert_and_freeze(revert_to);
+			}
+		}
 
 		Ok(fresh)
 	}
@@ -2837,6 +2829,19 @@ mod tests {
 		.is_err());
 	}
 
+	macro_rules! assert_dispute_statement_filter {
+		($expr:data, $expr:assertion) => {
+			let __prev_root = $crate::storage_root();
+			let mut acc = ;
+			for dispute_statement in { $data } {
+
+			}
+			assert_eq!(__prev_root, $crate::storage_root());
+			assert!($assertion, $matches => $more)
+		},
+
+	}
+
 	#[test]
 	fn filter_removes_duplicates_within_set() {
 		new_test_ext(Default::default()).execute_with(|| {
@@ -2874,7 +2879,7 @@ mod tests {
 			let sig_c = v0.sign(&payload);
 			let sig_d = v1.sign(&payload_against);
 
-			let mut statements = vec![DisputeStatementSet {
+			let mut statements = DisputeStatementSet {
 				candidate_hash: candidate_hash.clone(),
 				session: 1,
 				statements: vec![
@@ -2899,9 +2904,9 @@ mod tests {
 						sig_d.clone(),
 					),
 				],
-			}];
+			};
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			assert_storage_noop!(Pallet::<Test>::filter_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -2983,7 +2988,7 @@ mod tests {
 				],
 			}];
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			assert_storage_noop!(Pallet::<Test>::filter_dispute_data(statements));
 
 			assert!(statements.is_empty());
 		})
@@ -3124,9 +3129,15 @@ mod tests {
 			];
 
 			let old_statements = statements.clone();
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let statements = statements
+				.into_iter()
+				.filter_map(|x| Pallet::<Test>::filter_multi_dispute_data(statement))
+				.collect::<Vec<_>>();
 
-			assert_eq!(statements, old_statements);
+			assert_eq!(
+				statements.iter().map(|x| x.as_ref()),
+				old_statements.iter().map(|x| x.as_ref())
+			);
 		})
 	}
 
