@@ -179,8 +179,7 @@ impl OrderingProvider {
 		update: &ActiveLeavesUpdate,
 	) -> Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
-			// Fetch ancestors of the activated leaf up until the finalized
-			// block or the block hash already present in the LRU.
+			// Fetch ancestors of the activated leaf.
 			let ancestors = self
 				.get_block_ancestors(sender, activated.hash, activated.number)
 				.await
@@ -189,8 +188,8 @@ impl OrderingProvider {
 			let earliest_block_number = activated.number - ancestors.len() as u32;
 			let block_numbers = (earliest_block_number..=activated.number).rev();
 
-			let blocks_to_process = std::iter::once(activated.hash).chain(ancestors);
-			for (block_num, block_hash) in block_numbers.zip(blocks_to_process) {
+			let block_hashes = std::iter::once(activated.hash).chain(ancestors);
+			for (block_num, block_hash) in block_numbers.zip(block_hashes) {
 				// Get included events:
 				let included = get_candidate_events(sender, block_hash)
 					.await?
@@ -230,7 +229,7 @@ impl OrderingProvider {
 	}
 
 	/// Returns ancestors of `head` in the descending order, stopping
-	/// either at the block present in hash or the latest  finalized block.
+	/// either at the block present in cache or the latest finalized block.
 	///
 	/// Suited specifically for querying non-finalized chains, thus
 	/// doesn't rely on block numbers.
