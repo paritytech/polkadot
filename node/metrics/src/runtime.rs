@@ -60,7 +60,6 @@ impl RuntimeMetricsProvider {
 	pub fn register_countervec(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
 		self.with_counter_vecs_lock_held(|mut hashmap| {
 			if !hashmap.contains_key(metric_name) {
-				let metric_name = format!("{}_{}", METRIC_PREFIX, metric_name);
 				hashmap.insert(
 					metric_name.to_owned(),
 					register(
@@ -72,7 +71,7 @@ impl RuntimeMetricsProvider {
 					)?,
 				);
 			}
-			return Ok(())
+			Ok(())
 		})
 	}
 
@@ -80,7 +79,6 @@ impl RuntimeMetricsProvider {
 	pub fn register_counter(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
 		self.with_counters_lock_held(|mut hashmap| {
 			if !hashmap.contains_key(metric_name) {
-				let metric_name = format!("{}_{}", METRIC_PREFIX, metric_name);
 				hashmap.insert(
 					metric_name.to_owned(),
 					register(Counter::new(metric_name, params.description())?, &self.0)?,
@@ -185,17 +183,18 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 impl RuntimeMetricsProvider {
 	// Parse end execute the update operation.
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
+		let metric_name = &format!("{}_{}", METRIC_PREFIX, update.metric_name());
+
 		match update.op {
 			RuntimeMetricOp::Register(ref params) =>
 				if params.labels.is_none() {
-					self.register_counter(update.metric_name(), &params);
+					self.register_counter(metric_name, &params);
 				} else {
-					self.register_countervec(update.metric_name(), &params);
+					self.register_countervec(metric_name, &params);
 				},
 			RuntimeMetricOp::IncrementCounterVec(value, ref labels) =>
-				self.inc_counter_vec_by(update.metric_name(), value, labels),
-			RuntimeMetricOp::IncrementCounter(value) =>
-				self.inc_counter_by(update.metric_name(), value),
+				self.inc_counter_vec_by(metric_name, value, labels),
+			RuntimeMetricOp::IncrementCounter(value) => self.inc_counter_by(metric_name, value),
 		}
 	}
 

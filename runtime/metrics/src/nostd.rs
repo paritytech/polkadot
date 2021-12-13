@@ -59,8 +59,7 @@ impl CounterVec {
 
 	/// Increment by `value`.
 	pub fn inc_by(&mut self, value: u64) {
-		// Ensure label values are set.
-		if let Some(label_values) = self.label_values.take() {
+		self.label_values.take().map(|label_values| {
 			let metric_update = RuntimeMetricUpdate {
 				metric_name: sp_std::vec::Vec::from(self.name),
 				op: RuntimeMetricOp::IncrementCounterVec(value, label_values),
@@ -68,7 +67,7 @@ impl CounterVec {
 			.encode();
 
 			emit_metric(&metric_update);
-		}
+		});
 	}
 
 	/// Increment by 1.
