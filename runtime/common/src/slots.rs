@@ -497,6 +497,7 @@ mod tests {
 	use super::*;
 
 	use crate::{mock::TestRegistrar, slots};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
@@ -628,8 +629,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert_ok!(Slots::lease_out(1.into(), &1, 1, 1, 1));
@@ -659,8 +660,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert_ok!(Slots::lease_out(1.into(), &1, 6, 1, 1));
@@ -702,8 +703,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
@@ -752,8 +753,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 4, 1, 1).is_ok());
@@ -787,8 +788,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
@@ -830,8 +831,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			let max_num = 5u32;
@@ -866,14 +867,14 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			run_to_block(20);
@@ -897,20 +898,20 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(3),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			// We will directly manipulate leases to emulate some kind of failure in the system.

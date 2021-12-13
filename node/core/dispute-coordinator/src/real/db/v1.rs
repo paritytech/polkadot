@@ -252,6 +252,7 @@ pub(crate) fn note_current_session(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_primitives::v1::{Hash, Id as ParaId};
 
 	fn make_db() -> DbBackend {
@@ -285,7 +286,7 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: Default::default(),
+				candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -295,7 +296,7 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::default();
+					let mut receipt = dummy_candidate_receipt(dummy_hash());
 					receipt.descriptor.para_id = 5.into();
 
 					receipt
@@ -362,7 +363,7 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: Default::default(),
+				candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -379,7 +380,7 @@ mod tests {
 				.candidate_receipt
 				.descriptor
 				.para_id,
-			ParaId::from(0),
+			ParaId::from(1),
 		);
 
 		let mut overlay_db = OverlayedBackend::new(&backend);
@@ -388,7 +389,7 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::default();
+					let mut receipt = dummy_candidate_receipt(dummy_hash());
 					receipt.descriptor.para_id = 5.into();
 
 					receipt
@@ -427,7 +428,7 @@ mod tests {
 		let very_recent = current_session - 1;
 
 		let blank_candidate_votes = || CandidateVotes {
-			candidate_receipt: Default::default(),
+			candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 			valid: Vec::new(),
 			invalid: Vec::new(),
 		};
