@@ -29,9 +29,11 @@ use primitives::v1::{
 };
 use std::{
 	collections::hash_map::HashMap,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex, MutexGuard},
 };
-use substrate_prometheus_endpoint::{register, CounterVec, Opts, PrometheusError, Registry, U64};
+use substrate_prometheus_endpoint::{
+	register, Counter, CounterVec, Opts, PrometheusError, Registry, U64,
+};
 
 const LOG_TARGET: &'static str = "metrics::runtime";
 const METRIC_PREFIX: &'static str = "polkadot";
@@ -41,7 +43,9 @@ const METRIC_PREFIX: &'static str = "polkadot";
 #[derive(Clone, Default)]
 pub struct Metrics {
 	counter_vecs: Arc<Mutex<HashMap<String, CounterVec<U64>>>>,
+	counters: Arc<Mutex<HashMap<String, Counter<U64>>>>,
 }
+
 /// Runtime metrics wrapper.
 #[derive(Clone)]
 pub struct RuntimeMetricsProvider(Registry, Metrics);
@@ -53,19 +57,11 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Register a counter vec metric.
-	pub fn register_countervec(
-		&self,
-		metric_name: &str,
-		params: &RuntimeMetricRegisterParams,
-	) -> Result<(), PrometheusError> {
-		match self.1.counter_vecs.lock() {
-			Ok(mut unlocked_hashtable) => {
-				if unlocked_hashtable.contains_key(metric_name) {
-					return Ok(())
-				}
-
+	pub fn register_countervec(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
+		self.with_counter_vecs_lock_held(|mut hashmap| {
+			if !hashmap.contains_key(metric_name) {
 				let metric_name = format!("{}_{}", METRIC_PREFIX, metric_name);
-				unlocked_hashtable.insert(
+				hashmap.insert(
 					metric_name.to_owned(),
 					register(
 						CounterVec::new(
@@ -75,36 +71,82 @@ impl RuntimeMetricsProvider {
 						&self.0,
 					)?,
 				);
-			},
-			Err(e) => tracing::error!(
-				target: LOG_TARGET,
-				"Failed to acquire the `counter_vecs` lock: {:?}",
-				e
-			),
-		}
-		Ok(())
+			}
+			return Ok(())
+		})
 	}
 
-	/// Increment a counter vec by a value.
-	pub fn inc_counter_by(
-		&self,
-		name: &str,
-		value: u64,
-		labels: Option<&RuntimeMetricLabelValues>,
-	) {
-		let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
-			if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
-				match labels {
-					Some(labels) => counter_vec.with_label_values(&labels.as_str()).inc_by(value),
-					None => counter_vec.with_label_values(&vec![""]).inc_by(value),
-				}
+	/// Register a counter metric.
+	pub fn register_counter(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
+		self.with_counters_lock_held(|mut hashmap| {
+			if !hashmap.contains_key(metric_name) {
+				let metric_name = format!("{}_{}", METRIC_PREFIX, metric_name);
+				hashmap.insert(
+					metric_name.to_owned(),
+					register(Counter::new(metric_name, params.description())?, &self.0)?,
+				);
+			}
+			return Ok(())
+		})
+	}
+
+	/// Increment a counter with labels by a value.
+	pub fn inc_counter_vec_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
+		self.with_counter_vecs_lock_held(|mut hashmap| {
+			if let Some(counter_vec) = hashmap.get_mut(name) {
+				counter_vec.with_label_values(&labels.as_str()).inc_by(value);
 			} else {
 				tracing::error!(
 					target: LOG_TARGET,
-					"Cannot increment counter `{}`, metric not in registered or present in hashtable",
+					"Cannot increment counter `{}`, metric not in registered or present in hashmap",
 					name
 				);
 			}
+			Ok(())
+		});
+	}
+
+	/// Increment a counter by a value.
+	pub fn inc_counter_by(&self, name: &str, value: u64) {
+		self.with_counters_lock_held(|mut hashmap| {
+			if let Some(counter) = hashmap.get_mut(name) {
+				counter.inc_by(value);
+			} else {
+				tracing::error!(
+					target: LOG_TARGET,
+					"Cannot increment counter `{}`, metric not in registered or present in hashmap",
+					name
+				);
+			}
+			Ok(())
+		})
+	}
+
+	fn with_counters_lock_held<F>(&self, do_something: F)
+	where
+		F: FnOnce(MutexGuard<'_, HashMap<String, Counter<U64>>>) -> Result<(), PrometheusError>,
+	{
+		let _ = self.1.counters.lock().map(do_something).or_else(|error| {
+			tracing::error!(
+				target: LOG_TARGET,
+				"Cannot acquire the counter hashmap lock: {:?}",
+				error
+			);
+			Err(error)
+		});
+	}
+
+	fn with_counter_vecs_lock_held<F>(&self, do_something: F)
+	where
+		F: FnOnce(MutexGuard<'_, HashMap<String, CounterVec<U64>>>) -> Result<(), PrometheusError>,
+	{
+		let _ = self.1.counter_vecs.lock().map(do_something).or_else(|error| {
+			tracing::error!(
+				target: LOG_TARGET,
+				"Cannot acquire the countervec hashmap lock: {:?}",
+				error
+			);
+			Err(error)
 		});
 	}
 }
@@ -144,11 +186,16 @@ impl RuntimeMetricsProvider {
 	// Parse end execute the update operation.
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
 		match update.op {
-			RuntimeMetricOp::Register(ref params) => {
-				let _ = self.register_countervec(update.metric_name(), &params);
-			},
-			RuntimeMetricOp::Increment(value, ref labels) =>
-				self.inc_counter_by(update.metric_name(), value, labels.as_ref()),
+			RuntimeMetricOp::Register(ref params) =>
+				if params.labels.is_none() {
+					self.register_counter(update.metric_name(), &params);
+				} else {
+					self.register_countervec(update.metric_name(), &params);
+				},
+			RuntimeMetricOp::IncrementCounterVec(value, ref labels) =>
+				self.inc_counter_vec_by(update.metric_name(), value, labels),
+			RuntimeMetricOp::IncrementCounter(value) =>
+				self.inc_counter_by(update.metric_name(), value),
 		}
 	}
 

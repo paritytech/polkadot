@@ -55,7 +55,7 @@ use sp_std::{
 	vec::Vec,
 };
 
-use polkadot_runtime_metrics::CounterVec;
+use polkadot_runtime_metrics::{Counter, CounterVec};
 mod misc;
 mod weights;
 
@@ -262,33 +262,33 @@ impl<T: Config> Pallet<T> {
 			mut disputes,
 		} = data;
 		sp_io::init_tracing();
-		let mut weight_metric = CounterVec::new_with_labels(
+		let mut weight_metric = CounterVec::new(
 			"parachain_inherent_data_weight",
 			"Inherent data weight before and after filtering",
 			&vec!["when"],
 		);
 
-		// let mut bitfields_processed_metric = CounterVec::new(
-		// 	"parachain_inherent_data_bitfields_processed",
-		// 	"Counts the number of bitfields processed in `enter_inner`.",
-		// );
+		let mut bitfields_processed_metric = Counter::new(
+			"parachain_inherent_data_bitfields_processed",
+			"Counts the number of bitfields processed in `enter_inner`.",
+		);
 
-		let mut candidates_processed_metric = CounterVec::new_with_labels(
+		let mut candidates_processed_metric = CounterVec::new(
 			"parachain_inherent_data_candidates_processed",
 			"Counts the number of parachain block candidates processed in `enter_inner`.",
 			&vec!["category"],
 		);
 
-		let mut dispute_sets_processed_metric = CounterVec::new_with_labels(
+		let mut dispute_sets_processed_metric = CounterVec::new(
 			"parachain_inherent_data_dispute_sets_processed",
 			"Counts the number of dispute statements sets processed in `enter_inner`.",
 			&vec!["category"],
 		);
 
-		// let mut disputes_included_metric = CounterVec::new(
-		// 	"parachain_inherent_data_disputes_included",
-		// 	"Counts the number of dispute statements sets included in a block in `enter_inner`.",
-		// );
+		let mut disputes_included_metric = Counter::new(
+			"parachain_inherent_data_disputes_included",
+			"Counts the number of dispute statements sets included in a block in `enter_inner`.",
+		);
 
 		log::debug!(
 			target: LOG_TARGET,
@@ -431,7 +431,7 @@ impl<T: Config> Pallet<T> {
 			disputed_bitfield
 		};
 
-		// bitfields_processed_metric.inc_by(signed_bitfields.len() as u64);
+		bitfields_processed_metric.inc_by(signed_bitfields.len() as u64);
 		// Process new availability bitfields, yielding any availability cores whose
 		// work has now concluded.
 		let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
@@ -484,7 +484,7 @@ impl<T: Config> Pallet<T> {
 			full_check,
 		)?;
 
-		// disputes_included_metric.inc_by(disputes.len() as u64);
+		disputes_included_metric.inc_by(disputes.len() as u64);
 
 		// The number of disputes included in a block is
 		// limited by the weight as well as the number of candidate blocks.
@@ -871,7 +871,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 	validators: &[ValidatorId],
 	full_check: FullCheck,
 ) -> UncheckedSignedAvailabilityBitfields {
-	let mut bitfields_signature_checks_metric = CounterVec::new_with_labels(
+	let mut bitfields_signature_checks_metric = CounterVec::new(
 		"create_inherent_bitfields_signature_checks",
 		"Counts the number of bitfields signature checked in `enter_inner`.",
 		&vec!["validity"],
@@ -947,10 +947,10 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
 				bitfields.push(signed_bitfield.into_unchecked());
-				bitfields_signature_checks_metric.with_label_values(&vec!["valid"]).inc_by(1);
+				bitfields_signature_checks_metric.with_label_values(&vec!["valid"]).inc();
 			} else {
 				log::warn!(target: LOG_TARGET, "Invalid bitfield signature");
-				bitfields_signature_checks_metric.with_label_values(&vec!["invalid"]).inc_by(1);
+				bitfields_signature_checks_metric.with_label_values(&vec!["invalid"]).inc();
 			};
 		} else {
 			bitfields.push(unchecked_bitfield);

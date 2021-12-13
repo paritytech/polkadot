@@ -20,14 +20,31 @@
 //! be used in production**. It requires the Substrate wasm tracing support
 //! and command line configuration: `--tracing-targets wasm_tracing=trace`.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#[cfg(feature = "std")]
+pub struct Counter;
 
 #[cfg(feature = "std")]
-mod std;
-#[cfg(feature = "std")]
-pub use crate::std::*;
+pub struct CounterVec;
 
-#[cfg(not(feature = "std"))]
-mod nostd;
-#[cfg(not(feature = "std"))]
-pub use crate::nostd::*;
+/// Dummy implementation.
+#[cfg(feature = "std")]
+impl CounterVec {
+	pub fn new(_name: &'static str, _description: &'static str, _labels: &[&'static str]) -> Self {
+		CounterVec
+	}
+	pub fn with_label_values(&mut self, _label_values: &[&'static str]) -> &mut Self {
+		self
+	}
+	pub fn inc_by(&mut self, _: u64) {}
+	pub fn inc(&mut self) {}
+}
+
+/// Dummy implementation.
+#[cfg(feature = "std")]
+impl Counter {
+	pub fn new(_name: &'static str, _description: &'static str) -> Self {
+		Counter
+	}
+	pub fn inc_by(&mut self, _: u64) {}
+	pub fn inc(&mut self) {}
+}
