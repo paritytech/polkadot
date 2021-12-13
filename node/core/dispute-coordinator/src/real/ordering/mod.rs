@@ -47,11 +47,8 @@ pub struct OrderingProvider {
 	/// We need this to clean up `included_candidates` on `ActiveLeavesUpdate`.
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 	/// Latest relay blocks observed by the provider. We assume that ancestors of
-	/// the least recently used block in this cache are __very likely__ to be
-	/// already processed, i.e. we have saved corresponding included candidates.
-	///
-	/// Note that the assumption is not strict and the cache exists for optimization
-	/// purpose.
+	/// the least recently used block in this cache are already
+	/// processed, i.e. we have saved corresponding included candidates.
 	last_observed_blocks: LruCache<BlockNumber, Hash>,
 }
 
