@@ -27,6 +27,7 @@ members = [
 	"core-primitives",
 	"erasure-coding",
 	"primitives",
+	"primitives/test-helpers",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
 	"runtime/parachains",
@@ -305,4 +306,5 @@ beefy-merkle-tree = { git="https://github.com/cheme/substrate", branch="state-up
 beefy-primitives = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 sc-offchain = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 pallet-bags-list-remote-tests = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
+pallet-preimage = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 

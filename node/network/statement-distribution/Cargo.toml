@@ -32,3 +32,4 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
+polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

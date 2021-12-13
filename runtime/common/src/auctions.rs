@@ -655,6 +655,7 @@ impl<T: Config> Pallet<T> {
 mod tests {
 	use super::*;
 	use crate::{auctions, mock::TestRegistrar};
+	use ::test_helpers::{dummy_hash, dummy_head_data, dummy_validation_code};
 	use frame_support::{
 		assert_noop, assert_ok, assert_storage_noop,
 		dispatch::DispatchError::BadOrigin,
@@ -874,26 +875,26 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				0.into(),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				1.into(),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				2.into(),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				3.into(),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 		});
 		ext
@@ -1472,8 +1473,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				1337.into(),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1));
 		});
@@ -1603,7 +1604,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			EndingPeriod::set(30);
 			SampleLength::set(10);
-			set_last_random(Default::default(), 0);
+			set_last_random(dummy_hash(), 0);
 
 			assert_eq!(
 				Auctions::auction_status(System::block_number()),
@@ -1673,7 +1674,7 @@ mod tests {
 				AuctionStatus::<u32>::VrfDelay(4)
 			);
 
-			set_last_random(Default::default(), 45);
+			set_last_random(dummy_hash(), 45);
 			run_to_block(45);
 			assert_eq!(
 				Auctions::auction_status(System::block_number()),

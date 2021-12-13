@@ -73,7 +73,7 @@ impl metrics::Metrics for Metrics {
 			approval_checking_finality_lag: prometheus::register(
 				prometheus::Gauge::with_opts(
 					prometheus::Opts::new(
-						"parachain_approval_checking_finality_lag",
+						"polkadot_parachain_approval_checking_finality_lag",
 						"How far behind the head of the chain the Approval Checking protocol wants to vote",
 					)
 				)?,
@@ -82,7 +82,7 @@ impl metrics::Metrics for Metrics {
 			disputes_finality_lag: prometheus::register(
 				prometheus::Gauge::with_opts(
 					prometheus::Opts::new(
-						"parachain_disputes_finality_lag",
+						"polkadot_parachain_disputes_finality_lag",
 						"How far behind the head of the chain the Disputes protocol wants to vote",
 					)
 				)?,

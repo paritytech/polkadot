@@ -828,6 +828,7 @@ mod tests {
 		mock::TestRegistrar,
 		traits::{AuctionStatus, OnSwap},
 	};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use sp_keystore::{testing::KeyStore, KeystoreExt};
 	use sp_runtime::{
 		testing::Header,
@@ -1077,8 +1078,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				para,
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			return para
 		}
@@ -1220,8 +1221,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1337,
 				ParaId::from(1234),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			let e = BalancesError::<Test, _>::InsufficientBalance;
 			assert_noop!(
