@@ -59,7 +59,10 @@ impl CounterVec {
 		}
 		.encode();
 
-		// `from_utf8_unchecked` is safe, we only care about the `metric_name` which is static str.
+		// `from_utf8_unchecked` is safe in this context:
+		// We cannot guarantee that the input slice is a valid UTF-8, but the `bs58` encoding
+		// provides that guarantee forward. We just need to `transmute` as the layout of `&str`
+    	// and `&[u8]` is the same.
 		unsafe {
 			let register_metric_op =
 				bs58::encode(sp_std::str::from_utf8_unchecked(&metric_update)).into_string();
@@ -88,7 +91,10 @@ impl CounterVec {
 		}
 		.encode();
 
-		// `from_utf8_unchecked` is safe, we only care about the `metric_name` which is static str.
+		// `from_utf8_unchecked` is safe in this context:
+		// We cannot guarantee that the input slice is a valid UTF-8, but the `bs58` encoding
+		// provides that guarantee forward. We just need to `transmute` as the layout of `&str`
+    	// and `&[u8]` is the same.
 		unsafe {
 			let update_op =
 				bs58::encode(sp_std::str::from_utf8_unchecked(&metric_update)).into_string();
