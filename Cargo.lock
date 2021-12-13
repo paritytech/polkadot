@@ -6829,6 +6829,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-runtime-metrics"
+version = "0.9.13"
+dependencies = [
+ "bs58",
+ "parity-scale-codec",
+ "polkadot-primitives",
+ "sp-std",
+ "sp-tracing",
+]
+
+[[package]]
 name = "polkadot-runtime-parachains"
 version = "0.9.13"
 dependencies = [
