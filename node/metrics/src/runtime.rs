@@ -69,10 +69,7 @@ impl RuntimeMetricsProvider {
 					metric_name.to_owned(),
 					register(
 						CounterVec::new(
-							Opts::new(
-								metric_name,
-								params.description(),
-							),
+							Opts::new(metric_name, params.description()),
 							&params.labels().unwrap_or_default(),
 						)?,
 						&self.0,
@@ -97,7 +94,6 @@ impl RuntimeMetricsProvider {
 	) {
 		let _ = self.1.counter_vecs.lock().map(|mut unlocked_hashtable| {
 			if let Some(counter_vec) = unlocked_hashtable.get_mut(name) {
-
 				match labels {
 					Some(labels) => counter_vec.with_label_values(&labels.as_str()).inc_by(value),
 					None => counter_vec.with_label_values(&vec![""]).inc_by(value),

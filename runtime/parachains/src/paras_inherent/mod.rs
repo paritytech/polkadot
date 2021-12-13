@@ -265,7 +265,7 @@ impl<T: Config> Pallet<T> {
 		let mut weight_metric = CounterVec::new_with_labels(
 			"parachain_inherent_data_weight",
 			"Inherent data weight before and after filtering",
-			&vec!["when"]
+			&vec!["when"],
 		);
 
 		// let mut bitfields_processed_metric = CounterVec::new(
@@ -282,14 +282,13 @@ impl<T: Config> Pallet<T> {
 		let mut dispute_sets_processed_metric = CounterVec::new_with_labels(
 			"parachain_inherent_data_dispute_sets_processed",
 			"Counts the number of dispute statements sets processed in `enter_inner`.",
-			&vec!["category"]
+			&vec!["category"],
 		);
 
 		// let mut disputes_included_metric = CounterVec::new(
 		// 	"parachain_inherent_data_disputes_included",
 		// 	"Counts the number of dispute statements sets included in a block in `enter_inner`.",
 		// );
-
 
 		log::debug!(
 			target: LOG_TARGET,
@@ -318,7 +317,9 @@ impl<T: Config> Pallet<T> {
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-		weight_metric.with_label_values(&vec!["before-filter"]).inc_by(candidate_weight + bitfields_weight + disputes_weight);
+		weight_metric
+			.with_label_values(&vec!["before-filter"])
+			.inc_by(candidate_weight + bitfields_weight + disputes_weight);
 
 		// Potentially trim inherent data to ensure processing will be within weight limits
 		let total_weight = {
@@ -366,7 +367,9 @@ impl<T: Config> Pallet<T> {
 			// Note that `provide_multi_dispute_data` will iterate, verify, and import each
 			// dispute; so the input here must be reasonably bounded.
 			let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
-			dispute_sets_processed_metric.with_label_values(&vec!["imported)"]).inc_by(disputes.len() as u64);
+			dispute_sets_processed_metric
+				.with_label_values(&vec!["imported)"])
+				.inc_by(disputes.len() as u64);
 
 			if T::DisputesHandler::is_frozen() {
 				// Relay chain freeze, at this point we will not include any parachain blocks.
