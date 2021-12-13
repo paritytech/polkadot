@@ -3145,6 +3145,7 @@ dependencies = [
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
+ "pallet-preimage",
  "pallet-proxy",
  "pallet-recovery",
  "pallet-scheduler",
@@ -5108,6 +5109,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-preimage"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#b9cafba3d0e7a5950ac78d81e4ab7f2074938666"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-proxy"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#55cd07a7e22c26932f7bd16b87ea5a7569e38eb4"
@@ -6687,6 +6704,7 @@ dependencies = [
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
+ "pallet-preimage",
  "pallet-proxy",
  "pallet-scheduler",
  "pallet-session",
@@ -11561,6 +11579,7 @@ dependencies = [
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
+ "pallet-preimage",
  "pallet-proxy",
  "pallet-recovery",
  "pallet-scheduler",
