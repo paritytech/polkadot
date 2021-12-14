@@ -828,9 +828,6 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// fill the remaining space with candidates
 		let total_consumed = acc_candidate_weight.saturating_add(total_bitfields_weight);
 
-		assert!(max_consumable_by_candidates >= acc_candidate_weight);
-		assert!(max_consumable_weight >= total_consumed);
-
 		return total_consumed
 	}
 
@@ -847,8 +844,6 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	);
 
 	bitfields.indexed_retain(|idx, _bitfield| indices.binary_search(&idx).is_ok());
-
-	assert!(max_consumable_weight >= total_consumed);
 
 	total_consumed
 }
