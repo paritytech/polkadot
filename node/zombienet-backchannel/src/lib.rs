@@ -147,6 +147,8 @@ impl ZombienetBackchannel {
 		Err(BackchannelError::AlreadyInitialized)
 	}
 
+    /// Ensure that the backchannel is initialized and return a broadcaster instance
+    /// allowing to subscribe or send new items.
 	pub fn broadcaster() -> Result<Broadcaster, BackchannelError> {
 		if ZOMBIENET_BACKCHANNEL.lock().unwrap().is_some() {
 			Ok(Broadcaster {})
