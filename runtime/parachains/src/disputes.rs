@@ -141,7 +141,9 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 				(None, None) => a.session.cmp(&b.session),
 			}
 		});
-		statement_sets.dedup();
+		statement_sets.dedup_by(|a, b| {
+			a.session == b.session && a.candidate_hash == b.candidate_hash
+		});
 
 		// if there were any duplicates, indicate that to the caller.
 		if n == statement_sets.len() {
