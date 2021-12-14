@@ -54,6 +54,8 @@ pub struct Broadcaster;
 pub const ZOMBIENET: &str = "🧟ZOMBIENET🧟";
 
 impl Broadcaster {
+    /// Return a subscriber that will receive all message broadcasted by the zombienet backchannel
+    /// websocket server.
 	pub fn subscribe(&self) -> Result<broadcast::Receiver<BackchannelItem>, BackchannelError> {
 		let mut zombienet_bkc = ZOMBIENET_BACKCHANNEL.lock().unwrap();
 		let sender = zombienet_bkc.as_mut().unwrap().broadcast_tx.clone();
@@ -64,6 +66,7 @@ impl Broadcaster {
 		}
 	}
 
+    /// Provides a simple api to send a key/value to the zombienet websocket server.
 	pub async fn send(
 		&mut self,
 		key: &'static str,
