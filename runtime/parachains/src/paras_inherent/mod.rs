@@ -1091,7 +1091,7 @@ fn limit_and_sanitize_disputes<
 	max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
-	// The total weight iff all disputes would be included
+	// The total weight if all disputes would be included
 	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 	if disputes_weight > max_consumable_weight {
