@@ -2224,6 +2224,7 @@ async fn launch_approval(
 							"Data recovery invalid for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
+
 						sender
 							.send_message(
 								DisputeCoordinatorMessage::IssueLocalStatement(
@@ -2315,6 +2316,7 @@ async fn launch_approval(
 					?para_id,
 					"Detected invalid candidate as an approval checker.",
 				);
+
 				sender
 					.send_message(
 						DisputeCoordinatorMessage::IssueLocalStatement(
