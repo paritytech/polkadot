@@ -417,6 +417,7 @@ impl<T: Config> Pallet<T> {
 			signed_bitfields,
 			disputed_bitfield,
 			<scheduler::Pallet<T>>::core_para,
+			full_check,
 		);
 
 		// Inform the disputes module of all included candidates.
@@ -623,7 +624,7 @@ impl<T: Config> Pallet<T> {
 				parent_hash,
 				current_session,
 				&validator_public[..],
-				FullCheck::Skip,
+				FullCheck::Yes,
 			);
 
 			let freed_concluded =

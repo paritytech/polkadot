@@ -58,7 +58,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 
 /// Determines if all checks should be applied or if a subset was already completed
 /// in a code path that will be executed afterwards or was already executed before.
-#[derive(Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub(crate) enum FullCheck {
 	/// Yes, do a full check, skip nothing.
 	Yes,
@@ -420,6 +420,7 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
+		full_check: FullCheck,
 	) -> Vec<(CoreIndex, CandidateHash)> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
@@ -432,7 +433,7 @@ impl<T: Config> Pallet<T> {
 			parent_hash,
 			session_index,
 			&validators[..],
-			FullCheck::Yes,
+			full_check,
 		);
 
 		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
