@@ -6329,7 +6329,6 @@ dependencies = [
  "futures 0.3.18",
  "futures-timer 3.0.2",
  "hex-literal",
- "libc",
  "parity-scale-codec",
  "pin-project 1.0.8",
  "polkadot-core-primitives",
