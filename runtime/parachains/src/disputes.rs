@@ -101,6 +101,19 @@ impl PunishValidators for () {
 	fn punish_inconclusive(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
 }
 
+/// Binary discriminator to determine if the expensive signature
+/// checks are necessary.
+#[derive(Clone, Copy)]
+pub enum VerifyDisputeSignatures {
+	/// Yes, verify the signatures.
+	Yes,
+	/// No, skip the signature verification.
+	///
+	/// Only done if there exists an invariant that
+	/// can guaranteed the signature was checked before.
+	Skip,
+}
+
 /// Hook into disputes handling.
 ///
 /// Allows decoupling parachains handling from disputes so that it can
@@ -160,6 +173,7 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		statement_set: DisputeStatementSet,
 		max_spam_slots: u32,
 		post_conclusion_acceptance_period: BlockNumber,
+		verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet>;
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
@@ -208,6 +222,7 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 		_set: DisputeStatementSet,
 		_max_spam_slots: u32,
 		_post_conclusion_acceptance_period: BlockNumber,
+		_verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet> {
 		None
 	}
@@ -257,11 +272,13 @@ where
 		set: DisputeStatementSet,
 		max_spam_slots: u32,
 		post_conclusion_acceptance_period: T::BlockNumber,
+		verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet> {
 		pallet::Pallet::<T>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
 			max_spam_slots,
+			verify_sigs,
 		)
 		.filter_statement_set(set)
 	}
@@ -822,6 +839,7 @@ impl<T: Config> Pallet<T> {
 		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
 		max_spam_slots: u32,
+		verify_sigs: VerifyDisputeSignatures,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
@@ -879,25 +897,28 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				// Check signature after attempting import.
-				//
-				// Since we expect that this filter will be applied to
-				// disputes long after they're concluded, 99% of the time,
-				// the duplicate filter above will catch them before needing
-				// to do a heavy signature check.
-				//
-				// This is only really important until the post-conclusion acceptance threshold
-				// is reached, and then no part of this loop will be hit.
-				if let Err(()) = check_signature(
-					&validator_public,
-					set.candidate_hash,
-					set.session,
-					statement,
-					signature,
-				) {
-					importer.undo(undo);
-					filter.remove_index(i);
-					continue
+				// Avoid checking signatures repeatedly.
+				if let VerifyDisputeSignatures::Yes = verify_sigs {
+					// Check signature after attempting import.
+					//
+					// Since we expect that this filter will be applied to
+					// disputes long after they're concluded, 99% of the time,
+					// the duplicate filter above will catch them before needing
+					// to do a heavy signature check.
+					//
+					// This is only really important until the post-conclusion acceptance threshold
+					// is reached, and then no part of this loop will be hit.
+					if let Err(()) = check_signature(
+						&validator_public,
+						set.candidate_hash,
+						set.session,
+						statement,
+						signature,
+					) {
+						importer.undo(undo);
+						filter.remove_index(i);
+						continue
+					}
 				}
 			}
 
@@ -1016,25 +1037,10 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
-		// Check and import all votes.
+		// Import all votes. They were pre-checked.
 		let summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
-			for (statement, validator_index, signature) in &set.statements {
-				let validator_public = session_info
-					.validators
-					.get(validator_index.0 as usize)
-					.ok_or(Error::<T>::ValidatorIndexOutOfBounds)?;
-
-				// Check signature before importing.
-				check_signature(
-					&validator_public,
-					set.candidate_hash,
-					set.session,
-					statement,
-					signature,
-				)
-				.map_err(|()| Error::<T>::InvalidSignature)?;
-
+			for (statement, validator_index, _signature) in &set.statements {
 				let valid = statement.indicates_validity();
 
 				importer.import(*validator_index, valid).map_err(Error::<T>::from)?;
@@ -2874,6 +2880,7 @@ mod tests {
 					dispute_statement,
 					max_spam_slots,
 					post_conclusion_acceptance_period,
+					VerifyDisputeSignatures::Yes,
 				) {
 				acc.push(checked);
 			}
@@ -2951,7 +2958,10 @@ mod tests {
 			let statements = <Pallet<Test> as DisputesHandler<
 				<Test as frame_system::Config>::BlockNumber,
 			>>::filter_dispute_data(
-				statements, max_spam_slots, post_conclusion_acceptance_period
+				statements,
+				max_spam_slots,
+				post_conclusion_acceptance_period,
+				VerifyDisputeSignatures::Yes,
 			);
 
 			assert_eq!(

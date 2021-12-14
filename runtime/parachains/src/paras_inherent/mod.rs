@@ -23,7 +23,7 @@
 
 use crate::{
 	configuration,
-	disputes::DisputesHandler,
+	disputes::{DisputesHandler, VerifyDisputeSignatures},
 	inclusion,
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
@@ -313,14 +313,21 @@ impl<T: Config> Pallet<T> {
 			let post_conclusion_acceptance_period =
 				config.dispute_post_conclusion_acceptance_period;
 
+			let verify_dispute_sigs = if let FullCheck::Yes = full_check {
+				VerifyDisputeSignatures::Yes
+			} else {
+				VerifyDisputeSignatures::Skip
+			};
+
 			// if disputes are by themselves overweight already, trim the disputes.
 			let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T, _>(
 				disputes,
-				|set| {
+				move |set| {
 					T::DisputesHandler::filter_dispute_data(
 						set,
 						max_spam_slots,
 						post_conclusion_acceptance_period,
+						verify_dispute_sigs,
 					)
 				},
 				max_block_weight,
@@ -341,7 +348,7 @@ impl<T: Config> Pallet<T> {
 				.map(|s| (s.session, s.candidate_hash))
 				.collect();
 
-			// Note that `provide_multi_dispute_data` will iterate, verify, and import each
+			// Note that `provide_multi_dispute_data` will iterate and import each
 			// dispute; so the input here must be reasonably bounded.
 <<<<<<< HEAD
 			let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
@@ -537,6 +544,11 @@ impl<T: Config> Pallet<T> {
 					set,
 					max_spam_slots,
 					post_conclusion_acceptance_period,
+					// TODO a further optimization would be to skip
+					// signature checks ehre as well, since the
+					// `DisputeCoordinator` on the node side only forwards
+					// valid dispute statement sets.
+					VerifyDisputeSignatures::Yes,
 				)
 			};
 
