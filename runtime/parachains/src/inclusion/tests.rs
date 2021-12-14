@@ -440,6 +440,7 @@ fn bitfield_checks() {
 					vec![signed.into()],
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
+					FullCheck::Yes,
 				),
 				vec![]
 			);
@@ -462,6 +463,7 @@ fn bitfield_checks() {
 					vec![signed.into()],
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
+					FullCheck::Yes,
 				),
 				vec![]
 			);
@@ -499,6 +501,7 @@ fn bitfield_checks() {
 				vec![signed.clone(), signed],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			)
 			.is_empty());
 
@@ -555,6 +558,7 @@ fn bitfield_checks() {
 				vec![signed_1, signed_0],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			)
 			.is_empty());
 
@@ -586,6 +590,7 @@ fn bitfield_checks() {
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			)
 			.is_empty());
 		}
@@ -606,6 +611,7 @@ fn bitfield_checks() {
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			)
 			.is_empty());
 		}
@@ -646,6 +652,7 @@ fn bitfield_checks() {
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			)
 			.is_empty());
 
@@ -689,6 +696,7 @@ fn bitfield_checks() {
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			)
 			.is_empty());
 		}
@@ -833,6 +841,7 @@ fn supermajority_bitfields_trigger_availability() {
 				signed_bitfields,
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
+				FullCheck::Yes,
 			),
 			vec![(CoreIndex(0), candidate_a.hash())]
 		);
