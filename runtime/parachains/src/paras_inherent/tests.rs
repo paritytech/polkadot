@@ -432,9 +432,9 @@ mod enter {
 	}
 
 	#[test]
-	// Ensure that when a block is over weight due to disputes and bitfields, the bitfields are
+	// Ensure an overweight block with an excess amount of disputes and bitfields, the bitfields are
 	// filtered to accommodate the block size and no backed candidates are included.
-	fn limit_bitfields() {
+	fn limit_bitfields_some() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let mut dispute_statements = BTreeMap::new();
@@ -477,7 +477,9 @@ mod enter {
 			// Nothing is filtered out (including the backed candidates.)
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert_ne!(limit_inherent_data, expected_para_inherent_data);
+			assert!(inherent_data_weight(&limit_inherent_data) <= inherent_data_weight(&expected_para_inherent_data));
+			assert!(inherent_data_weight(&limit_inherent_data) <= max_block_weight());
 
 			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
@@ -613,6 +615,7 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
+			assert!(dbg!(max_block_weight()) < dbg!(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
@@ -630,6 +633,8 @@ mod enter {
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert!(max_block_weight() >= inherent_data_weight(&limit_inherent_data), "Post limiting exceeded block weight: max={} vs. inherent={}", max_block_weight(), inherent_data_weight(&limit_inherent_data));
+
 
 			// * 1 bitfields
 			assert_eq!(limit_inherent_data.bitfields.len(), 25);

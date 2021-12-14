@@ -1086,11 +1086,12 @@ fn limit_and_sanitize_disputes<
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				dss.statements.len() as u32,
 			);
-			if max_consumable_weight >= weight_acc {
+			let updated = weight_acc.saturating_add(dispute_weight);
+			if max_consumable_weight >= updated {
 				// only apply the weight if the validity check passes
 				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
 					checked_acc.push(checked);
-					weight_acc = weight_acc.saturating_add(dispute_weight);
+					weight_acc = updated;
 				}
 			}
 		});
