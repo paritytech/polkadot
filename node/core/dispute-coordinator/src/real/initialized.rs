@@ -877,7 +877,7 @@ impl Initialized {
 		// Sign a statement for each validator index we control which has
 		// not already voted. This should generally be maximum 1 statement.
 		let voted_indices = votes.voted_indices();
-		let statements = Vec::new();
+		let mut statements = Vec::new();
 
 		let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
 		let controlled_indices = find_controlled_validator_indices(&self.keystore, &validators[..]);
