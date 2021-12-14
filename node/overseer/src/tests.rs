@@ -17,6 +17,7 @@
 use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
+use ::test_helpers::{dummy_candidate_descriptor, dummy_candidate_receipt, dummy_hash};
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 use polkadot_node_primitives::{
 	BlockData, CollationGenerationConfig, CollationResult, DisputeMessage, InvalidDisputeVote, PoV,
@@ -110,7 +111,7 @@ where
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
-							Default::default(),
+							dummy_candidate_descriptor(dummy_hash()),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
@@ -279,9 +280,9 @@ fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64
 			.get_value() as u64
 	};
 
-	let activated = extract("parachain_activated_heads_total");
-	let deactivated = extract("parachain_deactivated_heads_total");
-	let relayed = extract("parachain_messages_relayed_total");
+	let activated = extract("polkadot_parachain_activated_heads_total");
+	let deactivated = extract("polkadot_parachain_deactivated_heads_total");
+	let relayed = extract("polkadot_parachain_messages_relayed_total");
 	let mut result = HashMap::new();
 	result.insert("activated", activated);
 	result.insert("deactivated", deactivated);
@@ -793,9 +794,9 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
 	CandidateValidationMessage::ValidateFromChainState(
-		Default::default(),
+		dummy_candidate_descriptor(dummy_hash()),
 		pov,
-		Default::default(),
+		Duration::default(),
 		sender,
 	)
 }
@@ -844,7 +845,7 @@ fn test_statement_distribution_msg() -> StatementDistributionMessage {
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 	let (sender, _) = oneshot::channel();
 	AvailabilityRecoveryMessage::RecoverAvailableData(
-		Default::default(),
+		dummy_candidate_receipt(dummy_hash()),
 		Default::default(),
 		None,
 		sender,
@@ -890,16 +891,16 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 	let dummy_dispute_message = UncheckedDisputeMessage {
-		candidate_receipt: Default::default(),
+		candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 		session_index: 0,
 		invalid_vote: InvalidDisputeVote {
 			validator_index: ValidatorIndex(0),
-			signature: Default::default(),
+			signature: sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 			kind: InvalidDisputeStatementKind::Explicit,
 		},
 		valid_vote: ValidDisputeVote {
 			validator_index: ValidatorIndex(0),
-			signature: Default::default(),
+			signature: sp_core::crypto::UncheckedFrom::unchecked_from([2u8; 64]),
 			kind: ValidDisputeStatementKind::Explicit,
 		},
 	};

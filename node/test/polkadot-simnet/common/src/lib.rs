@@ -78,6 +78,7 @@ impl ChainInfo for PolkadotChainInfo {
 
 	fn signed_extras(from: <Runtime as system::Config>::AccountId) -> Self::SignedExtras {
 		(
+			system::CheckNonZeroSender::<Runtime>::new(),
 			system::CheckSpecVersion::<Runtime>::new(),
 			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),

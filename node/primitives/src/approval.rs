@@ -24,7 +24,7 @@ use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateIndex, CoreIndex, Hash, Header, ValidatorIndex,
 	ValidatorSignature,
 };
-use sp_application_crypto::Public;
+use sp_application_crypto::ByteArray;
 use sp_consensus_babe as babe_primitives;
 
 /// Validators assigning to check a particular candidate are split up into tranches.

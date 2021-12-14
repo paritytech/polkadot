@@ -23,6 +23,7 @@ polkadot-service = { path = "../../service" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
+test-runtime-constants = { path = "../../../runtime/test-runtime/constants" }
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 
 # Substrate dependencies
