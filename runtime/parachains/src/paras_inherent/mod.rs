@@ -39,11 +39,11 @@ use frame_support::{
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, CurrentBlockRandomness};
 use primitives::v1::{
-	BackedCandidate, CandidateHash, CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet,
-	CoreIndex, DisputeStatementSet, InherentData as ParachainsInherentData,
-	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SigningContext,
-	UncheckedSignedAvailabilityBitfield, UncheckedSignedAvailabilityBitfields, ValidatorId,
-	ValidatorIndex, PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, CandidateHash, CheckedDisputeStatementSet, CoreIndex, DisputeStatementSet,
+	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
+	SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
+	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
+	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::{seq::SliceRandom, SeedableRng};
 
@@ -260,7 +260,7 @@ impl<T: Config> Pallet<T> {
 			bitfields: mut signed_bitfields,
 			mut backed_candidates,
 			parent_header,
-			mut disputes,
+			disputes,
 		} = data;
 
 		let parent_header_hash = parent_header.hash();
@@ -283,8 +283,8 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 
-		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
-		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
+		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
+		let bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
@@ -303,9 +303,7 @@ impl<T: Config> Pallet<T> {
 				// If the total weight is over the max block weight, first try clearing backed
 				// candidates and bitfields.
 				backed_candidates.clear();
-				candidates_weight = 0;
 				signed_bitfields.clear();
-				bitfields_weight = 0;
 			}
 
 			let config = <configuration::Pallet<T>>::config();
@@ -493,7 +491,8 @@ impl<T: Config> Pallet<T> {
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
-		T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes);
+		// Filter out duplicates and continue.
+		let _ = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes);
 
 		let config = <configuration::Pallet<T>>::config();
 		let max_spam_slots = config.dispute_max_spam_slots;
@@ -502,7 +501,7 @@ impl<T: Config> Pallet<T> {
 		let (
 			mut backed_candidates,
 			mut bitfields,
-			mut checked_disputes_sets,
+			checked_disputes_sets,
 			checked_disputes_sets_consumed_weight,
 		) = frame_support::storage::with_transaction(|| {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
@@ -734,7 +733,8 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	}
 
 	// sorting indices, so the ordering is retained
-	// unstable sorting is fine, since there are no duplicates
+	// unstable sorting is fine, since there are no duplicates in indices
+	// and even if there were, they don't have an identity
 	picked_indices.sort_unstable();
 	(weight_acc, picked_indices)
 }
