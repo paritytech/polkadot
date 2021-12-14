@@ -29,7 +29,7 @@ use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
 use super::{
-	error::{Fatal, FatalResult, NonFatalResult, Result},
+	error::{Fatal, FatalResult, NonFatal, Result},
 	LOG_TARGET,
 };
 
@@ -183,7 +183,15 @@ impl OrderingProvider {
 			let ancestors = self
 				.get_block_ancestors(sender, activated.hash, activated.number)
 				.await
-				.unwrap_or_default();
+				.unwrap_or_else(|err| {
+					tracing::debug!(
+						target: LOG_TARGET,
+						activated_leaf = ?activated,
+						"Skipping leaf ancestors due to an error: {}",
+						err
+					);
+					Vec::new()
+				});
 			// Ancestors block numbers are consecutive in the descending order.
 			let earliest_block_number = activated.number - ancestors.len() as u32;
 			let block_numbers = (earliest_block_number..=activated.number).rev();
@@ -240,7 +248,7 @@ impl OrderingProvider {
 		sender: &mut Sender,
 		mut head: Hash,
 		mut head_number: BlockNumber,
-	) -> NonFatalResult<Vec<Hash>> {
+	) -> Result<Vec<Hash>> {
 		const ANCESTRY_STEP: usize = 10;
 
 		let mut ancestors = Vec::new();
@@ -249,11 +257,7 @@ impl OrderingProvider {
 			return Ok(ancestors)
 		}
 
-		let finalized_block_number = if let Ok(number) = get_finalized_block_number(sender).await {
-			number
-		} else {
-			return Ok(ancestors)
-		};
+		let finalized_block_number = get_finalized_block_number(sender).await?;
 
 		loop {
 			let (tx, rx) = oneshot::channel();
@@ -269,7 +273,7 @@ impl OrderingProvider {
 					)
 					.await;
 
-				rx.await??
+				rx.await.map_err(NonFatal::Oneshot)?.map_err(NonFatal::ChainApi)?
 			};
 
 			let earliest_block_number = head_number - hashes.len() as u32;
@@ -278,7 +282,7 @@ impl OrderingProvider {
 
 			for (block_number, hash) in block_numbers.zip(&hashes) {
 				if self.last_observed_blocks.get(&head).is_some() ||
-					block_number == finalized_block_number
+					block_number <= finalized_block_number
 				{
 					return Ok(ancestors)
 				}
