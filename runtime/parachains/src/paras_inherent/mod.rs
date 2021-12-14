@@ -781,10 +781,12 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// which guarantees sanity.
 ///
 /// Assumes disputes are already filtered by the time this is called.
+///
+/// Returns the total weight consumed by `bitfields` and `candidates`.
 fn apply_weight_limit<T: Config + inclusion::Config>(
 	candidates: &mut Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,
-	max_block_weight: Weight,
+	max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> Weight {
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
@@ -794,12 +796,12 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// candidates + bitfields fit into the block
-	if max_block_weight >= total {
+	if max_consumable_weight >= total {
 		return total
 	}
 
 	// Prefer code upgrades, they tend to be large and hence stand no chance to be picked
-	// late while maintaining the weight bounds
+	// late while maintaining the weight bounds.
 	let preferred_indices = candidates
 		.iter()
 		.enumerate()
@@ -810,8 +812,8 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
-	if let Some(max_to_be_consumed_block_weight) =
-		max_block_weight.checked_sub(total_bitfields_weight)
+	if let Some(max_consumable_by_candidates) =
+		max_consumable_weight.checked_sub(total_bitfields_weight)
 	{
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
@@ -819,30 +821,36 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 				candidates.clone(),
 				preferred_indices,
 				|c| backed_candidate_weight::<T>(c),
-				max_to_be_consumed_block_weight,
+				max_consumable_by_candidates,
 			);
 		candidates.indexed_retain(|idx, _backed_candidate| indices.binary_search(&idx).is_ok());
 		// pick all bitfields, and
 		// fill the remaining space with candidates
-		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
-		return total
+		let total_consumed = acc_candidate_weight.saturating_add(total_bitfields_weight);
+
+		assert!(max_consumable_by_candidates >= acc_candidate_weight);
+		assert!(max_consumable_weight >= total_consumed);
+
+		return total_consumed
 	}
 
 	candidates.clear();
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
 	// into the block and skip the candidates entirely
-	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
+	let (total_consumed, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
 		rng,
 		bitfields.clone(),
 		vec![],
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
-		max_block_weight,
+		max_consumable_weight,
 	);
 
 	bitfields.indexed_retain(|idx, _bitfield| indices.binary_search(&idx).is_ok());
 
-	total
+	assert!(max_consumable_weight >= total_consumed);
+
+	total_consumed
 }
 
 /// Filter bitfields based on freed core indices, validity, and other sanity checks.
@@ -1066,14 +1074,14 @@ fn sanitize_disputes<
 ///   1. If weight is exceeded by locals and remotes, pick remotes
 ///      randomly and check validity one by one.
 ///
-/// Returns the unused weight of `max_consumable_weight`.
+/// Returns the consumed weight amount, that is guaranteed to be less than the provided `max_consumable_weight`.
 fn limit_and_sanitize_disputes<
 	T: Config,
 	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
 >(
 	mut disputes: MultiDisputeStatementSet,
 	mut dispute_statement_set_valid: CheckValidityFn,
-	mut max_consumable_weight: Weight,
+	max_consumable_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
 	// The total weight iff all disputes would be included
@@ -1101,16 +1109,19 @@ fn limit_and_sanitize_disputes<
 		// of the remote disputes sub-array
 		let remote_disputes = disputes.split_off(idx);
 
+		// Accumualated weight of all disputes picked, that passed the checks.
+		let mut weight_acc = 0 as Weight;
+
 		// Select disputes in-order until the remaining weight is attained
 		disputes.iter().for_each(|dss| {
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				dss.statements.len() as u32,
 			);
-			if max_consumable_weight >= dispute_weight {
+			if max_consumable_weight >= weight_acc {
 				// only apply the weight if the validity check passes
 				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
-					max_consumable_weight -= dispute_weight;
-					checked_acc.push(checked)
+					checked_acc.push(checked);
+					weight_acc = weight_acc.saturating_add(dispute_weight);
 				}
 			}
 		});
@@ -1119,12 +1130,12 @@ fn limit_and_sanitize_disputes<
 		let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
 
 		// Select remote disputes at random until the block is full
-		let (acc_remote_disputes_weight, mut indices) = random_sel::<u32, _>(
+		let (_acc_remote_disputes_weight, mut indices) = random_sel::<u32, _>(
 			rng,
 			d,
 			vec![],
 			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
-			max_consumable_weight,
+			max_consumable_weight.saturating_sub(weight_acc),
 		);
 
 		// Sort the indices, to retain the same sorting as the input.
@@ -1134,11 +1145,17 @@ fn limit_and_sanitize_disputes<
 		checked_acc.extend(
 			indices
 				.into_iter()
-				.filter_map(|idx| dispute_statement_set_valid(remote_disputes[idx].clone())),
+				.filter_map(|idx| dispute_statement_set_valid(remote_disputes[idx].clone()).map(|cdss| {
+					let weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
+						cdss.as_ref().statements.len() as u32,
+					);
+					weight_acc = weight_acc.saturating_add(weight);
+					cdss
+				})),
 		);
 
 		// Update the remaining weight
-		(checked_acc, max_consumable_weight.saturating_sub(acc_remote_disputes_weight))
+		(checked_acc, weight_acc)
 	} else {
 		// Go through all of them, and just apply the filter, they would all fit
 		sanitize_disputes::<T, _>(disputes, dispute_statement_set_valid)
