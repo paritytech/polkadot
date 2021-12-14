@@ -805,7 +805,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 
 			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
-			let mut statements = Vec::new();
+			let statements = Vec::new();
 			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
 				let vote =
 					test_state.issue_statement_with_index(i, candidate_hash, session, true).await;
@@ -922,7 +922,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 
 			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
-			let mut statements = Vec::new();
+			let statements = Vec::new();
 			// -2: 1 for already imported vote and one for local vote (which is valid).
 			for i in (0..supermajority_threshold - 2).map(|i| i + 3) {
 				let vote =
@@ -1020,7 +1020,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
-			let mut statements = Vec::new();
+			let statements = Vec::new();
 			// minus 2, because of local vote and one previously imported invalid vote.
 			for i in (0..supermajority_threshold - 2).map(|i| i + 3) {
 				let vote =
