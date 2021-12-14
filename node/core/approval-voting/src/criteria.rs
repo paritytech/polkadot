@@ -24,7 +24,7 @@ use polkadot_primitives::v1::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::Public;
+use sp_application_crypto::ByteArray;
 
 use merlin::Transcript;
 use schnorrkel::vrf::VRFInOut;

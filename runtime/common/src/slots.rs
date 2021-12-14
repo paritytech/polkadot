@@ -1111,7 +1111,7 @@ mod benchmarking {
 		trigger_onboard {
 			// get a parachain into a bad state where they did not onboard
 			let (para, _) = register_a_parathread::<T>(1);
-			Leases::<T>::insert(para, vec![Some((T::AccountId::default(), BalanceOf::<T>::default()))]);
+			Leases::<T>::insert(para, vec![Some((account::<T::AccountId>("lease_insert", 0, 0), BalanceOf::<T>::default()))]);
 			assert!(T::Registrar::is_parathread(para));
 			let caller = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
