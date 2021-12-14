@@ -22,6 +22,12 @@ pub enum BackchannelError {
 	#[error("Error connecting websocket server")]
 	CantConnectToWS,
 
+	#[error("Backchannel not initialized yet")]
+	Uninitialized,
+
+	#[error("Backchannel already initialized")]
+	AlreadyInitialized,
+
 	#[error("Error sending new value to backchannel")]
 	SendItemFail,
 }
