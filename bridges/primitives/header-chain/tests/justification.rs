@@ -136,7 +136,8 @@ fn justification_with_invalid_commit_rejected() {
 #[test]
 fn justification_with_invalid_authority_signature_rejected() {
 	let mut justification = make_default_justification::<TestHeader>(&test_header(1));
-	justification.commit.precommits[0].signature = Default::default();
+	justification.commit.precommits[0].signature =
+		sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]);
 
 	assert_eq!(
 		verify_justification::<TestHeader>(

@@ -24,7 +24,7 @@ use polkadot_primitives::v1::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::Public;
+use sp_application_crypto::ByteArray;
 
 use merlin::Transcript;
 use schnorrkel::vrf::VRFInOut;
@@ -264,7 +264,7 @@ pub(crate) fn compute_assignments(
 		match key {
 			None => {
 				tracing::trace!(target: LOG_TARGET, "No assignment key");
-				return Default::default()
+				return HashMap::new()
 			},
 			Some(k) => k,
 		}
@@ -320,7 +320,7 @@ fn compute_relay_vrf_modulo_assignments(
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
 	for rvm_sample in 0..config.relay_vrf_modulo_samples {
-		let mut core = Default::default();
+		let mut core = CoreIndex::default();
 
 		let maybe_assignment = {
 			// Extra scope to ensure borrowing instead of moving core

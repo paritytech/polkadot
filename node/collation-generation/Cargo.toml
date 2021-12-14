@@ -19,3 +19,4 @@ parity-scale-codec = { version = "2.3.1", default-features = false, features = [
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }

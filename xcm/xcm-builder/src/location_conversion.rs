@@ -182,6 +182,9 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 /// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
+	fn ancestry() -> MultiLocation {
+		Ancestry::get()
+	}
 	fn invert_location(location: &MultiLocation) -> Result<MultiLocation, ()> {
 		let mut ancestry = Ancestry::get();
 		let mut junctions = Here;

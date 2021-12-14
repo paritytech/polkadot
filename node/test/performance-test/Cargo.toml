@@ -1,0 +1,21 @@
+[package]
+name = "polkadot-performance-test"
+version = "0.9.13"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+thiserror = "1.0.30"
+quote = "1.0.10"
+env_logger = "0.9"
+log = "0.4"
+
+polkadot-node-core-pvf = { path = "../../core/pvf" }
+polkadot-erasure-coding = { path = "../../../erasure-coding" }
+polkadot-node-primitives = { path = "../../primitives" }
+
+kusama-runtime = { path = "../../../runtime/kusama" }
+
+[[bin]]
+name = "gen-ref-constants"
+path = "src/gen_ref_constants.rs"

@@ -27,6 +27,9 @@ use polkadot_primitives::v1::{
 	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
 	ValidatorIndex,
 };
+use polkadot_primitives_test_helpers::{
+	dummy_collator, dummy_collator_signature, dummy_hash, dummy_validation_code,
+};
 
 /// Create dummy session info with two validator groups.
 pub fn make_session_info() -> SessionInfo {
@@ -114,7 +117,11 @@ impl TestCandidateBuilder {
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
-				..Default::default()
+				collator: dummy_collator(),
+				persisted_validation_data_hash: dummy_hash(),
+				signature: dummy_collator_signature(),
+				para_head: dummy_hash(),
+				validation_code_hash: dummy_validation_code().hash(),
 			},
 			commitments: CandidateCommitments { head_data: self.head_data, ..Default::default() },
 		}

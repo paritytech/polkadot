@@ -107,8 +107,8 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Debug))]
 pub struct ValidatorIndex(pub u32);
 
 // We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
@@ -312,7 +312,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 
 /// All data pertaining to the execution of a parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
@@ -411,7 +411,7 @@ pub struct OmittedValidationData<N = BlockNumber> {
 /// When submitting to the relay-chain, this data should be omitted as it can
 /// be re-generated from relay-chain state.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct AbridgedCandidateReceipt<H = Hash> {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
@@ -546,7 +546,7 @@ impl Ord for AbridgedCandidateReceipt {
 
 /// A unique descriptor of the candidate receipt, in a lightweight format.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -566,7 +566,7 @@ pub struct CandidateDescriptor<H = Hash> {
 
 /// A collation sent by a collator.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CollationInfo {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,

@@ -33,9 +33,10 @@ use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo, ScheduledCore,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
+	SessionInfo, ValidatorId, ValidatorIndex,
 };
+use polkadot_primitives_test_helpers::TestCandidateBuilder;
 use polkadot_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -43,32 +44,9 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem_testhelpers as test_helpers;
 
-#[derive(Default)]
-struct TestCandidateBuilder {
-	para_id: ParaId,
-	pov_hash: Hash,
-	relay_parent: Hash,
-	commitments_hash: Hash,
-}
-
-impl TestCandidateBuilder {
-	fn build(self) -> CandidateReceipt {
-		CandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: self.para_id,
-				pov_hash: self.pov_hash,
-				relay_parent: self.relay_parent,
-				..Default::default()
-			},
-			commitments_hash: self.commitments_hash,
-		}
-	}
-}
-
 #[derive(Clone)]
 struct TestState {
 	para_id: ParaId,
-	validators: Vec<Sr25519Keyring>,
 	session_info: SessionInfo,
 	group_rotation_info: GroupRotationInfo,
 	validator_peer_id: Vec<PeerId>,
@@ -121,12 +99,17 @@ impl Default for TestState {
 
 		Self {
 			para_id,
-			validators,
 			session_info: SessionInfo {
 				validators: validator_public,
 				discovery_keys,
 				validator_groups,
-				..Default::default()
+				assignment_keys: vec![],
+				n_cores: 0,
+				zeroth_delay_tranche_width: 0,
+				relay_vrf_modulo_samples: 0,
+				n_delay_tranches: 0,
+				no_show_slots: 0,
+				needed_approvals: 0,
 			},
 			group_rotation_info,
 			validator_peer_id,
