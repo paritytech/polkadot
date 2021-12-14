@@ -250,6 +250,7 @@ impl OrderingProvider {
 		mut head_number: BlockNumber,
 	) -> Result<Vec<Hash>> {
 		const ANCESTRY_STEP: usize = 10;
+		const ANCESTRY_SIZE_LIMIT: usize = 1000;
 
 		let mut ancestors = Vec::new();
 
@@ -281,8 +282,11 @@ impl OrderingProvider {
 			let block_numbers = (earliest_block_number..head_number).rev();
 
 			for (block_number, hash) in block_numbers.zip(&hashes) {
+				// Return if we either met finalized/cached block or
+				// hit the size limit for the returned ancestry of head.
 				if self.last_observed_blocks.get(&head).is_some() ||
-					block_number <= finalized_block_number
+					block_number <= finalized_block_number ||
+					ancestors.len() >= ANCESTRY_SIZE_LIMIT
 				{
 					return Ok(ancestors)
 				}
