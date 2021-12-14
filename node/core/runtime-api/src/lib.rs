@@ -335,12 +335,52 @@ where
 {
 	let _timer = metrics.time_make_runtime_api_request();
 
+	// The version of the `ParachainHost` runtime API that we are absolutely sure is deployed widely
+	// on all supported networks: Rococo, Kusama, Polkadot and perhaps others like Versi.
+	//
+	// This version is used for eliding unnecessary runtime API calls. It is safer to keep the lower
+	// version.
+	const WIDELY_DEPLOYED_API_VERSION: u32 = 1;
+
 	macro_rules! query {
-		($req_variant:ident, $api_name:ident ($($param:expr),*), $sender:expr) => {{
+		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
-			let res = api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
-				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
+
+			let runtime_version = if $version > WIDELY_DEPLOYED_API_VERSION {
+				use sp_api::ApiExt;
+				api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+					.unwrap_or_else(|e| {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"cannot query the runtime API version: {}",
+							e,
+						);
+						Some(WIDELY_DEPLOYED_API_VERSION)
+					})
+					.unwrap_or_else(|| {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"no runtime version is reported"
+						);
+						WIDELY_DEPLOYED_API_VERSION
+					})
+			} else {
+				// The required version is less or equal to the widely deployed runtime API version.
+				WIDELY_DEPLOYED_API_VERSION
+			};
+
+			let res = if runtime_version <= $version {
+				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
+					.map_err(|e| RuntimeApiError::Execution {
+						runtime_api_name: stringify!($api_name),
+						source: std::sync::Arc::new(e),
+					})
+			} else {
+				Err(RuntimeApiError::NotSupported {
+					runtime_api_name: stringify!($api_name),
+				})
+			};
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
 
@@ -349,36 +389,58 @@ where
 	}
 
 	match request {
-		Request::Authorities(sender) => query!(Authorities, authorities(), sender),
-		Request::Validators(sender) => query!(Validators, validators(), sender),
-		Request::ValidatorGroups(sender) => query!(ValidatorGroups, validator_groups(), sender),
+		Request::Authorities(sender) => query!(Authorities, authorities(), ver = 1, sender),
+		Request::Validators(sender) => query!(Validators, validators(), ver = 1, sender),
+		Request::ValidatorGroups(sender) =>
+			query!(ValidatorGroups, validator_groups(), ver = 1, sender),
 		Request::AvailabilityCores(sender) =>
-			query!(AvailabilityCores, availability_cores(), sender),
-		Request::PersistedValidationData(para, assumption, sender) =>
-			query!(PersistedValidationData, persisted_validation_data(para, assumption), sender),
+			query!(AvailabilityCores, availability_cores(), ver = 1, sender),
+		Request::PersistedValidationData(para, assumption, sender) => query!(
+			PersistedValidationData,
+			persisted_validation_data(para, assumption),
+			ver = 1,
+			sender
+		),
 		Request::AssumedValidationData(para, expected_persisted_validation_data_hash, sender) =>
 			query!(
 				AssumedValidationData,
 				assumed_validation_data(para, expected_persisted_validation_data_hash),
+				ver = 1,
 				sender
 			),
-		Request::CheckValidationOutputs(para, commitments, sender) =>
-			query!(CheckValidationOutputs, check_validation_outputs(para, commitments), sender),
+		Request::CheckValidationOutputs(para, commitments, sender) => query!(
+			CheckValidationOutputs,
+			check_validation_outputs(para, commitments),
+			ver = 1,
+			sender
+		),
 		Request::SessionIndexForChild(sender) =>
-			query!(SessionIndexForChild, session_index_for_child(), sender),
+			query!(SessionIndexForChild, session_index_for_child(), ver = 1, sender),
 		Request::ValidationCode(para, assumption, sender) =>
-			query!(ValidationCode, validation_code(para, assumption), sender),
-		Request::ValidationCodeByHash(validation_code_hash, sender) =>
-			query!(ValidationCodeByHash, validation_code_by_hash(validation_code_hash), sender),
-		Request::CandidatePendingAvailability(para, sender) =>
-			query!(CandidatePendingAvailability, candidate_pending_availability(para), sender),
-		Request::CandidateEvents(sender) => query!(CandidateEvents, candidate_events(), sender),
-		Request::SessionInfo(index, sender) => query!(SessionInfo, session_info(index), sender),
-		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), sender),
+			query!(ValidationCode, validation_code(para, assumption), ver = 1, sender),
+		Request::ValidationCodeByHash(validation_code_hash, sender) => query!(
+			ValidationCodeByHash,
+			validation_code_by_hash(validation_code_hash),
+			ver = 1,
+			sender
+		),
+		Request::CandidatePendingAvailability(para, sender) => query!(
+			CandidatePendingAvailability,
+			candidate_pending_availability(para),
+			ver = 1,
+			sender
+		),
+		Request::CandidateEvents(sender) =>
+			query!(CandidateEvents, candidate_events(), ver = 1, sender),
+		Request::SessionInfo(index, sender) =>
+			query!(SessionInfo, session_info(index), ver = 1, sender),
+		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
 		Request::InboundHrmpChannelsContents(id, sender) =>
-			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
-		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
-		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
+			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),
+		Request::CurrentBabeEpoch(sender) =>
+			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender),
+		Request::FetchOnChainVotes(sender) =>
+			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender),
 	}
 }
 
@@ -423,7 +485,7 @@ impl metrics::Metrics for Metrics {
 			chain_api_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_runtime_api_requests_total",
+						"polkadot_parachain_runtime_api_requests_total",
 						"Number of Runtime API requests served.",
 					),
 					&["success"],
@@ -432,7 +494,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			make_runtime_api_request: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_runtime_api_make_runtime_api_request",
+					"polkadot_parachain_runtime_api_make_runtime_api_request",
 					"Time spent within `runtime_api::make_runtime_api_request`",
 				))?,
 				registry,

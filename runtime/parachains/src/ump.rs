@@ -774,7 +774,7 @@ pub(crate) mod tests {
 			assert!(!queue.is_empty());
 		}
 
-		// actually count the counts and sizes in queues and compare them to the bookkeeped version.
+		// actually count the counts and sizes in queues and compare them to the bookkept version.
 		for (para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
 			let (expected_count, expected_size) = <Ump as Store>::RelayDispatchQueueSize::get(para);
 			let (actual_count, actual_size) =
@@ -934,7 +934,7 @@ pub(crate) mod tests {
 		)
 		.execute_with(|| {
 			// We want to test here an edge case, where we remove the queue with the highest
-			// para id (i.e. last in the needs_dispatch order).
+			// para id (i.e. last in the `needs_dispatch` order).
 			//
 			// If the last entry was removed we should proceed execution, assuming we still have
 			// weight available.

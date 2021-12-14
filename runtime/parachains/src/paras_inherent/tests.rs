@@ -203,7 +203,7 @@ mod enter {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();
-			// No backed and concluding cores, so all cores will be filld with disputes.
+			// No backed and concluding cores, so all cores will be filled with disputes.
 			let backed_and_concluding = BTreeMap::new();
 
 			let scenario = make_inherent_data(TestConfig {
@@ -749,6 +749,7 @@ mod sanitizers {
 		AvailabilityBitfield, GroupIndex, Hash, Id as ParaId, SignedAvailabilityBitfield,
 		ValidatorIndex,
 	};
+	use sp_core::crypto::UncheckedFrom;
 
 	use crate::mock::Test;
 	use futures::executor::block_on;
@@ -966,14 +967,13 @@ mod sanitizers {
 
 		// check the validators signature
 		{
-			use primitives::v1::ValidatorSignature;
 			let mut unchecked_bitfields = unchecked_bitfields.clone();
 
 			// insert a bad signature for the last bitfield
 			let last_bit_idx = unchecked_bitfields.len() - 1;
 			unchecked_bitfields
 				.get_mut(last_bit_idx)
-				.and_then(|u| Some(u.set_signature(ValidatorSignature::default())))
+				.and_then(|u| Some(u.set_signature(UncheckedFrom::unchecked_from([1u8; 64]))))
 				.expect("we are accessing a valid index");
 			assert_eq!(
 				&sanitize_bitfields::<Test>(

@@ -25,6 +25,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 use polkadot_primitives::v1::Hash;
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use std::{
 	pin::Pin,
 	sync::{
@@ -68,8 +69,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 	//
 	// this function is in charge of creating and executing the job's main loop
 	fn run<S: SubsystemSender>(
-		_: Hash,
-		_: Arc<jaeger::Span>,
+		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
@@ -82,7 +82,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 				sender
 					.send_message(CollatorProtocolMessage::Invalid(
 						Default::default(),
-						Default::default(),
+						dummy_candidate_receipt(dummy_hash()),
 					))
 					.await;
 			}

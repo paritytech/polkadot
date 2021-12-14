@@ -102,4 +102,9 @@ pub use metrics::Metrics;
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
 pub use prepare::worker_entrypoint as prepare_worker_entrypoint;
 
+pub use executor_intf::{prepare, prevalidate};
+
+pub use sc_executor_common;
+pub use sp_maybe_compressed_blob;
+
 const LOG_TARGET: &str = "parachain::pvf";
