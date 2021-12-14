@@ -14,11 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand};
-use crate::service;
-use crate::service::new_partial;
+use crate::{
+	cli::{Cli, Subcommand},
+	service,
+	service::new_partial,
+};
 use millau_runtime::{Block, RuntimeApi};
-use sc_cli::{ChainSpec, Role, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 
 impl SubstrateCli for Cli {
@@ -70,24 +72,23 @@ impl SubstrateCli for Cli {
 pub fn run() -> sc_cli::Result<()> {
 	let cli = Cli::from_args();
 	// make sure to set correct crypto version.
-	sp_core::crypto::set_default_ss58_version(sp_core::crypto::Ss58AddressFormat::Custom(
+	sp_core::crypto::set_default_ss58_version(sp_core::crypto::Ss58AddressFormat::custom(
 		millau_runtime::SS58Prefix::get() as u16,
 	));
 
 	match &cli.subcommand {
-		Some(Subcommand::Benchmark(cmd)) => {
+		Some(Subcommand::Benchmark(cmd)) =>
 			if cfg!(feature = "runtime-benchmarks") {
 				let runner = cli.create_runner(cmd)?;
 
-				runner.sync_run(|config| cmd.run::<Block, service::Executor>(config))
+				runner.sync_run(|config| cmd.run::<Block, service::ExecutorDispatch>(config))
 			} else {
 				println!(
 					"Benchmarking wasn't enabled when building the node. \
 				You can enable it with `--features runtime-benchmarks`."
 				);
 				Ok(())
-			}
-		}
+			},
 		Some(Subcommand::Key(cmd)) => cmd.run(&cli),
 		Some(Subcommand::Sign(cmd)) => cmd.run(),
 		Some(Subcommand::Verify(cmd)) => cmd.run(),
@@ -95,78 +96,58 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
-		}
+		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents {
-					client,
-					task_manager,
-					import_queue,
-					..
-				} = new_partial(&config)?;
+				let PartialComponents { client, task_manager, import_queue, .. } =
+					new_partial(&config)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
-		}
+		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents {
-					client, task_manager, ..
-				} = new_partial(&config)?;
+				let PartialComponents { client, task_manager, .. } = new_partial(&config)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
-		}
+		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents {
-					client, task_manager, ..
-				} = new_partial(&config)?;
+				let PartialComponents { client, task_manager, .. } = new_partial(&config)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
-		}
+		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents {
-					client,
-					task_manager,
-					import_queue,
-					..
-				} = new_partial(&config)?;
+				let PartialComponents { client, task_manager, import_queue, .. } =
+					new_partial(&config)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
-		}
+		},
 		Some(Subcommand::PurgeChain(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| cmd.run(config.database))
-		}
+		},
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents {
-					client,
-					task_manager,
-					backend,
-					..
-				} = new_partial(&config)?;
+				let PartialComponents { client, task_manager, backend, .. } = new_partial(&config)?;
 				Ok((cmd.run(client, backend), task_manager))
 			})
-		}
+		},
 		Some(Subcommand::Inspect(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.sync_run(|config| cmd.run::<Block, RuntimeApi, service::Executor>(config))
-		}
+			runner
+				.sync_run(|config| cmd.run::<Block, RuntimeApi, service::ExecutorDispatch>(config))
+		},
 		None => {
 			let runner = cli.create_runner(&cli.run)?;
 			runner.run_node_until_exit(|config| async move {
-				match config.role {
-					Role::Light => service::new_light(config),
-					_ => service::new_full(config),
-				}
-				.map_err(sc_cli::Error::Service)
+				service::new_full(config).map_err(sc_cli::Error::Service)
 			})
-		}
+		},
 	}
 }

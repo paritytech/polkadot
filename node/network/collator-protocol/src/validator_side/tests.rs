@@ -30,8 +30,11 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	CandidateDescriptor, CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore,
-	ScheduledCore, ValidatorId, ValidatorIndex,
+	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
+	ValidatorId, ValidatorIndex,
+};
+use polkadot_primitives_test_helpers::{
+	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
 };
 use polkadot_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_subsystem_testhelpers as test_helpers;
@@ -44,7 +47,6 @@ struct TestState {
 	chain_ids: Vec<ParaId>,
 	relay_parent: Hash,
 	collators: Vec<CollatorPair>,
-	validators: Vec<Sr25519Keyring>,
 	validator_public: Vec<ValidatorId>,
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	group_rotation_info: GroupRotationInfo,
@@ -90,7 +92,7 @@ impl Default for TestState {
 				group_responsible: GroupIndex(0),
 				candidate_hash: Default::default(),
 				candidate_descriptor: {
-					let mut d = CandidateDescriptor::default();
+					let mut d = dummy_candidate_descriptor(dummy_hash());
 					d.para_id = chain_ids[1];
 
 					d
@@ -102,7 +104,6 @@ impl Default for TestState {
 			chain_ids,
 			relay_parent,
 			collators,
-			validators,
 			validator_public,
 			validator_groups,
 			group_rotation_info,
@@ -494,7 +495,7 @@ fn collator_authentication_verification_works() {
 //	our view.
 //	- Collation protocol should request one PoV.
 //	- Collation protocol should disconnect both collators after having received the collation.
-//	- The same collators plus an additional collator connect again and send povs for a different relay parent.
+//	- The same collators plus an additional collator connect again and send `PoV`s for a different relay parent.
 //	- Collation protocol will request one PoV, but we will cancel it.
 //	- Collation protocol should request the second PoV which does not succeed in time.
 //	- Collation protocol should request third PoV.
@@ -553,7 +554,8 @@ fn fetch_collations_works() {
 		);
 
 		let pov = PoV { block_data: BlockData(vec![]) };
-		let mut candidate_a = CandidateReceipt::default();
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
@@ -645,7 +647,8 @@ fn fetch_collations_works() {
 				.await;
 
 		let pov = PoV { block_data: BlockData(vec![1]) };
-		let mut candidate_a = CandidateReceipt::default();
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = second;
 
@@ -697,7 +700,7 @@ fn reject_connection_to_next_group() {
 			&mut virtual_overseer,
 			peer_b.clone(),
 			test_state.collators[0].clone(),
-			test_state.chain_ids[1].clone(), // next, not current para_id
+			test_state.chain_ids[1].clone(), // next, not current `para_id`
 		)
 		.await;
 
@@ -769,7 +772,8 @@ fn fetch_next_collation_on_invalid_collation() {
 		.await;
 
 		let pov = PoV { block_data: BlockData(vec![]) };
-		let mut candidate_a = CandidateReceipt::default();
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel

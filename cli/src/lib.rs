@@ -22,6 +22,10 @@
 mod cli;
 #[cfg(feature = "cli")]
 mod command;
+#[cfg(feature = "cli")]
+mod error;
+#[cfg(all(feature = "cli", build_type = "release"))]
+mod host_perf_check;
 
 #[cfg(feature = "full-node")]
 pub use service::RuntimeApiCollection;

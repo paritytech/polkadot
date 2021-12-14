@@ -6,7 +6,10 @@ Install dependencies:
 ```
 $ sudo apt install build-essential binutils-dev libunwind-dev
 ```
-
+or on nix:
+```
+$ nix-shell -p honggfuzz
+```
 
 Install `cargo hfuzz` plugin:
 ```
@@ -29,4 +32,3 @@ HFUZZ_RUN_ARGS="-t 1 -n 12 -v -N 1000000 --exit_upon_crash" cargo hfuzz run exam
 ```
 
 More details in the [official documentation](https://docs.rs/honggfuzz/0.5.52/honggfuzz/#about-honggfuzz).
-
