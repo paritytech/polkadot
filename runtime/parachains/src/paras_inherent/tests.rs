@@ -478,7 +478,10 @@ mod enter {
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 			assert_ne!(limit_inherent_data, expected_para_inherent_data);
-			assert!(inherent_data_weight(&limit_inherent_data) <= inherent_data_weight(&expected_para_inherent_data));
+			assert!(
+				inherent_data_weight(&limit_inherent_data) <=
+					inherent_data_weight(&expected_para_inherent_data)
+			);
 			assert!(inherent_data_weight(&limit_inherent_data) <= max_block_weight());
 
 			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
@@ -574,16 +577,25 @@ mod enter {
 	fn inherent_data_weight(inherent_data: &ParachainsInherentData) -> Weight {
 		use thousands::Separable;
 
-		let multi_dispute_statement_sets_weight = multi_dispute_statement_sets_weight::<Test, _,_>(&inherent_data.disputes);
-		let signed_bitfields_weight = signed_bitfields_weight::<Test>(inherent_data.bitfields.len());
-		let backed_candidates_weight = backed_candidates_weight::<Test>(&inherent_data.backed_candidates);
+		let multi_dispute_statement_sets_weight =
+			multi_dispute_statement_sets_weight::<Test, _, _>(&inherent_data.disputes);
+		let signed_bitfields_weight =
+			signed_bitfields_weight::<Test>(inherent_data.bitfields.len());
+		let backed_candidates_weight =
+			backed_candidates_weight::<Test>(&inherent_data.backed_candidates);
 
-		let sum = multi_dispute_statement_sets_weight + signed_bitfields_weight + backed_candidates_weight;
+		let sum = multi_dispute_statement_sets_weight +
+			signed_bitfields_weight +
+			backed_candidates_weight;
 
-		println!("disputes({})={} + bitfields({})={} + candidates({})={} -> {}",
-			inherent_data.disputes.len(), multi_dispute_statement_sets_weight.separate_with_underscores(),
-			inherent_data.bitfields.len(), signed_bitfields_weight.separate_with_underscores(),
-			inherent_data.backed_candidates.len(), backed_candidates_weight.separate_with_underscores(),
+		println!(
+			"disputes({})={} + bitfields({})={} + candidates({})={} -> {}",
+			inherent_data.disputes.len(),
+			multi_dispute_statement_sets_weight.separate_with_underscores(),
+			inherent_data.bitfields.len(),
+			signed_bitfields_weight.separate_with_underscores(),
+			inherent_data.backed_candidates.len(),
+			backed_candidates_weight.separate_with_underscores(),
 			sum.separate_with_underscores()
 		);
 		sum
@@ -615,7 +627,9 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
-			assert!(dbg!(max_block_weight()) < dbg!(inherent_data_weight(&expected_para_inherent_data)));
+			assert!(
+				dbg!(max_block_weight()) < dbg!(inherent_data_weight(&expected_para_inherent_data))
+			);
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
@@ -633,8 +647,12 @@ mod enter {
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
-			assert!(max_block_weight() >= inherent_data_weight(&limit_inherent_data), "Post limiting exceeded block weight: max={} vs. inherent={}", max_block_weight(), inherent_data_weight(&limit_inherent_data));
-
+			assert!(
+				max_block_weight() >= inherent_data_weight(&limit_inherent_data),
+				"Post limiting exceeded block weight: max={} vs. inherent={}",
+				max_block_weight(),
+				inherent_data_weight(&limit_inherent_data)
+			);
 
 			// * 1 bitfields
 			assert_eq!(limit_inherent_data.bitfields.len(), 25);

@@ -141,9 +141,8 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 				(None, None) => a.session.cmp(&b.session),
 			}
 		});
-		statement_sets.dedup_by(|a, b| {
-			a.session == b.session && a.candidate_hash == b.candidate_hash
-		});
+		statement_sets
+			.dedup_by(|a, b| a.session == b.session && a.candidate_hash == b.candidate_hash);
 
 		// if there were any duplicates, indicate that to the caller.
 		if n == statement_sets.len() {
@@ -1263,12 +1262,14 @@ fn check_signature(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{
-		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
-		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
-		REWARD_VALIDATORS,
+	use crate::{
+		disputes::DisputesHandler,
+		mock::{
+			new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
+			Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
+			REWARD_VALIDATORS,
+		},
 	};
-	use crate::disputes::DisputesHandler;
 	use frame_support::{
 		assert_err, assert_noop, assert_ok,
 		traits::{OnFinalize, OnInitialize},
@@ -1596,7 +1597,9 @@ mod tests {
 			}];
 
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()),
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
 				vec![(9, candidate_hash.clone())],
 			);
 			assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
@@ -1682,9 +1685,7 @@ mod tests {
 				},
 			];
 
-			assert!(
-				Pallet::<Test>::deduplicate_and_sort_dispute_data(&mut stmts).is_err()
-			);
+			assert!(Pallet::<Test>::deduplicate_and_sort_dispute_data(&mut stmts).is_err());
 			assert_eq!(stmts.len(), 2);
 		})
 	}
@@ -1745,7 +1746,9 @@ mod tests {
 			}];
 
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()),
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
 				vec![(1, candidate_hash.clone())],
 			);
 
@@ -1768,7 +1771,9 @@ mod tests {
 			}];
 
 			assert_noop!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()),
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
 				DispatchError::from(Error::<Test>::InvalidSignature),
 			);
 		})
@@ -1835,7 +1840,10 @@ mod tests {
 					),
 				],
 			}];
-			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()).is_ok());
+			assert!(Pallet::<Test>::provide_multi_dispute_data(
+				stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+			)
+			.is_ok());
 
 			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
 			assert_eq!(Frozen::<Test>::get(), Some(2));
@@ -1905,7 +1913,10 @@ mod tests {
 			}];
 
 			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
-			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()).is_ok());
+			assert!(Pallet::<Test>::provide_multi_dispute_data(
+				stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+			)
+			.is_ok());
 			assert_eq!(Frozen::<Test>::get(), Some(2));
 		});
 	}
@@ -1998,7 +2009,9 @@ mod tests {
 			}];
 
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()),
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
 				vec![(3, candidate_hash.clone())],
 			);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
@@ -2054,7 +2067,9 @@ mod tests {
 			];
 
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()),
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
 				vec![(4, candidate_hash.clone())],
 			);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0])); // Confirmed as no longer spam
@@ -2110,7 +2125,9 @@ mod tests {
 				},
 			];
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()),
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
 				vec![(5, candidate_hash.clone())],
 			);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
@@ -2152,7 +2169,12 @@ mod tests {
 					)],
 				},
 			];
-			assert_ok!(Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()), vec![]);
+			assert_ok!(
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
+				vec![]
+			);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
 			assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 0, 0, 0, 0, 0]));
@@ -2233,7 +2255,12 @@ mod tests {
 					],
 				},
 			];
-			assert_ok!(Pallet::<Test>::provide_multi_dispute_data(stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()), vec![]);
+			assert_ok!(
+				Pallet::<Test>::provide_multi_dispute_data(
+					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				),
+				vec![]
+			);
 
 			assert_eq!(
 				Pallet::<Test>::disputes(),
@@ -2832,19 +2859,21 @@ mod tests {
 		.is_err());
 	}
 
-	fn apply_filter_all<T: Config, I: IntoIterator<Item=DisputeStatementSet>>(sets: I ) -> Vec<CheckedDisputeStatementSet> {
+	fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
+		sets: I,
+	) -> Vec<CheckedDisputeStatementSet> {
 		// let __prev_root = $crate::storage_root();
 		let config = <configuration::Pallet<T>>::config();
 		let max_spam_slots = config.dispute_max_spam_slots;
-		let post_conclusion_acceptance_period =
-			config.dispute_post_conclusion_acceptance_period;
+		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 		let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 		for dispute_statement in sets {
-			if let Some(checked) = <Pallet::<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
-				dispute_statement,
-				max_spam_slots,
-				post_conclusion_acceptance_period
+			if let Some(checked) =
+				<Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
+					dispute_statement,
+					max_spam_slots,
+					post_conclusion_acceptance_period,
 				) {
 				acc.push(checked);
 			}
@@ -2915,11 +2944,15 @@ mod tests {
 						sig_d.clone(),
 					),
 				],
-		};
+			};
 
 			let max_spam_slots = 10;
 			let post_conclusion_acceptance_period = 10;
-			let statements = <Pallet<Test> as DisputesHandler<<Test as frame_system::Config>::BlockNumber>>::filter_dispute_data(statements, max_spam_slots, post_conclusion_acceptance_period);
+			let statements = <Pallet<Test> as DisputesHandler<
+				<Test as frame_system::Config>::BlockNumber,
+			>>::filter_dispute_data(
+				statements, max_spam_slots, post_conclusion_acceptance_period
+			);
 
 			assert_eq!(
 				statements,
@@ -3141,13 +3174,14 @@ mod tests {
 				},
 			];
 
-			let old_statements = statements.clone().into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect::<Vec<_>>();
+			let old_statements = statements
+				.clone()
+				.into_iter()
+				.map(CheckedDisputeStatementSet::from_unchecked)
+				.collect::<Vec<_>>();
 			let statements = apply_filter_all::<Test, _>(statements);
 
-			assert_eq!(
-				statements,
-				old_statements
-			);
+			assert_eq!(statements, old_statements);
 		})
 	}
 
@@ -3365,7 +3399,10 @@ mod tests {
 			];
 
 			// `Err(())` indicates presence of duplicates
-			assert!(<Pallet::<Test> as DisputesHandler<<Test as frame_system::Config>::BlockNumber>>::deduplicate_and_sort_dispute_data(&mut statements).is_err());
+			assert!(<Pallet::<Test> as DisputesHandler<
+				<Test as frame_system::Config>::BlockNumber,
+			>>::deduplicate_and_sort_dispute_data(&mut statements)
+			.is_err());
 
 			assert_eq!(
 				statements,
@@ -3458,9 +3495,7 @@ mod tests {
 			}];
 
 			let statements = apply_filter_all::<Test, _>(statements);
-			assert!(
-				statements.is_empty()
-			);
+			assert!(statements.is_empty());
 		})
 	}
 }
