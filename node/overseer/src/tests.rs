@@ -895,12 +895,12 @@ fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 		session_index: 0,
 		invalid_vote: InvalidDisputeVote {
 			validator_index: ValidatorIndex(0),
-			signature: Default::default(),
+			signature: sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 			kind: InvalidDisputeStatementKind::Explicit,
 		},
 		valid_vote: ValidDisputeVote {
 			validator_index: ValidatorIndex(0),
-			signature: Default::default(),
+			signature: sp_core::crypto::UncheckedFrom::unchecked_from([2u8; 64]),
 			kind: ValidDisputeStatementKind::Explicit,
 		},
 	};

@@ -56,7 +56,7 @@ use polkadot_primitives::v1::{
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_application_crypto::AppKey;
-use sp_core::{traits::SpawnNamed, Public};
+use sp_core::{traits::SpawnNamed, ByteArray};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use std::{
 	collections::{hash_map::Entry, HashMap},

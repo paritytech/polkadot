@@ -633,6 +633,16 @@ where
 		Ok(())
 	}
 
+	fn pre_dispatch(
+		self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		info: &DispatchInfoOf<Self::Call>,
+		len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(self.validate(who, call, info, len).map(|_| ())?)
+	}
+
 	// <weight>
 	// The weight of this logic is included in the `attest` dispatchable.
 	// </weight>
