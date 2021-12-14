@@ -23,6 +23,13 @@ primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
 log = "0.4.13"
 
+[dev-dependencies]
+assert_cmd = "2.0.2"
+nix = "0.23.0"
+tempfile = "3.2.0"
+hyper = { version = "0.14.14", default-features = false, features = ["http1", "tcp"] }
+tokio = "1.13"
+
 [features]
 default = []
 runtime-metrics = []
