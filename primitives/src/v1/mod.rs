@@ -1359,7 +1359,7 @@ impl AsRef<DisputeStatementSet> for DisputeStatementSet {
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 /// A _checked_ set of dispute statements.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, RuntimeDebug)]
 pub struct CheckedDisputeStatementSet(DisputeStatementSet);
 
 impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {
@@ -1371,6 +1371,12 @@ impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {
 impl Into<DisputeStatementSet> for CheckedDisputeStatementSet {
 	fn into(self) -> DisputeStatementSet {
 		self.0
+	}
+}
+
+impl core::cmp::PartialEq<DisputeStatementSet> for CheckedDisputeStatementSet {
+	fn eq(&self, other: &DisputeStatementSet) -> bool {
+		self.0.eq(other)
 	}
 }
 

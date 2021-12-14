@@ -565,6 +565,28 @@ mod enter {
 		});
 	}
 
+	fn max_block_weight() -> Weight {
+		<Test as frame_system::Config>::BlockWeights::get().max_block
+	}
+
+	fn inherent_data_weight(inherent_data: &ParachainsInherentData) -> Weight {
+		use thousands::Separable;
+
+		let multi_dispute_statement_sets_weight = multi_dispute_statement_sets_weight::<Test, _,_>(&inherent_data.disputes);
+		let signed_bitfields_weight = signed_bitfields_weight::<Test>(inherent_data.bitfields.len());
+		let backed_candidates_weight = backed_candidates_weight::<Test>(&inherent_data.backed_candidates);
+
+		let sum = multi_dispute_statement_sets_weight + signed_bitfields_weight + backed_candidates_weight;
+
+		println!("disputes({})={} + bitfields({})={} + candidates({})={} -> {}",
+			inherent_data.disputes.len(), multi_dispute_statement_sets_weight.separate_with_underscores(),
+			inherent_data.bitfields.len(), signed_bitfields_weight.separate_with_underscores(),
+			inherent_data.backed_candidates.len(), backed_candidates_weight.separate_with_underscores(),
+			sum.separate_with_underscores()
+		);
+		sum
+	}
+
 	#[test]
 	// Ensure that when a block is over weight due to disputes and bitfields, we abort
 	fn limit_candidates_over_weight_1() {
