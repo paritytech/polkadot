@@ -1138,17 +1138,15 @@ fn limit_and_sanitize_disputes<
 		indices.sort();
 
 		// Add the remote disputes after checking their validity.
-		checked_acc.extend(
-			indices
-				.into_iter()
-				.filter_map(|idx| dispute_statement_set_valid(remote_disputes[idx].clone()).map(|cdss| {
-					let weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
-						cdss.as_ref().statements.len() as u32,
-					);
-					weight_acc = weight_acc.saturating_add(weight);
-					cdss
-				})),
-		);
+		checked_acc.extend(indices.into_iter().filter_map(|idx| {
+			dispute_statement_set_valid(remote_disputes[idx].clone()).map(|cdss| {
+				let weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
+					cdss.as_ref().statements.len() as u32,
+				);
+				weight_acc = weight_acc.saturating_add(weight);
+				cdss
+			})
+		}));
 
 		// Update the remaining weight
 		(checked_acc, weight_acc)
