@@ -21,6 +21,7 @@ use bp_runtime::Chain;
 use frame_support::{
 	dispatch::Dispatchable,
 	parameter_types,
+	unsigned::TransactionValidityError,
 	weights::{
 		constants::{BlockExecutionWeight, WEIGHT_PER_SECOND},
 		DispatchClass, Weight,
@@ -33,7 +34,7 @@ use scale_info::{StaticTypeInfo, TypeInfo};
 use sp_core::Hasher as HasherT;
 use sp_runtime::{
 	generic,
-	traits::{BlakeTwo256, IdentifyAccount, Verify},
+	traits::{BlakeTwo256, DispatchInfoOf, IdentifyAccount, Verify},
 	MultiAddress, MultiSignature, OpaqueExtrinsic,
 };
 use sp_std::prelude::Vec;
@@ -343,10 +344,18 @@ where
 	type AdditionalSigned = AdditionalSigned;
 	type Pre = ();
 
-	fn additional_signed(
-		&self,
-	) -> Result<Self::AdditionalSigned, frame_support::unsigned::TransactionValidityError> {
+	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
 		Ok(self.additional_signed)
+	}
+
+	fn pre_dispatch(
+		self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		info: &DispatchInfoOf<Self::Call>,
+		len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(self.validate(who, call, info, len).map(|_| ())?)
 	}
 }
 

@@ -155,7 +155,7 @@ fn testnet_genesis(
 		balances: rialto_parachain_runtime::BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 60)).collect(),
 		},
-		sudo: rialto_parachain_runtime::SudoConfig { key: root_key },
+		sudo: rialto_parachain_runtime::SudoConfig { key: Some(root_key) },
 		parachain_info: rialto_parachain_runtime::ParachainInfoConfig { parachain_id: id },
 		aura: rialto_parachain_runtime::AuraConfig { authorities: initial_authorities },
 		aura_ext: Default::default(),
