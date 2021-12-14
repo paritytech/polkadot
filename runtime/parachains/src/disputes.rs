@@ -1696,11 +1696,8 @@ mod tests {
 		})
 	}
 
-	// Test:
-	// * wrong signature fails
-	// * signature is checked for correct validator
 	#[test]
-	fn test_provide_multi_dispute_is_checking_signature_correctly() {
+	fn test_provide_multi_dispute_is_providing() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -1756,31 +1753,6 @@ mod tests {
 					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
 				),
 				vec![(1, candidate_hash.clone())],
-			);
-
-			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-			let stmts = vec![DisputeStatementSet {
-				candidate_hash: candidate_hash.clone(),
-				session: 2,
-				statements: vec![(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-					ValidatorIndex(0),
-					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 2,
-						}
-						.signing_payload(),
-					),
-				)],
-			}];
-
-			assert_noop!(
-				Pallet::<Test>::provide_multi_dispute_data(
-					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
-				),
-				DispatchError::from(Error::<Test>::InvalidSignature),
 			);
 		})
 	}
@@ -2868,7 +2840,6 @@ mod tests {
 	fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 		sets: I,
 	) -> Vec<CheckedDisputeStatementSet> {
-		// let __prev_root = $crate::storage_root();
 		let config = <configuration::Pallet<T>>::config();
 		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
@@ -2885,7 +2856,6 @@ mod tests {
 				acc.push(checked);
 			}
 		}
-		// assert_eq!(__prev_root, $crate::storage_root());
 		acc
 	}
 
