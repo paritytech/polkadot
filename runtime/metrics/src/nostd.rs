@@ -1,4 +1,18 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 const TRACING_TARGET: &'static str = "metrics";
 
@@ -16,22 +30,18 @@ pub struct Counter {
 	name: &'static str,
 }
 
-fn emit_metric(metric_op: &[u8]) {
-	// `from_utf8_unchecked` is safe in this context:
-	// We cannot guarantee that the input slice is a valid UTF-8, but the `bs58` encoding
-	// provides that guarantee forward. We just need to `transmute` as the layout of `&str`
-	// and `&[u8]` is the same.
-
-	unsafe {
-		let metric_op = bs58::encode(sp_std::str::from_utf8_unchecked(&metric_op)).into_string();
-
+trait MetricEmitter {
+	fn emit(metric_op: &RuntimeMetricUpdate) {
 		sp_tracing::event!(
 			target: TRACING_TARGET,
 			sp_tracing::Level::TRACE,
-			update_op = metric_op.as_str()
+			update_op = bs58::encode(&metric_op.encode()).into_string().as_str()
 		);
 	}
 }
+
+impl MetricEmitter for CounterVec {}
+impl MetricEmitter for Counter {}
 
 impl CounterVec {
 	/// Create a new counter metric with specified `labels`.
@@ -43,10 +53,9 @@ impl CounterVec {
 				sp_std::vec::Vec::from(description),
 				Some(labels.into()),
 			)),
-		}
-		.encode();
+		};
 
-		emit_metric(&metric_update);
+		Self::emit(&metric_update);
 
 		CounterVec { name, label_values: None }
 	}
@@ -63,10 +72,9 @@ impl CounterVec {
 			let metric_update = RuntimeMetricUpdate {
 				metric_name: sp_std::vec::Vec::from(self.name),
 				op: RuntimeMetricOp::IncrementCounterVec(value, label_values),
-			}
-			.encode();
+			};
 
-			emit_metric(&metric_update);
+			Self::emit(&metric_update);
 		});
 	}
 
@@ -86,11 +94,9 @@ impl Counter {
 				sp_std::vec::Vec::from(description),
 				None,
 			)),
-		}
-		.encode();
+		};
 
-		emit_metric(&metric_update);
-
+		Self::emit(&metric_update);
 		Counter { name }
 	}
 
@@ -99,10 +105,9 @@ impl Counter {
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: sp_std::vec::Vec::from(self.name),
 			op: RuntimeMetricOp::IncrementCounter(value),
-		}
-		.encode();
+		};
 
-		emit_metric(&metric_update);
+		Self::emit(&metric_update);
 	}
 
 	/// Increment by 1.

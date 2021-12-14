@@ -276,11 +276,6 @@ where
 	})
 }
 
-/// TODO: Start the node with support for publishing runtime metrics.
-pub fn run_with_wasm_metrics() -> Result<()> {
-	Ok(())
-}
-
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
 	let cli: Cli = Cli::from_args();
