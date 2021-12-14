@@ -29,7 +29,7 @@ use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
 use super::{
-	error::{Fatal, FatalResult, NonFatal, Result},
+	error::{Fatal, FatalResult, Result},
 	LOG_TARGET,
 };
 
@@ -274,7 +274,7 @@ impl OrderingProvider {
 					)
 					.await;
 
-				rx.await.map_err(NonFatal::Oneshot)?.map_err(NonFatal::ChainApi)?
+				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
 			};
 
 			let earliest_block_number = head_number - hashes.len() as u32;
