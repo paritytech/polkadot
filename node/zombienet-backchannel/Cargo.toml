@@ -4,7 +4,7 @@ description = "Zombienet backchannel to notify test runner and coordinate with m
 license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 readme = "README.md"
 publish = false
 
