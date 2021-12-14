@@ -2195,7 +2195,7 @@ fn subsystem_validate_approvals_cache() {
 		let block_hash = Hash::repeat_byte(0x01);
 		let fork_block_hash = Hash::repeat_byte(0x02);
 		let candidate_commitments = CandidateCommitments::default();
-		let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+		let mut candidate_receipt = dummy_candidate_receipt(block_hash);
 		candidate_receipt.commitments_hash = candidate_commitments.hash();
 		let candidate_hash = candidate_receipt.hash();
 		let slot = Slot::from(1);
@@ -2225,6 +2225,7 @@ fn subsystem_validate_approvals_cache() {
 			no_show_slots: 2,
 		};
 
+		let candidates = Some(vec![(candidate_receipt.clone(), CoreIndex(0), GroupIndex(0))]);
 		ChainBuilder::new()
 			.add_block(
 				block_hash,
@@ -2232,11 +2233,7 @@ fn subsystem_validate_approvals_cache() {
 				1,
 				BlockConfig {
 					slot,
-					candidates: Some(vec![(
-						candidate_receipt.clone(),
-						CoreIndex(0),
-						GroupIndex(0),
-					)]),
+					candidates: candidates.clone(),
 					session_info: Some(session_info.clone()),
 				},
 			)
@@ -2244,11 +2241,7 @@ fn subsystem_validate_approvals_cache() {
 				fork_block_hash,
 				ChainBuilder::GENESIS_HASH,
 				1,
-				BlockConfig {
-					slot,
-					candidates: Some(vec![(candidate_receipt, CoreIndex(0), GroupIndex(0))]),
-					session_info: Some(session_info),
-				},
+				BlockConfig { slot, candidates, session_info: Some(session_info) },
 			)
 			.build(&mut virtual_overseer)
 			.await;
