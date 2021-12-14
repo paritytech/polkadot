@@ -14,7 +14,6 @@ bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 
 [features]
 default = ["std"]
-no_std = []
 std = [
 	"sp-std/std",
 	"sp-tracing/std",

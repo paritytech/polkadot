@@ -162,7 +162,7 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 			return
 		}
 
-		if let Some(update_op_bs58) = event.values.string_values.get("params").cloned() {
+		if let Some(update_op_bs58) = event.values.string_values.get("params") {
 			// Deserialize the metric update struct.
 			match RuntimeMetricUpdate::decode(
 				&mut RuntimeMetricsProvider::parse_event_params(&update_op_bs58)
@@ -199,7 +199,7 @@ impl RuntimeMetricsProvider {
 	}
 
 	// Returns the `bs58` encoded metric update operation.
-	fn parse_event_params(event_params: &String) -> Option<Vec<u8>> {
+	fn parse_event_params(event_params: &str) -> Option<Vec<u8>> {
 		// Shave " }" suffix.
 		let new_len = event_params.len().saturating_sub(2);
 		let event_params = &event_params[..new_len];
