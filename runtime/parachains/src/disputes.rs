@@ -22,7 +22,7 @@ use crate::{
 	session_info,
 };
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-use frame_support::{ensure, storage::TransactionOutcome, traits::Get, weights::Weight};
+use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
@@ -37,7 +37,7 @@ use sp_runtime::{
 	traits::{AppVerify, One, Saturating, Zero},
 	DispatchError, RuntimeDebug, SaturatedConversion,
 };
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_std::prelude::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -204,9 +204,9 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	}
 
 	fn filter_dispute_data(
-		set: DisputeStatementSet,
-		max_spam_slots: u32,
-		post_conclusion_acceptance_period: BlockNumber,
+		_set: DisputeStatementSet,
+		_max_spam_slots: u32,
+		_post_conclusion_acceptance_period: BlockNumber,
 	) -> Option<CheckedDisputeStatementSet> {
 		None
 	}
