@@ -26,6 +26,7 @@ use crate::{
 	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
 };
+use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use futures::executor::block_on;
 use keyring::Sr25519Keyring;
@@ -41,7 +42,7 @@ use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
 use test_helpers::{
-	dummy_candidate_descriptor, dummy_collator, dummy_collator_signature, dummy_hash,
+	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
 	dummy_validation_code,
 };
 
@@ -406,17 +407,18 @@ fn bitfield_checks() {
 		// mark all candidates as pending availability
 		let set_pending_av = || {
 			for (p_id, _) in paras {
+				let receipt = dummy_candidate_receipt(dummy_hash());
 				PendingAvailability::<Test>::insert(
 					p_id,
 					CandidatePendingAvailability {
 						availability_votes: default_availability_votes(),
-						core: Default::default(),
-						hash: Default::default(),
-						descriptor: dummy_candidate_descriptor(dummy_hash()),
-						backers: Default::default(),
-						relay_parent_number: Default::default(),
-						backed_in_number: Default::default(),
-						backing_group: Default::default(),
+						core: CoreIndex(0),
+						hash: receipt.hash(),
+						descriptor: receipt.descriptor,
+						backers: BitVec::default(),
+						relay_parent_number: BlockNumber::from(0_u32),
+						backed_in_number: BlockNumber::from(0_u32),
+						backing_group: GroupIndex(0),
 					},
 				)
 			}
@@ -434,7 +436,7 @@ fn bitfield_checks() {
 				&signing_context,
 			));
 
-			assert_eq!(
+			assert_matches!(
 				ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
@@ -442,7 +444,7 @@ fn bitfield_checks() {
 					&core_lookup,
 					FullCheck::Yes,
 				),
-				vec![]
+				Err(Error::<Test>::WrongBitfieldSize)
 			);
 		}
 
@@ -457,7 +459,7 @@ fn bitfield_checks() {
 				&signing_context,
 			));
 
-			assert_eq!(
+			assert_matches!(
 				ParaInclusion::process_bitfields(
 					expected_bits() + 1,
 					vec![signed.into()],
@@ -465,7 +467,7 @@ fn bitfield_checks() {
 					&core_lookup,
 					FullCheck::Yes,
 				),
-				vec![]
+				Err(Error::<Test>::WrongBitfieldSize)
 			);
 		}
 
@@ -496,21 +498,23 @@ fn bitfield_checks() {
 
 			// the threshold to free a core is 4 availability votes, but we only expect 1 valid
 			// valid bitfield.
-			assert!(ParaInclusion::process_bitfields(
-				expected_bits(),
-				vec![signed.clone(), signed],
-				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			)
-			.is_empty());
+			assert_matches!(
+				ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.clone(), signed],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+					FullCheck::Yes,
+				),
+				Err(Error::<Test>::UnsortedOrDuplicateValidatorIndices)
+			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(chain_a)
 					.unwrap()
 					.availability_votes
 					.count_ones(),
-				1
+				0
 			);
 
 			// clean up
@@ -553,21 +557,23 @@ fn bitfield_checks() {
 
 			// the threshold to free a core is 4 availability votes, but we only expect 1 valid
 			// valid bitfield because `signed_0` will get skipped for being out of order.
-			assert!(ParaInclusion::process_bitfields(
-				expected_bits(),
-				vec![signed_1, signed_0],
-				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			)
-			.is_empty());
+			assert_matches!(
+				ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed_1, signed_0],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+					FullCheck::Yes,
+				),
+				Err(Error::<Test>::UnsortedOrDuplicateValidatorIndices)
+			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(chain_a)
 					.unwrap()
 					.availability_votes
 					.count_ones(),
-				1
+				0
 			);
 
 			PendingAvailability::<Test>::remove_all(None);
@@ -585,14 +591,13 @@ fn bitfield_checks() {
 				&signing_context,
 			));
 
-			assert!(ParaInclusion::process_bitfields(
+			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 				FullCheck::Yes,
-			)
-			.is_empty());
+			), Ok(x) => { assert!(x.is_empty())});
 		}
 
 		// empty bitfield signed: always ok, but kind of useless.
@@ -606,14 +611,13 @@ fn bitfield_checks() {
 				&signing_context,
 			));
 
-			assert!(ParaInclusion::process_bitfields(
+			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 				FullCheck::Yes,
-			)
-			.is_empty());
+			), Ok(x) => { assert!(x.is_empty())});
 		}
 
 		// bitfield signed with pending bit signed.
@@ -647,14 +651,13 @@ fn bitfield_checks() {
 				&signing_context,
 			));
 
-			assert!(ParaInclusion::process_bitfields(
+			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 				FullCheck::Yes,
-			)
-			.is_empty());
+			), Ok(v) => { assert!(v.is_empty())} );
 
 			<PendingAvailability<Test>>::remove(chain_a);
 			PendingAvailabilityCommitments::<Test>::remove(chain_a);
@@ -691,14 +694,13 @@ fn bitfield_checks() {
 			));
 
 			// no core is freed
-			assert!(ParaInclusion::process_bitfields(
+			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 				FullCheck::Yes,
-			)
-			.is_empty());
+			), Ok(v) => { assert!(v.is_empty()) });
 		}
 	});
 }
@@ -835,7 +837,7 @@ fn supermajority_bitfields_trigger_availability() {
 			.collect();
 
 		// only chain A's core is freed.
-		assert_eq!(
+		assert_matches!(
 			ParaInclusion::process_bitfields(
 				expected_bits(),
 				signed_bitfields,
@@ -843,7 +845,9 @@ fn supermajority_bitfields_trigger_availability() {
 				&core_lookup,
 				FullCheck::Yes,
 			),
-			vec![(CoreIndex(0), candidate_a.hash())]
+			Ok(v) => {
+				assert_eq!(vec![(CoreIndex(0), candidate_a.hash())], v);
+			}
 		);
 
 		// chain A had 4 signing off, which is >= threshold.

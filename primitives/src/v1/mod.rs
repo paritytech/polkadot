@@ -1317,7 +1317,8 @@ impl core::cmp::PartialEq<DisputeStatementSet> for CheckedDisputeStatementSet {
 }
 
 impl CheckedDisputeStatementSet {
-	/// Convert from an unchecked, checking _must_ be done in the context.
+	/// Convert from an unchecked, the verification of correctness of the `unchecked` statement set
+	/// _must_ be done before calling this function!
 	pub fn from_unchecked(unchecked: DisputeStatementSet) -> Self {
 		Self(unchecked)
 	}

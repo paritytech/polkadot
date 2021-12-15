@@ -26,6 +26,7 @@ mod enter {
 		builder::{Bench, BenchBuilder},
 		mock::{new_test_ext, MockGenesisConfig, Test},
 	};
+	use assert_matches::assert_matches;
 	use frame_support::assert_ok;
 	use sp_std::collections::btree_map::BTreeMap;
 
@@ -295,10 +296,10 @@ mod enter {
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(e) => { dbg!(e) });
 		});
 	}
 
@@ -417,16 +418,18 @@ mod enter {
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(e) => {
+				dbg!(e)
+			});
 
 			assert_eq!(
 				// The length of this vec is equal to the number of candidates, so we know
 				// all of our candidates got filtered out
-				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
-				0,
+				Pallet::<Test>::on_chain_votes(),
+				None,
 			);
 		});
 	}
@@ -556,17 +559,15 @@ mod enter {
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(_e) => {
+				/* TODO */
+			});
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know
-				// all of our candidates got filtered out
-				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
-				0,
-			);
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
 	}
 
@@ -711,17 +712,12 @@ mod enter {
 			// * 3 disputes.
 			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
 
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(e) => { dbg!(e) });
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know our 2
-				// backed candidates did not get filtered out
-				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
-				0
-			);
+			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
 	}
 }

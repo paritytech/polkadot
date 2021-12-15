@@ -7008,6 +7008,7 @@ dependencies = [
 name = "polkadot-runtime-parachains"
 version = "0.9.13"
 dependencies = [
+ "assert_matches",
  "bitflags",
  "bitvec",
  "derive_more",

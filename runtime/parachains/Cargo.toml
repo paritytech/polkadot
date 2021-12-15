@@ -53,6 +53,7 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
 thousands = "0.2.0"
+assert_matches = "1"
 
 [features]
 default = ["std"]
