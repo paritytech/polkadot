@@ -285,6 +285,12 @@ impl<T: Config> Pallet<T> {
 
 		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
+
+		// Sorting is assumed later on.
+		if let Err(_) = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes) {
+			log::debug!(target: LOG_TARGET, "Found duplicate statement sets, retaining the first");
+		}
+
 		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
