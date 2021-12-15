@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::{account_and_location, new_executor, AssetTransactorOf, XcmCallOf};
-use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
+use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkErrorFoo, BenchmarkResult};
 use frame_support::{
 	pallet_prelude::Get,
 	traits::fungible::{Inspect, Mutate},
@@ -110,7 +110,7 @@ benchmarks_instance_pallet! {
 	receive_teleported_asset {
 		// If there is no trusted teleporter, then we skip this benchmark.
 		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get()
-			.ok_or(BenchmarkError::Skip)?;
+			.ok_or(BenchmarkErrorFoo::Skip)?;
 
 		if let Some(checked_account) = T::CheckedAccount::get() {
 			T::TransactAsset::mint_into(
@@ -130,7 +130,7 @@ benchmarks_instance_pallet! {
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.execute(xcm).map_err(|_| {
-			BenchmarkError::Override(
+			BenchmarkErrorFoo::Override(
 				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
 			)
 		})?;

@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Encode;
-use frame_benchmarking::{account, BenchmarkError};
+use frame_benchmarking::{account, BenchmarkErrorFoo};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
@@ -43,7 +43,7 @@ pub trait Config: frame_system::Config {
 
 	/// Does any necessary setup to create a valid destination for XCM messages.
 	/// Returns that destination's multi-location to be used in benchmarks.
-	fn valid_destination() -> Result<MultiLocation, BenchmarkError>;
+	fn valid_destination() -> Result<MultiLocation, BenchmarkErrorFoo>;
 
 	/// Worst case scenario for a holding account in this runtime.
 	fn worst_case_holding() -> MultiAssets;

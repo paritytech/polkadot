@@ -151,7 +151,7 @@ pub struct ExecutorError {
 }
 
 #[cfg(feature = "runtime-benchmarks")]
-impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
+impl From<ExecutorError> for frame_benchmarking::BenchmarkErrorFoo {
 	fn from(error: ExecutorError) -> Self {
 		log::error!(
 			"XCM ERROR >> Index: {:?}, Error: {:?}, Weight: {:?}",

@@ -17,7 +17,7 @@
 use super::*;
 use crate::{new_executor, XcmCallOf};
 use codec::Encode;
-use frame_benchmarking::{benchmarks, BenchmarkError};
+use frame_benchmarking::{benchmarks, BenchmarkErrorFoo};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{
@@ -85,7 +85,7 @@ benchmarks! {
 		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm).map_err(|_| BenchmarkError::Skip)?;
+		executor.execute(xcm).map_err(|_| BenchmarkErrorFoo::Skip)?;
 	} verify {
 		assert_eq!(executor.holding, multiassets.into());
 	}
@@ -208,7 +208,7 @@ benchmarks! {
 		let mut executor = new_executor::<T>(Default::default());
 		executor.error = Some((0u32, XcmError::Unimplemented));
 		let query_id = Default::default();
-		let dest = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let dest = T::valid_destination().map_err(|_| BenchmarkErrorFoo::Skip)?;
 		let max_response_weight = Default::default();
 
 		let instruction = Instruction::ReportError { query_id, dest, max_response_weight };
@@ -297,7 +297,7 @@ benchmarks! {
 	initiate_reserve_withdraw {
 		let holding = T::worst_case_holding();
 		let assets_filter = MultiAssetFilter::Definite(holding.clone());
-		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let reserve = T::valid_destination().map_err(|_| BenchmarkErrorFoo::Skip)?;
 		let mut executor = new_executor::<T>(Default::default());
 		executor.holding = holding.into();
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };

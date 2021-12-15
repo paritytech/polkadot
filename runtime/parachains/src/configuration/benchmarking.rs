@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::configuration::*;
-use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
+use frame_benchmarking::{benchmarks, BenchmarkErrorFoo, BenchmarkResult};
 use frame_system::RawOrigin;
 use sp_runtime::traits::One;
 
@@ -29,7 +29,7 @@ benchmarks! {
 	set_config_with_weight {}: set_ump_service_total_weight(RawOrigin::Root, 3_000_000)
 
 	set_hrmp_open_request_ttl {}: {
-		Err(BenchmarkError::Override(
+		Err(BenchmarkErrorFoo::Override(
 			BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
 		))?;
 	}

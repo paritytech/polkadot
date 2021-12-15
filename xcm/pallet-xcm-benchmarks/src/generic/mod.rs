@@ -6,7 +6,7 @@ mod mock;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_benchmarking::BenchmarkError;
+	use frame_benchmarking::BenchmarkErrorFoo;
 	use frame_support::{dispatch::Dispatchable, pallet_prelude::Encode, weights::GetDispatchInfo};
 	use xcm::latest::{MultiAssets, MultiLocation, Response};
 
@@ -23,15 +23,15 @@ pub mod pallet {
 		/// The `MultiLocation` used for successful transaction XCMs.
 		///
 		/// If set to `None`, benchmarks which rely on a `transact_origin` will be skipped.
-		fn transact_origin() -> Result<MultiLocation, BenchmarkError>;
+		fn transact_origin() -> Result<MultiLocation, BenchmarkErrorFoo>;
 
 		/// A valid `MultiLocation` we can successfully subscribe to.
 		///
 		/// If set to `None`, benchmarks which rely on a `subscribe_origin` will be skipped.
-		fn subscribe_origin() -> Result<MultiLocation, BenchmarkError>;
+		fn subscribe_origin() -> Result<MultiLocation, BenchmarkErrorFoo>;
 
 		/// Return an origin, ticket, and assets that can be trapped and claimed.
-		fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError>;
+		fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkErrorFoo>;
 	}
 
 	#[pallet::pallet]
