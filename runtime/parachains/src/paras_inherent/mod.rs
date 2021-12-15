@@ -298,10 +298,6 @@ impl<T: Config> Pallet<T> {
 			disputes.len()
 		);
 
-		dispute_sets_processed_metric
-			.with_label_values(&["total"])
-			.inc_by(disputes.len() as u64);
-
 		// Check that the submitted parent header indeed corresponds to the previous block hash.
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 		ensure!(
@@ -373,7 +369,7 @@ impl<T: Config> Pallet<T> {
 
 			if T::DisputesHandler::is_frozen() {
 				// Relay chain freeze, at this point we will not include any parachain blocks.
-				dispute_sets_processed_metric.with_label_values(&["frozen)"]).inc_by(1);
+				dispute_sets_processed_metric.with_label_values(&["frozen"]).inc();
 
 				// The relay chain we are currently on is invalid. Proceed no further on parachains.
 				return Ok(Some(dispute_statements_weight::<T>(&disputes)).into())
@@ -381,7 +377,7 @@ impl<T: Config> Pallet<T> {
 
 			// Process the dispute sets of the current session.
 			dispute_sets_processed_metric
-				.with_label_values(&["current_session)"])
+				.with_label_values(&["current)"])
 				.inc_by(new_current_dispute_sets.len() as u64);
 
 			let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -395,7 +391,7 @@ impl<T: Config> Pallet<T> {
 
 				// Count invalid dispute sets.
 				dispute_sets_processed_metric
-					.with_label_values(&["concluded_invalid)"])
+					.with_label_values(&["concluded_invalid"])
 					.inc_by(concluded_invalid_disputes.len() as u64);
 
 				let freed_disputed: Vec<_> =
@@ -403,11 +399,6 @@ impl<T: Config> Pallet<T> {
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
 						.collect();
-
-				// Count concluded disputes.
-				dispute_sets_processed_metric
-					.with_label_values(&["concluded_valid)"])
-					.inc_by(freed_disputed.len() as u64);
 
 				freed_disputed
 			} else {

@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Runtime metrics are wasm only so we also need to provide a dummy metric
+//! implementation for the native runtime. These are required to avoid cluttering
+//! the code with `#[cfg(not(feature = "std"))]` for updating metrics.
 pub struct Counter;
 pub struct CounterVec;
 

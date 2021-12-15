@@ -222,7 +222,7 @@ fn host_perf_check() -> Result<()> {
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
 pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(run, overseer_gen, |_, _| {})
+	run_node_inner(run, overseer_gen, |_logger_builder, _config| {})
 }
 
 fn run_node_inner<F>(

@@ -20,6 +20,7 @@ use parity_scale_codec::Encode;
 use primitives::v1::{
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
 };
+use sp_std::prelude::*;
 
 pub struct CounterVec {
 	name: &'static str,
@@ -48,9 +49,9 @@ impl CounterVec {
 	pub fn new(name: &'static str, description: &'static str, labels: &[&'static str]) -> Self {
 		// Send a register metric operation to node side.
 		let metric_update = RuntimeMetricUpdate {
-			metric_name: sp_std::vec::Vec::from(name),
+			metric_name: Vec::from(name),
 			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(
-				sp_std::vec::Vec::from(description),
+				Vec::from(description),
 				Some(labels.into()),
 			)),
 		};
@@ -70,7 +71,7 @@ impl CounterVec {
 	pub fn inc_by(&mut self, value: u64) {
 		self.label_values.take().map(|label_values| {
 			let metric_update = RuntimeMetricUpdate {
-				metric_name: sp_std::vec::Vec::from(self.name),
+				metric_name: Vec::from(self.name),
 				op: RuntimeMetricOp::IncrementCounterVec(value, label_values),
 			};
 
@@ -89,9 +90,9 @@ impl Counter {
 	pub fn new(name: &'static str, description: &'static str) -> Self {
 		// Send a register metric operation to node side.
 		let metric_update = RuntimeMetricUpdate {
-			metric_name: sp_std::vec::Vec::from(name),
+			metric_name: Vec::from(name),
 			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(
-				sp_std::vec::Vec::from(description),
+				Vec::from(description),
 				None,
 			)),
 		};
@@ -103,7 +104,7 @@ impl Counter {
 	/// Increment by `value`.
 	pub fn inc_by(&mut self, value: u64) {
 		let metric_update = RuntimeMetricUpdate {
-			metric_name: sp_std::vec::Vec::from(self.name),
+			metric_name: Vec::from(self.name),
 			op: RuntimeMetricOp::IncrementCounter(value),
 		};
 

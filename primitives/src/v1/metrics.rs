@@ -19,7 +19,7 @@ pub enum RuntimeMetricOp {
 	Register(RuntimeMetricRegisterParams),
 	/// Increment a counter metric with labels by value.
 	IncrementCounterVec(u64, RuntimeMetricLabelValues),
-	/// Increment a counter metric with labels by value.
+	/// Increment a counter metric by value.
 	IncrementCounter(u64),
 }
 
@@ -52,13 +52,13 @@ impl RuntimeMetricRegisterParams {
 
 	/// Returns a label names as an `Option` of `Vec<&str>`.
 	pub fn labels(&self) -> Option<Vec<&str>> {
-		self.labels.as_ref().map(|labels| labels.as_str())
+		self.labels.as_ref().map(|labels| labels.as_str_vec())
 	}
 }
 
 impl RuntimeMetricLabels {
 	/// Returns a labels as `Vec<&str>`.
-	pub fn as_str(&self) -> Vec<&str> {
+	pub fn as_str_vec(&self) -> Vec<&str> {
 		self.0
 			.iter()
 			.map(|label_vec| vec_to_str(&label_vec.0, "invalid_label"))

@@ -20,7 +20,6 @@
 //! tracing support. This requires that the custom profiler (`TraceHandler`) to be
 //! registered in substrate via a `logger_hook()`. Events emitted from runtime are
 //! then captured/processed by the `TraceHandler` implementation.
-//!
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
@@ -38,8 +37,7 @@ use substrate_prometheus_endpoint::{
 const LOG_TARGET: &'static str = "metrics::runtime";
 const METRIC_PREFIX: &'static str = "polkadot";
 
-/// Support only `CounterVec` for now.
-/// TODO: add more when needed.
+/// Holds the registered Prometheus metric collections.
 #[derive(Clone, Default)]
 pub struct Metrics {
 	counter_vecs: Arc<Mutex<HashMap<String, CounterVec<U64>>>>,
@@ -59,18 +57,13 @@ impl RuntimeMetricsProvider {
 	/// Register a counter vec metric.
 	pub fn register_countervec(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
 		self.with_counter_vecs_lock_held(|mut hashmap| {
-			if !hashmap.contains_key(metric_name) {
-				hashmap.insert(
-					metric_name.to_owned(),
-					register(
-						CounterVec::new(
-							Opts::new(metric_name, params.description()),
-							&params.labels().unwrap_or_default(),
-						)?,
-						&self.0,
-					)?,
-				);
-			}
+			hashmap.entry(metric_name.to_owned()).or_insert(register(
+				CounterVec::new(
+					Opts::new(metric_name, params.description()),
+					&params.labels().unwrap_or_default(),
+				)?,
+				&self.0,
+			)?);
 			Ok(())
 		})
 	}
@@ -78,12 +71,9 @@ impl RuntimeMetricsProvider {
 	/// Register a counter metric.
 	pub fn register_counter(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
 		self.with_counters_lock_held(|mut hashmap| {
-			if !hashmap.contains_key(metric_name) {
-				hashmap.insert(
-					metric_name.to_owned(),
-					register(Counter::new(metric_name, params.description())?, &self.0)?,
-				);
-			}
+			hashmap
+				.entry(metric_name.to_owned())
+				.or_insert(register(Counter::new(metric_name, params.description())?, &self.0)?);
 			return Ok(())
 		})
 	}
@@ -91,15 +81,10 @@ impl RuntimeMetricsProvider {
 	/// Increment a counter with labels by a value.
 	pub fn inc_counter_vec_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
 		self.with_counter_vecs_lock_held(|mut hashmap| {
-			if let Some(counter_vec) = hashmap.get_mut(name) {
-				counter_vec.with_label_values(&labels.as_str()).inc_by(value);
-			} else {
-				tracing::error!(
-					target: LOG_TARGET,
-					"Cannot increment counter `{}`, metric not in registered or present in hashmap",
-					name
-				);
-			}
+			hashmap.entry(name.to_owned()).and_modify(|counter_vec| {
+				counter_vec.with_label_values(&labels.as_str_vec()).inc_by(value)
+			});
+
 			Ok(())
 		});
 	}
@@ -107,15 +92,9 @@ impl RuntimeMetricsProvider {
 	/// Increment a counter by a value.
 	pub fn inc_counter_by(&self, name: &str, value: u64) {
 		self.with_counters_lock_held(|mut hashmap| {
-			if let Some(counter) = hashmap.get_mut(name) {
-				counter.inc_by(value);
-			} else {
-				tracing::error!(
-					target: LOG_TARGET,
-					"Cannot increment counter `{}`, metric not in registered or present in hashmap",
-					name
-				);
-			}
+			hashmap
+				.entry(name.to_owned())
+				.and_modify(|counter_vec| counter_vec.inc_by(value));
 			Ok(())
 		})
 	}
@@ -221,6 +200,7 @@ impl RuntimeMetricsProvider {
 pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
 	|logger_builder, config| {
 		if config.prometheus_registry().is_none() {
+			tracing::debug!(target: LOG_TARGET, "Prometheus registry is not configured.",);
 			return
 		}
 		let registry = config.prometheus_registry().cloned().unwrap();
