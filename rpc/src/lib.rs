@@ -18,6 +18,7 @@
 
 #![warn(missing_docs)]
 
+use parking_lot::Mutex;
 use std::sync::Arc;
 
 use polkadot_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
@@ -32,6 +33,7 @@ use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
 use sp_keystore::SyncCryptoStorePtr;
+use sp_runtime::traits::NumberFor;
 use txpool_api::TransactionPool;
 
 /// A type representing all RPC extensions.
@@ -65,6 +67,8 @@ pub struct GrandpaDeps<B> {
 pub struct BeefyDeps {
 	/// Receives notifications about signed commitment events from BEEFY.
 	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block>,
+	/// Executor to drive the subscription manager in the BEEFY RPC handler.
+	pub beefy_best_block: Arc<Mutex<Option<NumberFor<Block>>>>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
@@ -158,6 +162,7 @@ where
 	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
 		beefy_gadget_rpc::BeefyRpcHandler::new(
 			beefy.beefy_commitment_stream,
+			beefy.beefy_best_block,
 			beefy.subscription_executor,
 		),
 	));

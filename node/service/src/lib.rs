@@ -64,6 +64,7 @@ pub use {
 #[cfg(feature = "full-node")]
 use polkadot_subsystem::jaeger;
 
+use parking_lot::Mutex;
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
@@ -414,7 +415,10 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
+				(
+					beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
+					Arc<Mutex<Option<NumberFor<Block>>>>,
+				),
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -487,6 +491,8 @@ where
 
 	let (beefy_link, beefy_commitment_stream) =
 		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+	let beefy_best_block = Arc::new(Mutex::new(None));
+	let beefy_link = (beefy_link, beefy_best_block.clone());
 
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -532,6 +538,7 @@ where
 				},
 				beefy: polkadot_rpc::BeefyDeps {
 					beefy_commitment_stream: beefy_commitment_stream.clone(),
+					beefy_best_block: beefy_best_block.clone(),
 					subscription_executor,
 				},
 			};
@@ -1077,9 +1084,10 @@ where
 			backend: backend.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
-			signed_commitment_sender: beefy_link,
+			signed_commitment_sender: beefy_link.0,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
+			rpc_best_beefy: beefy_link.1.clone(),
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
