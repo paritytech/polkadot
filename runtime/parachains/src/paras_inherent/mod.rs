@@ -260,7 +260,7 @@ impl<T: Config> Pallet<T> {
 			bitfields: mut signed_bitfields,
 			mut backed_candidates,
 			parent_header,
-			disputes,
+			mut disputes,
 		} = data;
 
 		let parent_header_hash = parent_header.hash();
