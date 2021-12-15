@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use assert_matches::assert_matches;
 
-use futures::FutureExt;
+use futures::future::join;
 use parity_scale_codec::Encode;
 use sp_core::testing::TaskExecutor;
 
@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{
-	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
+	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle, TestSubsystemSender,
 };
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{
@@ -45,104 +45,52 @@ use super::OrderingProvider;
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
 struct TestState {
-	next_block_number: BlockNumber,
+	chain: Vec<Hash>,
 	ordering: OrderingProvider,
 	ctx: TestSubsystemContext<DisputeCoordinatorMessage, TaskExecutor>,
 }
 
 impl TestState {
-	async fn new() -> Self {
-		let (mut ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
-		let leaf = get_activated_leaf(1);
-		launch_virtual_overseer(&mut ctx, ctx_handle);
-		Self {
-			next_block_number: 2,
-			ordering: OrderingProvider::new(ctx.sender(), leaf).await.unwrap(),
-			ctx,
-		}
-	}
+	async fn new() -> (Self, VirtualOverseer) {
+		let (mut ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+		let leaf = get_activated_leaf(0);
+		let chain = vec![get_block_number_hash(0)];
 
-	/// Get a new leaf.
-	fn next_leaf(&mut self) -> ActivatedLeaf {
-		let r = get_activated_leaf(self.next_block_number);
-		self.next_block_number += 1;
-		r
-	}
+		let overseer_fut = async {
+			assert_finalized_block_number_request(&mut ctx_handle, 0).await;
+			assert_block_ancestors_request(&mut ctx_handle, &chain).await;
+			assert_candidate_events_request(&mut ctx_handle, &chain).await;
+		};
 
-	async fn process_active_leaves_update(&mut self) {
-		let update = self.next_leaf();
-		self.ordering
-			.process_active_leaves_update(
-				self.ctx.sender(),
-				&ActiveLeavesUpdate::start_work(update),
-			)
-			.await
-			.unwrap();
+		let ordering_provider =
+			join(OrderingProvider::new(ctx.sender(), leaf.clone()), overseer_fut)
+				.await
+				.0
+				.unwrap();
+
+		let test_state = Self { chain, ordering: ordering_provider, ctx };
+
+		(test_state, ctx_handle)
 	}
 }
 
-/// Simulate other subsystems:
-fn launch_virtual_overseer(ctx: &mut impl SubsystemContext, ctx_handle: VirtualOverseer) {
-	ctx.spawn(
-		"serve-active-leaves-update",
-		async move { virtual_overseer(ctx_handle).await }.boxed(),
-	)
-	.unwrap();
+/// Get a new leaf.
+fn next_leaf(chain: &mut Vec<Hash>) -> ActivatedLeaf {
+	let next_block_number = chain.len() as u32;
+	let next_hash = get_block_number_hash(next_block_number);
+	chain.push(next_hash);
+	get_activated_leaf(next_block_number)
 }
 
-async fn virtual_overseer(mut ctx_handle: VirtualOverseer) {
-	let create_ev = |relay_parent: Hash| {
-		vec![CandidateEvent::CandidateIncluded(
-			make_candidate_receipt(relay_parent),
-			HeadData::default(),
-			CoreIndex::from(0),
-			GroupIndex::from(0),
-		)]
-	};
-
-	assert_matches!(
-		ctx_handle.recv().await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				_,
-				RuntimeApiRequest::CandidateEvents(
-					tx,
-					)
-				)) => {
-			tx.send(Ok(Vec::new())).unwrap();
-		}
-	);
-	assert_matches!(
-		ctx_handle.recv().await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::CandidateEvents(
-					tx,
-					)
-				)) => {
-			tx.send(Ok(create_ev(relay_parent))).unwrap();
-		}
-	);
-	assert_matches!(
-		ctx_handle.recv().await,
-		AllMessages::ChainApi(ChainApiMessage::BlockNumber(_relay_parent, tx)) => {
-			tx.send(Ok(Some(1))).unwrap();
-		}
-	);
-}
-
-/// Get a dummy `ActivatedLeaf` for a given block number.
-fn get_activated_leaf(n: BlockNumber) -> ActivatedLeaf {
-	ActivatedLeaf {
-		hash: get_block_number_hash(n),
-		number: n,
-		status: LeafStatus::Fresh,
-		span: Arc::new(jaeger::Span::Disabled),
-	}
-}
-
-/// Get a dummy relay parent hash for dummy block number.
-fn get_block_number_hash(n: BlockNumber) -> Hash {
-	BlakeTwo256::hash(&n.encode())
+async fn process_active_leaves_update(
+	sender: &mut TestSubsystemSender,
+	ordering: &mut OrderingProvider,
+	update: ActivatedLeaf,
+) {
+	ordering
+		.process_active_leaves_update(sender, &ActiveLeavesUpdate::start_work(update))
+		.await
+		.unwrap();
 }
 
 fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
@@ -162,20 +110,111 @@ fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	candidate
 }
 
+/// Get a dummy `ActivatedLeaf` for a given block number.
+fn get_activated_leaf(n: BlockNumber) -> ActivatedLeaf {
+	ActivatedLeaf {
+		hash: get_block_number_hash(n),
+		number: n,
+		status: LeafStatus::Fresh,
+		span: Arc::new(jaeger::Span::Disabled),
+	}
+}
+
+/// Get a dummy relay parent hash for dummy block number.
+fn get_block_number_hash(n: BlockNumber) -> Hash {
+	BlakeTwo256::hash(&n.encode())
+}
+
+/// Get a dummy event that corresponds to candidate inclusion for the given block hash.
+fn get_candidate_included_events(block_number: BlockNumber) -> Vec<CandidateEvent> {
+	vec![CandidateEvent::CandidateIncluded(
+		make_candidate_receipt(get_block_number_hash(block_number)),
+		HeadData::default(),
+		CoreIndex::from(0),
+		GroupIndex::from(0),
+	)]
+}
+
+async fn assert_candidate_events_request(virtual_overseer: &mut VirtualOverseer, chain: &[Hash]) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			hash,
+			RuntimeApiRequest::CandidateEvents(tx),
+		)) => {
+			let maybe_block_number = chain.iter().position(|h| *h == hash);
+			let response = maybe_block_number
+				.map(|num| get_candidate_included_events(num as u32))
+				.unwrap_or_default();
+			tx.send(Ok(response)).unwrap();
+		}
+	);
+}
+
+async fn assert_block_number_request(virtual_overseer: &mut VirtualOverseer, chain: &[Hash]) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::BlockNumber(relay_parent, tx)) => {
+			let maybe_block_number =
+				chain.iter().position(|hash| *hash == relay_parent).map(|number| number as u32);
+			tx.send(Ok(maybe_block_number)).unwrap();
+		}
+	);
+}
+
+async fn assert_finalized_block_number_request(
+	virtual_overseer: &mut VirtualOverseer,
+	response: BlockNumber,
+) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(tx)) => {
+			tx.send(Ok(response)).unwrap();
+		}
+	);
+}
+
+async fn assert_block_ancestors_request(virtual_overseer: &mut VirtualOverseer, chain: &Vec<Hash>) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
+			let maybe_block_position = chain.iter().position(|h| *h == hash);
+			let ancestors = maybe_block_position
+				.map(|idx| chain[..idx].iter().rev().take(k).copied().collect())
+				.unwrap_or_default();
+			response_channel.send(Ok(ancestors)).unwrap();
+		}
+	);
+}
+
 #[test]
 fn ordering_provider_provides_ordering_when_initialized() {
-	let candidate = make_candidate_receipt(get_block_number_hash(2));
+	let candidate = make_candidate_receipt(get_block_number_hash(1));
 	futures::executor::block_on(async {
-		let mut state = TestState::new().await;
-		let r = state
-			.ordering
-			.candidate_comparator(state.ctx.sender(), &candidate)
-			.await
-			.unwrap();
+		let (state, mut virtual_overseer) = TestState::new().await;
+
+		let TestState { mut chain, mut ordering, mut ctx } = state;
+
+		let r = ordering.candidate_comparator(ctx.sender(), &candidate).await.unwrap();
 		assert_matches!(r, None);
+
 		// After next active leaves update we should have a comparator:
-		state.process_active_leaves_update().await;
-		let r = state.ordering.candidate_comparator(state.ctx.sender(), &candidate).await;
+		let next_update = next_leaf(&mut chain);
+
+		let overseer_fut = async {
+			assert_finalized_block_number_request(&mut virtual_overseer, 0).await;
+			assert_block_ancestors_request(&mut virtual_overseer, &chain).await;
+			assert_candidate_events_request(&mut virtual_overseer, &chain).await;
+		};
+		join(process_active_leaves_update(ctx.sender(), &mut ordering, next_update), overseer_fut)
+			.await;
+
+		let r = join(
+			ordering.candidate_comparator(ctx.sender(), &candidate),
+			assert_block_number_request(&mut virtual_overseer, &chain),
+		)
+		.await
+		.0;
 		assert_matches!(r, Ok(Some(r2)) => {
 			assert_eq!(r2.relay_parent_block_number, 1);
 		});
