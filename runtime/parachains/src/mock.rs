@@ -175,6 +175,7 @@ impl crate::initializer::Config for Test {
 
 impl crate::configuration::Config for Test {
 	type WeightInfo = crate::configuration::TestWeightInfo;
+	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
 }
 
 impl crate::shared::Config for Test {}

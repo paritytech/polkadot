@@ -110,6 +110,7 @@ impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {
 	type WeightInfo = configuration::TestWeightInfo;
+	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
 }
 
 // aims to closely emulate the Kusama XcmConfig

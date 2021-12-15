@@ -625,6 +625,7 @@ mod tests {
 
 	impl parachains_configuration::Config for Test {
 		type WeightInfo = parachains_configuration::TestWeightInfo;
+		type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
 	}
 
 	impl parachains_paras::Config for Test {

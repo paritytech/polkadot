@@ -1166,6 +1166,7 @@ impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
+	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
 }
 
 impl parachains_shared::Config for Runtime {}
@@ -1973,6 +1974,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
+			list_benchmark!(list, extra, runtime_parachains::ump, Ump);
 			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			// Substrate
 			list_benchmark!(list, extra, pallet_bags_list, BagsList);
@@ -2050,6 +2052,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
+			add_benchmark!(params, batches, runtime_parachains::ump, Ump);
 			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			// Substrate
 			add_benchmark!(params, batches, pallet_bags_list, BagsList);

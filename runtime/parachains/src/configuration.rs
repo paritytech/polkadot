@@ -341,6 +341,11 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + shared::Config {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
+
+		/// Maximum value that `max_upward_message_size` can be set to
+		///
+		/// This is used for benchmarking sanely bounding relevant storate items.
+		type MaxUpwardMessageSizeBound: Get<u32>;
 	}
 
 	#[pallet::error]

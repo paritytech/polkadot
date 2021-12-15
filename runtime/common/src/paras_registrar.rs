@@ -668,6 +668,7 @@ mod tests {
 
 	impl configuration::Config for Test {
 		type WeightInfo = configuration::TestWeightInfo;
+		type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
 	}
 
 	parameter_types! {
