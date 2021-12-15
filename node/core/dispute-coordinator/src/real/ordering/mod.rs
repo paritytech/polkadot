@@ -126,6 +126,11 @@ impl CandidateComparator {
 }
 
 impl OrderingProvider {
+	/// Limits the number of ancestors received for a single request.
+	pub(crate) const ANCESTRY_STEP: usize = 10;
+	/// Limits the overall number of ancestors walked through for a given head.
+	pub(crate) const ANCESTRY_SIZE_LIMIT: usize = 1000;
+
 	/// Create a properly initialized `OrderingProvider`.
 	pub async fn new<Sender: SubsystemSender>(
 		sender: &mut Sender,
@@ -249,9 +254,6 @@ impl OrderingProvider {
 		mut head: Hash,
 		mut head_number: BlockNumber,
 	) -> Result<Vec<Hash>> {
-		const ANCESTRY_STEP: usize = 10;
-		const ANCESTRY_SIZE_LIMIT: usize = 1000;
-
 		let mut ancestors = Vec::new();
 
 		if self.last_observed_blocks.get(&head).is_some() {
@@ -267,7 +269,7 @@ impl OrderingProvider {
 					.send_message(
 						ChainApiMessage::Ancestors {
 							hash: head,
-							k: ANCESTRY_STEP,
+							k: Self::ANCESTRY_STEP,
 							response_channel: tx,
 						}
 						.into(),
@@ -284,16 +286,15 @@ impl OrderingProvider {
 			for (block_number, hash) in block_numbers.zip(&hashes) {
 				// Return if we either met finalized/cached block or
 				// hit the size limit for the returned ancestry of head.
-				if self.last_observed_blocks.get(&head).is_some() ||
+				if self.last_observed_blocks.get(hash).is_some() ||
 					block_number <= finalized_block_number ||
-					ancestors.len() >= ANCESTRY_SIZE_LIMIT
+					ancestors.len() >= Self::ANCESTRY_SIZE_LIMIT
 				{
 					return Ok(ancestors)
 				}
 
 				ancestors.push(*hash);
 			}
-
 			match hashes.last() {
 				Some(last_hash) => {
 					head = *last_hash;
