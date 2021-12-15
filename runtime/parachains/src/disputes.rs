@@ -2847,6 +2847,117 @@ mod tests {
 		.is_err());
 	}
 
+	#[test]
+	fn deduplication_and_sorting_works() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(3, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![
+						(&0, v0.public()),
+						(&1, v1.public()),
+						(&2, v2.public()),
+						(&3, v3.public()),
+					],
+					Some(vec![
+						(&0, v0.public()),
+						(&1, v1.public()),
+						(&2, v2.public()),
+						(&3, v3.public()),
+					]),
+				))
+			});
+
+			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(2));
+			let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(3));
+
+			let create_explicit_statement = |vidx: ValidatorIndex,
+			                                 validator: &<ValidatorId as CryptoType>::Pair,
+			                                 c_hash: &CandidateHash,
+			                                 valid,
+			                                 session| {
+				let payload =
+					ExplicitDisputeStatement { valid, candidate_hash: c_hash.clone(), session }
+						.signing_payload();
+				let sig = validator.sign(&payload);
+				(DisputeStatement::Valid(ValidDisputeStatementKind::Explicit), vidx, sig.clone())
+			};
+
+			let explicit_triple_a =
+				create_explicit_statement(ValidatorIndex(0), &v0, &candidate_hash_a, true, 1);
+			let explicit_triple_a_bad =
+				create_explicit_statement(ValidatorIndex(1), &v1, &candidate_hash_a, false, 1);
+
+			let explicit_triple_b =
+				create_explicit_statement(ValidatorIndex(0), &v0, &candidate_hash_b, true, 2);
+			let explicit_triple_b_bad =
+				create_explicit_statement(ValidatorIndex(1), &v1, &candidate_hash_b, false, 2);
+
+			let explicit_triple_c =
+				create_explicit_statement(ValidatorIndex(0), &v0, &candidate_hash_c, true, 2);
+			let explicit_triple_c_bad =
+				create_explicit_statement(ValidatorIndex(1), &v1, &candidate_hash_c, false, 2);
+
+			let mut disputes = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_b.clone(),
+					session: 2,
+					statements: vec![explicit_triple_b.clone(), explicit_triple_b_bad.clone()],
+				},
+				// same session as above
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_c.clone(),
+					session: 2,
+					statements: vec![explicit_triple_c, explicit_triple_c_bad],
+				},
+				// the duplicate set
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_b.clone(),
+					session: 2,
+					statements: vec![explicit_triple_b.clone(), explicit_triple_b_bad.clone()],
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: vec![explicit_triple_a, explicit_triple_a_bad],
+				},
+			];
+
+			let disputes_orig = disputes.clone();
+
+			<Pallet<Test> as DisputesHandler<
+					<Test as frame_system::Config>::BlockNumber,
+				>>::deduplicate_and_sort_dispute_data(&mut disputes).unwrap_err();
+
+			use core::cmp::Ordering;
+
+			assert_eq!(disputes_orig.len(), disputes.len() + 1);
+
+			// assert ordering of local only disputes
+			disputes.windows(2).for_each(|window| {
+				let a = window[0].clone();
+				let b = window[1].clone();
+				// we only have local disputes here, so sorting of those adheres to the
+				// simplified sorting logic
+				let session_cmp = a.session.cmp(&b.session);
+				let cmp = if session_cmp == Ordering::Equal {
+					b.candidate_hash.cmp(&b.candidate_hash)
+				} else {
+					session_cmp
+				};
+				assert_ne!(cmp, Ordering::Greater);
+			});
+		})
+	}
+
 	fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 		sets: I,
 	) -> Vec<CheckedDisputeStatementSet> {
