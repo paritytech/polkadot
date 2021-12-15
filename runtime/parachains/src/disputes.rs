@@ -118,11 +118,6 @@ pub enum VerifyDisputeSignatures {
 ///
 /// Allows decoupling parachains handling from disputes so that it can
 /// potentially be disabled when instantiating a specific runtime.
-///
-/// Returns `Ok(())` if no duplicates were present, `Err(())` otherwise.
-///
-/// Unsorted data does not change the return value, while the node side
-/// is generally expected to pass them in sorted.
 pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Whether the chain is frozen, if the chain is frozen it will not accept
 	/// any new parachain blocks for backing or inclusion.
@@ -130,6 +125,11 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 
 	/// Remove dispute statement duplicates and sort the non-duplicates based on
 	/// local (lower indicies) vs remotes (higher indices) and age (older with lower indices).
+	///
+	/// Returns `Ok(())` if no duplicates were present, `Err(())` otherwise.
+	///
+	/// Unsorted data does not change the return value, while the node side
+	/// is generally expected to pass them in sorted.
 	fn deduplicate_and_sort_dispute_data(
 		statement_sets: &mut MultiDisputeStatementSet,
 	) -> Result<(), ()> {
