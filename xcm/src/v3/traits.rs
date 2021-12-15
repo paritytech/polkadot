@@ -392,7 +392,6 @@ pub trait XcmWeightInfo<Call> {
 	fn clear_origin() -> Weight;
 	fn descend_origin(who: &InteriorMultiLocation) -> Weight;
 	fn report_error(response_info: &QueryResponseInfo) -> Weight;
-	fn relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
 	fn deposit_asset(assets: &MultiAssetFilter, beneficiary: &MultiLocation) -> Weight;
 	fn deposit_reserve_asset(
 		assets: &MultiAssetFilter,
