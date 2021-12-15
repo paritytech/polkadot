@@ -869,7 +869,7 @@ fn relays_collation_protocol_messages() {
 		let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 			Sr25519Keyring::Alice.public().into(),
 			Default::default(),
-			Default::default(),
+			sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 		);
 
 		let message =

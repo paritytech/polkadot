@@ -486,12 +486,6 @@ async fn handle_execute_pvf(
 				.await?;
 			},
 			ArtifactState::Preparing { waiting_for_response: _ } => {
-				send_prepare(
-					prepare_queue,
-					prepare::ToQueue::Amend { priority, artifact_id: artifact_id.clone() },
-				)
-				.await?;
-
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
 			ArtifactState::FailedToProcess(error) => {
@@ -525,18 +519,17 @@ async fn handle_heads_up(
 					*last_time_needed = now;
 				},
 				ArtifactState::Preparing { waiting_for_response: _ } => {
-					// Already preparing. We don't need to send a priority amend either because
-					// it can't get any lower than the background.
+					// The artifact is already being prepared, so we don't need to do anything.
 				},
 				ArtifactState::FailedToProcess(_) => {},
 			}
 		} else {
-			// The artifact is unknown: register it and put a background job into the prepare queue.
+			// It's not in the artifacts, so we need to enqueue a job to prepare it.
 			artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 
 			send_prepare(
 				prepare_queue,
-				prepare::ToQueue::Enqueue { priority: Priority::Background, pvf: active_pvf },
+				prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf: active_pvf },
 			)
 			.await?;
 		}
@@ -924,48 +917,6 @@ mod tests {
 	}
 
 	#[async_std::test]
-	async fn amending_priority() {
-		let mut test = Builder::default().build();
-		let mut host = test.host_handle();
-
-		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
-
-		// Run until we receive a prepare request.
-		let prepare_q_rx = &mut test.to_prepare_queue_rx;
-		run_until(
-			&mut test.run,
-			async {
-				assert_matches!(
-					prepare_q_rx.next().await.unwrap(),
-					prepare::ToQueue::Enqueue { .. }
-				);
-			}
-			.boxed(),
-		)
-		.await;
-
-		let (result_tx, _result_rx) = oneshot::channel();
-		host.execute_pvf(
-			Pvf::from_discriminator(1),
-			TEST_EXECUTION_TIMEOUT,
-			vec![],
-			Priority::Critical,
-			result_tx,
-		)
-		.await
-		.unwrap();
-
-		run_until(
-			&mut test.run,
-			async {
-				assert_matches!(prepare_q_rx.next().await.unwrap(), prepare::ToQueue::Amend { .. });
-			}
-			.boxed(),
-		)
-		.await;
-	}
-
-	#[async_std::test]
 	async fn execute_pvf_requests() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1006,10 +957,6 @@ mod tests {
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
 			prepare::ToQueue::Enqueue { .. }
-		);
-		assert_matches!(
-			test.poll_and_recv_to_prepare_queue().await,
-			prepare::ToQueue::Amend { .. }
 		);
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,

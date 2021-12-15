@@ -81,7 +81,9 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 
-use constants::{currency::*, fee::*, time::*};
+/// Constant values used within the runtime.
+use rococo_runtime_constants::{currency::*, fee::*, time::*};
+
 use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -93,8 +95,6 @@ use xcm_builder::{
 use xcm_executor::XcmExecutor;
 
 mod bridge_messages;
-/// Constant values used within the runtime.
-pub mod constants;
 mod validator_manager;
 mod weights;
 
@@ -141,6 +141,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
+	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,
@@ -354,6 +355,7 @@ where
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -671,6 +673,7 @@ parameter_types! {
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
 	pub const RococoForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1000).into());
 	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
+	pub const RococoForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1003).into());
 	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters = (
@@ -679,6 +682,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTrack>,
 	xcm_builder::Case<RococoForStatemine>,
 	xcm_builder::Case<RococoForCanvas>,
+	xcm_builder::Case<RococoForEncointer>,
 );
 
 parameter_types! {
@@ -689,6 +693,7 @@ parameter_types! {
 			Parachain(120).into(),
 			Parachain(1000).into(),
 			Parachain(1002).into(),
+			Parachain(1003).into(),
 		];
 }
 

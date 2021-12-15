@@ -29,7 +29,6 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 hex-literal = "0.3.4"
 parity-util-mem = { version = "0.10.0", default-features = false, optional = true }
 
-
 [features]
 default = ["std"]
 std = [
