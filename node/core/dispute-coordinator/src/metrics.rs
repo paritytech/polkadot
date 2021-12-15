@@ -82,9 +82,15 @@ impl Metrics {
 }
 
 impl metrics::Metrics for Metrics {
+	#[cfg(not(feature = "disputes"))]
+	fn try_register(_registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {};
+		Ok(Metrics(Some(metrics)))
+	}
+
+	#[cfg(feature = "disputes")]
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			#[cfg(feature = "disputes")]
 			open: prometheus::register(
 				prometheus::Counter::with_opts(prometheus::Opts::new(
 					"polkadot_parachain_candidate_disputes_total",
@@ -92,7 +98,6 @@ impl metrics::Metrics for Metrics {
 				))?,
 				registry,
 			)?,
-			#[cfg(feature = "disputes")]
 			concluded: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
@@ -103,7 +108,6 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			#[cfg(feature = "disputes")]
 			votes: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
@@ -114,7 +118,6 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			#[cfg(feature = "disputes")]
 			queued_participations: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
