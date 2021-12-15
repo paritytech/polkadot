@@ -19,12 +19,16 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 #[derive(Clone)]
 struct MetricsInner {
 	/// Number of opened disputes.
+	#[cfg(feature = "disputes")]
 	open: prometheus::Counter<prometheus::U64>,
 	/// Votes of all disputes.
+	#[cfg(feature = "disputes")]
 	votes: prometheus::CounterVec<prometheus::U64>,
 	/// Conclusion across all disputes.
+	#[cfg(feature = "disputes")]
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
+	#[cfg(feature = "disputes")]
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 }
 
@@ -80,6 +84,7 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
+			#[cfg(feature = "disputes")]
 			open: prometheus::register(
 				prometheus::Counter::with_opts(prometheus::Opts::new(
 					"polkadot_parachain_candidate_disputes_total",
@@ -87,6 +92,7 @@ impl metrics::Metrics for Metrics {
 				))?,
 				registry,
 			)?,
+			#[cfg(feature = "disputes")]
 			concluded: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
@@ -97,6 +103,7 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			#[cfg(feature = "disputes")]
 			votes: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
@@ -107,6 +114,7 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			#[cfg(feature = "disputes")]
 			queued_participations: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
