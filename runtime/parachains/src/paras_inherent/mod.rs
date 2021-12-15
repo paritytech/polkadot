@@ -292,7 +292,8 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
+			parent_header,
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
