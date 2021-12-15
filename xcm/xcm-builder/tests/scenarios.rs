@@ -21,7 +21,7 @@ use mock::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::latest::{prelude::*, QueryResponseInfo};
+use xcm::latest::prelude::*;
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
