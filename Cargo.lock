@@ -6394,17 +6394,22 @@ dependencies = [
 name = "polkadot-node-metrics"
 version = "0.9.13"
 dependencies = [
+ "assert_cmd",
  "bs58",
  "futures 0.3.18",
  "futures-timer 3.0.2",
+ "hyper",
  "log",
  "metered-channel",
+ "nix",
  "parity-scale-codec",
  "polkadot-primitives",
  "sc-cli",
  "sc-service",
  "sc-tracing",
  "substrate-prometheus-endpoint",
+ "tempfile",
+ "tokio",
  "tracing",
 ]
 
