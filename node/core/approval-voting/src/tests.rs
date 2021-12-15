@@ -2265,10 +2265,8 @@ fn subsystem_validate_approvals_cache() {
 			candidate_entry.approval_entry(&block_hash).unwrap().our_assignment().unwrap();
 		assert!(our_assignment.triggered());
 
-		// Handle the first assignment import
+		// Handle the the next two assignment imports, where only one should trigger approvals work
 		handle_double_assignment_import(&mut virtual_overseer, candidate_index).await;
-
-		assert!(overseer_recv(&mut virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
 
 		virtual_overseer
 	});
@@ -2311,6 +2309,9 @@ pub async fn handle_double_assignment_import(
 			_ => panic! {},
 		}
 	}
+
+	// Assert that there are no more messages being sent by the subsystem
+	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
 }
 
 /// Handles validation code fetch, returns the received relay parent hash.
