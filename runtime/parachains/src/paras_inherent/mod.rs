@@ -378,7 +378,7 @@ impl<T: Config> Pallet<T> {
 
 			// Process the dispute sets of the current session.
 			dispute_sets_processed_metric
-				.with_label_values(&["current)"])
+				.with_label_values(&["current"])
 				.inc_by(new_current_dispute_sets.len() as u64);
 
 			let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
