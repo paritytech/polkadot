@@ -500,7 +500,9 @@ impl<T: Config> Pallet<T> {
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
 		// Filter out duplicates and continue.
-		let _ = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes);
+		if let Err(_) = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes) {
+			log::debug!(target: LOG_TARGET, "Found duplicate statement sets, retaining the first");
+		}
 
 		let config = <configuration::Pallet<T>>::config();
 		let max_spam_slots = config.dispute_max_spam_slots;
@@ -517,8 +519,8 @@ impl<T: Config> Pallet<T> {
 					set,
 					max_spam_slots,
 					post_conclusion_acceptance_period,
-					// TODO a further optimization would be to skip
-					// signature checks ehre as well, since the
+					// A further optimization would be to skip
+					// signature checks here as well, since the
 					// `DisputeCoordinator` on the node side only forwards
 					// valid dispute statement sets.
 					VerifyDisputeSignatures::Yes,

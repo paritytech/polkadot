@@ -136,8 +136,10 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		use core::cmp::Ordering;
 
 		// TODO: Consider trade-of to avoid `O(n * log(n))` average lookups of `included_state`
-		// TODO: instead make a single pass and store the values.
+		// TODO: instead make a single pass and store the values lazily.
+		// TODO: https://github.com/paritytech/polkadot/issues/4527
 		let n = statement_sets.len();
+
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
