@@ -153,7 +153,15 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 				// For local disputes, prioritize those that occur at an earlier height.
 				(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
 				// Prioritize earlier remote disputes using session as rough proxy.
-				(None, None) => a.session.cmp(&b.session),
+				(None, None) => {
+					let session_ord = a.session.cmp(&b.session);
+					if session_ord == Ordering::Equal {
+						// sort by hash as last resort, to make below dedup work consistently
+						a.candidate_hash.cmp(&b.candidate_hash)
+					} else {
+						session_ord
+					}
+				},
 			}
 		});
 		statement_sets
