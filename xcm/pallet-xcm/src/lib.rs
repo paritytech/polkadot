@@ -782,13 +782,12 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let ancestry = T::LocationInverter::ancestry();
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
-				.reanchored(&inv_dest)
+				.reanchored(&dest, &ancestry)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets: MultiAssets = assets.into();
@@ -840,13 +839,12 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let ancestry = T::LocationInverter::ancestry();
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
-				.reanchored(&inv_dest)
+				.reanchored(&dest, &ancestry)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets: MultiAssets = assets.into();

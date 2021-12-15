@@ -91,12 +91,13 @@ impl WildMultiAsset {
 		}
 	}
 
-	/// Prepend a `MultiLocation` to any concrete asset components, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+	/// Mutate the asset to represent the same value from the perspective of a new `target`
+	/// location. The local chain's location is provided in `ancestry`.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
-				id.reanchor(prepend).map_err(|_| ()),
+				id.reanchor(target, ancestry),
 			All | AllCounted(_) => Ok(()),
 		}
 	}
@@ -175,11 +176,12 @@ impl MultiAssetFilter {
 		}
 	}
 
-	/// Prepend a `MultiLocation` to any concrete asset components, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		match self {
-			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(prepend),
-			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(prepend),
+			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, ancestry),
+			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, ancestry),
 		}
 	}
 

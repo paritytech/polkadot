@@ -188,6 +188,7 @@ pub fn node_config(
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
+		runtime_cache_size: 2,
 		announce_block: true,
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
@@ -340,6 +341,7 @@ pub fn construct_extrinsic(
 		BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 	let tip = 0;
 	let extra: SignedExtra = (
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -352,6 +354,7 @@ pub fn construct_extrinsic(
 		function.clone(),
 		extra.clone(),
 		(
+			(),
 			VERSION.spec_version,
 			VERSION.transaction_version,
 			genesis_block,

@@ -27,11 +27,11 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritypr/zombienet"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  PIPELINE_SCRIPTS_TAG:            "v0.1"
+  PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
   cache:                           {}
@@ -107,14 +107,17 @@ default:
     GITHUB_PR_TOKEN:
       vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
       file:                        false
+    GITHUB_TOKEN:
+      vault:                       cicd/gitlab/parity/GITHUB_TOKEN@kv
+      file:                        false
     GITHUB_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_USER@kv
       file:                        false
     GITHUB_RELEASE_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_RELEASE_TOKEN@kv
       file:                        false
-    GITHUB_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_TOKEN@kv
+    GITHUB_SSH_PRIV_KEY:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_SSH_PRIV_KEY@kv
       file:                        false
     MATRIX_ACCESS_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
@@ -198,7 +201,10 @@ test-build-linux-stable:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/release/polkadot ./artifacts/.
-    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - pushd artifacts
+    - sha256sum polkadot | tee polkadot.sha256
+    - shasum -c polkadot.sha256
+    - popd
     - EXTRATAG="$(./artifacts/polkadot --version |
         sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
     - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
@@ -297,11 +303,13 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
+        $CARGO_UPDATE_CRATES
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
 check-transaction-versions:
   stage:                           build
@@ -554,12 +562,15 @@ publish-rustdoc:
     - job:                         build-rustdoc
       artifacts:                   true
   script:
-    - rm -rf /tmp/*
+    # setup ssh
+    - eval $(ssh-agent)
+    - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
+    - mkdir ~/.ssh && touch ~/.ssh/known_hosts
+    - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
     # Set git config
-    - rm -rf .git/config
     - git config user.email "devops-team@parity.io"
     - git config user.name "${GITHUB_USER}"
-    - git config remote.origin.url "https://${GITHUB_TOKEN}@github.com/paritytech/polkadot.git"
+    - git config remote.origin.url "git@github.com:/paritytech/${CI_PROJECT_NAME}.git"
     - git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
     - git fetch origin gh-pages
     # Save README and docs

@@ -18,17 +18,21 @@
 
 #![cfg(test)]
 
-use crate::finality_loop::{
-	prune_recent_finality_proofs, read_finality_proofs_from_stream, run, select_better_recent_finality_proof,
-	select_header_to_submit, FinalityProofs, FinalitySyncParams, RestartableFinalityProofsStream, SourceClient,
-	TargetClient,
+use crate::{
+	finality_loop::{
+		prune_recent_finality_proofs, read_finality_proofs_from_stream, run,
+		select_better_recent_finality_proof, select_header_to_submit, FinalityProofs,
+		FinalitySyncParams, RestartableFinalityProofsStream, SourceClient, TargetClient,
+	},
+	FinalityProof, FinalitySyncPipeline, SourceHeader,
 };
-use crate::{FinalityProof, FinalitySyncPipeline, SourceHeader};
 
 use async_trait::async_trait;
 use futures::{FutureExt, Stream, StreamExt};
 use parking_lot::Mutex;
-use relay_utils::{metrics::MetricsParams, relay_loop::Client as RelayClient, MaybeConnectionError};
+use relay_utils::{
+	metrics::MetricsParams, relay_loop::Client as RelayClient, MaybeConnectionError,
+};
 use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 
 type IsMandatory = bool;
@@ -121,10 +125,7 @@ impl SourceClient<TestFinalitySyncPipeline> for TestSourceClient {
 	) -> Result<(TestSourceHeader, Option<TestFinalityProof>), TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(&mut *data);
-		data.source_headers
-			.get(&number)
-			.cloned()
-			.ok_or(TestError::NonConnection)
+		data.source_headers.get(&number).cloned().ok_or(TestError::NonConnection)
 	}
 
 	async fn finality_proofs(&self) -> Result<Self::FinalityProofsStream, TestError> {
@@ -157,7 +158,11 @@ impl TargetClient<TestFinalitySyncPipeline> for TestTargetClient {
 		Ok(data.target_best_block_number)
 	}
 
-	async fn submit_finality_proof(&self, header: TestSourceHeader, proof: TestFinalityProof) -> Result<(), TestError> {
+	async fn submit_finality_proof(
+		&self,
+		header: TestSourceHeader,
+		proof: TestFinalityProof,
+	) -> Result<(), TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(&mut *data);
 		data.target_best_block_number = header.number();
@@ -171,11 +176,12 @@ fn prepare_test_clients(
 	state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static,
 	source_headers: HashMap<TestNumber, (TestSourceHeader, Option<TestFinalityProof>)>,
 ) -> (TestSourceClient, TestTargetClient) {
-	let internal_state_function: Arc<dyn Fn(&mut ClientsData) + Send + Sync> = Arc::new(move |data| {
-		if state_function(data) {
-			exit_sender.unbounded_send(()).unwrap();
-		}
-	});
+	let internal_state_function: Arc<dyn Fn(&mut ClientsData) + Send + Sync> =
+		Arc::new(move |data| {
+			if state_function(data) {
+				exit_sender.unbounded_send(()).unwrap();
+			}
+		});
 	let clients_data = Arc::new(Mutex::new(ClientsData {
 		source_best_block_number: 10,
 		source_headers,
@@ -189,14 +195,13 @@ fn prepare_test_clients(
 			on_method_call: internal_state_function.clone(),
 			data: clients_data.clone(),
 		},
-		TestTargetClient {
-			on_method_call: internal_state_function,
-			data: clients_data,
-		},
+		TestTargetClient { on_method_call: internal_state_function, data: clients_data },
 	)
 }
 
-fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static) -> ClientsData {
+fn run_sync_loop(
+	state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static,
+) -> ClientsData {
 	let (exit_sender, exit_receiver) = futures::channel::mpsc::unbounded();
 	let (source_client, target_client) = prepare_test_clients(
 		exit_sender,
@@ -234,12 +239,13 @@ fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync
 #[test]
 fn finality_sync_loop_works() {
 	let client_data = run_sync_loop(|data| {
-		// header#7 has persistent finality proof, but it isn't mandatory => it isn't submitted, because
-		// header#8 has persistent finality proof && it is mandatory => it is submitted
-		// header#9 has persistent finality proof, but it isn't mandatory => it is submitted, because
-		//   there are no more persistent finality proofs
+		// header#7 has persistent finality proof, but it isn't mandatory => it isn't submitted,
+		// because header#8 has persistent finality proof && it is mandatory => it is submitted
+		// header#9 has persistent finality proof, but it isn't mandatory => it is submitted,
+		// because   there are no more persistent finality proofs
 		//
-		// once this ^^^ is done, we generate more blocks && read proof for blocks 12 and 14 from the stream
+		// once this ^^^ is done, we generate more blocks && read proof for blocks 12 and 14 from
+		// the stream
 		if data.target_best_block_number == 9 {
 			data.source_best_block_number = 14;
 			data.source_headers.insert(11, (TestSourceHeader(false, 11), None));
@@ -287,10 +293,7 @@ fn run_only_mandatory_headers_mode_test(
 		vec![
 			(6, (TestSourceHeader(false, 6), Some(TestFinalityProof(6)))),
 			(7, (TestSourceHeader(false, 7), Some(TestFinalityProof(7)))),
-			(
-				8,
-				(TestSourceHeader(has_mandatory_headers, 8), Some(TestFinalityProof(8))),
-			),
+			(8, (TestSourceHeader(has_mandatory_headers, 8), Some(TestFinalityProof(8)))),
 			(9, (TestSourceHeader(false, 9), Some(TestFinalityProof(9)))),
 			(10, (TestSourceHeader(false, 10), Some(TestFinalityProof(10)))),
 		]
@@ -357,7 +360,8 @@ fn select_better_recent_finality_proof_works() {
 		Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
 	);
 
-	// if there's no intersection between recent finality proofs and unjustified headers, nothing is changed
+	// if there's no intersection between recent finality proofs and unjustified headers, nothing is
+	// changed
 	let mut unjustified_headers = vec![TestSourceHeader(false, 9), TestSourceHeader(false, 10)];
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
@@ -368,13 +372,10 @@ fn select_better_recent_finality_proof_works() {
 		Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
 	);
 
-	// if there's intersection between recent finality proofs and unjustified headers, but there are no
-	// proofs in this intersection, nothing is changed
-	let mut unjustified_headers = vec![
-		TestSourceHeader(false, 8),
-		TestSourceHeader(false, 9),
-		TestSourceHeader(false, 10),
-	];
+	// if there's intersection between recent finality proofs and unjustified headers, but there are
+	// no proofs in this intersection, nothing is changed
+	let mut unjustified_headers =
+		vec![TestSourceHeader(false, 8), TestSourceHeader(false, 9), TestSourceHeader(false, 10)];
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[(7, TestFinalityProof(7)), (11, TestFinalityProof(11))],
@@ -385,22 +386,15 @@ fn select_better_recent_finality_proof_works() {
 	);
 	assert_eq!(
 		unjustified_headers,
-		vec![
-			TestSourceHeader(false, 8),
-			TestSourceHeader(false, 9),
-			TestSourceHeader(false, 10)
-		]
+		vec![TestSourceHeader(false, 8), TestSourceHeader(false, 9), TestSourceHeader(false, 10)]
 	);
 
 	// if there's intersection between recent finality proofs and unjustified headers and there's
 	// a proof in this intersection:
 	// - this better (last from intersection) proof is selected;
 	// - 'obsolete' unjustified headers are pruned.
-	let mut unjustified_headers = vec![
-		TestSourceHeader(false, 8),
-		TestSourceHeader(false, 9),
-		TestSourceHeader(false, 10),
-	];
+	let mut unjustified_headers =
+		vec![TestSourceHeader(false, 8), TestSourceHeader(false, 9), TestSourceHeader(false, 10)];
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[(7, TestFinalityProof(7)), (9, TestFinalityProof(9))],
@@ -416,7 +410,10 @@ fn read_finality_proofs_from_stream_works() {
 	// when stream is currently empty, nothing is changed
 	let mut recent_finality_proofs = vec![(1, TestFinalityProof(1))];
 	let mut stream = futures::stream::pending().into();
-	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(&mut stream, &mut recent_finality_proofs);
+	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(
+		&mut stream,
+		&mut recent_finality_proofs,
+	);
 	assert_eq!(recent_finality_proofs, vec![(1, TestFinalityProof(1))]);
 	assert!(!stream.needs_restart);
 
@@ -424,20 +421,20 @@ fn read_finality_proofs_from_stream_works() {
 	let mut stream = futures::stream::iter(vec![TestFinalityProof(4)])
 		.chain(futures::stream::pending())
 		.into();
-	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(&mut stream, &mut recent_finality_proofs);
-	assert_eq!(
-		recent_finality_proofs,
-		vec![(1, TestFinalityProof(1)), (4, TestFinalityProof(4))]
+	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(
+		&mut stream,
+		&mut recent_finality_proofs,
 	);
+	assert_eq!(recent_finality_proofs, vec![(1, TestFinalityProof(1)), (4, TestFinalityProof(4))]);
 	assert!(!stream.needs_restart);
 
 	// when stream has ended, we'll need to restart it
 	let mut stream = futures::stream::empty().into();
-	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(&mut stream, &mut recent_finality_proofs);
-	assert_eq!(
-		recent_finality_proofs,
-		vec![(1, TestFinalityProof(1)), (4, TestFinalityProof(4))]
+	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(
+		&mut stream,
+		&mut recent_finality_proofs,
 	);
+	assert_eq!(recent_finality_proofs, vec![(1, TestFinalityProof(1)), (4, TestFinalityProof(4))]);
 	assert!(stream.needs_restart);
 }
 

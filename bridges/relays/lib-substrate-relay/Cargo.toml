@@ -1,0 +1,48 @@
+[package]
+name = "substrate-relay-helper"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0.26"
+async-std = "1.9.0"
+async-trait = "0.1.42"
+codec = { package = "parity-scale-codec", version = "2.2.0" }
+futures = "0.3.12"
+num-traits = "0.2"
+log = "0.4.14"
+
+
+# Bridge dependencies
+
+bp-header-chain = { path = "../../primitives/header-chain" }
+bridge-runtime-common = { path = "../../bin/runtime-common" }
+
+finality-grandpa = { version = "0.14.0" }
+finality-relay = { path = "../finality" }
+relay-utils = { path = "../utils" }
+messages-relay = { path = "../messages" }
+relay-substrate-client = { path = "../client-substrate" }
+
+pallet-bridge-messages = { path = "../../modules/messages" }
+
+bp-runtime = { path = "../../primitives/runtime" }
+bp-messages = { path = "../../primitives/messages" }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+bp-millau = { path = "../../primitives/chain-millau" }
+bp-rococo = { path = "../../primitives/chain-rococo" }
+bp-wococo = { path = "../../primitives/chain-wococo" }
+relay-rococo-client = { path = "../client-rococo" }
+relay-wococo-client = { path = "../client-wococo" }
+rialto-runtime = { path = "../../bin/rialto/runtime" }

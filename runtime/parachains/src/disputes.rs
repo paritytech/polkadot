@@ -41,8 +41,6 @@ use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub use crate::Origin as ParachainOrigin;
-
 /// Whether the dispute is local or remote.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum DisputeLocation {
@@ -345,9 +343,6 @@ pub mod pallet {
 		SingleSidedDispute,
 	}
 
-	#[pallet::origin]
-	pub type Origin = ParachainOrigin;
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(<T as Config>::WeightInfo::force_unfreeze())]
@@ -607,7 +602,7 @@ impl StatementSetFilter {
 
 				// reverse order ensures correctness
 				for index in indices.into_iter().rev() {
-					// swap_remove guarantees linear complexity.
+					// `swap_remove` guarantees linear complexity.
 					statement_set.statements.swap_remove(index);
 				}
 
@@ -1234,8 +1229,8 @@ fn check_signature(
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, AccountId, AllPallets, Initializer, MockGenesisConfig, System, Test,
-		PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
+		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
+		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
 		REWARD_VALIDATORS,
 	};
 	use frame_support::{
@@ -1266,12 +1261,12 @@ mod tests {
 				// circumvent requirement to have bitfields and headers in block for testing purposes
 				crate::paras_inherent::Included::<Test>::set(Some(()));
 
-				AllPallets::on_finalize(b);
+				AllPalletsWithSystem::on_finalize(b);
 				System::finalize();
 			}
 
 			System::initialize(&(b + 1), &Default::default(), &Default::default(), InitKind::Full);
-			AllPallets::on_initialize(b + 1);
+			AllPalletsWithSystem::on_initialize(b + 1);
 
 			if let Some(new_session) = new_session(b + 1) {
 				Initializer::test_trigger_on_new_session(
@@ -1584,7 +1579,7 @@ mod tests {
 		});
 	}
 
-	// Test prunning works
+	// Test pruning works
 	#[test]
 	fn test_initializer_on_new_session() {
 		let dispute_period = 3;
@@ -2249,7 +2244,7 @@ mod tests {
 			Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 
-			// Ensure the reward_validator function was correctly called
+			// Ensure the `reward_validator` function was correctly called
 			assert_eq!(
 				REWARD_VALIDATORS.with(|r| r.borrow().clone()),
 				vec![
@@ -2309,7 +2304,7 @@ mod tests {
 			assert_noop!(
 				{
 					Pallet::<Test>::revert_and_freeze(0);
-					Result::<(), ()>::Err(()) // Just a small trick in order to use assert_noop.
+					Result::<(), ()>::Err(()) // Just a small trick in order to use `assert_noop`.
 				},
 				(),
 			);
@@ -2330,7 +2325,7 @@ mod tests {
 			assert_noop!(
 				{
 					Pallet::<Test>::revert_and_freeze(10);
-					Result::<(), ()>::Err(()) // Just a small trick in order to use assert_noop.
+					Result::<(), ()>::Err(()) // Just a small trick in order to use `assert_noop`.
 				},
 				(),
 			);

@@ -147,7 +147,7 @@ pub mod pallet {
 			// - Paras
 			// - Scheduler
 			// - Inclusion
-			// - SessionInfo
+			// - `SessionInfo`
 			// - Disputes
 			// - DMP
 			// - UMP
@@ -292,7 +292,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// Allow to trigger `on_new_session` in tests, this is needed as long as `pallet_session` is not
 	// implemented in mock.
 	#[cfg(any(test, feature = "runtime-benchmarks"))]
 	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
@@ -339,7 +339,8 @@ mod tests {
 		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
 		System,
 	};
-	use primitives::v1::Id as ParaId;
+	use primitives::v1::{HeadData, Id as ParaId};
+	use test_helpers::dummy_validation_code;
 
 	use frame_support::{
 		assert_ok,
@@ -426,8 +427,8 @@ mod tests {
 
 		let mock_genesis = crate::paras::ParaGenesisArgs {
 			parachain: true,
-			genesis_head: Default::default(),
-			validation_code: Default::default(),
+			genesis_head: HeadData(vec![4, 5, 6]),
+			validation_code: dummy_validation_code(),
 		};
 
 		new_test_ext(MockGenesisConfig {

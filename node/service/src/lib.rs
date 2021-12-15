@@ -272,15 +272,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 }
 
-// If we're using prometheus, use a registry with a prefix of `polkadot`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
-	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
-		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
-	}
-
-	Ok(())
-}
-
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
 #[cfg(any(test, feature = "full-node"))]
@@ -344,8 +335,6 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
-	set_prometheus_registry(config)?;
-
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -367,6 +356,7 @@ where
 		config.wasm_method,
 		config.default_heap_pages,
 		config.max_runtime_instances,
+		config.runtime_cache_size,
 	);
 
 	let (client, backend, keystore_container, task_manager) =
@@ -719,15 +709,21 @@ where
 	let chain_spec = config.chain_spec.cloned_box();
 
 	let local_keystore = basics.keystore_container.local_keystore();
-	let requires_overseer_for_chain_sel =
-		local_keystore.is_some() && (role.is_authority() || is_collator.is_collator());
+	let auth_or_collator = role.is_authority() || is_collator.is_collator();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let select_chain = SelectRelayChain::new(
-		basics.backend.clone(),
-		overseer_handle.clone(),
-		requires_overseer_for_chain_sel,
-		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
-	);
+	let select_chain = if requires_overseer_for_chain_sel {
+		let metrics =
+			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
+
+		SelectRelayChain::new_disputes_aware(
+			basics.backend.clone(),
+			overseer_handle.clone(),
+			metrics,
+		)
+	} else {
+		SelectRelayChain::new_longest_chain(basics.backend.clone())
+	};
 
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
@@ -876,7 +872,7 @@ where
 	let active_leaves =
 		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
+	let authority_discovery_service = if auth_or_collator {
 		use futures::StreamExt;
 		use sc_network::Event;
 
