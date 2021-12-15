@@ -674,6 +674,7 @@ parameter_types! {
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
 	pub const RococoForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1000).into());
 	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
+	pub const RococoForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1003).into());
 	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters = (
@@ -682,6 +683,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTrack>,
 	xcm_builder::Case<RococoForStatemine>,
 	xcm_builder::Case<RococoForCanvas>,
+	xcm_builder::Case<RococoForEncointer>,
 );
 
 parameter_types! {
@@ -692,6 +694,7 @@ parameter_types! {
 			Parachain(120).into(),
 			Parachain(1000).into(),
 			Parachain(1002).into(),
+			Parachain(1003).into(),
 		];
 }
 
