@@ -91,7 +91,7 @@ impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {
 	type WeightInfo = configuration::TestWeightInfo;
-	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
+	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<{ 50 * 1024 }>;
 }
 
 parameter_types! {

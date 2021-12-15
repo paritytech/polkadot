@@ -603,7 +603,7 @@ impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
-	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<50_000>;
+	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<{ 50 * 1024 }>;
 }
 
 impl parachains_shared::Config for Runtime {}
