@@ -91,7 +91,7 @@ impl InherentAfter {
 }
 
 /// A per-relay-parent job for the provisioning subsystem.
-pub struct ProvisioningJob {
+pub struct ProvisionerJob {
 	leaf: ActivatedLeaf,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
@@ -144,7 +144,7 @@ pub enum Error {
 	BackedCandidateOrderingProblem,
 }
 
-impl JobTrait for ProvisioningJob {
+impl JobTrait for ProvisionerJob {
 	type ToJob = ProvisionerMessage;
 	type Error = Error;
 	type RunArgs = ();
@@ -164,7 +164,7 @@ impl JobTrait for ProvisioningJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
 			let span = leaf.span.clone();
-			let job = ProvisioningJob::new(leaf, metrics, receiver);
+			let job = ProvisionerJob::new(leaf, metrics, receiver);
 
 			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
 				.await
@@ -173,7 +173,7 @@ impl JobTrait for ProvisioningJob {
 	}
 }
 
-impl ProvisioningJob {
+impl ProvisionerJob {
 	fn new(
 		leaf: ActivatedLeaf,
 		metrics: Metrics,
@@ -626,5 +626,5 @@ async fn select_disputes(
 		.collect())
 }
 
-/// The provisioning subsystem.
-pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
+/// The provisioner subsystem.
+pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisionerJob, Spawner>;

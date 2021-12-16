@@ -703,7 +703,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
@@ -895,7 +895,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1394,7 +1394,7 @@ fn share_prioritizes_backing_group() {
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1679,7 +1679,7 @@ fn peer_cant_flood_with_large_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
