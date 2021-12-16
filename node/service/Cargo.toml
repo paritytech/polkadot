@@ -179,3 +179,11 @@ try-runtime = [
 ]
 malus = ["full-node"]
 disputes = ["polkadot-node-core-dispute-coordinator/disputes"]
+runtime-metrics = [
+	"polkadot-client/runtime-metrics", 
+	"rococo-runtime/runtime-metrics",
+	"westend-runtime/runtime-metrics",
+	"kusama-runtime/runtime-metrics",
+	"polkadot-runtime/runtime-metrics",
+	"polkadot-runtime-parachains/runtime-metrics"
+]

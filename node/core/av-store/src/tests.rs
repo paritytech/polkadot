@@ -240,7 +240,18 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 				RuntimeApiRequest::CandidateEvents(tx),
 			)) => {
 				assert_eq!(relay_parent, new_leaf);
-				tx.send(Err(RuntimeApiError::from("oh no".to_string()))).unwrap();
+				#[derive(Debug)]
+				struct FauxError;
+				impl std::error::Error for FauxError {}
+				impl std::fmt::Display for FauxError {
+					fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+						Ok(())
+					}
+				}
+				tx.send(Err(RuntimeApiError::Execution {
+					runtime_api_name: "faux",
+					source: Arc::new(FauxError),
+				})).unwrap();
 			}
 		);
 

@@ -23,6 +23,7 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-tracing = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate", default-features = false, optional = true }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -42,6 +43,7 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 
 rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
+polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 
 [dev-dependencies]
 futures = "0.3.17"
@@ -82,6 +84,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"log/std",
+	"polkadot-runtime-metrics/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -98,3 +101,4 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-vesting/try-runtime",
 ]
+runtime-metrics = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/runtime-metrics"]

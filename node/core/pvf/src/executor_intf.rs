@@ -22,7 +22,6 @@ use sc_executor_common::{
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
-use sp_wasm_interface::HostFunctions as _;
 use std::any::{Any, TypeId};
 
 const CONFIG: Config = Config {
@@ -114,10 +113,9 @@ pub unsafe fn execute(
 	let mut ext = ValidationExternalities(extensions);
 
 	sc_executor::with_externalities_safe(&mut ext, || {
-		let runtime = sc_executor_wasmtime::create_runtime_from_artifact(
+		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
 			compiled_artifact,
 			CONFIG,
-			HostFunctions::host_functions(),
 		)?;
 		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 	})?
