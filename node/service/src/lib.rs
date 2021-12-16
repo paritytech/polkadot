@@ -724,6 +724,7 @@ where
 	let disputes_enabled = chain_spec.is_rococo() ||
 		chain_spec.is_kusama() ||
 		chain_spec.is_westend() ||
+		chain_spec.is_versi() ||
 		chain_spec.is_wococo();
 
 	let select_chain = if requires_overseer_for_chain_sel {
