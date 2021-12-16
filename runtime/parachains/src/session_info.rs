@@ -24,10 +24,12 @@ use crate::{
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
 use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
-use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
+
+pub mod migration;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -132,6 +134,7 @@ impl<T: Config> Pallet<T> {
 			n_delay_tranches,
 			no_show_slots,
 			needed_approvals,
+			active_validator_indices: active_set,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 	}
