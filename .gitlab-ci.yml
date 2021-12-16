@@ -623,7 +623,7 @@ zombienet-tests-parachains-smoke-test:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains'
 
   before_script:
     - echo "Zombie-net Tests Config"
@@ -660,7 +660,7 @@ zombienet-tests-malus-dispute-valid:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/node/malus/integrationtests'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests'
 
   before_script:
     - echo "Zombie-net Tests Config"
