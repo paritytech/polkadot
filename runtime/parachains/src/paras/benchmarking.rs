@@ -127,6 +127,15 @@ benchmarks! {
 		assert_last_event::<T>(Event::ActionQueued(para_id, next_session).into());
 	}
 
+	add_trusted_validation_code {
+		let c in 1 .. MAX_CODE_SIZE;
+		let new_code = ValidationCode(vec![0; c as usize]);
+	}: _(RawOrigin::Root, new_code)
+
+	poke_unused_validation_code {
+		let code_hash = [0; 32].into();
+	}: _(RawOrigin::Root, code_hash)
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::mock::new_test_ext(Default::default()),

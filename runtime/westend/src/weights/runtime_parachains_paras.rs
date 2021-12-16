@@ -97,4 +97,6 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+	fn add_trusted_validation_code(_: u32) -> u64 { todo!() }
+	fn poke_unused_validation_code() -> u64 { todo!() }
 }
