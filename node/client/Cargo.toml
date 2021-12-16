@@ -13,7 +13,7 @@ sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "mast
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["use-state-v0"] }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -24,7 +24,7 @@ sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["use-state-v0"] }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }

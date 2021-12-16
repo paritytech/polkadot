@@ -178,7 +178,11 @@ fn current_relay_parent<T: frame_system::Config>(
 ) -> (<T as frame_system::Config>::BlockNumber, <T as frame_system::Config>::Hash) {
 	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
-	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
+	#[cfg(feature = "use-state-v0")]
+	let state = sp_runtime::StateVersion::V0;
+	#[cfg(not(feature = "use-state-v0"))]
+	let state = sp_runtime::StateVersion::V1;
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root(state as u8)[..])
 		.expect("storage root must decode to the Hash type; qed");
 	(relay_parent_number, relay_parent_storage_root)
 }

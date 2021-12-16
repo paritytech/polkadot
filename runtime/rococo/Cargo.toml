@@ -14,7 +14,7 @@ smallvec = "1.6.1"
 log = { version = "0.4.14", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["use-state-v0"] }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -63,7 +63,7 @@ rococo-runtime-constants = { package = "rococo-runtime-constants", path = "./con
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
-runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false, features = ["use-state-v0"] }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
