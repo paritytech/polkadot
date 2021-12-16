@@ -20,7 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
-use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
 
 use rand::{seq::SliceRandom, SeedableRng};

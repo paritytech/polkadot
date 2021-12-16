@@ -18,7 +18,6 @@
 
 use crate::session_info::{Pallet, Store, Config};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
-use frame_system::pallet_prelude::BlockNumberFor;
 
 /// The current storage version.
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
@@ -34,7 +33,7 @@ pub fn migrate_to_latest<T: Config>() -> Weight {
 }
 
 mod v1 {
-	use primitives::v1::*;
+	use primitives::v2::*;
 	use parity_scale_codec::{Decode, Encode};
 
 	/// Information about validator sets of a session.
@@ -55,7 +54,7 @@ mod v1 {
 
 pub fn migrate_to_v2<T: Config>() -> Weight {
 	let translate_value = |old: v1::SessionInfo| -> Option<primitives::v2::SessionInfo> {
-		Som(primitives::v2::SessionInfo {
+		Some(primitives::v2::SessionInfo {
 			// new fields
 			active_validator_indices: Vec::new(),
 			// old fields
@@ -63,7 +62,7 @@ pub fn migrate_to_v2<T: Config>() -> Weight {
 			discovery_keys: old.discovery_keys,
 			assignment_keys: old.assignment_keys,
 			validator_groups: old.validator_groups,
-			n_cores: old.n_core,
+			n_cores: old.n_cores,
 			zeroth_delay_tranche_width: old.zeroth_delay_tranche_width,
 			relay_vrf_modulo_samples: old.relay_vrf_modulo_samples,
 			n_delay_tranches: old.n_delay_tranches,

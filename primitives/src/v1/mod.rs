@@ -19,7 +19,7 @@
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::prelude::*;
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -931,79 +931,6 @@ impl ApprovalVote {
 		const MAGIC: [u8; 4] = *b"APPR";
 
 		(MAGIC, &self.0, session_index).encode()
-	}
-}
-
-sp_api::decl_runtime_apis! {
-	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
-		/// Get the current validators.
-		fn validators() -> Vec<ValidatorId>;
-
-		/// Returns the validator groups and rotation info localized based on the hypothetical child
-		///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
-		/// should be the successor of the number of the block.
-		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
-
-		/// Yields information on all availability cores as relevant to the child block.
-		/// Cores are either free or occupied. Free cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<H, N>>;
-
-		/// Yields the persisted validation data for the given `ParaId` along with an assumption that
-		/// should be used if the para currently occupies a core.
-		///
-		/// Returns `None` if either the para is not registered or the assumption is `Freed`
-		/// and the para already occupies a core.
-		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<H, N>>;
-
-		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
-		/// validation code hash. Instead of accepting assumption about the para, matches the validation
-		/// data hash against an expected one and yields `None` if they're not equal.
-		fn assumed_validation_data(
-			para_id: Id,
-			expected_persisted_validation_data_hash: Hash,
-		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;
-
-		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
-
-		/// Returns the session index expected at a child of the block.
-		///
-		/// This can be used to instantiate a `SigningContext`.
-		fn session_index_for_child() -> SessionIndex;
-
-		/// Get the session info for the given session, if stored.
-		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
-
-		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
-		///
-		/// Returns `None` if either the para is not registered or the assumption is `Freed`
-		/// and the para already occupies a core.
-		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode>;
-
-		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
-		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
-
-		/// Get a vector of events concerning candidates that occurred within a block.
-		fn candidate_events() -> Vec<CandidateEvent<H>>;
-
-		/// Get all the pending inbound messages in the downward message queue for a para.
-		fn dmq_contents(
-			recipient: Id,
-		) -> Vec<InboundDownwardMessage<N>>;
-
-		/// Get the contents of all channels addressed to the given recipient. Channels that have no
-		/// messages in them are also included.
-		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
-
-		/// Get the validation code from its hash.
-		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
-
-		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
-		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
 	}
 }
 

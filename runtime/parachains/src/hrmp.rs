@@ -21,7 +21,7 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
+use primitives::v2::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
 };
@@ -1271,7 +1271,7 @@ mod tests {
 		ParasShared, System, Test,
 	};
 	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
-	use primitives::v1::BlockNumber;
+	use primitives::v2::BlockNumber;
 	use std::collections::{BTreeMap, HashSet};
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -1795,7 +1795,7 @@ mod tests {
 
 	#[test]
 	fn verify_externally_accessible() {
-		use primitives::v1::{well_known_keys, AbridgedHrmpChannel};
+		use primitives::v2::{well_known_keys, AbridgedHrmpChannel};
 
 		let para_a = 20.into();
 		let para_b = 21.into();

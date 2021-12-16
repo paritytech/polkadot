@@ -19,7 +19,7 @@ use crate::{
 	initializer,
 };
 use frame_support::pallet_prelude::*;
-use primitives::v1::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
@@ -233,7 +233,7 @@ mod tests {
 	use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
 	use hex_literal::hex;
 	use parity_scale_codec::Encode;
-	use primitives::v1::BlockNumber;
+	use primitives::v2::BlockNumber;
 
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
@@ -399,7 +399,7 @@ mod tests {
 	#[test]
 	fn verify_dmq_mqc_head_is_externally_accessible() {
 		use hex_literal::hex;
-		use primitives::v1::well_known_keys;
+		use primitives::v2::well_known_keys;
 
 		let a = ParaId::from(2020);
 

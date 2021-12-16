@@ -18,7 +18,7 @@ use super::*;
 use crate::{configuration::HostConfiguration, shared};
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
+use primitives::v2::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
 // 2 ^ 10, because binary search time complexity is O(log(2, n)) and n = 1024 gives us a big and

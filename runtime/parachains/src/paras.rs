@@ -27,7 +27,7 @@ use crate::{configuration, initializer::SessionChangeNotification, shared};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
+use primitives::v2::{
 	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
 	ValidationCode, ValidationCodeHash,
 };
@@ -1097,7 +1097,7 @@ impl<T: Config> Pallet<T> {
 mod tests {
 	use super::*;
 	use frame_support::{assert_err, assert_ok};
-	use primitives::v1::BlockNumber;
+	use primitives::v2::BlockNumber;
 	use test_helpers::{dummy_head_data, dummy_validation_code};
 
 	use crate::{
@@ -1902,7 +1902,7 @@ mod tests {
 
 	#[test]
 	fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-		use primitives::v1::well_known_keys;
+		use primitives::v2::well_known_keys;
 
 		let a = ParaId::from(2020);
 
@@ -1918,7 +1918,7 @@ mod tests {
 
 	#[test]
 	fn verify_upgrade_restriction_signal_is_externally_accessible() {
-		use primitives::v1::well_known_keys;
+		use primitives::v2::well_known_keys;
 
 		let a = ParaId::from(2020);
 

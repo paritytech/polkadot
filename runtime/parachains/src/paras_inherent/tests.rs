@@ -700,7 +700,7 @@ mod sanitizers {
 		back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
 	};
 	use bitvec::order::Lsb0;
-	use primitives::v1::{
+	use primitives::v2::{
 		AvailabilityBitfield, GroupIndex, Hash, Id as ParaId, SignedAvailabilityBitfield,
 		ValidatorIndex,
 	};

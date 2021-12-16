@@ -38,7 +38,7 @@ pub fn migrate_to_latest<T: Config>() -> Weight {
 
 mod v1 {
 	use super::*;
-	use primitives::v1::{Balance, SessionIndex};
+	use primitives::v2::{Balance, SessionIndex};
 
 	// Copied over from configuration.rs @ 656dd280f266dc56bd0cf1dbe3ca232960912f34 and removed
 	// all the comments.

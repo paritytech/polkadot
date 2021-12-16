@@ -185,7 +185,7 @@ mod tests {
 		util::take_active_subset,
 	};
 	use keyring::Sr25519Keyring;
-	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
+	use primitives::v2::{BlockNumber, ValidatorId, ValidatorIndex};
 
 	fn run_to_block(
 		to: BlockNumber,

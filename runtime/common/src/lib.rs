@@ -47,7 +47,7 @@ use frame_support::{
 };
 use frame_system::limits;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
-use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
+use primitives::v2::{AssignmentId, BlockNumber, ValidatorId};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 

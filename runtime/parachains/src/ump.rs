@@ -20,7 +20,7 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
-use primitives::v1::{Id as ParaId, UpwardMessage};
+use primitives::v2::{Id as ParaId, UpwardMessage};
 use sp_std::{
 	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
 };
@@ -953,7 +953,7 @@ pub(crate) mod tests {
 		// keys and is decodable into a (u32, u32).
 
 		use parity_scale_codec::Decode as _;
-		use primitives::v1::well_known_keys;
+		use primitives::v2::well_known_keys;
 
 		let a = ParaId::from(228);
 		let msg = vec![1, 2, 3];

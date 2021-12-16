@@ -29,7 +29,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
-use primitives::v1::{
+use primitives::v2::{
 	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{

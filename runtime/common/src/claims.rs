@@ -23,7 +23,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::ValidityError;
+use primitives::v2::ValidityError;
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};

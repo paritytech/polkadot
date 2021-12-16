@@ -64,7 +64,7 @@ mod tests {
 	use super::*;
 	use frame_support::{parameter_types, traits::FindAuthor, weights::DispatchClass, PalletId};
 	use frame_system::limits;
-	use primitives::v1::AccountId;
+	use primitives::v2::AccountId;
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,

@@ -20,7 +20,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
 };
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
+use primitives::v2::{HeadData, Id as ParaId, ValidationCode};
 use sp_std::vec::*;
 
 /// Parachain registration API.
