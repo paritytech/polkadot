@@ -843,9 +843,15 @@ impl parachains_inclusion::Config for Runtime {
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl parachains_paras::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 parameter_types! {
@@ -1008,11 +1014,15 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Westmint: MultiLocation = Parachain(1000).into();
+	pub const Encointer: MultiLocation = Parachain(1001).into();
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
+	pub const WestendForEncointer: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Encointer::get());
 	pub const MaxInstructions: u32 = 100;
 }
-pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
+pub type TrustedTeleporters =
+	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForEncointer>);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
