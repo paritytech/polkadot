@@ -789,6 +789,7 @@ pub mod pallet {
 		))]
 		pub fn set_max_upward_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= T::MaxUpwardMessageSizeBound::get(), Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_upward_message_size, new) != new
 			});
