@@ -30,6 +30,17 @@ pub use metered_channel as metered;
 pub mod metronome;
 pub use self::metronome::Metronome;
 
+#[cfg(feature = "runtime-metrics")]
+pub mod runtime;
+#[cfg(feature = "runtime-metrics")]
+pub use self::runtime::logger_hook;
+
+/// Export a dummy logger hook when `wasm tracing` is not enabled.
+#[cfg(not(feature = "runtime-metrics"))]
+pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
+	|_logger_builder, _config| {}
+}
+
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
 	/// Reexport Substrate Prometheus types.
@@ -69,3 +80,6 @@ pub mod metrics {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests;

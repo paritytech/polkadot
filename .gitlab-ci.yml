@@ -596,11 +596,9 @@ publish-rustdoc:
 
 #### stage:                        deploy
 
-deploy-polkasync-kusama:
+deploy-parity-testnet:
   stage:                           deploy
   rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   variables:
