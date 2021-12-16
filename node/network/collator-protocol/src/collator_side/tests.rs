@@ -110,6 +110,7 @@ impl Default for TestState {
 				n_delay_tranches: 0,
 				no_show_slots: 0,
 				needed_approvals: 0,
+				active_validator_indices: vec![],
 			},
 			group_rotation_info,
 			validator_peer_id,

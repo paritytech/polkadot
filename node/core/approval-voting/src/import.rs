@@ -685,6 +685,7 @@ pub(crate) mod tests {
 			n_delay_tranches: index as _,
 			no_show_slots: index as _,
 			needed_approvals: index as _,
+			active_validator_indices: Vec::new(),
 		}
 	}
 
@@ -1140,6 +1141,7 @@ pub(crate) mod tests {
 			relay_vrf_modulo_samples: irrelevant,
 			n_delay_tranches: irrelevant,
 			no_show_slots: irrelevant,
+			active_validator_indices: Vec::new(),
 		};
 
 		let slot = Slot::from(10);

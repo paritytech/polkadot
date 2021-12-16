@@ -494,6 +494,7 @@ fn dummy_session_info() -> SessionInfo {
 		n_delay_tranches: 2u32,
 		no_show_slots: 0u32,
 		needed_approvals: 1u32,
+		active_validator_indices: vec![],
 	}
 }
 #[test]

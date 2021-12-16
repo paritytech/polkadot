@@ -86,6 +86,7 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: vec![],
 	};
 
 /// `SessionInfo` for the second session. (No more validators, but two more authorities.
@@ -105,6 +106,7 @@ pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: vec![],
 	};
 }
 
