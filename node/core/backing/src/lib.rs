@@ -982,6 +982,7 @@ impl CandidateBackingJob {
 				// have not signed a Valid statement for the requested candidate.
 
 				if self.seconded.is_none() {
+					self.metrics.on_invalid_chunk();
 					// If it's time to misbehave, generate a new
 					// candidate and second that instead of the real one.
 					tracing::debug!(
@@ -1460,6 +1461,7 @@ impl util::JobTrait for CandidateBackingJob {
 struct MetricsInner {
 	signed_statements_total: prometheus::Counter<prometheus::U64>,
 	candidates_seconded_total: prometheus::Counter<prometheus::U64>,
+	invalid_chunks_backed: prometheus::Counter<prometheus::U64>,
 	process_second: prometheus::Histogram,
 	process_statement: prometheus::Histogram,
 	get_backed_candidates: prometheus::Histogram,
@@ -1470,6 +1472,12 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	fn on_invalid_cunk(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.invalid_chunks_backed.inc();
+		}
+	}
+
 	fn on_statement_signed(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.signed_statements_total.inc();
