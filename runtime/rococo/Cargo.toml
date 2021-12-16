@@ -14,7 +14,7 @@ smallvec = "1.6.1"
 log = { version = "0.4.14", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["old_state"] }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["use-state-v0"] }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
