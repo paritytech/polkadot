@@ -205,6 +205,9 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// To prevent that, we introduce the minimum number of blocks after which the upgrade can be
 	/// scheduled. This number is controlled by this field.
+	///
+	/// This value should be greater than [`chain_availability_period`] and
+	/// [`thread_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
@@ -253,14 +256,14 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
-			minimum_validation_upgrade_delay: 0.into(),
+			minimum_validation_upgrade_delay: 2.into(),
 		}
 	}
 }
 
 /// Enumerates the possible inconsistencies of `HostConfiguration`.
 #[derive(Debug)]
-pub enum InconsistentError {
+pub enum InconsistentError<BlockNumber> {
 	/// `group_rotation_frequency` is set to zero.
 	ZeroGroupRotationFrequency,
 	/// `chain_availability_period` is set to zero.
@@ -275,6 +278,16 @@ pub enum InconsistentError {
 	MaxHeadDataSizeExceedHardLimit { max_head_data_size: u32 },
 	/// `max_pov_size` exceeds the hard limit of `MAX_POV_SIZE`.
 	MaxPovSizeExceedHardLimit { max_pov_size: u32 },
+	/// `minimum_validation_upgrade_delay` is less than `chain_availability_period`.
+	MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
+		minimum_validation_upgrade_delay: BlockNumber,
+		chain_availability_period: BlockNumber,
+	},
+	/// `minimum_validation_upgrade_delay` is less than `thread_availability_period`.
+	MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
+		minimum_validation_upgrade_delay: BlockNumber,
+		thread_availability_period: BlockNumber,
+	},
 }
 
 impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfiguration<BlockNumber> {
@@ -283,7 +296,7 @@ impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfigurat
 	/// # Errors
 	///
 	/// This function returns an error if the configuration is inconsistent.
-	pub fn check_consistency(&self) -> Result<(), InconsistentError> {
+	pub fn check_consistency(&self) -> Result<(), InconsistentError<BlockNumber>> {
 		use InconsistentError::*;
 
 		if self.group_rotation_frequency.is_zero() {
@@ -314,6 +327,18 @@ impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfigurat
 
 		if self.max_pov_size > MAX_POV_SIZE {
 			return Err(MaxPovSizeExceedHardLimit { max_pov_size: self.max_pov_size })
+		}
+
+		if self.minimum_validation_upgrade_delay <= self.chain_availability_period {
+			return Err(MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
+				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
+				chain_availability_period: self.chain_availability_period.clone(),
+			})
+		} else if self.minimum_validation_upgrade_delay <= self.thread_availability_period {
+			return Err(MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
+				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
+				thread_availability_period: self.thread_availability_period.clone(),
+			})
 		}
 
 		Ok(())
@@ -999,6 +1024,8 @@ pub mod pallet {
 
 		/// Sets the minimum delay between announcing the upgrade block for a parachain until the
 		/// upgrade taking place.
+		///
+		/// See the field documentation for information and constraints for the new value.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -1449,6 +1476,29 @@ mod tests {
 				Configuration::set_thread_availability_period(Origin::root(), 0),
 				Error::<Test>::InvalidNewValue
 			);
+			assert_err!(
+				Configuration::set_no_show_slots(Origin::root(), 0),
+				Error::<Test>::InvalidNewValue
+			);
+
+			<Configuration as Store>::ActiveConfig::put(HostConfiguration {
+				chain_availability_period: 10,
+				thread_availability_period: 8,
+				minimum_validation_upgrade_delay: 11,
+				..Default::default()
+			});
+			assert_err!(
+				Configuration::set_chain_availability_period(Origin::root(), 12),
+				Error::<Test>::InvalidNewValue
+			);
+			assert_err!(
+				Configuration::set_thread_availability_period(Origin::root(), 12),
+				Error::<Test>::InvalidNewValue
+			);
+			assert_err!(
+				Configuration::set_minimum_validation_upgrade_delay(Origin::root(), 9),
+				Error::<Test>::InvalidNewValue
+			);
 		});
 	}
 
@@ -1552,6 +1602,13 @@ mod tests {
 			Configuration::set_group_rotation_frequency(
 				Origin::root(),
 				new_config.group_rotation_frequency,
+			)
+			.unwrap();
+			// This comes out of order to satisfy the validity criteria for the chain and thread
+			// availability periods.
+			Configuration::set_minimum_validation_upgrade_delay(
+				Origin::root(),
+				new_config.minimum_validation_upgrade_delay,
 			)
 			.unwrap();
 			Configuration::set_chain_availability_period(
@@ -1694,11 +1751,6 @@ mod tests {
 			)
 			.unwrap();
 			Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
-			Configuration::set_minimum_validation_upgrade_delay(
-				Origin::root(),
-				new_config.minimum_validation_upgrade_delay,
-			)
-			.unwrap();
 
 			assert_eq!(
 				<Configuration as Store>::PendingConfigs::get(),

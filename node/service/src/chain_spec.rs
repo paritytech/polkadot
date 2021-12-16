@@ -210,6 +210,7 @@ fn default_parachains_host_configuration(
 		needed_approvals: 2,
 		relay_vrf_modulo_samples: 2,
 		zeroth_delay_tranche_width: 0,
+		minimum_validation_upgrade_delay: 5,
 		..Default::default()
 	}
 }

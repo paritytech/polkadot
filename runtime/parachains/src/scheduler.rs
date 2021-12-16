@@ -850,6 +850,10 @@ mod tests {
 			scheduling_lookahead: 2,
 			parathread_retries: 1,
 			pvf_checking_enabled: false,
+			// This field does not affect anything that scheduler does. However, `HostConfiguration`
+			// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
+			// is greater than `chain_availability_period` and `thread_availability_period`.
+			minimum_validation_upgrade_delay: 6,
 			..Default::default()
 		}
 	}
