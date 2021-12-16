@@ -461,9 +461,9 @@ async fn select_candidates(
 	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
 	// in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
-	for selected in selected_candidates {
+	for selected in selected_candidates.iter() {
 		if selected ==
-			candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash()
+			&candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash()
 		{
 			backed_idx += 1;
 		}
@@ -488,9 +488,9 @@ async fn select_candidates(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Selected {} candidates for {} cores",
-		candidates.len(),
-		availability_cores.len(),
+		?relay_parent,
+		"Selected {} backed candidates ready to be sanitized by the runtime",
+		selected_candidates.len(),
 	);
 
 	Ok(candidates)

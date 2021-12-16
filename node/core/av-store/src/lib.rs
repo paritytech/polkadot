@@ -1121,6 +1121,31 @@ fn process_message(
 				},
 			}
 		},
+		AvailabilityStoreMessage::StoreMaliciousAvailableData(
+			candidate,
+			replaced_chunk_index,
+			n_validators,
+			available_data,
+			tx,
+		) => {
+			let res = store_malicious_available_data(
+				&subsystem,
+				candidate,
+				replaced_chunk_index,
+				n_validators as _,
+				available_data,
+			);
+
+			match res {
+				Ok(()) => {
+					let _ = tx.send(Ok(()));
+				},
+				Err(e) => {
+					let _ = tx.send(Err(()));
+					return Err(e)
+				},
+			}
+		},
 	}
 
 	Ok(())
@@ -1195,6 +1220,68 @@ fn store_available_data(
 	};
 
 	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
+	let branches = erasure::branches(chunks.as_ref());
+
+	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
+		|(index, (chunk, proof))| ErasureChunk {
+			chunk: chunk.clone(),
+			proof,
+			index: ValidatorIndex(index as u32),
+		},
+	);
+
+	for chunk in erasure_chunks {
+		write_chunk(&mut tx, &subsystem.config, &candidate_hash, chunk.index, &chunk);
+	}
+
+	meta.data_available = true;
+	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
+
+	write_meta(&mut tx, &subsystem.config, &candidate_hash, &meta);
+	write_available_data(&mut tx, &subsystem.config, &candidate_hash, &available_data);
+
+	subsystem.db.write(tx)?;
+
+	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks");
+
+	Ok(())
+}
+
+// Ok(true) on success, Ok(false) on failure, and Err on internal error.
+fn store_malicious_available_data(
+	subsystem: &AvailabilityStoreSubsystem,
+	candidate_hash: CandidateHash,
+	replaced_chunk_index: usize,
+	n_validators: usize,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let mut tx = DBTransaction::new();
+
+	let mut meta = match load_meta(&subsystem.db, &subsystem.config, &candidate_hash)? {
+		Some(m) => {
+			if m.data_available {
+				return Ok(()) // already stored.
+			}
+
+			m
+		},
+		None => {
+			let now = subsystem.clock.now()?;
+
+			// Write a pruning record.
+			let prune_at = now + subsystem.pruning_config.keep_unavailable_for;
+			write_pruning_key(&mut tx, &subsystem.config, prune_at, &candidate_hash);
+
+			CandidateMeta {
+				state: State::Unavailable(now.into()),
+				data_available: false,
+				chunks_stored: BitVec::new(),
+			}
+		},
+	};
+
+	let mut chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
+	chunks[replaced_chunk_index].fill(42);
 	let branches = erasure::branches(chunks.as_ref());
 
 	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
