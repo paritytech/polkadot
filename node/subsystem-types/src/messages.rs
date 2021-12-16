@@ -517,6 +517,14 @@ pub enum AvailabilityStoreMessage {
 		/// Sending side of the channel to send result to.
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
+	/// Same as `StoreAvailableData`, but way cooler.
+	StoreMaliciousAvailableData(
+		CandidateHash,
+		usize,
+		u32,
+		AvailableData,
+		oneshot::Sender<Result<(), ()>>,
+	),
 }
 
 impl AvailabilityStoreMessage {
