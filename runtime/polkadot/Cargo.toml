@@ -257,3 +257,4 @@ disable-runtime-api = []
 on-chain-release-build = [
 	"sp-api/disable-logging",
 ]
+runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]

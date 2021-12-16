@@ -204,3 +204,5 @@ try-runtime = [
 	"runtime-common/try-runtime",
 	"pallet-multisig/try-runtime",
 ]
+
+runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]
