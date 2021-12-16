@@ -494,7 +494,7 @@ async fn select_candidates(
 		target: LOG_TARGET,
 		"Selected {} candidates for {} cores",
 		candidates.len(),
-		availability_cores.len(),
+		availability_cores.len()
 	);
 
 	Ok(candidates)
@@ -555,9 +555,6 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-/// Maximum number of candidates we query at once for dispute statements.
-const MAX_CHUNK_SIZE: usize = 100;
-
 #[derive(Debug)]
 enum RequestType {
 	/// Query recent disputes, could be an excessive amount.
@@ -581,7 +578,7 @@ async fn request_disputes(
 	let recent_disputes = match rx.await {
 		Ok(r) => r,
 		Err(oneshot::Canceled) => {
-			tracing::debug!(target: LOG_TARGET, "Unable to gather {:?} disputes", active_or_recent,);
+			tracing::warn!(target: LOG_TARGET, "Unable to gather {:?} disputes", active_or_recent);
 			Vec::new()
 		},
 	};
@@ -601,7 +598,7 @@ async fn request_votes(
 	match rx.await {
 		Ok(v) => v,
 		Err(oneshot::Canceled) => {
-			tracing::debug!(target: LOG_TARGET, "Unable to query candidate votes",);
+			tracing::warn!(target: LOG_TARGET, "Unable to query candidate votes");
 			Vec::new()
 		},
 	}
@@ -624,13 +621,11 @@ fn extend_by_random_subset_without_repetition(
 	if unique_new.len() <= n {
 		acc.extend(unique_new)
 	} else {
+		acc.reserve(n);
 		let mut rng = rand::thread_rng();
-		// fill up to the maximum numer of dispute statements set, if there are that many statement sets
-		let mut k = std::cmp::min(unique_new.len(), n);
-		while k > 0 {
+		for _ in 0..n {
 			let idx = rng.gen_range(0..unique_new.len());
 			acc.push(unique_new.swap_remove(idx));
-			k -= 1;
 		}
 	}
 	// assure sorting stays candid according to session index
@@ -642,7 +637,6 @@ async fn select_disputes(
 	metrics: &metrics::Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
 	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
-	use thousands::Separable;
 
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
@@ -655,8 +649,8 @@ async fn select_disputes(
 		tracing::warn!(
 			target: LOG_TARGET,
 			"Recent disputes are excessive ({} > {}), reduce to active ones, and selected",
-			recent.len().separate_with_underscores(),
-			MAX_DISPUTES_FORWARDED_TO_RUNTIME.separate_with_underscores()
+			recent.len(),
+			MAX_DISPUTES_FORWARDED_TO_RUNTIME
 		);
 		let mut active = request_disputes(sender, RequestType::Active).await;
 		let n_active = active.len();
