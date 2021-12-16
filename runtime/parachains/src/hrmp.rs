@@ -908,6 +908,19 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
+	/// Worst case weight for `prune_hrmp`.
+	pub(crate) fn prune_hrmp_weight(
+		hrmp_max_parachain_inbound_channels: u32,
+		hrmp_max_parathread_inbound_channels: u32,
+	) -> Weight {
+		let max_pruneable_channels: u64 = hrmp_max_parachain_inbound_channels
+			.max(hrmp_max_parathread_inbound_channels)
+			.into();
+
+		T::DbWeight::get()
+			.reads_writes(1 + 2 * max_pruneable_channels, 2 + 2 * max_pruneable_channels)
+	}
+
 	/// Process the outbound HRMP messages by putting them into the appropriate recipient queues.
 	///
 	/// Returns the amount of weight consumed.
@@ -973,10 +986,17 @@ impl<T: Config> Pallet<T> {
 			}
 			<Self as Store>::HrmpChannelDigests::insert(&channel_id.recipient, recipient_digest);
 
-			weight += T::DbWeight::get().reads_writes(2, 2);
+			weight += T::DbWeight::get().reads_writes(3, 2);
 		}
 
 		weight
+	}
+
+	/// Worst case weight for `queue_outbound_hrmp`.
+	pub(crate) fn queue_outbound_hrmp_weight(hrmp_max_message_num_per_candidate: u32) -> Weight {
+		let reads = (3 * hrmp_max_message_num_per_candidate).into();
+		let writes = (2 * hrmp_max_message_num_per_candidate).into();
+		T::DbWeight::get().reads_writes(reads, writes)
 	}
 
 	/// Initiate opening a channel from a parachain to a given recipient with given channel

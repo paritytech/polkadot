@@ -440,7 +440,8 @@ fn bitfield_checks() {
 					vec![signed.into()],
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
-				),
+				)
+				.0,
 				vec![]
 			);
 		}
@@ -462,7 +463,8 @@ fn bitfield_checks() {
 					vec![signed.into()],
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
-				),
+				)
+				.0,
 				vec![]
 			);
 		}
@@ -500,6 +502,7 @@ fn bitfield_checks() {
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
+			.0
 			.is_empty());
 
 			assert_eq!(
@@ -556,6 +559,7 @@ fn bitfield_checks() {
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
+			.0
 			.is_empty());
 
 			assert_eq!(
@@ -587,6 +591,7 @@ fn bitfield_checks() {
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
+			.0
 			.is_empty());
 		}
 
@@ -607,6 +612,7 @@ fn bitfield_checks() {
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
+			.0
 			.is_empty());
 		}
 
@@ -647,6 +653,7 @@ fn bitfield_checks() {
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
+			.0
 			.is_empty());
 
 			<PendingAvailability<Test>>::remove(chain_a);
@@ -690,6 +697,7 @@ fn bitfield_checks() {
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
+			.0
 			.is_empty());
 		}
 	});
@@ -833,7 +841,8 @@ fn supermajority_bitfields_trigger_availability() {
 				signed_bitfields,
 				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
-			),
+			)
+			.0,
 			vec![(CoreIndex(0), candidate_a.hash())]
 		);
 

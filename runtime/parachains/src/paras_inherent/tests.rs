@@ -785,7 +785,7 @@ mod sanitizers {
 					&validator_public[..],
 					FullCheck::Skip,
 				),
-				unchecked_bitfields.clone()
+				(unchecked_bitfields.clone(), expected_bits)
 			);
 			assert_eq!(
 				sanitize_bitfields::<Test>(
@@ -797,7 +797,7 @@ mod sanitizers {
 					&validator_public[..],
 					FullCheck::Yes
 				),
-				unchecked_bitfields.clone()
+				(unchecked_bitfields.clone(), expected_bits)
 			);
 		}
 
@@ -818,6 +818,7 @@ mod sanitizers {
 					&validator_public[..],
 					FullCheck::Yes
 				)
+				.0
 				.len(),
 				1
 			);
@@ -831,6 +832,7 @@ mod sanitizers {
 					&validator_public[..],
 					FullCheck::Skip
 				)
+				.0
 				.len(),
 				1
 			);
@@ -847,6 +849,7 @@ mod sanitizers {
 				&validator_public[..],
 				FullCheck::Yes
 			)
+			.0
 			.is_empty());
 			assert!(sanitize_bitfields::<Test>(
 				unchecked_bitfields.clone(),
@@ -857,6 +860,7 @@ mod sanitizers {
 				&validator_public[..],
 				FullCheck::Skip
 			)
+			.0
 			.is_empty());
 		}
 
@@ -872,7 +876,8 @@ mod sanitizers {
 					session_index,
 					&validator_public[..shortened],
 					FullCheck::Yes,
-				)[..],
+				)
+				.0[..],
 				&unchecked_bitfields[..shortened]
 			);
 			assert_eq!(
@@ -884,7 +889,8 @@ mod sanitizers {
 					session_index,
 					&validator_public[..shortened],
 					FullCheck::Skip,
-				)[..],
+				)
+				.0[..],
 				&unchecked_bitfields[..shortened]
 			);
 		}
@@ -903,7 +909,8 @@ mod sanitizers {
 					session_index,
 					&validator_public[..],
 					FullCheck::Yes
-				)[..],
+				)
+				.0[..],
 				&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 			);
 			assert_eq!(
@@ -915,7 +922,8 @@ mod sanitizers {
 					session_index,
 					&validator_public[..],
 					FullCheck::Skip
-				)[..],
+				)
+				.0[..],
 				&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 			);
 		}
@@ -939,7 +947,8 @@ mod sanitizers {
 					session_index,
 					&validator_public[..],
 					FullCheck::Yes
-				)[..],
+				)
+				.0[..],
 				&unchecked_bitfields[..last_bit_idx]
 			);
 			assert_eq!(
@@ -951,7 +960,8 @@ mod sanitizers {
 					session_index,
 					&validator_public[..],
 					FullCheck::Skip
-				)[..],
+				)
+				.0[..],
 				&unchecked_bitfields[..]
 			);
 		}

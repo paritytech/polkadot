@@ -14,8 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 use super::{
-	BackedCandidate, Config, DisputeStatementSet, UncheckedSignedAvailabilityBitfield, Weight,
+	cheap_bitfield_checks, BackedCandidate, Config, DisputeStatementSet,
+	UncheckedSignedAvailabilityBitfield, Weight,
 };
+use crate::{
+	configuration::HostConfiguration,
+	inclusion::{self, FullCheck},
+};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+const MAX_UNCHECKED_BITFIELD_ITERATIONS: usize = 1_000;
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -70,14 +77,54 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
+// OR together all bitfields and count the ones from the result.
+// Note that this will only OR together the first `MAX_UNCHECKED_BITFIELD_ITERATIONS` to avoid
+// excessive iteration.
+pub fn bitfields_count_ones(
+	bitfields: &[UncheckedSignedAvailabilityBitfield],
+	expected_bits: usize,
+	validator_count: usize,
+) -> usize {
+	let mut last_index = None;
+	bitfields
+		.iter()
+		.take(MAX_UNCHECKED_BITFIELD_ITERATIONS)
+		.fold(
+			BitVec::<BitOrderLsb0, u8>::repeat(false, expected_bits),
+			|acc: BitVec<BitOrderLsb0, u8>, cur| {
+				if cheap_bitfield_checks(
+					cur,
+					expected_bits,
+					validator_count,
+					last_index,
+					&FullCheck::Skip,
+				) {
+					last_index = Some(cur.unchecked_validator_index());
+					acc | cur.unchecked_payload().0.clone()
+				} else {
+					acc
+				}
+			},
+		)
+		.count_ones()
+}
+
+// Note that this does a storage read.
 pub fn paras_inherent_total_weight<T: Config>(
 	backed_candidates: &[BackedCandidate<<T as frame_system::Config>::Hash>],
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	disputes: &[DisputeStatementSet],
+	expected_bits: usize,
+	validator_count: usize,
+	config: &HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	backed_candidates_weight::<T>(backed_candidates)
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
 		.saturating_add(dispute_statements_weight::<T>(disputes))
+		.saturating_add(enact_candidates_weight::<T>(
+			bitfields_count_ones(bitfields, expected_bits, validator_count) as u32,
+			config,
+		))
 }
 
 pub fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
@@ -96,6 +143,20 @@ pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 		.saturating_mul(bitfields_len as Weight)
 }
 
+// Calculate the worst case weight for enacting the given number of candidates.
+pub fn enact_candidates_weight<T: frame_system::Config + Config>(
+	candidate_count: u32,
+	config: &HostConfiguration<T::BlockNumber>,
+) -> Weight {
+	<inclusion::Pallet<T>>::enact_candidate_weight(
+		config.hrmp_max_parathread_inbound_channels,
+		config.hrmp_max_parachain_inbound_channels,
+		config.max_upward_message_num_per_candidate,
+		config.hrmp_max_message_num_per_candidate,
+	)
+	.saturating_mul(candidate_count as Weight)
+}
+
 pub fn backed_candidate_weight<T: frame_system::Config + Config>(
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
@@ -108,6 +169,7 @@ pub fn backed_candidate_weight<T: frame_system::Config + Config>(
 	}
 }
 
+// Calculate the max weight of the given candidates.
 pub fn backed_candidates_weight<T: frame_system::Config + Config>(
 	candidates: &[BackedCandidate<T::Hash>],
 ) -> Weight {

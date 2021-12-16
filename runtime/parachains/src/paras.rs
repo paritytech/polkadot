@@ -915,7 +915,7 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		<Self as Store>::FutureCodeUpgrades::mutate(&id, |up| {
 			if up.is_some() {
-				T::DbWeight::get().reads_writes(1, 0)
+				T::DbWeight::get().reads_writes(1, 1)
 			} else {
 				let expected_at = relay_parent_number + cfg.validation_upgrade_delay;
 				let next_possible_upgrade_at =
@@ -948,9 +948,14 @@ impl<T: Config> Pallet<T> {
 
 				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
 				FutureCodeHash::<T>::insert(&id, new_code_hash);
-				T::DbWeight::get().reads_writes(2 + reads, 3 + writes)
+				T::DbWeight::get().reads_writes(3 + reads, 5 + writes)
 			}
 		})
+	}
+
+	/// Worst case weight for `schedule_code_upgrade`.
+	pub(crate) fn schedule_code_upgrade_weight() -> Weight {
+		T::DbWeight::get().reads_writes(4, 8)
 	}
 
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
@@ -999,6 +1004,11 @@ impl<T: Config> Pallet<T> {
 		} else {
 			T::DbWeight::get().reads_writes(1, 1)
 		}
+	}
+
+	/// Worst case weight for `note_new_head`.
+	pub(crate) fn note_new_head_weight() -> Weight {
+		T::DbWeight::get().reads_writes(6, 6)
 	}
 
 	/// Returns the current lifecycle state of the para.

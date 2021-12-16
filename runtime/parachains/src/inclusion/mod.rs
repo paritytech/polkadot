@@ -307,7 +307,7 @@ impl<T: Config> Pallet<T> {
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: F,
-	) -> Vec<(CoreIndex, CandidateHash)>
+	) -> (Vec<(CoreIndex, CandidateHash)>, Weight)
 	where
 		F: Fn(CoreIndex) -> Option<ParaId>,
 	{
@@ -356,6 +356,7 @@ impl<T: Config> Pallet<T> {
 			<AvailabilityBitfields<T>>::insert(&validator_index, record);
 		}
 
+		let mut enacted_candidate_weight: Weight = 0;
 		let threshold = availability_threshold(validators.len());
 
 		let mut freed_cores = Vec::with_capacity(expected_bits);
@@ -383,7 +384,8 @@ impl<T: Config> Pallet<T> {
 						descriptor: pending_availability.descriptor,
 						commitments,
 					};
-					let _weight = Self::enact_candidate(
+
+					let weight = Self::enact_candidate(
 						pending_availability.relay_parent_number,
 						receipt,
 						pending_availability.backers,
@@ -391,6 +393,8 @@ impl<T: Config> Pallet<T> {
 						pending_availability.core,
 						pending_availability.backing_group,
 					);
+
+					enacted_candidate_weight = enacted_candidate_weight.saturating_add(weight);
 				}
 
 				freed_cores.push((pending_availability.core, pending_availability.hash));
@@ -399,24 +403,24 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		freed_cores
+		(freed_cores, enacted_candidate_weight)
 	}
 
 	/// Process a set of incoming bitfields.
 	///
 	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
+	/// and cores free. Additionally returns the weight consumed by enacted candidates.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Vec<(CoreIndex, CandidateHash)> {
+	) -> (Vec<(CoreIndex, CandidateHash)>, Weight) {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T>(
+		let (checked_bitfields, _) = sanitize_bitfields::<T>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
@@ -426,14 +430,15 @@ impl<T: Config> Pallet<T> {
 			FullCheck::Yes,
 		);
 
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
-			expected_bits,
-			&validators[..],
-			checked_bitfields,
-			core_lookup,
-		);
+		let (freed_cores, enacted_candidate_weight) =
+			Self::update_pending_availability_and_get_freed_cores::<_, true>(
+				expected_bits,
+				&validators[..],
+				checked_bitfields,
+				core_lookup,
+			);
 
-		freed_cores
+		(freed_cores, enacted_candidate_weight)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -722,6 +727,8 @@ impl<T: Config> Pallet<T> {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
 		let config = <configuration::Pallet<T>>::config();
+		// initial weight is config read.
+		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 
 		T::RewardValidators::reward_backing(
 			backers
@@ -739,8 +746,6 @@ impl<T: Config> Pallet<T> {
 				.map(|(i, _)| ValidatorIndex(i as _)),
 		);
 
-		// initial weight is config read.
-		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
 			weight += <paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
@@ -781,6 +786,30 @@ impl<T: Config> Pallet<T> {
 				commitments.head_data,
 				relay_parent_number,
 			)
+	}
+
+	/// Worst case weight for `enact_candidate`.
+	pub(crate) fn enact_candidate_weight(
+		hrmp_max_message_num_per_candidate: u32,
+		max_upward_message_num_per_candidate: u32,
+		hrmp_max_parachain_inbound_channels: u32,
+		hrmp_max_parathread_inbound_channels: u32,
+	) -> Weight {
+		T::DbWeight::get()
+			.reads(1)
+			.saturating_add(<paras::Pallet<T>>::schedule_code_upgrade_weight())
+			.saturating_add(<dmp::Pallet<T>>::prune_dmq_weight())
+			.saturating_add(<ump::Pallet<T>>::receive_upward_messages_weight(
+				max_upward_message_num_per_candidate,
+			))
+			.saturating_add(<hrmp::Pallet<T>>::prune_hrmp_weight(
+				hrmp_max_parachain_inbound_channels,
+				hrmp_max_parathread_inbound_channels,
+			))
+			.saturating_add(<hrmp::Pallet<T>>::queue_outbound_hrmp_weight(
+				hrmp_max_message_num_per_candidate,
+			))
+			.saturating_add(<paras::Pallet<T>>::note_new_head_weight())
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
