@@ -1452,10 +1452,7 @@ impl<T: Config> Pallet<T> {
 			//
 			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
 			//       the following call `note_new_head`
-			log::warn!(
-				target: LOG_TARGET,
-				"ended up scheduling an upgrade while one is pending",
-			);
+			log::warn!(target: LOG_TARGET, "ended up scheduling an upgrade while one is pending",);
 			return weight
 		}
 
