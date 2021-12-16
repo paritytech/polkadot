@@ -73,6 +73,11 @@ pub struct HostConfiguration<BlockNumber> {
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum period, in blocks, between which parachains can update their validation code.
+	///
+	/// If PVF pre-checking is enabled this should be greater than the maximum number of blocks
+	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
+	/// specified by [`pvf_voting_ttl`]. Unlike, [`pvf_voting_ttl`], this parameter uses blocks
+	/// as a unit.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,

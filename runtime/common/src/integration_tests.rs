@@ -38,7 +38,10 @@ use runtime_parachains::{
 use sp_core::{crypto::KeyTypeId, H256};
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup, One};
+use sp_runtime::{
+	traits::{BlakeTwo256, IdentityLookup, One},
+	transaction_validity::TransactionPriority,
+};
 use sp_std::sync::Arc;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -72,6 +75,14 @@ frame_support::construct_runtime!(
 		Slots: slots::{Pallet, Call, Storage, Event<T>},
 	}
 );
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 
 use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
 
@@ -170,9 +181,15 @@ impl shared::Config for Test {}
 
 impl origin::Config for Test {}
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl paras::Config for Test {
 	type Event = Event;
 	type WeightInfo = paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = crate::mock::TestNextSessionRotation;
 }
 
 parameter_types! {
