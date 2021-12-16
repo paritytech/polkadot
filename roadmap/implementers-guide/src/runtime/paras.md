@@ -217,13 +217,6 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head,
   where the new head was executed in the context of a relay-chain block with given number. This will
   apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
-* `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches
-  the validation code to be used when validating a block in the context of the given relay-chain
-  height. A second block number parameter may be used to tell the lookup to proceed as if an
-  intermediate parablock has been included at the given relay-chain height. This may return past,
-  current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if
-  provided, must be before `at`. If the validation code has been pruned, this will return `None`.
-* `validation_code_hash_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Just like `validation_code_at`, but returns the code hash.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
 * `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain,
   including those which may be transitioning to a parathread in the future.
@@ -231,9 +224,7 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
   including those which may be transitioning to a parachain in the future.
 * `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live parathread
   or live parachain.
-* `last_code_upgrade(id: ParaId, include_future: bool) -> Option<BlockNumber>`: The block number of
-  the last scheduled upgrade of the requested para. Includes future upgrades if the flag is set.
-  This is the `expected_at` number, not the `activated_at` number.
+* `can_upgrade_validation_code(ParaId) -> bool`: Returns true if the given para can signal code upgrade right now.
 
 ## Finalization
 

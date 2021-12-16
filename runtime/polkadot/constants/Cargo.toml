@@ -1,0 +1,19 @@
+[package]
+name = "polkadot-runtime-constants"
+version = "0.9.13"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+
+[dependencies]
+smallvec = "1.6.1"
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"sp-runtime/std"
+]

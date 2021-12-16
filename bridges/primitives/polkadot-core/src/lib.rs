@@ -21,6 +21,7 @@ use bp_runtime::Chain;
 use frame_support::{
 	dispatch::Dispatchable,
 	parameter_types,
+	unsigned::TransactionValidityError,
 	weights::{
 		constants::{BlockExecutionWeight, WEIGHT_PER_SECOND},
 		DispatchClass, Weight,
@@ -33,7 +34,7 @@ use scale_info::{StaticTypeInfo, TypeInfo};
 use sp_core::Hasher as HasherT;
 use sp_runtime::{
 	generic,
-	traits::{BlakeTwo256, IdentifyAccount, Verify},
+	traits::{BlakeTwo256, DispatchInfoOf, IdentifyAccount, Verify},
 	MultiAddress, MultiSignature, OpaqueExtrinsic,
 };
 use sp_std::prelude::Vec;
@@ -248,11 +249,12 @@ pub type UncheckedExtrinsic<Call> =
 pub type Address = MultiAddress<AccountId, ()>;
 
 /// A type of the data encoded as part of the transaction.
-pub type SignedExtra = ((), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
+pub type SignedExtra =
+	((), (), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
 
 /// Parameters which are part of the payload used to produce transaction signature,
 /// but don't end up in the transaction itself (i.e. inherent part of the runtime).
-pub type AdditionalSigned = (u32, u32, Hash, Hash, (), (), ());
+pub type AdditionalSigned = ((), u32, u32, Hash, Hash, (), (), ());
 
 /// A simplified version of signed extensions meant for producing signed transactions
 /// and signed payload in the client code.
@@ -287,6 +289,7 @@ impl<Call> SignedExtensions<Call> {
 	) -> Self {
 		Self {
 			encode_payload: (
+				(),              // non-zero sender
 				(),              // spec version
 				(),              // tx version
 				(),              // genesis
@@ -296,6 +299,7 @@ impl<Call> SignedExtensions<Call> {
 				tip.into(),      // transaction payment / tip (compact encoding)
 			),
 			additional_signed: (
+				(),
 				version.spec_version,
 				version.transaction_version,
 				genesis_hash,
@@ -312,12 +316,12 @@ impl<Call> SignedExtensions<Call> {
 impl<Call> SignedExtensions<Call> {
 	/// Return signer nonce, used to craft transaction.
 	pub fn nonce(&self) -> Nonce {
-		self.encode_payload.4.into()
+		self.encode_payload.5.into()
 	}
 
 	/// Return transaction tip.
 	pub fn tip(&self) -> Balance {
-		self.encode_payload.6.into()
+		self.encode_payload.7.into()
 	}
 }
 
@@ -340,10 +344,18 @@ where
 	type AdditionalSigned = AdditionalSigned;
 	type Pre = ();
 
-	fn additional_signed(
-		&self,
-	) -> Result<Self::AdditionalSigned, frame_support::unsigned::TransactionValidityError> {
+	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
 		Ok(self.additional_signed)
+	}
+
+	fn pre_dispatch(
+		self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		info: &DispatchInfoOf<Self::Call>,
+		len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(self.validate(who, call, info, len).map(|_| ())?)
 	}
 }
 

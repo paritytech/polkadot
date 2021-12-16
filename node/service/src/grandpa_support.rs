@@ -23,7 +23,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use crate::HeaderProvider;
 
 #[cfg(feature = "full-node")]
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Block, Hash};
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.
@@ -115,11 +115,7 @@ where
 /// w3f validators and randomly selected validators from the latest session (at
 /// #1500988).
 #[cfg(feature = "full-node")]
-pub(crate) fn kusama_hard_forks() -> Vec<(
-	grandpa_primitives::SetId,
-	(Hash, polkadot_primitives::v1::BlockNumber),
-	grandpa_primitives::AuthorityList,
-)> {
+pub(crate) fn kusama_hard_forks() -> Vec<grandpa::AuthoritySetHardFork<Block>> {
 	use sp_core::crypto::Ss58Codec;
 	use std::str::FromStr;
 
@@ -209,7 +205,12 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 			let hash = Hash::from_str(hash)
 				.expect("hard fork hashes are static and they should be carefully defined; qed.");
 
-			(set_id, (hash, number), authorities.clone())
+			grandpa::AuthoritySetHardFork {
+				set_id,
+				block: (hash, number),
+				authorities: authorities.clone(),
+				last_finalized: None,
+			}
 		})
 		.collect()
 }
