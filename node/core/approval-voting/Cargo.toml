@@ -15,7 +15,7 @@ lru = "0.7"
 merlin = "2.0"
 schnorrkel = "0.9.1"
 kvdb = "0.10.0"
-derive_more = "0.99.14"
+derive_more = "0.99.17"
 
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -24,11 +24,11 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 
-sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 parking_lot = "0.11.1"
@@ -40,3 +40,4 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
 kvdb-memorydb = "0.10.0"
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

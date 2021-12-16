@@ -1128,14 +1128,13 @@ fn process_message(
 			available_data,
 			tx,
 		) => {
-			let res =
-				store_malicious_available_data(
-					&subsystem,
-					candidate,
-					replaced_chunk_index,
-					n_validators as _,
-					available_data,
-				);
+			let res = store_malicious_available_data(
+				&subsystem,
+				candidate,
+				replaced_chunk_index,
+				n_validators as _,
+				available_data,
+			);
 
 			match res {
 				Ok(()) => {

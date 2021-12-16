@@ -30,8 +30,6 @@ use polkadot_node_subsystem::{
 };
 use thiserror::Error;
 
-const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-rolling-sesison-window";
-
 /// Sessions unavailable in state to cache.
 #[derive(Debug)]
 pub enum SessionsUnavailableKind {
@@ -255,22 +253,10 @@ async fn load_all_sessions(
 		.await;
 
 		let session_info = match rx.await {
-			Ok(Ok(Some(s))) => {
-				tracing::debug!(target: DEBUG_LOG_TARGET, "SessionInfo is available {:?}", s,);
-				s
-			},
-			Ok(Ok(None)) => {
-				tracing::debug!(target: DEBUG_LOG_TARGET, "SessionInfo is None",);
-				return Err(SessionsUnavailableKind::Missing)
-			},
-			Ok(Err(e)) => {
-				tracing::debug!(target: DEBUG_LOG_TARGET, "Inner return is Ok(Err({:?}))", e,);
-				return Err(SessionsUnavailableKind::RuntimeApi(e))
-			},
-			Err(canceled) => {
-				tracing::debug!(target: DEBUG_LOG_TARGET, "Outer return is Err({:?})", canceled,);
-				return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled))
-			},
+			Ok(Ok(Some(s))) => s,
+			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing),
+			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
+			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
 		};
 
 		v.push(session_info);

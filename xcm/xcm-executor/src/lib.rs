@@ -139,26 +139,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			}
 		}
 
-		vm.refund_surplus();
-		drop(vm.trader);
-
-		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
-
-		if !vm.holding.is_empty() {
-			log::trace!(target: "xcm::execute_xcm_in_credit", "Trapping assets in holding register: {:?} (original_origin: {:?})", vm.holding, vm.original_origin);
-			let trap_weight = Config::AssetTrap::drop_assets(&vm.original_origin, vm.holding);
-			weight_used.saturating_accrue(trap_weight);
-		};
-
-		match vm.error {
-			None => Outcome::Complete(weight_used),
-			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
-			// the error which didn't end up being executed.
-			Some((_i, e)) => {
-				log::debug!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, vm.original_origin);
-				Outcome::Incomplete(weight_used, e)
-			},
-		}
+		vm.post_execute(xcm_weight)
 	}
 }
 
@@ -226,6 +207,31 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 		}
 		result
+	}
+
+	/// Execute any final operations after having executed the XCM message.
+	/// This includes refunding surplus weight, trapping extra holding funds, and returning any errors during execution.
+	pub fn post_execute(mut self, xcm_weight: Weight) -> Outcome {
+		self.refund_surplus();
+		drop(self.trader);
+
+		let mut weight_used = xcm_weight.saturating_sub(self.total_surplus);
+
+		if !self.holding.is_empty() {
+			log::trace!(target: "xcm::execute_xcm_in_credit", "Trapping assets in holding register: {:?} (original_origin: {:?})", self.holding, self.original_origin);
+			let trap_weight = Config::AssetTrap::drop_assets(&self.original_origin, self.holding);
+			weight_used.saturating_accrue(trap_weight);
+		};
+
+		match self.error {
+			None => Outcome::Complete(weight_used),
+			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
+			// the error which didn't end up being executed.
+			Some((_i, e)) => {
+				log::debug!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, self.original_origin);
+				Outcome::Incomplete(weight_used, e)
+			},
+		}
 	}
 
 	/// Remove the registered error handler and return it. Do not refund its weight.
@@ -298,12 +304,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			TransferReserveAsset { mut assets, dest, xcm } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
-				let inv_dest = Config::LocationInverter::invert_location(&dest)
-					.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
-				assets.reanchor(&inv_dest).map_err(|()| XcmError::MultiLocationFull)?;
+				let ancestry = Config::LocationInverter::ancestry();
+				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
@@ -338,7 +343,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
-				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
 				let actual_weight = match message_call.dispatch(dispatch_origin) {
 					Ok(post_info) => post_info.actual_weight,
 					Err(error_and_info) => {
@@ -395,13 +400,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
-				let assets = Self::reanchored(deposited, &dest)?;
+				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
+				// be reanchored  because we have already called `deposit_asset` on all assets.
+				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				let assets = Self::reanchored(self.holding.saturating_take(assets), &reserve)?;
+				// Note that here we are able to place any assets which could not be reanchored
+				// back into Holding.
+				let assets = Self::reanchored(
+					self.holding.saturating_take(assets),
+					&reserve,
+					Some(&mut self.holding),
+				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
@@ -412,13 +425,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&dest, &asset);
 				}
-				let assets = Self::reanchored(assets, &dest)?;
+				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
+				// be reanchored  because we have already checked all assets out.
+				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			QueryHolding { query_id, dest, assets, max_response_weight } => {
-				let assets = Self::reanchored(self.holding.min(&assets), &dest)?;
+				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
+				// from Holding.
+				let assets = Self::reanchored(self.holding.min(&assets), &dest, None);
 				let max_weight = max_response_weight;
 				let response = Response::Assets(assets);
 				let instruction = QueryResponse { query_id, response, max_weight };
@@ -491,10 +508,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 
-	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Result<MultiAssets, XcmError> {
-		let inv_dest = Config::LocationInverter::invert_location(&dest)
-			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-		assets.prepend_location(&inv_dest);
-		Ok(assets.into_assets_iter().collect::<Vec<_>>().into())
+	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.
+	fn reanchored(
+		mut assets: Assets,
+		dest: &MultiLocation,
+		maybe_failed_bin: Option<&mut Assets>,
+	) -> MultiAssets {
+		assets.reanchor(dest, &Config::LocationInverter::ancestry(), maybe_failed_bin);
+		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 }

@@ -19,12 +19,16 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 #[derive(Clone)]
 struct MetricsInner {
 	/// Number of opened disputes.
+	#[cfg(feature = "disputes")]
 	open: prometheus::Counter<prometheus::U64>,
 	/// Votes of all disputes.
+	#[cfg(feature = "disputes")]
 	votes: prometheus::CounterVec<prometheus::U64>,
 	/// Conclusion across all disputes.
+	#[cfg(feature = "disputes")]
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
+	#[cfg(feature = "disputes")]
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 }
 
@@ -78,11 +82,18 @@ impl Metrics {
 }
 
 impl metrics::Metrics for Metrics {
+	#[cfg(not(feature = "disputes"))]
+	fn try_register(_registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {};
+		Ok(Metrics(Some(metrics)))
+	}
+
+	#[cfg(feature = "disputes")]
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			open: prometheus::register(
 				prometheus::Counter::with_opts(prometheus::Opts::new(
-					"parachain_candidate_disputes_total",
+					"polkadot_parachain_candidate_disputes_total",
 					"Total number of raised disputes.",
 				))?,
 				registry,
@@ -90,7 +101,7 @@ impl metrics::Metrics for Metrics {
 			concluded: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_candidate_dispute_concluded",
+						"polkadot_parachain_candidate_dispute_concluded",
 						"Concluded dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
@@ -100,7 +111,7 @@ impl metrics::Metrics for Metrics {
 			votes: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_candidate_dispute_votes",
+						"polkadot_parachain_candidate_dispute_votes",
 						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
@@ -110,7 +121,7 @@ impl metrics::Metrics for Metrics {
 			queued_participations: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_dispute_participations",
+						"polkadot_parachain_dispute_participations",
 						"Total number of queued participations, grouped by priority and best-effort. (Not every queueing will necessarily lead to an actual participation because of duplicates.)",
 					),
 					&["priority"],

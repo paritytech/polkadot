@@ -145,7 +145,7 @@ pub struct Config {
 impl Config {
 	/// Create a new instance of the configuration.
 	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from async_std.
+		// Do not contaminate the other parts of the codebase with the types from `async_std`.
 		let cache_path = PathBuf::from(cache_path);
 		let program_path = PathBuf::from(program_path);
 
@@ -378,7 +378,7 @@ async fn run(
 				// can be scheduled as a result of this function call, in case there are pending
 				// executions.
 				//
-				// We could be eager in terms of reporting and plumb the result from the prepartion
+				// We could be eager in terms of reporting and plumb the result from the preparation
 				// worker but we don't for the sake of simplicity.
 				break_if_fatal!(handle_prepare_done(
 					&cache_path,
@@ -486,12 +486,6 @@ async fn handle_execute_pvf(
 				.await?;
 			},
 			ArtifactState::Preparing { waiting_for_response: _ } => {
-				send_prepare(
-					prepare_queue,
-					prepare::ToQueue::Amend { priority, artifact_id: artifact_id.clone() },
-				)
-				.await?;
-
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
 			ArtifactState::FailedToProcess(error) => {
@@ -525,18 +519,17 @@ async fn handle_heads_up(
 					*last_time_needed = now;
 				},
 				ArtifactState::Preparing { waiting_for_response: _ } => {
-					// Already preparing. We don't need to send a priority amend either because
-					// it can't get any lower than the background.
+					// The artifact is already being prepared, so we don't need to do anything.
 				},
 				ArtifactState::FailedToProcess(_) => {},
 			}
 		} else {
-			// The artifact is unknown: register it and put a background job into the prepare queue.
+			// It's not in the artifacts, so we need to enqueue a job to prepare it.
 			artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 
 			send_prepare(
 				prepare_queue,
-				prepare::ToQueue::Enqueue { priority: Priority::Background, pvf: active_pvf },
+				prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf: active_pvf },
 			)
 			.await?;
 		}
@@ -646,7 +639,7 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
-	tracing::info!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		"PVF pruning: {} artifacts reached their end of life",
 		to_remove.len(),
@@ -924,48 +917,6 @@ mod tests {
 	}
 
 	#[async_std::test]
-	async fn amending_priority() {
-		let mut test = Builder::default().build();
-		let mut host = test.host_handle();
-
-		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
-
-		// Run until we receive a prepare request.
-		let prepare_q_rx = &mut test.to_prepare_queue_rx;
-		run_until(
-			&mut test.run,
-			async {
-				assert_matches!(
-					prepare_q_rx.next().await.unwrap(),
-					prepare::ToQueue::Enqueue { .. }
-				);
-			}
-			.boxed(),
-		)
-		.await;
-
-		let (result_tx, _result_rx) = oneshot::channel();
-		host.execute_pvf(
-			Pvf::from_discriminator(1),
-			TEST_EXECUTION_TIMEOUT,
-			vec![],
-			Priority::Critical,
-			result_tx,
-		)
-		.await
-		.unwrap();
-
-		run_until(
-			&mut test.run,
-			async {
-				assert_matches!(prepare_q_rx.next().await.unwrap(), prepare::ToQueue::Amend { .. });
-			}
-			.boxed(),
-		)
-		.await;
-	}
-
-	#[async_std::test]
 	async fn execute_pvf_requests() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1009,10 +960,6 @@ mod tests {
 		);
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
-			prepare::ToQueue::Amend { .. }
-		);
-		assert_matches!(
-			test.poll_and_recv_to_prepare_queue().await,
 			prepare::ToQueue::Enqueue { .. }
 		);
 
@@ -1039,27 +986,27 @@ mod tests {
 		);
 
 		result_tx_pvf_1_1
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_1.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 
 		result_tx_pvf_1_2
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 
 		result_tx_pvf_2
-			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
 		);
 	}
 
@@ -1087,7 +1034,7 @@ mod tests {
 		// Received the precheck result.
 		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
 
-		// Send multiple requests for the same pvf.
+		// Send multiple requests for the same PVF.
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
@@ -1121,7 +1068,7 @@ mod tests {
 		let mut host = test.host_handle();
 
 		// Test mixed cases of receiving execute and precheck requests
-		// for the same pvf.
+		// for the same PVF.
 
 		// Send PVF for the execution and request the prechecking for it.
 		let (result_tx, result_rx_execute) = oneshot::channel();

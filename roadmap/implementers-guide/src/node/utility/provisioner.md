@@ -14,7 +14,7 @@ The block author can choose 0 or 1 backed parachain candidates per parachain; th
 
 ### Signed Bitfields
 
-[Signed bitfields](../../types/availability.md#signed-availability-bitfield) are attestations from a particular validator about which candidates it believes are available.
+[Signed bitfields](../../types/availability.md#signed-availability-bitfield) are attestations from a particular validator about which candidates it believes are available. Those will only be provided on fresh leaves.
 
 ### Misbehavior Reports
 
@@ -27,8 +27,6 @@ Note that there is no mechanism in place which forces a block author to include 
 The dispute inherent is similar to a misbehavior report in that it is an attestation of misbehavior on the part of a validator or group of validators. Unlike a misbehavior report, it is not self-contained: resolution requires coordinated action by several validators. The canonical example of a dispute inherent involves an approval checker discovering that a set of validators has improperly approved an invalid parachain block: resolving this requires the entire validator set to re-validate the block, so that the minority can be slashed.
 
 Dispute resolution is complex and is explained in substantially more detail [here](../../runtime/disputes.md).
-
-> TODO: The provisioner is responsible for selecting remote disputes to replay. Let's figure out the details.
 
 ## Protocol
 

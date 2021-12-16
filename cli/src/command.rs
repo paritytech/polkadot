@@ -21,20 +21,8 @@ use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-	#[error(transparent)]
-	PolkadotService(#[from] service::Error),
-
-	#[error(transparent)]
-	SubstrateCli(#[from] sc_cli::Error),
-
-	#[error(transparent)]
-	SubstrateService(#[from] sc_service::Error),
-
-	#[error("Other: {0}")]
-	Other(String),
-}
+pub use crate::error::Error;
+pub use polkadot_performance_test::PerfCheckError;
 
 impl std::convert::From<String> for Error {
 	fn from(s: String) -> Self {
@@ -215,12 +203,26 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
+/// Runs performance checks.
+/// Should only be used in release build since the check would take too much time otherwise.
+fn host_perf_check() -> Result<()> {
+	#[cfg(not(build_type = "release"))]
+	{
+		Err(PerfCheckError::WrongBuildType.into())
+	}
+	#[cfg(build_type = "release")]
+	{
+		crate::host_perf_check::host_perf_check()?;
+		Ok(())
+	}
+}
+
 /// Launch a node, accepting arguments just like a regular node,
 /// accepts an alternative overseer generator, to adjust behavior
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
-pub fn run_node(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(cli, overseer_gen)
+pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
+	run_node_inner(run, overseer_gen)
 }
 
 fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
@@ -254,7 +256,7 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 				config,
 				service::IsCollator::No,
 				grandpa_pause,
-				cli.run.no_beefy,
+				cli.run.beefy,
 				jaeger_agent,
 				None,
 				overseer_gen,
@@ -414,6 +416,13 @@ pub fn run() -> Result<()> {
 			}
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
+		},
+		Some(Subcommand::HostPerfCheck) => {
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(true);
+			builder.init()?;
+
+			host_perf_check()
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]

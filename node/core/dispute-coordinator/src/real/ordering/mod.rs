@@ -62,6 +62,7 @@ pub struct OrderingProvider {
 /// we are already too late. The ordering mechanism here serves to prevent this from happening in
 /// the first place.
 #[derive(Copy, Clone)]
+#[cfg_attr(test, derive(Debug))]
 pub struct CandidateComparator {
 	/// Block number of the relay parent.
 	///
@@ -150,7 +151,7 @@ impl OrderingProvider {
 			None => {
 				tracing::warn!(
 					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
+					candidate_hash = ?candidate_hash,
 					"Candidate's relay_parent could not be found via chain API, but we saw candidate included?!"
 				);
 				return Ok(None)

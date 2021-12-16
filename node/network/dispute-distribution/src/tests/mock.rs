@@ -17,7 +17,10 @@
 
 //! Mock data and utility functions for unit tests in this subsystem.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+};
 
 use async_trait::async_trait;
 use lazy_static::lazy_static;
@@ -30,9 +33,10 @@ use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateDescriptor, CandidateHash, CandidateReceipt, Hash, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
+	ValidatorId, ValidatorIndex,
 };
+use polkadot_primitives_test_helpers::dummy_candidate_descriptor;
 
 pub const MOCK_SESSION_INDEX: SessionIndex = 1;
 pub const MOCK_NEXT_SESSION_INDEX: SessionIndex = 2;
@@ -74,7 +78,14 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 			.iter()
 			.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 			.collect(),
-		..Default::default()
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 0,
+		zeroth_delay_tranche_width: 0,
+		relay_vrf_modulo_samples: 0,
+		n_delay_tranches: 0,
+		no_show_slots: 0,
+		needed_approvals: 0,
 	};
 
 /// `SessionInfo` for the second session. (No more validators, but two more authorities.
@@ -85,13 +96,21 @@ pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 				.iter()
 				.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 				.collect(),
-		..Default::default()
+		validators: vec![],
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 0,
+		zeroth_delay_tranche_width: 0,
+		relay_vrf_modulo_samples: 0,
+		n_delay_tranches: 0,
+		no_show_slots: 0,
+		needed_approvals: 0,
 	};
 }
 
 pub fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	CandidateReceipt {
-		descriptor: CandidateDescriptor { relay_parent, ..Default::default() },
+		descriptor: dummy_candidate_descriptor(relay_parent),
 		commitments_hash: Hash::random(),
 	}
 }
@@ -171,19 +190,23 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		_authority: polkadot_primitives::v1::AuthorityDiscoveryId,
-	) -> Option<Vec<sc_network::Multiaddr>> {
+	) -> Option<HashSet<sc_network::Multiaddr>> {
 		panic!("Not implemented");
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
+	) -> Option<HashSet<polkadot_primitives::v1::AuthorityDiscoveryId>> {
 		for (a, p) in self.peer_ids.iter() {
 			if p == &peer_id {
-				return Some(MOCK_VALIDATORS_DISCOVERY_KEYS.get(&a).unwrap().clone())
+				return Some(HashSet::from([MOCK_VALIDATORS_DISCOVERY_KEYS
+					.get(&a)
+					.unwrap()
+					.clone()]))
 			}
 		}
+
 		None
 	}
 }

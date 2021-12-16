@@ -55,9 +55,13 @@ use crate::{
 };
 use frame_support::{
 	ensure,
-	pallet_prelude::Weight,
+	pallet_prelude::{DispatchResult, Weight},
 	storage::{child, ChildTriePrefixIterator},
-	traits::{Currency, ExistenceRequirement::AllowDeath, Get, ReservableCurrency},
+	traits::{
+		Currency,
+		ExistenceRequirement::{self, AllowDeath, KeepAlive},
+		Get, ReservableCurrency,
+	},
 	Identity, PalletId,
 };
 pub use pallet::*;
@@ -444,81 +448,7 @@ pub mod pallet {
 			signature: Option<MultiSignature>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-
-			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
-			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
-			fund.raised = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
-			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
-
-			// Make sure crowdloan has not ended
-			let now = <frame_system::Pallet<T>>::block_number();
-			ensure!(now < fund.end, Error::<T>::ContributionPeriodOver);
-
-			// Make sure crowdloan is in a valid lease period
-			let now = frame_system::Pallet::<T>::block_number();
-			let (current_lease_period, _) =
-				T::Auctioneer::lease_period_index(now).ok_or(Error::<T>::NoLeasePeriod)?;
-			ensure!(current_lease_period <= fund.first_period, Error::<T>::ContributionPeriodOver);
-
-			// Make sure crowdloan has not already won.
-			let fund_account = Self::fund_account_id(index);
-			ensure!(
-				!T::Auctioneer::has_won_an_auction(index, &fund_account),
-				Error::<T>::BidOrLeaseActive
-			);
-
-			// We disallow any crowdloan contributions during the VRF Period, so that people do not sneak their
-			// contributions into the auction when it would not impact the outcome.
-			ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::VrfDelayInProgress);
-
-			let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
-
-			if let Some(ref verifier) = fund.verifier {
-				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
-				let payload = (index, &who, old_balance, value);
-				let valid = payload.using_encoded(|encoded| {
-					signature.verify(encoded, &verifier.clone().into_account())
-				});
-				ensure!(valid, Error::<T>::InvalidSignature);
-			}
-
-			CurrencyOf::<T>::transfer(&who, &fund_account, value, AllowDeath)?;
-
-			let balance = old_balance.saturating_add(value);
-			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
-
-			if T::Auctioneer::auction_status(now).is_ending().is_some() {
-				match fund.last_contribution {
-					// In ending period; must ensure that we are in NewRaise.
-					LastContribution::Ending(n) if n == now => {
-						// do nothing - already in NewRaise
-					},
-					_ => {
-						NewRaise::<T>::append(index);
-						fund.last_contribution = LastContribution::Ending(now);
-					},
-				}
-			} else {
-				let endings_count = Self::endings_count();
-				match fund.last_contribution {
-					LastContribution::PreEnding(a) if a == endings_count => {
-						// Not in ending period and no auctions have ended ending since our
-						// previous bid which was also not in an ending period.
-						// `NewRaise` will contain our ID still: Do nothing.
-					},
-					_ => {
-						// Not in ending period; but an auction has been ending since our previous
-						// bid, or we never had one to begin with. Add bid.
-						NewRaise::<T>::append(index);
-						fund.last_contribution = LastContribution::PreEnding(endings_count);
-					},
-				}
-			}
-
-			Funds::<T>::insert(index, &fund);
-
-			Self::deposit_event(Event::<T>::Contributed(who, index, value));
-			Ok(())
+			Self::do_contribute(who, index, value, signature, KeepAlive)
 		}
 
 		/// Withdraw full balance of a specific contributor.
@@ -706,6 +636,19 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::AddedToNewRaise(index));
 			Ok(())
 		}
+
+		/// Contribute your entire balance to a crowd sale. This will transfer the entire balance of a user over to fund a parachain
+		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
+		#[pallet::weight(T::WeightInfo::contribute())]
+		pub fn contribute_all(
+			origin: OriginFor<T>,
+			#[pallet::compact] index: ParaId,
+			signature: Option<MultiSignature>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let value = CurrencyOf::<T>::free_balance(&who);
+			Self::do_contribute(who, index, value, signature, AllowDeath)
+		}
 	}
 }
 
@@ -784,6 +727,89 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
+
+	fn do_contribute(
+		who: T::AccountId,
+		index: ParaId,
+		value: BalanceOf<T>,
+		signature: Option<MultiSignature>,
+		existence: ExistenceRequirement,
+	) -> DispatchResult {
+		ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
+		let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+		fund.raised = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
+		ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
+
+		// Make sure crowdloan has not ended
+		let now = <frame_system::Pallet<T>>::block_number();
+		ensure!(now < fund.end, Error::<T>::ContributionPeriodOver);
+
+		// Make sure crowdloan is in a valid lease period
+		let now = frame_system::Pallet::<T>::block_number();
+		let (current_lease_period, _) =
+			T::Auctioneer::lease_period_index(now).ok_or(Error::<T>::NoLeasePeriod)?;
+		ensure!(current_lease_period <= fund.first_period, Error::<T>::ContributionPeriodOver);
+
+		// Make sure crowdloan has not already won.
+		let fund_account = Self::fund_account_id(index);
+		ensure!(
+			!T::Auctioneer::has_won_an_auction(index, &fund_account),
+			Error::<T>::BidOrLeaseActive
+		);
+
+		// We disallow any crowdloan contributions during the VRF Period, so that people do not sneak their
+		// contributions into the auction when it would not impact the outcome.
+		ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::VrfDelayInProgress);
+
+		let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
+
+		if let Some(ref verifier) = fund.verifier {
+			let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
+			let payload = (index, &who, old_balance, value);
+			let valid = payload.using_encoded(|encoded| {
+				signature.verify(encoded, &verifier.clone().into_account())
+			});
+			ensure!(valid, Error::<T>::InvalidSignature);
+		}
+
+		CurrencyOf::<T>::transfer(&who, &fund_account, value, existence)?;
+
+		let balance = old_balance.saturating_add(value);
+		Self::contribution_put(fund.trie_index, &who, &balance, &memo);
+
+		if T::Auctioneer::auction_status(now).is_ending().is_some() {
+			match fund.last_contribution {
+				// In ending period; must ensure that we are in NewRaise.
+				LastContribution::Ending(n) if n == now => {
+					// do nothing - already in NewRaise
+				},
+				_ => {
+					NewRaise::<T>::append(index);
+					fund.last_contribution = LastContribution::Ending(now);
+				},
+			}
+		} else {
+			let endings_count = Self::endings_count();
+			match fund.last_contribution {
+				LastContribution::PreEnding(a) if a == endings_count => {
+					// Not in ending period and no auctions have ended ending since our
+					// previous bid which was also not in an ending period.
+					// `NewRaise` will contain our ID still: Do nothing.
+				},
+				_ => {
+					// Not in ending period; but an auction has been ending since our previous
+					// bid, or we never had one to begin with. Add bid.
+					NewRaise::<T>::append(index);
+					fund.last_contribution = LastContribution::PreEnding(endings_count);
+				},
+			}
+		}
+
+		Funds::<T>::insert(index, &fund);
+
+		Self::deposit_event(Event::<T>::Contributed(who, index, value));
+		Ok(())
+	}
 }
 
 impl<T: Config> crate::traits::OnSwap for Pallet<T> {
@@ -828,10 +854,11 @@ mod tests {
 		mock::TestRegistrar,
 		traits::{AuctionStatus, OnSwap},
 	};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use sp_keystore::{testing::KeyStore, KeystoreExt};
 	use sp_runtime::{
 		testing::Header,
-		traits::{BlakeTwo256, IdentityLookup},
+		traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
 		DispatchResult,
 	};
 
@@ -880,6 +907,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -1076,8 +1104,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				para,
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			return para
 		}
@@ -1219,8 +1247,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1337,
 				ParaId::from(1234),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			let e = BalancesError::<Test, _>::InsufficientBalance;
 			assert_noop!(
@@ -1295,7 +1323,8 @@ mod tests {
 			let payload = (0u32, 1u64, 0u64, 49u64);
 			let valid_signature =
 				crypto::create_ed25519_signature(&payload.encode(), pubkey.clone());
-			let invalid_signature = MultiSignature::default();
+			let invalid_signature =
+				MultiSignature::decode(&mut TrailingZeroInput::zeroes()).unwrap();
 
 			// Invalid signature
 			assert_noop!(
@@ -1854,6 +1883,7 @@ mod benchmarking {
 	use super::{Pallet as Crowdloan, *};
 	use frame_support::{assert_ok, traits::OnInitialize};
 	use frame_system::RawOrigin;
+	use sp_core::crypto::UncheckedFrom;
 	use sp_runtime::traits::{Bounded, CheckedSub};
 	use sp_std::prelude::*;
 
@@ -1932,7 +1962,7 @@ mod benchmarking {
 			let head_data = T::Registrar::worst_head_data();
 			let validation_code = T::Registrar::worst_validation_code();
 
-			let verifier = account("verifier", 0, 0);
+			let verifier = MultiSigner::unchecked_from(account::<[u8; 32]>("verifier", 0, 0));
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
@@ -2020,7 +2050,7 @@ mod benchmarking {
 			let head_data = T::Registrar::worst_head_data();
 			let validation_code = T::Registrar::worst_validation_code();
 
-			let verifier: MultiSigner = account("verifier", 0, 0);
+			let verifier = MultiSigner::unchecked_from(account::<[u8; 32]>("verifier", 0, 0));
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;

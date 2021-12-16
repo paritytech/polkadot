@@ -649,6 +649,9 @@ impl Initialized {
 				},
 		};
 		let candidate_receipt = votes.candidate_receipt.clone();
+		let was_concluded_valid = votes.valid.len() >= supermajority_threshold;
+		let was_concluded_invalid = votes.invalid.len() >= supermajority_threshold;
+
 		let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 		let controlled_indices = find_controlled_validator_indices(&self.keystore, &validators);
 
@@ -813,10 +816,11 @@ impl Initialized {
 				self.metrics.on_open();
 			}
 
-			if concluded_valid {
+			if !was_concluded_valid && concluded_valid {
 				self.metrics.on_concluded_valid();
 			}
-			if concluded_invalid {
+
+			if !was_concluded_invalid && concluded_invalid {
 				self.metrics.on_concluded_invalid();
 			}
 

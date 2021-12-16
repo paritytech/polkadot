@@ -34,6 +34,7 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives_test_helpers::dummy_collator_signature;
 use polkadot_subsystem::{
 	jaeger,
 	messages::{
@@ -143,14 +144,14 @@ impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		_authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>> {
+	) -> Option<HashSet<Multiaddr>> {
 		None
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		_peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId> {
+	) -> Option<HashSet<AuthorityDiscoveryId>> {
 		None
 	}
 }
@@ -868,7 +869,7 @@ fn relays_collation_protocol_messages() {
 		let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 			Sr25519Keyring::Alice.public().into(),
 			Default::default(),
-			Default::default(),
+			sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 		);
 
 		let message =
@@ -1158,8 +1159,8 @@ fn send_messages_to_peers() {
 		{
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
-				Default::default(),
-				Default::default(),
+				0_u32.into(),
+				dummy_collator_signature(),
 			);
 
 			let message =

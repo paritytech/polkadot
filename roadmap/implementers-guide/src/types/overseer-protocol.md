@@ -542,7 +542,7 @@ enum NetworkBridgeMessage {
     /// `PeerConnected` events from the network bridge.
     ConnectToValidators {
         /// Ids of the validators to connect to.
-        validator_ids: Vec<AuthorityDiscoveryId>,
+        validator_ids: HashSet<AuthorityDiscoveryId>,
         /// The underlying protocol to use for this request.
         peer_set: PeerSet,
         /// Sends back the number of `AuthorityDiscoveryId`s which

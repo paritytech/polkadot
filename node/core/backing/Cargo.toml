@@ -28,3 +28,4 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 futures = { version = "0.3.17", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

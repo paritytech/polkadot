@@ -252,7 +252,7 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			imported_candidates_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_imported_candidates_total",
+					"polkadot_parachain_imported_candidates_total",
 					"Number of candidates imported by the approval voting subsystem",
 				)?,
 				registry,
@@ -260,7 +260,7 @@ impl metrics::Metrics for Metrics {
 			assignments_produced: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_assignments_produced",
+						"polkadot_parachain_assignments_produced",
 						"Assignments and tranches produced by the approval voting subsystem",
 					).buckets(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 25.0, 40.0, 70.0]),
 				)?,
@@ -269,7 +269,7 @@ impl metrics::Metrics for Metrics {
 			approvals_produced_total: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_approvals_produced_total",
+						"polkadot_parachain_approvals_produced_total",
 						"Number of approvals produced by the approval voting subsystem",
 					),
 					&["status"]
@@ -278,14 +278,14 @@ impl metrics::Metrics for Metrics {
 			)?,
 			no_shows_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_approvals_no_shows_total",
+					"polkadot_parachain_approvals_no_shows_total",
 					"Number of assignments which became no-shows in the approval voting subsystem",
 				)?,
 				registry,
 			)?,
 			wakeups_triggered_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_approvals_wakeups_total",
+					"polkadot_parachain_approvals_wakeups_total",
 					"Number of times we woke up to process a candidate in the approval voting subsystem",
 				)?,
 				registry,
@@ -293,7 +293,7 @@ impl metrics::Metrics for Metrics {
 			candidate_approval_time_ticks: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_approvals_candidate_approval_time_ticks",
+						"polkadot_parachain_approvals_candidate_approval_time_ticks",
 						"Number of ticks (500ms) to approve candidates.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
 				)?,
@@ -302,7 +302,7 @@ impl metrics::Metrics for Metrics {
 			block_approval_time_ticks: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_approvals_blockapproval_time_ticks",
+						"polkadot_parachain_approvals_blockapproval_time_ticks",
 						"Number of ticks (500ms) to approve blocks.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
 				)?,
@@ -311,7 +311,7 @@ impl metrics::Metrics for Metrics {
 			time_db_transaction: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_time_approval_db_transaction",
+						"polkadot_parachain_time_approval_db_transaction",
 						"Time spent writing an approval db transaction.",
 					)
 				)?,
@@ -320,7 +320,7 @@ impl metrics::Metrics for Metrics {
 			time_recover_and_approve: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_time_recover_and_approve",
+						"polkadot_parachain_time_recover_and_approve",
 						"Time spent recovering and approving data in approval voting",
 					)
 				)?,

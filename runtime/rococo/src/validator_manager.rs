@@ -16,84 +16,87 @@
 
 //! A pallet for managing validators on Rococo.
 
-use frame_support::{decl_error, decl_event, decl_module, decl_storage, traits::EnsureOrigin};
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
 
+pub use pallet::*;
+
 type Session<T> = pallet_session::Pallet<T>;
 
-/// Configuration for the parachain proposer.
-pub trait Config: pallet_session::Config {
-	/// The overreaching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::EnsureOrigin};
+	use frame_system::pallet_prelude::*;
 
-	/// Privileged origin that can add or remove validators.
-	type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
-}
+	#[pallet::pallet]
+	pub struct Pallet<T>(_);
 
-decl_event! {
-	pub enum Event<T> where ValidatorId = <T as pallet_session::Config>::ValidatorId {
+	/// Configuration for the parachain proposer.
+	#[pallet::config]
+	pub trait Config: frame_system::Config + pallet_session::Config {
+		/// The overreaching event type.
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// Privileged origin that can add or remove validators.
+		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
 		/// New validators were added to the set.
-		ValidatorsRegistered(Vec<ValidatorId>),
+		ValidatorsRegistered(Vec<T::ValidatorId>),
 		/// Validators were removed from the set.
-		ValidatorsDeregistered(Vec<ValidatorId>),
+		ValidatorsDeregistered(Vec<T::ValidatorId>),
 	}
-}
 
-decl_error! {
-	pub enum Error for Module<T: Config> {}
-}
+	/// Validators that should be retired, because their Parachain was deregistered.
+	#[pallet::storage]
+	pub(crate) type ValidatorsToRetire<T: Config> =
+		StorageValue<_, Vec<T::ValidatorId>, ValueQuery>;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParachainProposer {
-		/// Validators that should be retired, because their Parachain was deregistered.
-		ValidatorsToRetire: Vec<T::ValidatorId>;
-		/// Validators that should be added.
-		ValidatorsToAdd: Vec<T::ValidatorId>;
-	}
-}
+	/// Validators that should be added.
+	#[pallet::storage]
+	pub(crate) type ValidatorsToAdd<T: Config> = StorageValue<_, Vec<T::ValidatorId>, ValueQuery>;
 
-decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
-
-		fn deposit_event() = default;
-
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Add new validators to the set.
 		///
 		/// The new validators will be active from current session + 2.
-		#[weight = 100_000]
-		fn register_validators(
-			origin,
+		#[pallet::weight(100_000)]
+		pub fn register_validators(
+			origin: OriginFor<T>,
 			validators: Vec<T::ValidatorId>,
-		) {
+		) -> DispatchResult {
 			T::PrivilegedOrigin::ensure_origin(origin)?;
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToAdd::<T>::append(v));
 
-			Self::deposit_event(RawEvent::ValidatorsRegistered(validators));
+			Self::deposit_event(Event::ValidatorsRegistered(validators));
+			Ok(())
 		}
 
 		/// Remove validators from the set.
 		///
 		/// The removed validators will be deactivated from current session + 2.
-		#[weight = 100_000]
-		fn deregister_validators(
-			origin,
+		#[pallet::weight(100_000)]
+		pub fn deregister_validators(
+			origin: OriginFor<T>,
 			validators: Vec<T::ValidatorId>,
-		) {
+		) -> DispatchResult {
 			T::PrivilegedOrigin::ensure_origin(origin)?;
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
 
-			Self::deposit_event(RawEvent::ValidatorsDeregistered(validators));
+			Self::deposit_event(Event::ValidatorsDeregistered(validators));
+			Ok(())
 		}
 	}
 }
 
-impl<T: Config> Module<T> {}
-
-impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
+impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
 	fn new_session(new_index: SessionIndex) -> Option<Vec<T::ValidatorId>> {
 		if new_index <= 1 {
 			return None
@@ -121,7 +124,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 	fn start_session(_start_index: SessionIndex) {}
 }
 
-impl<T: Config> pallet_session::historical::SessionManager<T::ValidatorId, ()> for Module<T> {
+impl<T: Config> pallet_session::historical::SessionManager<T::ValidatorId, ()> for Pallet<T> {
 	fn new_session(new_index: SessionIndex) -> Option<Vec<(T::ValidatorId, ())>> {
 		<Self as pallet_session::SessionManager<_>>::new_session(new_index)
 			.map(|r| r.into_iter().map(|v| (v, Default::default())).collect())

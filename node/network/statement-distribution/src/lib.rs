@@ -413,8 +413,8 @@ impl PeerRelayParentKnowledge {
 struct PeerData {
 	view: View,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
-	// Peer might be an authority.
-	maybe_authority: Option<AuthorityDiscoveryId>,
+	/// Peer might be known as authority with the given ids.
+	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
 }
 
 impl PeerData {
@@ -1466,14 +1466,18 @@ async fn handle_network_update(
 					maybe_authority: maybe_authority.clone(),
 				},
 			);
-			if let Some(authority) = maybe_authority {
-				authorities.insert(authority, peer);
+			if let Some(authority_ids) = maybe_authority {
+				authority_ids.into_iter().for_each(|a| {
+					authorities.insert(a, peer);
+				});
 			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
-			if let Some(auth_id) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
-				authorities.remove(&auth_id);
+			if let Some(auth_ids) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
+				auth_ids.into_iter().for_each(|a| {
+					authorities.remove(&a);
+				});
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
@@ -1966,14 +1970,14 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			statements_distributed: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_statements_distributed_total",
+					"polkadot_parachain_statements_distributed_total",
 					"Number of candidate validity statements distributed to other peers.",
 				)?,
 				registry,
 			)?,
 			sent_requests: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_statement_distribution_sent_requests_total",
+					"polkadot_parachain_statement_distribution_sent_requests_total",
 					"Number of large statement fetching requests sent.",
 				)?,
 				registry,
@@ -1981,7 +1985,7 @@ impl metrics::Metrics for Metrics {
 			received_responses: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_statement_distribution_received_responses_total",
+						"polkadot_parachain_statement_distribution_received_responses_total",
 						"Number of received responses for large statement data.",
 					),
 					&["success"],
@@ -1990,21 +1994,21 @@ impl metrics::Metrics for Metrics {
 			)?,
 			active_leaves_update: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_statement_distribution_active_leaves_update",
+					"polkadot_parachain_statement_distribution_active_leaves_update",
 					"Time spent within `statement_distribution::active_leaves_update`",
 				))?,
 				registry,
 			)?,
 			share: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_statement_distribution_share",
+					"polkadot_parachain_statement_distribution_share",
 					"Time spent within `statement_distribution::share`",
 				))?,
 				registry,
 			)?,
 			network_bridge_update_v1: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_statement_distribution_network_bridge_update_v1",
+					"polkadot_parachain_statement_distribution_network_bridge_update_v1",
 					"Time spent within `statement_distribution::network_bridge_update_v1`",
 				))?,
 				registry,

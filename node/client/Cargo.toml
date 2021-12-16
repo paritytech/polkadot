@@ -25,7 +25,7 @@ sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

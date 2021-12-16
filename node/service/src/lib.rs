@@ -272,15 +272,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 }
 
-// If we're using prometheus, use a registry with a prefix of `polkadot`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
-	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
-		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
-	}
-
-	Ok(())
-}
-
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
 #[cfg(any(test, feature = "full-node"))]
@@ -344,8 +335,6 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
-	set_prometheus_registry(config)?;
-
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -367,6 +356,7 @@ where
 		config.wasm_method,
 		config.default_heap_pages,
 		config.max_runtime_instances,
+		config.runtime_cache_size,
 	);
 
 	let (client, backend, keystore_container, task_manager) =
@@ -669,7 +659,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	disable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
@@ -719,15 +709,21 @@ where
 	let chain_spec = config.chain_spec.cloned_box();
 
 	let local_keystore = basics.keystore_container.local_keystore();
-	let requires_overseer_for_chain_sel =
-		local_keystore.is_some() && (role.is_authority() || is_collator.is_collator());
+	let auth_or_collator = role.is_authority() || is_collator.is_collator();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let select_chain = SelectRelayChain::new(
-		basics.backend.clone(),
-		overseer_handle.clone(),
-		requires_overseer_for_chain_sel,
-		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
-	);
+	let select_chain = if requires_overseer_for_chain_sel {
+		let metrics =
+			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
+
+		SelectRelayChain::new_disputes_aware(
+			basics.backend.clone(),
+			overseer_handle.clone(),
+			metrics,
+		)
+	} else {
+		SelectRelayChain::new_longest_chain(basics.backend.clone())
+	};
 
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
@@ -876,7 +872,7 @@ where
 	let active_leaves =
 		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
+	let authority_discovery_service = if auth_or_collator {
 		use futures::StreamExt;
 		use sc_network::Event;
 
@@ -948,7 +944,11 @@ where
 					chain_selection_config,
 					dispute_coordinator_config,
 				},
-			)?;
+			)
+			.map_err(|e| {
+				tracing::error!("Failed to init overseer: {}", e);
+				e
+			})?;
 		let handle = Handle::new(overseer_handle.clone());
 
 		{
@@ -1011,6 +1011,7 @@ where
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handle = overseer_handle.clone();
+
 				async move {
 					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
 						&*client_clone,
@@ -1053,7 +1054,7 @@ where
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if !disable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
+	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
@@ -1211,7 +1212,7 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	disable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_gen: impl OverseerGen,
@@ -1222,7 +1223,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1237,7 +1238,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1252,7 +1253,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1267,7 +1268,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,

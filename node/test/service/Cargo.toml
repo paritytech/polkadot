@@ -11,7 +11,7 @@ hex = "0.4.3"
 tracing = "0.1.29"
 rand = "0.8.3"
 tempfile = "3.2.0"
-tokio = "1.13.0"
+tokio = "1.14.0"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }
@@ -23,6 +23,7 @@ polkadot-service = { path = "../../service" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
+test-runtime-constants = { path = "../../../runtime/test-runtime/constants" }
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 
 # Substrate dependencies
@@ -47,7 +48,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -57,7 +58,7 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-serde_json = "1.0.69"
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+serde_json = "1.0.73"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1.13", features = ["macros"] }
+tokio = { version = "1.14", features = ["macros"] }
