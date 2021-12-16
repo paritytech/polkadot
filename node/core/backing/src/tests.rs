@@ -297,6 +297,7 @@ async fn test_dispute_coordinator_notifications(
 
 // Test that a `CandidateBackingMessage::Second` issues validation work
 // and in case validation is successful issues a `StatementDistributionMessage`.
+#[test]
 fn backing_second_works() {
 	let test_state = TestState::default();
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
@@ -950,6 +951,7 @@ fn backing_misbehavior_works() {
 
 // Test that if we are asked to second an invalid candidate we
 // can still second a valid one afterwards.
+#[test]
 fn backing_dont_second_invalid() {
 	let test_state = TestState::default();
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
@@ -1083,6 +1085,7 @@ fn backing_dont_second_invalid() {
 
 // Test that if we have already issued a statement (in this case `Invalid`) about a
 // candidate we will not be issuing a `Seconded` statement on it.
+#[test]
 fn backing_second_after_first_fails_works() {
 	let test_state = TestState::default();
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
@@ -1315,6 +1318,7 @@ fn backing_works_after_failed_validation() {
 
 // Test that a `CandidateBackingMessage::Second` issues validation work
 // and in case validation is successful issues a `StatementDistributionMessage`.
+#[test]
 fn backing_doesnt_second_wrong_collator() {
 	let mut test_state = TestState::default();
 	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {

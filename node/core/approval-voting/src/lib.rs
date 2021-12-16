@@ -21,12 +21,6 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use rand::{
-	distributions::{Distribution, Normal},
-	Rng,
-};
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use kvdb::KeyValueDB;
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
@@ -110,11 +104,6 @@ const APPROVAL_DELAY: Tick = 2;
 const LOG_TARGET: &str = "parachain::approval-voting";
 const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
 
-const MALICIOUS_BASE_MIN: u64 = 10_000u64;
-const MALICIOUS_BASE_MAX: u64 = 20_000u64;
-const MALICIOUS_MEAN: f64 = 10_000f64;
-const MALICIOUS_SDEV: f64 = 700f64;
-
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -191,6 +180,12 @@ impl Metrics {
 	fn on_approval_invalid(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.approvals_produced_total.with_label_values(&["invalid"]).inc()
+		}
+	}
+
+	fn on_approval_malicious(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["malicious"]).inc()
 		}
 	}
 
@@ -360,23 +355,12 @@ where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
 
-		let initial_offset =
-			(&mut rand::thread_rng()).gen_range(MALICIOUS_BASE_MIN, MALICIOUS_BASE_MAX);
-
-		let normal = Normal::new(MALICIOUS_MEAN, MALICIOUS_SDEV);
-		let mean = normal.sample(&mut rand::thread_rng());
-		let variance = normal.sample(&mut rand::thread_rng());
-
-		let offset_normal = Normal::new(mean, variance.sqrt());
-		let offset: u64 =
-			initial_offset + offset_normal.sample(&mut rand::thread_rng()).round() as u64;
 		let future = run::<DbBackend, Context>(
 			ctx,
 			self,
 			Box::new(SystemClock),
 			Box::new(RealAssignmentCriteria),
 			backend,
-			offset,
 		)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.boxed();
@@ -510,8 +494,7 @@ struct ApprovalStatus {
 
 #[derive(Clone)]
 enum ApprovalOutcome {
-	Malicious((CandidateReceipt, SessionIndex)),
-	Approved,
+	_Approved,
 	Failed,
 	TimedOut,
 }
@@ -523,23 +506,8 @@ struct ApprovalState {
 }
 
 impl ApprovalState {
-	fn approved(validator_index: ValidatorIndex, candidate_hash: CandidateHash) -> Self {
-		Self { validator_index, candidate_hash, approval_outcome: ApprovalOutcome::Approved }
-	}
 	fn failed(validator_index: ValidatorIndex, candidate_hash: CandidateHash) -> Self {
 		Self { validator_index, candidate_hash, approval_outcome: ApprovalOutcome::Failed }
-	}
-	fn malicious(
-		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
-		candidate: CandidateReceipt,
-		session: SessionIndex,
-	) -> Self {
-		Self {
-			validator_index,
-			candidate_hash,
-			approval_outcome: ApprovalOutcome::Malicious((candidate, session)),
-		}
 	}
 }
 
@@ -733,7 +701,6 @@ async fn run<B, Context>(
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	mut backend: B,
-	offset: u64,
 ) -> SubsystemResult<()>
 where
 	Context: SubsystemContext<Message = ApprovalVotingMessage>,
@@ -751,7 +718,6 @@ where
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
-	let counter = AtomicU64::new(0);
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
@@ -801,7 +767,7 @@ where
 				) = approval_state;
 
 				match approval_outcome {
-					ApprovalOutcome::Approved => {
+					ApprovalOutcome::_Approved => {
 						let mut approvals: Vec<Action> = relay_block_hashes
 							.into_iter()
 							.map(|block_hash|
@@ -816,28 +782,13 @@ where
 							.collect();
 						actions.append(&mut approvals);
 					}
-					ApprovalOutcome::Malicious((candidate, session_index)) => {
-						counter.store(0, Ordering::SeqCst);
-						let sender = ctx.sender();
-						sender
-							.send_message(
-								DisputeCoordinatorMessage::IssueLocalStatement(
-									session_index,
-									candidate_hash,
-									candidate,
-									false,
-								)
-								.into(),
-							)
-							.await;
-					}
 					_ => {},
 				}
 
 				actions
 			}
 		};
-		let count = counter.fetch_add(1, Ordering::SeqCst);
+
 		if handle_actions(
 			&mut ctx,
 			&mut state,
@@ -848,23 +799,6 @@ where
 			&mut approvals_cache,
 			&mut subsystem.mode,
 			actions,
-			if count >= offset {
-				tracing::debug!(
-					target: DEBUG_LOG_TARGET,
-					"ladi-debug-approval malicious {:?} == {:?}",
-					count,
-					offset
-				);
-				true
-			} else {
-				tracing::debug!(
-					target: DEBUG_LOG_TARGET,
-					"ladi-debug-approval benign {:?} != {:?}",
-					count,
-					offset
-				);
-				false
-			},
 		)
 		.await?
 		{
@@ -912,7 +846,6 @@ async fn handle_actions(
 	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	mode: &mut Mode,
 	actions: Vec<Action>,
-	malicious: bool,
 ) -> SubsystemResult<bool> {
 	let mut conclude = false;
 
@@ -975,7 +908,7 @@ async fn handle_actions(
 				));
 
 				match approvals_cache.get(&candidate_hash) {
-					Some(ApprovalOutcome::Approved) => {
+					Some(ApprovalOutcome::_Approved) => {
 						let new_actions: Vec<Action> = std::iter::once(Action::IssueApproval(
 							candidate_hash,
 							ApprovalVoteRequest { validator_index, block_hash },
@@ -1001,7 +934,6 @@ async fn handle_actions(
 										validator_index,
 										block_hash,
 										backing_group,
-										malicious,
 									)
 									.await
 								},
@@ -2216,7 +2148,6 @@ async fn launch_approval(
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	backing_group: GroupIndex,
-	malicious: bool,
 ) -> SubsystemResult<RemoteHandle<ApprovalState>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
@@ -2365,27 +2296,19 @@ async fn launch_approval(
 
 				let expected_commitments_hash = candidate.commitments_hash;
 				if commitments.hash() == expected_commitments_hash {
-					let _ = metrics_guard.take();
-					if !malicious {
-						tracing::debug!(
-							target: DEBUG_LOG_TARGET,
-							"ladi-debug-approval APPROVED {:?}",
-							candidate_hash,
-						);
-						return ApprovalState::approved(validator_index, candidate_hash)
-					} else {
-						tracing::debug!(
-							target: DEBUG_LOG_TARGET,
-							"ladi-debug-approval FAILED {:?}",
-							candidate_hash
-						);
-						return ApprovalState::malicious(
-							validator_index,
-							candidate_hash,
-							candidate.clone(),
-							session_index,
+					sender
+						.send_message(
+							DisputeCoordinatorMessage::IssueLocalStatement(
+								session_index,
+								candidate_hash,
+								candidate,
+								false,
+							)
+							.into(),
 						)
-					}
+						.await;
+					metrics_guard.take().on_approval_malicious();
+					return ApprovalState::failed(validator_index, candidate_hash)
 				} else {
 					// Commitments mismatch - issue a dispute.
 					sender

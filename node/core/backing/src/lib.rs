@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // Copyright 2020-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -19,10 +18,6 @@
 
 #![deny(unused_crate_dependencies)]
 
-use rand::Rng;
-
-const MALICIOUS_BASE_MIN: usize = 2usize;
-
 use std::{
 	collections::{HashMap, HashSet},
 	pin::Pin,
@@ -42,20 +37,15 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
-	request_from_runtime, request_persisted_validation_data, request_session_index_for_child,
-	request_validator_groups, request_validators, FromJobCommand, JobSender, Validator,
+	request_from_runtime, request_session_index_for_child, request_validator_groups,
+	request_validators, FromJobCommand, JobSender, Validator,
 };
-use polkadot_primitives::{
-	v0::BlockData,
-	v1::{
-		BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
-		CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash,
-		Id as ParaId, OccupiedCoreAssumption, SessionIndex, SigningContext, ValidatorId,
-		ValidatorIndex, ValidatorSignature, ValidityAttestation,
-	},
+use polkadot_primitives::v1::{
+	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
+	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_subsystem::{
-	errors::RuntimeApiError,
 	jaeger,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
@@ -106,8 +96,6 @@ pub enum Error {
 	BackgroundValidationMpsc(#[from] mpsc::SendError),
 	#[error(transparent)]
 	UtilError(#[from] util::Error),
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
 }
 
 /// PoV data to validate.
@@ -326,29 +314,6 @@ async fn store_available_data(
 	Ok(())
 }
 
-async fn store_malicious_available_data(
-	sender: &mut JobSender<impl SubsystemSender>,
-	replaced_chunk_index: usize,
-	n_validators: u32,
-	candidate_hash: CandidateHash,
-	available_data: AvailableData,
-) -> Result<(), Error> {
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(AvailabilityStoreMessage::StoreMaliciousAvailableData(
-			candidate_hash,
-			replaced_chunk_index,
-			n_validators,
-			available_data,
-			tx,
-		))
-		.await;
-
-	let _ = rx.await.map_err(Error::StoreAvailableData)?;
-
-	Ok(())
-}
-
 // Make a `PoV` available.
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
@@ -500,6 +465,7 @@ async fn validate_and_make_available(
 				candidate_hash = ?candidate.hash(),
 				"Validation successful",
 			);
+
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
 				tracing::debug!(
@@ -963,12 +929,6 @@ impl CandidateBackingJob {
 					.with_pov(&pov)
 					.with_candidate(candidate.hash())
 					.with_relay_parent(relay_parent);
-				tracing::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
-					relay_parent = ?relay_parent,
-					"ladi-debug-backing Entering seconding",
-				);
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
@@ -982,265 +942,14 @@ impl CandidateBackingJob {
 					return Ok(())
 				}
 
-				tracing::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
-					relay_parent = ?relay_parent,
-					"ladi-debug-backing para_id is equal to assignment",
-				);
 				// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
-
-				let count: usize = rand::thread_rng().gen_range(0, MALICIOUS_BASE_MIN);
-
-				tracing::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
-					relay_parent = ?relay_parent,
-					"ladi-debug-backing Count is {}",
-					count,
-				);
 				if self.seconded.is_none() {
-					// If it's time to misbehave, generate a new
-					// candidate and second that instead of the real one.
-					if count == 0 {
-						tracing::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?candidate.hash(),
-							relay_parent = ?relay_parent,
-							"ladi-debug-backing Ignoring real candidate. Generating garbage candidate and seconding",
-						);
+					// This job has not seconded a candidate yet.
+					let candidate_hash = candidate.hash();
 
-						let validation_data = match request_persisted_validation_data(
-							relay_parent,
-							candidate.descriptor().para_id,
-							OccupiedCoreAssumption::Free,
-							sender,
-						)
-						.await
-						.await
-						.map_err(|err| Error::ValidateFromChainState(err))??
-						{
-							Some(v) => v,
-							None => {
-								tracing::debug!(
-									target: LOG_TARGET,
-									"ladi-debug-backing couldn't fetch validation data",
-								);
-
-								return Ok(())
-							},
-						};
-
-						let pov = Arc::new(PoV { block_data: BlockData(vec![0; 256]) });
-						let available_data = AvailableData {
-							pov: pov.clone(),
-							validation_data: validation_data.clone(),
-						};
-
-						let pov_hash = pov.hash();
-						let validation_data_hash = validation_data.hash();
-						let validation_code_hash = candidate.descriptor().validation_code_hash;
-
-						let erasure_root = {
-							let chunks = erasure_coding::obtain_chunks_v1(
-								self.table_context.validators.len(),
-								&available_data,
-							)?;
-
-							let branches = erasure_coding::branches(chunks.as_ref());
-							branches.root()
-						};
-						let (collator_id, collator_signature) = {
-							use polkadot_primitives::v1::CollatorPair;
-							use sp_core::crypto::Pair;
-
-							let collator_pair = CollatorPair::generate().0;
-							let signature_payload =
-								polkadot_primitives::v1::collator_signature_payload(
-									&relay_parent,
-									&candidate.descriptor().para_id,
-									&validation_data_hash,
-									&pov_hash,
-									&validation_code_hash,
-								);
-
-							(collator_pair.public(), collator_pair.sign(&signature_payload))
-						};
-						let malicious_commitments = CandidateCommitments {
-							upward_messages: Vec::new(),
-							horizontal_messages: Vec::new(),
-							new_validation_code: None,
-							head_data: vec![1, 2, 3, 4, 5].into(),
-							processed_downward_messages: 0,
-							hrmp_watermark: validation_data.relay_parent_number,
-						};
-						let malicious_candidate = CommittedCandidateReceipt {
-							descriptor: CandidateDescriptor {
-								para_id: candidate.descriptor().para_id,
-								relay_parent,
-								collator: collator_id,
-								persisted_validation_data_hash: validation_data_hash,
-								pov_hash,
-								erasure_root,
-								signature: collator_signature,
-								para_head: malicious_commitments.head_data.hash(),
-								validation_code_hash,
-							},
-							commitments: malicious_commitments.clone(),
-						};
-						let malicious_candidate_hash = malicious_candidate.hash();
-
-						let erasure_valid = make_pov_available(
-							sender,
-							self.table_context.validators.len(),
-							pov.clone(),
-							malicious_candidate_hash,
-							validation_data,
-							malicious_candidate.descriptor().erasure_root,
-							Some(root_span),
-						)
-						.await?;
-
-						tracing::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?malicious_candidate_hash,
-							relay_parent = ?relay_parent,
-							pov_hash = ?pov_hash,
-							commitments = ?malicious_commitments,
-							"ladi-debug-backing SECONDING GARBAGE",
-						);
-
-						let statement = Statement::Seconded(malicious_candidate);
-
-						self.sign_import_and_distribute_statement(sender, statement, root_span)
-							.await?;
-
-						match erasure_valid {
-							Ok(()) => {},
-							Err(InvalidErasureRoot) => {
-								tracing::debug!(
-									target: LOG_TARGET,
-									"ladi-debug-backing Erasure root doesn't match the announced by the candidate receipt",
-								);
-							},
-						}
-					} else if count == 1 {
-						tracing::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?candidate.hash(),
-							relay_parent = ?relay_parent,
-							"ladi-debug-backing Replacing random erasure chunk",
-						);
-
-						let validation_data = match request_persisted_validation_data(
-							relay_parent,
-							candidate.descriptor().para_id,
-							OccupiedCoreAssumption::Free,
-							sender,
-						)
-						.await
-						.await
-						.map_err(|err| Error::ValidateFromChainState(err))??
-						{
-							Some(v) => v,
-							None => {
-								tracing::debug!(
-									target: LOG_TARGET,
-									"ladi-debug-backing couldn't fetch validation data",
-								);
-
-								return Ok(())
-							},
-						};
-
-						let pov = Arc::new(pov);
-						let available_data = AvailableData {
-							pov: pov.clone(),
-							validation_data: validation_data.clone(),
-						};
-
-						let pov_hash = pov.hash();
-						let validation_data_hash = validation_data.hash();
-						let validation_code_hash = candidate.descriptor().validation_code_hash;
-
-						let (erasure_root, replaced_chunk_index) = {
-							let secret_sauce = 42;
-							let mut chunks = erasure_coding::obtain_chunks_v1(
-								self.table_context.validators.len(),
-								&available_data,
-							)?;
-							let index = rand::thread_rng().gen_range(0, chunks.len() as _) as usize;
-							chunks[index].fill(secret_sauce);
-
-							let branches = erasure_coding::branches(chunks.as_ref());
-							(branches.root(), index)
-						};
-						let (collator_id, collator_signature) = {
-							use polkadot_primitives::v1::CollatorPair;
-							use sp_core::crypto::Pair;
-
-							let collator_pair = CollatorPair::generate().0;
-							let signature_payload =
-								polkadot_primitives::v1::collator_signature_payload(
-									&relay_parent,
-									&candidate.descriptor().para_id,
-									&validation_data_hash,
-									&pov_hash,
-									&validation_code_hash,
-								);
-
-							(collator_pair.public(), collator_pair.sign(&signature_payload))
-						};
-						let malicious_commitments = CandidateCommitments {
-							upward_messages: Vec::new(),
-							horizontal_messages: Vec::new(),
-							new_validation_code: None,
-							head_data: vec![1, 2, 3, 4, 5].into(),
-							processed_downward_messages: 0,
-							hrmp_watermark: validation_data.relay_parent_number,
-						};
-						let malicious_candidate = CommittedCandidateReceipt {
-							descriptor: CandidateDescriptor {
-								para_id: candidate.descriptor().para_id,
-								relay_parent,
-								collator: collator_id,
-								persisted_validation_data_hash: validation_data_hash,
-								pov_hash,
-								erasure_root,
-								signature: collator_signature,
-								para_head: malicious_commitments.head_data.hash(),
-								validation_code_hash,
-							},
-							commitments: malicious_commitments.clone(),
-						};
-						let malicious_candidate_hash = malicious_candidate.hash();
-
-						store_malicious_available_data(
-							sender,
-							replaced_chunk_index,
-							self.table_context.validators.len() as _,
-							malicious_candidate_hash,
-							available_data,
-						)
-						.await?;
-
-						tracing::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?malicious_candidate_hash,
-							relay_parent = ?relay_parent,
-							pov_hash = ?pov_hash,
-							commitments = ?malicious_commitments,
-							?replaced_chunk_index,
-							"ladi-debug-backing Seconding with replaced chunk index",
-						);
-
-						let statement = Statement::Seconded(malicious_candidate);
-
-						self.sign_import_and_distribute_statement(sender, statement, root_span)
-							.await?;
-					} else {
+					if !self.issued_statements.contains(&candidate_hash) {
 						let pov = Arc::new(pov);
 						self.validate_and_second(&span, &root_span, sender, &candidate, pov)
 							.await?;
