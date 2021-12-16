@@ -16,7 +16,7 @@
 
 //! `V2` Primitives.
 
-pub use crate::v1::*;
+pub use crate::v1::{*, SessionInfo as v1SessionInfo};
 
 use parity_scale_codec::{Decode, Encode};
 use primitives::RuntimeDebug;
@@ -84,9 +84,30 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
+impl From<v1SessionInfo> for SessionInfo {
+	fn from(old: v1SessionInfo) -> SessionInfo {
+		SessionInfo {
+			// new fields
+			active_validator_indices: Vec::new(),
+			// old fields
+			validators: old.validators,
+			discovery_keys: old.discovery_keys,
+			assignment_keys: old.assignment_keys,
+			validator_groups: old.validator_groups,
+			n_cores: old.n_cores,
+			zeroth_delay_tranche_width: old.zeroth_delay_tranche_width,
+			relay_vrf_modulo_samples: old.relay_vrf_modulo_samples,
+			n_delay_tranches: old.n_delay_tranches,
+			no_show_slots: old.no_show_slots,
+			needed_approvals: old.needed_approvals,
+		}
+	}
+}
+
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
+	#[api_version(2)]
 	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
@@ -124,7 +145,13 @@ sp_api::decl_runtime_apis! {
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
 
+		/// Old method to fetch v1 session info.
+		#[changed_in(2)]
+		fn session_info(index: SessionIndex) -> Option<v1SessionInfo>;
+
 		/// Get the session info for the given session, if stored.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
 		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
