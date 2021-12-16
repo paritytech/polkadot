@@ -811,30 +811,14 @@ pub mod pallet {
 				.build()
 		}
 
-		fn pre_dispatch(call: &Self::Call) -> Result<(), TransactionValidityError> {
-			let stmt = match call {
-				Call::include_pvf_check_statement { stmt, .. } => stmt,
-				_ => return Err(InvalidTransaction::Call.into()),
-			};
-
-			let current_session = shared::Pallet::<T>::session_index();
-			if stmt.session_index < current_session {
-				return Err(InvalidTransaction::Stale.into())
-			} else if stmt.session_index > current_session {
-				return Err(InvalidTransaction::Future.into())
-			}
-
-			let active_vote = match PvfActiveVoteMap::<T>::get(&stmt.subject) {
-				Some(v) => v,
-				None => return Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()),
-			};
-
-			match active_vote.has_vote(stmt.validator_index.0 as usize) {
-				Some(false) => (),
-				Some(true) => return Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()),
-				None => return Err(InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into()),
-			}
-
+		fn pre_dispatch(_call: &Self::Call) -> Result<(), TransactionValidityError> {
+			// Return `Ok` here meaning that as soon as the transaction got into the block, it will
+			// always dispatched. This is OK, since the `include_pvf_check_statement` dispatchable
+			// will perform the same checks anyway, so there is no point doing it here.
+			//
+			// On the other hand, if we did not provide the implementation, then the default
+			// implementation would be used. The default implementation just delegates the
+			// pre-dispatch validation to `validate_unsigned`.
 			Ok(())
 		}
 	}
@@ -1479,6 +1463,8 @@ impl<T: Config> Pallet<T> {
 
 		// para signals an update to the same code? This does not make a lot of sense, so abort the
 		// process right away.
+		//
+		// We do not want to allow this since it will mess with the code reference counting.
 		weight += T::DbWeight::get().reads(1);
 		if CurrentCodeHash::<T>::get(&id) == Some(code_hash) {
 			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
@@ -1643,7 +1629,7 @@ impl<T: Config> Pallet<T> {
 			// In case the upgrade was aborted by the relay-chain we should reset
 			// the `Abort` signal.
 			UpgradeGoAheadSignal::<T>::remove(&id);
-			T::DbWeight::get().reads_writes(1, 1)
+			T::DbWeight::get().reads_writes(1, 2)
 		}
 	}
 
@@ -2876,7 +2862,7 @@ mod tests {
 		let code_a: ValidationCode = vec![3, 2, 1].into();
 		let code_b: ValidationCode = vec![1, 2, 3].into();
 
-		let check = |stmt: PvfCheckStatement| -> (Result<_, _>, Result<_, _>, Result<_, _>) {
+		let check = |stmt: PvfCheckStatement| -> (Result<_, _>, Result<_, _>) {
 			let validators = &[
 				Sr25519Keyring::Alice,
 				Sr25519Keyring::Bob,
@@ -2895,11 +2881,10 @@ mod tests {
 			let validate_unsigned =
 				<Paras as ValidateUnsigned>::validate_unsigned(TransactionSource::InBlock, &call)
 					.map(|_| ());
-			let pre_dispatch = <Paras as ValidateUnsigned>::pre_dispatch(&call);
 			let dispatch_result =
 				Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone());
 
-			(validate_unsigned, pre_dispatch, dispatch_result)
+			(validate_unsigned, dispatch_result)
 		};
 
 		let genesis_config = MockGenesisConfig {
@@ -2930,61 +2915,51 @@ mod tests {
 					session_index: 1,
 					validator_index: 1.into(),
 				}),
-				(Ok(()), Ok(()), Ok(())),
+				(Ok(()), Ok(())),
 			);
 
 			// A vote in the same direction.
-			let (unsigned, pre_dispatch, dispatch) = check(PvfCheckStatement {
+			let (unsigned, dispatch) = check(PvfCheckStatement {
 				accept: false,
 				subject: code_a.hash(),
 				session_index: 1,
 				validator_index: 1.into(),
 			});
 			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()));
-			assert_eq!(
-				pre_dispatch,
-				Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into())
-			);
 			assert_err!(dispatch, Error::<Test>::PvfCheckDoubleVote);
 
 			// Equivocation
-			let (unsigned, pre_dispatch, dispatch) = check(PvfCheckStatement {
+			let (unsigned, dispatch) = check(PvfCheckStatement {
 				accept: true,
 				subject: code_a.hash(),
 				session_index: 1,
 				validator_index: 1.into(),
 			});
 			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()));
-			assert_eq!(
-				pre_dispatch,
-				Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into())
-			);
 			assert_err!(dispatch, Error::<Test>::PvfCheckDoubleVote);
 
 			// Vote for an earlier session.
-			let (unsigned, pre_dispatch, dispatch) = check(PvfCheckStatement {
+			let (unsigned, dispatch) = check(PvfCheckStatement {
 				accept: false,
 				subject: code_a.hash(),
 				session_index: 0,
 				validator_index: 1.into(),
 			});
 			assert_eq!(unsigned, Err(InvalidTransaction::Stale.into()));
-			assert_eq!(pre_dispatch, Err(InvalidTransaction::Stale.into()));
 			assert_err!(dispatch, Error::<Test>::PvfCheckStatementStale);
 
 			// Vote for an later session.
-			let (unsigned, pre_dispatch, dispatch) = check(PvfCheckStatement {
+			let (unsigned, dispatch) = check(PvfCheckStatement {
 				accept: false,
 				subject: code_a.hash(),
 				session_index: 2,
 				validator_index: 1.into(),
 			});
 			assert_eq!(unsigned, Err(InvalidTransaction::Future.into()));
-			assert_eq!(pre_dispatch, Err(InvalidTransaction::Future.into()));
 			assert_err!(dispatch, Error::<Test>::PvfCheckStatementFuture);
 
 			// Validator not in the set.
-			let (unsigned, pre_dispatch, dispatch) = check(PvfCheckStatement {
+			let (unsigned, dispatch) = check(PvfCheckStatement {
 				accept: false,
 				subject: code_a.hash(),
 				session_index: 1,
@@ -2994,24 +2969,16 @@ mod tests {
 				unsigned,
 				Err(InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into())
 			);
-			assert_eq!(
-				pre_dispatch,
-				Err(InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into())
-			);
 			assert_err!(dispatch, Error::<Test>::PvfCheckValidatorIndexOutOfBounds);
 
 			// Bad subject (code_b)
-			let (unsigned, pre_dispatch, dispatch) = check(PvfCheckStatement {
+			let (unsigned, dispatch) = check(PvfCheckStatement {
 				accept: false,
 				subject: code_b.hash(),
 				session_index: 1,
 				validator_index: 1.into(),
 			});
 			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()));
-			assert_eq!(
-				pre_dispatch,
-				Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into())
-			);
 			assert_err!(dispatch, Error::<Test>::PvfCheckSubjectInvalid);
 		});
 	}
