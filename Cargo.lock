@@ -6142,7 +6142,6 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "rand 0.5.6",
  "rand_core 0.5.1",
  "sc-keystore",
  "schnorrkel",
