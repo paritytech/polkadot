@@ -261,7 +261,9 @@ impl<T: Config> Pallet<T> {
 			parent_header,
 			mut disputes,
 		} = data;
+		#[cfg(feature = "runtime-metrics")]
 		sp_io::init_tracing();
+
 		let mut weight_metric = CounterVec::new(
 			"parachain_inherent_data_weight",
 			"Inherent data weight before and after filtering",
