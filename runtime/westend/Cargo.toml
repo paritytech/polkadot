@@ -254,3 +254,4 @@ try-runtime = [
 # runtime without clashing with the runtime API exported functions
 # in WASM.
 disable-runtime-api = []
+runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]

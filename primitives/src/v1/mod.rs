@@ -63,6 +63,12 @@ pub use sp_staking::SessionIndex;
 mod signed;
 pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
+mod metrics;
+pub use metrics::{
+	RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels,
+	RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+};
+
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
 	use super::{HrmpChannelId, Id};
