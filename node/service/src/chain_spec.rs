@@ -1725,6 +1725,7 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 		None,
 		Some("versi"),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1954,6 +1955,7 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
