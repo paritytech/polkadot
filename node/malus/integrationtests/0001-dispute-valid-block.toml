@@ -22,7 +22,7 @@ command = "polkadot"
   extra_args = [ "--charlie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
-  name = "david"
+  name = "dave"
   validator = true
   command = "/usr/local/bin/malus dispute-ancestor"
   extra_args = ["--dave", "-lparachain=debug"]
