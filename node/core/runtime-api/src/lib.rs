@@ -432,8 +432,41 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionInfo(index, sender) =>
-			query!(SessionInfo, session_info(index), ver = 1, sender),
+		Request::SessionInfo(index, sender) => {
+			use sp_api::ApiExt;
+
+			let api = client.runtime_api();
+			let block_id = BlockId::Hash(relay_parent);
+
+			let api_version = api
+				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+				.unwrap_or_default()
+				.unwrap_or_default();
+
+			let res = if api_version >= 2 {
+				let res = api.session_info(&block_id, index)
+					.map_err(|e| RuntimeApiError::Execution {
+						runtime_api_name: "SessionInfo",
+						source: std::sync::Arc::new(e),
+					});
+				metrics.on_request(res.is_ok());
+				res
+			} else {
+				#[allow(deprecated)]
+				let res = api.session_info_before_version_2(&block_id, index)
+					.map_err(|e| RuntimeApiError::Execution {
+						runtime_api_name: "SessionInfo",
+						source: std::sync::Arc::new(e),
+					});
+				metrics.on_request(res.is_ok());
+
+				res.map(|r| r.map(|old| old.into()))
+			};
+
+			let _ = sender.send(res.clone());
+
+			res.ok().map(|res| RequestResult::SessionInfo(relay_parent, index, res))
+		},
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
 		Request::InboundHrmpChannelsContents(id, sender) =>
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),
