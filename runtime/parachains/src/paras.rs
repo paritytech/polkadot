@@ -24,17 +24,21 @@
 //! only occur at session boundaries.
 
 use crate::{configuration, initializer::SessionChangeNotification, shared};
-use frame_support::pallet_prelude::*;
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
-	ValidationCode, ValidationCodeHash,
+	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
+	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
-use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
-use sp_std::prelude::*;
+use sp_runtime::{
+	traits::{AppVerify, One},
+	DispatchResult, SaturatedConversion,
+};
+use sp_std::{cmp, convert::TryInto, mem, prelude::*};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -205,6 +209,97 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
+/// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the
+/// PVF vote in question is concluded, this enum indicates what changes should be performed.
+#[derive(Encode, Decode, TypeInfo)]
+enum PvfCheckCause<BlockNumber> {
+	/// PVF vote was initiated by the initial onboarding process of the given para.
+	Onboarding(ParaId),
+	/// PVF vote was initiated by signalling of an upgrade by the given para.
+	Upgrade {
+		/// The ID of the parachain that initiated or is waiting for the conclusion of pre-checking.
+		id: ParaId,
+		/// The relay-chain block number that was used as the relay-parent for the parablock that
+		/// initiated the upgrade.
+		relay_parent_number: BlockNumber,
+	},
+}
+
+/// Specifies what was the outcome of a PVF pre-checking vote.
+#[derive(Copy, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+enum PvfCheckOutcome {
+	Accepted,
+	Rejected,
+}
+
+/// This struct describes the current state of an in-progress PVF pre-checking vote.
+#[derive(Encode, Decode, TypeInfo)]
+struct PvfCheckActiveVoteState<BlockNumber> {
+	// The two following vectors have their length equal to the number of validators in the active
+	// set. They start with all zeroes. A 1 is set at an index when the validator at the that index
+	// makes a vote. Once a 1 is set for either of the vectors, that validator cannot vote anymore.
+	// Since the active validator set changes each session, the bit vectors are reinitialized as
+	// well: zeroed and resized so that each validator gets its own bit.
+	votes_accept: BitVec<BitOrderLsb0, u8>,
+	votes_reject: BitVec<BitOrderLsb0, u8>,
+
+	/// The number of session changes this PVF vote has observed. Therefore, this number is
+	/// increased at each session boundary. When created, it is initialized with 0.
+	age: SessionIndex,
+	/// The block number at which this PVF vote was created.
+	created_at: BlockNumber,
+	/// A list of causes for this PVF pre-checking. Has at least one.
+	causes: Vec<PvfCheckCause<BlockNumber>>,
+}
+
+impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
+	/// Returns a new instance of vote state, started at the specified block `now`, with the
+	/// number of validators in the current session `n_validators` and the originating `cause`.
+	fn new(now: BlockNumber, n_validators: usize, cause: PvfCheckCause<BlockNumber>) -> Self {
+		let mut causes = Vec::with_capacity(1);
+		causes.push(cause);
+		Self {
+			created_at: now,
+			votes_accept: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			votes_reject: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			age: 0,
+			causes,
+		}
+	}
+
+	/// Resets all votes and resizes the votes vectors corresponding to the number of validators
+	/// in the new session.
+	fn reinitialize_ballots(&mut self, n_validators: usize) {
+		let clear_and_resize = |v: &mut BitVec<_, _>| {
+			v.clear();
+			v.resize(n_validators, false);
+		};
+		clear_and_resize(&mut self.votes_accept);
+		clear_and_resize(&mut self.votes_reject);
+	}
+
+	/// Returns `Some(true)` if the validator at the given index has already cast their vote within
+	/// the ongoing session. Returns `None` in case the index is out of bounds.
+	fn has_vote(&self, validator_index: usize) -> Option<bool> {
+		let accept_vote = self.votes_accept.get(validator_index)?;
+		let reject_vote = self.votes_reject.get(validator_index)?;
+		Some(*accept_vote || *reject_vote)
+	}
+
+	/// Returns `None` if the quorum is not reached, or the direction of the decision.
+	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
+		let q_threshold = primitives::v1::supermajority_threshold(n_validators);
+		// NOTE: counting the reject votes is deliberately placed first. This is to err on the safe.
+		if self.votes_reject.count_ones() >= q_threshold {
+			Some(PvfCheckOutcome::Rejected)
+		} else if self.votes_accept.count_ones() >= q_threshold {
+			Some(PvfCheckOutcome::Accepted)
+		} else {
+			None
+		}
+	}
+}
+
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
@@ -235,14 +330,28 @@ impl WeightInfo for TestWeightInfo {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use sp_runtime::transaction_validity::{
+		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
+		ValidTransaction,
+	};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config + shared::Config {
+	pub trait Config:
+		frame_system::Config
+		+ configuration::Config
+		+ shared::Config
+		+ frame_system::offchain::SendTransactionTypes<Call<Self>>
+	{
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		#[pallet::constant]
+		type UnsignedPriority: Get<TransactionPriority>;
+
+		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -275,7 +384,37 @@ pub mod pallet {
 		CannotUpgrade,
 		/// Para cannot be downgraded to a parathread.
 		CannotDowngrade,
+		/// The statement for PVF pre-checking is stale.
+		PvfCheckStatementStale,
+		/// The statement for PVF pre-checking is for a future session.
+		PvfCheckStatementFuture,
+		/// Claimed validator index is out of bounds.
+		PvfCheckValidatorIndexOutOfBounds,
+		/// The signature for the PVF pre-checking is invalid.
+		PvfCheckInvalidSignature,
+		/// The given validator already has cast a vote.
+		PvfCheckDoubleVote,
+		/// The given PVF does not exist at the moment of process a vote.
+		PvfCheckSubjectInvalid,
 	}
+
+	/// All currently active PVF pre-checking votes.
+	///
+	/// Invariant:
+	/// - There are no PVF pre-checking votes that exists in list but not in the set and vice versa.
+	#[pallet::storage]
+	pub(super) type PvfActiveVoteMap<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ValidationCodeHash,
+		PvfCheckActiveVoteState<T::BlockNumber>,
+		OptionQuery,
+	>;
+
+	/// The list of all currently active PVF votes. Auxiliary to `PvfActiveVoteMap`.
+	#[pallet::storage]
+	pub(super) type PvfActiveVoteList<T: Config> =
+		StorageValue<_, Vec<ValidationCodeHash>, ValueQuery>;
 
 	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	#[pallet::storage]
@@ -388,6 +527,9 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, SessionIndex, Vec<ParaId>, ValueQuery>;
 
 	/// Upcoming paras instantiation arguments.
+	///
+	/// NOTE that after PVF pre-checking is enabled the para genesis arg will have it's code set
+	/// to empty. Instead, the code will be saved into the storage right away via `CodeByHash`.
 	#[pallet::storage]
 	pub(super) type UpcomingParasGenesis<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ParaGenesisArgs>;
@@ -534,8 +676,158 @@ pub mod pallet {
 			Self::deposit_event(Event::ActionQueued(para, next_session));
 			Ok(())
 		}
+
+		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
+		/// enacts the results if that was the last vote before achieving the supermajority.
+		#[pallet::weight(0)]
+		pub fn include_pvf_check_statement(
+			origin: OriginFor<T>,
+			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
+		) -> DispatchResult {
+			ensure_none(origin)?;
+			let validators = shared::Pallet::<T>::active_validator_keys();
+			let current_session = shared::Pallet::<T>::session_index();
+			if stmt.session_index < current_session {
+				return Err(Error::<T>::PvfCheckStatementStale.into())
+			} else if stmt.session_index > current_session {
+				return Err(Error::<T>::PvfCheckStatementFuture.into())
+			}
+			let validator_index = stmt.validator_index.0 as usize;
+			let validator_public = validators
+				.get(validator_index)
+				.ok_or(Error::<T>::PvfCheckValidatorIndexOutOfBounds)?;
+
+			let signing_payload = stmt.signing_payload();
+			ensure!(
+				signature.verify(&signing_payload[..], &validator_public),
+				Error::<T>::PvfCheckInvalidSignature,
+			);
+
+			let mut active_vote = PvfActiveVoteMap::<T>::get(&stmt.subject)
+				.ok_or(Error::<T>::PvfCheckSubjectInvalid)?;
+
+			// Ensure that the validator submitting this statement hasn't voted already.
+			ensure!(
+				!active_vote
+					.has_vote(validator_index)
+					.ok_or(Error::<T>::PvfCheckValidatorIndexOutOfBounds)?,
+				Error::<T>::PvfCheckDoubleVote,
+			);
+
+			// Finally, cast the vote and persist.
+			if stmt.accept {
+				active_vote.votes_accept.set(validator_index, true);
+			} else {
+				active_vote.votes_reject.set(validator_index, true);
+			}
+
+			if let Some(outcome) = active_vote.quorum(validators.len()) {
+				// The supermajority quorum has been achieved.
+				//
+				// Remove the PVF vote from the active map and finalize the PVF checking according
+				// to the outcome.
+				PvfActiveVoteMap::<T>::remove(&stmt.subject);
+				PvfActiveVoteList::<T>::mutate(|l| {
+					if let Ok(i) = l.binary_search(&stmt.subject) {
+						l.remove(i);
+					}
+				});
+				match outcome {
+					PvfCheckOutcome::Accepted => {
+						let cfg = configuration::Pallet::<T>::config();
+						Self::enact_pvf_accepted(
+							<frame_system::Pallet<T>>::block_number(),
+							&stmt.subject,
+							&active_vote.causes,
+							active_vote.age,
+							&cfg,
+						);
+					},
+					PvfCheckOutcome::Rejected => {
+						Self::enact_pvf_rejected(&stmt.subject, active_vote.causes);
+					},
+				}
+			} else {
+				// No quorum has been achieved. So just store the updated state back into the
+				// storage.
+				PvfActiveVoteMap::<T>::insert(&stmt.subject, active_vote);
+			}
+
+			Ok(())
+		}
+	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			let (stmt, signature) = match call {
+				Call::include_pvf_check_statement { stmt, signature } => (stmt, signature),
+				_ => return InvalidTransaction::Call.into(),
+			};
+
+			let current_session = shared::Pallet::<T>::session_index();
+			if stmt.session_index < current_session {
+				return InvalidTransaction::Stale.into()
+			} else if stmt.session_index > current_session {
+				return InvalidTransaction::Future.into()
+			}
+
+			let validator_index = stmt.validator_index.0 as usize;
+			let validators = shared::Pallet::<T>::active_validator_keys();
+			let validator_public = match validators.get(validator_index) {
+				Some(pk) => pk,
+				None => return InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into(),
+			};
+
+			let signing_payload = stmt.signing_payload();
+			if !signature.verify(&signing_payload[..], &validator_public) {
+				return InvalidTransaction::BadProof.into()
+			}
+
+			let active_vote = match PvfActiveVoteMap::<T>::get(&stmt.subject) {
+				Some(v) => v,
+				None => return InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into(),
+			};
+
+			match active_vote.has_vote(validator_index) {
+				Some(false) => (),
+				Some(true) => return InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into(),
+				None => return InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into(),
+			}
+
+			ValidTransaction::with_tag_prefix("PvfPreCheckingVote")
+				.priority(T::UnsignedPriority::get())
+				.longevity(
+					TryInto::<u64>::try_into(
+						T::NextSessionRotation::average_session_length() / 2u32.into(),
+					)
+					.unwrap_or(64_u64),
+				)
+				.and_provides((stmt.session_index, stmt.validator_index, stmt.subject))
+				.propagate(true)
+				.build()
+		}
+
+		fn pre_dispatch(_call: &Self::Call) -> Result<(), TransactionValidityError> {
+			// Return `Ok` here meaning that as soon as the transaction got into the block, it will
+			// always dispatched. This is OK, since the `include_pvf_check_statement` dispatchable
+			// will perform the same checks anyway, so there is no point doing it here.
+			//
+			// On the other hand, if we did not provide the implementation, then the default
+			// implementation would be used. The default implementation just delegates the
+			// pre-dispatch validation to `validate_unsigned`.
+			Ok(())
+		}
 	}
 }
+
+// custom transaction error codes
+const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
+const INVALID_TX_BAD_SUBJECT: u8 = 2;
+const INVALID_TX_DOUBLE_VOTE: u8 = 3;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
@@ -554,6 +846,7 @@ impl<T: Config> Pallet<T> {
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) -> Vec<ParaId> {
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
+		Self::groom_ongoing_pvf_votes(&notification.new_config, notification.validators.len());
 		outgoing_paras
 	}
 
@@ -591,7 +884,6 @@ impl<T: Config> Pallet<T> {
 			match lifecycle {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */
 				},
-				// Onboard a new parathread or parachain.
 				Some(ParaLifecycle::Onboarding) => {
 					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
 						if genesis_data.parachain {
@@ -603,10 +895,18 @@ impl<T: Config> Pallet<T> {
 							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 						}
 
-						let code_hash = genesis_data.validation_code.hash();
+						// HACK: see the notice in `schedule_para_initialize`.
+						//
+						// Apparently, this is left over from a prior version of the runtime.
+						// To handle this we just insert the code and link the current code hash
+						// to it.
+						if !genesis_data.validation_code.0.is_empty() {
+							let code_hash = genesis_data.validation_code.hash();
+							Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
+							<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
+						}
+
 						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
-						Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
-						<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
 					}
 				},
 				// Upgrade a parathread to a parachain
@@ -658,13 +958,13 @@ impl<T: Config> Pallet<T> {
 			// NOTE both of those iterates over the list and the outgoing. We do not expect either
 			//      of these to be large. Thus should be fine.
 			<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
-				*upcoming_upgrades = sp_std::mem::take(upcoming_upgrades)
+				*upcoming_upgrades = mem::take(upcoming_upgrades)
 					.into_iter()
 					.filter(|&(ref para, _)| !outgoing.contains(para))
 					.collect();
 			});
 			<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
-				*upgrade_cooldowns = sp_std::mem::take(upgrade_cooldowns)
+				*upgrade_cooldowns = mem::take(upgrade_cooldowns)
 					.into_iter()
 					.filter(|&(ref para, _)| !outgoing.contains(para))
 					.collect();
@@ -699,7 +999,7 @@ impl<T: Config> Pallet<T> {
 		// exits the slashing window.
 		<Self as Store>::PastCodePruning::mutate(|pruning| {
 			let insert_idx =
-				pruning.binary_search_by_key(&at, |&(_, b)| b).unwrap_or_else(|idx| idx);
+				pruning.binary_search_by_key(&now, |&(_, b)| b).unwrap_or_else(|idx| idx);
 			pruning.insert(insert_idx, (id, now));
 		});
 
@@ -791,32 +1091,249 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(2, upgrades_signaled as u64 + cooldowns_expired as u64)
 	}
 
-	/// Verify that `schedule_para_initialize` can be called successfully.
-	///
-	/// Returns false if para is already registered in the system.
-	pub fn can_schedule_para_initialize(id: &ParaId, _: &ParaGenesisArgs) -> bool {
-		let lifecycle = ParaLifecycles::<T>::get(id);
-		lifecycle.is_none()
+	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the
+	/// active votes that reached their time-to-live.
+	fn groom_ongoing_pvf_votes(
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		new_n_validators: usize,
+	) -> Weight {
+		let mut weight = T::DbWeight::get().reads(1);
+
+		let potentially_active_votes = PvfActiveVoteList::<T>::get();
+
+		// Initially empty list which contains all the PVF active votes that made it through this
+		// session change.
+		//
+		// **Ordered** as well as `PvfActiveVoteList`.
+		let mut actually_active_votes = Vec::with_capacity(potentially_active_votes.len());
+
+		for vote_subject in potentially_active_votes {
+			let mut vote_state = match PvfActiveVoteMap::<T>::take(&vote_subject) {
+				Some(v) => v,
+				None => {
+					// This branch should never be reached. This is due to the fact that the set of
+					// `PvfActiveVoteMap`'s keys is always equal to the set of items found in
+					// `PvfActiveVoteList`.
+					log::warn!(
+						target: "runtime::paras",
+						"The PvfActiveVoteMap is out of sync with PvfActiveVoteList!",
+					);
+					debug_assert!(false);
+					continue
+				},
+			};
+
+			vote_state.age += 1;
+			if vote_state.age < cfg.pvf_voting_ttl {
+				weight += T::DbWeight::get().writes(1);
+				vote_state.reinitialize_ballots(new_n_validators);
+				PvfActiveVoteMap::<T>::insert(&vote_subject, vote_state);
+
+				// push maintaining the original order.
+				actually_active_votes.push(vote_subject);
+			} else {
+				// TTL is reached. Reject.
+				weight += Self::enact_pvf_rejected(&vote_subject, vote_state.causes);
+			}
+		}
+
+		weight += T::DbWeight::get().writes(1);
+		PvfActiveVoteList::<T>::put(actually_active_votes);
+
+		weight
 	}
 
-	/// Schedule a para to be initialized at the start of the next session.
-	///
-	/// Will return error if para is already registered in the system.
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
-		let scheduled_session = Self::scheduled_session();
+	fn enact_pvf_accepted(
+		now: T::BlockNumber,
+		code_hash: &ValidationCodeHash,
+		causes: &[PvfCheckCause<T::BlockNumber>],
+		sessions_observed: SessionIndex,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+	) -> Weight {
+		let mut weight = 0;
+		for cause in causes {
+			match cause {
+				PvfCheckCause::Onboarding(id) => {
+					weight += Self::proceed_with_onboarding(*id, sessions_observed);
+				},
+				PvfCheckCause::Upgrade { id, relay_parent_number } => {
+					weight +=
+						Self::proceed_with_upgrade(*id, code_hash, now, *relay_parent_number, cfg);
+				},
+			}
+		}
+		weight
+	}
 
-		// Make sure parachain isn't already in our system and that the onboarding parameters are
-		// valid.
-		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
-		ensure!(!genesis.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
+	fn proceed_with_onboarding(id: ParaId, sessions_observed: SessionIndex) -> Weight {
+		let weight = T::DbWeight::get().reads_writes(2, 1);
 
-		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
-		UpcomingParasGenesis::<T>::insert(&id, genesis);
-		ActionsQueue::<T>::mutate(scheduled_session, |v| {
+		// we should onboard only after `SESSION_DELAY` sessions but we should take
+		// into account the number of sessions the PVF pre-checking occupied.
+		//
+		// we cannot onboard at the current session, so it must be at least one
+		// session ahead.
+		let onboard_at: SessionIndex = shared::Pallet::<T>::session_index() +
+			cmp::max(shared::SESSION_DELAY.saturating_sub(sessions_observed), 1);
+
+		ActionsQueue::<T>::mutate(onboard_at, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);
 			}
 		});
+
+		weight
+	}
+
+	fn proceed_with_upgrade(
+		id: ParaId,
+		code_hash: &ValidationCodeHash,
+		now: T::BlockNumber,
+		relay_parent_number: T::BlockNumber,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+	) -> Weight {
+		let mut weight = 0;
+
+		// Compute the relay-chain block number starting at which the code upgrade is ready to be
+		// applied.
+		//
+		// The first parablock that has a relay-parent higher or at the same height of `expected_at`
+		// will trigger the code upgrade. The parablock that comes after that will be validated
+		// against the new validation code.
+		//
+		// Here we are trying to choose the block number that will have `validation_upgrade_delay`
+		// blocks from the relay-parent of the block that schedule code upgrade but no less than
+		// `minimum_validation_upgrade_delay`. We want this delay out of caution so that when
+		// the last vote for pre-checking comes the parachain will have some time until the upgrade
+		// finally takes place.
+		let expected_at = cmp::max(
+			relay_parent_number + cfg.validation_upgrade_delay,
+			now + cfg.minimum_validation_upgrade_delay,
+		);
+
+		weight += T::DbWeight::get().reads_writes(1, 4);
+		FutureCodeUpgrades::<T>::insert(&id, expected_at);
+
+		<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+			let insert_idx = upcoming_upgrades
+				.binary_search_by_key(&expected_at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			upcoming_upgrades.insert(insert_idx, (id, expected_at));
+		});
+
+		let expected_at = expected_at.saturated_into();
+		let log = ConsensusLog::ParaScheduleUpgradeCode(id, *code_hash, expected_at);
+		<frame_system::Pallet<T>>::deposit_log(log.into());
+
+		weight
+	}
+
+	fn enact_pvf_rejected(
+		code_hash: &ValidationCodeHash,
+		causes: Vec<PvfCheckCause<T::BlockNumber>>,
+	) -> Weight {
+		let mut weight = T::DbWeight::get().writes(1);
+
+		for cause in causes {
+			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
+			// Now we need to unbump it.
+			weight += Self::decrease_code_ref(code_hash);
+
+			match cause {
+				PvfCheckCause::Onboarding(id) => {
+					// Here we need to undo everything that was done during `schedule_para_initialize`.
+					// Essentially, the logic is similar to offboarding, with exception that before
+					// actual onboarding the parachain did not have a chance to reach to upgrades.
+					// Therefore we can skip all the upgrade related storage items here.
+					weight += T::DbWeight::get().writes(3);
+					UpcomingParasGenesis::<T>::remove(&id);
+					CurrentCodeHash::<T>::remove(&id);
+					ParaLifecycles::<T>::remove(&id);
+				},
+				PvfCheckCause::Upgrade { id, .. } => {
+					weight += T::DbWeight::get().writes(2);
+					UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::Abort);
+					FutureCodeHash::<T>::remove(&id);
+				},
+			}
+		}
+
+		weight
+	}
+
+	/// Verify that `schedule_para_initialize` can be called successfully.
+	///
+	/// Returns false if para is already registered in the system.
+	pub fn can_schedule_para_initialize(id: &ParaId) -> bool {
+		ParaLifecycles::<T>::get(id).is_none()
+	}
+
+	/// Schedule a para to be initialized. If the validation code is not already stored in the
+	/// code storage, then a PVF pre-checking process will be initiated.
+	///
+	/// Only after the PVF pre-checking succeeds can the para be onboarded. Note, that calling this
+	/// does not guarantee that the parachain will eventually be onboarded. This can happen in case
+	/// the PVF does not pass PVF pre-checking.
+	///
+	/// The Para ID should be not activated in this module. The validation code supplied in
+	/// `genesis_data` should not be empty. If those conditions are not met, then the para cannot
+	/// be onboarded.
+	pub(crate) fn schedule_para_initialize(
+		id: ParaId,
+		mut genesis_data: ParaGenesisArgs,
+	) -> DispatchResult {
+		// Make sure parachain isn't already in our system and that the onboarding parameters are
+		// valid.
+		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
+		ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
+		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
+
+		// HACK: here we are doing something nasty.
+		//
+		// In order to fix the [soaking issue] we insert the code eagerly here. When the onboarding
+		// is finally enacted, we do not need to insert the code anymore. Therefore, there is no
+		// reason for the validation code to be copied into the `ParaGenesisArgs`. We also do not
+		// want to risk it by copying the validation code needlessly to not risk adding more
+		// memory pressure.
+		//
+		// That said, we also want to preserve `ParaGenesisArgs` as it is, for now. There are two
+		// reasons:
+		//
+		// - Doing it within the context of the PR that introduces this change is undesirable, since
+		//   it is already a big change, and that change would require a migration. Moreover, if we
+		//   run the new version of the runtime, there will be less things to worry about during
+		//   the eventual proper migration.
+		//
+		// - This data type already is used for generating genesis, and changing it will probably
+		//   introduce some unnecessary burden.
+		//
+		// So instead of going through it right now, we will do something sneaky. Specifically:
+		//
+		// - Insert the `CurrentCodeHash` now, instead during the onboarding. That would allow to
+		//   get rid of hashing of the validation code when onboarding.
+		//
+		// - Replace `validation_code` with a sentinel value: an empty vector. This should be fine
+		//   as long we do not allow registering parachains with empty code. At the moment of writing
+		//   this should already be the case.
+		//
+		// - Empty value is treated as the current code is already inserted during the onboarding.
+		//
+		// This is only an intermediate solution and should be fixed in foreseable future.
+		//
+		// [soaking issue]: https://github.com/paritytech/polkadot/issues/3918
+		let validation_code =
+			mem::replace(&mut genesis_data.validation_code, ValidationCode(Vec::new()));
+		UpcomingParasGenesis::<T>::insert(&id, genesis_data);
+		let validation_code_hash = validation_code.hash();
+		<Self as Store>::CurrentCodeHash::insert(&id, validation_code_hash);
+
+		let cfg = configuration::Pallet::<T>::config();
+		Self::kick_off_pvf_check(
+			PvfCheckCause::Onboarding(id),
+			validation_code_hash,
+			validation_code,
+			&cfg,
+		);
 
 		Ok(())
 	}
@@ -834,7 +1351,7 @@ impl<T: Config> Pallet<T> {
 		//
 		// This is not a fundamential limitation but rather simplification: it allows us to get
 		// away without introducing additional logic for pruning and, more importantly, enacting
-		// ongoing PVF pre-checking votings. It also removes some nasty edge cases.
+		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
 		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
 		if FutureCodeHash::<T>::contains_key(&id) {
@@ -902,10 +1419,20 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
-	/// of a block of the same parachain executed in the context of a relay-chain block
-	/// with number >= `expected_at`
+	/// Schedule a future code upgrade of the given parachain.
 	///
+	/// If the new code is not known, then the PVF pre-checking will be started for that validation
+	/// code. In case the validation code does not pass the PVF pre-checking process, the
+	/// upgrade will be aborted.
+	///
+	/// Only after the code is approved by the process, the upgrade can be scheduled. Specifically,
+	/// the relay-chain block number will be determined at which the upgrade will take place. We
+	/// call that block `expected_at`.
+	///
+	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation code
+	/// will be applied. Therefore, the new code will be used to validate the next candidate.
+	///
+	/// The new code should not be equal to the current one, otherwise the upgrade will be aborted.
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
@@ -913,44 +1440,144 @@ impl<T: Config> Pallet<T> {
 		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		<Self as Store>::FutureCodeUpgrades::mutate(&id, |up| {
-			if up.is_some() {
-				T::DbWeight::get().reads_writes(1, 0)
-			} else {
-				let expected_at = relay_parent_number + cfg.validation_upgrade_delay;
-				let next_possible_upgrade_at =
-					relay_parent_number + cfg.validation_upgrade_frequency;
+		let mut weight = T::DbWeight::get().reads(1);
 
-				*up = Some(expected_at);
+		// Enacting this should be prevented by the `can_schedule_upgrade`
+		if FutureCodeHash::<T>::contains_key(&id) {
+			// This branch should never be reached. Signalling an upgrade is disallowed for a para
+			// that already has one upgrade scheduled.
+			//
+			// Any candidate that attempts to do that should be rejected by
+			// `can_upgrade_validation_code`.
+			//
+			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
+			//       the following call `note_new_head`
+			log::warn!(
+				target: "runtime::paras",
+				"ended up scheduling an upgrade while one is pending",
+			);
+			return weight
+		}
 
-				<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
-					let insert_idx = upcoming_upgrades
-						.binary_search_by_key(&expected_at, |&(_, b)| b)
-						.unwrap_or_else(|idx| idx);
-					upcoming_upgrades.insert(insert_idx, (id, expected_at));
-				});
+		let code_hash = new_code.hash();
 
-				// From the moment of signalling of the upgrade until the cooldown expires, the
-				// parachain is disallowed to make further upgrades. Therefore set the upgrade
-				// permission signal to disallowed and activate the cooldown timer.
-				<Self as Store>::UpgradeRestrictionSignal::insert(&id, UpgradeRestriction::Present);
-				<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
-					let insert_idx = upgrade_cooldowns
-						.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
-						.unwrap_or_else(|idx| idx);
-					upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
-				});
+		// para signals an update to the same code? This does not make a lot of sense, so abort the
+		// process right away.
+		//
+		// We do not want to allow this since it will mess with the code reference counting.
+		weight += T::DbWeight::get().reads(1);
+		if CurrentCodeHash::<T>::get(&id) == Some(code_hash) {
+			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
+			//       the following call `note_new_head`
+			log::warn!(
+				target: "runtime::paras",
+				"para tried to upgrade to the same code. Abort the upgrade",
+			);
+			return weight
+		}
 
-				let new_code_hash = new_code.hash();
-				let expected_at_u32 = expected_at.saturated_into();
-				let log = ConsensusLog::ParaScheduleUpgradeCode(id, new_code_hash, expected_at_u32);
-				<frame_system::Pallet<T>>::deposit_log(log.into());
+		// This is the start of the upgrade process. Prevent any further attempts at upgrading.
+		weight += T::DbWeight::get().writes(2);
+		FutureCodeHash::<T>::insert(&id, &code_hash);
+		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 
-				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
-				FutureCodeHash::<T>::insert(&id, new_code_hash);
-				T::DbWeight::get().reads_writes(2 + reads, 3 + writes)
-			}
-		})
+		weight += T::DbWeight::get().reads_writes(1, 1);
+		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_frequency;
+		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+			let insert_idx = upgrade_cooldowns
+				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
+		});
+
+		weight += Self::kick_off_pvf_check(
+			PvfCheckCause::Upgrade { id, relay_parent_number },
+			code_hash,
+			new_code,
+			cfg,
+		);
+
+		weight
+	}
+
+	/// Makes sure that the given code hash has passed pre-checking.
+	///
+	/// If the given code hash has already passed pre-checking, then the approval happens
+	/// immediately. Similarly, if the pre-checking is turned off, the update is scheduled immediately
+	/// as well. In this case, the behavior is similar to the previous, i.e. the upgrade sequence
+	/// is purely time-based.
+	///
+	/// If the code is unknown, but the pre-checking for that PVF is already running then we perform
+	/// "coalescing". We save the cause for this PVF pre-check request and just add it to the
+	/// existing active PVF vote.
+	///
+	/// And finally, if the code is unknown and pre-checking is not running, we start the
+	/// pre-checking process anew.
+	///
+	/// Unconditionally increases the reference count for the passed `code`.
+	fn kick_off_pvf_check(
+		cause: PvfCheckCause<T::BlockNumber>,
+		code_hash: ValidationCodeHash,
+		code: ValidationCode,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+	) -> Weight {
+		let mut weight = 0;
+
+		weight += T::DbWeight::get().reads(1);
+		match PvfActiveVoteMap::<T>::get(&code_hash) {
+			None => {
+				let known_code = CodeByHash::<T>::contains_key(&code_hash);
+				weight += T::DbWeight::get().reads(1);
+
+				if !cfg.pvf_checking_enabled || known_code {
+					// Either:
+					// - the code is known and there is no active PVF vote for it meaning it is
+					//   already checked, or
+					// - the PVF checking is diabled
+					// In any case: fast track the PVF checking into the accepted state
+					weight += T::DbWeight::get().reads(1);
+					let now = <frame_system::Pallet<T>>::block_number();
+					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, cfg);
+				} else {
+					// PVF is not being pre-checked and it is not known. Start a new pre-checking
+					// process.
+					weight += T::DbWeight::get().reads_writes(3, 2);
+					let now = <frame_system::Pallet<T>>::block_number();
+					let n_validators = shared::Pallet::<T>::active_validator_keys().len();
+					PvfActiveVoteMap::<T>::insert(
+						&code_hash,
+						PvfCheckActiveVoteState::new(now, n_validators, cause),
+					);
+					PvfActiveVoteList::<T>::mutate(|l| {
+						if let Err(idx) = l.binary_search(&code_hash) {
+							l.insert(idx, code_hash);
+						}
+					});
+				}
+			},
+			Some(mut vote_state) => {
+				// Coalescing: the PVF is already being pre-checked so we just need to piggy back
+				// on it.
+				weight += T::DbWeight::get().writes(1);
+				vote_state.causes.push(cause);
+				PvfActiveVoteMap::<T>::insert(&code_hash, vote_state);
+			},
+		}
+
+		// We increase the code RC here in any case. Intuitively the parachain that requested this
+		// action is now a user of that PVF.
+		//
+		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
+		// including the current.
+		//
+		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
+		// will continue be used by the same users.
+		//
+		// If the PVF was fast-tracked (i.e. there is already non zero RC) and there is no
+		// pre-checking, we also do not change the RC then.
+		weight += Self::increase_code_ref(&code_hash, &code);
+
+		weight
 	}
 
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
@@ -997,7 +1624,41 @@ impl<T: Config> Pallet<T> {
 				T::DbWeight::get().reads_writes(1, 1 + 0)
 			}
 		} else {
-			T::DbWeight::get().reads_writes(1, 1)
+			// This means there is no upgrade scheduled.
+			//
+			// In case the upgrade was aborted by the relay-chain we should reset
+			// the `Abort` signal.
+			UpgradeGoAheadSignal::<T>::remove(&id);
+			T::DbWeight::get().reads_writes(1, 2)
+		}
+	}
+
+	/// Returns the list of PVFs (aka validation code) that require casting a vote by a validator in
+	/// the active validator set.
+	pub(crate) fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+		PvfActiveVoteList::<T>::get()
+	}
+
+	/// Submits a given PVF check statement with corresponding signature as an unsigned transaction
+	/// into the memory pool. Ultimately, that disseminates the transaction accross the network.
+	///
+	/// This function expects an offchain context and cannot be callable from the on-chain logic.
+	///
+	/// The signature assumed to pertain to `stmt`.
+	pub(crate) fn submit_pvf_check_statement(
+		stmt: PvfCheckStatement,
+		signature: ValidatorSignature,
+	) {
+		use frame_system::offchain::SubmitTransaction;
+
+		if let Err(e) = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(
+			Call::include_pvf_check_statement { stmt, signature }.into(),
+		) {
+			log::error!(
+				target: "runtime::paras",
+				"Error submitting pvf check statement: {:?}",
+				e,
+			);
 		}
 	}
 
@@ -1052,30 +1713,36 @@ impl<T: Config> Pallet<T> {
 
 	/// Store the validation code if not already stored, and increase the number of reference.
 	///
-	/// Returns the number of storage reads and number of storage writes.
-	fn increase_code_ref(code_hash: &ValidationCodeHash, code: &ValidationCode) -> (u64, u64) {
-		let reads = 1;
-		let mut writes = 1;
+	/// Returns the weight consumed.
+	fn increase_code_ref(code_hash: &ValidationCodeHash, code: &ValidationCode) -> Weight {
+		let mut weight = T::DbWeight::get().reads_writes(1, 1);
 		<Self as Store>::CodeByHashRefs::mutate(code_hash, |refs| {
 			if *refs == 0 {
-				writes += 1;
+				weight += T::DbWeight::get().writes(1);
 				<Self as Store>::CodeByHash::insert(code_hash, code);
 			}
 			*refs += 1;
 		});
-		(reads, writes)
+		weight
 	}
 
-	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
+	/// Decrease the number of reference of the validation code and remove it from storage if zero
 	/// is reached.
-	fn decrease_code_ref(code_hash: &ValidationCodeHash) {
+	///
+	/// Returns the weight consumed.
+	fn decrease_code_ref(code_hash: &ValidationCodeHash) -> Weight {
+		let mut weight = T::DbWeight::get().reads(1);
 		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
+		debug_assert!(refs != 0);
 		if refs <= 1 {
+			weight += T::DbWeight::get().writes(2);
 			<Self as Store>::CodeByHash::remove(code_hash);
 			<Self as Store>::CodeByHashRefs::remove(code_hash);
 		} else {
+			weight += T::DbWeight::get().writes(1);
 			<Self as Store>::CodeByHashRefs::insert(code_hash, refs - 1);
 		}
+		weight
 	}
 
 	/// Test function for triggering a new session in this pallet.
@@ -1097,7 +1764,14 @@ impl<T: Config> Pallet<T> {
 mod tests {
 	use super::*;
 	use frame_support::{assert_err, assert_ok};
-	use primitives::v1::BlockNumber;
+	use keyring::Sr25519Keyring;
+	use primitives::{
+		v0::PARACHAIN_KEY_TYPE_ID,
+		v1::{BlockNumber, ValidatorId},
+	};
+	use sc_keystore::LocalKeystore;
+	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+	use std::sync::Arc;
 	use test_helpers::{dummy_head_data, dummy_validation_code};
 
 	use crate::{
@@ -1105,7 +1779,42 @@ mod tests {
 		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
+	static VALIDATORS: &[Sr25519Keyring] = &[
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	fn sign_and_include_pvf_check_statement(stmt: PvfCheckStatement) {
+		let validators = &[
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let signature = validators[stmt.validator_index.0 as usize].sign(&stmt.signing_payload());
+		Paras::include_pvf_check_statement(None.into(), stmt, signature.into()).unwrap();
+	}
+
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		for validator in VALIDATORS.iter() {
+			SyncCryptoStore::sr25519_generate_new(
+				&*keystore,
+				PARACHAIN_KEY_TYPE_ID,
+				Some(&validator.to_seed()),
+			)
+			.unwrap();
+		}
+		let validator_pubkeys = validator_pubkeys(VALIDATORS);
+
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
@@ -1113,12 +1822,14 @@ mod tests {
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
 				session_change_notification.session_index = ParasShared::session_index() + 1;
+				session_change_notification.validators = validator_pubkeys.clone();
 				ParasShared::initializer_on_new_session(
 					session_change_notification.session_index,
 					session_change_notification.random_seed,
 					&session_change_notification.new_config,
 					session_change_notification.validators.clone(),
 				);
+				ParasShared::set_active_validators_ascending(validator_pubkeys.clone());
 				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);
@@ -1408,6 +2119,7 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1515,6 +2227,7 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1586,6 +2299,7 @@ mod tests {
 	fn submit_code_change_when_not_allowed_is_err() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 7;
+		let validation_upgrade_frequency = 100;
 
 		let paras = vec![(
 			0u32.into(),
@@ -1602,6 +2316,8 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1638,7 +2354,7 @@ mod tests {
 
 	#[test]
 	fn full_parachain_cleanup_storage() {
-		let code_retention_period = 10;
+		let code_retention_period = 20;
 		let validation_upgrade_delay = 1 + 5;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
@@ -1657,6 +2373,8 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					pvf_checking_enabled: false,
+					minimum_validation_upgrade_delay: 0,
 					..Default::default()
 				},
 				..Default::default()
@@ -1745,8 +2463,20 @@ mod tests {
 
 	#[test]
 	fn para_incoming_at_session() {
-		new_test_ext(Default::default()).execute_with(|| {
-			run_to_block(1, None);
+		let code_a = ValidationCode(vec![2]);
+		let code_b = ValidationCode(vec![1]);
+		let code_c = ValidationCode(vec![3]);
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			run_to_block(1, Some(vec![1]));
 
 			let b = ParaId::from(525);
 			let a = ParaId::from(999);
@@ -1757,7 +2487,7 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![1].into(),
-					validation_code: vec![1].into(),
+					validation_code: code_b.clone(),
 				},
 			));
 
@@ -1766,7 +2496,7 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: false,
 					genesis_head: vec![2].into(),
-					validation_code: vec![2].into(),
+					validation_code: code_a.clone(),
 				},
 			));
 
@@ -1775,9 +2505,36 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![3].into(),
-					validation_code: vec![3].into(),
+					validation_code: code_c.clone(),
 				},
 			));
+
+			IntoIterator::into_iter([0, 1, 2, 3])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_a.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			IntoIterator::into_iter([1, 2, 3, 4])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_b.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			IntoIterator::into_iter([0, 2, 3, 4])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_c.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
@@ -1840,6 +2597,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1852,6 +2610,11 @@ mod tests {
 			let old_code: ValidationCode = vec![1, 2, 3].into();
 			let new_code: ValidationCode = vec![4, 5, 6].into();
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
+
+			// The new validation code can be applied but a new parablock hasn't gotten in yet,
+			// so the old code should still be current.
+			run_to_block(3, None);
+			assert_eq!(Paras::current_code(&para_id), Some(old_code.clone()));
 
 			run_to_block(10, None);
 			Paras::note_new_head(para_id, Default::default(), 7);
@@ -1897,6 +2660,326 @@ mod tests {
 
 			assert!(!<Paras as Store>::CodeByHash::contains_key(code.hash()));
 			assert!(!<Paras as Store>::CodeByHashRefs::contains_key(code.hash()));
+		});
+	}
+
+	#[test]
+	fn pvf_check_coalescing_onboarding_and_upgrade() {
+		let validation_upgrade_delay = 5;
+
+		let a = ParaId::from(111);
+		let b = ParaId::from(222);
+		let validation_code: ValidationCode = vec![3, 2, 1].into();
+
+		let paras = vec![(
+			a,
+			ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: ValidationCode(vec![]), // valid since in genesis
+			},
+		)];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					pvf_checking_enabled: true,
+					validation_upgrade_delay,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			// At this point `a` is already onboarded. Run to block 1 performing session change at
+			// the end of block #0.
+			run_to_block(2, Some(vec![1]));
+
+			// Expected current session index.
+			const EXPECTED_SESSION: SessionIndex = 1;
+			// Relay parent of the parablock that schedules the upgrade.
+			const RELAY_PARENT: BlockNumber = 1;
+
+			// Now we register `b` with `validation_code`
+			assert_ok!(Paras::schedule_para_initialize(
+				b,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![2].into(),
+					validation_code: validation_code.clone(),
+				},
+			));
+
+			// And now at the same time upgrade `a` to `validation_code`
+			Paras::schedule_code_upgrade(
+				a,
+				validation_code.clone(),
+				RELAY_PARENT,
+				&Configuration::config(),
+			);
+			assert!(!Paras::pvfs_require_precheck().is_empty());
+
+			// Supermajority of validators vote for `validation_code`. It should be approved.
+			IntoIterator::into_iter([0, 1, 2, 3])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: validation_code.hash(),
+					session_index: EXPECTED_SESSION,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			// Check that `b` actually onboards.
+			assert_eq!(<Paras as Store>::ActionsQueue::get(EXPECTED_SESSION + 2), vec![b]);
+
+			// Check that the upgrade got scheduled.
+			assert_eq!(
+				<Paras as Store>::FutureCodeUpgrades::get(&a),
+				Some(RELAY_PARENT + validation_upgrade_delay),
+			);
+		});
+	}
+
+	#[test]
+	fn pvf_check_onboarding_reject_on_expiry() {
+		let pvf_voting_ttl = 2;
+		let a = ParaId::from(111);
+		let validation_code: ValidationCode = vec![3, 2, 1].into();
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					pvf_checking_enabled: true,
+					pvf_voting_ttl,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			run_to_block(1, Some(vec![1]));
+
+			assert_ok!(Paras::schedule_para_initialize(
+				a,
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: vec![2].into(),
+					validation_code: validation_code.clone(),
+				},
+			));
+
+			// Make sure that we kicked off the PVF vote for this validation code and that the
+			// validation code is stored.
+			assert!(<Paras as Store>::PvfActiveVoteMap::get(&validation_code.hash()).is_some());
+			check_code_is_stored(&validation_code);
+
+			// Skip 2 sessions (i.e. `pvf_voting_ttl`) verifying that the code is still stored in
+			// the intermediate session.
+			assert_eq!(pvf_voting_ttl, 2);
+			run_to_block(2, Some(vec![2]));
+			check_code_is_stored(&validation_code);
+			run_to_block(3, Some(vec![3]));
+
+			// --- At this point the PVF vote for onboarding should be rejected.
+
+			// Verify that the PVF is no longer stored and there is no active PVF vote.
+			check_code_is_not_stored(&validation_code);
+			assert!(<Paras as Store>::PvfActiveVoteMap::get(&validation_code.hash()).is_none());
+			assert!(Paras::pvfs_require_precheck().is_empty());
+
+			// Verify that at this point we can again try to initialize the same para.
+			assert!(Paras::can_schedule_para_initialize(&a));
+		});
+	}
+
+	#[test]
+	fn pvf_check_upgrade_reject() {
+		let a = ParaId::from(111);
+		let new_code: ValidationCode = vec![3, 2, 1].into();
+
+		let paras = vec![(
+			a,
+			ParaGenesisArgs {
+				parachain: false,
+				genesis_head: Default::default(),
+				validation_code: ValidationCode(vec![]), // valid since in genesis
+			},
+		)];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			// At this point `a` is already onboarded. Run to block 1 performing session change at
+			// the end of block #0.
+			run_to_block(2, Some(vec![1]));
+
+			// Relay parent of the block that schedules the upgrade.
+			const RELAY_PARENT: BlockNumber = 1;
+			// Expected current session index.
+			const EXPECTED_SESSION: SessionIndex = 1;
+
+			Paras::schedule_code_upgrade(
+				a,
+				new_code.clone(),
+				RELAY_PARENT,
+				&Configuration::config(),
+			);
+			check_code_is_stored(&new_code);
+
+			// Supermajority of validators vote against `new_code`. PVF should be rejected.
+			IntoIterator::into_iter([0, 1, 2, 3])
+				.map(|i| PvfCheckStatement {
+					accept: false,
+					subject: new_code.hash(),
+					session_index: EXPECTED_SESSION,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			// Verify that the new code is discarded.
+			check_code_is_not_stored(&new_code);
+
+			assert!(<Paras as Store>::PvfActiveVoteMap::get(&new_code.hash()).is_none());
+			assert!(Paras::pvfs_require_precheck().is_empty());
+			assert!(<Paras as Store>::FutureCodeHash::get(&a).is_none());
+		});
+	}
+
+	#[test]
+	fn pvf_check_submit_vote() {
+		let code_a: ValidationCode = vec![3, 2, 1].into();
+		let code_b: ValidationCode = vec![1, 2, 3].into();
+
+		let check = |stmt: PvfCheckStatement| -> (Result<_, _>, Result<_, _>) {
+			let validators = &[
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+				Sr25519Keyring::Ferdie,
+				Sr25519Keyring::Eve, // <- this validator is not in the set
+			];
+			let signature: ValidatorSignature =
+				validators[stmt.validator_index.0 as usize].sign(&stmt.signing_payload()).into();
+
+			let call = Call::include_pvf_check_statement {
+				stmt: stmt.clone(),
+				signature: signature.clone(),
+			};
+			let validate_unsigned =
+				<Paras as ValidateUnsigned>::validate_unsigned(TransactionSource::InBlock, &call)
+					.map(|_| ());
+			let dispatch_result =
+				Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone());
+
+			(validate_unsigned, dispatch_result)
+		};
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			// Important to run this to seed the validators.
+			run_to_block(1, Some(vec![1]));
+
+			assert_ok!(Paras::schedule_para_initialize(
+				1000.into(),
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: vec![2].into(),
+					validation_code: code_a.clone(),
+				},
+			));
+
+			assert_eq!(
+				check(PvfCheckStatement {
+					accept: false,
+					subject: code_a.hash(),
+					session_index: 1,
+					validator_index: 1.into(),
+				}),
+				(Ok(()), Ok(())),
+			);
+
+			// A vote in the same direction.
+			let (unsigned, dispatch) = check(PvfCheckStatement {
+				accept: false,
+				subject: code_a.hash(),
+				session_index: 1,
+				validator_index: 1.into(),
+			});
+			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()));
+			assert_err!(dispatch, Error::<Test>::PvfCheckDoubleVote);
+
+			// Equivocation
+			let (unsigned, dispatch) = check(PvfCheckStatement {
+				accept: true,
+				subject: code_a.hash(),
+				session_index: 1,
+				validator_index: 1.into(),
+			});
+			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()));
+			assert_err!(dispatch, Error::<Test>::PvfCheckDoubleVote);
+
+			// Vote for an earlier session.
+			let (unsigned, dispatch) = check(PvfCheckStatement {
+				accept: false,
+				subject: code_a.hash(),
+				session_index: 0,
+				validator_index: 1.into(),
+			});
+			assert_eq!(unsigned, Err(InvalidTransaction::Stale.into()));
+			assert_err!(dispatch, Error::<Test>::PvfCheckStatementStale);
+
+			// Vote for an later session.
+			let (unsigned, dispatch) = check(PvfCheckStatement {
+				accept: false,
+				subject: code_a.hash(),
+				session_index: 2,
+				validator_index: 1.into(),
+			});
+			assert_eq!(unsigned, Err(InvalidTransaction::Future.into()));
+			assert_err!(dispatch, Error::<Test>::PvfCheckStatementFuture);
+
+			// Validator not in the set.
+			let (unsigned, dispatch) = check(PvfCheckStatement {
+				accept: false,
+				subject: code_a.hash(),
+				session_index: 1,
+				validator_index: 5.into(),
+			});
+			assert_eq!(
+				unsigned,
+				Err(InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into())
+			);
+			assert_err!(dispatch, Error::<Test>::PvfCheckValidatorIndexOutOfBounds);
+
+			// Bad subject (code_b)
+			let (unsigned, dispatch) = check(PvfCheckStatement {
+				accept: false,
+				subject: code_b.hash(),
+				session_index: 1,
+				validator_index: 1.into(),
+			});
+			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()));
+			assert_err!(dispatch, Error::<Test>::PvfCheckSubjectInvalid);
 		});
 	}
 
