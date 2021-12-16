@@ -36,7 +36,7 @@ use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 use sc_network::Multiaddr;
-use sp_application_crypto::{AppKey, Public};
+use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{

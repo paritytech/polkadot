@@ -32,7 +32,7 @@ use primitives::v1::{
 use sp_core::{sr25519, H256};
 use sp_runtime::{
 	generic::Digest,
-	traits::{Header as HeaderT, One, Zero},
+	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
@@ -45,9 +45,10 @@ fn mock_validation_code() -> ValidationCode {
 ///
 /// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
 /// "features = runtime-benchmarks".
-fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
+fn account<AccountId: Decode>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
-	AccountId::decode(&mut &entropy[..]).expect("256 bit input is valid. qed.")
+	AccountId::decode(&mut TrailingZeroInput::new(&entropy[..]))
+		.expect("infinite input; no invalid input; qed")
 }
 
 /// Create a 32 byte slice based on the given number.

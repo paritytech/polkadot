@@ -635,16 +635,10 @@ impl<T: Config> Pallet<T> {
 
 		winning_ranges
 			.into_iter()
-			.map(|range| {
-				let mut final_winner = Default::default();
-				swap(
-					&mut final_winner,
-					winning[range as u8 as usize]
-						.as_mut()
-						.expect("none values are filtered out in previous logic; qed"),
-				);
-				let (bidder, para, amount) = final_winner;
-				(bidder, para, amount, range)
+			.filter_map(|range| {
+				winning[range as u8 as usize]
+					.take()
+					.map(|(bidder, para, amount)| (bidder, para, amount, range))
 			})
 			.collect::<Vec<_>>()
 	}

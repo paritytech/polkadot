@@ -71,6 +71,9 @@ impl InvertLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
 		Ok(Here.into())
 	}
+	fn ancestry() -> MultiLocation {
+		Here.into()
+	}
 }
 
 pub struct XcmConfig;
