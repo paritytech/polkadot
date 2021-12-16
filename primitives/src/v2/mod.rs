@@ -16,7 +16,7 @@
 
 //! `V2` Primitives.
 
-pub use crate::v1::{*, SessionInfo as v1SessionInfo};
+pub use crate::v1::{SessionInfo as v1SessionInfo, *};
 
 use parity_scale_codec::{Decode, Encode};
 use primitives::RuntimeDebug;
@@ -31,13 +31,11 @@ use parity_util_mem::MallocSizeOf;
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
 	/****** New in v2 *******/
-
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
 	pub active_validator_indices: Vec<ValidatorIndex>,
 
 	/****** Old fields ******/
-
 	/// Validators in canonical ordering.
 	///
 	/// NOTE: There might be more authorities in the current session, than `validators` participating
@@ -103,7 +101,6 @@ impl From<v1SessionInfo> for SessionInfo {
 		}
 	}
 }
-
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.

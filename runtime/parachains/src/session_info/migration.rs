@@ -16,7 +16,7 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::session_info::{Pallet, Store, Config};
+use crate::session_info::{Config, Pallet, Store};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 
 /// The current storage version.

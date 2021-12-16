@@ -444,8 +444,8 @@ where
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
-				let res = api.session_info(&block_id, index)
-					.map_err(|e| RuntimeApiError::Execution {
+				let res =
+					api.session_info(&block_id, index).map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
 					});
@@ -453,11 +453,12 @@ where
 				res
 			} else {
 				#[allow(deprecated)]
-				let res = api.session_info_before_version_2(&block_id, index)
-					.map_err(|e| RuntimeApiError::Execution {
+				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
+					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
-					});
+					}
+				});
 				metrics.on_request(res.is_ok());
 
 				res.map(|r| r.map(|old| old.into()))
