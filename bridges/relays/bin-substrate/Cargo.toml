@@ -51,14 +51,14 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 hex-literal = "0.3"
 pallet-bridge-grandpa = { path = "../../modules/grandpa" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

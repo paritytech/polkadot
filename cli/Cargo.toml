@@ -22,18 +22,18 @@ futures = "0.3.17"
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.13" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.13" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.13" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.13" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.13" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.13" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native" ]
