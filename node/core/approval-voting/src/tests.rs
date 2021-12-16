@@ -766,10 +766,7 @@ async fn import_block(
 
 	let session_info = config.session_info.clone().unwrap_or({
 		let validators = vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob];
-		SessionInfo {
-			needed_approvals: 1,
-			..session_info(&validators)
-		}
+		SessionInfo { needed_approvals: 1, ..session_info(&validators) }
 	});
 
 	overseer_send(
