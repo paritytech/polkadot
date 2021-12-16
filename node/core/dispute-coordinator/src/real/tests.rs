@@ -51,7 +51,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, HashT,
 	Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId,
 	ValidatorIndex,
@@ -80,7 +80,7 @@ fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
 
 	for s in accounts.iter().copied().map(|k| k.to_seed()) {
 		store
-			.sr25519_generate_new(polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID, Some(s.as_str()))
+			.sr25519_generate_new(polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID, Some(s.as_str()))
 			.unwrap();
 	}
 
@@ -760,7 +760,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote =
 				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
@@ -877,7 +877,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote =
 				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
@@ -972,7 +972,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote =
 				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;

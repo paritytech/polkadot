@@ -20,7 +20,7 @@
 
 mod block_builder;
 
-use polkadot_primitives::v1::Block;
+use polkadot_primitives::v2::Block;
 use sc_service::client;
 use sp_core::storage::Storage;
 use sp_runtime::BuildStorage;

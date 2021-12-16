@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{
 	peer_set::{PeerSet, PerPeerSet},
 	PeerId,
 };
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
 

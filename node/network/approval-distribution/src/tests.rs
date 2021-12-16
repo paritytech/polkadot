@@ -28,7 +28,7 @@ use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
-fn dummy_signature() -> polkadot_primitives::v1::ValidatorSignature {
+fn dummy_signature() -> polkadot_primitives::v2::ValidatorSignature {
 	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
 }
 

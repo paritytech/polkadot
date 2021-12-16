@@ -36,7 +36,7 @@ use assert_matches::assert_matches;
 use std::{sync::Arc, time::Duration};
 
 use futures::{channel::oneshot, prelude::*};
-use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
+use polkadot_primitives::v2::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,

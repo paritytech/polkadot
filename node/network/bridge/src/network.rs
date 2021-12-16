@@ -31,7 +31,7 @@ use polkadot_node_network_protocol::{
 	request_response::{OutgoingRequest, Recipient, Requests},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
 
 use crate::validator_discovery::AuthorityDiscovery;
 

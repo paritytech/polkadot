@@ -17,7 +17,7 @@
 //! `V1` database for the dispute coordinator.
 
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,
 };
@@ -253,7 +253,7 @@ pub(crate) fn note_current_session(
 mod tests {
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
-	use polkadot_primitives::v1::{Hash, Id as ParaId};
+	use polkadot_primitives::v2::{Hash, Id as ParaId};
 
 	fn make_db() -> DbBackend {
 		let store = Arc::new(kvdb_memorydb::create(1));

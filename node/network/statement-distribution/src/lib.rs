@@ -37,7 +37,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	MIN_GOSSIP_PEERS,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
 };

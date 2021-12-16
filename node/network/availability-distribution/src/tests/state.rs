@@ -39,7 +39,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1, IncomingRequest, OutgoingRequest, Requests},
 };
 use polkadot_node_primitives::ErasureChunk;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex,
 };

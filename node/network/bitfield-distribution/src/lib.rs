@@ -32,7 +32,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	MIN_GOSSIP_PEERS,
 };
-use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
+use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,

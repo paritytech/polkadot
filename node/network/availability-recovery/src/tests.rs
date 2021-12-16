@@ -30,7 +30,7 @@ use sc_network::config::RequestResponseConfig;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,

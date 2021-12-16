@@ -35,7 +35,7 @@
 use std::{borrow::Cow, time::Duration, u64};
 
 use futures::channel::mpsc;
-use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
+use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::EnumIter;
 
 pub use sc_network::{config as network, config::RequestResponseConfig};

@@ -22,7 +22,7 @@ use polkadot_node_subsystem::{
 	messages::{ChainApiMessage, ChainSelectionMessage},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_primitives::v1::{BlockNumber, ConsensusLog, Hash, Header};
+use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};
 
 use futures::{channel::oneshot, future::Either, prelude::*};
 use kvdb::KeyValueDB;

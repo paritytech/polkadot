@@ -24,7 +24,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, SpawnedSubsystem,
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v2::Hash;
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use std::{
 	pin::Pin,

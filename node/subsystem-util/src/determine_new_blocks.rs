@@ -18,7 +18,7 @@
 
 use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{messages::ChainApiMessage, SubsystemSender};
-use polkadot_primitives::v1::{BlockNumber, Hash, Header};
+use polkadot_primitives::v2::{BlockNumber, Hash, Header};
 
 /// Given a new chain-head hash, this determines the hashes of all new blocks we should track
 /// metadata for, given this head.

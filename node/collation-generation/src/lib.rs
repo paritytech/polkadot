@@ -31,7 +31,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
 	request_validators,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
 	CoreState, Hash, OccupiedCoreAssumption, PersistedValidationData,
 };

@@ -33,7 +33,7 @@ use polkadot_node_subsystem_test_helpers::{
 	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 };
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 use polkadot_primitives_test_helpers::dummy_collator_signature;
 use polkadot_subsystem::{
 	jaeger,

@@ -18,6 +18,7 @@
 
 use crate::session_info::{Pallet, Store, Config};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
+use sp_std::prelude::Vec;
 
 /// The current storage version.
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
@@ -34,6 +35,7 @@ pub fn migrate_to_latest<T: Config>() -> Weight {
 
 mod v1 {
 	use primitives::v2::*;
+	use sp_std::prelude::Vec;
 	use parity_scale_codec::{Decode, Encode};
 
 	/// Information about validator sets of a session.

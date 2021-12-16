@@ -19,7 +19,7 @@ use std::{collections::HashSet, convert::TryFrom};
 pub use sc_network::{PeerId, ReputationChange};
 
 use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]
