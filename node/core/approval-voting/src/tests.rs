@@ -733,6 +733,22 @@ impl ChainBuilder {
 	}
 }
 
+fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
+	SessionInfo {
+		validators: keys.iter().map(|v| v.public().into()).collect(),
+		discovery_keys: keys.iter().map(|v| v.public().into()).collect(),
+		assignment_keys: keys.iter().map(|v| v.public().into()).collect(),
+		validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+		n_cores: keys.len() as _,
+		needed_approvals: 2,
+		zeroth_delay_tranche_width: 5,
+		relay_vrf_modulo_samples: 3,
+		n_delay_tranches: 50,
+		no_show_slots: 2,
+		active_validator_indices: vec![],
+	}
+}
+
 async fn import_block(
 	overseer: &mut VirtualOverseer,
 	hashes: &[(Hash, Header)],
@@ -750,18 +766,7 @@ async fn import_block(
 
 	let session_info = config.session_info.clone().unwrap_or({
 		let validators = vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob];
-		SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
-			n_cores: validators.len() as _,
-			needed_approvals: 1,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
-		}
+		session_info(&validators)
 	});
 
 	overseer_send(
@@ -1445,20 +1450,13 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
 			needed_approvals: 1,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		// Add block hash 0x01...
@@ -1756,20 +1754,12 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidate_descriptor = make_candidate(1.into(), &block_hash);
@@ -1916,20 +1906,12 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		ChainBuilder::new()
@@ -2199,20 +2181,12 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		ChainBuilder::new()
@@ -2334,20 +2308,14 @@ where
 			Sr25519Keyring::Ferdie,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(3)],
 				vec![ValidatorIndex(4), ValidatorIndex(5)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
 			relay_vrf_modulo_samples: 2,
-			n_delay_tranches: 50,
 			no_show_slots,
+			..session_info(&validators)
 		};
 
 		ChainBuilder::new()
@@ -2637,20 +2605,12 @@ fn pre_covers_dont_stall_approval() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidate_descriptor = make_candidate(1.into(), &block_hash);
@@ -2817,20 +2777,12 @@ fn waits_until_approving_assignments_are_old_enough() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidate_descriptor = make_candidate(1.into(), &block_hash);
