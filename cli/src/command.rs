@@ -71,7 +71,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend", "rococo"]
+			["polkadot", "kusama", "westend", "rococo", "versi"]
 				.iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
@@ -125,6 +125,14 @@ impl SubstrateCli for Cli {
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
+			"versi" => Box::new(service::chain_spec::versi_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-local" => Box::new(service::chain_spec::versi_local_testnet_config()?),
+			#[cfg(not(feature = "rococo-native"))]
+			name if name.starts_with("versi-") =>
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -133,7 +141,11 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_wococo() {
+				if self.run.force_rococo ||
+					chain_spec.is_rococo() ||
+					chain_spec.is_wococo() ||
+					chain_spec.is_versi()
+				{
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
@@ -158,7 +170,7 @@ impl SubstrateCli for Cli {
 		}
 
 		#[cfg(feature = "rococo-native")]
-		if spec.is_rococo() || spec.is_wococo() {
+		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
 			return &service::rococo_runtime::VERSION
 		}
 
