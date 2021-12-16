@@ -127,7 +127,7 @@ impl CandidateComparator {
 
 impl OrderingProvider {
 	/// Limits the number of ancestors received for a single request.
-	pub(crate) const ANCESTRY_STEP: usize = 10;
+	pub(crate) const ANCESTRY_CHUNK_SIZE: usize = 10;
 	/// Limits the overall number of ancestors walked through for a given head.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: usize = 1000;
 
@@ -269,7 +269,7 @@ impl OrderingProvider {
 					.send_message(
 						ChainApiMessage::Ancestors {
 							hash: head,
-							k: Self::ANCESTRY_STEP,
+							k: Self::ANCESTRY_CHUNK_SIZE,
 							response_channel: tx,
 						}
 						.into(),

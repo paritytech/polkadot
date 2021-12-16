@@ -142,7 +142,7 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 	BlakeTwo256::hash(&n.encode())
 }
 
-/// Get a dummy event that corresponds to candidate inclusion for the given block hash.
+/// Get a dummy event that corresponds to candidate inclusion for the given block number.
 fn get_candidate_included_events(block_number: BlockNumber) -> Vec<CandidateEvent> {
 	vec![CandidateEvent::CandidateIncluded(
 		make_candidate_receipt(get_block_number_hash(block_number)),
@@ -213,7 +213,7 @@ async fn overseer_process_active_leaves_update(
 	// Before walking through ancestors provider requests latest finalized block number.
 	assert_finalized_block_number_request(virtual_overseer, finalized_block).await;
 	// Expect block ancestors requests with respect to the ancestry step.
-	for _ in (0..expected_ancestry_len).step_by(OrderingProvider::ANCESTRY_STEP) {
+	for _ in (0..expected_ancestry_len).step_by(OrderingProvider::ANCESTRY_CHUNK_SIZE) {
 		assert_block_ancestors_request(virtual_overseer, chain).await;
 	}
 	// For each ancestry and the head return corresponding candidates inclusions.
