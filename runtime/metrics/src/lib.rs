@@ -22,12 +22,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "std")]
-mod std;
-#[cfg(feature = "std")]
-pub use crate::std::*;
+#[cfg(feature = "runtime-metrics")]
+mod with_runtime_metrics;
+#[cfg(feature = "runtime-metrics")]
+pub use crate::with_runtime_metrics::*;
 
-#[cfg(not(feature = "std"))]
-mod nostd;
-#[cfg(not(feature = "std"))]
-pub use crate::nostd::*;
+#[cfg(not(feature = "runtime-metrics"))]
+mod without_runtime_metrics;
+#[cfg(not(feature = "runtime-metrics"))]
+pub use crate::without_runtime_metrics::*;

@@ -14,29 +14,39 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Runtime metrics are wasm only so we also need to provide a dummy metric
-//! implementation for the native runtime. These are required to avoid cluttering
-//! the code with `#[cfg(not(feature = "std"))]` for updating metrics.
+//! Runtime metrics are usable from the wasm runtime only. The purpose of this module is to
+//! provide a dummy implementation for the native runtime to avoid cluttering the runtime code
+//! with `#[cfg(feature = "runtime-metrics")]`.
+
+/// A dummy Counter.
 pub struct Counter;
+/// A dummy CounterVec.
 pub struct CounterVec;
 
 /// Dummy implementation.
 impl CounterVec {
+	/// Constructor.
 	pub fn new(_name: &'static str, _description: &'static str, _labels: &[&'static str]) -> Self {
 		CounterVec
 	}
+	/// Sets label values, implementation is a `no op`.
 	pub fn with_label_values(&mut self, _label_values: &[&'static str]) -> &mut Self {
 		self
 	}
+	/// Increment counter by value, implementation is a `no op`.
 	pub fn inc_by(&mut self, _: u64) {}
+	/// Increment counter, implementation is a `no op`.
 	pub fn inc(&mut self) {}
 }
 
 /// Dummy implementation.
 impl Counter {
+	/// Constructor.
 	pub fn new(_name: &'static str, _description: &'static str) -> Self {
 		Counter
 	}
+	/// Increment counter by value, implementation is a `no op`.
 	pub fn inc_by(&mut self, _: u64) {}
+	/// Increment counter, implementation is a `no op`.
 	pub fn inc(&mut self) {}
 }
