@@ -24,7 +24,7 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, Pvf, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -32,7 +32,8 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{
-		CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest, ValidationFailed,
+		CandidateValidationMessage, PreCheckOutcome, RuntimeApiMessage, RuntimeApiRequest,
+		ValidationFailed,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 	SubsystemResult, SubsystemSender,
@@ -196,6 +197,30 @@ where
 
 					ctx.spawn("validate-from-exhaustive", bg.boxed())?;
 				},
+				CandidateValidationMessage::PreCheck(
+					relay_parent,
+					validation_code_hash,
+					response_sender,
+				) => {
+					let bg = {
+						let mut sender = ctx.sender().clone();
+						let validation_host = validation_host.clone();
+
+						async move {
+							let precheck_result = precheck_pvf(
+								&mut sender,
+								validation_host,
+								relay_parent,
+								validation_code_hash,
+							)
+							.await;
+
+							let _ = response_sender.send(precheck_result);
+						}
+					};
+
+					ctx.spawn("candidate-validation-pre-check", bg.boxed())?;
+				},
 			},
 		}
 	}
@@ -240,7 +265,8 @@ where
 
 async fn request_validation_code_by_hash<Sender>(
 	sender: &mut Sender,
-	descriptor: &CandidateDescriptor,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
 ) -> Result<Option<ValidationCode>, RuntimeRequestFailed>
 where
 	Sender: SubsystemSender,
@@ -248,8 +274,8 @@ where
 	let (tx, rx) = oneshot::channel();
 	runtime_api_request(
 		sender,
-		descriptor.relay_parent,
-		RuntimeApiRequest::ValidationCodeByHash(descriptor.validation_code_hash, tx),
+		relay_parent,
+		RuntimeApiRequest::ValidationCodeByHash(validation_code_hash, tx),
 		rx,
 	)
 	.await
@@ -279,6 +305,55 @@ where
 	.await
 }
 
+async fn precheck_pvf<Sender>(
+	sender: &mut Sender,
+	mut validation_backend: impl ValidationBackend,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
+) -> PreCheckOutcome
+where
+	Sender: SubsystemSender,
+{
+	let validation_code =
+		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
+			Ok(Some(code)) => code,
+			_ => {
+				// The reasoning why this is "failed" and not invalid is because we assume that
+				// during pre-checking voting the relay-chain will pin the code. In case the code
+				// actually is not there, we issue failed since this looks more like a bug. This
+				// leads to us abstaining.
+				tracing::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?validation_code_hash,
+					"precheck: requested validation code is not found on-chain!",
+				);
+				return PreCheckOutcome::Failed
+			},
+		};
+
+	let validation_code = match sp_maybe_compressed_blob::decompress(
+		&validation_code.0,
+		VALIDATION_CODE_BOMB_LIMIT,
+	) {
+		Ok(code) => Pvf::from_code(code.into_owned()),
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
+			return PreCheckOutcome::Invalid
+		},
+	};
+
+	match validation_backend.precheck_pvf(validation_code).await {
+		Ok(_) => PreCheckOutcome::Valid,
+		Err(prepare_err) => match prepare_err {
+			PrepareError::Prevalidation(_) |
+			PrepareError::Preparation(_) |
+			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
+			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
+		},
+	}
+}
+
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
 	validation_host: impl ValidationBackend,
@@ -294,7 +369,6 @@ where
 		match request_assumed_validation_data(sender, &descriptor).await {
 			Ok(Some((data, code_hash))) => (data, code_hash),
 			Ok(None) => {
-				// TODO: update comment.
 				// If neither the assumption of the occupied core having the para included or the assumption
 				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
 				// is not based on the relay parent and is thus invalid.
@@ -425,13 +499,16 @@ where
 				"Validation host failed to find artifact by provided hash",
 			);
 
-			let validation_code = match request_validation_code_by_hash(sender, &descriptor).await {
+			let validation_code = match request_validation_code_by_hash(
+				sender,
+				descriptor.relay_parent,
+				descriptor.validation_code_hash,
+			)
+			.await
+			{
 				Ok(Some(validation_code)) => validation_code,
 				Ok(None) =>
-				// TODO: code not found by hash by the runtime, is this candidate invalid?
-					return Err(ValidationFailed(
-						"Runtime API didn't return validation code by hash".into(),
-					)),
+					return Ok(ValidationResult::Invalid(InvalidCandidate::MissingValidationCode)),
 				Err(_) => return Err(ValidationFailed("Runtime API request failed".into())),
 			};
 
@@ -468,9 +545,9 @@ where
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) =>
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
-				"ambigious worker death".to_string(),
+				"ambiguous worker death".to_string(),
 			))),
 		Err(ValidationError::ArtifactNotFound) => {
 			// The code was supplied on the second attempt, this
@@ -481,6 +558,8 @@ where
 			tracing::error!(target: LOG_TARGET, error = ?err, "Unexpected error reported by the validation backend");
 			Err(err)
 		},
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
@@ -506,6 +585,8 @@ trait ValidationBackend {
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
 }
 
 #[async_trait]
@@ -538,6 +619,17 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
 
 		validation_result
+	}
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+		let (tx, rx) = oneshot::channel();
+		if let Err(_) = self.precheck_pvf(pvf, tx).await {
+			return Err(PrepareError::DidNotMakeIt)
+		}
+
+		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+
+		precheck_result
 	}
 }
 
@@ -630,7 +722,7 @@ impl metrics::Metrics for Metrics {
 			validation_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_validation_requests_total",
+						"polkadot_parachain_validation_requests_total",
 						"Number of validation requests served.",
 					),
 					&["validity"],
@@ -639,21 +731,21 @@ impl metrics::Metrics for Metrics {
 			)?,
 			validate_from_chain_state: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_validation_validate_from_chain_state",
+					"polkadot_parachain_candidate_validation_validate_from_chain_state",
 					"Time spent within `candidate_validation::validate_from_chain_state`",
 				))?,
 				registry,
 			)?,
 			validate_from_exhaustive: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_validation_validate_from_exhaustive",
+					"polkadot_parachain_candidate_validation_validate_from_exhaustive",
 					"Time spent within `candidate_validation::validate_from_exhaustive`",
 				))?,
 				registry,
 			)?,
 			validate_candidate_exhaustive: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_validation_validate_candidate_exhaustive",
+					"polkadot_parachain_candidate_validation_validate_candidate_exhaustive",
 					"Time spent within `candidate_validation::validate_candidate_exhaustive`",
 				))?,
 				registry,

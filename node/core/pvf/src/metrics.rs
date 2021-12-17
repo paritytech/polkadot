@@ -93,7 +93,7 @@ impl metrics::Metrics for Metrics {
 			worker_spawning: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"pvf_worker_spawning",
+						"polkadot_pvf_worker_spawning",
 						"The total number of workers began to spawn",
 					),
 					&["flavor"],
@@ -103,7 +103,7 @@ impl metrics::Metrics for Metrics {
 			worker_spawned: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"pvf_worker_spawned",
+						"polkadot_pvf_worker_spawned",
 						"The total number of workers spawned successfully",
 					),
 					&["flavor"],
@@ -113,7 +113,7 @@ impl metrics::Metrics for Metrics {
 			worker_retired: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"pvf_worker_retired",
+						"polkadot_pvf_worker_retired",
 						"The total number of workers retired, either killed by the host or died on duty",
 					),
 					&["flavor"],
@@ -122,28 +122,28 @@ impl metrics::Metrics for Metrics {
 			)?,
 			prepare_enqueued: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_prepare_enqueued",
+					"polkadot_pvf_prepare_enqueued",
 					"The total number of jobs enqueued into the preparation pipeline"
 				)?,
 				registry,
 			)?,
 			prepare_concluded: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_prepare_concluded",
+					"polkadot_pvf_prepare_concluded",
 					"The total number of jobs concluded in the preparation pipeline"
 				)?,
 				registry,
 			)?,
 			execute_enqueued: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_execute_enqueued",
+					"polkadot_pvf_execute_enqueued",
 					"The total number of jobs enqueued into the execution pipeline"
 				)?,
 				registry,
 			)?,
 			execute_finished: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_execute_finished",
+					"polkadot_pvf_execute_finished",
 					"The total number of jobs done in the execution pipeline"
 				)?,
 				registry,
@@ -151,16 +151,29 @@ impl metrics::Metrics for Metrics {
 			preparation_time: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"pvf_preparation_time",
-						"Time spent in preparing PVF artifacts",
+						"polkadot_pvf_preparation_time",
+						"Time spent in preparing PVF artifacts in seconds",
 					)
+					.buckets(vec![
+						// This is synchronized with COMPILATION_TIMEOUT=60s constant found in
+						// src/prepare/worker.rs
+						0.1,
+						0.5,
+						1.0,
+						10.0,
+						20.0,
+						30.0,
+						40.0,
+						50.0,
+						60.0,
+					]),
 				)?,
 				registry,
 			)?,
 			execution_time: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"pvf_execution_time",
+						"polkadot_pvf_execution_time",
 						"Time spent in executing PVFs",
 					)
 				)?,
@@ -208,7 +221,7 @@ impl<'a> WorkerRelatedMetrics<'a> {
 	/// When the worker was killed or died.
 	pub(crate) fn on_retired(&self) {
 		if let Some(metrics) = &self.metrics.0 {
-			metrics.worker_spawned.with_label_values(&[self.flavor.as_label()]).inc();
+			metrics.worker_retired.with_label_values(&[self.flavor.as_label()]).inc();
 		}
 	}
 }

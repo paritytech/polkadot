@@ -230,7 +230,7 @@ impl TestRun {
 		match msg {
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
 				reqs,
-				IfDisconnected::TryConnect,
+				IfDisconnected::ImmediateError,
 			)) => {
 				let mut valid_responses = 0;
 				for req in reqs {

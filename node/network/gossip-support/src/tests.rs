@@ -16,7 +16,7 @@
 
 //! Unit tests for Gossip Support Subsystem.
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -64,8 +64,8 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMes
 
 #[derive(Debug, Clone)]
 struct MockAuthorityDiscovery {
-	addrs: HashMap<AuthorityDiscoveryId, Vec<Multiaddr>>,
-	authorities: HashMap<PeerId, AuthorityDiscoveryId>,
+	addrs: HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>>,
+	authorities: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 }
 
 impl MockAuthorityDiscovery {
@@ -77,10 +77,13 @@ impl MockAuthorityDiscovery {
 			.into_iter()
 			.map(|(p, a)| {
 				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
-				(a, vec![multiaddr])
+				(a, HashSet::from([multiaddr]))
 			})
 			.collect();
-		Self { addrs, authorities }
+		Self {
+			addrs,
+			authorities: authorities.into_iter().map(|(p, a)| (p, HashSet::from([a]))).collect(),
+		}
 	}
 }
 
@@ -89,18 +92,18 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		authority: polkadot_primitives::v1::AuthorityDiscoveryId,
-	) -> Option<Vec<sc_network::Multiaddr>> {
+	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
+	) -> Option<HashSet<polkadot_primitives::v1::AuthorityDiscoveryId>> {
 		self.authorities.get(&peer_id).cloned()
 	}
 }
 
-async fn get_other_authorities_addrs() -> Vec<Vec<Multiaddr>> {
+async fn get_other_authorities_addrs() -> Vec<HashSet<Multiaddr>> {
 	let mut addrs = Vec::with_capacity(OTHER_AUTHORITIES.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
 	for authority in OTHER_AUTHORITIES.iter().cloned() {
@@ -111,7 +114,7 @@ async fn get_other_authorities_addrs() -> Vec<Vec<Multiaddr>> {
 	addrs
 }
 
-async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, Vec<Multiaddr>> {
+async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>> {
 	let mut addrs = HashMap::with_capacity(OTHER_AUTHORITIES.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
 	for authority in OTHER_AUTHORITIES.iter().cloned() {
@@ -332,11 +335,11 @@ fn test_log_output() {
 		let mut m = HashMap::new();
 		let peer_id = PeerId::random();
 		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
-		let addrs = vec![addr.clone(), addr];
+		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(alice, addrs);
 		let peer_id = PeerId::random();
 		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
-		let addrs = vec![addr.clone(), addr];
+		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(bob, addrs);
 		m
 	};
@@ -389,16 +392,14 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
-					mut validator_addrs,
+					validator_addrs,
 					peer_set,
 				}) => {
 					let mut expected = get_other_authorities_addrs_map().await;
 					expected.remove(&alice);
 					expected.remove(&bob);
-					let mut expected: Vec<Vec<Multiaddr>> = expected.into_iter().map(|(_,v)| v).collect();
-					validator_addrs.sort();
-					expected.sort();
-					assert_eq!(validator_addrs, expected);
+					let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
+					assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
 					assert_eq!(peer_set, PeerSet::Validation);
 				}
 			);
@@ -443,15 +444,13 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
-				mut validator_addrs,
+				validator_addrs,
 				peer_set,
 			}) => {
 				let mut expected = get_other_authorities_addrs_map().await;
 				expected.remove(&bob);
-				let mut expected: Vec<Vec<Multiaddr>> = expected.into_iter().map(|(_,v)| v).collect();
-				expected.sort();
-				validator_addrs.sort();
-				assert_eq!(validator_addrs, expected);
+				let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
+				assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
 				assert_eq!(peer_set, PeerSet::Validation);
 			}
 		);

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-collation-generation"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -19,3 +19,4 @@ parity-scale-codec = { version = "2.3.1", default-features = false, features = [
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }

@@ -62,7 +62,7 @@ impl PvfCode {
 pub enum Pvf {
 	/// Hash-preimage of the validation function, contains both the code
 	/// and the hash itself.
-	Preimage(PvfCode),
+	Code(PvfCode),
 	/// Hash of the validation function without its validation code.
 	Hash(ValidationCodeHash),
 }
@@ -70,13 +70,13 @@ pub enum Pvf {
 impl Pvf {
 	/// Returns an instance of the PVF out of the given PVF code.
 	pub fn from_code(code: Vec<u8>) -> Self {
-		Self::Preimage(PvfCode::from_code(code))
+		Self::Code(PvfCode::from_code(code))
 	}
 
 	/// Returns the artifact ID that corresponds to this PVF.
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
 		match self {
-			Pvf::Preimage(ref inner) => inner.as_artifact_id(),
+			Pvf::Code(ref inner) => inner.as_artifact_id(),
 			Pvf::Hash(code_hash) => ArtifactId::new(*code_hash),
 		}
 	}

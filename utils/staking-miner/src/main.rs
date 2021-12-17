@@ -40,10 +40,10 @@ pub(crate) use signer::get_account_info;
 
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
-use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
+use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use structopt::StructOpt;
 
 pub(crate) enum AnyRuntime {
@@ -115,6 +115,7 @@ fn signed_ext_builder_polkadot(
 ) -> polkadot_runtime_exports::SignedExtra {
 	use polkadot_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -133,6 +134,7 @@ fn signed_ext_builder_kusama(
 ) -> kusama_runtime_exports::SignedExtra {
 	use kusama_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -150,6 +152,7 @@ fn signed_ext_builder_westend(
 ) -> westend_runtime_exports::SignedExtra {
 	use westend_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -225,7 +228,7 @@ macro_rules! any_runtime_unit {
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee_ws_client::types::Error),
+	JsonRpsee(#[from] jsonrpsee::types::Error),
 	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
@@ -316,10 +319,12 @@ struct MonitorConfig {
 #[derive(Debug, Clone, StructOpt)]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
+	#[allow(dead_code)]
 	#[structopt(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
+	#[allow(dead_code)]
 	#[structopt(subcommand)]
 	solver: Solvers,
 
@@ -364,7 +369,7 @@ struct Opt {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT>(
+async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 	uri: String,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
@@ -493,13 +498,10 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
-	let on_chain_version = rpc_helpers::rpc::<sp_version::RuntimeVersion>(
-		client,
-		"state_getRuntimeVersion",
-		params! {},
-	)
-	.await
-	.expect("runtime version RPC should always work; qed");
+	let on_chain_version =
+		rpc_helpers::rpc::<sp_version::RuntimeVersion>(client, "state_getRuntimeVersion", None)
+			.await
+			.expect("runtime version RPC should always work; qed");
 
 	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
 	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
@@ -543,7 +545,7 @@ async fn main() {
 		}
 	};
 
-	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", params! {})
+	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", None)
 		.await
 		.expect("system_chain infallible; qed.");
 	match chain.to_lowercase().as_str() {

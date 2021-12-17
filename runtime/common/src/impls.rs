@@ -29,16 +29,9 @@ where
 	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-		let numeric_amount = amount.peek();
-		let author = <pallet_authorship::Pallet<R>>::author();
-		<pallet_balances::Pallet<R>>::resolve_creating(
-			&<pallet_authorship::Pallet<R>>::author(),
-			amount,
-		);
-		<frame_system::Pallet<R>>::deposit_event(pallet_balances::Event::Deposit(
-			author,
-			numeric_amount,
-		));
+		if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
+			<pallet_balances::Pallet<R>>::resolve_creating(&author, amount);
+		}
 	}
 }
 
@@ -134,6 +127,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	impl pallet_balances::Config for Test {

@@ -16,6 +16,7 @@
 
 mod handle_new_activations {
 	use super::super::*;
+	use ::test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
 	use futures::{
 		lock::Mutex,
 		task::{Context as FuturesContext, Poll},
@@ -33,13 +34,13 @@ mod handle_new_activations {
 
 	fn test_collation() -> Collation {
 		Collation {
-			upward_messages: Default::default(),
-			horizontal_messages: Default::default(),
-			new_validation_code: Default::default(),
-			head_data: Default::default(),
+			upward_messages: vec![],
+			horizontal_messages: vec![],
+			new_validation_code: None,
+			head_data: dummy_head_data(),
 			proof_of_validity: PoV { block_data: BlockData(Vec::new()) },
-			processed_downward_messages: Default::default(),
-			hrmp_watermark: Default::default(),
+			processed_downward_messages: 0_u32,
+			hrmp_watermark: 0_u32.into(),
 		}
 	}
 
@@ -59,7 +60,7 @@ mod handle_new_activations {
 	}
 
 	fn test_validation_data() -> PersistedValidationData {
-		let mut persisted_validation_data: PersistedValidationData = Default::default();
+		let mut persisted_validation_data = PersistedValidationData::default();
 		persisted_validation_data.max_pov_size = 1024;
 		persisted_validation_data
 	}
@@ -106,7 +107,7 @@ mod handle_new_activations {
 						tx.send(Ok(vec![])).unwrap();
 					}
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::Validators(tx)))) => {
-						tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						tx.send(Ok(vec![dummy_validator(); 3])).unwrap();
 					}
 					Some(msg) => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
 				}
@@ -177,13 +178,13 @@ mod handle_new_activations {
 						),
 					))) => {
 						overseer_requested_validation_data.lock().await.push(hash);
-						tx.send(Ok(Default::default())).unwrap();
+						tx.send(Ok(None)).unwrap();
 					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
 						RuntimeApiRequest::Validators(tx),
 					))) => {
-						tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						tx.send(Ok(vec![dummy_validator(); 3])).unwrap();
 					},
 					Some(msg) => {
 						panic!("didn't expect any other overseer requests; got {:?}", msg)
@@ -206,7 +207,7 @@ mod handle_new_activations {
 
 		// the only activated hash should be from the 4 hash:
 		// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
-		// given that the test configuration has a para_id of 16, there's only one way to get that value: with the 4
+		// given that the test configuration has a `para_id` of 16, there's only one way to get that value: with the 4
 		// hash.
 		assert_eq!(requested_validation_data, vec![[4; 32].into()]);
 	}
@@ -254,7 +255,7 @@ mod handle_new_activations {
 						_hash,
 						RuntimeApiRequest::Validators(tx),
 					))) => {
-						tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						tx.send(Ok(vec![dummy_validator(); 3])).unwrap();
 					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
@@ -303,7 +304,7 @@ mod handle_new_activations {
 			.into_inner();
 
 		// we expect a single message to be sent, containing a candidate receipt.
-		// we don't care too much about the commitments_hash right now, but let's ensure that we've calculated the
+		// we don't care too much about the `commitments_hash` right now, but let's ensure that we've calculated the
 		// correct descriptor
 		let expect_pov_hash = test_collation_compressed().proof_of_validity.hash();
 		let expect_validation_data_hash = test_validation_data().hash();
@@ -323,7 +324,7 @@ mod handle_new_activations {
 			collator: config.key.public(),
 			persisted_validation_data_hash: expect_validation_data_hash,
 			pov_hash: expect_pov_hash,
-			erasure_root: Default::default(), // this isn't something we're checking right now
+			erasure_root: dummy_hash(), // this isn't something we're checking right now
 			para_head: test_collation().head_data.hash(),
 			validation_code_hash: expect_validation_code_hash,
 		};

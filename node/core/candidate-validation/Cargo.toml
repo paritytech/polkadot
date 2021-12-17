@@ -1,11 +1,11 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-async-trait = "0.1.51"
+async-trait = "0.1.52"
 futures = "0.3.17"
 tracing = "0.1.29"
 
@@ -27,3 +27,4 @@ futures = { version = "0.3.17", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

@@ -87,6 +87,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type LeaseOffset: Get<Self::BlockNumber>;
 
+		/// The origin which may forcibly create or clear leases. Root can always do this.
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+
 		/// Weight Information for the Extrinsics in the Pallet
 		type WeightInfo: WeightInfo;
 	}
@@ -159,7 +162,7 @@ pub mod pallet {
 		/// Just a connect into the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
 		///
-		/// Can only be called by the Root origin.
+		/// The dispatch origin for this call must match `T::ForceOrigin`.
 		#[pallet::weight(T::WeightInfo::force_lease())]
 		pub fn force_lease(
 			origin: OriginFor<T>,
@@ -169,7 +172,7 @@ pub mod pallet {
 			period_begin: LeasePeriodOf<T>,
 			period_count: LeasePeriodOf<T>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::ForceOrigin::ensure_origin(origin)?;
 			Self::lease_out(para, &leaser, amount, period_begin, period_count)
 				.map_err(|_| Error::<T>::LeaseError)?;
 			Ok(())
@@ -177,10 +180,10 @@ pub mod pallet {
 
 		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
 		///
-		/// Can only be called by the Root origin.
+		/// The dispatch origin for this call must match `T::ForceOrigin`.
 		#[pallet::weight(T::WeightInfo::clear_all_leases())]
 		pub fn clear_all_leases(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
-			ensure_root(origin)?;
+			T::ForceOrigin::ensure_origin(origin)?;
 			let deposits = Self::all_deposits_held(para);
 
 			// Refund any deposits for these leases
@@ -494,7 +497,9 @@ mod tests {
 	use super::*;
 
 	use crate::{mock::TestRegistrar, slots};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use frame_support::{assert_noop, assert_ok, parameter_types};
+	use frame_system::EnsureRoot;
 	use pallet_balances;
 	use primitives::v1::{BlockNumber, Header};
 	use sp_core::H256;
@@ -542,6 +547,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -572,6 +578,7 @@ mod tests {
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
 		type LeaseOffset = LeaseOffset;
+		type ForceOrigin = EnsureRoot<Self::AccountId>;
 		type WeightInfo = crate::slots::TestWeightInfo;
 	}
 
@@ -622,8 +629,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert_ok!(Slots::lease_out(1.into(), &1, 1, 1, 1));
@@ -653,8 +660,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert_ok!(Slots::lease_out(1.into(), &1, 6, 1, 1));
@@ -696,8 +703,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
@@ -746,8 +753,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 4, 1, 1).is_ok());
@@ -781,8 +788,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
@@ -824,8 +831,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			let max_num = 5u32;
@@ -860,14 +867,14 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			run_to_block(20);
@@ -891,20 +898,20 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(3),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			// We will directly manipulate leases to emulate some kind of failure in the system.
@@ -1104,7 +1111,7 @@ mod benchmarking {
 		trigger_onboard {
 			// get a parachain into a bad state where they did not onboard
 			let (para, _) = register_a_parathread::<T>(1);
-			Leases::<T>::insert(para, vec![Some((T::AccountId::default(), BalanceOf::<T>::default()))]);
+			Leases::<T>::insert(para, vec![Some((account::<T::AccountId>("lease_insert", 0, 0), BalanceOf::<T>::default()))]);
 			assert!(T::Registrar::is_parathread(para));
 			let caller = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)

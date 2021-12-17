@@ -41,7 +41,7 @@ pub(crate) async fn get_account_info<T: frame_system::Config + EPM::Config>(
 ) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error<T>> {
 	rpc_helpers::get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
 		client,
-		crate::params! {
+		jsonrpsee::rpc_params! {
 			sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
 			maybe_at
 		},

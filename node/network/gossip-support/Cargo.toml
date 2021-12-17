@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-gossip-support"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -29,5 +29,5 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 
 assert_matches = "1.4.0"
-async-trait = "0.1.51"
+async-trait = "0.1.52"
 lazy_static = "1.4.0"
