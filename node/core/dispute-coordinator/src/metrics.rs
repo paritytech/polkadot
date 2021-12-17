@@ -19,16 +19,12 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 #[derive(Clone)]
 struct MetricsInner {
 	/// Number of opened disputes.
-	#[cfg(feature = "disputes")]
 	open: prometheus::Counter<prometheus::U64>,
 	/// Votes of all disputes.
-	#[cfg(feature = "disputes")]
 	votes: prometheus::CounterVec<prometheus::U64>,
 	/// Conclusion across all disputes.
-	#[cfg(feature = "disputes")]
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
-	#[cfg(feature = "disputes")]
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 }
 
@@ -36,7 +32,6 @@ struct MetricsInner {
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
-#[cfg(feature = "disputes")]
 impl Metrics {
 	pub(crate) fn on_open(&self) {
 		if let Some(metrics) = &self.0 {
@@ -82,13 +77,6 @@ impl Metrics {
 }
 
 impl metrics::Metrics for Metrics {
-	#[cfg(not(feature = "disputes"))]
-	fn try_register(_registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {};
-		Ok(Metrics(Some(metrics)))
-	}
-
-	#[cfg(feature = "disputes")]
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			open: prometheus::register(

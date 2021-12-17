@@ -65,15 +65,12 @@ use crate::{
 	real::{
 		backend::Backend,
 		participation::{participation_full_happy_path, participation_missing_availability},
-		status::ACTIVE_DURATION_SECS,
+		Config, DisputeCoordinatorSubsystem,
 	},
-	Config, DisputeCoordinatorSubsystem,
+	status::{Clock, Timestamp, ACTIVE_DURATION_SECS},
 };
 
-use super::{
-	db::v1::DbBackend,
-	status::{Clock, Timestamp},
-};
+use super::db::v1::DbBackend;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 

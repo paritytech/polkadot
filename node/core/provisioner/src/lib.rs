@@ -148,10 +148,19 @@ pub enum Error {
 	BackedCandidateOrderingProblem,
 }
 
+/// Provisioner run arguments.
+#[derive(Debug, Clone, Copy)]
+pub struct ProvisionerConfig {
+	/// If enabled, dispute votes will be provided to `fn create_inherent`, otherwise not.
+	/// Long term we will obviously always want disputes to be enabled, this option exists for testing purposes
+	/// and will be removed in the near future.
+	pub disputes_enabled: bool,
+}
+
 impl JobTrait for ProvisionerJob {
 	type ToJob = ProvisionerMessage;
 	type Error = Error;
-	type RunArgs = ();
+	type RunArgs = ProvisionerConfig;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "provisioner-job";
@@ -161,17 +170,21 @@ impl JobTrait for ProvisionerJob {
 	// this function is in charge of creating and executing the job's main loop
 	fn run<S: SubsystemSender>(
 		leaf: ActivatedLeaf,
-		_run_args: Self::RunArgs,
+		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let span = leaf.span.clone();
 		async move {
-			let span = leaf.span.clone();
 			let job = ProvisionerJob::new(leaf, metrics, receiver);
 
-			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
-				.await
+			job.run_loop(
+				sender.subsystem_sender(),
+				run_args.disputes_enabled,
+				PerLeafSpan::new(span, "provisioner"),
+			)
+			.await
 		}
 		.boxed()
 	}
@@ -197,6 +210,7 @@ impl ProvisionerJob {
 	async fn run_loop(
 		mut self,
 		sender: &mut impl SubsystemSender,
+		disputes_enabled: bool,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
 		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
@@ -208,7 +222,7 @@ impl ProvisionerJob {
 						let _timer = self.metrics.time_request_inherent_data();
 
 						if self.inherent_after.is_ready() {
-							self.send_inherent_data(sender, vec![return_sender]).await;
+							self.send_inherent_data(sender, vec![return_sender], disputes_enabled).await;
 						} else {
 							self.awaiting_inherent.push(return_sender);
 						}
@@ -225,7 +239,7 @@ impl ProvisionerJob {
 					let _span = span.child("send-inherent-data");
 					let return_senders = std::mem::take(&mut self.awaiting_inherent);
 					if !return_senders.is_empty() {
-						self.send_inherent_data(sender, return_senders).await;
+						self.send_inherent_data(sender, return_senders, disputes_enabled).await;
 					}
 				}
 			}
@@ -238,6 +252,7 @@ impl ProvisionerJob {
 		&mut self,
 		sender: &mut impl SubsystemSender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
+		disputes_enabled: bool,
 	) {
 		if let Err(err) = send_inherent_data(
 			&self.leaf,
@@ -245,6 +260,7 @@ impl ProvisionerJob {
 			&self.backed_candidates,
 			return_senders,
 			sender,
+			disputes_enabled,
 			&self.metrics,
 		)
 		.await
@@ -300,6 +316,7 @@ async fn send_inherent_data(
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	from_job: &mut impl SubsystemSender,
+	disputes_enabled: bool,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(leaf.hash, from_job)
@@ -307,7 +324,9 @@ async fn send_inherent_data(
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
-	let disputes = select_disputes(from_job, metrics).await?;
+	let disputes =
+		if disputes_enabled { select_disputes(from_job, metrics).await? } else { vec![] };
+
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
 	let bitfields = match leaf.status {

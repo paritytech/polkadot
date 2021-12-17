@@ -27,10 +27,13 @@ use std::sync::Arc;
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
-use crate::real::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
+use crate::{
 	error::{Fatal, FatalResult},
 	status::DisputeStatus,
+};
+
+use crate::real::{
+	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	DISPUTE_WINDOW,
 };
 
@@ -160,6 +163,15 @@ pub enum Error {
 	Io(#[from] std::io::Error),
 	#[error(transparent)]
 	Codec(#[from] parity_scale_codec::Error),
+}
+
+impl From<Error> for crate::error::Error {
+	fn from(err: Error) -> Self {
+		match err {
+			Error::Io(io) => Self::NonFatal(crate::error::NonFatal::Io(io)),
+			Error::Codec(e) => Self::NonFatal(crate::error::NonFatal::Codec(e)),
+		}
+	}
 }
 
 /// Result alias for DB errors.
