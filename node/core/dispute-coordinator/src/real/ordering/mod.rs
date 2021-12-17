@@ -279,11 +279,11 @@ impl OrderingProvider {
 				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
 			};
 
-			let earliest_block_number = head_number - hashes.len() as u32;
-			// The reversed order is parent, grandparent, etc. excluding the head.
-			let block_numbers = (earliest_block_number..head_number).rev();
+			let earliest_block_number = head_number.saturating_sub(hashes.len() as u32);
+			let block_numbers = earliest_block_number..head_number;
 
-			for (block_number, hash) in block_numbers.zip(&hashes) {
+			// The reversed order is parent, grandparent, etc. excluding the head.
+			for (block_number, hash) in block_numbers.clone().rev().zip(&hashes) {
 				// Return if we either met finalized/cached block or
 				// hit the size limit for the returned ancestry of head.
 				if self.last_observed_blocks.get(hash).is_some() ||
@@ -295,12 +295,13 @@ impl OrderingProvider {
 
 				ancestors.push(*hash);
 			}
+
 			match hashes.last() {
-				Some(last_hash) => {
+				Some(last_hash) if !block_numbers.is_empty() => {
 					head = *last_hash;
 					head_number = earliest_block_number;
 				},
-				None => break,
+				_ => break,
 			}
 		}
 		return Ok(ancestors)
