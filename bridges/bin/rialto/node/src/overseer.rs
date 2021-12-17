@@ -110,7 +110,7 @@ where
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
 	/// Configuration for the provisioner subsystem.
-	pub provisioner_config: ProvisionerConfig,
+	pub disputes_enabled: bool,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -136,7 +136,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
-		provisioner_config,
+		disputes_enabled,
 	}: OverseerGenArgs<'_, Spawner, RuntimeClient>,
 ) -> Result<
 	OverseerBuilder<
