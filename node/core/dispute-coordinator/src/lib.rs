@@ -25,6 +25,7 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
+/// Metrics types.
 mod metrics;
 
 /// Common error types for this subsystem.
@@ -51,15 +52,18 @@ pub use self::real::Config;
 
 pub(crate) const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
+/// The disputes coordinator subsystem, abstracts `dummy` and `real` implementations.
 pub enum DisputeCoordinatorSubsystem {
 	Dummy(dummy::DisputeCoordinatorSubsystem),
 	Real(real::DisputeCoordinatorSubsystem),
 }
 
 impl DisputeCoordinatorSubsystem {
+	/// Create a new dummy instance.
 	pub fn dummy() -> Self {
 		DisputeCoordinatorSubsystem::Dummy(dummy::DisputeCoordinatorSubsystem::new())
 	}
+
 	/// Create a new instance of the subsystem.
 	pub fn new(
 		store: Arc<dyn KeyValueDB>,
