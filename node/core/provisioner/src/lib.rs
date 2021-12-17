@@ -324,7 +324,12 @@ async fn send_inherent_data(
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
-	let disputes = select_disputes(from_job, metrics, disputes_enabled).await?;
+	let disputes = if disputes_enabled {
+		select_disputes(from_job, metrics, disputes_enabled).await?
+	} else {
+		vec![]
+	};
+
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
 	let bitfields = match leaf.status {
@@ -652,11 +657,7 @@ fn extend_by_random_subset_without_repetition(
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
-	disputes_enabled: bool,
 ) -> Result<MultiDisputeStatementSet, Error> {
-	if !disputes_enabled {
-		return Ok(vec![])
-	}
 	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
 
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
