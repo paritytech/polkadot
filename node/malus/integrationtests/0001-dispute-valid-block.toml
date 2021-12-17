@@ -10,16 +10,25 @@ command = "polkadot"
   name = "alice"
   validator = true
   extra_args = [ "--alice", "-lparachain=debug" ]
+    [[relaychain.nodes.env]]
+     name = "RUST_LOG"
+     value = "parachain::dispute-coordinator=info"
 
   [[relaychain.nodes]]
   name = "bob"
   validator = true
   extra_args = [ "--bob", "-lparachain=debug" ]
+    [[relaychain.nodes.env]]
+     name = "RUST_LOG"
+     value = "parachain::dispute-coordinator=info"
 
   [[relaychain.nodes]]
   name = "charlie"
   validator = true
   extra_args = [ "--charlie", "-lparachain=debug" ]
+    [[relaychain.nodes.env]]
+     name = "RUST_LOG"
+     value = "parachain::dispute-coordinator=info"
 
   [[relaychain.nodes]]
   name = "dave"
@@ -28,6 +37,9 @@ command = "polkadot"
   extra_args = ["--dave", "-lparachain=debug"]
   image = "{{MALUS_IMAGE}}"
   autoConnectApi = false
+    [[relaychain.nodes.env]]
+     name = "RUST_LOG"
+     value = "parachain::dispute-coordinator=info"
 
 [[parachains]]
 id = 100
