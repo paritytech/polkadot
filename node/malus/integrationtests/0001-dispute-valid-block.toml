@@ -12,7 +12,7 @@ command = "polkadot"
   extra_args = [ "--alice", "-lparachain=debug" ]
     [[relaychain.nodes.env]]
      name = "RUST_LOG"
-     value = "parachain::dispute-coordinator=info"
+     value = "parachain=debug"
 
   [[relaychain.nodes]]
   name = "bob"
@@ -20,7 +20,7 @@ command = "polkadot"
   extra_args = [ "--bob", "-lparachain=debug" ]
     [[relaychain.nodes.env]]
      name = "RUST_LOG"
-     value = "parachain::dispute-coordinator=info"
+     value = "parachain=debug"
 
   [[relaychain.nodes]]
   name = "charlie"
@@ -28,7 +28,7 @@ command = "polkadot"
   extra_args = [ "--charlie", "-lparachain=debug" ]
     [[relaychain.nodes.env]]
      name = "RUST_LOG"
-     value = "parachain::dispute-coordinator=info"
+     value = "parachain=debug"
 
   [[relaychain.nodes]]
   name = "dave"
@@ -39,7 +39,7 @@ command = "polkadot"
   autoConnectApi = false
     [[relaychain.nodes.env]]
      name = "RUST_LOG"
-     value = "parachain::dispute-coordinator=info"
+     value = "parachain=debug"
 
 [[parachains]]
 id = 100
