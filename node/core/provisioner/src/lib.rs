@@ -324,11 +324,8 @@ async fn send_inherent_data(
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
-	let disputes = if disputes_enabled {
-		select_disputes(from_job, metrics, disputes_enabled).await?
-	} else {
-		vec![]
-	};
+	let disputes =
+		if disputes_enabled { select_disputes(from_job, metrics).await? } else { vec![] };
 
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
