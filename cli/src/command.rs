@@ -234,11 +234,20 @@ fn host_perf_check() -> Result<()> {
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
 pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(run, overseer_gen)
+	run_node_inner(run, overseer_gen, |_logger_builder, _config| {})
 }
 
-fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	let runner = cli.create_runner(&cli.run.base).map_err(Error::from)?;
+fn run_node_inner<F>(
+	cli: Cli,
+	overseer_gen: impl service::OverseerGen,
+	logger_hook: F,
+) -> Result<()>
+where
+	F: FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration),
+{
+	let runner = cli
+		.create_runner_with_logger_hook::<sc_cli::RunCmd, F>(&cli.run.base, logger_hook)
+		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
 	set_default_ss58_version(chain_spec);
@@ -281,10 +290,10 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
-	let cli = Cli::from_args();
+	let cli: Cli = Cli::from_args();
 
 	match &cli.subcommand {
-		None => run_node_inner(cli, service::RealOverseerGen),
+		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)

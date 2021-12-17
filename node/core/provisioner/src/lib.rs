@@ -91,7 +91,7 @@ impl InherentAfter {
 }
 
 /// A per-relay-parent job for the provisioning subsystem.
-pub struct ProvisioningJob {
+pub struct ProvisionerJob {
 	leaf: ActivatedLeaf,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
@@ -153,7 +153,7 @@ pub struct ProvisionerConfig {
 	pub disputes_enabled: bool,
 }
 
-impl JobTrait for ProvisioningJob {
+impl JobTrait for ProvisionerJob {
 	type ToJob = ProvisionerMessage;
 	type Error = Error;
 	type RunArgs = ProvisionerConfig;
@@ -186,7 +186,7 @@ impl JobTrait for ProvisioningJob {
 	}
 }
 
-impl ProvisioningJob {
+impl ProvisionerJob {
 	fn new(
 		leaf: ActivatedLeaf,
 		metrics: Metrics,
@@ -648,5 +648,5 @@ async fn select_disputes(
 		.collect())
 }
 
-/// The provisioning subsystem.
-pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
+/// The provisioner subsystem.
+pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisionerJob, Spawner>;
