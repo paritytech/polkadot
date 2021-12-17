@@ -262,6 +262,14 @@ impl OrderingProvider {
 
 		let finalized_block_number = get_finalized_block_number(sender).await?;
 
+		tracing::info!(
+			target: LOG_TARGET,
+			activated_hash = ?head,
+			activated_number = head_number,
+			"Starting lookup for the leaf ancestors, finalized block number = {}",
+			finalized_block_number
+		);
+
 		loop {
 			let (tx, rx) = oneshot::channel();
 			let hashes = {
@@ -279,9 +287,26 @@ impl OrderingProvider {
 				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
 			};
 
+			tracing::info!(
+				target: LOG_TARGET,
+				head = ?head,
+				head_number = head_number,
+				"Received {} ancestors for the head: {:?}",
+				hashes.len(),
+				hashes,
+			);
+
 			let earliest_block_number = head_number - hashes.len() as u32;
 			// The reversed order is parent, grandparent, etc. excluding the head.
 			let block_numbers = (earliest_block_number..head_number).rev();
+
+			tracing::info!(
+				target: LOG_TARGET,
+				head = ?head,
+				head_number = head_number,
+				"Assumed ancestors block numbers: {:?}",
+				block_numbers.clone(),
+			);
 
 			for (block_number, hash) in block_numbers.zip(&hashes) {
 				// Return if we either met finalized/cached block or
@@ -293,12 +318,26 @@ impl OrderingProvider {
 					return Ok(ancestors)
 				}
 
+				// DEBUG if one wants to go deeper.
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Saving unseen ancestor to the vec: block number = {}, block hash = {}",
+					block_number,
+					hash
+				);
 				ancestors.push(*hash);
 			}
 			match hashes.last() {
 				Some(last_hash) => {
 					head = *last_hash;
 					head_number = earliest_block_number;
+
+					tracing::info!(
+						target: LOG_TARGET,
+						head = ?head,
+						head_number = head_number,
+						"Looping to the next iteration with new head and block number",
+					);
 				},
 				None => break,
 			}
