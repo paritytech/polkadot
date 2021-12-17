@@ -331,8 +331,15 @@ impl OverseerGen for RealOverseerGen {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
-		prepared_overseer_builder(args)?
-			.build_with_connector(connector)
-			.map_err(|e| e.into())
+		let disputes_enabled = args.disputes_enabled;
+		let builder = prepared_overseer_builder(args)?;
+		if disputes_enabled {
+			builder
+				.dispute_coordinator(DisputeCoordinatorSubsystem::dummy())
+				.build_with_connector(connector)
+		} else {
+			builder.build_with_connector(connector)
+		}
+		.map_err(|e| e.into())
 	}
 }
