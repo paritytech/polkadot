@@ -182,7 +182,7 @@ fn current_relay_parent<T: frame_system::Config>(
 	let state = sp_runtime::StateVersion::V0;
 	#[cfg(not(feature = "use-state-v0"))]
 	let state = sp_runtime::StateVersion::V1;
-	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root(state as u8)[..])
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root(state)[..])
 		.expect("storage root must decode to the Hash type; qed");
 	(relay_parent_number, relay_parent_storage_root)
 }
