@@ -1070,11 +1070,11 @@ impl<T: Config> Pallet<T> {
 			return
 		}
 
-		let (past_and_now, future) = pending_configs
+		let (past_and_present, future) = pending_configs
 			.into_iter()
 			.partition::<Vec<_>, _>(|&(apply_at_session, _)| apply_at_session <= *session_index);
 
-		if past_and_now.len() > 1 {
+		if past_and_present.len() > 1 {
 			// This should never happen since we schedule configuration changes only into the future
 			// sessions and this handler called for each session change.
 			log::error!(
@@ -1082,7 +1082,7 @@ impl<T: Config> Pallet<T> {
 				"Skipping applying configuration changes scheduled sessions in the past",
 			);
 		}
-		if let Some((_, pending)) = past_and_now.last() {
+		if let Some((_, pending)) = past_and_present.last() {
 			<Self as Store>::ActiveConfig::put(pending);
 		}
 
@@ -1211,7 +1211,7 @@ mod tests {
 	}
 
 	#[test]
-	fn consequtive_changes_within_one_session() {
+	fn consecutive_changes_within_one_session() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let old_config = Configuration::config();
 			let mut config = old_config.clone();
@@ -1284,7 +1284,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test() {
+	fn scheduled_session_config_update_while_next_session_pending() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let initial_config = Configuration::config();
 			let intermediate_config =
