@@ -19,7 +19,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 
-use crate::real::LOG_TARGET;
+use crate::LOG_TARGET;
 
 /// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
 /// is not worth considering anymore. Changing this value has little to no bearing on consensus,

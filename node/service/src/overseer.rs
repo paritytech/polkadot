@@ -59,10 +59,7 @@ pub use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
 pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
-pub use polkadot_node_core_dispute_coordinator::{
-	dummy::DisputeCoordinatorSubsystem as DummyDisputeCoordinatorSubsystem,
-	DisputeCoordinatorSubsystem,
-};
+pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
@@ -270,12 +267,7 @@ where
 				Metrics::register(registry)?,
 			)
 		} else {
-			DisputeCoordinatorSubsystem::new(
-				parachains_db.clone(),
-				dispute_coordinator_config,
-				keystore.clone(),
-				Metrics::register(registry)?,
-			)
+			DisputeCoordinatorSubsystem::dummy()
 		})
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
