@@ -34,7 +34,7 @@ futures-timer = "3.0.2"
 tracing = "0.1.26"
 
 [features]
-default = [ "disputes" ]
+default = [] # we do not enable disputes by default to avoid feature leak
 disputes = ["polkadot-cli/disputes"]
 
 [dev-dependencies]
