@@ -607,7 +607,7 @@ async fn request_votes(
 /// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and  additions of recent.
 fn extend_by_random_subset_without_repetition(
 	acc: &mut Vec<(SessionIndex, CandidateHash)>,
-	recent: Vec<(SessionIndex, CandidateHash)>,
+	extension: Vec<(SessionIndex, CandidateHash)>,
 	n: usize,
 ) {
 	use rand::Rng;
@@ -615,7 +615,7 @@ fn extend_by_random_subset_without_repetition(
 	let lut = acc.iter().cloned().collect::<HashSet<(SessionIndex, CandidateHash)>>();
 
 	let mut unique_new =
-		recent.into_iter().filter(|recent| !lut.contains(recent)).collect::<Vec<_>>();
+		extension.into_iter().filter(|recent| !lut.contains(recent)).collect::<Vec<_>>();
 
 	// we can simply add all
 	if unique_new.len() <= n {
