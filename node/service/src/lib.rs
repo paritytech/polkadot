@@ -29,7 +29,7 @@ pub mod overseer;
 #[cfg(feature = "full-node")]
 pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
-#[cfg(all(test, feature = "disputes"))]
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "full-node")]
@@ -719,15 +719,28 @@ where
 	let chain_spec = config.chain_spec.cloned_box();
 
 	let local_keystore = basics.keystore_container.local_keystore();
-	let requires_overseer_for_chain_sel =
-		local_keystore.is_some() && (role.is_authority() || is_collator.is_collator());
+	let auth_or_collator = role.is_authority() || is_collator.is_collator();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let select_chain = SelectRelayChain::new(
-		basics.backend.clone(),
-		overseer_handle.clone(),
-		requires_overseer_for_chain_sel,
-		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
-	);
+	let disputes_enabled = chain_spec.is_rococo() ||
+		chain_spec.is_kusama() ||
+		chain_spec.is_westend() ||
+		chain_spec.is_versi() ||
+		chain_spec.is_wococo();
+
+	let select_chain = if requires_overseer_for_chain_sel {
+		let metrics =
+			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
+
+		SelectRelayChain::new_disputes_aware(
+			basics.backend.clone(),
+			overseer_handle.clone(),
+			metrics,
+			disputes_enabled,
+		)
+	} else {
+		SelectRelayChain::new_longest_chain(basics.backend.clone())
+	};
 
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
@@ -947,6 +960,7 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
+					disputes_enabled,
 				},
 			)?;
 		let handle = Handle::new(overseer_handle.clone());

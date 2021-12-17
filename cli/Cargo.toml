@@ -61,4 +61,3 @@ westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
 
 malus = [ "full-node", "service/malus" ]
-disputes = [ "service/disputes" ]

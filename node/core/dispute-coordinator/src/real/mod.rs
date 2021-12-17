@@ -28,18 +28,15 @@
 use std::{
 	collections::HashSet,
 	sync::Arc,
-	time::{SystemTime, UNIX_EPOCH},
 };
 
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
-use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
@@ -57,24 +54,18 @@ use polkadot_primitives::v1::{
 use sc_keystore::LocalKeystore;
 
 use crate::metrics::Metrics;
+use crate::error::Error;
+use crate::status::{ACTIVE_DURATION_SECS, DisputeStatus, Timestamp, Clock, SystemClock};
+use crate::LOG_TARGET;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 
 mod backend;
-mod db;
+pub(crate) mod db;
 
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "parachain::dispute-coordinator";
-
-// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
-// is not worth considering anymore. Changing this value has little to no bearing on consensus,
-// and really only affects the work that the node might do on startup during periods of many disputes.
-const ACTIVE_DURATION_SECS: Timestamp = 180;
-
-/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
-type Timestamp = u64;
 
 #[derive(Eq, PartialEq)]
 enum Participation {
@@ -145,146 +136,8 @@ where
 	}
 }
 
-trait Clock: Send + Sync {
-	fn now(&self) -> Timestamp;
-}
 
-struct SystemClock;
 
-impl Clock for SystemClock {
-	fn now(&self) -> Timestamp {
-		// `SystemTime` is notoriously non-monotonic, so our timers might not work
-		// exactly as expected.
-		//
-		// Regardless, disputes are considered active based on an order of minutes,
-		// so a few seconds of slippage in either direction shouldn't affect the
-		// amount of work the node is doing significantly.
-		match SystemTime::now().duration_since(UNIX_EPOCH) {
-			Ok(d) => d.as_secs(),
-			Err(e) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Current time is before unix epoch. Validation will not work correctly."
-				);
-
-				0
-			},
-		}
-	}
-}
-
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum Error {
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-
-	#[error(transparent)]
-	ChainApi(#[from] ChainApiError),
-
-	#[error(transparent)]
-	Io(#[from] std::io::Error),
-
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-
-	#[error("Oneshot send failed")]
-	OneshotSend,
-
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-
-	#[error(transparent)]
-	Codec(#[from] CodecError),
-}
-
-impl From<db::v1::Error> for Error {
-	fn from(err: db::v1::Error) -> Self {
-		match err {
-			db::v1::Error::Io(io) => Self::Io(io),
-			db::v1::Error::Codec(e) => Self::Codec(e),
-		}
-	}
-}
-
-impl Error {
-	fn trace(&self) {
-		match self {
-			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) | Self::Oneshot(_) =>
-				tracing::debug!(target: LOG_TARGET, err = ?self),
-			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
-		}
-	}
-}
-
-/// The status of dispute. This is a state machine which can be altered by the
-/// helper methods.
-#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq)]
-pub enum DisputeStatus {
-	/// The dispute is active and unconcluded.
-	#[codec(index = 0)]
-	Active,
-	/// The dispute has been concluded in favor of the candidate
-	/// since the given timestamp.
-	#[codec(index = 1)]
-	ConcludedFor(Timestamp),
-	/// The dispute has been concluded against the candidate
-	/// since the given timestamp.
-	///
-	/// This takes precedence over `ConcludedFor` in the case that
-	/// both are true, which is impossible unless a large amount of
-	/// validators are participating on both sides.
-	#[codec(index = 2)]
-	ConcludedAgainst(Timestamp),
-}
-
-impl DisputeStatus {
-	/// Initialize the status to the active state.
-	pub fn active() -> DisputeStatus {
-		DisputeStatus::Active
-	}
-
-	/// Transition the status to a new status after observing the dispute has concluded for the candidate.
-	/// This may be a no-op if the status was already concluded.
-	pub fn concluded_for(self, now: Timestamp) -> DisputeStatus {
-		match self {
-			DisputeStatus::Active => DisputeStatus::ConcludedFor(now),
-			DisputeStatus::ConcludedFor(at) => DisputeStatus::ConcludedFor(std::cmp::min(at, now)),
-			against => against,
-		}
-	}
-
-	/// Transition the status to a new status after observing the dispute has concluded against the candidate.
-	/// This may be a no-op if the status was already concluded.
-	pub fn concluded_against(self, now: Timestamp) -> DisputeStatus {
-		match self {
-			DisputeStatus::Active => DisputeStatus::ConcludedAgainst(now),
-			DisputeStatus::ConcludedFor(at) =>
-				DisputeStatus::ConcludedAgainst(std::cmp::min(at, now)),
-			DisputeStatus::ConcludedAgainst(at) =>
-				DisputeStatus::ConcludedAgainst(std::cmp::min(at, now)),
-		}
-	}
-
-	/// Whether the disputed candidate is possibly invalid.
-	pub fn is_possibly_invalid(&self) -> bool {
-		match self {
-			DisputeStatus::Active | DisputeStatus::ConcludedAgainst(_) => true,
-			DisputeStatus::ConcludedFor(_) => false,
-		}
-	}
-
-	/// Yields the timestamp this dispute concluded at, if any.
-	pub fn concluded_at(&self) -> Option<Timestamp> {
-		match self {
-			DisputeStatus::Active => None,
-			DisputeStatus::ConcludedFor(at) | DisputeStatus::ConcludedAgainst(at) => Some(*at),
-		}
-	}
-}
 
 async fn run<B, Context>(
 	subsystem: DisputeCoordinatorSubsystem,

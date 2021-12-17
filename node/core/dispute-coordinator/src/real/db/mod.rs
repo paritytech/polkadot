@@ -16,4 +16,4 @@
 
 //! Database component for the dispute coordinator.
 
-pub(super) mod v1;
+pub(crate) mod v1;
