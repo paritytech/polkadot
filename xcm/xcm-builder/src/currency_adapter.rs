@@ -170,4 +170,15 @@ impl<
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
 	}
+
+	fn transfer_asset(
+		asset: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> result::Result<Assets, XcmError> {
+		log::trace!(target: "xcm::currency_adapter", "transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
+		let assets = Self::withdraw_asset(asset, from)?;
+		Self::deposit_asset(asset, to)?;
+		Ok(assets)
+	}
 }
