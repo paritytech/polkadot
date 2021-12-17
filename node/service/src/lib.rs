@@ -866,8 +866,6 @@ where
 		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
-	let provisioner_config = ProvisionerConfig { disputes_enabled };
-
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -961,7 +959,7 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
-					provisioner_config,
+					disputes_enabled,
 				},
 			)
 			.map_err(|e| {

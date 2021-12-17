@@ -22,6 +22,7 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
+use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -58,7 +59,10 @@ pub use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
 pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
-pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
+pub use polkadot_node_core_dispute_coordinator::{
+	dummy::DisputeCoordinatorSubsystem as DummyDisputeCoordinatorSubsystem,
+	DisputeCoordinatorSubsystem,
+};
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
@@ -106,6 +110,8 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
+	/// Enable to disputes.
+	pub disputes_enabled: bool,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -132,6 +138,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
+		disputes_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	OverseerBuilder<
@@ -228,7 +235,11 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(spawner.clone(), (), Metrics::register(registry)?))
+		.provisioner(ProvisionerSubsystem::new(
+			spawner.clone(),
+			ProvisionerConfig { disputes_enabled },
+			Metrics::register(registry)?,
+		))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,
@@ -251,12 +262,21 @@ where
 			keystore.clone(),
 			authority_discovery_service.clone(),
 		))
-		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
-			parachains_db.clone(),
-			dispute_coordinator_config,
-			keystore.clone(),
-			Metrics::register(registry)?,
-		))
+		.dispute_coordinator(if disputes_enabled {
+			DisputeCoordinatorSubsystem::new(
+				parachains_db.clone(),
+				dispute_coordinator_config,
+				keystore.clone(),
+				Metrics::register(registry)?,
+			)
+		} else {
+			DisputeCoordinatorSubsystem::new(
+				parachains_db.clone(),
+				dispute_coordinator_config,
+				keystore.clone(),
+				Metrics::register(registry)?,
+			)
+		})
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,

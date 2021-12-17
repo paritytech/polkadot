@@ -29,3 +29,5 @@ mod metrics;
 
 mod real;
 pub use real::*;
+
+pub mod dummy;

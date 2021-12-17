@@ -173,7 +173,7 @@ impl JobTrait for ProvisionerJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let span = leaf.span.clone();
 		async move {
-			let job = ProvisioningJob::new(leaf, metrics, receiver);
+			let job = ProvisionerJob::new(leaf, metrics, receiver);
 
 			job.run_loop(
 				sender.subsystem_sender(),
