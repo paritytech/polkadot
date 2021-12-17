@@ -15,12 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use ::test_helpers::{
+	dummy_candidate_receipt_bad_sig, dummy_collator, dummy_collator_signature,
+	dummy_committed_candidate_receipt, dummy_hash, dummy_validation_code,
+};
 use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v1::{
-	GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
+	CollatorId, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
 use polkadot_subsystem::{
 	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
@@ -118,9 +122,9 @@ impl Default for TestState {
 
 		let validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
-			relay_parent_number: Default::default(),
+			relay_parent_number: 0_u32.into(),
 			max_pov_size: 1024,
-			relay_parent_storage_root: Default::default(),
+			relay_parent_storage_root: dummy_hash(),
 		};
 
 		Self {
@@ -189,14 +193,25 @@ impl TestCandidateBuilder {
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
-				..Default::default()
+				collator: dummy_collator(),
+				signature: dummy_collator_signature(),
+				para_head: dummy_hash(),
+				validation_code_hash: dummy_validation_code().hash(),
+				persisted_validation_data_hash: dummy_hash(),
 			},
-			commitments: CandidateCommitments { head_data: self.head_data, ..Default::default() },
+			commitments: CandidateCommitments {
+				head_data: self.head_data,
+				upward_messages: vec![],
+				horizontal_messages: vec![],
+				new_validation_code: None,
+				processed_downward_messages: 0,
+				hrmp_watermark: 0_u32,
+			},
 		}
 	}
 }
 
-// Tests that the subsystem performs actions that are requied on startup.
+// Tests that the subsystem performs actions that are required on startup.
 async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestState) {
 	// Start work on some new parent.
 	virtual_overseer
@@ -378,7 +393,7 @@ fn backing_second_works() {
 	});
 }
 
-// Test that the candidate reaches quorum succesfully.
+// Test that the candidate reaches quorum successfully.
 #[test]
 fn backing_works() {
 	let test_state = TestState::default();
@@ -1445,7 +1460,8 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let fake_attestation = |idx: u32| {
-		let candidate: CommittedCandidateReceipt = Default::default();
+		let candidate =
+			dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
 		let hash = candidate.hash();
 		let mut data = vec![0; 64];
 		data[0..32].copy_from_slice(hash.0.as_bytes());
@@ -1456,7 +1472,7 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let attested = TableAttestedCandidate {
-		candidate: Default::default(),
+		candidate: dummy_committed_candidate_receipt(dummy_hash()),
 		validity_votes: vec![
 			(ValidatorIndex(5), fake_attestation(5)),
 			(ValidatorIndex(3), fake_attestation(3)),

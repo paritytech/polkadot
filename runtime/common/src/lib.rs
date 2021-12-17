@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod assigned_slots;
 pub mod auctions;
 pub mod claims;
 pub mod crowdloan;
@@ -246,6 +247,7 @@ mod multiplier_tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	fn run_with_system_weight<F>(w: Weight, mut assertions: F)

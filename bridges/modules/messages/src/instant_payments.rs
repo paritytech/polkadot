@@ -145,7 +145,7 @@ fn pay_relayers_rewards<Currency, AccountId>(
 	relayer_fund_account: &AccountId,
 	confirmation_fee: Currency::Balance,
 ) where
-	AccountId: Debug + Default + Encode + PartialEq,
+	AccountId: Debug + Encode + PartialEq,
 	Currency: CurrencyT<AccountId>,
 	Currency::Balance: From<u64>,
 {

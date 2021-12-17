@@ -26,6 +26,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.17", features = ["thread-pool"] }
 femme = "2.1.1"
 assert_matches = "1.4.0"
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 
 [features]
 default = []

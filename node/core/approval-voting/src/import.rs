@@ -575,6 +575,7 @@ pub(crate) async fn handle_new_head(
 pub(crate) mod tests {
 	use super::*;
 	use crate::approval_db::v1::DbBackend;
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
 	use kvdb::KeyValueDB;
 	use merlin::Transcript;
@@ -715,7 +716,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -829,7 +830,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -931,7 +932,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -1021,7 +1022,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -1163,7 +1164,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
