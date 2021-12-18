@@ -162,7 +162,7 @@ parameter_types! {
 
 impl frame_system::Config for Runtime {
 	/// The basic call filter to use in dispatchable.
-	type BaseCallFilter = frame_support::traits::Everything;
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	/// The identifier used to distinguish between accounts.
 	type AccountId = AccountId;
 	/// The aggregated dispatch type that is available for extrinsics.
@@ -256,7 +256,7 @@ impl pallet_bridge_dispatch::Config for Runtime {
 	type Event = Event;
 	type BridgeMessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::Everything;
+	type CallFilter = frame_support::traits::AllowAll;
 	type EncodedCall = crate::millau_messages::FromMillauEncodedCall;
 	type SourceChainAccountId = bp_millau::AccountId;
 	type TargetChainAccountPublic = MultiSigner;

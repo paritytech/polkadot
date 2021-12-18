@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::Everything, weights::Weight};
+use frame_support::{parameter_types, traits::AllowAll, weights::Weight};
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
@@ -41,7 +41,7 @@ impl SendXcm for DoNothingRouter {
 	}
 }
 
-pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
+pub type Barrier = AllowUnpaidExecutionFrom<AllowAll>;
 
 pub struct DummyAssetTransactor;
 impl TransactAsset for DummyAssetTransactor {

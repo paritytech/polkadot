@@ -18,7 +18,7 @@
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_benchmarking::BenchmarkError;
-use frame_support::{parameter_types, traits::Everything};
+use frame_support::{parameter_types, traits::AllowAll};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -50,7 +50,7 @@ parameter_types! {
 		frame_system::limits::BlockWeights::simple_max(1024);
 }
 impl frame_system::Config for Test {
-	type BaseCallFilter = Everything;
+	type BaseCallFilter = AllowAll;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
@@ -135,7 +135,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = AllowUnpaidExecutionFrom<Everything>;
+	type Barrier = AllowUnpaidExecutionFrom<AllowAll>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;

@@ -88,7 +88,7 @@ parameter_types! {
 pub type AccountId = u64;
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = frame_support::traits::Everything;
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();

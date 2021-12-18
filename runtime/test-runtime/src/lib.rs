@@ -37,7 +37,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, KeyOwnerProofSystem},
+	traits::{AllowAll, KeyOwnerProofSystem},
 };
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_mmr_primitives as mmr;
@@ -125,7 +125,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = frame_support::traits::Everything;
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
 	type DbWeight = ();
@@ -531,10 +531,10 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type XcmRouter = xcm_config::DoNothingRouter;
-	type XcmExecuteFilter = Everything;
+	type XcmExecuteFilter = AllowAll;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
+	type XcmTeleportFilter = AllowAll;
+	type XcmReserveTransferFilter = AllowAll;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;

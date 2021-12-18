@@ -70,7 +70,7 @@ impl frame_system::Config for TestRuntime {
 	type AccountData = ();
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
-	type BaseCallFilter = frame_support::traits::Everything;
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type SystemWeightInfo = ();
 	type DbWeight = ();
 	type BlockWeights = ();

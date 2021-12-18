@@ -50,7 +50,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, match_type, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		AllowAll, Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		Nothing, OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::Weight,
@@ -1398,7 +1398,7 @@ pub type Barrier = (
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
+	AllowTopLevelPaidExecutionFrom<AllowAll>,
 	// Messages coming from system parachains need not pay for execution.
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 	// Expected responses are OK.
@@ -1450,10 +1450,10 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = Nothing;
+	type XcmExecuteFilter = DenyAll;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
+	type XcmTeleportFilter = AllowAll;
+	type XcmReserveTransferFilter = AllowAll;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;

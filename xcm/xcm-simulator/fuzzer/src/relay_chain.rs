@@ -18,7 +18,7 @@
 
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{AllowAll, DenyAll},
 	weights::Weight,
 };
 use sp_core::H256;
@@ -62,7 +62,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = Everything;
+	type BaseCallFilter = AllowAll;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
@@ -121,7 +121,7 @@ parameter_types! {
 }
 
 pub type XcmRouter = super::RelayChainXcmRouter;
-pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
+pub type Barrier = AllowUnpaidExecutionFrom<AllowAll>;
 
 pub struct XcmConfig;
 impl Config for XcmConfig {
@@ -149,10 +149,10 @@ impl pallet_xcm::Config for Runtime {
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmExecuteFilter = Nothing;
+	type XcmExecuteFilter = DenyAll;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
+	type XcmTeleportFilter = AllowAll;
+	type XcmReserveTransferFilter = AllowAll;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;

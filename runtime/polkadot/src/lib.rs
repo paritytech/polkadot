@@ -41,7 +41,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, match_type, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		AllowAll, Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		Nothing, OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::Weight,
@@ -1389,7 +1389,7 @@ pub type Barrier = (
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
+	AllowTopLevelPaidExecutionFrom<AllowAll>,
 	// Expected responses are OK.
 	AllowKnownQueryResponses<XcmPallet>,
 	// Subscriptions for version tracking are OK.

@@ -19,7 +19,7 @@
 use crate::{generic, mock::*, *};
 use frame_support::{
 	parameter_types,
-	traits::{Everything, OriginTrait},
+	traits::{AllowAll, OriginTrait},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -54,7 +54,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = Everything;
+	type BaseCallFilter = AllowAll;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
@@ -105,7 +105,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = AllowUnpaidExecutionFrom<Everything>;
+	type Barrier = AllowUnpaidExecutionFrom<AllowAll>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;

@@ -61,7 +61,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
+		AllowAll, Contains, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
@@ -1029,13 +1029,13 @@ pub type Barrier = (
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
+	AllowTopLevelPaidExecutionFrom<AllowAll>,
 	// Messages coming from system parachains need not pay for execution.
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 	// Expected responses are OK.
 	AllowKnownQueryResponses<XcmPallet>,
 	// Subscriptions for version tracking are OK.
-	AllowSubscriptionsFrom<Everything>,
+	AllowSubscriptionsFrom<AllowAll>,
 );
 
 pub struct XcmConfig;
@@ -1070,10 +1070,10 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects everything.
-	type XcmExecuteFilter = Nothing;
+	type XcmExecuteFilter = DenyAll;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
+	type XcmTeleportFilter = AllowAll;
+	type XcmReserveTransferFilter = AllowAll;
 	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;

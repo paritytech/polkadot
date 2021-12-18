@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{AllowAll, DenyAll},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
@@ -71,7 +71,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = Everything;
+	type BaseCallFilter = AllowAll;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
@@ -129,7 +129,7 @@ pub type LocalAssetTransactor =
 	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>;
 
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
-pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
+pub type Barrier = AllowUnpaidExecutionFrom<AllowAll>;
 
 pub struct XcmConfig;
 impl Config for XcmConfig {
@@ -299,10 +299,10 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmExecuteFilter = Everything;
+	type XcmExecuteFilter = AllowAll;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Nothing;
-	type XcmReserveTransferFilter = Everything;
+	type XcmTeleportFilter = DenyAll;
+	type XcmReserveTransferFilter = AllowAll;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
