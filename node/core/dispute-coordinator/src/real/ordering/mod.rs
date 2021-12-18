@@ -256,11 +256,11 @@ impl OrderingProvider {
 	) -> Result<Vec<Hash>> {
 		let mut ancestors = Vec::new();
 
-		if self.last_observed_blocks.get(&head).is_some() {
+		let finalized_block_number = get_finalized_block_number(sender).await?;
+
+		if self.last_observed_blocks.get(&head).is_some() || head_number <= finalized_block_number {
 			return Ok(ancestors)
 		}
-
-		let finalized_block_number = get_finalized_block_number(sender).await?;
 
 		loop {
 			let (tx, rx) = oneshot::channel();
@@ -279,11 +279,24 @@ impl OrderingProvider {
 				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
 			};
 
-			let earliest_block_number = head_number.saturating_sub(hashes.len() as u32);
-			let block_numbers = earliest_block_number..head_number;
-
+			let earliest_block_number = match head_number.checked_sub(hashes.len() as u32) {
+				Some(number) => number,
+				None => {
+					// It's assumed that it's impossible to retrieve
+					// more than N ancestors for block number N.
+					tracing::error!(
+						target: LOG_TARGET,
+						"Received {} ancestors for block number {} from Chain API",
+						hashes.len(),
+						head_number,
+					);
+					return Ok(ancestors)
+				},
+			};
 			// The reversed order is parent, grandparent, etc. excluding the head.
-			for (block_number, hash) in block_numbers.clone().rev().zip(&hashes) {
+			let block_numbers = (earliest_block_number..head_number).rev();
+
+			for (block_number, hash) in block_numbers.zip(&hashes) {
 				// Return if we either met finalized/cached block or
 				// hit the size limit for the returned ancestry of head.
 				if self.last_observed_blocks.get(hash).is_some() ||
@@ -297,11 +310,11 @@ impl OrderingProvider {
 			}
 
 			match hashes.last() {
-				Some(last_hash) if !block_numbers.is_empty() => {
+				Some(last_hash) => {
 					head = *last_hash;
 					head_number = earliest_block_number;
 				},
-				_ => break,
+				None => break,
 			}
 		}
 		return Ok(ancestors)

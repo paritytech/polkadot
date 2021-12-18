@@ -62,22 +62,16 @@ struct TestState {
 
 impl TestState {
 	async fn new() -> (Self, VirtualOverseer) {
-		const GENESIS_BLOCK_NUMBER: u32 = 0;
-
 		let (mut ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-		let leaf = get_activated_leaf(GENESIS_BLOCK_NUMBER);
-		let chain = vec![get_block_number_hash(GENESIS_BLOCK_NUMBER)];
+		let leaf = get_activated_leaf(0);
+		let chain = vec![get_block_number_hash(0)];
 
-		let finalized_block_number = GENESIS_BLOCK_NUMBER;
-		// Mock API does return an ancestor for the genesis block:
-		// it's expected to be skipped.
-		let expected_ancestry_len = 1;
-		let overseer_fut = overseer_process_active_leaves_update(
-			&mut ctx_handle,
-			&chain,
-			finalized_block_number,
-			expected_ancestry_len,
-		);
+		let finalized_block_number = 0;
+		let overseer_fut = async {
+			assert_finalized_block_number_request(&mut ctx_handle, finalized_block_number).await;
+			// No requests for ancestors since the block is already finalized.
+			assert_candidate_events_request(&mut ctx_handle, &chain).await;
+		};
 
 		let ordering_provider =
 			join(OrderingProvider::new(ctx.sender(), leaf.clone()), overseer_fut)
@@ -201,16 +195,7 @@ async fn assert_block_ancestors_request(virtual_overseer: &mut VirtualOverseer, 
 		AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
 			let maybe_block_position = chain.iter().position(|h| *h == hash);
 			let ancestors = maybe_block_position
-				.map(|idx| {
-					if idx == 0 {
-						// Return zero hash for the genesis block -- the same way
-						// Chain API does.
-						vec![Hash::zero()]
-					} else {
-						// Otherwise collect up to k ancestors.
-						chain[..idx].iter().rev().take(k).copied().collect()
-					}
-				})
+				.map(|idx| chain[..idx].iter().rev().take(k).copied().collect())
 				.unwrap_or_default();
 			response_channel.send(Ok(ancestors)).unwrap();
 		}
