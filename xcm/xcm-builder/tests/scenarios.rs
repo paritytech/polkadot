@@ -17,7 +17,8 @@
 mod mock;
 
 use mock::{
-	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
+	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, System, XcmConfig,
+	CENTS,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
@@ -63,6 +64,36 @@ fn withdraw_and_deposit_works() {
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
+	});
+}
+
+/// Scenario:
+/// Alice simply wants to transfer funds to Bob's account via XCM.
+///
+/// Asserts that the balances are updated correctly and the correct events are fired.
+#[test]
+fn transfer_asset_works() {
+	let bob = AccountId::new([1u8; 32]);
+	let balances = vec![(ALICE, INITIAL_BALANCE), (bob.clone(), INITIAL_BALANCE)];
+	kusama_like_with_balances(balances).execute_with(|| {
+		let amount = REGISTER_AMOUNT;
+		let weight = BaseXcmWeight::get();
+		// Use `execute_xcm_in_credit` here to pass through the barrier
+		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
+			AccountId32 { network: NetworkId::Any, id: ALICE.into() },
+			Xcm(vec![TransferAsset {
+				assets: (Here, amount).into(),
+				beneficiary: AccountId32 { network: NetworkId::Any, id: bob.clone().into() }.into(),
+			}]),
+			weight,
+			weight,
+		);
+		System::assert_last_event(
+			pallet_balances::Event::Transfer { from: ALICE, to: bob.clone(), amount }.into(),
+		);
+		assert_eq!(r, Outcome::Complete(weight));
+		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - amount);
+		assert_eq!(Balances::free_balance(bob), INITIAL_BALANCE + amount);
 	});
 }
 
