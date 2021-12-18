@@ -473,6 +473,7 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
+
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config
 			.database
@@ -581,6 +582,7 @@ where
 					dispute_req_receiver,
 					pov_req_receiver,
 					statement_req_receiver,
+					disputes_enabled: false,
 				},
 			)?;
 		let handle = Handle::new(overseer_handle);

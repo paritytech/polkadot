@@ -104,7 +104,7 @@ const LOG_TARGET: &str = "parachain::statement-distribution";
 const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
-pub struct StatementDistribution {
+pub struct StatementDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
@@ -113,7 +113,7 @@ pub struct StatementDistribution {
 	metrics: Metrics,
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for StatementDistribution
+impl<Context> overseer::Subsystem<Context, SubsystemError> for StatementDistributionSubsystem
 where
 	Context: SubsystemContext<Message = StatementDistributionMessage>,
 	Context: overseer::SubsystemContext<Message = StatementDistributionMessage>,
@@ -131,14 +131,14 @@ where
 	}
 }
 
-impl StatementDistribution {
+impl StatementDistributionSubsystem {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 		metrics: Metrics,
-	) -> StatementDistribution {
-		StatementDistribution { keystore, req_receiver: Some(req_receiver), metrics }
+	) -> Self {
+		Self { keystore, req_receiver: Some(req_receiver), metrics }
 	}
 }
 
@@ -1535,7 +1535,7 @@ async fn handle_network_update(
 	}
 }
 
-impl StatementDistribution {
+impl StatementDistributionSubsystem {
 	async fn run(
 		mut self,
 		mut ctx: (impl SubsystemContext<Message = StatementDistributionMessage>

@@ -29,7 +29,7 @@ pub mod overseer;
 #[cfg(feature = "full-node")]
 pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
-#[cfg(all(test, feature = "disputes"))]
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "full-node")]
@@ -250,6 +250,9 @@ pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Wococo` test network.
 	fn is_wococo(&self) -> bool;
 
+	/// Returns if this is a configuration for the `Versi` test network.
+	fn is_versi(&self) -> bool;
+
 	/// Returns true if this configuration is for a development network.
 	fn is_dev(&self) -> bool;
 }
@@ -266,6 +269,9 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 	fn is_wococo(&self) -> bool {
 		self.id().starts_with("wococo") || self.id().starts_with("wco")
+	}
+	fn is_versi(&self) -> bool {
+		self.id().starts_with("versi") || self.id().starts_with("vrs")
 	}
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
@@ -682,7 +688,10 @@ where
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
-		if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+		if config.chain_spec.is_rococo() ||
+			config.chain_spec.is_wococo() ||
+			config.chain_spec.is_versi()
+		{
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
 			// production to 1 block per hour.
@@ -712,6 +721,12 @@ where
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
+	let disputes_enabled = chain_spec.is_rococo() ||
+		chain_spec.is_kusama() ||
+		chain_spec.is_westend() ||
+		chain_spec.is_versi() ||
+		chain_spec.is_wococo();
+
 	let select_chain = if requires_overseer_for_chain_sel {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
@@ -720,6 +735,7 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
+			disputes_enabled,
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
@@ -748,7 +764,7 @@ where
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if chain_spec.is_rococo() || chain_spec.is_wococo() {
+	if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -943,6 +959,7 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
+					disputes_enabled,
 				},
 			)
 			.map_err(|e| {
@@ -1054,7 +1071,7 @@ where
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
+	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
@@ -1185,7 +1202,10 @@ pub fn new_chain_ops(
 	let telemetry_worker_handle = None;
 
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
+	{
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
@@ -1218,7 +1238,10 @@ pub fn build_full(
 	overseer_gen: impl OverseerGen,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
+	{
 		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
 			is_collator,

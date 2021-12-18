@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
@@ -18,7 +18,7 @@ parity-util-mem = { version = "*", default-features = false, features = ["jemall
 
 [dev-dependencies]
 assert_cmd = "2.0.2"
-nix = "0.23.0"
+nix = "0.23.1"
 tempfile = "3.2.0"
 
 [workspace]
@@ -117,7 +117,8 @@ panic = "unwind"
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
-disputes = [ "polkadot-cli/disputes" ]
+runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
+
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

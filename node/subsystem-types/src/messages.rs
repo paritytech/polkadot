@@ -566,7 +566,8 @@ pub enum ChainApiMessage {
 	/// Request the `k` ancestors block hashes of a block with the given hash.
 	/// The response channel may return a `Vec` of size up to `k`
 	/// filled with ancestors hashes with the following order:
-	/// `parent`, `grandparent`, ...
+	/// `parent`, `grandparent`, ... up to the hash of genesis block
+	/// with number 0, including it.
 	Ancestors {
 		/// The hash of the block in question.
 		hash: Hash,
