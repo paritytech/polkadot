@@ -625,7 +625,7 @@ zombienet-tests-parachains-smoke-test:
 
   before_script:
     - echo "Zombie-net Tests Config"
-    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${ZOMBIENET_IMAGE}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
