@@ -177,8 +177,16 @@ impl<
 		to: &MultiLocation,
 	) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
-		let assets = Self::withdraw_asset(asset, from)?;
-		Self::deposit_asset(asset, to)?;
-		Ok(assets)
+		let amount: u128 =
+			Matcher::matches_fungible(asset).ok_or(Error::AssetNotFound)?.saturated_into();
+		let from =
+			AccountIdConverter::convert_ref(from).map_err(|()| Error::AccountIdConversionFailed)?;
+		let to =
+			AccountIdConverter::convert_ref(to).map_err(|()| Error::AccountIdConversionFailed)?;
+		let balance_amount =
+			amount.try_into().map_err(|_| Error::AmountToBalanceConversionFailed)?;
+		Currency::transfer(&from, &to, balance_amount, AllowDeath)
+			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
+		Ok(asset.clone().into())
 	}
 }
