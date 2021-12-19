@@ -24,6 +24,7 @@ use xcm::{
 	latest::{prelude::*, MultiAssets},
 	DoubleEncoded,
 };
+use xcm_executor::ExecutorError;
 
 benchmarks! {
 	report_holding {
@@ -254,12 +255,10 @@ benchmarks! {
 	} : {
 		_result = executor.execute(xcm);
 	} verify {
-		match _result {
-			Err(error) if error.xcm_error == XcmError::Trap(10) => {
-				// This is the success condition
-			},
-			_ => Err("xcm trap did not return the expected error")?
-		};
+		assert!(matches!(_result, Err(ExecutorError {
+			xcm_error: XcmError::Trap(10),
+			..
+		})));
 	}
 
 	subscribe_version {
@@ -306,7 +305,7 @@ benchmarks! {
 		executor.holding = holding.into();
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
-	}:{
+	}: {
 		executor.execute(xcm)?;
 	} verify {
 		// The execute completing successfully is as good as we can check.
@@ -341,6 +340,38 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 		// `execute` completing successfully is as good as we can check.
+	}
+
+	expect_origin {
+		let expected_origin = Parent.into();
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::ExpectOrigin(Some(expected_origin));
+		let xcm = Xcm(vec![instruction]);
+		let mut _result = Ok(());
+	}: {
+		_result = executor.execute(xcm);
+	} verify {
+		assert!(matches!(_result, Err(ExecutorError {
+			xcm_error: XcmError::ExpectationFalse,
+			..
+		})));
+	}
+
+	expect_error {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.error = Some((3u32, XcmError::Overflow));
+
+		let instruction = Instruction::ExpectError(None);
+		let xcm = Xcm(vec![instruction]);
+		let mut _result = Ok(());
+	}: {
+		_result = executor.execute(xcm);
+	} verify {
+		assert!(matches!(_result, Err(ExecutorError {
+			xcm_error: XcmError::ExpectationFalse,
+			..
+		})));
 	}
 
 	impl_benchmark_test_suite!(
