@@ -313,6 +313,36 @@ benchmarks! {
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
 
+	burn_asset {
+		let holding = T::worst_case_holding(0);
+		let assets = holding.clone();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.holding = holding.into();
+
+		let instruction = Instruction::BurnAsset(assets.into());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		assert!(executor.holding.is_empty());
+	}
+
+	expect_asset {
+		let holding = T::worst_case_holding(0);
+		let assets = holding.clone();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.holding = holding.into();
+
+		let instruction = Instruction::ExpectAsset(assets.into());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// `execute` completing successfully is as good as we can check.
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),
