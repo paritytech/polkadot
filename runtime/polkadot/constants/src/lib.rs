@@ -22,8 +22,8 @@ pub use self::currency::DOLLARS;
 pub mod currency {
 	use primitives::v0::Balance;
 
-	/// The existential deposit. Set to 1/10 of its parent Relay Chain (v9010).
-	pub const EXISTENTIAL_DEPOSIT: Balance = 10 * CENTS;
+	/// The existential deposit.
+	pub const EXISTENTIAL_DEPOSIT: Balance = 100 * CENTS;
 
 	pub const UNITS: Balance = 10_000_000_000;
 	pub const DOLLARS: Balance = UNITS; // 10_000_000_000
