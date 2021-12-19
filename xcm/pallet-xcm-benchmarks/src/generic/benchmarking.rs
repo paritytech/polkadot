@@ -20,7 +20,10 @@ use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
-use xcm::{DoubleEncoded, latest::{MaybeErrorCode, MultiAssets, prelude::*}, v2::Instruction::QueryResponse};
+use xcm::{
+	latest::{prelude::*, MaybeErrorCode, MultiAssets},
+	DoubleEncoded,
+};
 use xcm_executor::ExecutorError;
 
 benchmarks! {
