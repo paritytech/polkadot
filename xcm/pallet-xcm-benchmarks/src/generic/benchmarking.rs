@@ -374,6 +374,40 @@ benchmarks! {
 		})));
 	}
 
+	query_pallet {
+		let query_id = Default::default();
+		let destination = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let max_weight = Default::default();
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::QueryPallet {
+			module_name: b"frame_system".to_vec(),
+			response_info: QueryResponseInfo { destination, query_id, max_weight },
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	expect_pallet {
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::ExpectPallet {
+			index: 0,
+			name: b"System".to_vec(),
+			module_name: b"frame_system".to_vec(),
+			crate_major: 4,
+			min_crate_minor: 0,
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// the execution succeeding is all we need to verify this xcm was successful
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),
