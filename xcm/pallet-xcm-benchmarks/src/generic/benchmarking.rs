@@ -20,10 +20,7 @@ use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
-use xcm::{
-	latest::{prelude::*, MultiAssets},
-	DoubleEncoded,
-};
+use xcm::{DoubleEncoded, latest::{MaybeErrorCode, MultiAssets, prelude::*}, v2::Instruction::QueryResponse};
 use xcm_executor::ExecutorError;
 
 benchmarks! {
@@ -406,6 +403,38 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 		// the execution succeeding is all we need to verify this xcm was successful
+	}
+
+	report_transact_status {
+		let query_id = Default::default();
+		let destination = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let max_weight = Default::default();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+
+		let instruction = Instruction::ReportTransactStatus(QueryResponseInfo {
+			query_id,
+			destination,
+			max_weight,
+		});
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	clear_transact_status {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+
+		let instruction = Instruction::ClearTransactStatus;
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.transact_status, MaybeErrorCode::Success);
 	}
 
 	impl_benchmark_test_suite!(
