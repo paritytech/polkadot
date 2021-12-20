@@ -27,7 +27,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.0.2"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
@@ -195,7 +195,7 @@ test-build-linux-stable:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
     # disputes feature is needed for zombie-net parachains malus test
-    - time cargo build --release --verbose --bin polkadot --features "disputes"
+    - time cargo build --release --verbose --bin polkadot
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -276,7 +276,7 @@ build-malus:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
-    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
+    - time cargo build --release --verbose -p polkadot-test-malus
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -625,7 +625,7 @@ zombienet-tests-parachains-smoke-test:
 
   before_script:
     - echo "Zombie-net Tests Config"
-    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${ZOMBIENET_IMAGE}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
@@ -666,7 +666,7 @@ zombienet-tests-malus-dispute-valid:
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
-    - export DEBUG=zombie,zombie::network-node
+    - export DEBUG=zombie*
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}

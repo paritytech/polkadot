@@ -5,11 +5,12 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.19"
 tracing = "0.1.29"
 parity-scale-codec = "2"
 kvdb = "0.10.0"
 thiserror = "1.0.30"
+lru = "0.7.1"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }

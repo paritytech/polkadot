@@ -18,6 +18,7 @@ struct TestClient {
 	headers: BTreeMap<Hash, Header>,
 }
 
+const GENESIS: Hash = Hash::repeat_byte(0xAA);
 const ONE: Hash = Hash::repeat_byte(0x01);
 const TWO: Hash = Hash::repeat_byte(0x02);
 const THREE: Hash = Hash::repeat_byte(0x03);
@@ -38,6 +39,7 @@ impl Default for TestClient {
 	fn default() -> Self {
 		Self {
 			blocks: maplit::btreemap! {
+				GENESIS => 0,
 				ONE => 1,
 				TWO => 2,
 				THREE => 3,
@@ -54,6 +56,16 @@ impl Default for TestClient {
 				3 => THREE,
 			},
 			headers: maplit::btreemap! {
+				GENESIS => Header {
+					parent_hash: Hash::zero(), // Dummy parent with zero hash.
+					number: 0,
+					..default_header()
+				},
+				ONE => Header {
+					parent_hash: GENESIS,
+					number: 1,
+					..default_header()
+				},
 				TWO => Header {
 					parent_hash: ONE,
 					number: 2,
@@ -298,8 +310,9 @@ fn request_ancestors() {
 					msg: ChainApiMessage::Ancestors { hash: THREE, k: 4, response_channel: tx },
 				})
 				.await;
-			assert_eq!(rx.await.unwrap().unwrap(), vec![TWO, ONE]);
+			assert_eq!(rx.await.unwrap().unwrap(), vec![TWO, ONE, GENESIS]);
 
+			// Limit the number of ancestors.
 			let (tx, rx) = oneshot::channel();
 			sender
 				.send(FromOverseer::Communication {
@@ -307,6 +320,24 @@ fn request_ancestors() {
 				})
 				.await;
 			assert_eq!(rx.await.unwrap().unwrap(), vec![ONE]);
+
+			// Ancestor of block #1 is returned.
+			let (tx, rx) = oneshot::channel();
+			sender
+				.send(FromOverseer::Communication {
+					msg: ChainApiMessage::Ancestors { hash: ONE, k: 10, response_channel: tx },
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), vec![GENESIS]);
+
+			// No ancestors of genesis block.
+			let (tx, rx) = oneshot::channel();
+			sender
+				.send(FromOverseer::Communication {
+					msg: ChainApiMessage::Ancestors { hash: GENESIS, k: 10, response_channel: tx },
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), Vec::new());
 
 			let (tx, rx) = oneshot::channel();
 			sender
