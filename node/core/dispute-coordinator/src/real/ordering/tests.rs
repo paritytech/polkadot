@@ -67,13 +67,11 @@ impl TestState {
 		let chain = vec![get_block_number_hash(0)];
 
 		let finalized_block_number = 0;
-		let expected_ancestry_len = 1;
-		let overseer_fut = overseer_process_active_leaves_update(
-			&mut ctx_handle,
-			&chain,
-			finalized_block_number,
-			expected_ancestry_len,
-		);
+		let overseer_fut = async {
+			assert_finalized_block_number_request(&mut ctx_handle, finalized_block_number).await;
+			// No requests for ancestors since the block is already finalized.
+			assert_candidate_events_request(&mut ctx_handle, &chain).await;
+		};
 
 		let ordering_provider =
 			join(OrderingProvider::new(ctx.sender(), leaf.clone()), overseer_fut)
