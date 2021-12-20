@@ -10,9 +10,25 @@ command = "polkadot"
   name = "alice"
   extra_args = [ "--alice" ]
 
+  [[relaychain.nodes.env]]
+  name = "RUST_LOG"
+  value = "parachain=debug"
+
+#  [[relaychain.nodes.overrides]]
+#  local_path = "../../target/release/polkadot"
+#  remote_name = "wonderland"
+
   [[relaychain.nodes]]
   name = "bob"
   extra_args = [ "--bob" ]
+
+  [[relaychain.nodes.env]]
+  name = "RUST_LOG"
+  value = "parachain=debug"
+
+#  [[relaychain.nodes.overrides]]
+#  local_path = "../../target/release/polkadot"
+#  remote_name = "builder"
 
 [[parachains]]
 id = 100
