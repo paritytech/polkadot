@@ -40,7 +40,6 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
 	JobTrait,
-
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,

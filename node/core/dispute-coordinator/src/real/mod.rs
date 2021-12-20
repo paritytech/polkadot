@@ -25,10 +25,7 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
-use std::{
-	collections::HashSet,
-	sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
@@ -53,10 +50,12 @@ use polkadot_primitives::v1::{
 };
 use sc_keystore::LocalKeystore;
 
-use crate::metrics::Metrics;
-use crate::error::Error;
-use crate::status::{ACTIVE_DURATION_SECS, DisputeStatus, Timestamp, Clock, SystemClock};
-use crate::LOG_TARGET;
+use crate::{
+	error::Error,
+	metrics::Metrics,
+	status::{Clock, DisputeStatus, SystemClock, Timestamp, ACTIVE_DURATION_SECS},
+	LOG_TARGET,
+};
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 
@@ -65,7 +64,6 @@ pub(crate) mod db;
 
 #[cfg(test)]
 mod tests;
-
 
 #[derive(Eq, PartialEq)]
 enum Participation {
@@ -135,9 +133,6 @@ where
 		SpawnedSubsystem { name: "dispute-coordinator-subsystem", future }
 	}
 }
-
-
-
 
 async fn run<B, Context>(
 	subsystem: DisputeCoordinatorSubsystem,
