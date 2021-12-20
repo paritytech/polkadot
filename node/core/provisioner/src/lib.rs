@@ -40,6 +40,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
 	JobTrait,
+
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
@@ -94,7 +95,7 @@ impl InherentAfter {
 
 /// A per-relay-parent job for the provisioning subsystem.
 pub struct ProvisioningJob {
-	relay_parent: Hash,
+	leaf: ActivatedLeaf,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
@@ -155,7 +156,7 @@ pub struct ProvisionerConfig {
 	pub disputes_enabled: bool,
 }
 
-impl JobTrait for ProvisionerJob {
+impl JobTrait for ProvisioningJob {
 	type ToJob = ProvisionerMessage;
 	type Error = Error;
 	type RunArgs = ProvisionerConfig;
@@ -167,16 +168,16 @@ impl JobTrait for ProvisionerJob {
 	//
 	// this function is in charge of creating and executing the job's main loop
 	fn run<S: SubsystemSender>(
-		relay_parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let relay_parent = leaf.hash;
 		let span = leaf.span.clone();
 		async move {
-			let job = ProvisioningJob::new(relay_parent, metrics, receiver);
+			let job = ProvisioningJob::new(leaf, metrics, receiver);
 
 			job.run_loop(
 				sender.subsystem_sender(),
@@ -191,12 +192,12 @@ impl JobTrait for ProvisionerJob {
 
 impl ProvisioningJob {
 	fn new(
-		relay_parent: Hash,
+		leaf: ActivatedLeaf,
 		metrics: Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 	) -> Self {
 		Self {
-			relay_parent,
+			leaf,
 			receiver,
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
@@ -254,7 +255,7 @@ impl ProvisioningJob {
 		disputes_enabled: bool,
 	) {
 		if let Err(err) = send_inherent_data(
-			self.relay_parent,
+			self.leaf.clone(),
 			&self.signed_bitfields,
 			&self.backed_candidates,
 			return_senders,
@@ -310,7 +311,7 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 /// maximize availability. So basically, include all bitfields. And then
 /// choose a coherent set of candidates along with that.
 async fn send_inherent_data(
-	relay_parent: Hash,
+	leaf: ActivatedLeaf,
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
@@ -318,6 +319,8 @@ async fn send_inherent_data(
 	disputes_enabled: bool,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
+	let relay_parent = leaf.hash;
+
 	let availability_cores = request_availability_cores(relay_parent, from_job)
 		.await
 		.await
@@ -335,8 +338,6 @@ async fn send_inherent_data(
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, relay_parent, from_job)
 			.await?;
-
-	let disputes = select_disputes(from_job).await?;
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
@@ -655,7 +656,7 @@ fn extend_by_random_subset_without_repetition(
 
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
-	metrics: &metrics::Metrics,
+	metrics: &Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
 	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
 

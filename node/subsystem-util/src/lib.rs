@@ -29,8 +29,8 @@ use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, BoundToRelayParent, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemSender,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemSender,
 };
 
 pub use overseer::{
@@ -492,8 +492,7 @@ pub trait JobTrait: Unpin + Sized {
 	///
 	/// The job should be ended when `receiver` returns `None`.
 	fn run<S: SubsystemSender>(
-		parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -541,8 +540,7 @@ where
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
 	fn spawn_job<Job, Sender>(
 		&mut self,
-		parent_hash: Hash,
-		span: Arc<jaeger::Span>,
+		activated: ActivatedLeaf,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 		sender: Sender,
@@ -550,13 +548,13 @@ where
 		Job: JobTrait<ToJob = ToJob>,
 		Sender: SubsystemSender,
 	{
+		let parent_hash = activated.hash;
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(
-				parent_hash,
-				span,
+				activated,
 				run_args,
 				metrics,
 				to_job_rx,
@@ -687,8 +685,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							for activated in activated {
 								let sender = ctx.sender().clone();
 								jobs.spawn_job::<Job, _>(
-									activated.hash,
-									activated.span,
+									activated,
 									run_args.clone(),
 									metrics.clone(),
 									sender,

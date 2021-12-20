@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 		AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	PerLeafSpan, SubsystemSender,
+	ActivatedLeaf, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -237,16 +237,16 @@ impl JobTrait for BitfieldSigningJob {
 
 	/// Run a job for the parent block indicated
 	fn run<S: SubsystemSender>(
-		relay_parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
+		let relay_parent = leaf.hash;
 		async move {
-			let span = PerLeafSpan::new(span, "bitfield-signing");
+			let span = PerLeafSpan::new(leaf.span.clone(), "bitfield-signing");
 			let _span = span.child("delay");
 			let wait_until = Instant::now() + JOB_DELAY;
 
