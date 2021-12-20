@@ -340,7 +340,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						FieldInitMethod::Fn(func) => func(handle.clone())?,
 						FieldInitMethod::Value(val) => val,
 						FieldInitMethod::Uninitialized =>
-							panic!("All subsystems must exist with the builder pattern."),
+							panic!("All subsystems must exist with the builder pattern. Missing initilization for subsystem: {}", stringify!(#subsystem_name)),
 					};
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
