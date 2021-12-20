@@ -86,7 +86,6 @@ std = [
 	"log/std",
 	"polkadot-runtime-metrics/std",
 ]
-use-state-v0 = ["frame-system/use-state-v0", "sp-api/use-state-v0"]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
