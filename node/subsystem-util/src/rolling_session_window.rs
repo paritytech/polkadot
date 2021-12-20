@@ -54,8 +54,10 @@ pub struct SessionsUnavailableInfo {
 #[derive(Debug)]
 pub struct SessionsUnavailable {
 	/// The error kind.
+	#[allow(dead_code)]
 	kind: SessionsUnavailableKind,
 	/// The info about the session window, if any.
+	#[allow(dead_code)]
 	info: Option<SessionsUnavailableInfo>,
 }
 

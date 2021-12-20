@@ -156,6 +156,7 @@ impl metrics::Metrics for Metrics {
 #[derive(Debug)]
 struct ValidatorGroup {
 	/// All [`AuthorityDiscoveryId`]'s that are assigned to us in this group.
+	#[allow(dead_code)]
 	discovery_ids: HashSet<AuthorityDiscoveryId>,
 	/// All [`ValidatorId`]'s of the current group to that we advertised our collation.
 	advertised_to: HashSet<AuthorityDiscoveryId>,
@@ -459,6 +460,7 @@ where
 #[derive(Debug)]
 struct GroupValidators {
 	/// The group those validators belong to.
+	#[allow(dead_code)]
 	group: GroupIndex,
 	/// The validators of above group (their discovery keys).
 	validators: Vec<AuthorityDiscoveryId>,
