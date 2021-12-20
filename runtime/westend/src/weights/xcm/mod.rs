@@ -191,7 +191,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn expect_origin(_origin: &Option<MultiLocation>) -> Weight {
 		XcmGeneric::<Runtime>::expect_origin()
 	}
-	fn expect_error(_error: &Option<(u32, Error)>) -> Weight {
+	fn expect_error(_error: &Option<(u32, XcmError)>) -> Weight {
 		XcmGeneric::<Runtime>::expect_error()
 	}
 	fn query_pallet() -> Weight {
