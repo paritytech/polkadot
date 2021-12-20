@@ -173,7 +173,6 @@ impl JobTrait for ProvisioningJob {
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let relay_parent = leaf.hash;
 		let span = leaf.span.clone();
 		async move {
 			let job = ProvisioningJob::new(leaf, metrics, receiver);
@@ -655,7 +654,7 @@ fn extend_by_random_subset_without_repetition(
 
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
-	metrics: &Metrics,
+	_metrics: &Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
 	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
 
