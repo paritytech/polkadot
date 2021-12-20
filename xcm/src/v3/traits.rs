@@ -415,28 +415,12 @@ pub trait XcmWeightInfo<Call> {
 	fn trap(code: &u64) -> Weight;
 	fn subscribe_version(query_id: &QueryId, max_response_weight: &u64) -> Weight;
 	fn unsubscribe_version() -> Weight;
-	fn burn_asset(_assets: &MultiAssets) -> Weight {
-		0
-	}
-	fn expect_asset(_assets: &MultiAssets) -> Weight {
-		0
-	}
-	fn expect_origin(_origin: &Option<MultiLocation>) -> Weight {
-		0
-	}
-	fn expect_error(_error: &Option<(u32, Error)>) -> Weight {
-		0
-	}
-	fn query_pallet() -> Weight {
-		0
-	}
-	fn expect_pallet(_pallet_index: &u32) -> Weight {
-		0
-	}
-	fn report_transact_status(_response_info: &QueryResponseInfo) -> Weight {
-		0
-	}
-	fn clear_transact_status() -> Weight {
-		0
-	}
+	fn burn_asset(_assets: &MultiAssets) -> Weight;
+	fn expect_asset(_assets: &MultiAssets) -> Weight;
+	fn expect_origin(_origin: &Option<MultiLocation>) -> Weight;
+	fn expect_error(_error: &Option<(u32, Error)>) -> Weight;
+	fn query_pallet() -> Weight;
+	fn expect_pallet(_pallet_index: &u32) -> Weight;
+	fn report_transact_status(_response_info: &QueryResponseInfo) -> Weight;
+	fn clear_transact_status() -> Weight;
 }

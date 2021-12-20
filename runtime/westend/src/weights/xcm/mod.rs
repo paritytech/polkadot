@@ -182,4 +182,28 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn unsubscribe_version() -> Weight {
 		XcmGeneric::<Runtime>::unsubscribe_version()
 	}
+	fn burn_asset(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmGeneric::<Runtime>::burn_asset())
+	}
+	fn expect_asset(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmGeneric::<Runtime>::expect_asset())
+	}
+	fn expect_origin(_origin: &Option<MultiLocation>) -> Weight {
+		XcmGeneric::<Runtime>::expect_origin()
+	}
+	fn expect_error(_error: &Option<(u32, Error)>) -> Weight {
+		XcmGeneric::<Runtime>::expect_error()
+	}
+	fn query_pallet() -> Weight {
+		XcmGeneric::<Runtime>::query_pallet()
+	}
+	fn expect_pallet(_pallet_index: &u32) -> Weight {
+		XcmGeneric::<Runtime>::expect_pallet()
+	}
+	fn report_transact_status(_response_info: &QueryResponseInfo) -> Weight {
+		XcmGeneric::<Runtime>::report_transact_status()
+	}
+	fn clear_transact_status() -> Weight {
+		XcmGeneric::<Runtime>::clear_transact_status()
+	}
 }
