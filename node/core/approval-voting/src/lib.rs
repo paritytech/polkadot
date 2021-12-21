@@ -50,12 +50,14 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::v1::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
+		ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
-use polkadot_primitives::v2::SessionInfo;
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
 use sp_consensus::SyncOracle;

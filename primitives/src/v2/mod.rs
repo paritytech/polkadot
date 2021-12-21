@@ -200,7 +200,7 @@ sp_api::decl_runtime_apis! {
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
 		fn on_chain_votes() -> Option<v1::ScrapedOnChainVotes<H>>;
 
-        /***** Added in v2 *****/
+		/***** Added in v2 *****/
 
 		/// Get the session info for the given session, if stored.
 		///

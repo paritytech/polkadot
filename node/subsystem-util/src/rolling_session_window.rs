@@ -20,8 +20,10 @@
 //! care about the state of particular blocks.
 
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::v1::{Hash, SessionIndex};
-use polkadot_primitives::v2::SessionInfo;
+use polkadot_primitives::{
+	v1::{Hash, SessionIndex},
+	v2::SessionInfo,
+};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{

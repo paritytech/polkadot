@@ -20,14 +20,16 @@ use memory_lru::{MemoryLruCache, ResidentSize};
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 use sp_consensus_babe::Epoch;
 
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionIndex, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
+		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+		PersistedValidationData, ScrapedOnChainVotes, SessionIndex, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
-use polkadot_primitives::v2::{PvfCheckStatement, SessionInfo};
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
 const VALIDATORS_CACHE_SIZE: usize = 64 * 1024;

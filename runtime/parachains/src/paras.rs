@@ -28,11 +28,13 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
-	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead,
-	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
+use primitives::{
+	v1::{
+		ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
+		ValidationCode, ValidationCodeHash, ValidatorSignature,
+	},
+	v2::PvfCheckStatement,
 };
-use primitives::v2::PvfCheckStatement; 
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 use sp_runtime::{
