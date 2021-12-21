@@ -19,6 +19,7 @@
 use crate::configuration::{self, Config, Pallet, Store};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
+use sp_std::prelude::*;
 
 /// The current storage version.
 ///
@@ -36,13 +37,15 @@ pub fn migrate_to_latest<T: Config>() -> Weight {
 	weight
 }
 
-mod v1 {
+pub mod v1 {
 	use super::*;
 	use primitives::v1::{Balance, SessionIndex};
 
 	// Copied over from configuration.rs @ 656dd280f266dc56bd0cf1dbe3ca232960912f34 and removed
 	// all the comments.
-	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug)]
+	#[derive(
+		parity_scale_codec::Encode, parity_scale_codec::Decode, scale_info::TypeInfo, Debug, Clone,
+	)]
 	pub struct HostConfiguration<BlockNumber> {
 		pub max_code_size: u32,
 		pub max_head_data_size: u32,
@@ -193,6 +196,11 @@ minimum_validation_upgrade_delay: pre.chain_availability_period + 10u32.into(),
 		}
 	};
 
+	let mut weight = 0;
+
+	// First, ActiveConfig
+
+	weight += T::DbWeight::get().reads_writes(1, 1);
 	if let Err(_) = <Pallet<T> as Store>::ActiveConfig::translate(|pre| pre.map(translate)) {
 		// `Err` is returned when the pre-migration type cannot be deserialized. This
 		// cannot happen if the migration runs correctly, i.e. against the expected version.
@@ -205,7 +213,24 @@ minimum_validation_upgrade_delay: pre.chain_availability_period + 10u32.into(),
 		);
 	}
 
-	T::DbWeight::get().reads_writes(1, 1)
+	// Second, PendingConfig -> PendingConfigs
+
+	weight += T::DbWeight::get().reads(2);
+	let current_session_index = crate::shared::Pallet::<T>::session_index();
+	let scheduled_session = crate::shared::Pallet::<T>::scheduled_session();
+	let mut pending_configs = Vec::new();
+
+	for session_index in current_session_index..=scheduled_session {
+		weight += T::DbWeight::get().reads(1);
+		if let Some(pending_config) = <Pallet<T> as Store>::PendingConfig::get(session_index) {
+			pending_configs.push((session_index, translate(pending_config)));
+		}
+	}
+
+	weight += T::DbWeight::get().writes(1);
+	<Pallet<T> as Store>::PendingConfigs::put(&pending_configs);
+
+	weight
 }
 
 #[cfg(test)]
@@ -254,66 +279,111 @@ mod tests {
 			chain_availability_period: 33,
 			..Default::default()
 		};
+		let pending_configs_v1 = vec![
+			(
+				1,
+				v1::HostConfiguration::<primitives::v1::BlockNumber> {
+					n_delay_tranches: 150,
+					..v1.clone()
+				},
+			),
+			(
+				2,
+				v1::HostConfiguration::<primitives::v1::BlockNumber> {
+					max_validators_per_core: Some(33),
+					..v1.clone()
+				},
+			),
+			(
+				3,
+				v1::HostConfiguration::<primitives::v1::BlockNumber> {
+					parathread_retries: 11,
+					..v1.clone()
+				},
+			),
+		];
 
 		new_test_ext(Default::default()).execute_with(|| {
-			// Implant the v1 version in the state.
+			// Implant the v1 data in the state.
 			frame_support::storage::unhashed::put_raw(
 				&configuration::ActiveConfig::<Test>::hashed_key(),
 				&v1.encode(),
 			);
+			for (session_index, pending_config) in &pending_configs_v1 {
+				frame_support::storage::unhashed::put_raw(
+					&configuration::PendingConfig::<Test>::hashed_key_for(session_index),
+					&pending_config.encode(),
+				);
+			}
+
+			// Assume the session index 1.
+			crate::shared::Pallet::<Test>::set_session_index(1);
 
 			migrate_to_v2::<Test>();
 
 			let v2 = configuration::ActiveConfig::<Test>::get();
 
-			// The same motivation as for the migration code. See `migrate_to_v2`.
-			#[rustfmt::skip]
+			assert_correct_translation(v1, v2);
+			let pending_configs_v2 = configuration::PendingConfigs::<Test>::get();
+			assert_eq!(pending_configs_v1.len(), pending_configs_v2.len());
+			for ((session_index_v1, pending_config_v1), (session_index_v2, pending_configs_v2)) in
+				pending_configs_v1.into_iter().zip(pending_configs_v2.into_iter())
 			{
-				assert_eq!(v1.max_code_size                            , v2.max_code_size);
-				assert_eq!(v1.max_head_data_size                       , v2.max_head_data_size);
-				assert_eq!(v1.max_upward_queue_count                   , v2.max_upward_queue_count);
-				assert_eq!(v1.max_upward_queue_size                    , v2.max_upward_queue_size);
-				assert_eq!(v1.max_upward_message_size                  , v2.max_upward_message_size);
-				assert_eq!(v1.max_upward_message_num_per_candidate     , v2.max_upward_message_num_per_candidate);
-				assert_eq!(v1.hrmp_max_message_num_per_candidate       , v2.hrmp_max_message_num_per_candidate);
-				assert_eq!(v1.validation_upgrade_frequency             , v2.validation_upgrade_frequency);
-				assert_eq!(v1.validation_upgrade_delay                 , v2.validation_upgrade_delay);
-				assert_eq!(v1.max_pov_size                             , v2.max_pov_size);
-				assert_eq!(v1.max_downward_message_size                , v2.max_downward_message_size);
-				assert_eq!(v1.ump_service_total_weight                 , v2.ump_service_total_weight);
-				assert_eq!(v1.hrmp_max_parachain_outbound_channels     , v2.hrmp_max_parachain_outbound_channels);
-				assert_eq!(v1.hrmp_max_parathread_outbound_channels    , v2.hrmp_max_parathread_outbound_channels);
-				assert_eq!(v1.hrmp_sender_deposit                      , v2.hrmp_sender_deposit);
-				assert_eq!(v1.hrmp_recipient_deposit                   , v2.hrmp_recipient_deposit);
-				assert_eq!(v1.hrmp_channel_max_capacity                , v2.hrmp_channel_max_capacity);
-				assert_eq!(v1.hrmp_channel_max_total_size              , v2.hrmp_channel_max_total_size);
-				assert_eq!(v1.hrmp_max_parachain_inbound_channels      , v2.hrmp_max_parachain_inbound_channels);
-				assert_eq!(v1.hrmp_max_parathread_inbound_channels     , v2.hrmp_max_parathread_inbound_channels);
-				assert_eq!(v1.hrmp_channel_max_message_size            , v2.hrmp_channel_max_message_size);
-				assert_eq!(v1.code_retention_period                    , v2.code_retention_period);
-				assert_eq!(v1.parathread_cores                         , v2.parathread_cores);
-				assert_eq!(v1.parathread_retries                       , v2.parathread_retries);
-				assert_eq!(v1.group_rotation_frequency                 , v2.group_rotation_frequency);
-				assert_eq!(v1.chain_availability_period                , v2.chain_availability_period);
-				assert_eq!(v1.thread_availability_period               , v2.thread_availability_period);
-				assert_eq!(v1.scheduling_lookahead                     , v2.scheduling_lookahead);
-				assert_eq!(v1.max_validators_per_core                  , v2.max_validators_per_core);
-				assert_eq!(v1.max_validators                           , v2.max_validators);
-				assert_eq!(v1.dispute_period                           , v2.dispute_period);
-				assert_eq!(v1.dispute_post_conclusion_acceptance_period, v2.dispute_post_conclusion_acceptance_period);
-				assert_eq!(v1.dispute_max_spam_slots                   , v2.dispute_max_spam_slots);
-				assert_eq!(v1.dispute_conclusion_by_time_out_period    , v2.dispute_conclusion_by_time_out_period);
-				assert_eq!(v1.no_show_slots                            , v2.no_show_slots);
-				assert_eq!(v1.n_delay_tranches                         , v2.n_delay_tranches);
-				assert_eq!(v1.zeroth_delay_tranche_width               , v2.zeroth_delay_tranche_width);
-				assert_eq!(v1.needed_approvals                         , v2.needed_approvals);
-				assert_eq!(v1.relay_vrf_modulo_samples                 , v2.relay_vrf_modulo_samples);
-				assert_eq!(v1.ump_max_individual_weight                , v2.ump_max_individual_weight);
-
-				assert_eq!(v2.pvf_checking_enabled, false);
-				assert_eq!(v2.pvf_voting_ttl, 2);
-				assert_eq!(v2.minimum_validation_upgrade_delay, 43);
-			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
+				assert_eq!(session_index_v1, session_index_v2);
+				assert_correct_translation(pending_config_v1, pending_configs_v2);
+			}
 		});
+
+		// The same motivation as for the migration code. See `migrate_to_v2`.
+		#[rustfmt::skip]
+		fn assert_correct_translation(
+			v1: v1::HostConfiguration<primitives::v1::BlockNumber>, 
+			v2: configuration::HostConfiguration<primitives::v1::BlockNumber>
+		) {
+			assert_eq!(v1.max_code_size                            , v2.max_code_size);
+			assert_eq!(v1.max_head_data_size                       , v2.max_head_data_size);
+			assert_eq!(v1.max_upward_queue_count                   , v2.max_upward_queue_count);
+			assert_eq!(v1.max_upward_queue_size                    , v2.max_upward_queue_size);
+			assert_eq!(v1.max_upward_message_size                  , v2.max_upward_message_size);
+			assert_eq!(v1.max_upward_message_num_per_candidate     , v2.max_upward_message_num_per_candidate);
+			assert_eq!(v1.hrmp_max_message_num_per_candidate       , v2.hrmp_max_message_num_per_candidate);
+			assert_eq!(v1.validation_upgrade_frequency             , v2.validation_upgrade_frequency);
+			assert_eq!(v1.validation_upgrade_delay                 , v2.validation_upgrade_delay);
+			assert_eq!(v1.max_pov_size                             , v2.max_pov_size);
+			assert_eq!(v1.max_downward_message_size                , v2.max_downward_message_size);
+			assert_eq!(v1.ump_service_total_weight                 , v2.ump_service_total_weight);
+			assert_eq!(v1.hrmp_max_parachain_outbound_channels     , v2.hrmp_max_parachain_outbound_channels);
+			assert_eq!(v1.hrmp_max_parathread_outbound_channels    , v2.hrmp_max_parathread_outbound_channels);
+			assert_eq!(v1.hrmp_sender_deposit                      , v2.hrmp_sender_deposit);
+			assert_eq!(v1.hrmp_recipient_deposit                   , v2.hrmp_recipient_deposit);
+			assert_eq!(v1.hrmp_channel_max_capacity                , v2.hrmp_channel_max_capacity);
+			assert_eq!(v1.hrmp_channel_max_total_size              , v2.hrmp_channel_max_total_size);
+			assert_eq!(v1.hrmp_max_parachain_inbound_channels      , v2.hrmp_max_parachain_inbound_channels);
+			assert_eq!(v1.hrmp_max_parathread_inbound_channels     , v2.hrmp_max_parathread_inbound_channels);
+			assert_eq!(v1.hrmp_channel_max_message_size            , v2.hrmp_channel_max_message_size);
+			assert_eq!(v1.code_retention_period                    , v2.code_retention_period);
+			assert_eq!(v1.parathread_cores                         , v2.parathread_cores);
+			assert_eq!(v1.parathread_retries                       , v2.parathread_retries);
+			assert_eq!(v1.group_rotation_frequency                 , v2.group_rotation_frequency);
+			assert_eq!(v1.chain_availability_period                , v2.chain_availability_period);
+			assert_eq!(v1.thread_availability_period               , v2.thread_availability_period);
+			assert_eq!(v1.scheduling_lookahead                     , v2.scheduling_lookahead);
+			assert_eq!(v1.max_validators_per_core                  , v2.max_validators_per_core);
+			assert_eq!(v1.max_validators                           , v2.max_validators);
+			assert_eq!(v1.dispute_period                           , v2.dispute_period);
+			assert_eq!(v1.dispute_post_conclusion_acceptance_period, v2.dispute_post_conclusion_acceptance_period);
+			assert_eq!(v1.dispute_max_spam_slots                   , v2.dispute_max_spam_slots);
+			assert_eq!(v1.dispute_conclusion_by_time_out_period    , v2.dispute_conclusion_by_time_out_period);
+			assert_eq!(v1.no_show_slots                            , v2.no_show_slots);
+			assert_eq!(v1.n_delay_tranches                         , v2.n_delay_tranches);
+			assert_eq!(v1.zeroth_delay_tranche_width               , v2.zeroth_delay_tranche_width);
+			assert_eq!(v1.needed_approvals                         , v2.needed_approvals);
+			assert_eq!(v1.relay_vrf_modulo_samples                 , v2.relay_vrf_modulo_samples);
+			assert_eq!(v1.ump_max_individual_weight                , v2.ump_max_individual_weight);
+
+			assert_eq!(v2.pvf_checking_enabled, false);
+			assert_eq!(v2.pvf_voting_ttl, 2);
+			assert_eq!(v2.minimum_validation_upgrade_delay, 43);
+		}
 	}
 }
