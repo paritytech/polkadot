@@ -1399,9 +1399,9 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			None
 		}
 	}
 
