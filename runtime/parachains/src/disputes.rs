@@ -25,7 +25,7 @@ use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, storage::TransactionOutcome, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
+use primitives::v1::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
 	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
 	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
@@ -1238,7 +1238,7 @@ mod tests {
 		traits::{OnFinalize, OnInitialize},
 	};
 	use frame_system::InitKind;
-	use primitives::v2::BlockNumber;
+	use primitives::v1::BlockNumber;
 	use sp_core::{crypto::CryptoType, Pair};
 
 	// All arguments for `initializer::on_new_session`

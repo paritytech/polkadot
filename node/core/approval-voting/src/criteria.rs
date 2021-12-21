@@ -20,9 +20,10 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use polkadot_primitives::v2::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+use polkadot_primitives::v1::{
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, ValidatorIndex,
 };
+use polkadot_primitives::v2::SessionInfo;
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
 
@@ -536,7 +537,7 @@ fn is_in_backing_group(
 mod tests {
 	use super::*;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_primitives::v2::{Hash, ASSIGNMENT_KEY_TYPE_ID};
+	use polkadot_primitives::v1::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;

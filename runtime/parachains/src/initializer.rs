@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
@@ -339,7 +339,7 @@ mod tests {
 		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
 		System,
 	};
-	use primitives::v2::{HeadData, Id as ParaId};
+	use primitives::v1::{HeadData, Id as ParaId};
 	use test_helpers::dummy_validation_code;
 
 	use frame_support::{

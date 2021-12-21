@@ -20,12 +20,13 @@ use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_primitives::v2::{
+use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use polkadot_primitives::v2::{PvfCheckStatement, SessionInfo};
 use sp_core::testing::TaskExecutor;
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -107,7 +108,7 @@ sp_api::mock_impl_runtime_apis! {
 		fn check_validation_outputs(
 			&self,
 			para_id: ParaId,
-			_commitments: polkadot_primitives::v2::CandidateCommitments,
+			_commitments: polkadot_primitives::v1::CandidateCommitments,
 		) -> bool {
 			self.validation_outputs_results
 				.get(&para_id)
@@ -207,7 +208,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v2::Header>,
+			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v1::Header>,
 			_key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			None
@@ -430,7 +431,7 @@ fn requests_check_validation_outputs() {
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
-	let commitments = polkadot_primitives::v2::CandidateCommitments::default();
+	let commitments = polkadot_primitives::v1::CandidateCommitments::default();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	runtime_api.validation_outputs_results.insert(para_a, false);

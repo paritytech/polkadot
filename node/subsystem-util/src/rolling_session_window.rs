@@ -20,7 +20,8 @@
 //! care about the state of particular blocks.
 
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::v2::{Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::v1::{Hash, SessionIndex};
+use polkadot_primitives::v2::SessionInfo;
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -271,7 +272,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v2::Header;
+	use polkadot_primitives::v1::Header;
 	use sp_core::testing::TaskExecutor;
 
 	pub const TEST_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);

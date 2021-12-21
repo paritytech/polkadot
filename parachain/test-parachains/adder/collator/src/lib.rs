@@ -22,7 +22,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{
 	Collation, CollationResult, CollationSecondedSignal, CollatorFn, PoV, Statement,
 };
-use polkadot_primitives::v2::{CollatorId, CollatorPair};
+use polkadot_primitives::v1::{CollatorId, CollatorPair};
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
@@ -247,7 +247,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
-	use polkadot_primitives::v2::PersistedValidationData;
+	use polkadot_primitives::v1::PersistedValidationData;
 
 	#[test]
 	fn collator_works() {

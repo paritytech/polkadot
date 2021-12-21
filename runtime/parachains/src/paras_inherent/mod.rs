@@ -37,7 +37,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, CurrentBlockRandomness};
-use primitives::v2::{
+use primitives::v1::{
 	BackedCandidate, CandidateHash, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
 	SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,

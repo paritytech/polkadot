@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair};
+use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
 use crate::{
 	error::{Error, FatalResult, NonFatal, Result},

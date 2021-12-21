@@ -20,7 +20,7 @@ use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
-use polkadot_primitives::v2::{
+use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
 	ValidatorIndex, ValidatorSignature,
 };

@@ -22,7 +22,7 @@ use crate::{
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
 use kvdb::KeyValueDB;
-use polkadot_primitives::v2::Id as ParaId;
+use polkadot_primitives::v1::Id as ParaId;
 use std::{collections::HashMap, sync::Arc};
 
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};

@@ -49,12 +49,13 @@ use futures::{
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
 	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
+	PersistedValidationData, SessionIndex, Signed, SigningContext, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use polkadot_primitives::v2::SessionInfo;
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, ByteArray};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};

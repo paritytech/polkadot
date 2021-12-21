@@ -28,10 +28,11 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
-	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
+use primitives::v1::{
+	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead,
 	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
+use primitives::v2::PvfCheckStatement; 
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 use sp_runtime::{
@@ -2978,7 +2979,7 @@ mod tests {
 
 	#[test]
 	fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-		use primitives::v2::well_known_keys;
+		use primitives::v1::well_known_keys;
 
 		let a = ParaId::from(2020);
 
@@ -2994,7 +2995,7 @@ mod tests {
 
 	#[test]
 	fn verify_upgrade_restriction_signal_is_externally_accessible() {
-		use primitives::v2::well_known_keys;
+		use primitives::v1::well_known_keys;
 
 		let a = ParaId::from(2020);
 

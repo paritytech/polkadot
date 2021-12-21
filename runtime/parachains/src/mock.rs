@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
-use primitives::v2::{
+use primitives::v1::{
 	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
 	ValidatorIndex,
 };

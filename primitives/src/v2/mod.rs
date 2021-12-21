@@ -16,7 +16,7 @@
 
 //! `V2` Primitives.
 
-pub use crate::v1::{SessionInfo as v1SessionInfo, *};
+use crate::v1;
 
 use parity_scale_codec::{Decode, Encode};
 use primitives::RuntimeDebug;
@@ -33,7 +33,7 @@ pub struct SessionInfo {
 	/****** New in v2 *******/
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
-	pub active_validator_indices: Vec<ValidatorIndex>,
+	pub active_validator_indices: Vec<v1::ValidatorIndex>,
 
 	/****** Old fields ******/
 	/// Validators in canonical ordering.
@@ -43,7 +43,7 @@ pub struct SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Vec<ValidatorId>,
+	pub validators: Vec<v1::ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
@@ -51,7 +51,7 @@ pub struct SessionInfo {
 	/// participating in parachain consensus - see
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
 	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
-	pub discovery_keys: Vec<AuthorityDiscoveryId>,
+	pub discovery_keys: Vec<v1::AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	///
 	/// NOTE: There might be more authorities in the current session, than validators participating
@@ -62,11 +62,11 @@ pub struct SessionInfo {
 	/// ```ignore
 	///		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
 	///	```
-	pub assignment_keys: Vec<AssignmentId>,
+	pub assignment_keys: Vec<v1::AssignmentId>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	pub validator_groups: Vec<Vec<v1::ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -82,8 +82,8 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
-impl From<v1SessionInfo> for SessionInfo {
-	fn from(old: v1SessionInfo) -> SessionInfo {
+impl From<v1::SessionInfo> for SessionInfo {
+	fn from(old: v1::SessionInfo) -> SessionInfo {
 		SessionInfo {
 			// new fields
 			active_validator_indices: Vec::new(),
@@ -102,88 +102,119 @@ impl From<v1SessionInfo> for SessionInfo {
 	}
 }
 
+/// A statement from the specified validator whether the given validation code passes PVF
+/// pre-checking or not anchored to the given session index.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	/// `true` if the subject passed pre-checking and `false` otherwise.
+	pub accept: bool,
+	/// The validation code hash that was checked.
+	pub subject: v1::ValidationCodeHash,
+	/// The index of a session during which this statement is considered valid.
+	pub session_index: v1::SessionIndex,
+	/// The index of the validator from which this statement originates.
+	pub validator_index: v1::ValidatorIndex,
+}
+
+impl PvfCheckStatement {
+	/// Produce the payload used for signing this type of statement.
+	///
+	/// It is expected that it will be signed by the validator at `validator_index` in the
+	/// `session_index`.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	#[api_version(2)]
-	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
+	pub trait ParachainHost<H: Encode + Decode = v1::Hash, N: Encode + Decode = v1::BlockNumber> {
 		/// Get the current validators.
-		fn validators() -> Vec<ValidatorId>;
+		fn validators() -> Vec<v1::ValidatorId>;
 
 		/// Returns the validator groups and rotation info localized based on the hypothetical child
 		///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
 		/// should be the successor of the number of the block.
-		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
+		fn validator_groups() -> (Vec<Vec<v1::ValidatorIndex>>, v1::GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores as relevant to the child block.
 		/// Cores are either free or occupied. Free cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<H, N>>;
+		fn availability_cores() -> Vec<v1::CoreState<H, N>>;
 
 		/// Yields the persisted validation data for the given `ParaId` along with an assumption that
 		/// should be used if the para currently occupies a core.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<H, N>>;
+		fn persisted_validation_data(para_id: v1::Id, assumption: v1::OccupiedCoreAssumption)
+			-> Option<v1::PersistedValidationData<H, N>>;
 
 		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
 		/// validation code hash. Instead of accepting assumption about the para, matches the validation
 		/// data hash against an expected one and yields `None` if they're not equal.
 		fn assumed_validation_data(
-			para_id: Id,
-			expected_persisted_validation_data_hash: Hash,
-		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;
+			para_id: v1::Id,
+			expected_persisted_validation_data_hash: v1::Hash,
+		) -> Option<(v1::PersistedValidationData<H, N>, v1::ValidationCodeHash)>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
+		fn check_validation_outputs(para_id: v1::Id, outputs: v1::CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
-		fn session_index_for_child() -> SessionIndex;
+		fn session_index_for_child() -> v1::SessionIndex;
 
 		/// Old method to fetch v1 session info.
 		#[changed_in(2)]
-		fn session_info(index: SessionIndex) -> Option<v1SessionInfo>;
-
-		/// Get the session info for the given session, if stored.
-		///
-		/// NOTE: This function is only available since parachain host version 2.
-		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
+		fn session_info(index: v1::SessionIndex) -> Option<v1::SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode>;
+		fn validation_code(para_id: v1::Id, assumption: v1::OccupiedCoreAssumption)
+			-> Option<v1::ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
+		fn candidate_pending_availability(para_id: v1::Id) -> Option<v1::CommittedCandidateReceipt<H>>;
 
 		/// Get a vector of events concerning candidates that occurred within a block.
-		fn candidate_events() -> Vec<CandidateEvent<H>>;
+		fn candidate_events() -> Vec<v1::CandidateEvent<H>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
 		fn dmq_contents(
-			recipient: Id,
-		) -> Vec<InboundDownwardMessage<N>>;
+			recipient: v1::Id,
+		) -> Vec<v1::InboundDownwardMessage<N>>;
 
 		/// Get the contents of all channels addressed to the given recipient. Channels that have no
 		/// messages in them are also included.
-		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
+		fn inbound_hrmp_channels_contents(recipient: v1::Id) -> BTreeMap<v1::Id, Vec<v1::InboundHrmpMessage<N>>>;
 
 		/// Get the validation code from its hash.
-		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
+		fn validation_code_by_hash(hash: v1::ValidationCodeHash) -> Option<v1::ValidationCode>;
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
-		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
+		fn on_chain_votes() -> Option<v1::ScrapedOnChainVotes<H>>;
+
+        /***** Added in v2 *****/
+
+		/// Get the session info for the given session, if stored.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		fn session_info(index: v1::SessionIndex) -> Option<SessionInfo>;
 
 		/// Submits a PVF pre-checking statement into the transaction pool.
-		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature);
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: v1::ValidatorSignature);
 
 		/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
-		fn pvfs_require_precheck() -> Vec<ValidationCodeHash>;
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		fn pvfs_require_precheck() -> Vec<v1::ValidationCodeHash>;
 	}
 }

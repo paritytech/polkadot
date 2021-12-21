@@ -49,7 +49,7 @@ mod mock;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
-use primitives::v2::Id as ParaId;
+use primitives::v1::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 ///

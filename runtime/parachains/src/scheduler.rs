@@ -36,7 +36,7 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{
+use primitives::v1::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
 };
@@ -766,7 +766,7 @@ mod tests {
 
 	use frame_support::assert_ok;
 	use keyring::Sr25519Keyring;
-	use primitives::v2::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
+	use primitives::v1::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
 
 	use crate::{
 		configuration::HostConfiguration,

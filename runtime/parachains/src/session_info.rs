@@ -24,7 +24,8 @@ use crate::{
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
 use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
-use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex};
+use primitives::v2::SessionInfo;
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -194,7 +195,7 @@ mod tests {
 		util::take_active_subset,
 	};
 	use keyring::Sr25519Keyring;
-	use primitives::v2::{BlockNumber, ValidatorId, ValidatorIndex};
+	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
 
 	fn run_to_block(
 		to: BlockNumber,

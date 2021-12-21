@@ -37,7 +37,7 @@ use test_runner::{
 };
 
 type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
-type Block = polkadot_primitives::v2::Block;
+type Block = polkadot_primitives::v1::Block;
 type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
 
 /// Declare an instance of the native executor named `ExecutorDispatch`. Include the wasm binary as the

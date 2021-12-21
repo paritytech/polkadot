@@ -23,7 +23,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v2::{Block, BlockId, Hash, ParachainHost};
+use polkadot_primitives::v1::{Block, BlockId, Hash};
+use polkadot_primitives::v2::ParachainHost;
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},

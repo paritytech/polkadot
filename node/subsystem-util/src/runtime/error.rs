@@ -21,7 +21,7 @@ use futures::channel::oneshot;
 use thiserror::Error;
 
 use polkadot_node_subsystem::errors::RuntimeApiError;
-use polkadot_primitives::v2::SessionIndex;
+use polkadot_primitives::v1::SessionIndex;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
