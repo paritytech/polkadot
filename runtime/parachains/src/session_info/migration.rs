@@ -20,19 +20,19 @@ use crate::session_info::{Config, Pallet, Store};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 
 /// The current storage version.
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 /// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
 pub fn migrate_to_latest<T: Config>() -> Weight {
 	let mut weight = 0;
-	if StorageVersion::get::<Pallet<T>>() <= 1 {
-		weight += migrate_to_v2::<T>();
-		StorageVersion::new(2).put::<Pallet<T>>();
+	if StorageVersion::get::<Pallet<T>>() < 1 {
+		weight += migrate_to_v1::<T>();
+		StorageVersion::new(1).put::<Pallet<T>>();
 	}
 	weight
 }
 
-pub fn migrate_to_v2<T: Config>() -> Weight {
+pub fn migrate_to_v1<T: Config>() -> Weight {
 	let mut vs = 0;
 
 	<Pallet<T> as Store>::Sessions::translate_values(|old: primitives::v1::SessionInfo| {
