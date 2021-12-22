@@ -49,6 +49,8 @@ track node warning and error log rates. These can be further investigated in Gra
 
 Requires Loki for log aggregation and querying.
 
+[Dashboard JSON](general/kusama_deployment.json)
+
 ## Parachain Status
 
 This dashboard allows you to see at a glance how fast are candidates approved, disputed and
@@ -65,6 +67,8 @@ It includes panels covering key subsystems of the parachain node side implementa
 It is important to note that this dashboard applies only for validator nodes. The prometheus 
 queries assume the `instance` label value contains the string `validator` only for validator
 nodes. If this assumption is broken the dashboard will shown useless or invalid data.
+
+[Dashboard JSON](parachains/status.json)
 
 ### Key liveliness indicators
 - **Relay chain finality lag**. How far behind finality is compared to the current best block. By design,
