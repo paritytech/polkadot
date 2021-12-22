@@ -858,7 +858,7 @@ fn multiple_requests_in_parallel_are_working() {
 }
 
 #[test]
-fn request_babe_epoch() {
+fn requests_babe_epoch() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let epoch = BabeEpoch {
