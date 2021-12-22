@@ -292,6 +292,8 @@ mod tests {
 			no_show_slots: index as _,
 			needed_approvals: index as _,
 			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 

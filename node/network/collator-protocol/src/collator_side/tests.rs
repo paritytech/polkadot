@@ -114,6 +114,8 @@ impl Default for TestState {
 				no_show_slots: 0,
 				needed_approvals: 0,
 				active_validator_indices: vec![],
+				dispute_period: 6,
+				random_seed: [0u8; 32],
 			},
 			group_rotation_info,
 			validator_peer_id,
