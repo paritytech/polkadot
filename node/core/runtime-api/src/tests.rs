@@ -23,8 +23,8 @@ use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -51,8 +51,6 @@ struct MockRuntimeApi {
 	hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	babe_epoch: Option<BabeEpoch>,
 	on_chain_votes: Option<ScrapedOnChainVotes>,
-	submitted_pvf_check_statement: Arc<Mutex<Vec<(PvfCheckStatement, ValidatorSignature)>>>,
-	pvfs_require_precheck: Vec<ValidationCodeHash>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -167,18 +165,6 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn on_chain_votes(&self) -> Option<ScrapedOnChainVotes> {
 			self.on_chain_votes.clone()
-		}
-
-		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature) {
-			self
-				.submitted_pvf_check_statement
-				.lock()
-				.expect("poisoned mutext")
-				.push((stmt, signature));
-		}
-
-		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
-			self.pvfs_require_precheck.clone()
 		}
 	}
 
@@ -886,96 +872,6 @@ fn requests_babe_epoch() {
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), epoch);
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-	};
-
-	futures::executor::block_on(future::join(subsystem_task, test_task));
-}
-
-#[test]
-fn requests_submit_pvf_check_statement() {
-	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-	let spawner = sp_core::testing::TaskExecutor::new();
-
-	let runtime_api = Arc::new(MockRuntimeApi::default());
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
-	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
-
-	let relay_parent = [1; 32].into();
-	let test_task = async move {
-		let (stmt, sig) = fake_statement();
-
-		// Send the same statement twice.
-		//
-		// Here we just want to ensure that those requests do not go through the cache.
-		let (tx, rx) = oneshot::channel();
-		ctx_handle
-			.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(
-					relay_parent,
-					Request::SubmitPvfCheckStatement(stmt.clone(), sig.clone(), tx),
-				),
-			})
-			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
-		let (tx, rx) = oneshot::channel();
-		ctx_handle
-			.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(
-					relay_parent,
-					Request::SubmitPvfCheckStatement(stmt.clone(), sig.clone(), tx),
-				),
-			})
-			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
-
-		assert_eq!(
-			&*runtime_api.submitted_pvf_check_statement.lock().expect("poisened mutex"),
-			&[(stmt.clone(), sig.clone()), (stmt.clone(), sig.clone())]
-		);
-
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-	};
-
-	futures::executor::block_on(future::join(subsystem_task, test_task));
-
-	fn fake_statement() -> (PvfCheckStatement, ValidatorSignature) {
-		let stmt = PvfCheckStatement {
-			accept: true,
-			subject: [1; 32].into(),
-			session_index: 1,
-			validator_index: 1.into(),
-		};
-		let sig = sp_keyring::Sr25519Keyring::Alice.sign(&stmt.signing_payload()).into();
-		(stmt, sig)
-	}
-}
-
-#[test]
-fn requests_pvfs_require_precheck() {
-	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-	let spawner = sp_core::testing::TaskExecutor::new();
-
-	let runtime_api = Arc::new({
-		let mut runtime_api = MockRuntimeApi::default();
-		runtime_api.pvfs_require_precheck = vec![[1; 32].into(), [2; 32].into()];
-		runtime_api
-	});
-
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
-	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
-
-	let relay_parent = [1; 32].into();
-	let test_task = async move {
-		let (tx, rx) = oneshot::channel();
-
-		ctx_handle
-			.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(relay_parent, Request::PvfsRequirePrecheck(tx)),
-			})
-			.await;
-
-		assert_eq!(rx.await.unwrap().unwrap(), vec![[1; 32].into(), [2; 32].into()]);
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 

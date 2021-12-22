@@ -986,7 +986,6 @@ impl ApprovalVote {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(2)]
 	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
@@ -1055,12 +1054,6 @@ sp_api::decl_runtime_apis! {
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
-
-		/// Submits a PVF pre-checking statement into the transaction pool.
-		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature);
-
-		/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
-		fn pvfs_require_precheck() -> Vec<ValidationCodeHash>;
 	}
 }
 
