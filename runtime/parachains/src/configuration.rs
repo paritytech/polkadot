@@ -219,7 +219,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			thread_availability_period: 1u32.into(),
 			no_show_slots: 1u32.into(),
 			validation_upgrade_frequency: Default::default(),
-			validation_upgrade_delay: Default::default(),
+			validation_upgrade_delay: 2u32.into(),
 			code_retention_period: Default::default(),
 			max_code_size: Default::default(),
 			max_pov_size: Default::default(),
@@ -288,9 +288,14 @@ pub enum InconsistentError<BlockNumber> {
 		minimum_validation_upgrade_delay: BlockNumber,
 		thread_availability_period: BlockNumber,
 	},
+	/// `validation_upgrade_delay` is less than or equal 1.
+	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
 }
 
-impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfiguration<BlockNumber> {
+impl<BlockNumber> HostConfiguration<BlockNumber>
+where
+	BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone + From<u32>,
+{
 	/// Checks that this instance is consistent with the requirements on each individual member.
 	///
 	/// # Errors
@@ -338,6 +343,12 @@ impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfigurat
 			return Err(MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
 				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
 				thread_availability_period: self.thread_availability_period.clone(),
+			})
+		}
+
+		if self.validation_upgrade_delay <= 1.into() {
+			return Err(ValidationUpgradeDelayIsTooLow {
+				validation_upgrade_delay: self.validation_upgrade_delay.clone(),
 			})
 		}
 
@@ -1497,6 +1508,11 @@ mod tests {
 			);
 			assert_err!(
 				Configuration::set_minimum_validation_upgrade_delay(Origin::root(), 9),
+				Error::<Test>::InvalidNewValue
+			);
+
+			assert_err!(
+				Configuration::set_validation_upgrade_delay(Origin::root(), 0),
 				Error::<Test>::InvalidNewValue
 			);
 		});
