@@ -89,6 +89,10 @@ default:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
 
+.rules-test-pr:            &rules-test-pr
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
   secrets:
@@ -291,6 +295,7 @@ build-malus:
 .check-dependent-project:          &check-dependent-project
   stage:                           build
   <<:                              *docker-env
+  <<:                              *rules-test-pr
   <<:                              *vault-secrets
   script:
     - git clone
