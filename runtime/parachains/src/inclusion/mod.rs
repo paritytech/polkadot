@@ -176,7 +176,6 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// and
 	// https://github.com/paritytech/polkadot/issues/4386
 	sp_std::cmp::min(n_validators, 2)
-	
 }
 
 #[frame_support::pallet]
