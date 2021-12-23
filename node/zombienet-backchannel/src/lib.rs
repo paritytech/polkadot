@@ -23,8 +23,7 @@ use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use lazy_static::lazy_static;
 use parity_scale_codec as codec;
 use serde::{Deserialize, Serialize};
-use std::env;
-use std::sync::Mutex;
+use std::{env, sync::Mutex};
 use tokio::{net::TcpStream, sync::broadcast};
 use tokio_tungstenite::{
 	connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
@@ -54,8 +53,8 @@ pub struct Broadcaster;
 pub const ZOMBIENET: &str = "🧟ZOMBIENET🧟";
 
 impl Broadcaster {
-    /// Return a subscriber that will receive all message broadcasted by the zombienet backchannel
-    /// websocket server.
+	/// Return a subscriber that will receive all message broadcasted by the zombienet backchannel
+	/// websocket server.
 	pub fn subscribe(&self) -> Result<broadcast::Receiver<BackchannelItem>, BackchannelError> {
 		let mut zombienet_bkc = ZOMBIENET_BACKCHANNEL.lock().unwrap();
 		let sender = zombienet_bkc.as_mut().unwrap().broadcast_tx.clone();
@@ -66,7 +65,7 @@ impl Broadcaster {
 		}
 	}
 
-    /// Provides a simple api to send a key/value to the zombienet websocket server.
+	/// Provides a simple api to send a key/value to the zombienet websocket server.
 	pub async fn send(
 		&mut self,
 		key: &'static str,
@@ -74,7 +73,7 @@ impl Broadcaster {
 	) -> Result<(), BackchannelError> {
 		let mut zombienet_bkc = ZOMBIENET_BACKCHANNEL.lock().unwrap();
 		if zombienet_bkc.is_none() {
-			return Err(BackchannelError::Uninitialized);
+			return Err(BackchannelError::Uninitialized)
 		}
 		let encoded = val.encode();
 		let backchannel_item = BackchannelItem {
@@ -114,15 +113,14 @@ impl ZombienetBackchannel {
 			tokio::spawn(async move {
 				while let Some(Ok(Message::Text(text))) = read.next().await {
 					match serde_json::from_str::<BackchannelItem>(&text) {
-						Ok(backchannel_item) => {
+						Ok(backchannel_item) =>
 							if tx1.send(backchannel_item).is_err() {
 								tracing::error!("Error sending through the channel");
-								return;
-							}
-						}
+								return
+							},
 						Err(_) => {
 							tracing::error!("Invalid payload received");
-						}
+						},
 					}
 				}
 			});
@@ -141,14 +139,14 @@ impl ZombienetBackchannel {
 			});
 
 			*zombienet_bkc = Some(ZombienetBackchannel { broadcast_tx: tx, ws_tx: tx_relay });
-			return Ok(());
+			return Ok(())
 		}
 
 		Err(BackchannelError::AlreadyInitialized)
 	}
 
-    /// Ensure that the backchannel is initialized and return a broadcaster instance
-    /// allowing to subscribe or send new items.
+	/// Ensure that the backchannel is initialized and return a broadcaster instance
+	/// allowing to subscribe or send new items.
 	pub fn broadcaster() -> Result<Broadcaster, BackchannelError> {
 		if ZOMBIENET_BACKCHANNEL.lock().unwrap().is_some() {
 			Ok(Broadcaster {})
