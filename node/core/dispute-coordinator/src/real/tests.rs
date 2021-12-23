@@ -34,9 +34,12 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_primitives::SignedDisputeStatement;
 use polkadot_node_subsystem::{
-	messages::{DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult},
+	messages::{
+		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		ImportStatementsResult,
+	},
 	overseer::FromOverseer,
-	OverseerSignal,
+	ChainApiError, OverseerSignal,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use sc_keystore::LocalKeystore;
@@ -62,15 +65,12 @@ use crate::{
 	real::{
 		backend::Backend,
 		participation::{participation_full_happy_path, participation_missing_availability},
-		status::ACTIVE_DURATION_SECS,
+		Config, DisputeCoordinatorSubsystem,
 	},
-	Config, DisputeCoordinatorSubsystem,
+	status::{Clock, Timestamp, ACTIVE_DURATION_SECS},
 };
 
-use super::{
-	db::v1::DbBackend,
-	status::{Clock, Timestamp},
-};
+use super::db::v1::DbBackend;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -235,6 +235,19 @@ impl TestState {
 				}
 			)
 		}
+
+		// Since the test harness sends active leaves update for each block
+		// consecutively, walking back for ancestors is not necessary. Sending
+		// an error to the subsystem will force-skip this procedure, the ordering
+		// provider will only request for candidates included in the leaf.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+				tx
+			)) => {
+				tx.send(Err(ChainApiError::from(""))).unwrap();
+			}
+		);
 
 		assert_matches!(
 			virtual_overseer.recv().await,

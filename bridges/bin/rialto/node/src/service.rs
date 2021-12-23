@@ -207,7 +207,7 @@ where
 		)?;
 	let justification_import = grandpa_block_import.clone();
 
-	let babe_config = sc_consensus_babe::Config::get_or_compute(&*client)?;
+	let babe_config = sc_consensus_babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
 		sc_consensus_babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
 
@@ -473,6 +473,7 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
+
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config
 			.database
@@ -581,6 +582,7 @@ where
 					dispute_req_receiver,
 					pov_req_receiver,
 					statement_req_receiver,
+					disputes_enabled: false,
 				},
 			)?;
 		let handle = Handle::new(overseer_handle);

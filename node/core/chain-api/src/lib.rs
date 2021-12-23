@@ -145,7 +145,7 @@ where
 							Ok(None) => None,
 							Ok(Some(header)) => {
 								// stop at the genesis header.
-								if header.number == 1 {
+								if header.number == 0 {
 									None
 								} else {
 									hash = header.parent_hash;
