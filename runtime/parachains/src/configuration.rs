@@ -33,7 +33,6 @@ pub use pallet::*;
 
 pub mod migration;
 
-#[allow(dead_code)]
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
@@ -72,7 +71,12 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum frequency at which parachains can update their validation code.
+	/// The minimum period, in blocks, between which parachains can update their validation code.
+	///
+	/// If PVF pre-checking is enabled this should be greater than the maximum number of blocks
+	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
+	/// specified by [`pvf_voting_ttl`]. Unlike, [`pvf_voting_ttl`], this parameter uses blocks
+	/// as a unit.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
@@ -177,6 +181,31 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The maximum amount of weight any individual upward message may consume. Messages above this
 	/// weight go into the overweight queue and may only be serviced explicitly.
 	pub ump_max_individual_weight: Weight,
+	/// This flag controls whether PVF pre-checking is enabled.
+	///
+	/// If the flag is false, the behavior should be exactly the same as prior. Specifically, the
+	/// upgrade procedure is time-based and parachains that do not look at the go-ahead signal
+	/// should still work.
+	pub pvf_checking_enabled: bool,
+	/// If an active PVF pre-checking vote observes this many number of sessions it gets automatically
+	/// rejected.
+	///
+	/// 0 means PVF pre-checking will be rejected on the first observed session unless the voting
+	/// gained supermajority before that the session change.
+	pub pvf_voting_ttl: SessionIndex,
+	/// The lower bound number of blocks an upgrade can be scheduled.
+	///
+	/// Typically, upgrade gets scheduled [`validation_upgrade_delay`] relay-chain blocks after
+	/// the relay-parent of the parablock that signalled the validation code upgrade. However,
+	/// in the case a pre-checking voting was concluded in a longer duration the upgrade will be
+	/// scheduled to the next block.
+	///
+	/// That can disrupt parachain inclusion. Specifically, it will make the blocks that were
+	/// already backed invalid.
+	///
+	/// To prevent that, we introduce the minimum number of blocks after which the upgrade can be
+	/// scheduled. This number is controlled by this field.
+	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -222,6 +251,9 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+			pvf_checking_enabled: false,
+			pvf_voting_ttl: 2u32.into(),
+			minimum_validation_upgrade_delay: 0.into(),
 		}
 	}
 }
@@ -328,9 +360,22 @@ pub mod pallet {
 		StorageValue<_, HostConfiguration<T::BlockNumber>, ValueQuery>;
 
 	/// Pending configuration (if any) for the next session.
+	///
+	/// DEPRECATED: This is no longer used, and will be removed in the future.
 	#[pallet::storage]
 	pub(crate) type PendingConfig<T: Config> =
-		StorageMap<_, Twox64Concat, SessionIndex, HostConfiguration<T::BlockNumber>>;
+		StorageMap<_, Twox64Concat, SessionIndex, migration::v1::HostConfiguration<T::BlockNumber>>;
+
+	/// Pending configuration changes.
+	///
+	/// This is a list of configuration changes, each with a session index at which it should
+	/// be applied.
+	///
+	/// The list is sorted ascending by session index. Also, this list can only contain at most
+	/// 2 items: for the next session and for the `scheduled_session`.
+	#[pallet::storage]
+	pub(crate) type PendingConfigs<T: Config> =
+		StorageValue<_, Vec<(SessionIndex, HostConfiguration<T::BlockNumber>)>, ValueQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
@@ -365,7 +410,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.validation_upgrade_frequency, new) != new
+				config.validation_upgrade_frequency = new;
 			});
 			Ok(())
 		}
@@ -381,7 +426,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.validation_upgrade_delay, new) != new
+				config.validation_upgrade_delay = new;
 			});
 			Ok(())
 		}
@@ -397,7 +442,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.code_retention_period, new) != new
+				config.code_retention_period = new;
 			});
 			Ok(())
 		}
@@ -411,7 +456,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			ensure!(new <= MAX_CODE_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_code_size, new) != new
+				config.max_code_size = new;
 			});
 			Ok(())
 		}
@@ -425,7 +470,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			ensure!(new <= MAX_POV_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_pov_size, new) != new
+				config.max_pov_size = new;
 			});
 			Ok(())
 		}
@@ -439,7 +484,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			ensure!(new <= MAX_HEAD_DATA_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_head_data_size, new) != new
+				config.max_head_data_size = new;
 			});
 			Ok(())
 		}
@@ -452,7 +497,7 @@ pub mod pallet {
 		pub fn set_parathread_cores(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.parathread_cores, new) != new
+				config.parathread_cores = new;
 			});
 			Ok(())
 		}
@@ -465,7 +510,7 @@ pub mod pallet {
 		pub fn set_parathread_retries(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.parathread_retries, new) != new
+				config.parathread_retries = new;
 			});
 			Ok(())
 		}
@@ -484,7 +529,7 @@ pub mod pallet {
 			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.group_rotation_frequency, new) != new
+				config.group_rotation_frequency = new;
 			});
 			Ok(())
 		}
@@ -503,7 +548,7 @@ pub mod pallet {
 			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.chain_availability_period, new) != new
+				config.chain_availability_period = new;
 			});
 			Ok(())
 		}
@@ -522,7 +567,7 @@ pub mod pallet {
 			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.thread_availability_period, new) != new
+				config.thread_availability_period = new;
 			});
 			Ok(())
 		}
@@ -535,7 +580,7 @@ pub mod pallet {
 		pub fn set_scheduling_lookahead(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.scheduling_lookahead, new) != new
+				config.scheduling_lookahead = new;
 			});
 			Ok(())
 		}
@@ -551,7 +596,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_validators_per_core, new) != new
+				config.max_validators_per_core = new;
 			});
 			Ok(())
 		}
@@ -564,7 +609,7 @@ pub mod pallet {
 		pub fn set_max_validators(origin: OriginFor<T>, new: Option<u32>) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_validators, new) != new
+				config.max_validators = new;
 			});
 			Ok(())
 		}
@@ -577,7 +622,7 @@ pub mod pallet {
 		pub fn set_dispute_period(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.dispute_period, new) != new
+				config.dispute_period = new;
 			});
 			Ok(())
 		}
@@ -593,8 +638,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.dispute_post_conclusion_acceptance_period, new) !=
-					new
+				config.dispute_post_conclusion_acceptance_period = new;
 			});
 			Ok(())
 		}
@@ -607,7 +651,7 @@ pub mod pallet {
 		pub fn set_dispute_max_spam_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.dispute_max_spam_slots, new) != new
+				config.dispute_max_spam_slots = new;
 			});
 			Ok(())
 		}
@@ -623,7 +667,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.dispute_conclusion_by_time_out_period, new) != new
+				config.dispute_conclusion_by_time_out_period = new;
 			});
 			Ok(())
 		}
@@ -640,7 +684,7 @@ pub mod pallet {
 			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.no_show_slots, new) != new
+				config.no_show_slots = new;
 			});
 			Ok(())
 		}
@@ -653,7 +697,7 @@ pub mod pallet {
 		pub fn set_n_delay_tranches(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.n_delay_tranches, new) != new
+				config.n_delay_tranches = new;
 			});
 			Ok(())
 		}
@@ -666,7 +710,7 @@ pub mod pallet {
 		pub fn set_zeroth_delay_tranche_width(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.zeroth_delay_tranche_width, new) != new
+				config.zeroth_delay_tranche_width = new;
 			});
 			Ok(())
 		}
@@ -679,7 +723,7 @@ pub mod pallet {
 		pub fn set_needed_approvals(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.needed_approvals, new) != new
+				config.needed_approvals = new;
 			});
 			Ok(())
 		}
@@ -692,7 +736,7 @@ pub mod pallet {
 		pub fn set_relay_vrf_modulo_samples(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.relay_vrf_modulo_samples, new) != new
+				config.relay_vrf_modulo_samples = new;
 			});
 			Ok(())
 		}
@@ -705,7 +749,7 @@ pub mod pallet {
 		pub fn set_max_upward_queue_count(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_upward_queue_count, new) != new
+				config.max_upward_queue_count = new;
 			});
 			Ok(())
 		}
@@ -718,7 +762,7 @@ pub mod pallet {
 		pub fn set_max_upward_queue_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_upward_queue_size, new) != new
+				config.max_upward_queue_size = new;
 			});
 			Ok(())
 		}
@@ -731,7 +775,7 @@ pub mod pallet {
 		pub fn set_max_downward_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_downward_message_size, new) != new
+				config.max_downward_message_size = new;
 			});
 			Ok(())
 		}
@@ -744,7 +788,7 @@ pub mod pallet {
 		pub fn set_ump_service_total_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.ump_service_total_weight, new) != new
+				config.ump_service_total_weight = new;
 			});
 			Ok(())
 		}
@@ -757,7 +801,7 @@ pub mod pallet {
 		pub fn set_max_upward_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_upward_message_size, new) != new
+				config.max_upward_message_size = new;
 			});
 			Ok(())
 		}
@@ -773,7 +817,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_upward_message_num_per_candidate, new) != new
+				config.max_upward_message_num_per_candidate = new;
 			});
 			Ok(())
 		}
@@ -797,7 +841,7 @@ pub mod pallet {
 		pub fn set_hrmp_sender_deposit(origin: OriginFor<T>, new: Balance) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_sender_deposit, new) != new
+				config.hrmp_sender_deposit = new;
 			});
 			Ok(())
 		}
@@ -811,7 +855,7 @@ pub mod pallet {
 		pub fn set_hrmp_recipient_deposit(origin: OriginFor<T>, new: Balance) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_recipient_deposit, new) != new
+				config.hrmp_recipient_deposit = new;
 			});
 			Ok(())
 		}
@@ -824,7 +868,7 @@ pub mod pallet {
 		pub fn set_hrmp_channel_max_capacity(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_channel_max_capacity, new) != new
+				config.hrmp_channel_max_capacity = new;
 			});
 			Ok(())
 		}
@@ -837,7 +881,7 @@ pub mod pallet {
 		pub fn set_hrmp_channel_max_total_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_channel_max_total_size, new) != new
+				config.hrmp_channel_max_total_size = new;
 			});
 			Ok(())
 		}
@@ -853,7 +897,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_max_parachain_inbound_channels, new) != new
+				config.hrmp_max_parachain_inbound_channels = new;
 			});
 			Ok(())
 		}
@@ -869,7 +913,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_max_parathread_inbound_channels, new) != new
+				config.hrmp_max_parathread_inbound_channels = new;
 			});
 			Ok(())
 		}
@@ -882,7 +926,7 @@ pub mod pallet {
 		pub fn set_hrmp_channel_max_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_channel_max_message_size, new) != new
+				config.hrmp_channel_max_message_size = new;
 			});
 			Ok(())
 		}
@@ -898,7 +942,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_max_parachain_outbound_channels, new) != new
+				config.hrmp_max_parachain_outbound_channels = new;
 			});
 			Ok(())
 		}
@@ -914,7 +958,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_max_parathread_outbound_channels, new) != new
+				config.hrmp_max_parathread_outbound_channels = new;
 			});
 			Ok(())
 		}
@@ -930,7 +974,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_max_message_num_per_candidate, new) != new
+				config.hrmp_max_message_num_per_candidate = new;
 			});
 			Ok(())
 		}
@@ -943,7 +987,51 @@ pub mod pallet {
 		pub fn set_ump_max_individual_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.ump_max_individual_weight, new) != new
+				config.ump_max_individual_weight = new;
+			});
+			Ok(())
+		}
+
+		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
+		#[pallet::weight((
+			// Using u32 here is a little bit of cheating, but that should be fine.
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_checking_enabled(origin: OriginFor<T>, new: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				config.pvf_checking_enabled = new;
+			});
+			Ok(())
+		}
+
+		/// Set the number of session changes after which a PVF pre-checking voting is rejected.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_voting_ttl(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				config.pvf_voting_ttl = new;
+			});
+			Ok(())
+		}
+
+		/// Sets the minimum delay between announcing the upgrade block for a parachain until the
+		/// upgrade taking place.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_minimum_validation_upgrade_delay(
+			origin: OriginFor<T>,
+			new: T::BlockNumber,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				config.minimum_validation_upgrade_delay = new;
 			});
 			Ok(())
 		}
@@ -966,6 +1054,15 @@ pub mod pallet {
 	}
 }
 
+/// A struct that holds the configuration that was active before the session change and optionally
+/// a configuration that became active after the session change.
+pub struct SessionChangeOutcome<BlockNumber> {
+	/// Previously active configuration.
+	pub prev_config: HostConfiguration<BlockNumber>,
+	/// If new configuration was applied during the session change, this is the new configuration.
+	pub new_config: Option<HostConfiguration<BlockNumber>>,
+}
+
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
@@ -976,10 +1073,43 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(session_index: &SessionIndex) {
-		if let Some(pending) = <Self as Store>::PendingConfig::take(session_index) {
-			<Self as Store>::ActiveConfig::set(pending);
+	///
+	/// Returns the configuration that was actual before the session change and the configuration
+	/// that became active after the session change. If there were no scheduled changes, both will
+	/// be the same.
+	pub(crate) fn initializer_on_new_session(
+		session_index: &SessionIndex,
+	) -> SessionChangeOutcome<T::BlockNumber> {
+		let pending_configs = <PendingConfigs<T>>::get();
+		let prev_config = <Self as Store>::ActiveConfig::get();
+
+		// No pending configuration changes, so we're done.
+		if pending_configs.is_empty() {
+			return SessionChangeOutcome { prev_config, new_config: None }
 		}
+
+		let (mut past_and_present, future) = pending_configs
+			.into_iter()
+			.partition::<Vec<_>, _>(|&(apply_at_session, _)| apply_at_session <= *session_index);
+
+		if past_and_present.len() > 1 {
+			// This should never happen since we schedule configuration changes only into the future
+			// sessions and this handler called for each session change.
+			log::error!(
+				target: LOG_TARGET,
+				"Skipping applying configuration changes scheduled sessions in the past",
+			);
+		}
+
+		let new_config = past_and_present.pop().map(|(_, config)| config);
+		if let Some(ref new_config) = new_config {
+			// Apply the new configuration.
+			<Self as Store>::ActiveConfig::put(new_config);
+		}
+
+		<PendingConfigs<T>>::put(future);
+
+		SessionChangeOutcome { prev_config, new_config }
 	}
 
 	/// Return the session index that should be used for any future scheduled changes.
@@ -999,23 +1129,105 @@ impl<T: Config> Pallet<T> {
 	// duplicated code (making this function to show up in the top of heaviest functions) only for
 	// the sake of essentially avoiding an indirect call. Doesn't worth it.
 	#[inline(never)]
-	fn update_config_member(updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>) -> bool) {
-		let scheduled_session = Self::scheduled_session();
-		let pending = <Self as Store>::PendingConfig::get(scheduled_session);
-		let mut prev = pending.unwrap_or_else(Self::config);
+	fn update_config_member(updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>)) {
+		let mut pending_configs = <PendingConfigs<T>>::get();
 
-		if updater(&mut prev) {
-			<Self as Store>::PendingConfig::insert(scheduled_session, prev);
+		// 1. pending_configs = []
+		//    No pending configuration changes.
+		//
+		//    That means we should use the active config as the base configuration. We will insert
+		//    the new pending configuration as (cur+2, new_config) into the list.
+		//
+		// 2. pending_configs = [(cur+2, X)]
+		//    There is a configuration that is pending for the scheduled session.
+		//
+		//    We will use X as the base configuration. We can update the pending configuration X
+		//    directly.
+		//
+		// 3. pending_configs = [(cur+1, X)]
+		//    There is a pending configuration scheduled and it will be applied in the next session.
+		//
+		//    We will use X as the base configuration. We need to schedule a new configuration change
+		//    for the `scheduled_session` and use X as the base for the new configuration.
+		//
+		// 4. pending_configs = [(cur+1, X), (cur+2, Y)]
+		//    There is a pending configuration change in the next session and for the scheduled
+		//    session. Due to case №3, we can be sure that Y is based on top of X. This means we
+		//    can use Y as the base configuration and update Y directly.
+		//
+		// There cannot be (cur, X) because those are applied in the session change handler for the
+		// current session.
+
+		// First, we need to decide what we should use as the base configuration.
+		let mut base_config = pending_configs
+			.last()
+			.map(|&(_, ref config)| config.clone())
+			.unwrap_or_else(Self::config);
+
+		// Now, we need to decide what the new configuration should be.
+		updater(&mut base_config);
+
+		let scheduled_session = Self::scheduled_session();
+
+		if let Some(&mut (_, ref mut config)) = pending_configs
+			.iter_mut()
+			.find(|&&mut (apply_at_session, _)| apply_at_session >= scheduled_session)
+		{
+			*config = base_config;
+		} else {
+			// We are scheduling a new configuration change for the scheduled session.
+			pending_configs.push((scheduled_session, base_config));
 		}
+
+		<PendingConfigs<T>>::put(pending_configs);
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Configuration, Origin};
+	use crate::mock::{new_test_ext, Configuration, Origin, ParasShared};
 
 	use frame_support::assert_ok;
+
+	fn on_new_session(
+		session_index: SessionIndex,
+	) -> (HostConfiguration<u32>, HostConfiguration<u32>) {
+		ParasShared::set_session_index(session_index);
+		let SessionChangeOutcome { prev_config, new_config } =
+			Configuration::initializer_on_new_session(&session_index);
+		let new_config = new_config.unwrap_or_else(|| prev_config.clone());
+		(prev_config, new_config)
+	}
+
+	#[test]
+	fn scheduled_session_is_two_sessions_from_now() {
+		new_test_ext(Default::default()).execute_with(|| {
+			// The logic here is really tested only with scheduled_session = 2. It should work
+			// with other values, but that should receive a more rigorious testing.
+			on_new_session(1);
+			assert_eq!(Configuration::scheduled_session(), 3);
+		});
+	}
+
+	#[test]
+	fn initializer_on_new_session() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let (prev_config, new_config) = on_new_session(1);
+			assert_eq!(prev_config, new_config);
+			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+
+			let (prev_config, new_config) = on_new_session(2);
+			assert_eq!(prev_config, new_config);
+
+			let (prev_config, new_config) = on_new_session(3);
+			assert_eq!(prev_config, HostConfiguration::default());
+			assert_eq!(
+				new_config,
+				HostConfiguration { validation_upgrade_delay: 100, ..prev_config }
+			);
+		});
+	}
 
 	#[test]
 	fn config_changes_after_2_session_boundary() {
@@ -1027,19 +1239,144 @@ mod tests {
 
 			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
 
+			// Verify that the current configuration has not changed and that there is a scheduled
+			// change for the SESSION_DELAY sessions in advance.
 			assert_eq!(Configuration::config(), old_config);
-			assert_eq!(<Configuration as Store>::PendingConfig::get(1), None);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
 
-			Configuration::initializer_on_new_session(&1);
+			on_new_session(1);
 
+			// One session has passed, we should be still waiting for the pending configuration.
 			assert_eq!(Configuration::config(), old_config);
-			assert_eq!(<Configuration as Store>::PendingConfig::get(2), Some(config.clone()));
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
 
-			Configuration::initializer_on_new_session(&2);
+			on_new_session(2);
 
 			assert_eq!(Configuration::config(), config);
-			assert_eq!(<Configuration as Store>::PendingConfig::get(3), None);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
 		})
+	}
+
+	#[test]
+	fn consecutive_changes_within_one_session() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let old_config = Configuration::config();
+			let mut config = old_config.clone();
+			config.validation_upgrade_delay = 100;
+			config.validation_upgrade_frequency = 100;
+			assert!(old_config != config);
+
+			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 100));
+			assert_eq!(Configuration::config(), old_config);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
+
+			on_new_session(1);
+
+			assert_eq!(Configuration::config(), old_config);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
+
+			on_new_session(2);
+
+			assert_eq!(Configuration::config(), config);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		});
+	}
+
+	#[test]
+	fn pending_next_session_but_we_upgrade_once_more() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let initial_config = Configuration::config();
+			let intermediate_config =
+				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
+			let final_config = HostConfiguration {
+				validation_upgrade_delay: 100,
+				validation_upgrade_frequency: 99,
+				..initial_config.clone()
+			};
+
+			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+			assert_eq!(Configuration::config(), initial_config);
+			assert_eq!(
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(2, intermediate_config.clone())]
+			);
+
+			on_new_session(1);
+
+			// We are still waiting until the pending configuration is applied and we add another
+			// update.
+			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 99));
+
+			// This should result in yet another configiguration change scheduled.
+			assert_eq!(Configuration::config(), initial_config);
+			assert_eq!(
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(2, intermediate_config.clone()), (3, final_config.clone())]
+			);
+
+			on_new_session(2);
+
+			assert_eq!(Configuration::config(), intermediate_config);
+			assert_eq!(
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(3, final_config.clone())]
+			);
+
+			on_new_session(3);
+
+			assert_eq!(Configuration::config(), final_config);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		});
+	}
+
+	#[test]
+	fn scheduled_session_config_update_while_next_session_pending() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let initial_config = Configuration::config();
+			let intermediate_config =
+				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
+			let final_config = HostConfiguration {
+				validation_upgrade_delay: 100,
+				validation_upgrade_frequency: 99,
+				code_retention_period: 98,
+				..initial_config.clone()
+			};
+
+			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+			assert_eq!(Configuration::config(), initial_config);
+			assert_eq!(
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(2, intermediate_config.clone())]
+			);
+
+			on_new_session(1);
+
+			// The second call should fall into the case where we already have a pending config
+			// update for the scheduled_session, but we want to update it once more.
+			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 99));
+			assert_ok!(Configuration::set_code_retention_period(Origin::root(), 98));
+
+			// This should result in yet another configiguration change scheduled.
+			assert_eq!(Configuration::config(), initial_config);
+			assert_eq!(
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(2, intermediate_config.clone()), (3, final_config.clone())]
+			);
+
+			on_new_session(2);
+
+			assert_eq!(Configuration::config(), intermediate_config);
+			assert_eq!(
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(3, final_config.clone())]
+			);
+
+			on_new_session(3);
+
+			assert_eq!(Configuration::config(), final_config);
+			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		});
 	}
 
 	#[test]
@@ -1086,6 +1423,9 @@ mod tests {
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
 				ump_max_individual_weight: 909,
+				pvf_checking_enabled: true,
+				pvf_voting_ttl: 3,
+				minimum_validation_upgrade_delay: 20,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
@@ -1252,10 +1592,21 @@ mod tests {
 				new_config.ump_max_individual_weight,
 			)
 			.unwrap();
+			Configuration::set_pvf_checking_enabled(
+				Origin::root(),
+				new_config.pvf_checking_enabled,
+			)
+			.unwrap();
+			Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
+			Configuration::set_minimum_validation_upgrade_delay(
+				Origin::root(),
+				new_config.minimum_validation_upgrade_delay,
+			)
+			.unwrap();
 
 			assert_eq!(
-				<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY),
-				Some(new_config)
+				<Configuration as Store>::PendingConfigs::get(),
+				vec![(shared::SESSION_DELAY, new_config)],
 			);
 		})
 	}
@@ -1264,15 +1615,6 @@ mod tests {
 	fn non_root_cannot_set_config() {
 		new_test_ext(Default::default()).execute_with(|| {
 			assert!(Configuration::set_validation_upgrade_delay(Origin::signed(1), 100).is_err());
-		});
-	}
-
-	#[test]
-	fn setting_config_to_same_as_current_is_noop() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Configuration::set_validation_upgrade_delay(Origin::root(), Default::default())
-				.unwrap();
-			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none())
 		});
 	}
 

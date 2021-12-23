@@ -21,21 +21,21 @@ use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;
 #[cfg(feature = "kusama-native")]
-use kusama_runtime::constants::currency::UNITS as KSM;
+use kusama_runtime_constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
-#[cfg(feature = "polkadot-native")]
-use polkadot::constants::currency::UNITS as DOT;
 use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId};
 #[cfg(feature = "polkadot-native")]
 use polkadot_runtime as polkadot;
+#[cfg(feature = "polkadot-native")]
+use polkadot_runtime_constants::currency::UNITS as DOT;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 
 #[cfg(feature = "rococo-native")]
 use rococo_runtime as rococo;
 #[cfg(feature = "rococo-native")]
-use rococo_runtime::constants::currency::UNITS as ROC;
+use rococo_runtime_constants::currency::UNITS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
@@ -44,7 +44,7 @@ use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
-use westend_runtime::constants::currency::UNITS as WND;
+use westend_runtime_constants::currency::UNITS as WND;
 
 #[cfg(feature = "polkadot-native")]
 const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -106,6 +106,11 @@ pub type WestendChainSpec = DummyChainSpec;
 #[cfg(feature = "rococo-native")]
 pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
 
+/// The `ChainSpec` parameterized for the `versi` runtime.
+///
+/// As of now `Versi` will just be a clone of `Rococo`, until we need it to differ.
+pub type VersiChainSpec = RococoChainSpec;
+
 /// The `ChainSpec` parameterized for the rococo runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "rococo-native"))]
@@ -128,7 +133,7 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 	fn assimilate_storage(&self, storage: &mut sp_core::storage::Storage) -> Result<(), String> {
 		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
 			if let Some(length) = self.session_length_in_blocks.as_ref() {
-				rococo::constants::time::EpochDurationInBlocks::set(length);
+				rococo_runtime_constants::time::EpochDurationInBlocks::set(length);
 			}
 		});
 		self.runtime_genesis_config.assimilate_storage(storage)
@@ -149,6 +154,10 @@ pub fn westend_config() -> Result<WestendChainSpec, String> {
 
 pub fn rococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
+}
+
+pub fn versi_config() -> Result<VersiChainSpec, String> {
+	VersiChainSpec::from_json_bytes(&include_bytes!("../res/versi.json")[..])
 }
 
 /// This is a temporary testnet that uses the same runtime as rococo.
@@ -541,7 +550,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		im_online: Default::default(),
 		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		vesting: westend::VestingConfig { vesting: vec![] },
-		sudo: westend::SudoConfig { key: endowed_accounts[0].clone() },
+		sudo: westend::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 		hrmp: Default::default(),
 		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
@@ -1034,7 +1043,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		collective: Default::default(),
 		membership: Default::default(),
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
-		sudo: rococo_runtime::SudoConfig { key: endowed_accounts[0].clone() },
+		sudo: rococo_runtime::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
@@ -1045,22 +1054,22 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		xcm_pallet: Default::default(),
 		transaction_payment: Default::default(),
-		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-		// 	owner: Some(endowed_accounts[0].clone()),
-		// 	..Default::default()
-		// },
-		// bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-		// 	owner: Some(endowed_accounts[0].clone()),
-		// 	..Default::default()
-		// },
-		// bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-		// 	owner: Some(endowed_accounts[0].clone()),
-		// 	..Default::default()
-		// },
-		// bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-		// 	owner: Some(endowed_accounts[0].clone()),
-		// 	..Default::default()
-		// },
+		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
 	}
 }
 
@@ -1470,7 +1479,7 @@ pub fn westend_testnet_genesis(
 		im_online: Default::default(),
 		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		vesting: westend::VestingConfig { vesting: vec![] },
-		sudo: westend::SudoConfig { key: root_key },
+		sudo: westend::SudoConfig { key: Some(root_key) },
 		hrmp: Default::default(),
 		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
@@ -1541,7 +1550,7 @@ pub fn rococo_testnet_genesis(
 		collective: Default::default(),
 		membership: Default::default(),
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
-		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
+		sudo: rococo_runtime::SudoConfig { key: Some(root_key.clone()) },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
@@ -1555,22 +1564,22 @@ pub fn rococo_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		transaction_payment: Default::default(),
-		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-		// 	owner: Some(root_key.clone()),
-		// 	..Default::default()
-		// },
-		// bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-		// 	owner: Some(root_key.clone()),
-		// 	..Default::default()
-		// },
-		// bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-		// 	owner: Some(root_key.clone()),
-		// 	..Default::default()
-		// },
-		// bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-		// 	owner: Some(root_key.clone()),
-		// 	..Default::default()
-		// },
+		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
 	}
 }
 
@@ -1685,6 +1694,28 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+/// `Versi` development config (single validator Alice)
+#[cfg(feature = "rococo-native")]
+pub fn versi_development_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Development",
+		"versi_dev",
+		ChainType::Development,
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some("versi"),
 		None,
 		Default::default(),
 	))
@@ -1854,6 +1885,22 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 	)
 }
 
+/// `Versi` is a temporary testnet that uses the same runtime as rococo.
+#[cfg(feature = "rococo-native")]
+fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
+			get_authority_keys_from_seed("Dave"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 /// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
@@ -1865,6 +1912,28 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		ChainType::Local,
 		move || RococoGenesisExt {
 			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+/// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
+#[cfg(feature = "rococo-native")]
+pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Versi Local Testnet",
+		"versi_local_testnet",
+		ChainType::Local,
+		move || RococoGenesisExt {
+			runtime_genesis_config: versi_local_testnet_genesis(wasm_binary),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},

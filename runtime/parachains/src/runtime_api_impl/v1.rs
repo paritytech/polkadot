@@ -25,8 +25,8 @@ use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -370,4 +370,18 @@ pub fn validation_code_by_hash<T: paras::Config>(
 /// Disputes imported via means of on-chain imports.
 pub fn on_chain_votes<T: paras_inherent::Config>() -> Option<ScrapedOnChainVotes<T::Hash>> {
 	<paras_inherent::Pallet<T>>::on_chain_votes()
+}
+
+/// Submits an PVF pre-checking vote. See [`paras::Pallet::submit_pvf_check_statement`].
+pub fn submit_pvf_check_statement<T: paras::Config>(
+	stmt: PvfCheckStatement,
+	signature: ValidatorSignature,
+) {
+	<paras::Pallet<T>>::submit_pvf_check_statement(stmt, signature)
+}
+
+/// Returns the list of all PVF code hashes that require pre-checking. See
+/// [`paras::Pallet::pvfs_require_precheck`].
+pub fn pvfs_require_precheck<T: paras::Config>() -> Vec<ValidationCodeHash> {
+	<paras::Pallet<T>>::pvfs_require_precheck()
 }

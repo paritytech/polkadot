@@ -63,6 +63,12 @@ pub use sp_staking::SessionIndex;
 mod signed;
 pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
+mod metrics;
+pub use metrics::{
+	RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels,
+	RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+};
+
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
 	use super::{HrmpChannelId, Id};
@@ -235,6 +241,7 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// * initial genesis for the Parachains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
 /// * when detecting a code decompression bomb in the client
+// NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 
 /// Maximum head data size we support right now.
@@ -242,6 +249,7 @@ pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 /// Used for:
 /// * initial genesis for the Parachains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
+// NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 
 /// Maximum PoV size we support right now.
@@ -250,6 +258,7 @@ pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 /// * initial genesis for the Parachains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
 /// * when detecting a PoV decompression bomb in the client
+// NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
 // The public key of a keypair used by a validator for determining assignments
@@ -327,7 +336,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
@@ -370,7 +379,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 
 /// A candidate-receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Debug, MallocSizeOf))]
 pub struct CandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -395,7 +404,7 @@ impl<H> CandidateReceipt<H> {
 
 /// All data pertaining to the execution of a para candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
@@ -407,7 +416,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
@@ -509,8 +518,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf, Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -560,7 +569,6 @@ pub type UncheckedSignedAvailabilityBitfields = Vec<UncheckedSignedAvailabilityB
 
 /// A backed (or backable, depending on context) candidate.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Default))]
 pub struct BackedCandidate<H = Hash> {
 	/// The candidate referred to.
 	pub candidate: CommittedCandidateReceipt<H>,
@@ -669,12 +677,12 @@ impl From<u32> for GroupIndex {
 }
 
 /// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadEntry {
 	/// The claim.
@@ -819,7 +827,7 @@ impl<H, N> OccupiedCore<H, N> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -899,7 +907,7 @@ pub enum CandidateEvent<H = Hash> {
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
 	///
@@ -949,7 +957,7 @@ pub struct SessionInfo {
 
 /// Scraped runtime backing votes and resolved disputes.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// The session in which the block was included.
 	pub session: SessionIndex,
@@ -978,6 +986,7 @@ impl ApprovalVote {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
+	#[api_version(2)]
 	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
@@ -1046,6 +1055,12 @@ sp_api::decl_runtime_apis! {
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
+
+		/// Submits a PVF pre-checking statement into the transaction pool.
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature);
+
+		/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash>;
 	}
 }
 
@@ -1095,7 +1110,7 @@ pub struct AbridgedHostConfiguration {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum frequency at which parachains can update their validation code.
+	/// The minimum period, in blocks, between which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,

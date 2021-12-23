@@ -63,7 +63,7 @@ use sp_runtime::{
 		BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT, OpaqueKeys,
 		SaturatedConversion, StaticLookup, Verify,
 	},
-	transaction_validity::{TransactionSource, TransactionValidity},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
@@ -81,9 +81,8 @@ pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-pub mod constants;
+use test_runtime_constants::{currency::*, fee::*, time::*};
 pub mod xcm_config;
-use constants::{currency::*, fee::*, time::*};
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -149,6 +148,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -385,6 +385,7 @@ where
 		let current_block = System::block_number().saturated_into::<u64>().saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -489,9 +490,15 @@ impl parachains_initializer::Config for Runtime {
 
 impl parachains_session_info::Config for Runtime {}
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl parachains_paras::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = parachains_paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -699,6 +706,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
+	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,
@@ -865,12 +873,23 @@ sp_api::impl_runtime_apis! {
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			runtime_impl::on_chain_votes::<Runtime>()
 		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v1::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			runtime_impl::pvfs_require_precheck::<Runtime>()
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			None
 		}
 	}
 

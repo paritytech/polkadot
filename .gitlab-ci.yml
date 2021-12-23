@@ -27,11 +27,11 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritypr/zombienet"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.0.2"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  PIPELINE_SCRIPTS_TAG:            "v0.1"
+  PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
   cache:                           {}
@@ -195,13 +195,16 @@ test-build-linux-stable:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
     # disputes feature is needed for zombie-net parachains malus test
-    - time cargo build --release --verbose --bin polkadot --features "disputes"
+    - time cargo build --release --verbose --bin polkadot
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/release/polkadot ./artifacts/.
-    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - pushd artifacts
+    - sha256sum polkadot | tee polkadot.sha256
+    - shasum -c polkadot.sha256
+    - popd
     - EXTRATAG="$(./artifacts/polkadot --version |
         sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
     - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
@@ -273,7 +276,7 @@ build-malus:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
-    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
+    - time cargo build --release --verbose -p polkadot-test-malus
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -300,11 +303,13 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
+        $CARGO_UPDATE_CRATES
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
 check-transaction-versions:
   stage:                           build
@@ -590,11 +595,9 @@ publish-rustdoc:
 
 #### stage:                        deploy
 
-deploy-polkasync-kusama:
+deploy-parity-testnet:
   stage:                           deploy
   rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   variables:
@@ -618,11 +621,11 @@ zombienet-tests-parachains-smoke-test:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains'
 
   before_script:
     - echo "Zombie-net Tests Config"
-    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${ZOMBIENET_IMAGE}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
@@ -655,7 +658,7 @@ zombienet-tests-malus-dispute-valid:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/node/malus/integrationtests'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests'
 
   before_script:
     - echo "Zombie-net Tests Config"
@@ -663,7 +666,7 @@ zombienet-tests-malus-dispute-valid:
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
-    - export DEBUG=zombie,zombie::network-node
+    - export DEBUG=zombie*
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}

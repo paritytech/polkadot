@@ -32,7 +32,6 @@ struct MetricsInner {
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
-#[cfg(feature = "disputes")]
 impl Metrics {
 	pub(crate) fn on_open(&self) {
 		if let Some(metrics) = &self.0 {
@@ -82,7 +81,7 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			open: prometheus::register(
 				prometheus::Counter::with_opts(prometheus::Opts::new(
-					"parachain_candidate_disputes_total",
+					"polkadot_parachain_candidate_disputes_total",
 					"Total number of raised disputes.",
 				))?,
 				registry,
@@ -90,7 +89,7 @@ impl metrics::Metrics for Metrics {
 			concluded: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_candidate_dispute_concluded",
+						"polkadot_parachain_candidate_dispute_concluded",
 						"Concluded dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
@@ -100,7 +99,7 @@ impl metrics::Metrics for Metrics {
 			votes: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_candidate_dispute_votes",
+						"polkadot_parachain_candidate_dispute_votes",
 						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
@@ -110,7 +109,7 @@ impl metrics::Metrics for Metrics {
 			queued_participations: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_dispute_participations",
+						"polkadot_parachain_dispute_participations",
 						"Total number of queued participations, grouped by priority and best-effort. (Not every queueing will necessarily lead to an actual participation because of duplicates.)",
 					),
 					&["priority"],

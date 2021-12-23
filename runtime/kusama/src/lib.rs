@@ -98,8 +98,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-pub mod constants;
-use constants::{currency::*, fee::*, time::*};
+use kusama_runtime_constants::{currency::*, fee::*, time::*};
 
 // Weights used in the runtime.
 mod weights;
@@ -183,12 +182,14 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
+	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
 type ScheduleOrigin = EnsureOneOf<
@@ -229,6 +230,24 @@ impl pallet_scheduler::Config for Runtime {
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = OriginPrivilegeCmp;
+	type PreimageProvider = Preimage;
+	type NoPreimagePostponement = NoPreimagePostponement;
+}
+
+parameter_types! {
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = deposit(2, 64);
+	pub const PreimageByteDeposit: Balance = deposit(0, 1);
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
+	type Event = Event;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type MaxSize = PreimageMaxSize;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
 }
 
 parameter_types! {
@@ -280,7 +299,7 @@ impl pallet_indices::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * CENTS;
+	pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 	pub const MaxLocks: u32 = 50;
 	pub const MaxReserves: u32 = 50;
 }
@@ -562,8 +581,6 @@ parameter_types! {
 	pub const MinimumDeposit: Balance = 100 * CENTS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
-	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
@@ -757,6 +774,7 @@ impl pallet_bounties::Config for Runtime {
 	type BountyUpdatePeriod = BountyUpdatePeriod;
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
+	type ChildBountyManager = ();
 	type DataDepositPerByte = DataDepositPerByte;
 	type Event = Event;
 	type MaximumReasonLength = MaximumReasonLength;
@@ -851,6 +869,7 @@ where
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -1170,9 +1189,15 @@ impl parachains_inclusion::Config for Runtime {
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl parachains_paras::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 parameter_types! {
@@ -1357,8 +1382,10 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
 	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
+	pub const KusamaForEncointer: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1001).into());
 }
-pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
+pub type TrustedTeleporters =
+	(xcm_builder::Case<KusamaForStatemine>, xcm_builder::Case<KusamaForEncointer>);
 
 match_type! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
@@ -1501,6 +1528,7 @@ construct_runtime! {
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 
+
 		// Claims. Usable initially.
 		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
 
@@ -1527,6 +1555,9 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 31,
+
+		// Preimage registrar.
+		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
 
 		// Bounties module.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 35,
@@ -1581,6 +1612,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
+	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,
@@ -1598,10 +1630,29 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SessionHistoricalPalletPrefixMigration,),
+	(SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+// Migration for scheduler pallet to move from a plain Call to a CallOrHash.
+pub struct SchedulerMigrationV3;
+
+impl OnRuntimeUpgrade for SchedulerMigrationV3 {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		Scheduler::migrate_v2_to_v3()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		Scheduler::pre_migrate_to_v3()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		Scheduler::post_migrate_to_v3()
+	}
+}
 
 /// Migrate session-historical from `Session` to the new pallet prefix `Historical`
 pub struct SessionHistoricalPalletPrefixMigration;
@@ -1763,12 +1814,23 @@ sp_api::impl_runtime_apis! {
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			parachains_runtime_api_impl::on_chain_votes::<Runtime>()
 		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v1::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			parachains_runtime_api_impl::pvfs_require_precheck::<Runtime>()
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			None
 		}
 	}
 
@@ -1978,6 +2040,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_membership, TechnicalMembership);
 			list_benchmark!(list, extra, pallet_multisig, Multisig);
 			list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
+			list_benchmark!(list, extra, pallet_preimage, Preimage);
 			list_benchmark!(list, extra, pallet_proxy, Proxy);
 			list_benchmark!(list, extra, pallet_scheduler, Scheduler);
 			list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
@@ -2057,6 +2120,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_membership, TechnicalMembership);
 			add_benchmark!(params, batches, pallet_multisig, Multisig);
 			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_preimage, Preimage);
 			add_benchmark!(params, batches, pallet_proxy, Proxy);
 			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);

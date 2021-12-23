@@ -28,7 +28,8 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v1::{CommittedCandidateReceipt, SessionInfo, ValidationCode};
+use polkadot_primitives::v1::{SessionInfo, ValidationCode};
+use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
@@ -53,21 +54,21 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	let signing_context = SigningContext { parent_hash, session_index };
 
 	let candidate_a = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = parent_hash;
 		c.descriptor.para_id = 1.into();
 		c
 	};
 
 	let candidate_b = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = parent_hash;
 		c.descriptor.para_id = 2.into();
 		c
 	};
 
 	let candidate_c = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = parent_hash;
 		c.descriptor.para_id = 3.into();
 		c
@@ -369,7 +370,7 @@ fn peer_view_update_sends_messages() {
 	let hash_c = Hash::repeat_byte(3);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_c;
 		c.descriptor.para_id = 1.into();
 		c
@@ -547,7 +548,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 	let hash_c = Hash::repeat_byte(3);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_b;
 		c.descriptor.para_id = 1.into();
 		c
@@ -677,7 +678,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
 		c.descriptor.para_id = 1.into();
 		c
@@ -702,7 +703,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
@@ -864,7 +865,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let hash_b = Hash::repeat_byte(2);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
 		c.descriptor.para_id = 1.into();
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
@@ -894,7 +895,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1345,7 +1346,7 @@ fn share_prioritizes_backing_group() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
 		c.descriptor.para_id = 1.into();
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
@@ -1393,7 +1394,7 @@ fn share_prioritizes_backing_group() {
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1649,7 +1650,7 @@ fn peer_cant_flood_with_large_statements() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
 		c.descriptor.para_id = 1.into();
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
@@ -1678,7 +1679,7 @@ fn peer_cant_flood_with_large_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),

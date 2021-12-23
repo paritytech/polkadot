@@ -543,6 +543,7 @@ mod tests {
 	use super::*;
 
 	use crate::{assigned_slots, mock::TestRegistrar, slots};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
@@ -554,6 +555,7 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
+		transaction_validity::TransactionPriority,
 		DispatchError::BadOrigin,
 	};
 
@@ -575,6 +577,14 @@ mod tests {
 			AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
 		}
 	);
+
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+	where
+		Call: From<C>,
+	{
+		type Extrinsic = UncheckedExtrinsic;
+		type OverarchingCall = Call;
+	}
 
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
@@ -603,6 +613,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -625,9 +636,15 @@ mod tests {
 		type WeightInfo = parachains_configuration::TestWeightInfo;
 	}
 
+	parameter_types! {
+		pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	}
+
 	impl parachains_paras::Config for Test {
 		type Event = Event;
 		type WeightInfo = parachains_paras::TestWeightInfo;
+		type UnsignedPriority = ParasUnsignedPriority;
+		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 
 	impl parachains_shared::Config for Test {}
@@ -748,8 +765,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1)));
 
@@ -768,8 +785,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			// Register lease in current lease period
@@ -801,22 +818,22 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				2,
 				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				3,
 				ParaId::from(3),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
@@ -838,8 +855,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_eq!(AssignedSlots::permanent_slot_count(), 0);
@@ -909,8 +926,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1)));
 
@@ -933,8 +950,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			// Register lease in current lease period
@@ -976,8 +993,8 @@ mod tests {
 				assert_ok!(TestRegistrar::<Test>::register(
 					n,
 					ParaId::from(n as u32),
-					Default::default(),
-					Default::default()
+					dummy_head_data(),
+					dummy_validation_code()
 				));
 
 				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
@@ -993,8 +1010,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				7,
 				ParaId::from(7),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
@@ -1015,8 +1032,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1)), None);
@@ -1092,8 +1109,8 @@ mod tests {
 				assert_ok!(TestRegistrar::<Test>::register(
 					n,
 					ParaId::from(n as u32),
-					Default::default(),
-					Default::default()
+					dummy_head_data(),
+					dummy_validation_code()
 				));
 
 				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
@@ -1215,8 +1232,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
@@ -1241,8 +1258,8 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
 				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				dummy_head_data(),
+				dummy_validation_code(),
 			));
 
 			assert_ok!(AssignedSlots::assign_temp_parachain_slot(
