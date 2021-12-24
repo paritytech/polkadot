@@ -24,7 +24,7 @@ use crate::{
 	configuration, disputes, dmp, hrmp, paras,
 	paras_inherent::{sanitize_bitfields, DisputedBitfield},
 	scheduler::CoreAssignment,
-	shared, ump,
+	shared, ump, metrics
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
@@ -195,6 +195,7 @@ pub mod pallet {
 		+ ump::Config
 		+ hrmp::Config
 		+ configuration::Config
+		+ metrics::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;

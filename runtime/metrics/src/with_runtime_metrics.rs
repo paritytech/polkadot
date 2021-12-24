@@ -53,7 +53,15 @@ impl MetricEmitter for CounterVec {}
 impl MetricEmitter for Counter {}
 
 impl CounterVec {
+	/// Create a new runtime metric from a metric previously registered in the client.
+	pub fn from_registered(registered_metric_name: &'static str) -> Self {
+		// No register op is emitted since the metric is supposed to be registered
+		// on the client by the time `inc()` is called.
+		CounterVec { name: registered_metric_name, label_values: None }
+	}
+
 	/// Create a new metric with specified `name`, `description` and `labels`.
+	/// Also registers the metric on the client side.
 	pub fn new(name: &'static str, description: &'static str, labels: &[&'static str]) -> Self {
 		// Send a register metric operation to node side.
 		let metric_update = RuntimeMetricUpdate {

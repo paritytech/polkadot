@@ -71,6 +71,7 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	metrics as runtime_metrics,
 };
 
 use bridge_runtime_common::messages::{
@@ -798,6 +799,8 @@ impl parachains_initializer::Config for Runtime {
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = ();
 }
+
+impl runtime_metrics::Config for Runtime {}
 
 impl paras_sudo_wrapper::Config for Runtime {}
 

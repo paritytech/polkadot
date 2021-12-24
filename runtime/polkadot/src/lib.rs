@@ -34,6 +34,7 @@ use runtime_parachains::{
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	metrics as runtime_metrics,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -1182,6 +1183,8 @@ impl parachains_inclusion::Config for Runtime {
 parameter_types! {
 	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
+impl runtime_metrics::Config for Runtime {}
+
 
 impl parachains_paras::Config for Runtime {
 	type Event = Event;
