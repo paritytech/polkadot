@@ -170,7 +170,7 @@ pub(crate) fn run_to_block(
 		let b = System::block_number();
 
 		ParaInclusion::initializer_finalize();
-		Paras::initializer_finalize();
+		Paras::initializer_finalize(b);
 		ParasShared::initializer_finalize();
 
 		if let Some(notification) = new_session(b + 1) {
