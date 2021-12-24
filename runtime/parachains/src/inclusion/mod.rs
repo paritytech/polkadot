@@ -21,10 +21,10 @@
 //! to included.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, paras,
+	configuration, disputes, dmp, hrmp, metrics, paras,
 	paras_inherent::{sanitize_bitfields, DisputedBitfield},
 	scheduler::CoreAssignment,
-	shared, ump, metrics
+	shared, ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
