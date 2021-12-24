@@ -113,7 +113,7 @@ pub(crate) async fn back_candidate(
 	kind: BackingKind,
 ) -> BackedCandidate {
 	let mut validator_indices = bitvec::bitvec![BitOrderLsb0, u8; 0; group.len()];
-	let threshold = (group.len() / 2) + 1;
+	let threshold = minimum_backing_votes(group.len());
 
 	let signing = match kind {
 		BackingKind::Unanimous => group.len(),
@@ -151,8 +151,8 @@ pub(crate) async fn back_candidate(
 			Some(validators[group[i].0 as usize].public().into())
 		})
 		.ok()
-		.unwrap_or(0) *
-			2 > group.len();
+		.unwrap_or(0) >=
+			threshold;
 
 	match kind {
 		BackingKind::Unanimous | BackingKind::Threshold => assert!(successfully_backed),
@@ -1651,6 +1651,10 @@ fn backing_works() {
 			assure_candidate_sorting(candidate_receipt_with_backing_validator_indices)
 		);
 
+		let backers = {
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
+			backing_bitfield(&(0..num_backers).collect::<Vec<_>>())
+		};
 		assert_eq!(
 			<PendingAvailability<Test>>::get(&chain_a),
 			Some(CandidatePendingAvailability {
@@ -1660,7 +1664,7 @@ fn backing_works() {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
-				backers: backing_bitfield(&[0, 1]),
+				backers,
 				backing_group: GroupIndex::from(0),
 			})
 		);
@@ -1669,6 +1673,10 @@ fn backing_works() {
 			Some(candidate_a.commitments),
 		);
 
+		let backers = {
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
+			backing_bitfield(&(0..num_backers).map(|v| v + 2).collect::<Vec<_>>())
+		};
 		assert_eq!(
 			<PendingAvailability<Test>>::get(&chain_b),
 			Some(CandidatePendingAvailability {
@@ -1678,7 +1686,7 @@ fn backing_works() {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
-				backers: backing_bitfield(&[2, 3]),
+				backers,
 				backing_group: GroupIndex::from(1),
 			})
 		);
@@ -1790,6 +1798,10 @@ fn can_include_candidate_with_ok_code_upgrade() {
 
 		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
 
+		let backers = {
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
+			backing_bitfield(&(0..num_backers).collect::<Vec<_>>())
+		};
 		assert_eq!(
 			<PendingAvailability<Test>>::get(&chain_a),
 			Some(CandidatePendingAvailability {
@@ -1799,7 +1811,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
-				backers: backing_bitfield(&[0, 1, 2]),
+				backers,
 				backing_group: GroupIndex::from(0),
 			})
 		);

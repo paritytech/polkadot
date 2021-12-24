@@ -190,8 +190,16 @@ struct AttestingData {
 	backing: Vec<ValidatorIndex>,
 }
 
-const fn group_quorum(n_validators: usize) -> usize {
-	(n_validators / 2) + 1
+/// How many votes we need to consider a candidate backed.
+fn minimum_votes(n_validators: usize) -> usize {
+	// Runtime change going live, see: https://github.com/paritytech/polkadot/pull/4437
+	let old_runtime_value = n_validators / 2 + 1;
+	let new_runtime_value = std::cmp::min(2, n_validators);
+
+	// Until new runtime is live everywhere and we don't yet have
+	// https://github.com/paritytech/polkadot/issues/4576, we want to err on the higher value for
+	// secured block production:
+	std::cmp::max(old_runtime_value, new_runtime_value)
 }
 
 #[derive(Default)]
@@ -223,7 +231,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
-		self.groups.get(group).map_or(usize::MAX, |g| group_quorum(g.len()))
+		self.groups.get(group).map_or(usize::MAX, |g| minimum_votes(g.len()))
 	}
 }
 
