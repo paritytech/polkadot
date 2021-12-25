@@ -68,7 +68,7 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 		let config = <configuration::Pallet<T>>::config();
 		let para = id.into();
 		let price = P::price_for_parachain_delivery(para, &xcm);
-		let blob = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?.encode();
+		let blob = W::wrap_version(&d, xcm).map_err(DestinationUnsupported)?.encode();
 		<dmp::Pallet<T>>::can_queue_downward_message(&config, &para, &blob)
 			.map_err(Into::<SendError>::into)?;
 

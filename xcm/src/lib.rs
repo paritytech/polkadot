@@ -47,6 +47,26 @@ pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 /// A version of XCM.
 pub type Version = u32;
 
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo, frame_support::PalletError)]
+pub enum VersionedConversionError {
+	#[codec(index = 0)]
+	UnsupportedVersion,
+	#[codec(index = 1)]
+	V3(v3::ConversionError),
+}
+
+impl From<()> for VersionedConversionError {
+	fn from(_: ()) -> Self {
+		VersionedConversionError::UnsupportedVersion
+	}
+}
+
+impl From<v3::ConversionError> for VersionedConversionError {
+	fn from(e: v3::ConversionError) -> Self {
+		VersionedConversionError::V3(e)
+	}
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
 impl Encode for Unsupported {}
@@ -59,10 +79,10 @@ impl Decode for Unsupported {
 /// Attempt to convert `self` into a particular version of itself.
 pub trait IntoVersion: Sized {
 	/// Consume `self` and return same value expressed in some particular `version` of XCM.
-	fn into_version(self, version: Version) -> Result<Self, ()>;
+	fn into_version(self, version: Version) -> Result<Self, VersionedConversionError>;
 
 	/// Consume `self` and return same value expressed the latest version of XCM.
-	fn into_latest(self) -> Result<Self, ()> {
+	fn into_latest(self) -> Result<Self, VersionedConversionError> {
 		self.into_version(latest::VERSION)
 	}
 }
@@ -102,10 +122,10 @@ macro_rules! versioned_type {
 			}
 		}
 		impl IntoVersion for $n {
-			fn into_version(self, n: Version) -> Result<Self, ()> {
+			fn into_version(self, n: Version) -> Result<Self, VersionedConversionError> {
 				Ok(match n {
 					3 => Self::V3(self.try_into()?),
-					_ => return Err(()),
+					_ => return Err(VersionedConversionError::UnsupportedVersion),
 				})
 			}
 		}
@@ -172,11 +192,11 @@ macro_rules! versioned_type {
 			}
 		}
 		impl IntoVersion for $n {
-			fn into_version(self, n: Version) -> Result<Self, ()> {
+			fn into_version(self, n: Version) -> Result<Self, VersionedConversionError> {
 				Ok(match n {
 					1 | 2 => Self::V2(self.try_into()?),
 					3 => Self::V3(self.try_into()?),
-					_ => return Err(()),
+					_ => return Err(VersionedConversionError::UnsupportedVersion),
 				})
 			}
 		}
@@ -191,21 +211,21 @@ macro_rules! versioned_type {
 			}
 		}
 		impl TryFrom<$n> for $v2 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
+			type Error = VersionedConversionError;
+			fn try_from(x: $n) -> Result<Self, VersionedConversionError> {
 				use $n::*;
 				match x {
 					V2(x) => Ok(x),
-					V3(x) => x.try_into(),
+					V3(x) => Ok(x.try_into()?),
 				}
 			}
 		}
 		impl TryFrom<$n> for $v3 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
+			type Error = VersionedConversionError;
+			fn try_from(x: $n) -> Result<Self, VersionedConversionError> {
 				use $n::*;
 				match x {
-					V2(x) => x.try_into(),
+					V2(x) => Ok(x.try_into()?),
 					V3(x) => Ok(x),
 				}
 			}
@@ -273,21 +293,21 @@ macro_rules! versioned_type {
 			}
 		}
 		impl TryFrom<$n> for $v2 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
+			type Error = VersionedConversionError;
+			fn try_from(x: $n) -> Result<Self, VersionedConversionError> {
 				use $n::*;
 				match x {
 					V2(x) => Ok(x),
-					V3(x) => x.try_into(),
+					V3(x) => Ok(x.try_into()?),
 				}
 			}
 		}
 		impl TryFrom<$n> for $v3 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
+			type Error = VersionedConversionError;
+			fn try_from(x: $n) -> Result<Self, VersionedConversionError> {
 				use $n::*;
 				match x {
-					V2(x) => x.try_into(),
+					V2(x) => Ok(x.try_into()?),
 					V3(x) => Ok(x),
 				}
 			}
@@ -362,11 +382,11 @@ pub enum VersionedXcm<Call> {
 }
 
 impl<C> IntoVersion for VersionedXcm<C> {
-	fn into_version(self, n: Version) -> Result<Self, ()> {
+	fn into_version(self, n: Version) -> Result<Self, VersionedConversionError> {
 		Ok(match n {
 			2 => Self::V2(self.try_into()?),
 			3 => Self::V3(self.try_into()?),
-			_ => return Err(()),
+			_ => return Err(VersionedConversionError::UnsupportedVersion),
 		})
 	}
 }
@@ -384,22 +404,22 @@ impl<Call> From<v3::Xcm<Call>> for VersionedXcm<Call> {
 }
 
 impl<Call> TryFrom<VersionedXcm<Call>> for v2::Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+	type Error = VersionedConversionError;
+	fn try_from(x: VersionedXcm<Call>) -> Result<Self, VersionedConversionError> {
 		use VersionedXcm::*;
 		match x {
 			V2(x) => Ok(x),
-			V3(x) => x.try_into(),
+			V3(x) => Ok(x.try_into()?),
 		}
 	}
 }
 
 impl<Call> TryFrom<VersionedXcm<Call>> for v3::Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+	type Error = VersionedConversionError;
+	fn try_from(x: VersionedXcm<Call>) -> Result<Self, VersionedConversionError> {
 		use VersionedXcm::*;
 		match x {
-			V2(x) => x.try_into(),
+			V2(x) => Ok(x.try_into()?),
 			V3(x) => Ok(x),
 		}
 	}
@@ -410,7 +430,7 @@ pub trait WrapVersion {
 	fn wrap_version<Call>(
 		dest: &latest::MultiLocation,
 		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()>;
+	) -> Result<VersionedXcm<Call>, VersionedConversionError>;
 }
 
 /// `()` implementation does nothing with the XCM, just sending with whatever version it was authored as.
@@ -418,7 +438,7 @@ impl WrapVersion for () {
 	fn wrap_version<Call>(
 		_: &latest::MultiLocation,
 		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
+	) -> Result<VersionedXcm<Call>, VersionedConversionError> {
 		Ok(xcm.into())
 	}
 }
@@ -429,7 +449,7 @@ impl WrapVersion for AlwaysV2 {
 	fn wrap_version<Call>(
 		_: &latest::MultiLocation,
 		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
+	) -> Result<VersionedXcm<Call>, VersionedConversionError> {
 		Ok(VersionedXcm::<Call>::V2(xcm.into().try_into()?))
 	}
 }
@@ -440,7 +460,7 @@ impl WrapVersion for AlwaysV3 {
 	fn wrap_version<Call>(
 		_: &latest::MultiLocation,
 		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
+	) -> Result<VersionedXcm<Call>, VersionedConversionError> {
 		Ok(VersionedXcm::<Call>::V3(xcm.into().try_into()?))
 	}
 }
@@ -456,9 +476,9 @@ pub type AlwaysLts = AlwaysV3;
 pub mod prelude {
 	pub use super::{
 		latest::prelude::*, AlwaysLatest, AlwaysLts, AlwaysV2, AlwaysV3, IntoVersion, Unsupported,
-		Version as XcmVersion, VersionedAssetId, VersionedInteriorMultiLocation,
-		VersionedMultiAsset, VersionedMultiAssets, VersionedMultiLocation, VersionedResponse,
-		VersionedXcm, WrapVersion,
+		Version as XcmVersion, VersionedAssetId, VersionedConversionError,
+		VersionedInteriorMultiLocation, VersionedMultiAsset, VersionedMultiAssets,
+		VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
 	};
 }
 

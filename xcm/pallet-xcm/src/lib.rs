@@ -329,6 +329,8 @@ pub mod pallet {
 		LockNotFound,
 		/// The unlock operation cannot succeed because there are still users of the lock.
 		InUse,
+		/// Cannot convert to the latest XCM version.
+		XcmConversionFailed(VersionedConversionError),
 	}
 
 	impl<T: Config> From<SendError> for Error<T> {
@@ -644,8 +646,11 @@ pub mod pallet {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			let interior: Junctions =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
-			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
-			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let dest = MultiLocation::try_from(*dest).map_err(|_| Error::<T>::BadVersion)?;
+			let message: Xcm<()> = (*message).try_into().map_err(|e| match e {
+				VersionedConversionError::UnsupportedVersion => Error::<T>::BadVersion,
+				e => Error::<T>::XcmConversionFailed(e),
+			})?;
 
 			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(Error::<T>::from)?;
 			Self::deposit_event(Event::Sent(origin_location, dest, message));
@@ -668,8 +673,8 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		#[pallet::weight({
-			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
-			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			let maybe_assets: Result<MultiAssets, VersionedConversionError> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, VersionedConversionError> = (*dest.clone()).try_into();
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
@@ -761,7 +766,10 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let hash = message.using_encoded(sp_io::hashing::blake2_256);
-			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let message = (*message).try_into().map_err(|e| match e {
+				VersionedConversionError::UnsupportedVersion => Error::<T>::BadVersion,
+				e => Error::<T>::XcmConversionFailed(e),
+			})?;
 			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
@@ -826,7 +834,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let location: MultiLocation =
-				(*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
+				(*location).try_into().map_err(|_| Error::<T>::BadLocation)?;
 			Self::request_version_notify(location).map_err(|e| {
 				match e {
 					XcmError::InvalidLocation => Error::<T>::AlreadySubscribed,
@@ -849,7 +857,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let location: MultiLocation =
-				(*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
+				(*location).try_into().map_err(|_| Error::<T>::BadLocation)?;
 			Self::unrequest_version_notify(location).map_err(|e| {
 				match e {
 					XcmError::InvalidLocation => Error::<T>::NoSubscription,
@@ -925,8 +933,8 @@ pub mod pallet {
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
 		#[pallet::weight({
-			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
-			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			let maybe_assets: Result<MultiAssets, VersionedConversionError> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, VersionedConversionError> = (*dest.clone()).try_into();
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
@@ -972,10 +980,10 @@ impl<T: Config> Pallet<T> {
 		maybe_weight_limit: Option<WeightLimit>,
 	) -> DispatchResult {
 		let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-		let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		let dest = (*dest).try_into().map_err(|_| Error::<T>::BadVersion)?;
 		let beneficiary: MultiLocation =
-			(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
-		let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			(*beneficiary).try_into().map_err(|_| Error::<T>::BadVersion)?;
+		let assets: MultiAssets = (*assets).try_into().map_err(|_| Error::<T>::BadVersion)?;
 
 		ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 		let value = (origin_location, assets.into_inner());
@@ -1030,10 +1038,10 @@ impl<T: Config> Pallet<T> {
 		maybe_weight_limit: Option<WeightLimit>,
 	) -> DispatchResult {
 		let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-		let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		let dest = (*dest).try_into().map_err(|_| Error::<T>::BadVersion)?;
 		let beneficiary: MultiLocation =
-			(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
-		let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			(*beneficiary).try_into().map_err(|_| Error::<T>::BadVersion)?;
+		let assets: MultiAssets = (*assets).try_into().map_err(|_| Error::<T>::BadVersion)?;
 
 		ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 		let value = (origin_location, assets.into_inner());
@@ -1179,7 +1187,7 @@ impl<T: Config> Pallet<T> {
 					let (query_id, max_weight, target_xcm_version) = value;
 					let new_key = match MultiLocation::try_from(old_key.clone()) {
 						Ok(k) => k,
-						Err(()) => {
+						Err(_e) => {
 							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
 							weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
 							if weight_used >= weight_cutoff {
@@ -1639,7 +1647,7 @@ impl<T: Config> WrapVersion for Pallet<T> {
 	fn wrap_version<Call>(
 		dest: &MultiLocation,
 		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
+	) -> Result<VersionedXcm<Call>, VersionedConversionError> {
 		SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
 			.or_else(|| {
 				Self::note_unknown_version(dest);
@@ -1651,7 +1659,7 @@ impl<T: Config> WrapVersion for Pallet<T> {
 					"Could not determine a version to wrap XCM for destination: {:?}",
 					dest,
 				);
-				()
+				VersionedConversionError::UnsupportedVersion
 			})
 			.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
 	}
@@ -1727,7 +1735,7 @@ impl<T: Config> ClaimAssets for Pallet<T> {
 			(0, X1(GeneralIndex(i))) =>
 				versioned = match versioned.into_version(*i as u32) {
 					Ok(v) => v,
-					Err(()) => return false,
+					Err(_e) => return false,
 				},
 			(0, Here) => (),
 			_ => return false,

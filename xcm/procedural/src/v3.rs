@@ -172,8 +172,8 @@ pub mod junctions {
 
 		quote! {
 			impl core::convert::TryFrom<crate::v2::Junctions> for Junctions {
-				type Error = ();
-				fn try_from(mut old: crate::v2::Junctions) -> core::result::Result<Self, ()> {
+				type Error = ConversionError;
+				fn try_from(mut old: crate::v2::Junctions) -> core::result::Result<Self, ConversionError> {
 					use Junctions::*;
 					Ok(match old {
 						crate::v2::Junctions::Here => Here,

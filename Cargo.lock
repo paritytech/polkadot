@@ -12657,6 +12657,7 @@ name = "xcm"
 version = "0.9.18"
 dependencies = [
  "derivative",
+ "frame-support",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",

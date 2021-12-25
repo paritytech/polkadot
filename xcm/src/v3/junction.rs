@@ -16,7 +16,7 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use super::{Junctions, MultiLocation};
+use super::{ConversionError, Junctions, MultiLocation};
 use crate::{
 	v2::{
 		BodyId as OldBodyId, BodyPart as OldBodyPart, Junction as OldJunction,
@@ -98,8 +98,8 @@ pub enum BodyId {
 }
 
 impl TryFrom<OldBodyId> for BodyId {
-	type Error = ();
-	fn try_from(value: OldBodyId) -> Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(value: OldBodyId) -> Result<Self, ConversionError> {
 		use OldBodyId::*;
 		Ok(match value {
 			Unit => Self::Unit,
@@ -109,7 +109,7 @@ impl TryFrom<OldBodyId> for BodyId {
 					r.copy_from_slice(&n[..]);
 					Self::Moniker(r)
 				} else {
-					return Err(())
+					return Err(ConversionError::BadMonikerLength)
 				},
 			Index(n) => Self::Index(n),
 			Executive => Self::Executive,
@@ -169,8 +169,8 @@ impl BodyPart {
 }
 
 impl TryFrom<OldBodyPart> for BodyPart {
-	type Error = ();
-	fn try_from(value: OldBodyPart) -> Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(value: OldBodyPart) -> Result<Self, ConversionError> {
 		use OldBodyPart::*;
 		Ok(match value {
 			Voice => Self::Voice,
@@ -274,8 +274,8 @@ impl From<u128> for Junction {
 }
 
 impl TryFrom<OldJunction> for Junction {
-	type Error = ();
-	fn try_from(value: OldJunction) -> Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(value: OldJunction) -> Result<Self, ConversionError> {
 		use OldJunction::*;
 		Ok(match value {
 			Parachain(id) => Self::Parachain(id),
@@ -285,7 +285,7 @@ impl TryFrom<OldJunction> for Junction {
 			AccountKey20 { network, key } => Self::AccountKey20 { network: network.into(), key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(_key) => return Err(()),
+			GeneralKey(_key) => return Err(ConversionError::CannotConvertGeneralKey),
 			OnlyChild => Self::OnlyChild,
 			Plurality { id, part } =>
 				Self::Plurality { id: id.try_into()?, part: part.try_into()? },
