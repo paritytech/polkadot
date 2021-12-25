@@ -154,6 +154,9 @@ where
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 			FetchOnChainVotes(relay_parent, scraped) =>
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
+			PvfsRequirePrecheck(relay_parent, pvfs) =>
+				self.requests_cache.cache_pvfs_require_precheck(relay_parent, pvfs),
+			SubmitPvfCheckStatement(_, _, _, ()) => {},
 		}
 	}
 
@@ -237,6 +240,12 @@ where
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::FetchOnChainVotes(sender) =>
 				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
+			Request::PvfsRequirePrecheck(sender) => query!(pvfs_require_precheck(), sender)
+				.map(|sender| Request::PvfsRequirePrecheck(sender)),
+			request @ Request::SubmitPvfCheckStatement(_, _, _) => {
+				// This request is side-effecting and thus cannot be cached.
+				Some(request)
+			},
 		}
 	}
 
@@ -335,42 +344,30 @@ where
 {
 	let _timer = metrics.time_make_runtime_api_request();
 
-	// The version of the `ParachainHost` runtime API that we are absolutely sure is deployed widely
-	// on all supported networks: Rococo, Kusama, Polkadot and perhaps others like Versi.
-	//
-	// This version is used for eliding unnecessary runtime API calls. It is safer to keep the lower
-	// version.
-	const WIDELY_DEPLOYED_API_VERSION: u32 = 1;
-
 	macro_rules! query {
 		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
 
-			let runtime_version = if $version > WIDELY_DEPLOYED_API_VERSION {
-				use sp_api::ApiExt;
-				api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
-					.unwrap_or_else(|e| {
-						tracing::warn!(
-							target: LOG_TARGET,
-							"cannot query the runtime API version: {}",
-							e,
-						);
-						Some(WIDELY_DEPLOYED_API_VERSION)
-					})
-					.unwrap_or_else(|| {
-						tracing::warn!(
-							target: LOG_TARGET,
-							"no runtime version is reported"
-						);
-						WIDELY_DEPLOYED_API_VERSION
-					})
-			} else {
-				// The required version is less or equal to the widely deployed runtime API version.
-				WIDELY_DEPLOYED_API_VERSION
-			};
+			use sp_api::ApiExt;
+			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+				.unwrap_or_else(|e| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"cannot query the runtime API version: {}",
+						e,
+					);
+					Some(0)
+				})
+				.unwrap_or_else(|| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"no runtime version is reported"
+					);
+					0
+				});
 
-			let res = if runtime_version <= $version {
+			let res = if runtime_version >= $version {
 				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
@@ -441,6 +438,17 @@ where
 			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender),
 		Request::FetchOnChainVotes(sender) =>
 			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender),
+		Request::SubmitPvfCheckStatement(stmt, signature, sender) => {
+			query!(
+				SubmitPvfCheckStatement,
+				submit_pvf_check_statement(stmt, signature),
+				ver = 2,
+				sender
+			)
+		},
+		Request::PvfsRequirePrecheck(sender) => {
+			query!(PvfsRequirePrecheck, pvfs_require_precheck(), ver = 2, sender)
+		},
 	}
 }
 

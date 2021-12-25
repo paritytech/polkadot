@@ -43,9 +43,9 @@ use polkadot_primitives::v1::{
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
-	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v1::Misbehavior;
 use std::{
@@ -566,7 +566,8 @@ pub enum ChainApiMessage {
 	/// Request the `k` ancestors block hashes of a block with the given hash.
 	/// The response channel may return a `Vec` of size up to `k`
 	/// filled with ancestors hashes with the following order:
-	/// `parent`, `grandparent`, ...
+	/// `parent`, `grandparent`, ... up to the hash of genesis block
+	/// with number 0, including it.
 	Ancestors {
 		/// The hash of the block in question.
 		hash: Hash,
@@ -673,6 +674,10 @@ pub enum RuntimeApiRequest {
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
 	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
+	/// Submits a PVF pre-checking statement into the transaction pool.
+	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
+	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
+	PvfsRequirePrecheck(RuntimeApiSender<Vec<ValidationCodeHash>>),
 }
 
 /// A message to the Runtime API subsystem.

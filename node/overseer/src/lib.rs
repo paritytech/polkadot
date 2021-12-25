@@ -130,7 +130,13 @@ where
 {
 	fn head_supports_parachains(&self, head: &Hash) -> bool {
 		let id = BlockId::Hash(*head);
-		self.runtime_api().has_api::<dyn ParachainHost<Block>>(&id).unwrap_or(false)
+		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.
+		self.runtime_api()
+			.api_version::<dyn ParachainHost<Block>>(&id)
+			.ok()
+			.flatten()
+			.unwrap_or(0) >=
+			1
 	}
 }
 

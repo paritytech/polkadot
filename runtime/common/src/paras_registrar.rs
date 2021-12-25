@@ -583,6 +583,7 @@ mod tests {
 	use sp_io::TestExternalities;
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
+		transaction_validity::TransactionPriority,
 		Perbill,
 	};
 
@@ -604,6 +605,14 @@ mod tests {
 			ParachainsOrigin: origin::{Pallet, Origin},
 		}
 	);
+
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+	where
+		Call: From<C>,
+	{
+		type Extrinsic = UncheckedExtrinsic;
+		type OverarchingCall = Call;
+	}
 
 	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
@@ -661,9 +670,15 @@ mod tests {
 
 	impl origin::Config for Test {}
 
+	parameter_types! {
+		pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	}
+
 	impl paras::Config for Test {
 		type Event = Event;
 		type WeightInfo = paras::TestWeightInfo;
+		type UnsignedPriority = ParasUnsignedPriority;
+		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 
 	impl configuration::Config for Test {
