@@ -2311,7 +2311,7 @@ pub async fn handle_double_assignment_import(
 	}
 
 	// Assert that there are no more messages being sent by the subsystem
-	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
+	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_some());
 }
 
 /// Handles validation code fetch, returns the received relay parent hash.
