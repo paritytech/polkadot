@@ -43,7 +43,7 @@ fn runtime_can_publish_metrics() {
 		.expect("failed to start the node process");
 
 	// Enough time to author one block.
-	thread::sleep(Duration::from_secs(10));
+	thread::sleep(Duration::from_secs(30));
 
 	let runtime = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
 
