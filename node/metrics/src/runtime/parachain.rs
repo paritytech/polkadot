@@ -21,35 +21,35 @@ use crate::runtime::RuntimeMetricsProvider;
 
 /// Register the parachain runtime metrics.
 pub fn register_metrics(runtime_metrics_provider: &RuntimeMetricsProvider) {
-    runtime_metrics_provider.register_countervec(
-        "parachain_inherent_data_weight", 
-        "Inherent data weight before and after filtering",
-        &["when"]
-    );
+	runtime_metrics_provider.register_countervec(
+		"parachain_inherent_data_weight",
+		"Inherent data weight before and after filtering",
+		&["when"],
+	);
 
-    runtime_metrics_provider.register_counter(
+	runtime_metrics_provider.register_counter(
 		"parachain_inherent_data_bitfields_processed",
 		"Counts the number of bitfields processed in `enter_inner`.",
 	);
 
-    runtime_metrics_provider.register_countervec(
+	runtime_metrics_provider.register_countervec(
 		"parachain_inherent_data_candidates_processed",
 		"Counts the number of parachain block candidates processed in `enter_inner`.",
 		&["category"],
 	);
 
-    runtime_metrics_provider.register_countervec(
+	runtime_metrics_provider.register_countervec(
 		"parachain_inherent_data_dispute_sets_processed",
 		"Counts the number of dispute statements sets processed in `enter_inner`.",
 		&["category"],
 	);
 
-    runtime_metrics_provider.register_counter(
+	runtime_metrics_provider.register_counter(
 		"parachain_inherent_data_dispute_sets_included",
 		"Counts the number of dispute statements sets included in a block in `enter_inner`.",
 	);
 
-    runtime_metrics_provider.register_countervec(
+	runtime_metrics_provider.register_countervec(
 		"parachain_create_inherent_bitfields_signature_checks",
 		"Counts the number of bitfields signature checked in `enter_inner`.",
 		&["validity"],

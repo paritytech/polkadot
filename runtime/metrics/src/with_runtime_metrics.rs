@@ -23,9 +23,7 @@
 const TRACING_TARGET: &'static str = "metrics";
 
 use parity_scale_codec::Encode;
-use primitives::v1::{
-	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
-};
+use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate};
 use sp_std::prelude::*;
 
 /// Holds a set of counters that have different values for their labels,

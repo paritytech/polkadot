@@ -24,9 +24,7 @@
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
-use primitives::v1::{
-	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
-};
+use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex, MutexGuard},
