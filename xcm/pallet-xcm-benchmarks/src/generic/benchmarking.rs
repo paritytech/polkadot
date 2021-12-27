@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{new_executor, XcmCallOf};
 #[cfg(test)]
 use crate::mock::sent_xcm;
+use crate::{new_executor, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;

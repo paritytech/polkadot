@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{account_and_location, new_executor, AssetTransactorOf, XcmCallOf};
 #[cfg(test)]
 use crate::mock::sent_xcm;
+use crate::{account_and_location, new_executor, AssetTransactorOf, XcmCallOf};
 use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
 use frame_support::{
 	pallet_prelude::Get,
