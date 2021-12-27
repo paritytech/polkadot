@@ -582,7 +582,7 @@ pub(crate) mod tests {
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
+	use polkadot_primitives::{v1::ValidatorIndex, v2::SessionInfo};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -685,6 +685,9 @@ pub(crate) mod tests {
 			n_delay_tranches: index as _,
 			no_show_slots: index as _,
 			needed_approvals: index as _,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 
@@ -1140,6 +1143,9 @@ pub(crate) mod tests {
 			relay_vrf_modulo_samples: irrelevant,
 			n_delay_tranches: irrelevant,
 			no_show_slots: irrelevant,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		};
 
 		let slot = Slot::from(10);
