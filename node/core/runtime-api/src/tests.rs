@@ -512,6 +512,8 @@ fn dummy_session_info() -> SessionInfo {
 		no_show_slots: 0u32,
 		needed_approvals: 1u32,
 		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }
 #[test]

@@ -753,6 +753,8 @@ fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
 		n_delay_tranches: 50,
 		no_show_slots: 2,
 		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }
 

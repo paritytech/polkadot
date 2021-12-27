@@ -34,6 +34,10 @@ pub struct SessionInfo {
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
 	pub active_validator_indices: Vec<v1::ValidatorIndex>,
+	/// A secure random seed for the session, gathered from BABE.
+	pub random_seed: [u8; 32],
+	/// The amount of sessions to keep for disputes.
+	pub dispute_period: v1::SessionIndex,
 
 	/****** Old fields ******/
 	/// Validators in canonical ordering.
@@ -87,6 +91,8 @@ impl From<v1::SessionInfo> for SessionInfo {
 		SessionInfo {
 			// new fields
 			active_validator_indices: Vec::new(),
+			random_seed: [0u8; 32],
+			dispute_period: 6,
 			// old fields
 			validators: old.validators,
 			discovery_keys: old.discovery_keys,

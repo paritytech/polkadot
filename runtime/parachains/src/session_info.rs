@@ -118,6 +118,7 @@ impl<T: Config> Pallet<T> {
 		let needed_approvals = config.needed_approvals;
 
 		let new_session_index = notification.session_index;
+		let random_seed = notification.random_seed;
 		let old_earliest_stored_session = EarliestStoredSession::<T>::get();
 		let new_earliest_stored_session = new_session_index.saturating_sub(dispute_period);
 		let new_earliest_stored_session =
@@ -147,6 +148,8 @@ impl<T: Config> Pallet<T> {
 			no_show_slots,
 			needed_approvals,
 			active_validator_indices: active_set,
+			random_seed,
+			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 	}
