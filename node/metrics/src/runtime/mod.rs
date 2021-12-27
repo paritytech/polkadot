@@ -32,7 +32,7 @@ use std::{
 use substrate_prometheus_endpoint::{
 	register, Counter, CounterVec, Opts, PrometheusError, Registry, U64,
 };
-pub mod parachain;
+mod parachain;
 
 const LOG_TARGET: &'static str = "metrics::runtime";
 const METRIC_PREFIX: &'static str = "polkadot";
