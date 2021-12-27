@@ -19,33 +19,14 @@
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
-/// Metric registration parameters.
-#[derive(Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct RuntimeMetricRegisterParams {
-	/// Metric description.
-	description: Vec<u8>,
-	/// Only for counter vec.
-	pub labels: Option<RuntimeMetricLabels>,
-}
-
 /// Runtime metric operations.
 #[derive(Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum RuntimeMetricOp {
-	/// Register a new metric.
-	Register(RuntimeMetricRegisterParams),
 	/// Increment a counter metric with labels by value.
 	IncrementCounterVec(u64, RuntimeMetricLabelValues),
 	/// Increment a counter metric by value.
 	IncrementCounter(u64),
-}
-
-impl RuntimeMetricRegisterParams {
-	/// Create new metric registration params.
-	pub fn new(description: Vec<u8>, labels: Option<RuntimeMetricLabels>) -> Self {
-		Self { description, labels }
-	}
 }
 
 /// Runtime metric update event.
@@ -60,18 +41,6 @@ pub struct RuntimeMetricUpdate {
 
 fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
 	return sp_std::str::from_utf8(v).unwrap_or(default)
-}
-
-impl RuntimeMetricRegisterParams {
-	/// Returns the metric description.
-	pub fn description(&self) -> &str {
-		vec_to_str(&self.description, "No description provided.")
-	}
-
-	/// Returns a label names as an `Option` of `Vec<&str>`.
-	pub fn labels(&self) -> Option<Vec<&str>> {
-		self.labels.as_ref().map(|labels| labels.as_str_vec())
-	}
 }
 
 impl RuntimeMetricLabels {

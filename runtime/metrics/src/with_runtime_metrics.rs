@@ -16,13 +16,15 @@
 
 //! This module provides an implementation for the runtime metrics types: `Counter`
 //! and `CounterVec`. These types expose a Prometheus like interface and same functionality.
-//! Each instance of a runtime metric is mapped to a Prometheus metric on the node side.
+//! Each instance of a runtime metric is mapped to a Prometheus metric on the client side.
+//! The runtime metrics must be registered with the registry in the client, otherwise
+//! they will not be published.
 
 const TRACING_TARGET: &'static str = "metrics";
 
 use parity_scale_codec::Encode;
 use primitives::v1::{
-	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 use sp_std::prelude::*;
 
@@ -53,27 +55,11 @@ impl MetricEmitter for CounterVec {}
 impl MetricEmitter for Counter {}
 
 impl CounterVec {
-	/// Create a new runtime metric from a metric previously registered in the client.
-	pub fn from_registered(registered_metric_name: &'static str) -> Self {
+	/// Create a new counter metric with specified `name`. This metric needs to be registered
+	/// in the client before it can be used.
+	pub fn new(name: &'static str) -> Self {
 		// No register op is emitted since the metric is supposed to be registered
 		// on the client by the time `inc()` is called.
-		CounterVec { name: registered_metric_name, label_values: None }
-	}
-
-	/// Create a new metric with specified `name`, `description` and `labels`.
-	/// Also registers the metric on the client side.
-	pub fn new(name: &'static str, description: &'static str, labels: &[&'static str]) -> Self {
-		// Send a register metric operation to node side.
-		let metric_update = RuntimeMetricUpdate {
-			metric_name: Vec::from(name),
-			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(
-				Vec::from(description),
-				Some(labels.into()),
-			)),
-		};
-
-		Self::emit(&metric_update);
-
 		CounterVec { name, label_values: None }
 	}
 
@@ -102,18 +88,9 @@ impl CounterVec {
 }
 
 impl Counter {
-	/// Create a new counter metric with specified `name`, `description`.
-	pub fn new(name: &'static str, description: &'static str) -> Self {
-		// Send a register metric operation to node side.
-		let metric_update = RuntimeMetricUpdate {
-			metric_name: Vec::from(name),
-			op: RuntimeMetricOp::Register(RuntimeMetricRegisterParams::new(
-				Vec::from(description),
-				None,
-			)),
-		};
-
-		Self::emit(&metric_update);
+	/// Create a new counter metric with specified `name`. This metric needs to be registered
+	/// in the client before it can be used.
+	pub fn new(name: &'static str) -> Self {
 		Counter { name }
 	}
 
