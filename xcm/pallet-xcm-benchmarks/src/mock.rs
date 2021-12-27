@@ -16,16 +16,27 @@
 
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
+use sp_std::cell::RefCell;
 use xcm_executor::traits::FilterAssetLocation;
 
-// An xcm sender/receiver akin to > /dev/null
-pub struct DevNull;
-impl xcm::opaque::latest::SendXcm for DevNull {
-	fn send_xcm(_: impl Into<MultiLocation>, _: Xcm<()>) -> SendResult {
+thread_local! {
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+}
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
+	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
+
+// A simple XCM sender/receiver that queues up XCMs in a Vec.
+pub struct TestSendXcm;
+impl SendXcm for TestSendXcm {
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
 		Ok(())
 	}
 }
 
+// An xcm sender/receiver akin to > /dev/null
+pub struct DevNull;
 impl xcm_executor::traits::OnResponse for DevNull {
 	fn expecting_response(_: &MultiLocation, _: u64) -> bool {
 		false

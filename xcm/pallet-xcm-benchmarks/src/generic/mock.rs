@@ -99,7 +99,7 @@ parameter_types! {
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = DevNull;
+	type XcmSender = TestSendXcm;
 	type AssetTransactor = NoAssetTransactor;
 	type OriginConverter = AlwaysSignedByDefault<Origin>;
 	type IsReserve = AllAssetLocationsPass;

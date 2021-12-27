@@ -64,7 +64,7 @@ pub fn mock_worst_case_holding() -> MultiAssets {
 	const HOLDING_FUNGIBLES: u32 = 99;
 	const HOLDING_NON_FUNGIBLES: u32 = 99;
 	let fungibles_amount: u128 = 100;
-	(0..HOLDING_FUNGIBLES)
+	(1..=HOLDING_FUNGIBLES)
 		.map(|i| {
 			MultiAsset {
 				id: Concrete(GeneralIndex(i as u128).into()),
@@ -73,7 +73,7 @@ pub fn mock_worst_case_holding() -> MultiAssets {
 			.into()
 		})
 		.chain(core::iter::once(MultiAsset { id: Concrete(Here.into()), fun: Fungible(u128::MAX) }))
-		.chain((0..HOLDING_NON_FUNGIBLES).map(|i| MultiAsset {
+		.chain((1..=HOLDING_NON_FUNGIBLES).map(|i| MultiAsset {
 			id: Concrete(GeneralIndex(i as u128).into()),
 			fun: NonFungible(asset_instance_from(i)),
 		}))

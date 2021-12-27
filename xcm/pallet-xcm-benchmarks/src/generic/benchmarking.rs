@@ -16,6 +16,8 @@
 
 use super::*;
 use crate::{new_executor, XcmCallOf};
+#[cfg(test)]
+use crate::mock::sent_xcm;
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
@@ -27,16 +29,17 @@ use xcm::{
 
 benchmarks! {
 	query_holding {
-		let holding = T::worst_case_holding();
+		let mut holding = T::worst_case_holding();
+		let dest = T::valid_destination()?;
 
 		let mut executor = new_executor::<T>(Default::default());
 		executor.holding = holding.clone().into();
 
 		let instruction = Instruction::<XcmCallOf<T>>::QueryHolding {
 			query_id: Default::default(),
-			dest: T::valid_destination()?,
+			dest: dest.clone(),
 			// Worst case is looking through all holdings for every asset explicitly.
-			assets: Definite(holding),
+			assets: Definite(holding.clone()),
 			max_response_weight: u64::MAX,
 		};
 
@@ -45,7 +48,15 @@ benchmarks! {
 	} : {
 		executor.execute(xcm)?;
 	} verify {
-		// The completion of execution above is enough to validate this is completed.
+		let _ = holding.reanchor(&dest, &Here.into());
+		assert_eq!(sent_xcm(), vec![(
+			dest,
+			Xcm(vec![Instruction::QueryResponse {
+				query_id: Default::default(),
+				response: Response::Assets(holding),
+				max_weight: u64::MAX,
+			}])
+		)]);
 	}
 
 	// This benchmark does not use any additional orders or instructions. This should be managed
@@ -211,12 +222,20 @@ benchmarks! {
 		let dest = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
 		let max_response_weight = Default::default();
 
-		let instruction = Instruction::ReportError { query_id, dest, max_response_weight };
+		let instruction =
+			Instruction::ReportError { query_id, dest: dest.clone(), max_response_weight };
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.execute(xcm)?;
 	} verify {
-		// the execution succeeding is all we need to verify this xcm was successful
+		assert_eq!(sent_xcm(), vec![(
+			dest,
+			Xcm(vec![Instruction::QueryResponse {
+				query_id,
+				response: Response::ExecutionResult(Some((0u32, XcmError::Unimplemented))),
+				max_weight: max_response_weight,
+			}]),
+		)]);
 	}
 
 	claim_asset {
@@ -295,18 +314,22 @@ benchmarks! {
 	}
 
 	initiate_reserve_withdraw {
-		let holding = T::worst_case_holding();
+		let mut holding = T::worst_case_holding();
 		let assets_filter = MultiAssetFilter::Definite(holding.clone());
 		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.holding = holding.clone().into();
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
-	}:{
+	}: {
 		executor.execute(xcm)?;
 	} verify {
-		// The execute completing successfully is as good as we can check.
-		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+		let dest = T::valid_destination().unwrap();
+		let _ = holding.reanchor(&dest, &Here.into());
+		assert_eq!(sent_xcm(), vec![(
+			dest,
+			Xcm(vec![Instruction::WithdrawAsset(holding), Instruction::ClearOrigin]),
+		)]);
 	}
 
 	impl_benchmark_test_suite!(
