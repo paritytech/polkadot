@@ -26,7 +26,7 @@ pub struct CounterVec;
 /// Dummy implementation.
 impl CounterVec {
 	/// Constructor.
-	pub fn new(_name: &'static str, _description: &'static str, _labels: &[&'static str]) -> Self {
+	pub fn new(_name: &'static str) -> Self {
 		CounterVec
 	}
 	/// Sets label values, implementation is a `no op`.
@@ -42,7 +42,7 @@ impl CounterVec {
 /// Dummy implementation.
 impl Counter {
 	/// Constructor.
-	pub fn new(_name: &'static str, _description: &'static str) -> Self {
+	pub fn new(_name: &'static str) -> Self {
 		Counter
 	}
 	/// Increment counter by value, implementation is a `no op`.
