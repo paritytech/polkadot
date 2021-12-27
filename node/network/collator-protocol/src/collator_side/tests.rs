@@ -32,9 +32,12 @@ use sp_runtime::traits::AppVerify;
 use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest, view};
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
+		ValidatorId, ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 use polkadot_subsystem::{
@@ -110,6 +113,7 @@ impl Default for TestState {
 				n_delay_tranches: 0,
 				no_show_slots: 0,
 				needed_approvals: 0,
+				active_validator_indices: vec![],
 			},
 			group_rotation_info,
 			validator_peer_id,

@@ -24,17 +24,24 @@ use crate::{
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
 use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
-use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::{
+	v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex},
+	v2::SessionInfo,
+};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
 
+pub mod migration;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use frame_system::pallet_prelude::BlockNumberFor;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -66,6 +73,13 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn session_info)]
 	pub(crate) type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> Weight {
+			migration::migrate_to_latest::<T>()
+		}
+	}
 }
 
 /// An abstraction for the authority discovery pallet
@@ -132,6 +146,7 @@ impl<T: Config> Pallet<T> {
 			n_delay_tranches,
 			no_show_slots,
 			needed_approvals,
+			active_validator_indices: active_set,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 	}

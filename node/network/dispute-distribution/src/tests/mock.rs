@@ -32,9 +32,12 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
-	ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use polkadot_primitives_test_helpers::dummy_candidate_descriptor;
 
@@ -86,6 +89,7 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: vec![],
 	};
 
 /// `SessionInfo` for the second session. (No more validators, but two more authorities.
@@ -105,6 +109,7 @@ pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: vec![],
 	};
 }
 

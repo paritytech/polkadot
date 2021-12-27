@@ -21,12 +21,15 @@ use crate::{
 	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
-use primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+use primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+		CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+		ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode, ValidationCodeHash,
+		ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
