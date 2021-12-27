@@ -48,12 +48,15 @@ use futures::{
 };
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
-use polkadot_node_jaeger as jaeger;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+		GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+		PersistedValidationData, SessionIndex, Signed, SigningContext, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, Public};

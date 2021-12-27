@@ -19,7 +19,10 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
-use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::{
+	v1::{Hash, SessionIndex},
+	v2::SessionInfo,
+};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{

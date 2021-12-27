@@ -32,9 +32,12 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateDescriptor, CandidateHash, CandidateReceipt, Hash, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 
 pub const MOCK_SESSION_INDEX: SessionIndex = 1;

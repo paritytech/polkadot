@@ -22,10 +22,13 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
-use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
-	ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+		GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 
 /// Create dummy session info with two validator groups.
