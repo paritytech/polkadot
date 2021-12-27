@@ -17,8 +17,8 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
-	session_info, shared,
+	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
+	scheduler, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -38,7 +38,8 @@ use sp_core::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	KeyTypeId,
+	transaction_validity::TransactionPriority,
+	KeyTypeId, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -51,23 +52,32 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
-		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		ParasShared: shared::{Pallet, Call, Storage},
-		ParaInclusion: inclusion::{Pallet, Call, Storage, Event<T>},
-		ParaInherent: paras_inherent::{Pallet, Call, Storage},
-		Scheduler: scheduler::{Pallet, Storage},
-		Initializer: initializer::{Pallet, Call, Storage},
-		Dmp: dmp::{Pallet, Call, Storage},
-		Ump: ump::{Pallet, Call, Storage, Event},
-		Hrmp: hrmp::{Pallet, Call, Storage, Event<T>},
-		SessionInfo: session_info::{Pallet, Storage},
-		Disputes: disputes::{Pallet, Storage, Event<T>},
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		System: frame_system,
+		Balances: pallet_balances,
+		Paras: paras,
+		Configuration: configuration,
+		ParasShared: shared,
+		ParaInclusion: inclusion,
+		ParaInherent: paras_inherent,
+		Scheduler: scheduler,
+		Initializer: initializer,
+		Dmp: dmp,
+		Ump: ump,
+		Hrmp: hrmp,
+		ParachainsOrigin: origin,
+		SessionInfo: session_info,
+		Disputes: disputes,
+		Babe: pallet_babe,
 	}
 );
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
@@ -101,6 +111,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -177,10 +188,35 @@ impl crate::configuration::Config for Test {
 
 impl crate::shared::Config for Test {}
 
+impl origin::Config for Test {}
+
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
+/// A very dumb implementation of `EstimateNextSessionRotation`. At the moment of writing, this
+/// is more to satisfy type requirements rather than to test anything.
+pub struct TestNextSessionRotation;
+
+impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSessionRotation {
+	fn average_session_length() -> u32 {
+		10
+	}
+
+	fn estimate_current_session_progress(_now: u32) -> (Option<Permill>, Weight) {
+		(None, 0)
+	}
+
+	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
+		(None, 0)
+	}
+}
+
 impl crate::paras::Config for Test {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = crate::paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = TestNextSessionRotation;
 }
 
 impl crate::dmp::Config for Test {}

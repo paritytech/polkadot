@@ -39,9 +39,9 @@ use polkadot_node_network_protocol::{
 	request_response::{v1, IncomingRequest, OutgoingRequest, Requests},
 };
 use polkadot_node_primitives::ErasureChunk;
-use polkadot_primitives::v1::{
-	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
-	ValidatorIndex,
+use polkadot_primitives::{
+	v1::{CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, ValidatorIndex},
+	v2::SessionInfo,
 };
 use polkadot_subsystem::{
 	messages::{
@@ -167,7 +167,7 @@ impl TestState {
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
 	async fn run_inner(mut self, mut harness: TestHarness) {
-		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
+		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block):
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
 			advanced.next();
@@ -204,7 +204,7 @@ impl TestState {
 					overseer_signal(update_tx.clone(), OverseerSignal::ActiveLeaves(update)).await;
 					// We need to give the subsystem a little time to do its job, otherwise it will
 					// cancel jobs as obsolete:
-					Delay::new(Duration::from_millis(20)).await;
+					Delay::new(Duration::from_millis(100)).await;
 				}
 			}
 			.boxed(),

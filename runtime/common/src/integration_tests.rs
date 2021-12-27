@@ -32,11 +32,16 @@ use frame_system::EnsureRoot;
 use primitives::v1::{
 	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
 };
-use runtime_parachains::{configuration, paras, shared, Origin as ParaOrigin, ParaLifecycle};
+use runtime_parachains::{
+	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
+};
 use sp_core::{crypto::KeyTypeId, H256};
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup, One};
+use sp_runtime::{
+	traits::{BlakeTwo256, IdentityLookup, One},
+	transaction_validity::TransactionPriority,
+};
 use sp_std::sync::Arc;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -59,8 +64,9 @@ frame_support::construct_runtime!(
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
+		Paras: paras::{Pallet, Call, Storage, Event, Config},
 		ParasShared: shared::{Pallet, Call, Storage},
+		ParachainsOrigin: origin::{Pallet, Origin},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -69,6 +75,14 @@ frame_support::construct_runtime!(
 		Slots: slots::{Pallet, Call, Storage, Event<T>},
 	}
 );
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 
 use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
 
@@ -102,6 +116,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -164,10 +179,17 @@ impl configuration::Config for Test {
 
 impl shared::Config for Test {}
 
+impl origin::Config for Test {}
+
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl paras::Config for Test {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = crate::mock::TestNextSessionRotation;
 }
 
 parameter_types! {
@@ -212,6 +234,7 @@ impl slots::Config for Test {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = LeaseOffset;
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::slots::TestWeightInfo;
 }
 
@@ -288,12 +311,10 @@ fn run_to_block(n: u32) {
 	assert!(System::block_number() < n);
 	while System::block_number() < n {
 		let block_number = System::block_number();
-		AllPallets::on_finalize(block_number);
-		System::on_finalize(block_number);
+		AllPalletsWithSystem::on_finalize(block_number);
 		System::set_block_number(block_number + 1);
-		System::on_initialize(block_number + 1);
 		maybe_new_session(block_number + 1);
-		AllPallets::on_initialize(block_number + 1);
+		AllPalletsWithSystem::on_initialize(block_number + 1);
 	}
 }
 
@@ -304,6 +325,10 @@ fn run_to_session(n: u32) {
 
 fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
+}
+
+fn contains_event(event: Event) -> bool {
+	System::events().iter().any(|x| x.event == event)
 }
 
 // Runs an end to end test of the auction, crowdloan, slots, and onboarding process over varying
@@ -386,10 +411,9 @@ fn basic_end_to_end_works() {
 
 			// Auction ends at block 110 + offset
 			run_to_block(109 + offset);
-			assert_eq!(
-				last_event(),
-				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
-			);
+			assert!(contains_event(
+				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into()
+			));
 			run_to_block(110 + offset);
 			assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
 

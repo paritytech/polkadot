@@ -34,9 +34,12 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_primitives::SignedDisputeStatement;
 use polkadot_node_subsystem::{
-	messages::{DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult},
+	messages::{
+		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		ImportStatementsResult,
+	},
 	overseer::FromOverseer,
-	OverseerSignal,
+	ChainApiError, OverseerSignal,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use sc_keystore::LocalKeystore;
@@ -44,15 +47,20 @@ use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
+use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::v1::{
-	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, HashT,
-	Header, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash,
+		HashT, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 
 use crate::{
@@ -60,15 +68,12 @@ use crate::{
 	real::{
 		backend::Backend,
 		participation::{participation_full_happy_path, participation_missing_availability},
-		status::ACTIVE_DURATION_SECS,
+		Config, DisputeCoordinatorSubsystem,
 	},
-	Config, DisputeCoordinatorSubsystem,
+	status::{Clock, Timestamp, ACTIVE_DURATION_SECS},
 };
 
-use super::{
-	db::v1::DbBackend,
-	status::{Clock, Timestamp},
-};
+use super::db::v1::DbBackend;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -179,9 +184,9 @@ impl TestState {
 		let block_header = Header {
 			parent_hash,
 			number: block_number,
-			digest: Default::default(),
-			state_root: Default::default(),
-			extrinsics_root: Default::default(),
+			digest: dummy_digest(),
+			state_root: dummy_hash(),
+			extrinsics_root: dummy_hash(),
 		};
 		let block_hash = block_header.hash();
 
@@ -234,6 +239,19 @@ impl TestState {
 			)
 		}
 
+		// Since the test harness sends active leaves update for each block
+		// consecutively, walking back for ancestors is not necessary. Sending
+		// an error to the subsystem will force-skip this procedure, the ordering
+		// provider will only request for candidates included in the leaf.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+				tx
+			)) => {
+				tx.send(Err(ChainApiError::from(""))).unwrap();
+			}
+		);
+
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -251,7 +269,11 @@ impl TestState {
 				RuntimeApiRequest::FetchOnChainVotes(tx),
 			)) => {
 				//add some `BackedCandidates` or resolved disputes here as needed
-				tx.send(Ok(Some(ScrapedOnChainVotes::default()))).unwrap();
+				tx.send(Ok(Some(ScrapedOnChainVotes {
+					session,
+					backing_validators_per_candidate: Vec::default(),
+					disputes: MultiDisputeStatementSet::default(),
+				}))).unwrap();
 			}
 		)
 	}
@@ -294,6 +316,9 @@ impl TestState {
 			n_delay_tranches: 100,
 			no_show_slots: 1,
 			needed_approvals: 10,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 
@@ -358,14 +383,14 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-	let mut candidate_receipt = CandidateReceipt::default();
+	let mut candidate_receipt = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
 	candidate_receipt
 }
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
 	// Commitments hash will be 0, which is not correct:
-	CandidateReceipt::default()
+	dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()))
 }
 
 #[test]

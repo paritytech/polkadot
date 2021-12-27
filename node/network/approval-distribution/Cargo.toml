@@ -11,7 +11,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 
-futures = "0.3.17"
+futures = "0.3.19"
 tracing = "0.1.29"
 
 [dev-dependencies]

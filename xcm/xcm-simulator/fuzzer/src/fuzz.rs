@@ -129,7 +129,7 @@ fn main() {
 	}
 	#[cfg(not(fuzzing))]
 	{
-		//This code path can be used to generate a line-code coverage report in html
+		//This code path can be used to generate a line-code coverage report in HTML
 		//that depicts which lines are executed by at least one input in the current fuzzing queue.
 		//To generate this code coverage report, run the following commands:
 		/*

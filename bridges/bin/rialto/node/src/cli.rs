@@ -29,10 +29,10 @@ pub struct Cli {
 /// Possible subcommands of the main binary.
 #[derive(Debug, StructOpt)]
 pub enum Subcommand {
-	/// Key management cli utilities
+	/// Key management CLI utilities
 	Key(sc_cli::KeySubcommand),
 
-	/// Verify a signature for a message, provided on STDIN, with a given (public or secret) key.
+	/// Verify a signature for a message, provided on `STDIN`, with a given (public or secret) key.
 	Verify(sc_cli::VerifyCmd),
 
 	/// Generate a seed that provides a vanity address.
@@ -67,4 +67,19 @@ pub enum Subcommand {
 
 	/// Benchmark runtime pallets.
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	/// FOR INTERNAL USE: analog of the "prepare-worker" command of the polkadot binary.
+	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfPrepareWorker(ValidationWorkerCommand),
+
+	/// FOR INTERNAL USE: analog of the "execute-worker" command of the polkadot binary.
+	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfExecuteWorker(ValidationWorkerCommand),
+}
+
+/// Validation worker command.
+#[derive(Debug, StructOpt)]
+pub struct ValidationWorkerCommand {
+	/// The path to the validation host's socket.
+	pub socket_path: String,
 }

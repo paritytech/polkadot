@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
@@ -17,8 +17,8 @@ color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.2"
-nix = "0.20.0"
+assert_cmd = "2.0.2"
+nix = "0.23.1"
 tempfile = "3.2.0"
 
 [workspace]
@@ -27,6 +27,7 @@ members = [
 	"core-primitives",
 	"erasure-coding",
 	"primitives",
+	"primitives/test-helpers",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
 	"runtime/parachains",
@@ -84,6 +85,7 @@ members = [
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
+	"node/test/performance-test",
 	"node/test/service",
 	"node/test/polkadot-simnet/common",
 	"node/test/polkadot-simnet/node",
@@ -115,7 +117,8 @@ panic = "unwind"
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
-disputes = [ "polkadot-cli/disputes" ]
+runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
+
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
@@ -146,7 +149,6 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
-
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"
