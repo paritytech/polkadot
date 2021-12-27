@@ -64,7 +64,6 @@ pub use {
 #[cfg(feature = "full-node")]
 use polkadot_subsystem::jaeger;
 
-use parking_lot::Mutex;
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
@@ -417,7 +416,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				babe::BabeLink<Block>,
 				(
 					beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
-					Arc<Mutex<Option<NumberFor<Block>>>>,
+					sc_utils::mpsc::TracingUnboundedSender<NumberFor<Block>>,
 				),
 			),
 			grandpa::SharedVoterState,
@@ -491,8 +490,9 @@ where
 
 	let (beefy_link, beefy_commitment_stream) =
 		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
-	let beefy_best_block = Arc::new(Mutex::new(None));
-	let beefy_link = (beefy_link, beefy_best_block.clone());
+	let (beefy_best_block_sender, beefy_best_block_receiver) =
+		sc_utils::mpsc::tracing_unbounded::<NumberFor<Block>>("mpsc_beefy_best_block_stream");
+	let beefy_link = (beefy_link, beefy_best_block_sender);
 
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -502,11 +502,17 @@ where
 		Some(shared_authority_set.clone()),
 	);
 
-	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone(), beefy_link);
-	let rpc_setup = shared_voter_state.clone();
-
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
+
+	let import_setup = (block_import, grandpa_link, babe_link, beefy_link);
+	let rpc_setup = shared_voter_state.clone();
+
+	// let beefy_deps = polkadot_rpc::BeefyDeps {
+	// 	beefy_commitment_stream: beefy_commitment_stream.clone(),
+	// 	beefy_best_block_receiver,
+	// 	subscription_executor,
+	// };
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
@@ -538,7 +544,7 @@ where
 				},
 				beefy: polkadot_rpc::BeefyDeps {
 					beefy_commitment_stream: beefy_commitment_stream.clone(),
-					beefy_best_block: beefy_best_block.clone(),
+					beefy_best_block_receiver,
 					subscription_executor,
 				},
 			};
@@ -1087,7 +1093,7 @@ where
 			signed_commitment_sender: beefy_link.0,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
-			rpc_best_beefy: beefy_link.1.clone(),
+			beefy_best_block_sender: beefy_link.1,
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
