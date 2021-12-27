@@ -254,6 +254,9 @@ impl TestState {
 			n_delay_tranches: 100,
 			no_show_slots: 1,
 			needed_approvals: 10,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 

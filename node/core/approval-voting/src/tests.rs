@@ -732,6 +732,24 @@ impl ChainBuilder {
 	}
 }
 
+fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
+	SessionInfo {
+		validators: keys.iter().map(|v| v.public().into()).collect(),
+		discovery_keys: keys.iter().map(|v| v.public().into()).collect(),
+		assignment_keys: keys.iter().map(|v| v.public().into()).collect(),
+		validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+		n_cores: keys.len() as _,
+		needed_approvals: 2,
+		zeroth_delay_tranche_width: 5,
+		relay_vrf_modulo_samples: 3,
+		n_delay_tranches: 50,
+		no_show_slots: 2,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
+	}
+}
+
 async fn import_block(
 	overseer: &mut VirtualOverseer,
 	hashes: &[(Hash, Header)],

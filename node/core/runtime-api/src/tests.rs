@@ -481,6 +481,23 @@ fn requests_session_index_for_child() {
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
 
+fn dummy_session_info() -> SessionInfo {
+	SessionInfo {
+		validators: vec![],
+		discovery_keys: vec![],
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 4u32,
+		zeroth_delay_tranche_width: 0u32,
+		relay_vrf_modulo_samples: 0u32,
+		n_delay_tranches: 2u32,
+		no_show_slots: 0u32,
+		needed_approvals: 1u32,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
+	}
+}
 #[test]
 fn requests_session_info() {
 	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());

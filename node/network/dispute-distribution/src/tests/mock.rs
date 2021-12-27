@@ -77,7 +77,17 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 			.iter()
 			.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 			.collect(),
-		..Default::default()
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 0,
+		zeroth_delay_tranche_width: 0,
+		relay_vrf_modulo_samples: 0,
+		n_delay_tranches: 0,
+		no_show_slots: 0,
+		needed_approvals: 0,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	};
 
 /// `SessionInfo` for the second session. (No more validators, but two more authorities.
@@ -88,7 +98,18 @@ pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 				.iter()
 				.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 				.collect(),
-		..Default::default()
+		validators: vec![],
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 0,
+		zeroth_delay_tranche_width: 0,
+		relay_vrf_modulo_samples: 0,
+		n_delay_tranches: 0,
+		no_show_slots: 0,
+		needed_approvals: 0,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	};
 }
 
