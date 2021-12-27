@@ -21,12 +21,15 @@ use crate::{
 	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
-use primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+use primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+		CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+		ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode, ValidationCodeHash,
+		ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -177,8 +180,9 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 fn current_relay_parent<T: frame_system::Config>(
 ) -> (<T as frame_system::Config>::BlockNumber, <T as frame_system::Config>::Hash) {
 	use parity_scale_codec::Decode as _;
+	let state_version = <frame_system::Pallet<T>>::runtime_version().state_version();
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
-	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root(state_version)[..])
 		.expect("storage root must decode to the Hash type; qed");
 	(relay_parent_number, relay_parent_storage_root)
 }

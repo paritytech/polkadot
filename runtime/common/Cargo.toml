@@ -57,6 +57,7 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+trie-db = "0.23.0"
 serde_json = "1.0.73"
 libsecp256k1 = "0.7.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }

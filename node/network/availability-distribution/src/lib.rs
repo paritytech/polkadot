@@ -170,6 +170,7 @@ impl AvailabilityDistributionSubsystem {
 							candidate_hash,
 							pov_hash,
 							tx,
+							metrics.clone(),
 						)
 						.await,
 						"pov_requester::fetch_pov",
