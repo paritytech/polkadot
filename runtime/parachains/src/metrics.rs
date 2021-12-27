@@ -18,63 +18,58 @@
 
 use polkadot_runtime_metrics::{Counter, CounterVec};
 
-pub use pallet::*;
+/// Returns a runtime metric instance for sampling inherent data weight.
+pub fn inherent_data_weight() -> CounterVec {
+	CounterVec::new(
+		"parachain_inherent_data_weight",
+		"Inherent data weight before and after filtering",
+		&["when"],
+	)
+}
+/// Returns a runtime metric instance for recording how many inherent bitfields we process in
+/// `enter_inner`.
+pub fn bitfields_processed() -> Counter {
+	Counter::new(
+		"parachain_inherent_data_bitfields_processed",
+		"Counts the number of bitfields processed in `enter_inner`.",
+	)
+}
 
-#[frame_support::pallet]
-pub mod pallet {
-	use super::*;
+/// Returns a runtime metric instance for recording how many parachain candidates we process in
+/// `enter_inner`.
+pub fn candidates_processed() -> CounterVec {
+	CounterVec::new(
+		"parachain_inherent_data_candidates_processed",
+		"Counts the number of parachain block candidates processed in `enter_inner`.",
+		&["category"],
+	)
+}
 
-	#[pallet::pallet]
-	pub struct Pallet<T>(_);
+/// Returns a runtime metric instance for counting dispute statements sets processed in
+/// `enter_inner`.
+pub fn dispute_sets_processed() -> CounterVec {
+	CounterVec::new(
+		"parachain_inherent_data_dispute_sets_processed",
+		"Counts the number of dispute statements sets processed in `enter_inner`.",
+		&["category"],
+	)
+}
 
-	#[pallet::config]
-	pub trait Config: frame_system::Config {}
+/// Returns a runtime metric instance for counting dispute statements sets included in
+/// `enter_inner`.
+pub fn disputes_included() -> Counter {
+	Counter::new(
+		"parachain_inherent_data_dispute_sets_included",
+		"Counts the number of dispute statements sets included in a block in `enter_inner`.",
+	)
+}
 
-	impl<T: Config> Pallet<T> {
-		pub fn inherent_data_weight() -> CounterVec {
-			CounterVec::new(
-				"parachain_inherent_data_weight",
-				"Inherent data weight before and after filtering",
-				&["when"],
-			)
-		}
-
-		pub fn bitfields_processed() -> Counter {
-			Counter::new(
-				"parachain_inherent_data_bitfields_processed",
-				"Counts the number of bitfields processed in `enter_inner`.",
-			)
-		}
-
-		pub fn candidates_processed() -> CounterVec {
-			CounterVec::new(
-				"parachain_inherent_data_candidates_processed",
-				"Counts the number of parachain block candidates processed in `enter_inner`.",
-				&["category"],
-			)
-		}
-
-		pub fn dispute_sets_processed() -> CounterVec {
-			CounterVec::new(
-				"parachain_inherent_data_dispute_sets_processed",
-				"Counts the number of dispute statements sets processed in `enter_inner`.",
-				&["category"],
-			)
-		}
-
-		pub fn disputes_included() -> Counter {
-			Counter::new(
-                "parachain_inherent_data_disputes_included",
-                "Counts the number of dispute statements sets included in a block in `enter_inner`.",
-            )
-		}
-
-		pub fn bitfields_signature_checks() -> CounterVec {
-			CounterVec::new(
-				"create_inherent_bitfields_signature_checks",
-				"Counts the number of bitfields signature checked in `enter_inner`.",
-				&["validity"],
-			)
-		}
-	}
+/// Returns a runtime metric instance for counting bitfield signature checks in
+/// `enter_inner`.
+pub fn bitfields_signature_checks() -> CounterVec {
+	CounterVec::new(
+		"create_inherent_bitfields_signature_checks",
+		"Counts the number of bitfields signature checked in `enter_inner`.",
+		&["validity"],
+	)
 }

@@ -21,7 +21,7 @@
 //! to included.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, metrics, paras,
+	configuration, disputes, dmp, hrmp, paras,
 	paras_inherent::{sanitize_bitfields, DisputedBitfield},
 	scheduler::CoreAssignment,
 	shared, ump,
@@ -195,7 +195,6 @@ pub mod pallet {
 		+ ump::Config
 		+ hrmp::Config
 		+ configuration::Config
-		+ metrics::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
