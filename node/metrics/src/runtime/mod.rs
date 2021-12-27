@@ -20,11 +20,12 @@
 //! tracing support. This requires that the custom profiler (`TraceHandler`) to be
 //! registered in substrate via a `logger_hook()`. Events emitted from runtime are
 //! then captured/processed by the `TraceHandler` implementation.
+
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
 use primitives::v1::{
-	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 use std::{
 	collections::hash_map::HashMap,
@@ -33,6 +34,7 @@ use std::{
 use substrate_prometheus_endpoint::{
 	register, Counter, CounterVec, Opts, PrometheusError, Registry, U64,
 };
+pub mod parachain;
 
 const LOG_TARGET: &'static str = "metrics::runtime";
 const METRIC_PREFIX: &'static str = "polkadot";
@@ -55,13 +57,17 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Register a counter vec metric.
-	pub fn register_countervec(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
+	pub fn register_countervec(
+		&self,
+		metric_name: &'static str,
+		description: &'static str,
+		labels: &[&'static str],
+	) {
+		let metric_name = &format!("{}_{}", METRIC_PREFIX, metric_name);
+
 		self.with_counter_vecs_lock_held(|mut hashmap| {
 			hashmap.entry(metric_name.to_owned()).or_insert(register(
-				CounterVec::new(
-					Opts::new(metric_name, params.description()),
-					&params.labels().unwrap_or_default(),
-				)?,
+				CounterVec::new(Opts::new(metric_name, description), labels)?,
 				&self.0,
 			)?);
 			Ok(())
@@ -69,11 +75,13 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Register a counter metric.
-	pub fn register_counter(&self, metric_name: &str, params: &RuntimeMetricRegisterParams) {
+	pub fn register_counter(&self, metric_name: &'static str, description: &'static str) {
+		let metric_name = &format!("{}_{}", METRIC_PREFIX, metric_name);
+
 		self.with_counters_lock_held(|mut hashmap| {
 			hashmap
 				.entry(metric_name.to_owned())
-				.or_insert(register(Counter::new(metric_name, params.description())?, &self.0)?);
+				.or_insert(register(Counter::new(metric_name, description)?, &self.0)?);
 			return Ok(())
 		})
 	}
@@ -165,12 +173,6 @@ impl RuntimeMetricsProvider {
 		let metric_name = &format!("{}_{}", METRIC_PREFIX, update.metric_name());
 
 		match update.op {
-			RuntimeMetricOp::Register(ref params) =>
-				if params.labels.is_none() {
-					self.register_counter(metric_name, &params);
-				} else {
-					self.register_countervec(metric_name, &params);
-				},
 			RuntimeMetricOp::IncrementCounterVec(value, ref labels) =>
 				self.inc_counter_vec_by(metric_name, value, labels),
 			RuntimeMetricOp::IncrementCounter(value) => self.inc_counter_by(metric_name, value),
@@ -205,6 +207,7 @@ pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Con
 		}
 		let registry = config.prometheus_registry().cloned().unwrap();
 		let metrics_provider = RuntimeMetricsProvider::new(registry);
+		parachain::register_metrics(&metrics_provider);
 		logger_builder.with_custom_profiling(Box::new(metrics_provider));
 	}
 }
