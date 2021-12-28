@@ -165,8 +165,9 @@ impl RuntimeMetricsProvider {
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
 		match update.op {
 			RuntimeMetricOp::IncrementCounterVec(value, ref labels) =>
-				self.inc_counter_vec_by(metric_name, value, labels),
-			RuntimeMetricOp::IncrementCounter(value) => self.inc_counter_by(metric_name, value),
+				self.inc_counter_vec_by(update.metric_name(), value, labels),
+			RuntimeMetricOp::IncrementCounter(value) =>
+				self.inc_counter_by(update.metric_name(), value),
 		}
 	}
 
