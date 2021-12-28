@@ -65,8 +65,7 @@ It includes panels covering key subsystems of the parachain node side implementa
 - Chain selection
 
 It is important to note that this dashboard applies only for validator nodes. The prometheus 
-queries assume the `instance` label value contains the string `validator` only for validator
-nodes. If this assumption is broken the dashboard will shown useless or invalid data.
+queries assume the `instance` label value contains the string `validator` only for validator nodes. 
 
 [Dashboard JSON](parachains/status.json)
 
@@ -86,9 +85,9 @@ then result cached. PVF execution will use the resulting artifact to execute the
 PVFs are expected to have a limited execution time to ensure there is enough time left for the parachain 
 block to be included in the relay block.
 - **Time to recover and check candidate**. This is part of approval voting and covers the time it takes 
-to recover the candidate block available data from other validators, check it (includes PVF execution time); 
-issue statement or initiate dispute.
-- **Assignment delay tranches**. Approval voting requires that validators which assigned to check a specific 
-candidate are split up into delay tranches (0.5 second each). Then, all validators checks are ordered by the delay 
-tranche index. Early tranches of validators will check the candidate first and later tranches act as as backups 
-in case of no shows.
+to recover the candidate block available data from other validators, check it (includes PVF execution time)
+and issue statement or initiate dispute.
+- **Assignment delay tranches**. Approval voting is designed such that validators assigned to check a specific 
+candidate are split up into equal delay tranches (0.5 seconds each). All validators checks are ordered by the delay 
+tranche index. Early tranches of validators have the opportunity to check the candidate first before later tranches 
+that act as as backups in case of no shows.

@@ -23,7 +23,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": 88,
-  "iteration": 1640176268287,
+  "iteration": 1640613477360,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -97,7 +97,7 @@
             "uid": "P5CA6DFE95AABF258"
           },
           "exemplar": false,
-          "expr": "sort_desc  (count by (version) (polkadot_build_info{chain=\"kusama\"}))",
+          "expr": "sort_desc  (count by (version) (polkadot_build_info{chain=\"kusama\", instance=~\".*validator.*\"}))",
           "instant": true,
           "interval": "",
           "intervalFactor": 1,
@@ -250,7 +250,7 @@
       },
       "id": 16,
       "panels": [],
-      "title": "Versions",
+      "title": "Validator versions",
       "type": "row"
     },
     {
@@ -312,7 +312,7 @@
             "uid": "P5CA6DFE95AABF258"
           },
           "exemplar": false,
-          "expr": "sort_desc  (count by (version) (polkadot_build_info{chain=\"kusama\"}))",
+          "expr": "sort_desc  (count by (version) (polkadot_build_info{chain=\"kusama\", instance=~\".*validator.*\"}))",
           "instant": true,
           "interval": "",
           "intervalFactor": 1,
@@ -696,12 +696,8 @@
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 500
-              },
-              {
-                "color": "red",
-                "value": 1000
+                "color": "dark-red",
+                "value": 3
               }
             ]
           },
@@ -927,6 +923,6 @@
   "timezone": "",
   "title": "Kusama Validators Overview",
   "uid": "0i-QjQ82j",
-  "version": 25,
+  "version": 29,
   "weekStart": ""
 }
