@@ -20,11 +20,14 @@ use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState,
+		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -508,6 +511,9 @@ fn dummy_session_info() -> SessionInfo {
 		n_delay_tranches: 2u32,
 		no_show_slots: 0u32,
 		needed_approvals: 1u32,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }
 #[test]

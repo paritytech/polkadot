@@ -39,10 +39,13 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
-use polkadot_primitives::v1::{
-	byzantine_threshold, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
-	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		byzantine_threshold, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
+		DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex,
+		ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
 
 use crate::{metrics::Metrics, real::DisputeCoordinatorSubsystem, LOG_TARGET};

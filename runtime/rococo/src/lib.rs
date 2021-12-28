@@ -35,12 +35,14 @@ use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
-	Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex, ValidatorSignature,
+use primitives::{
+	v1::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
+		Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, Signature,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo as SessionInfoData},
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
@@ -802,9 +804,9 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
-	pub const PermanentSlotLeasePeriodLength: u32 = 26;
-	pub const TemporarySlotLeasePeriodLength: u32 = 1;
-	pub const MaxPermanentSlots: u32 = 5;
+	pub const PermanentSlotLeasePeriodLength: u32 = 356;
+	pub const TemporarySlotLeasePeriodLength: u32 = 3;
+	pub const MaxPermanentSlots: u32 = 25;
 	pub const MaxTemporarySlots: u32 = 20;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
@@ -1293,7 +1295,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			runtime_api_impl::validators::<Runtime>()
 		}
