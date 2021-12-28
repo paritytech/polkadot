@@ -26,8 +26,6 @@ use xcm_executor::traits::Convert;
 
 pub mod fungible;
 pub mod generic;
-
-#[cfg(any(test, feature = "runtime-benchmarks"))]
 mod mock;
 
 /// A base trait for all individual pallets
