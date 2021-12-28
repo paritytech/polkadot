@@ -197,7 +197,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 pub async fn get_addrs_by_authority_id<AD: AuthorityDiscovery>(
 	authority_discovery: &mut AD,
 	authority: AuthorityDiscoveryId,
-) -> impl Iterator<Item=(PeerId, Multiaddr)> {
+) -> impl Iterator<Item = (PeerId, Multiaddr)> {
 	// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
 	// to be very quick.
 	authority_discovery
