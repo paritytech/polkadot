@@ -222,5 +222,11 @@ sp_api::decl_runtime_apis! {
 		///
 		/// NOTE: This function is only available since parachain host version 2.
 		fn pvfs_require_precheck() -> Vec<v1::ValidationCodeHash>;
+
+		/// Fetch the hash of the validation code used by a para, making the given `OccupiedCoreAssumption`.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		fn validation_code_hash(para_id: v1::Id, assumption: v1::OccupiedCoreAssumption)
+			-> Option<v1::ValidationCodeHash>;
 	}
 }
