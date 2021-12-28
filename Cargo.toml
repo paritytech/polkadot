@@ -120,7 +120,7 @@ inherits = "release"
 lto = true
 
 [profile.testnet]
-inherits = "production"
+inherits = "release"
 debug = true # debug symbols are useful for profilers
 debug-assertions = true
 overflow-checks = true
