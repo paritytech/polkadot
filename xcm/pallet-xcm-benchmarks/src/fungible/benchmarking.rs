@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-#[cfg(test)]
+#[cfg(any(test, feature = "runtime-benchmarks"))]
 use crate::mock::sent_xcm;
 use crate::{account_and_location, new_executor, AssetTransactorOf, XcmCallOf};
 use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
