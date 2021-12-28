@@ -216,13 +216,13 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 }
 
 /// Runs performance checks.
-/// Should only be used in release build since the check would take too much time otherwise.
+/// Should not be used in debug build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
-	#[cfg(not(build_type = "release"))]
+	#[cfg(build_type = "debug")]
 	{
 		Err(PerfCheckError::WrongBuildType.into())
 	}
-	#[cfg(build_type = "release")]
+	#[cfg(not(build_type = "debug"))]
 	{
 		crate::host_perf_check::host_perf_check()?;
 		Ok(())
