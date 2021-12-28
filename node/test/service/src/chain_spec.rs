@@ -171,6 +171,7 @@ fn polkadot_testnet_genesis(
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				no_show_slots: 10,
+				minimum_validation_upgrade_delay: 5,
 				..Default::default()
 			},
 		},
