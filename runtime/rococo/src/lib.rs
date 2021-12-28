@@ -1383,6 +1383,12 @@ sp_api::impl_runtime_apis! {
 		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
 			runtime_api_impl::pvfs_require_precheck::<Runtime>()
 		}
+
+		fn validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
