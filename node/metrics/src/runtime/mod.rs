@@ -35,7 +35,6 @@ use substrate_prometheus_endpoint::{
 mod parachain;
 
 const LOG_TARGET: &'static str = "metrics::runtime";
-const METRIC_PREFIX: &'static str = "polkadot";
 
 /// Holds the registered Prometheus metric collections.
 #[derive(Clone, Default)]
@@ -61,8 +60,6 @@ impl RuntimeMetricsProvider {
 		description: &'static str,
 		labels: &[&'static str],
 	) {
-		let metric_name = &format!("{}_{}", METRIC_PREFIX, metric_name);
-
 		self.with_counter_vecs_lock_held(|mut hashmap| {
 			hashmap.entry(metric_name.to_owned()).or_insert(register(
 				CounterVec::new(Opts::new(metric_name, description), labels)?,
@@ -74,8 +71,6 @@ impl RuntimeMetricsProvider {
 
 	/// Register a counter metric.
 	pub fn register_counter(&self, metric_name: &'static str, description: &'static str) {
-		let metric_name = &format!("{}_{}", METRIC_PREFIX, metric_name);
-
 		self.with_counters_lock_held(|mut hashmap| {
 			hashmap
 				.entry(metric_name.to_owned())
@@ -168,8 +163,6 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 impl RuntimeMetricsProvider {
 	// Parse end execute the update operation.
 	fn parse_metric_update(&self, update: RuntimeMetricUpdate) {
-		let metric_name = &format!("{}_{}", METRIC_PREFIX, update.metric_name());
-
 		match update.op {
 			RuntimeMetricOp::IncrementCounterVec(value, ref labels) =>
 				self.inc_counter_vec_by(metric_name, value, labels),

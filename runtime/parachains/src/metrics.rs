@@ -20,35 +20,35 @@ use polkadot_runtime_metrics::{Counter, CounterVec};
 
 /// Returns a runtime metric instance for sampling inherent data weight.
 pub fn inherent_data_weight() -> CounterVec {
-	CounterVec::new("parachain_inherent_data_weight")
+	CounterVec::new("polkadot_parachain_inherent_data_weight")
 }
 
 /// Returns a runtime metric instance for recording how many inherent bitfields we process in
 /// `enter_inner`.
 pub fn bitfields_processed() -> Counter {
-	Counter::new("parachain_inherent_data_bitfields_processed")
+	Counter::new("polkadot_parachain_inherent_data_bitfields_processed")
 }
 
 /// Returns a runtime metric instance for recording how many parachain candidates we process in
 /// `enter_inner`.
 pub fn candidates_processed() -> CounterVec {
-	CounterVec::new("parachain_inherent_data_candidates_processed")
+	CounterVec::new("polkadot_parachain_inherent_data_candidates_processed")
 }
 
 /// Returns a runtime metric instance for counting dispute statements sets processed in
 /// `enter_inner`.
 pub fn dispute_sets_processed() -> CounterVec {
-	CounterVec::new("parachain_inherent_data_dispute_sets_processed")
+	CounterVec::new("polkadot_parachain_inherent_data_dispute_sets_processed")
 }
 
 /// Returns a runtime metric instance for counting dispute statements sets included in
 /// `enter_inner`.
 pub fn disputes_included() -> Counter {
-	Counter::new("parachain_inherent_data_dispute_sets_included")
+	Counter::new("polkadot_parachain_inherent_data_dispute_sets_included")
 }
 
 /// Returns a runtime metric instance for counting bitfield signature checks in
 /// `enter_inner`.
 pub fn bitfields_signature_checks() -> CounterVec {
-	CounterVec::new("create_inherent_bitfields_signature_checks")
+	CounterVec::new("polkadot_parachain_create_inherent_bitfields_signature_checks")
 }
