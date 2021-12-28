@@ -57,7 +57,7 @@ mod validator_discovery;
 mod network;
 use network::{send_message, Network};
 
-use crate::network::get_peer_id_by_authority_id;
+use crate::network::get_addrs_by_authority_id;
 
 #[cfg(test)]
 mod tests;
@@ -586,12 +586,12 @@ where
 						let ads = &mut authority_discovery_service;
 						let mut gossip_peers = HashSet::with_capacity(our_neighbors.len());
 						for authority in our_neighbors {
-							let addr = get_peer_id_by_authority_id(
+							let addrs = get_addrs_by_authority_id(
 								ads,
-								authority.clone(),
+								authority,
 							).await;
 
-							if let Some(peer_id) = addr {
+							for (peer_id, _) in addrs {
 								gossip_peers.insert(peer_id);
 							}
 						}

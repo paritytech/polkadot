@@ -157,17 +157,9 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 				let mut found_peer_id = None;
 				// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
 				// to be very quick.
-				for addr in authority_discovery
-					.get_addresses_by_authority_id(authority)
-					.await
-					.into_iter()
-					.flat_map(|list| list.into_iter())
-				{
-					let (peer_id, addr) = match parse_addr(addr) {
-						Ok(v) => v,
-						Err(_) => continue,
-					};
-					NetworkService::add_known_address(&*self, peer_id.clone(), addr);
+				let addrs = get_addrs_by_authority_id(authority_discovery, authority).await;
+				for (peer_id, multiaddr) in addrs {
+					NetworkService::add_known_address(&*self, peer_id.clone(), multiaddr);
 					found_peer_id = Some(peer_id);
 				}
 				found_peer_id
@@ -202,11 +194,10 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 	}
 }
 
-/// We assume one `peer_id` per `authority_id`.
-pub async fn get_peer_id_by_authority_id<AD: AuthorityDiscovery>(
+pub async fn get_addrs_by_authority_id<AD: AuthorityDiscovery>(
 	authority_discovery: &mut AD,
 	authority: AuthorityDiscoveryId,
-) -> Option<PeerId> {
+) -> impl Iterator<Item=(PeerId, Multiaddr)> {
 	// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
 	// to be very quick.
 	authority_discovery
@@ -214,5 +205,5 @@ pub async fn get_peer_id_by_authority_id<AD: AuthorityDiscovery>(
 		.await
 		.into_iter()
 		.flat_map(|list| list.into_iter())
-		.find_map(|addr| parse_addr(addr).ok().map(|(p, _)| p))
+		.flat_map(|addr| parse_addr(addr).ok())
 }
