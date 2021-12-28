@@ -673,6 +673,13 @@ pub enum RuntimeApiRequest {
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
 	PvfsRequirePrecheck(RuntimeApiSender<Vec<ValidationCodeHash>>),
+	/// Get the validation code used by the specified para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently occupies a core.
+	ValidationCodeHash(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCodeHash>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.

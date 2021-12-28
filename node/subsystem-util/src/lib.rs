@@ -215,6 +215,8 @@ specialize_requests! {
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
+	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		-> Option<ValidationCodeHash>; ValidationCodeHash;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.

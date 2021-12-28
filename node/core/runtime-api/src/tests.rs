@@ -56,6 +56,7 @@ struct MockRuntimeApi {
 	on_chain_votes: Option<ScrapedOnChainVotes>,
 	submitted_pvf_check_statement: Arc<Mutex<Vec<(PvfCheckStatement, ValidatorSignature)>>>,
 	pvfs_require_precheck: Vec<ValidationCodeHash>,
+	validation_code_hash: HashMap<ParaId, ValidationCodeHash>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -182,6 +183,14 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
 			self.pvfs_require_precheck.clone()
+		}
+
+		fn validation_code_hash(
+			&self,
+			para: ParaId,
+			_assumption: OccupiedCoreAssumption,
+		) -> Option<ValidationCodeHash> {
+			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
 	}
 
@@ -982,6 +991,54 @@ fn requests_pvfs_require_precheck() {
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), vec![[1; 32].into(), [2; 32].into()]);
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
+fn requests_validation_code_hash() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+
+	let relay_parent = [1; 32].into();
+	let para_a = 5.into();
+	let para_b = 6.into();
+	let spawner = sp_core::testing::TaskExecutor::new();
+	let validation_code_hash = dummy_validation_code().hash();
+
+	let mut runtime_api = MockRuntimeApi::default();
+	runtime_api.validation_code_hash.insert(para_a, validation_code_hash.clone());
+	let runtime_api = Arc::new(runtime_api);
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeHash(para_a, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), Some(validation_code_hash));
+
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeHash(para_b, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), None);
+
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 
