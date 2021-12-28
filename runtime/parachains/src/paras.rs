@@ -846,7 +846,7 @@ pub mod pallet {
 
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
-		#[pallet::weight(0)]
+		#[pallet::weight(Weight::MAX)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
 			stmt: PvfCheckStatement,
@@ -2542,7 +2542,11 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					pvf_checking_enabled: false,
-					minimum_validation_upgrade_delay: 0,
+					minimum_validation_upgrade_delay: 2,
+					// Those are not relevant to this test. However, HostConfiguration is still a
+					// subject for the consistency check.
+					chain_availability_period: 1,
+					thread_availability_period: 1,
 					..Default::default()
 				},
 				..Default::default()

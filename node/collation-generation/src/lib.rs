@@ -24,16 +24,17 @@ use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult,
+	SubsystemError, SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
-	request_validators,
+	request_validation_code_hash, request_validators,
 };
 use polkadot_primitives::v1::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
-	CoreState, Hash, OccupiedCoreAssumption, PersistedValidationData,
+	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
+	ValidationCodeHash,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -263,14 +264,13 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				},
 			};
 
-			let validation_code = match request_validation_code(
+			let validation_code_hash = match obtain_current_validation_code_hash(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
 				ctx.sender(),
 			)
-			.await
-			.await??
+			.await?
 			{
 				Some(v) => v,
 				None => {
@@ -280,12 +280,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						relay_parent = ?relay_parent,
 						our_para = %config.para_id,
 						their_para = %scheduled_core.para_id,
-						"validation code is not available",
+						"validation code hash is not found.",
 					);
 					continue
 				},
 			};
-			let validation_code_hash = validation_code.hash();
 
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
@@ -412,6 +411,35 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	}
 
 	Ok(())
+}
+
+async fn obtain_current_validation_code_hash(
+	relay_parent: Hash,
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+	sender: &mut impl SubsystemSender,
+) -> Result<Option<ValidationCodeHash>, crate::error::Error> {
+	use polkadot_node_subsystem::RuntimeApiError;
+
+	match request_validation_code_hash(relay_parent, para_id, assumption, sender)
+		.await
+		.await?
+	{
+		Ok(Some(v)) => Ok(Some(v)),
+		Ok(None) => Ok(None),
+		Err(RuntimeApiError::NotSupported { .. }) => {
+			match request_validation_code(relay_parent, para_id, assumption, sender).await.await? {
+				Ok(Some(v)) => Ok(Some(v.hash())),
+				Ok(None) => Ok(None),
+				Err(e) => {
+					// We assume that the `validation_code` API is always available, so any error
+					// is unexpected.
+					Err(e.into())
+				},
+			}
+		},
+		Err(e @ RuntimeApiError::Execution { .. }) => Err(e.into()),
+	}
 }
 
 fn erasure_root(
