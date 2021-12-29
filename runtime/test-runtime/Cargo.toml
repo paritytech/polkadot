@@ -78,6 +78,8 @@ substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", bran
 default = ["std"]
 no_std = []
 only-staking = []
+runtime-metrics = ["polkadot-runtime-parachains/runtime-metrics", "sp-io/with-tracing"]
+
 std = [
 	"authority-discovery-primitives/std",
 	"pallet-authority-discovery/std",
