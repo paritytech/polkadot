@@ -222,6 +222,9 @@ impl From<WeightLimit> for Option<u64> {
 	}
 }
 
+/// Local weight type; execution time in picoseconds.
+pub type Weight = u64;
+
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.

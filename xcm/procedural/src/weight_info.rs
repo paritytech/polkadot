@@ -49,9 +49,6 @@ pub fn derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 			});
 
 			let res = quote::quote! {
-				/// Local weight type; execution time in picoseconds.
-				pub type Weight = u64;
-
 				pub trait XcmWeightInfo #generics {
 					#(#methods)*
 				}
