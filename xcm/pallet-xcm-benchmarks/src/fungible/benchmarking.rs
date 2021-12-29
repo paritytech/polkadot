@@ -16,6 +16,7 @@
 
 use super::*;
 use crate::{account_and_location, mock::sent_xcm, new_executor, AssetTransactorOf, XcmCallOf};
+use codec::Encode;
 use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
 use frame_support::{
 	pallet_prelude::Get,
@@ -105,13 +106,13 @@ benchmarks_instance_pallet! {
 		let _ = assets.reanchor(&dest_location, &Here.into());
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
-		assert_eq!(sent_xcm().last(), Some(&(
+		assert!(sent_xcm().contains(&(
 			dest_location,
-			Xcm(vec![
+			Xcm::<XcmCallOf<T>>(vec![
 				Instruction::ReserveAssetDeposited(assets),
 				Instruction::ClearOrigin,
 			]),
-		)));
+		).encode()));
 	}
 
 	receive_teleported_asset {
@@ -201,13 +202,13 @@ benchmarks_instance_pallet! {
 		let _ = assets.reanchor(&dest_location, &Here.into());
 		// dest should have received some asset.
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
-		assert_eq!(sent_xcm().last(), Some(&(
+		assert!(sent_xcm().contains(&(
 			dest_location,
-			Xcm(vec![
+			Xcm::<XcmCallOf<T>>(vec![
 				Instruction::ReserveAssetDeposited(assets),
 				Instruction::ClearOrigin,
 			]),
-		)));
+		).encode()));
 	}
 
 	initiate_teleport {
@@ -237,13 +238,13 @@ benchmarks_instance_pallet! {
 			// teleport checked account should have received some asset.
 			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
 		}
-		assert_eq!(sent_xcm().last(), Some(&(
+		assert!(sent_xcm().contains(&(
 			dest,
-			Xcm(vec![
+			Xcm::<XcmCallOf<T>>(vec![
 				Instruction::ReceiveTeleportedAsset(asset.into()),
 				Instruction::ClearOrigin,
 			]),
-		)));
+		).encode()));
 	}
 
 	impl_benchmark_test_suite!(

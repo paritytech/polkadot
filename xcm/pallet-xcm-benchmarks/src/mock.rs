@@ -16,21 +16,21 @@
 
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
-use sp_std::sync::Mutex;
+use parking_lot::{const_mutex, Mutex};
 use xcm_executor::traits::FilterAssetLocation;
 
-lazy_static::lazy_static! {
-	pub static ref SENT_XCM: Mutex<Vec<(MultiLocation, opaque::Xcm)>> = Mutex::new(Vec::new());
-}
-pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
-	SENT_XCM.lock().unwrap().clone()
+// We encode and store (dest, xcm) in the Vec so that we can use `contains` to check for messages
+pub static SENT_XCM: Mutex<Vec<Vec<u8>>> = const_mutex(Vec::new());
+
+pub fn sent_xcm() -> Vec<Vec<u8>> {
+	SENT_XCM.lock().clone()
 }
 
-// A simple XCM sender/receiver that queues up XCMs in a Vec.
+// A simple XCM sender/receiver that queues up encoded XCMs in a Vec.
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.lock().unwrap().push((dest.into(), msg));
+		SENT_XCM.lock().push((dest.into(), msg).encode());
 		Ok(())
 	}
 }
