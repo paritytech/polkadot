@@ -36,7 +36,7 @@ pub fn impl_conversion_functions_for_multilocation_v1(input: TokenStream) -> Tok
 		.into()
 }
 
-#[proc_macro_derive(XcmWeightInfoTrait)]
+#[proc_macro_derive(XcmWeightInfoTrait, attributes(weight_args))]
 pub fn derive_xcm_weight_info(item: TokenStream) -> TokenStream {
 	weight_info::derive(item)
 }

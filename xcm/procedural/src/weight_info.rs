@@ -27,26 +27,32 @@ pub fn derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 	match data {
 		syn::Data::Enum(syn::DataEnum { variants, .. }) => {
-			let methods = variants.into_iter().map(|syn::Variant { ident, fields, .. }| {
-				let snake_cased_ident = format_ident!("{}", ident.to_string().to_snake_case());
-				let ref_fields =
-					fields.into_iter().enumerate().map(|(idx, syn::Field { ident, ty, .. })| {
-						let field_name = ident.unwrap_or_else(|| format_ident!("_{}", idx));
-						let field_ty = match ty {
-							syn::Type::Reference(r) => {
-								// If the type is already a reference, do nothing
-								quote::quote!(#r)
-							},
-							t => {
-								// Otherwise, make it a reference
-								quote::quote!(&#t)
-							},
-						};
+			let methods =
+				variants.into_iter().map(|syn::Variant { ident, fields, attrs, .. }| {
+					let snake_cased_ident = format_ident!("{}", ident.to_string().to_snake_case());
+					let ref_fields = parse_args_attr(attrs).unwrap_or_else(|| {
+						fields
+							.into_iter()
+							.enumerate()
+							.map(|(idx, syn::Field { ident, ty, .. })| {
+								let field_name = ident.unwrap_or_else(|| format_ident!("_{}", idx));
+								let field_ty = match ty {
+									syn::Type::Reference(r) => {
+										// If the type is already a reference, do nothing
+										quote::quote!(#r)
+									},
+									t => {
+										// Otherwise, make it a reference
+										quote::quote!(&#t)
+									},
+								};
 
-						quote::quote!(#field_name: #field_ty,)
+								quote::quote!(#field_name: #field_ty,)
+							})
+							.collect()
 					});
-				quote::quote!(fn #snake_cased_ident( #(#ref_fields)* ) -> Weight;)
-			});
+					quote::quote!(fn #snake_cased_ident( #ref_fields ) -> Weight;)
+				});
 
 			let res = quote::quote! {
 				pub trait XcmWeightInfo #generics {
@@ -64,4 +70,22 @@ pub fn derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 			syn::Error::new(union_token.span, msg).into_compile_error().into()
 		},
 	}
+}
+
+fn parse_args_attr(attrs: Vec<syn::Attribute>) -> Option<proc_macro2::TokenStream> {
+	attrs.into_iter().find_map(|attr| {
+		attr.path.get_ident().filter(|ident| *ident == "weight_args").and_then(|_| {
+			attr.parse_args_with(|stream: syn::parse::ParseStream| {
+				let mut fields = Vec::new();
+				while !stream.is_empty() {
+					let ident: syn::Ident = stream.parse()?;
+					let _colon: syn::Token![:] = stream.parse()?;
+					let ty: syn::Type = stream.parse()?;
+					fields.push(quote::quote!(#ident: #ty));
+				}
+				Ok(quote::quote!( #(#fields),* ))
+			})
+			.ok()
+		})
+	})
 }
