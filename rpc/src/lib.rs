@@ -32,7 +32,6 @@ use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
 use sp_keystore::SyncCryptoStorePtr;
-use sp_runtime::traits::NumberFor;
 use txpool_api::TransactionPool;
 
 /// A type representing all RPC extensions.
@@ -62,13 +61,13 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
-use beefy_gadget::notification::{BSignedCommitment, BeefyNotificationStream};
+use beefy_gadget::notification::{BeefyBestBlockStream, BeefySignedCommitmentStream};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
 	/// Receives notifications about signed commitment events from BEEFY.
-	pub beefy_commitment_stream: BeefyNotificationStream<BSignedCommitment<Block>>,
+	pub beefy_commitment_stream: BeefySignedCommitmentStream<Block>,
 	/// Receives notifications about best block events from BEEFY.
-	pub beefy_best_block_stream: BeefyNotificationStream<NumberFor<Block>>,
+	pub beefy_best_block_stream: BeefyBestBlockStream<Block>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }

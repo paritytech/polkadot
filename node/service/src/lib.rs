@@ -34,7 +34,7 @@ mod tests;
 
 #[cfg(feature = "full-node")]
 use {
-	beefy_gadget::notification::{BSignedCommitment, BeefyNotificationSender},
+	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -415,10 +415,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				(
-					BeefyNotificationSender<BSignedCommitment<Block>>,
-					BeefyNotificationSender<NumberFor<Block>>,
-				),
+				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -490,9 +487,9 @@ where
 	)?;
 
 	let (beefy_commitment_link, beefy_commitment_stream) =
-		beefy_gadget::notification::BeefyNotificationStream::channel();
+		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
 	let (beefy_best_block_link, beefy_best_block_stream) =
-		beefy_gadget::notification::BeefyNotificationStream::channel();
+		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
 	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
 
 	let justification_stream = grandpa_link.justification_stream();
