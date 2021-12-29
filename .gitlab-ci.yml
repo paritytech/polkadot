@@ -203,7 +203,7 @@ test-build-linux-stable:
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-    - mv ./target/release/polkadot ./artifacts/.
+    - mv ./target/testnet/polkadot ./artifacts/.
     - pushd artifacts
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256
@@ -263,7 +263,7 @@ build-adder-collator:
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
-    - mv ./target/release/adder-collator ./artifacts/.
+    - mv ./target/testnet/adder-collator ./artifacts/.
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
@@ -283,7 +283,7 @@ build-malus:
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
-    - mv ./target/release/malus ./artifacts/.
+    - mv ./target/testnet/malus ./artifacts/.
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
