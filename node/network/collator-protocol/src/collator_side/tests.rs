@@ -29,7 +29,7 @@ use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::traits::AppVerify;
 
-use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest, view};
+use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest, view, OurView};
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
@@ -172,13 +172,7 @@ impl TestState {
 			our_view![self.relay_parent]
 		};
 
-		overseer_send(
-			virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
-				our_view,
-			)),
-		)
-		.await;
+		set_our_view(virtual_overseer, &self, our_view).await;
 	}
 }
 
@@ -278,44 +272,19 @@ async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 	)
 	.await;
 
-	overseer_send(
-		virtual_overseer,
-		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
-			our_view![test_state.relay_parent],
-		)),
-	)
-	.await;
+	set_our_view(virtual_overseer, test_state, our_view![test_state.relay_parent]).await;
 }
 
-/// Result of [`distribute_collation`]
-struct DistributeCollation {
-	candidate: CandidateReceipt,
-	pov_block: PoV,
-}
-
-/// Create some PoV and distribute it.
-async fn distribute_collation(
+/// Check our view change triggers the right messages
+/// assuming our view contains test_state.relay_parent as the only new relay parent.
+async fn set_our_view(
 	virtual_overseer: &mut VirtualOverseer,
 	test_state: &TestState,
-	// whether or not we expect a connection request or not.
-	should_connect: bool,
-) -> DistributeCollation {
-	// Now we want to distribute a `PoVBlock`
-	let pov_block = PoV { block_data: BlockData(vec![42, 43, 44]) };
-
-	let pov_hash = pov_block.hash();
-
-	let candidate = TestCandidateBuilder {
-		para_id: test_state.para_id,
-		relay_parent: test_state.relay_parent,
-		pov_hash,
-		..Default::default()
-	}
-	.build();
-
+	our_view: OurView,
+) {
 	overseer_send(
 		virtual_overseer,
-		CollatorProtocolMessage::DistributeCollation(candidate.clone(), pov_block.clone(), None),
+		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(our_view)),
 	)
 	.await;
 
@@ -369,16 +338,45 @@ async fn distribute_collation(
 		}
 	}
 
-	if should_connect {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ConnectToValidators {
-					..
-				}
-			) => {}
-		);
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridge(
+			NetworkBridgeMessage::ConnectToValidators {
+				..
+			}
+		) => {}
+	);
+}
+
+/// Result of [`distribute_collation`]
+struct DistributeCollation {
+	candidate: CandidateReceipt,
+	pov_block: PoV,
+}
+
+/// Create some PoV and distribute it.
+async fn distribute_collation(
+	virtual_overseer: &mut VirtualOverseer,
+	test_state: &TestState,
+) -> DistributeCollation {
+	// Now we want to distribute a `PoVBlock`
+	let pov_block = PoV { block_data: BlockData(vec![42, 43, 44]) };
+
+	let pov_hash = pov_block.hash();
+
+	let candidate = TestCandidateBuilder {
+		para_id: test_state.para_id,
+		relay_parent: test_state.relay_parent,
+		pov_hash,
+		..Default::default()
 	}
+	.build();
+
+	overseer_send(
+		virtual_overseer,
+		CollatorProtocolMessage::DistributeCollation(candidate.clone(), pov_block.clone(), None),
+	)
+	.await;
 
 	DistributeCollation { candidate, pov_block }
 }
@@ -508,7 +506,7 @@ fn advertise_and_send_collation() {
 		setup_system(&mut virtual_overseer, &test_state).await;
 
 		let DistributeCollation { candidate, pov_block } =
-			distribute_collation(&mut virtual_overseer, &test_state, true).await;
+			distribute_collation(&mut virtual_overseer, &test_state).await;
 
 		for (val, peer) in test_state
 			.current_group_validator_authority_ids()
@@ -625,7 +623,7 @@ fn advertise_and_send_collation() {
 
 		assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 
-		distribute_collation(&mut virtual_overseer, &test_state, true).await;
+		distribute_collation(&mut virtual_overseer, &test_state).await;
 
 		// Send info about peer's view.
 		overseer_send(
@@ -713,7 +711,7 @@ fn collations_are_only_advertised_to_validators_with_correct_view() {
 		// And let it tell us that it is has the same view.
 		send_peer_view_change(virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
 
-		distribute_collation(virtual_overseer, &test_state, true).await;
+		distribute_collation(virtual_overseer, &test_state).await;
 
 		expect_advertise_collation_msg(virtual_overseer, &peer2, test_state.relay_parent).await;
 
@@ -752,14 +750,14 @@ fn collate_on_two_different_relay_chain_blocks() {
 		expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 		expect_declare_msg(virtual_overseer, &test_state, &peer2).await;
 
-		distribute_collation(virtual_overseer, &test_state, true).await;
+		distribute_collation(virtual_overseer, &test_state).await;
 
 		let old_relay_parent = test_state.relay_parent;
 
 		// Advance to a new round, while informing the subsystem that the old and the new relay parent are active.
 		test_state.advance_to_new_round(virtual_overseer, true).await;
 
-		distribute_collation(virtual_overseer, &test_state, true).await;
+		distribute_collation(virtual_overseer, &test_state).await;
 
 		send_peer_view_change(virtual_overseer, &peer, vec![old_relay_parent]).await;
 		expect_advertise_collation_msg(virtual_overseer, &peer, old_relay_parent).await;
@@ -789,7 +787,7 @@ fn validator_reconnect_does_not_advertise_a_second_time() {
 		connect_peer(virtual_overseer, peer.clone(), Some(validator_id.clone())).await;
 		expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 
-		distribute_collation(virtual_overseer, &test_state, true).await;
+		distribute_collation(virtual_overseer, &test_state).await;
 
 		send_peer_view_change(virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 		expect_advertise_collation_msg(virtual_overseer, &peer, test_state.relay_parent).await;
@@ -874,7 +872,7 @@ where
 		setup_system(virtual_overseer, &test_state).await;
 
 		let DistributeCollation { candidate, pov_block } =
-			distribute_collation(virtual_overseer, &test_state, true).await;
+			distribute_collation(virtual_overseer, &test_state).await;
 
 		for (val, peer) in test_state
 			.current_group_validator_authority_ids()
