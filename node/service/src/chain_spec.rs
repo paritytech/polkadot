@@ -106,6 +106,11 @@ pub type WestendChainSpec = DummyChainSpec;
 #[cfg(feature = "rococo-native")]
 pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
 
+/// The `ChainSpec` parameterized for the `versi` runtime.
+///
+/// As of now `Versi` will just be a clone of `Rococo`, until we need it to differ.
+pub type VersiChainSpec = RococoChainSpec;
+
 /// The `ChainSpec` parameterized for the rococo runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "rococo-native"))]
@@ -151,6 +156,10 @@ pub fn rococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
 }
 
+pub fn versi_config() -> Result<VersiChainSpec, String> {
+	VersiChainSpec::from_json_bytes(&include_bytes!("../res/versi.json")[..])
+}
+
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
@@ -170,8 +179,8 @@ fn default_parachains_host_configuration(
 	use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
 
 	polkadot_runtime_parachains::configuration::HostConfiguration {
-		validation_upgrade_frequency: 1u32,
-		validation_upgrade_delay: 1,
+		validation_upgrade_frequency: 2u32,
+		validation_upgrade_delay: 2,
 		code_retention_period: 1200,
 		max_code_size: MAX_CODE_SIZE,
 		max_pov_size: MAX_POV_SIZE,
@@ -201,8 +210,20 @@ fn default_parachains_host_configuration(
 		needed_approvals: 2,
 		relay_vrf_modulo_samples: 2,
 		zeroth_delay_tranche_width: 0,
+		minimum_validation_upgrade_delay: 5,
 		..Default::default()
 	}
+}
+
+#[cfg(any(
+	feature = "rococo-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "polkadot-native"
+))]
+#[test]
+fn default_parachains_host_configuration_is_consistent() {
+	default_parachains_host_configuration().panic_if_not_consistent();
 }
 
 #[cfg(feature = "polkadot-native")]
@@ -1690,6 +1711,28 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
+/// `Versi` development config (single validator Alice)
+#[cfg(feature = "rococo-native")]
+pub fn versi_development_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Development",
+		"versi_dev",
+		ChainType::Development,
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some("versi"),
+		None,
+		Default::default(),
+	))
+}
+
 /// Wococo development config (single validator Alice)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
@@ -1854,6 +1897,22 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 	)
 }
 
+/// `Versi` is a temporary testnet that uses the same runtime as rococo.
+#[cfg(feature = "rococo-native")]
+fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
+			get_authority_keys_from_seed("Dave"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 /// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
@@ -1865,6 +1924,28 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		ChainType::Local,
 		move || RococoGenesisExt {
 			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+/// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
+#[cfg(feature = "rococo-native")]
+pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Versi Local Testnet",
+		"versi_local_testnet",
+		ChainType::Local,
+		move || RococoGenesisExt {
+			runtime_genesis_config: versi_local_testnet_genesis(wasm_binary),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
