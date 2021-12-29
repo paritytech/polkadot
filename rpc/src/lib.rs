@@ -26,7 +26,6 @@ use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
 use sc_sync_state_rpc::{SyncStateRpcApi, SyncStateRpcHandler};
-use sc_utils::mpsc::TracingUnboundedReceiver;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
@@ -63,12 +62,13 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+use beefy_gadget::notification::{BSignedCommitment, BeefyNotificationStream};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
 	/// Receives notifications about signed commitment events from BEEFY.
-	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block>,
-	/// Executor to drive the subscription manager in the BEEFY RPC handler.
-	pub beefy_best_block_receiver: TracingUnboundedReceiver<NumberFor<Block>>,
+	pub beefy_commitment_stream: BeefyNotificationStream<BSignedCommitment<Block>>,
+	/// Receives notifications about best block events from BEEFY.
+	pub beefy_best_block_stream: BeefyNotificationStream<NumberFor<Block>>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
@@ -159,13 +159,12 @@ where
 		deny_unsafe,
 	)?));
 
-	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-		beefy_gadget_rpc::BeefyRpcHandler::new(
-			beefy.beefy_commitment_stream,
-			beefy.beefy_best_block_receiver,
-			beefy.subscription_executor,
-		),
-	));
+	let handler: beefy_gadget_rpc::BeefyRpcHandler<Block> = beefy_gadget_rpc::BeefyRpcHandler::new(
+		beefy.beefy_commitment_stream,
+		beefy.beefy_best_block_stream,
+		beefy.subscription_executor,
+	);
+	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(handler));
 
 	Ok(io)
 }

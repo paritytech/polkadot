@@ -25,7 +25,6 @@ sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -64,7 +63,6 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.19"
 hex-literal = "0.3.4"
-parking_lot = "0.11"
 tracing = "0.1.29"
 serde = { version = "1.0.132", features = ["derive"] }
 thiserror = "1.0.30"

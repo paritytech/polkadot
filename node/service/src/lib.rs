@@ -34,6 +34,7 @@ mod tests;
 
 #[cfg(feature = "full-node")]
 use {
+	beefy_gadget::notification::{BSignedCommitment, BeefyNotificationSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -415,8 +416,8 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
 				(
-					beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
-					sc_utils::mpsc::TracingUnboundedSender<NumberFor<Block>>,
+					BeefyNotificationSender<BSignedCommitment<Block>>,
+					BeefyNotificationSender<NumberFor<Block>>,
 				),
 			),
 			grandpa::SharedVoterState,
@@ -488,11 +489,11 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (beefy_link, beefy_commitment_stream) =
-		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
-	let (beefy_best_block_sender, beefy_best_block_receiver) =
-		sc_utils::mpsc::tracing_unbounded::<NumberFor<Block>>("mpsc_beefy_best_block_stream");
-	let beefy_link = (beefy_link, beefy_best_block_sender);
+	let (beefy_commitment_link, beefy_commitment_stream) =
+		beefy_gadget::notification::BeefyNotificationStream::channel();
+	let (beefy_best_block_link, beefy_best_block_stream) =
+		beefy_gadget::notification::BeefyNotificationStream::channel();
+	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
 
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -505,14 +506,8 @@ where
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
 
-	let import_setup = (block_import, grandpa_link, babe_link, beefy_link);
+	let import_setup = (block_import, grandpa_link, babe_link, beefy_links);
 	let rpc_setup = shared_voter_state.clone();
-
-	// let beefy_deps = polkadot_rpc::BeefyDeps {
-	// 	beefy_commitment_stream: beefy_commitment_stream.clone(),
-	// 	beefy_best_block_receiver,
-	// 	subscription_executor,
-	// };
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
@@ -544,7 +539,7 @@ where
 				},
 				beefy: polkadot_rpc::BeefyDeps {
 					beefy_commitment_stream: beefy_commitment_stream.clone(),
-					beefy_best_block_receiver,
+					beefy_best_block_stream: beefy_best_block_stream.clone(),
 					subscription_executor,
 				},
 			};
@@ -892,7 +887,7 @@ where
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, link_half, babe_link, beefy_link) = import_setup;
+	let (block_import, link_half, babe_link, beefy_links) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
@@ -1090,10 +1085,10 @@ where
 			backend: backend.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
-			signed_commitment_sender: beefy_link.0,
+			signed_commitment_sender: beefy_links.0,
+			beefy_best_block_sender: beefy_links.1,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
-			beefy_best_block_sender: beefy_link.1,
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
