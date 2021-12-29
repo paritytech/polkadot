@@ -47,14 +47,14 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 		let _ = holding.reanchor(&dest, &Here.into());
-		assert_eq!(sent_xcm(), vec![(
+		assert_eq!(sent_xcm().last(), Some(&(
 			dest,
 			Xcm(vec![Instruction::QueryResponse {
 				query_id: Default::default(),
 				response: Response::Assets(holding),
 				max_weight: u64::MAX,
 			}])
-		)]);
+		)));
 	}
 
 	// This benchmark does not use any additional orders or instructions. This should be managed
@@ -226,14 +226,14 @@ benchmarks! {
 	}: {
 		executor.execute(xcm)?;
 	} verify {
-		assert_eq!(sent_xcm(), vec![(
+		assert_eq!(sent_xcm().last(), Some(&(
 			dest,
 			Xcm(vec![Instruction::QueryResponse {
 				query_id,
 				response: Response::ExecutionResult(Some((0u32, XcmError::Unimplemented))),
 				max_weight: max_response_weight,
 			}]),
-		)]);
+		)));
 	}
 
 	claim_asset {
@@ -324,10 +324,10 @@ benchmarks! {
 	} verify {
 		let dest = T::valid_destination().unwrap();
 		let _ = holding.reanchor(&dest, &Here.into());
-		assert_eq!(sent_xcm(), vec![(
+		assert_eq!(sent_xcm().last(), Some(&(
 			dest,
 			Xcm(vec![Instruction::WithdrawAsset(holding), Instruction::ClearOrigin]),
-		)]);
+		)));
 	}
 
 	impl_benchmark_test_suite!(

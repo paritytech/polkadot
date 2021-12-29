@@ -105,13 +105,13 @@ benchmarks_instance_pallet! {
 		let _ = assets.reanchor(&dest_location, &Here.into());
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
-		assert_eq!(sent_xcm(), vec![(
+		assert_eq!(sent_xcm().last(), Some(&(
 			dest_location,
 			Xcm(vec![
 				Instruction::ReserveAssetDeposited(assets),
 				Instruction::ClearOrigin,
 			]),
-		)]);
+		)));
 	}
 
 	receive_teleported_asset {
@@ -201,13 +201,13 @@ benchmarks_instance_pallet! {
 		let _ = assets.reanchor(&dest_location, &Here.into());
 		// dest should have received some asset.
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
-		assert_eq!(sent_xcm(), vec![(
+		assert_eq!(sent_xcm().last(), Some(&(
 			dest_location,
 			Xcm(vec![
 				Instruction::ReserveAssetDeposited(assets),
 				Instruction::ClearOrigin,
 			]),
-		)]);
+		)));
 	}
 
 	initiate_teleport {
@@ -237,13 +237,13 @@ benchmarks_instance_pallet! {
 			// teleport checked account should have received some asset.
 			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
 		}
-		assert_eq!(sent_xcm(), vec![(
+		assert_eq!(sent_xcm().last(), Some(&(
 			dest,
 			Xcm(vec![
 				Instruction::ReceiveTeleportedAsset(asset.into()),
 				Instruction::ClearOrigin,
 			]),
-		)]);
+		)));
 	}
 
 	impl_benchmark_test_suite!(

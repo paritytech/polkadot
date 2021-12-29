@@ -16,21 +16,21 @@
 
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
-use sp_std::cell::RefCell;
+use sp_std::sync::Mutex;
 use xcm_executor::traits::FilterAssetLocation;
 
-thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+lazy_static::lazy_static! {
+	pub static ref SENT_XCM: Mutex<Vec<(MultiLocation, opaque::Xcm)>> = Mutex::new(Vec::new());
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
-	SENT_XCM.with(|q| (*q.borrow()).clone())
+	SENT_XCM.lock().unwrap().clone()
 }
 
 // A simple XCM sender/receiver that queues up XCMs in a Vec.
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
+		SENT_XCM.lock().unwrap().push((dest.into(), msg));
 		Ok(())
 	}
 }
