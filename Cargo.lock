@@ -3685,7 +3685,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "rand 0.7.3",
  "smallvec",
  "unsigned-varint 0.7.1",
@@ -3925,9 +3925,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "469898e909a1774d844793b347135a0cd344ca2f69d082013ecb8061a2229a3a"
+checksum = "274353858935c992b13c0ca408752e2121da852d07dec7ce5f108c77dfa14d1f"
 dependencies = [
  "hashbrown",
 ]
@@ -5846,7 +5846,7 @@ dependencies = [
  "derive_more",
  "futures 0.3.19",
  "futures-timer 3.0.2",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -5875,7 +5875,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer 3.0.2",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -5998,7 +5998,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer 3.0.2",
  "lazy_static",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6111,7 +6111,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.1",
+ "lru 0.7.2",
  "merlin",
  "parity-scale-codec",
  "parking_lot",
@@ -6276,7 +6276,7 @@ dependencies = [
  "futures 0.3.19",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -6518,7 +6518,7 @@ dependencies = [
  "itertools",
  "lazy_static",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "metered-channel",
  "parity-scale-codec",
  "pin-project 1.0.8",
@@ -6547,7 +6547,7 @@ dependencies = [
  "femme",
  "futures 0.3.19",
  "futures-timer 3.0.2",
- "lru 0.7.1",
+ "lru 0.7.2",
  "metered-channel",
  "parity-util-mem",
  "parking_lot",
@@ -6918,7 +6918,7 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "pallet-babe",
  "pallet-im-online",
  "pallet-mmr-primitives",
@@ -8667,7 +8667,7 @@ dependencies = [
  "linked-hash-map",
  "linked_hash_set",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "parking_lot",
  "pin-project 1.0.8",
@@ -8704,7 +8704,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "libp2p",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "sc-network",
  "sp-runtime",
  "substrate-prometheus-endpoint",
@@ -9541,7 +9541,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#b03e8bcf151b
 dependencies = [
  "futures 0.3.19",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "parking_lot",
  "sp-api",
