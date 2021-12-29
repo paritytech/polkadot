@@ -276,7 +276,7 @@ async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 }
 
 /// Check our view change triggers the right messages
-/// assuming our view contains test_state.relay_parent as the only new relay parent.
+/// assuming our view contains `test_state.relay_parent` as the only new relay parent.
 async fn set_our_view(
 	virtual_overseer: &mut VirtualOverseer,
 	test_state: &TestState,
