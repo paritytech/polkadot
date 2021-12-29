@@ -978,7 +978,7 @@ where
 
 		tracing::debug!(
 			target: LOG_TARGET,
-            ?relay_parent,
+			?relay_parent,
 			?validators,
 			para_id = ?id,
 			"Connecting to validators.",
