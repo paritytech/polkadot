@@ -976,6 +976,14 @@ where
 			continue
 		}
 
+		tracing::debug!(
+			target: LOG_TARGET,
+            ?relay_parent,
+			?validators,
+			para_id = ?id,
+			"Connecting to validators.",
+		);
+
 		// Add the current validator group to the reserved peers
 		connect_to_validators(ctx, validators).await;
 
