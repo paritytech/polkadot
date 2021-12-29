@@ -64,9 +64,7 @@ use scale_info::TypeInfo;
 
 mod traits;
 
-pub use traits::{
-	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
 // These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
 pub use super::v1::{
 	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
@@ -224,6 +222,9 @@ impl From<WeightLimit> for Option<u64> {
 	}
 }
 
+/// Local weight type; execution time in picoseconds.
+pub type Weight = u64;
+
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.
@@ -232,7 +233,7 @@ impl From<WeightLimit> for Option<u64> {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
