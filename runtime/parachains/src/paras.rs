@@ -392,6 +392,8 @@ pub trait WeightInfo {
 	fn force_schedule_code_upgrade(c: u32) -> Weight;
 	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
+	fn add_trusted_validation_code(c: u32) -> Weight;
+	fn poke_unused_validation_code() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -409,6 +411,12 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn force_queue_action() -> Weight {
+		Weight::MAX
+	}
+	fn add_trusted_validation_code(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn poke_unused_validation_code() -> Weight {
 		Weight::MAX
 	}
 }
@@ -760,6 +768,79 @@ pub mod pallet {
 				}
 			});
 			Self::deposit_event(Event::ActionQueued(para, next_session));
+			Ok(())
+		}
+
+		/// Adds the validation code to the storage.
+		///
+		/// The code will not be added if it is already present. Additionally, if PVF pre-checking
+		/// is running for that code, it will be instantly accepted.
+		///
+		/// Otherwise, the code will be added into the storage. Note that the code will be added
+		/// into storage with reference count 0. This is to account the fact that there are no users
+		/// for this code yet. The caller will have to make sure that this code eventually gets
+		/// used by some parachain or removed from the storage to avoid storage leaks. For the latter
+		/// prefer to use the `poke_unused_validation_code` dispatchable to raw storage manipulation.
+		///
+		/// This function is mainly meant to be used for upgrading parachains that do not follow
+		/// the go-ahead signal while the PVF pre-checking feature is enabled.
+		#[pallet::weight(<T as Config>::WeightInfo::add_trusted_validation_code(validation_code.0.len() as u32))]
+		pub fn add_trusted_validation_code(
+			origin: OriginFor<T>,
+			validation_code: ValidationCode,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let code_hash = validation_code.hash();
+
+			if let Some(vote) = <Self as Store>::PvfActiveVoteMap::get(&code_hash) {
+				// Remove the existing vote.
+				PvfActiveVoteMap::<T>::remove(&code_hash);
+				PvfActiveVoteList::<T>::mutate(|l| {
+					if let Ok(i) = l.binary_search(&code_hash) {
+						l.remove(i);
+					}
+				});
+
+				let cfg = configuration::Pallet::<T>::config();
+				Self::enact_pvf_accepted(
+					<frame_system::Pallet<T>>::block_number(),
+					&code_hash,
+					&vote.causes,
+					vote.age,
+					&cfg,
+				);
+				return Ok(())
+			}
+
+			if <Self as Store>::CodeByHash::contains_key(&code_hash) {
+				// There is no vote, but the code exists. Nothing to do here.
+				return Ok(())
+			}
+
+			// At this point the code is unknown and there is no PVF pre-checking vote for it, so we
+			// can just add the code into the storage.
+			//
+			// NOTE That we do not use `increase_code_ref` here, because the code is not yet used
+			// by any parachain.
+			<Self as Store>::CodeByHash::insert(code_hash, &validation_code);
+
+			Ok(())
+		}
+
+		/// Remove the validation code from the storage iff the reference count is 0.
+		///
+		/// This is better than removing the storage directly, because it will not remove the code
+		/// that was suddenly got used by some parachain while this dispatchable was pending
+		/// dispatching.
+		#[pallet::weight(<T as Config>::WeightInfo::poke_unused_validation_code())]
+		pub fn poke_unused_validation_code(
+			origin: OriginFor<T>,
+			validation_code_hash: ValidationCodeHash,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			if <Self as Store>::CodeByHashRefs::get(&validation_code_hash) == 0 {
+				<Self as Store>::CodeByHash::remove(&validation_code_hash);
+			}
 			Ok(())
 		}
 
@@ -1609,6 +1690,8 @@ impl<T: Config> Pallet<T> {
 		weight += T::DbWeight::get().reads(1);
 		match PvfActiveVoteMap::<T>::get(&code_hash) {
 			None => {
+				// We deliberately are using `CodeByHash` here instead of the `CodeByHashRefs`. This
+				// is because the code may have been added by `add_trusted_validation_code`.
 				let known_code = CodeByHash::<T>::contains_key(&code_hash);
 				weight += T::DbWeight::get().reads(1);
 
@@ -1812,7 +1895,10 @@ impl<T: Config> Pallet<T> {
 	fn decrease_code_ref(code_hash: &ValidationCodeHash) -> Weight {
 		let mut weight = T::DbWeight::get().reads(1);
 		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
-		debug_assert!(refs != 0);
+		if refs == 0 {
+			log::error!(target: LOG_TARGET, "Code refs is already zero for {:?}", code_hash);
+			return weight
+		}
 		if refs <= 1 {
 			weight += T::DbWeight::get().writes(2);
 			<Self as Store>::CodeByHash::remove(code_hash);
@@ -1842,7 +1928,7 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::{assert_err, assert_ok};
+	use frame_support::{assert_err, assert_ok, assert_storage_noop};
 	use keyring::Sr25519Keyring;
 	use primitives::{
 		v0::PARACHAIN_KEY_TYPE_ID,
@@ -1855,7 +1941,10 @@ mod tests {
 
 	use crate::{
 		configuration::HostConfiguration,
-		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
+		mock::{
+			new_test_ext, Configuration, MockGenesisConfig, Origin, Paras, ParasShared, System,
+			Test,
+		},
 	};
 
 	static VALIDATORS: &[Sr25519Keyring] = &[
@@ -3063,6 +3152,186 @@ mod tests {
 			});
 			assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()));
 			assert_err!(dispatch, Error::<Test>::PvfCheckSubjectInvalid);
+		});
+	}
+
+	#[test]
+	fn add_trusted_validation_code_inserts_with_no_users() {
+		// This test is to ensure that trusted validation code is inserted into the storage
+		// with the reference count equal to 0.
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+		new_test_ext(Default::default()).execute_with(|| {
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0,);
+		});
+	}
+
+	#[test]
+	fn add_trusted_validation_code_idempotent() {
+		// This test makes sure that calling add_trusted_validation_code twice with the same
+		// parameters is a no-op.
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+		new_test_ext(Default::default()).execute_with(|| {
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert_storage_noop!({
+				assert_ok!(Paras::add_trusted_validation_code(
+					Origin::root(),
+					validation_code.clone()
+				));
+			});
+		});
+	}
+
+	#[test]
+	fn poke_unused_validation_code_removes_code_cleanly() {
+		// This test makes sure that calling poke_unused_validation_code with a code that is currently
+		// in the storage but has no users will remove it cleanly from the storage.
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+		new_test_ext(Default::default()).execute_with(|| {
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+
+			assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0);
+			assert!(!<Paras as Store>::CodeByHash::contains_key(&validation_code.hash()));
+		});
+	}
+
+	#[test]
+	fn poke_unused_validation_code_doesnt_remove_code_with_users() {
+		let para_id = 100.into();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+		new_test_ext(Default::default()).execute_with(|| {
+			// First we add the code to the storage.
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+
+			// Then we add a user to the code, say by upgrading.
+			run_to_block(2, None);
+			Paras::schedule_code_upgrade(
+				para_id,
+				validation_code.clone(),
+				1,
+				&Configuration::config(),
+			);
+			Paras::note_new_head(para_id, HeadData::default(), 1);
+
+			// Finally we poke the code, which should not remove it from the storage.
+			assert_storage_noop!({
+				assert_ok!(Paras::poke_unused_validation_code(
+					Origin::root(),
+					validation_code.hash()
+				));
+			});
+			check_code_is_stored(&validation_code);
+		});
+	}
+
+	#[test]
+	fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
+		// Verify that accidential calling of increase_code_ref or decrease_code_ref does not lead
+		// to a disaster.
+		// NOTE that this test is extra paranoid, as it is not really possible to hit
+		// `decrease_code_ref` without calling `increase_code_ref` first.
+		let code = ValidationCode(vec![1, 2, 3]);
+
+		new_test_ext(Default::default()).execute_with(|| {
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+			Paras::increase_code_ref(&code.hash(), &code);
+			Paras::increase_code_ref(&code.hash(), &code);
+			assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
+			assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 2);
+		});
+
+		new_test_ext(Default::default()).execute_with(|| {
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+			Paras::decrease_code_ref(&code.hash());
+			assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
+			assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 0);
+		});
+	}
+
+	#[test]
+	fn add_trusted_validation_code_insta_approval() {
+		// In particular, this tests that `kick_off_pvf_check` reacts to the `add_trusted_validation_code`
+		// and uses the `CodeByHash::contains_key` which is what `add_trusted_validation_code` uses.
+		let para_id = 100.into();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+		let validation_upgrade_delay = 25;
+		let minimum_validation_upgrade_delay = 2;
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					pvf_checking_enabled: true,
+					validation_upgrade_delay,
+					minimum_validation_upgrade_delay,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+
+			// Then some parachain upgrades it's code with the relay-parent 1.
+			run_to_block(2, None);
+			Paras::schedule_code_upgrade(
+				para_id,
+				validation_code.clone(),
+				1,
+				&Configuration::config(),
+			);
+			Paras::note_new_head(para_id, HeadData::default(), 1);
+
+			// Verify that the code upgrade has `expected_at` set to `26`. This is the behavior
+			// equal to that of `pvf_checking_enabled: false`.
+			assert_eq!(
+				<Paras as Store>::FutureCodeUpgrades::get(&para_id),
+				Some(1 + validation_upgrade_delay)
+			);
+		});
+	}
+
+	#[test]
+	fn add_trusted_validation_code_enacts_existing_pvf_vote() {
+		// This test makes sure that calling `add_trusted_validation_code` with a code that is
+		// already going through PVF pre-checking voting will conclude the voting and enact the
+		// code upgrade.
+		let para_id = 100.into();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+		let validation_upgrade_delay = 25;
+		let minimum_validation_upgrade_delay = 2;
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					pvf_checking_enabled: true,
+					validation_upgrade_delay,
+					minimum_validation_upgrade_delay,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+		new_test_ext(genesis_config).execute_with(|| {
+			// First, some parachain upgrades it's code with the relay-parent 1.
+			run_to_block(2, None);
+			Paras::schedule_code_upgrade(
+				para_id,
+				validation_code.clone(),
+				1,
+				&Configuration::config(),
+			);
+			Paras::note_new_head(para_id, HeadData::default(), 1);
+
+			// No upgrade should be scheduled at this point. PVF pre-checking vote should run for
+			// that PVF.
+			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
+			assert!(<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
+
+			// Then we add a trusted validation code. That should conclude the vote.
+			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_some());
+			assert!(!<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
 		});
 	}
 
