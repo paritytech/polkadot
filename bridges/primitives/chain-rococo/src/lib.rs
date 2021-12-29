@@ -48,6 +48,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 0,
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
+	state_version: 0,
 };
 
 // NOTE: This needs to be kept up to date with the Rococo runtime found in the Polkadot repo.

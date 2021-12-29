@@ -1,0 +1,24 @@
+[package]
+name = "polkadot-runtime-metrics"
+version = "0.9.13"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false}
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+parity-scale-codec = { version = "2.3.1", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+
+bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
+
+[features]
+default = ["std"]
+std = [
+	"sp-std/std",
+	"sp-tracing/std",
+    "parity-scale-codec/std",
+    "primitives/std",
+    "bs58/std"
+]
+runtime-metrics = ["sp-tracing/with-tracing"]

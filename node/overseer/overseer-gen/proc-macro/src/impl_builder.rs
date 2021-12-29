@@ -202,7 +202,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			Fn(SubsystemInitFn<T>),
 			/// Directly initialize the subsystem with the given subsystem type `T`.
 			Value(T),
-			/// Subsystem field does not have value just yet.
+			/// Subsystem field does not have a value just yet.
 			Uninitialized
 		}
 
