@@ -276,7 +276,6 @@ async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 }
 
 /// Check our view change triggers the right messages
-/// assuming our view contains `test_state.relay_parent` as the only new relay parent.
 async fn set_our_view(
 	virtual_overseer: &mut VirtualOverseer,
 	test_state: &TestState,
@@ -284,57 +283,61 @@ async fn set_our_view(
 ) {
 	overseer_send(
 		virtual_overseer,
-		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(our_view)),
+		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			our_view.clone(),
+		)),
 	)
 	.await;
 
-	// obtain the availability cores.
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::AvailabilityCores(tx)
-		)) => {
-			assert_eq!(relay_parent, test_state.relay_parent);
-			tx.send(Ok(vec![test_state.availability_core.clone()])).unwrap();
-		}
-	);
-
-	// We don't know precisely what is going to come as session info might be cached:
-	loop {
-		match overseer_recv(virtual_overseer).await {
+	for parent in our_view.iter().cloned() {
+		// obtain the availability cores.
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				relay_parent,
-				RuntimeApiRequest::SessionIndexForChild(tx),
+				RuntimeApiRequest::AvailabilityCores(tx)
 			)) => {
-				assert_eq!(relay_parent, test_state.relay_parent);
-				tx.send(Ok(test_state.current_session_index())).unwrap();
-			},
+				assert_eq!(relay_parent, parent);
+				tx.send(Ok(vec![test_state.availability_core.clone()])).unwrap();
+			}
+		);
 
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::SessionInfo(index, tx),
-			)) => {
-				assert_eq!(relay_parent, test_state.relay_parent);
-				assert_eq!(index, test_state.current_session_index());
+		// We don't know precisely what is going to come as session info might be cached:
+		loop {
+			match overseer_recv(virtual_overseer).await {
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionIndexForChild(tx),
+				)) => {
+					assert_eq!(relay_parent, relay_parent);
+					tx.send(Ok(test_state.current_session_index())).unwrap();
+				},
 
-				tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
-			},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionInfo(index, tx),
+				)) => {
+					assert_eq!(relay_parent, parent);
+					assert_eq!(index, test_state.current_session_index());
 
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::ValidatorGroups(tx),
-			)) => {
-				assert_eq!(relay_parent, test_state.relay_parent);
-				tx.send(Ok((
-					test_state.session_info.validator_groups.clone(),
-					test_state.group_rotation_info.clone(),
-				)))
-				.unwrap();
-				// This call is mandatory - we are done:
-				break
-			},
-			other => panic!("Unexpected message received: {:?}", other),
+					tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
+				},
+
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::ValidatorGroups(tx),
+				)) => {
+					assert_eq!(relay_parent, parent);
+					tx.send(Ok((
+						test_state.session_info.validator_groups.clone(),
+						test_state.group_rotation_info.clone(),
+					)))
+					.unwrap();
+					// This call is mandatory - we are done:
+					break
+				},
+				other => panic!("Unexpected message received: {:?}", other),
+			}
 		}
 	}
 

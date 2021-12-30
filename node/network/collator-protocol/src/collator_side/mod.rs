@@ -942,20 +942,29 @@ where
 		state.waiting_collation_fetches.remove(removed);
 	}
 
-	let new_leaves: Vec<_> = view.difference(&state.view).cloned().collect();
 	state.view = view;
+	if state.view.is_empty() {
+		return Ok(())
+	}
 
 	let id = match state.collating_on {
 		Some(id) => id,
 		None => return Ok(()),
 	};
 
-	for relay_parent in new_leaves {
+	// all validators assigned to the core
+	// across all active leaves
+	// this is typically our current group
+	// but can also include the previous group at
+	// rotation boundaries and considering forks
+	let mut group_validators = HashSet::new();
+
+	for relay_parent in state.view.iter().cloned() {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
 			para_id = ?id,
-			"Processing new relay parent.",
+			"Processing relay parent.",
 		);
 
 		// Determine our assigned core.
@@ -970,30 +979,24 @@ where
 			determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
 		let validators = current_validators.validators;
-		let no_one_is_assigned = validators.is_empty();
+		group_validators.extend(validators);
 
-		if no_one_is_assigned {
-			tracing::warn!(
-				target: LOG_TARGET,
-				core = ?our_core,
-				"No validators assigned to our core.",
-			);
-			continue
-		}
-
-		tracing::debug!(
-			target: LOG_TARGET,
-			?relay_parent,
-			?validators,
-			para_id = ?id,
-			"Connecting to validators.",
-		);
-
-		// Add the current validator group to the reserved peers
-		connect_to_validators(ctx, validators).await;
-
-		state.our_validators_groups.insert(relay_parent, ValidatorGroup::new());
+		state.our_validators_groups.entry(relay_parent).or_insert(ValidatorGroup::new());
 	}
+
+	let validators: Vec<_> = group_validators.into_iter().collect();
+	let no_one_is_assigned = validators.is_empty();
+	if no_one_is_assigned {
+		tracing::warn!(target: LOG_TARGET, "No validators assigned to our core.",);
+		return Ok(())
+	}
+	tracing::debug!(
+		target: LOG_TARGET,
+		?validators,
+		para_id = ?id,
+		"Connecting to validators.",
+	);
+	connect_to_validators(ctx, validators).await;
 
 	Ok(())
 }
