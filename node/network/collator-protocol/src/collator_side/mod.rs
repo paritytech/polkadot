@@ -358,7 +358,7 @@ where
 	}
 
 	if !state.our_validators_groups.contains_key(&relay_parent) {
-		tracing::warn!(target: LOG_TARGET, "There are no validators assigned to the core.",);
+		tracing::warn!(target: LOG_TARGET, "Could not determine validators assigned to the core.");
 
 		return Ok(())
 	}
@@ -973,6 +973,11 @@ where
 		let no_one_is_assigned = validators.is_empty();
 
 		if no_one_is_assigned {
+			tracing::warn!(
+				target: LOG_TARGET,
+				core = ?our_core,
+				"No validators assigned to our core.",
+			);
 			continue
 		}
 
