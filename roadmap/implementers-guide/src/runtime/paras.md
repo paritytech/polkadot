@@ -258,7 +258,7 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 * `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
 * `schedule_code_upgrade(ParaId, new_code, relay_parent: BlockNumber, HostConfiguration)`: Schedule a future code
   upgrade of the given parachain. In case the PVF pre-checking is disabled, or the new code is already present in the storage, the upgrade will be applied after inclusion of a block of the same parachain
-  executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_frequency`.
+  executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_cooldown`.
 In case the PVF pre-checking is enabled, or the new code is not already present in the storage, then the PVF pre-checking run will be scheduled for that validation code. If the pre-checking concludes with rejection, then the upgrade is canceled. Otherwise, after pre-checking is concluded the upgrade will be scheduled and be enacted as described above.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head,
   where the new head was executed in the context of a relay-chain block with given number. This will

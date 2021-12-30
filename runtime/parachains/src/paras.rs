@@ -1646,7 +1646,7 @@ impl<T: Config> Pallet<T> {
 		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 
 		weight += T::DbWeight::get().reads_writes(1, 1);
-		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_frequency;
+		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_cooldown;
 		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
 			let insert_idx = upgrade_cooldowns
 				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
@@ -2268,7 +2268,7 @@ mod tests {
 	fn code_upgrade_applied_after_delay() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 5;
-		let validation_upgrade_frequency = 10;
+		let validation_upgrade_cooldown = 10;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![(
@@ -2286,7 +2286,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
-					validation_upgrade_frequency,
+					validation_upgrade_cooldown,
 					pvf_checking_enabled: false,
 					..Default::default()
 				},
@@ -2307,7 +2307,7 @@ mod tests {
 			let expected_at = {
 				// this parablock is in the context of block 1.
 				let expected_at = 1 + validation_upgrade_delay;
-				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
+				let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
 				Paras::schedule_code_upgrade(
 					para_id,
 					new_code.clone(),
@@ -2376,7 +2376,7 @@ mod tests {
 	fn code_upgrade_applied_after_delay_even_when_late() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 5;
-		let validation_upgrade_frequency = 10;
+		let validation_upgrade_cooldown = 10;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![(
@@ -2394,7 +2394,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
-					validation_upgrade_frequency,
+					validation_upgrade_cooldown,
 					pvf_checking_enabled: false,
 					..Default::default()
 				},
@@ -2413,7 +2413,7 @@ mod tests {
 			let expected_at = {
 				// this parablock is in the context of block 1.
 				let expected_at = 1 + validation_upgrade_delay;
-				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
+				let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
 				Paras::schedule_code_upgrade(
 					para_id,
 					new_code.clone(),
@@ -2467,7 +2467,7 @@ mod tests {
 	fn submit_code_change_when_not_allowed_is_err() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 7;
-		let validation_upgrade_frequency = 100;
+		let validation_upgrade_cooldown = 100;
 
 		let paras = vec![(
 			0u32.into(),
@@ -2484,7 +2484,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
-					validation_upgrade_frequency,
+					validation_upgrade_cooldown,
 					pvf_checking_enabled: false,
 					..Default::default()
 				},
