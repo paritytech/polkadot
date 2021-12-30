@@ -1408,7 +1408,17 @@ async fn poll_collation_response(
 				// same can happen for penalties on timeouts, which we also have.
 				CollationFetchResult::Error(Some(COST_NETWORK_ERROR))
 			},
-			Err(RequestError::Canceled(_)) => {},
+			Err(RequestError::Canceled(err)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					hash = ?pending_collation.relay_parent,
+					para_id = ?pending_collation.para_id,
+					peer_id = ?pending_collation.peer_id,
+					err = ?err,
+					"Canceled should be handled by `is_timed_out` above - this is a bug!"
+				);
+				CollationFetchResult::Error(None)
+			},
 			Ok(CollationFetchingResponse::Collation(receipt, _))
 				if receipt.descriptor().para_id != pending_collation.para_id =>
 			{
