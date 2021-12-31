@@ -1004,7 +1004,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.
-	pub(crate) fn initializer_finalize() {}
+	pub(crate) fn initializer_finalize(now: T::BlockNumber) {
+		Self::process_scheduled_upgrade_cooldowns(now);
+	}
 
 	/// Called by the initializer to note that a new session has started.
 	///
@@ -1232,10 +1234,13 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Process the timers related to upgrades. Specifically, the upgrade go ahead signals toggle
-	/// and the upgrade cooldown restrictions.
-	///
-	/// Takes the current block number and returns the weight consumed.
+	/// and the upgrade cooldown restrictions. However, this function does not actually unset
+	/// the upgrade restriction, that will happen in the `initializer_finalize` function. However,
+	/// this function does count the number of cooldown timers expired so that we can reserve weight
+	/// for the `initializer_finalize` function.
 	fn process_scheduled_upgrade_changes(now: T::BlockNumber) -> Weight {
+		// account weight for `UpcomingUpgrades::mutate`.
+		let mut weight = T::DbWeight::get().reads_writes(1, 1);
 		let upgrades_signaled = <Self as Store>::UpcomingUpgrades::mutate(
 			|upcoming_upgrades: &mut Vec<(ParaId, T::BlockNumber)>| {
 				let num = upcoming_upgrades.iter().take_while(|&(_, at)| at <= &now).count();
@@ -1245,17 +1250,35 @@ impl<T: Config> Pallet<T> {
 				num
 			},
 		);
-		let cooldowns_expired = <Self as Store>::UpgradeCooldowns::mutate(
+		weight += T::DbWeight::get().writes(upgrades_signaled as u64);
+
+		// account weight for `UpgradeCooldowns::get`.
+		weight += T::DbWeight::get().reads(1);
+		let cooldowns_expired = <Self as Store>::UpgradeCooldowns::get()
+			.iter()
+			.take_while(|&(_, at)| at <= &now)
+			.count();
+
+		// reserve weight for `initializer_finalize`:
+		// - 1 read and 1 write for `UpgradeCooldowns::mutate`.
+		// - 1 write per expired cooldown.
+		weight += T::DbWeight::get().reads_writes(1, 1);
+		weight += T::DbWeight::get().reads(cooldowns_expired as u64);
+
+		weight
+	}
+
+	/// Actually perform unsetting the expired upgrade restrictions.
+	///
+	/// See `process_scheduled_upgrade_changes` for more details.
+	fn process_scheduled_upgrade_cooldowns(now: T::BlockNumber) {
+		<Self as Store>::UpgradeCooldowns::mutate(
 			|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
-				let num = upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now).count();
-				for (para, _) in upgrade_cooldowns.drain(..num) {
+				for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
 					<Self as Store>::UpgradeRestrictionSignal::remove(&para);
 				}
-				num
 			},
 		);
-
-		T::DbWeight::get().reads_writes(2, upgrades_signaled as u64 + cooldowns_expired as u64)
 	}
 
 	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the
@@ -1985,7 +2008,7 @@ mod tests {
 
 		while System::block_number() < to {
 			let b = System::block_number();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 			ParasShared::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
@@ -2510,6 +2533,7 @@ mod tests {
 			// We expect that if an upgrade is signalled while there is already one pending we just
 			// ignore it. Note that this is only true from perspective of this module.
 			run_to_block(2, None);
+			assert!(!Paras::can_upgrade_validation_code(para_id));
 			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 2, &Configuration::config());
 			assert_eq!(
 				<Paras as Store>::FutureCodeUpgrades::get(&para_id),
@@ -2517,6 +2541,79 @@ mod tests {
 			);
 			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
 			check_code_is_not_stored(&newer_code);
+		});
+	}
+
+	#[test]
+	fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
+		// Situation: parachain scheduled upgrade but it doesn't produce any candidate after
+		// `expected_at`. When `validation_upgrade_cooldown` elapsed the parachain produces a
+		// candidate that tries to upgrade the code.
+		//
+		// In the current code this is not allowed: the upgrade should be consumed first. This is
+		// rather an artifact of the current implementation and not necessarily something we want
+		// to keep in the future.
+		//
+		// This test exists that this is not accidentially changed.
+
+		let code_retention_period = 10;
+		let validation_upgrade_delay = 7;
+		let validation_upgrade_cooldown = 30;
+
+		let paras = vec![(
+			0u32.into(),
+			ParaGenesisArgs {
+				parachain: true,
+				genesis_head: dummy_head_data(),
+				validation_code: vec![1, 2, 3].into(),
+			},
+		)];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					code_retention_period,
+					validation_upgrade_delay,
+					validation_upgrade_cooldown,
+					pvf_checking_enabled: false,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = 0u32.into();
+			let new_code = ValidationCode(vec![4, 5, 6]);
+			let newer_code = ValidationCode(vec![4, 5, 6, 7]);
+
+			run_to_block(1, None);
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
+			Paras::note_new_head(para_id, dummy_head_data(), 0);
+			assert_eq!(
+				<Paras as Store>::UpgradeRestrictionSignal::get(&para_id),
+				Some(UpgradeRestriction::Present),
+			);
+			assert_eq!(
+				<Paras as Store>::FutureCodeUpgrades::get(&para_id),
+				Some(0 + validation_upgrade_delay)
+			);
+			assert!(!Paras::can_upgrade_validation_code(para_id));
+
+			run_to_block(31, None);
+			assert!(<Paras as Store>::UpgradeRestrictionSignal::get(&para_id).is_none());
+
+			// Note the para still cannot upgrade the validation code.
+			assert!(!Paras::can_upgrade_validation_code(para_id));
+
+			// And scheduling another upgrade does not do anything. `expected_at` is still the same.
+			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 30, &Configuration::config());
+			assert_eq!(
+				<Paras as Store>::FutureCodeUpgrades::get(&para_id),
+				Some(0 + validation_upgrade_delay)
+			);
 		});
 	}
 

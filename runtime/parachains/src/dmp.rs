@@ -238,7 +238,7 @@ mod tests {
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 			Dmp::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				Dmp::initializer_on_new_session(&Default::default(), &Vec::new());
@@ -248,7 +248,7 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b + 1);
 			Dmp::initializer_initialize(b + 1);
 		}
 	}
