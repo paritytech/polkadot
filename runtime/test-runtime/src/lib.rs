@@ -313,18 +313,9 @@ parameter_types! {
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub storage MaxRewardableIndividualExposures: u32 = 64;
 	pub const MaxIndividualExposures: u32 = 1_000;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxAuthorities: u32 = 100_000;
-	pub const MaxNominations: u32 = 16;
-	pub const MaxUnappliedSlashes: u32 = 1_000;
-	pub const MaxInvulnerablesCount: u32 = 10;
-	pub const MaxHistoryDepth: u32 = 10_000;
-	pub const MaxReportersCount: u32 = 1_000;
-	pub const MaxPriorSlashingSpans: u32 = 1_000;
-	pub const MaxValidatorsCount: u32 = 4_000;
-	pub const MaxUnlockingChunks: u32 = 32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -347,16 +338,16 @@ impl pallet_staking::Config for Runtime {
 	type SlashCancelOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
-	type MaxRewardableIndividualExposures = MaxRewardableIndividualExposures;
+	type MaxRewardableIndividualExposures = frame_support::traits::ConstU32<64>;
 	type MaxIndividualExposures = MaxIndividualExposures;
-	type MaxNominations = MaxNominations;
-	type MaxUnappliedSlashes = MaxUnappliedSlashes;
-	type MaxInvulnerablesCount = MaxInvulnerablesCount;
-	type MaxHistoryDepth = MaxHistoryDepth;
-	type MaxReportersCount = MaxReportersCount;
-	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
-	type MaxValidatorsCount = MaxValidatorsCount;
-	type MaxUnlockingChunks = MaxUnlockingChunks;
+	type MaxNominations = frame_support::traits::ConstU32<16>;
+	type MaxUnappliedSlashes = frame_support::traits::ConstU32<1_000>;
+	type MaxInvulnerablesCount = frame_support::traits::ConstU32<10>;
+	type MaxHistoryDepth = frame_support::traits::ConstU32<10_000>;
+	type MaxReportersCount = frame_support::traits::ConstU32<1_000>;
+	type MaxPriorSlashingSpans = frame_support::traits::ConstU32<1_000>;
+	type MaxValidatorsCount = frame_support::traits::ConstU32<4_000>;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider =

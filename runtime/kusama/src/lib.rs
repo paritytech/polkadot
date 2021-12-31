@@ -537,16 +537,8 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
-	pub const MaxRewardableIndividualExposures: u32 = 256;
 	pub const MaxIndividualExposures: u32 = 10_000;
 	pub const MaxNominations: u32 = <NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
-	pub const MaxUnappliedSlashes: u32 = 1_000;
-	pub const MaxInvulnerablesCount: u32 = 10;
-	pub const MaxHistoryDepth: u32 = 10_000;
-	pub const MaxReportersCount: u32 = 1_000;
-	pub const MaxPriorSlashingSpans: u32 = 1_000;
-	pub const MaxValidatorsCount: u32 = 4_000;
-	pub const MaxUnlockingChunks: u32 = 32;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
@@ -578,16 +570,16 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
-	type MaxRewardableIndividualExposures = MaxRewardableIndividualExposures;
+	type MaxRewardableIndividualExposures = frame_support::traits::ConstU32<256>;
 	type MaxIndividualExposures = MaxIndividualExposures;
 	type MaxNominations = MaxNominations;
-	type MaxUnappliedSlashes = MaxUnappliedSlashes;
-	type MaxInvulnerablesCount = MaxInvulnerablesCount;
-	type MaxHistoryDepth = MaxHistoryDepth;
-	type MaxReportersCount = MaxReportersCount;
-	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
-	type MaxValidatorsCount = MaxValidatorsCount;
-	type MaxUnlockingChunks = MaxUnlockingChunks;
+	type MaxUnappliedSlashes = frame_support::traits::ConstU32<1_000>;
+	type MaxInvulnerablesCount = frame_support::traits::ConstU32<10>;
+	type MaxHistoryDepth = frame_support::traits::ConstU32<10_000>;
+	type MaxReportersCount = frame_support::traits::ConstU32<1_000>;
+	type MaxPriorSlashingSpans = frame_support::traits::ConstU32<1_000>;
+	type MaxValidatorsCount = frame_support::traits::ConstU32<4_000>;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
 	type SortedListProvider = BagsList;
