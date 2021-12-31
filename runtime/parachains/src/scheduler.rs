@@ -797,7 +797,7 @@ mod tests {
 			let b = System::block_number();
 
 			Scheduler::initializer_finalize();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 
 			if let Some(notification) = new_session(b + 1) {
 				let mut notification_with_session_index = notification;
@@ -831,7 +831,7 @@ mod tests {
 		run_to_block(to, &new_session);
 
 		Scheduler::initializer_finalize();
-		Paras::initializer_finalize();
+		Paras::initializer_finalize(to);
 
 		if let Some(notification) = new_session(to + 1) {
 			Paras::initializer_on_new_session(&notification);
