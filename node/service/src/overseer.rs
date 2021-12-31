@@ -22,6 +22,7 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
+use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -33,7 +34,7 @@ use polkadot_overseer::{
 	OverseerConnector, OverseerHandle,
 };
 
-use polkadot_primitives::v1::ParachainHost;
+use polkadot_primitives::v2::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
@@ -59,10 +60,9 @@ pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
 pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
-pub use polkadot_node_core_dispute_participation::DisputeParticipationSubsystem;
-pub use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-pub use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
 pub struct OverseerGenArgs<'a, Spawner, RuntimeClient>
@@ -107,6 +107,8 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
+	/// Enable to disputes.
+	pub disputes_enabled: bool,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -133,6 +135,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
+		disputes_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	OverseerBuilder<
@@ -159,7 +162,6 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		ApprovalVotingSubsystem,
 		GossipSupportSubsystem<AuthorityDiscoveryService>,
 		DisputeCoordinatorSubsystem,
-		DisputeParticipationSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 		ChainSelectionSubsystem,
 	>,
@@ -230,7 +232,11 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(spawner.clone(), (), Metrics::register(registry)?))
+		.provisioner(ProvisionerSubsystem::new(
+			spawner.clone(),
+			ProvisionerConfig { disputes_enabled },
+			Metrics::register(registry)?,
+		))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,
@@ -253,13 +259,16 @@ where
 			keystore.clone(),
 			authority_discovery_service.clone(),
 		))
-		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
-			parachains_db.clone(),
-			dispute_coordinator_config,
-			keystore.clone(),
-			Metrics::register(registry)?,
-		))
-		.dispute_participation(DisputeParticipationSubsystem::new())
+		.dispute_coordinator(if disputes_enabled {
+			DisputeCoordinatorSubsystem::new(
+				parachains_db.clone(),
+				dispute_coordinator_config,
+				keystore.clone(),
+				Metrics::register(registry)?,
+			)
+		} else {
+			DisputeCoordinatorSubsystem::dummy()
+		})
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,

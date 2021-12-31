@@ -1,0 +1,39 @@
+[settings]
+timeout = 1000
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "wococo-local"
+command = "polkadot"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  validator = true
+  extra_args = [ "--alice", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  validator = true
+  extra_args = [ "--bob", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "charlie"
+  validator = true
+  extra_args = [ "--charlie", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "dave"
+  validator = true
+  command = "/usr/local/bin/malus dispute-ancestor"
+  extra_args = ["--dave", "-lparachain=debug"]
+  image = "{{MALUS_IMAGE}}"
+  autoConnectApi = false
+
+[[parachains]]
+id = 100
+
+  [parachains.collator]
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
+  command = "/usr/local/bin/adder-collator"
+  args = ["-lparachain=debug"]

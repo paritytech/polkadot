@@ -49,7 +49,7 @@ use crate::{configuration, initializer::SessionChangeNotification, paras};
 pub use pallet::*;
 
 /// A queued parathread entry, pre-assigned to a core.
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct QueuedParathread {
 	claim: ParathreadEntry,
@@ -57,7 +57,7 @@ pub struct QueuedParathread {
 }
 
 /// The queue of all parathread claims.
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
@@ -89,7 +89,14 @@ impl ParathreadClaimQueue {
 	}
 }
 
+impl Default for ParathreadClaimQueue {
+	fn default() -> Self {
+		Self { queue: vec![], next_core_offset: 0 }
+	}
+}
+
 /// Reasons a core might be freed
+#[derive(Clone, Copy)]
 pub enum FreedReason {
 	/// The core's work concluded and the parablock assigned to it is considered available.
 	Concluded,
@@ -532,7 +539,7 @@ impl<T: Config> Pallet<T> {
 
 		let mut availability_cores = AvailabilityCores::<T>::get();
 		Scheduled::<T>::mutate(|scheduled| {
-			// The constraints on the function require that now_occupied is a sorted subset of the
+			// The constraints on the function require that `now_occupied` is a sorted subset of the
 			// `scheduled` cores, which are also sorted.
 
 			let mut occupied_iter = now_occupied.iter().cloned().peekable();
@@ -776,7 +783,7 @@ mod tests {
 			id,
 			ParaGenesisArgs {
 				genesis_head: Vec::new().into(),
-				validation_code: Vec::new().into(),
+				validation_code: vec![1, 2, 3].into(),
 				parachain: is_chain,
 			}
 		));
@@ -842,6 +849,11 @@ mod tests {
 			thread_availability_period: 5,
 			scheduling_lookahead: 2,
 			parathread_retries: 1,
+			pvf_checking_enabled: false,
+			// This field does not affect anything that scheduler does. However, `HostConfiguration`
+			// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
+			// is greater than `chain_availability_period` and `thread_availability_period`.
+			minimum_validation_upgrade_delay: 6,
 			..Default::default()
 		}
 	}
@@ -982,7 +994,7 @@ mod tests {
 				schedule_blank_para(thread_c, false);
 			}
 
-			// set up a queue as if n_cores was 4 and with some with many retries.
+			// set up a queue as if `n_cores` was 4 and with some with many retries.
 			ParathreadQueue::<Test>::put({
 				let mut queue = ParathreadClaimQueue::default();
 

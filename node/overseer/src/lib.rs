@@ -71,7 +71,10 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::v1::{Block, BlockId, BlockNumber, Hash, ParachainHost};
+use polkadot_primitives::{
+	v1::{Block, BlockId, BlockNumber, Hash},
+	v2::ParachainHost,
+};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use polkadot_node_network_protocol::v1 as protocol_v1;
@@ -80,9 +83,9 @@ use polkadot_node_subsystem_types::messages::{
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, DisputeParticipationMessage,
-	GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
+	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, RuntimeApiMessage,
+	StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -130,7 +133,13 @@ where
 {
 	fn head_supports_parachains(&self, head: &Hash) -> bool {
 		let id = BlockId::Hash(*head);
-		self.runtime_api().has_api::<dyn ParachainHost<Block>>(&id).unwrap_or(false)
+		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.
+		self.runtime_api()
+			.api_version::<dyn ParachainHost<Block>>(&id)
+			.ok()
+			.flatten()
+			.unwrap_or(0) >=
+			1
 	}
 }
 
@@ -462,9 +471,6 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeParticipationMessage)]
-	dispute_participation: DisputeParticipation,
-
 	#[subsystem(no_dispatch, DisputeDistributionMessage)]
 	dispute_distribution: DisputeDistribution,
 
@@ -562,7 +568,10 @@ where
 
 		futures::future::ready(())
 	});
-	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+	overseer
+		.spawner()
+		.spawn("metrics-metronome", Some("overseer"), Box::pin(metronome));
+
 	Ok(())
 }
 
@@ -616,11 +625,11 @@ where
 				},
 				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
-						ToOverseer::SpawnJob { name, s } => {
-							self.spawn_job(name, s);
+						ToOverseer::SpawnJob { name, subsystem, s } => {
+							self.spawn_job(name, subsystem, s);
 						}
-						ToOverseer::SpawnBlockingJob { name, s } => {
-							self.spawn_blocking_job(name, s);
+						ToOverseer::SpawnBlockingJob { name, subsystem, s } => {
+							self.spawn_blocking_job(name, subsystem, s);
 						}
 					}
 				},
@@ -772,11 +781,21 @@ where
 		}
 	}
 
-	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn(name, j);
+	fn spawn_job(
+		&mut self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		j: BoxFuture<'static, ()>,
+	) {
+		self.spawner.spawn(task_name, subsystem_name, j);
 	}
 
-	fn spawn_blocking_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn_blocking(name, j);
+	fn spawn_blocking_job(
+		&mut self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		j: BoxFuture<'static, ()>,
+	) {
+		self.spawner.spawn_blocking(task_name, subsystem_name, j);
 	}
 }

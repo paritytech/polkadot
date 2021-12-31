@@ -73,7 +73,7 @@ impl metrics::Metrics for Metrics {
 			approval_checking_finality_lag: prometheus::register(
 				prometheus::Gauge::with_opts(
 					prometheus::Opts::new(
-						"parachain_approval_checking_finality_lag",
+						"polkadot_parachain_approval_checking_finality_lag",
 						"How far behind the head of the chain the Approval Checking protocol wants to vote",
 					)
 				)?,
@@ -82,7 +82,7 @@ impl metrics::Metrics for Metrics {
 			disputes_finality_lag: prometheus::register(
 				prometheus::Gauge::with_opts(
 					prometheus::Opts::new(
-						"parachain_disputes_finality_lag",
+						"polkadot_parachain_disputes_finality_lag",
 						"How far behind the head of the chain the Disputes protocol wants to vote",
 					)
 				)?,
@@ -108,11 +108,31 @@ impl Metrics {
 	}
 }
 
+/// Determines whether the chain is a relay chain
+/// and hence has to take approval votes and disputes
+/// into account.
+enum IsDisputesAwareWithOverseer<B: sc_client_api::Backend<PolkadotBlock>> {
+	Yes(SelectRelayChainInner<B, Handle>),
+	No,
+}
+
+impl<B> Clone for IsDisputesAwareWithOverseer<B>
+where
+	B: sc_client_api::Backend<PolkadotBlock>,
+	SelectRelayChainInner<B, Handle>: Clone,
+{
+	fn clone(&self) -> Self {
+		match self {
+			Self::Yes(ref inner) => Self::Yes(inner.clone()),
+			Self::No => Self::No,
+		}
+	}
+}
+
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B: sc_client_api::Backend<PolkadotBlock>> {
-	is_relay_chain: bool,
 	longest_chain: sc_consensus::LongestChain<B, PolkadotBlock>,
-	selection: SelectRelayChainInner<B, Handle>,
+	selection: IsDisputesAwareWithOverseer<B>,
 }
 
 impl<B> Clone for SelectRelayChain<B>
@@ -121,11 +141,7 @@ where
 	SelectRelayChainInner<B, Handle>: Clone,
 {
 	fn clone(&self) -> Self {
-		Self {
-			longest_chain: self.longest_chain.clone(),
-			is_relay_chain: self.is_relay_chain,
-			selection: self.selection.clone(),
-		}
+		Self { longest_chain: self.longest_chain.clone(), selection: self.selection.clone() }
 	}
 }
 
@@ -133,18 +149,43 @@ impl<B> SelectRelayChain<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
+	/// Use the plain longest chain algorithm exclusively.
+	pub fn new_longest_chain(backend: Arc<B>) -> Self {
+		tracing::debug!(target: LOG_TARGET, "Using {} chain selection algorithm", "longest");
+
+		Self {
+			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
+			selection: IsDisputesAwareWithOverseer::No,
+		}
+	}
+
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
+	pub fn new_disputes_aware(
+		backend: Arc<B>,
+		overseer: Handle,
+		metrics: Metrics,
+		disputes_enabled: bool,
+	) -> Self {
 		tracing::debug!(
 			target: LOG_TARGET,
-			"Using {} as chain selection algorithm",
-			if is_relay_chain { "dispute aware relay" } else { "longest" }
+			"Using {} chain selection algorithm",
+			if disputes_enabled {
+				"dispute aware relay"
+			} else {
+				// no disputes are queried, that logic is disabled
+				// in `fn finality_target_with_longest_chain`.
+				"short-circuited relay"
+			}
 		);
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
-			selection: SelectRelayChainInner::new(backend, overseer, metrics),
-			is_relay_chain,
+			selection: IsDisputesAwareWithOverseer::Yes(SelectRelayChainInner::new(
+				backend,
+				overseer,
+				metrics,
+				disputes_enabled,
+			)),
 		}
 	}
 
@@ -160,18 +201,17 @@ where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
 	async fn leaves(&self) -> Result<Vec<Hash>, ConsensusError> {
-		if !self.is_relay_chain {
-			return self.longest_chain.leaves().await
+		match self.selection {
+			IsDisputesAwareWithOverseer::Yes(ref selection) => selection.leaves().await,
+			IsDisputesAwareWithOverseer::No => self.longest_chain.leaves().await,
 		}
-
-		self.selection.leaves().await
 	}
 
 	async fn best_chain(&self) -> Result<PolkadotHeader, ConsensusError> {
-		if !self.is_relay_chain {
-			return self.longest_chain.best_chain().await
+		match self.selection {
+			IsDisputesAwareWithOverseer::Yes(ref selection) => selection.best_chain().await,
+			IsDisputesAwareWithOverseer::No => self.longest_chain.best_chain().await,
 		}
-		self.selection.best_chain().await
 	}
 
 	async fn finality_target(
@@ -182,12 +222,17 @@ where
 		let longest_chain_best =
 			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
 
-		if !self.is_relay_chain {
-			return Ok(longest_chain_best)
+		if let IsDisputesAwareWithOverseer::Yes(ref selection) = self.selection {
+			selection
+				.finality_target_with_longest_chain(
+					target_hash,
+					longest_chain_best,
+					maybe_max_number,
+				)
+				.await
+		} else {
+			Ok(longest_chain_best)
 		}
-		self.selection
-			.finality_target_with_longest_chain(target_hash, longest_chain_best, maybe_max_number)
-			.await
 	}
 }
 
@@ -196,6 +241,7 @@ where
 pub struct SelectRelayChainInner<B, OH> {
 	backend: Arc<B>,
 	overseer: OH,
+	disputes_enabled: bool,
 	metrics: Metrics,
 }
 
@@ -206,8 +252,8 @@ where
 {
 	/// Create a new [`SelectRelayChainInner`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
-		SelectRelayChainInner { backend, overseer, metrics }
+	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics, disputes_enabled: bool) -> Self {
+		SelectRelayChainInner { backend, overseer, metrics, disputes_enabled }
 	}
 
 	fn block_header(&self, hash: Hash) -> Result<PolkadotHeader, ConsensusError> {
@@ -245,6 +291,7 @@ where
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
 			metrics: self.metrics.clone(),
+			disputes_enabled: self.disputes_enabled,
 		}
 	}
 }
@@ -334,7 +381,7 @@ where
 		let mut overseer = self.overseer.clone();
 		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
-		let subchain_head = if cfg!(feature = "disputes") {
+		let subchain_head = if self.disputes_enabled {
 			let (tx, rx) = oneshot::channel();
 			overseer
 				.send_msg(
@@ -439,7 +486,7 @@ where
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		let (lag, subchain_head) = if cfg!(feature = "disputes") {
+		let (lag, subchain_head) = if self.disputes_enabled {
 			// Prevent sending flawed data to the dispute-coordinator.
 			if Some(subchain_block_descriptions.len() as _) !=
 				subchain_number.checked_sub(target_number)

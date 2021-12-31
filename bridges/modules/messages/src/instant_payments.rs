@@ -19,58 +19,57 @@
 //! The payment is first transferred to a special `relayers-fund` account and only transferred
 //! to the actual relayer in case confirmation is received.
 
+use crate::OutboundMessages;
+
 use bp_messages::{
 	source_chain::{MessageDeliveryAndDispatchPayment, RelayersRewards, Sender},
-	MessageNonce,
+	LaneId, MessageKey, MessageNonce, UnrewardedRelayer,
 };
 use codec::Encode;
 use frame_support::traits::{Currency as CurrencyT, ExistenceRequirement, Get};
-use num_traits::Zero;
+use num_traits::{SaturatingAdd, Zero};
 use sp_runtime::traits::Saturating;
-use sp_std::fmt::Debug;
+use sp_std::{collections::vec_deque::VecDeque, fmt::Debug, ops::RangeInclusive};
 
 /// Instant message payments made in given currency.
 ///
-/// The balance is initally reserved in a special `relayers-fund` account, and transferred
+/// The balance is initially reserved in a special `relayers-fund` account, and transferred
 /// to the relayer when message delivery is confirmed.
 ///
-/// Additionaly, confirmation transaction submitter (`confirmation_relayer`) is reimbursed
+/// Additionally, confirmation transaction submitter (`confirmation_relayer`) is reimbursed
 /// with the confirmation rewards (part of message fee, reserved to pay for delivery confirmation).
 ///
 /// NOTE The `relayers-fund` account must always exist i.e. be over Existential Deposit (ED; the
-/// pallet enforces that) to make sure that even if the message cost is below ED it is still payed
+/// pallet enforces that) to make sure that even if the message cost is below ED it is still paid
 /// to the relayer account.
 /// NOTE It's within relayer's interest to keep their balance above ED as well, to make sure they
 /// can receive the payment.
-pub struct InstantCurrencyPayments<T, Currency, GetConfirmationFee, RootAccount> {
-	_phantom: sp_std::marker::PhantomData<(T, Currency, GetConfirmationFee, RootAccount)>,
+pub struct InstantCurrencyPayments<T, I, Currency, GetConfirmationFee, RootAccount> {
+	_phantom: sp_std::marker::PhantomData<(T, I, Currency, GetConfirmationFee, RootAccount)>,
 }
 
-impl<T, Currency, GetConfirmationFee, RootAccount> MessageDeliveryAndDispatchPayment<T::AccountId, Currency::Balance>
-	for InstantCurrencyPayments<T, Currency, GetConfirmationFee, RootAccount>
+impl<T, I, Currency, GetConfirmationFee, RootAccount>
+	MessageDeliveryAndDispatchPayment<T::AccountId, Currency::Balance>
+	for InstantCurrencyPayments<T, I, Currency, GetConfirmationFee, RootAccount>
 where
-	T: frame_system::Config,
-	Currency: CurrencyT<T::AccountId>,
+	T: frame_system::Config + crate::Config<I>,
+	I: 'static,
+	Currency: CurrencyT<T::AccountId, Balance = T::OutboundMessageFee>,
 	Currency::Balance: From<MessageNonce>,
 	GetConfirmationFee: Get<Currency::Balance>,
 	RootAccount: Get<Option<T::AccountId>>,
 {
 	type Error = &'static str;
 
-	fn initialize(relayer_fund_account: &T::AccountId) -> usize {
-		assert!(
-			frame_system::Pallet::<T>::account_exists(relayer_fund_account),
-			"The relayer fund account ({:?}) must exist for the message lanes pallet to work correctly.",
-			relayer_fund_account,
-		);
-		1
-	}
-
 	fn pay_delivery_and_dispatch_fee(
 		submitter: &Sender<T::AccountId>,
 		fee: &Currency::Balance,
 		relayer_fund_account: &T::AccountId,
 	) -> Result<(), Self::Error> {
+		if !frame_system::Pallet::<T>::account_exists(relayer_fund_account) {
+			return Err("The relayer fund account must exist for the message lanes pallet to work correctly.");
+		}
+
 		let root_account = RootAccount::get();
 		let account = match submitter {
 			Sender::Signed(submitter) => submitter,
@@ -90,17 +89,53 @@ where
 	}
 
 	fn pay_relayers_rewards(
+		lane_id: LaneId,
+		messages_relayers: VecDeque<UnrewardedRelayer<T::AccountId>>,
 		confirmation_relayer: &T::AccountId,
-		relayers_rewards: RelayersRewards<T::AccountId, Currency::Balance>,
+		received_range: &RangeInclusive<MessageNonce>,
 		relayer_fund_account: &T::AccountId,
 	) {
-		pay_relayers_rewards::<Currency, _>(
-			confirmation_relayer,
-			relayers_rewards,
-			relayer_fund_account,
-			GetConfirmationFee::get(),
-		);
+		let relayers_rewards =
+			cal_relayers_rewards::<T, I>(lane_id, messages_relayers, received_range);
+		if !relayers_rewards.is_empty() {
+			pay_relayers_rewards::<Currency, _>(
+				confirmation_relayer,
+				relayers_rewards,
+				relayer_fund_account,
+				GetConfirmationFee::get(),
+			);
+		}
 	}
+}
+
+/// Calculate the relayers rewards
+pub(crate) fn cal_relayers_rewards<T, I>(
+	lane_id: LaneId,
+	messages_relayers: VecDeque<UnrewardedRelayer<T::AccountId>>,
+	received_range: &RangeInclusive<MessageNonce>,
+) -> RelayersRewards<T::AccountId, T::OutboundMessageFee>
+where
+	T: frame_system::Config + crate::Config<I>,
+	I: 'static,
+{
+	// remember to reward relayers that have delivered messages
+	// this loop is bounded by `T::MaxUnrewardedRelayerEntriesAtInboundLane` on the bridged chain
+	let mut relayers_rewards: RelayersRewards<_, T::OutboundMessageFee> = RelayersRewards::new();
+	for entry in messages_relayers {
+		let nonce_begin = sp_std::cmp::max(entry.messages.begin, *received_range.start());
+		let nonce_end = sp_std::cmp::min(entry.messages.end, *received_range.end());
+
+		// loop won't proceed if current entry is ahead of received range (begin > end).
+		// this loop is bound by `T::MaxUnconfirmedMessagesAtInboundLane` on the bridged chain
+		let mut relayer_reward = relayers_rewards.entry(entry.relayer).or_default();
+		for nonce in nonce_begin..nonce_end + 1 {
+			let message_data = OutboundMessages::<T, I>::get(MessageKey { lane_id, nonce })
+				.expect("message was just confirmed; we never prune unconfirmed messages; qed");
+			relayer_reward.reward = relayer_reward.reward.saturating_add(&message_data.fee);
+			relayer_reward.messages += 1;
+		}
+	}
+	relayers_rewards
 }
 
 /// Pay rewards to given relayers, optionally rewarding confirmation relayer.
@@ -110,7 +145,7 @@ fn pay_relayers_rewards<Currency, AccountId>(
 	relayer_fund_account: &AccountId,
 	confirmation_fee: Currency::Balance,
 ) where
-	AccountId: Debug + Default + Encode + PartialEq,
+	AccountId: Debug + Encode + PartialEq,
 	Currency: CurrencyT<AccountId>,
 	Currency::Balance: From<u64>,
 {
@@ -123,26 +158,31 @@ fn pay_relayers_rewards<Currency, AccountId>(
 			// If delivery confirmation is submitted by other relayer, let's deduct confirmation fee
 			// from relayer reward.
 			//
-			// If confirmation fee has been increased (or if it was the only component of message fee),
-			// then messages relayer may receive zero reward.
+			// If confirmation fee has been increased (or if it was the only component of message
+			// fee), then messages relayer may receive zero reward.
 			let mut confirmation_reward = confirmation_fee.saturating_mul(reward.messages.into());
 			if confirmation_reward > relayer_reward {
 				confirmation_reward = relayer_reward;
 			}
 			relayer_reward = relayer_reward.saturating_sub(confirmation_reward);
-			confirmation_relayer_reward = confirmation_relayer_reward.saturating_add(confirmation_reward);
+			confirmation_relayer_reward =
+				confirmation_relayer_reward.saturating_add(confirmation_reward);
 		} else {
 			// If delivery confirmation is submitted by this relayer, let's add confirmation fee
 			// from other relayers to this relayer reward.
 			confirmation_relayer_reward = confirmation_relayer_reward.saturating_add(reward.reward);
-			continue;
+			continue
 		}
 
 		pay_relayer_reward::<Currency, _>(relayer_fund_account, &relayer, relayer_reward);
 	}
 
 	// finally - pay reward to confirmation relayer
-	pay_relayer_reward::<Currency, _>(relayer_fund_account, confirmation_relayer, confirmation_relayer_reward);
+	pay_relayer_reward::<Currency, _>(
+		relayer_fund_account,
+		confirmation_relayer,
+		confirmation_relayer_reward,
+	);
 }
 
 /// Transfer funds from relayers fund account to given relayer.
@@ -155,7 +195,7 @@ fn pay_relayer_reward<Currency, AccountId>(
 	Currency: CurrencyT<AccountId>,
 {
 	if reward.is_zero() {
-		return;
+		return
 	}
 
 	let pay_result = Currency::transfer(
@@ -198,20 +238,8 @@ mod tests {
 
 	fn relayers_rewards() -> RelayersRewards<TestAccountId, TestBalance> {
 		vec![
-			(
-				RELAYER_1,
-				RelayerRewards {
-					reward: 100,
-					messages: 2,
-				},
-			),
-			(
-				RELAYER_2,
-				RelayerRewards {
-					reward: 100,
-					messages: 3,
-				},
-			),
+			(RELAYER_1, RelayerRewards { reward: 100, messages: 2 }),
+			(RELAYER_2, RelayerRewards { reward: 100, messages: 3 }),
 		]
 		.into_iter()
 		.collect()
@@ -220,7 +248,12 @@ mod tests {
 	#[test]
 	fn confirmation_relayer_is_rewarded_if_it_has_also_delivered_messages() {
 		run_test(|| {
-			pay_relayers_rewards::<Balances, _>(&RELAYER_2, relayers_rewards(), &RELAYERS_FUND_ACCOUNT, 10);
+			pay_relayers_rewards::<Balances, _>(
+				&RELAYER_2,
+				relayers_rewards(),
+				&RELAYERS_FUND_ACCOUNT,
+				10,
+			);
 
 			assert_eq!(Balances::free_balance(&RELAYER_1), 80);
 			assert_eq!(Balances::free_balance(&RELAYER_2), 120);
@@ -230,7 +263,12 @@ mod tests {
 	#[test]
 	fn confirmation_relayer_is_rewarded_if_it_has_not_delivered_any_delivered_messages() {
 		run_test(|| {
-			pay_relayers_rewards::<Balances, _>(&RELAYER_3, relayers_rewards(), &RELAYERS_FUND_ACCOUNT, 10);
+			pay_relayers_rewards::<Balances, _>(
+				&RELAYER_3,
+				relayers_rewards(),
+				&RELAYERS_FUND_ACCOUNT,
+				10,
+			);
 
 			assert_eq!(Balances::free_balance(&RELAYER_1), 80);
 			assert_eq!(Balances::free_balance(&RELAYER_2), 70);
@@ -241,7 +279,12 @@ mod tests {
 	#[test]
 	fn only_confirmation_relayer_is_rewarded_if_confirmation_fee_has_significantly_increased() {
 		run_test(|| {
-			pay_relayers_rewards::<Balances, _>(&RELAYER_3, relayers_rewards(), &RELAYERS_FUND_ACCOUNT, 1000);
+			pay_relayers_rewards::<Balances, _>(
+				&RELAYER_3,
+				relayers_rewards(),
+				&RELAYERS_FUND_ACCOUNT,
+				1000,
+			);
 
 			assert_eq!(Balances::free_balance(&RELAYER_1), 0);
 			assert_eq!(Balances::free_balance(&RELAYER_2), 0);

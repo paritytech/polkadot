@@ -54,6 +54,10 @@ pub enum Subcommand {
 	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
+	/// Runs performance checks such as PVF compilation in order to measure machine
+	/// capabilities of running a validator.
+	HostPerfCheck,
+
 	/// Try some command against runtime state.
 	#[cfg(feature = "try-runtime")]
 	TryRuntime(try_runtime_cli::TryRuntimeCmd),
@@ -101,9 +105,9 @@ pub struct RunCmd {
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
 
-	/// Disable BEEFY gadget.
+	/// Enable the BEEFY gadget (only on Rococo or Wococo for now).
 	#[structopt(long)]
-	pub no_beefy: bool,
+	pub beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///

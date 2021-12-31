@@ -14,7 +14,7 @@ SECONDARY_MESSAGE_LANE=${MSG_EXCHANGE_GEN_SECONDARY_LANE}
 MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE=128
 FERDIE_ADDR=6ztG3jPnJTwgZnnYsgCDXbbQVR82M96hBZtPvkN56A9668ZC
 
-SHARED_CMD=" /home/user/substrate-relay send-message MillauToRialto"
+SHARED_CMD=" /home/user/substrate-relay send-message millau-to-rialto"
 SHARED_HOST="--source-host millau-node-bob --source-port 9944"
 DAVE_SIGNER="--target-signer //Dave --source-signer //Dave"
 
@@ -25,12 +25,18 @@ rand_sleep() {
 	SUBMIT_DELAY_S=`shuf -i 0-$MAX_SUBMIT_DELAY_S -n 1`
 	echo "Sleeping $SUBMIT_DELAY_S seconds..."
 	sleep $SUBMIT_DELAY_S
+	NOW=`date "+%Y-%m-%d %H:%M:%S"`
+	echo "Woke up at $NOW"
 }
 
 # start sending large messages immediately
 LARGE_MESSAGES_TIME=0
 # start sending message packs in a hour
 BUNCH_OF_MESSAGES_TIME=3600
+
+# give conversion rate updater some time to update Rialto->Millau conversion rate in Millau
+# (initially rate=1 and rational relayer won't deliver any messages if it'll be changed to larger value)
+sleep 180
 
 while true
 do
@@ -46,6 +52,7 @@ do
 		$SEND_MESSAGE \
 			--lane $SECONDARY_MESSAGE_LANE \
 			--origin Target \
+			--dispatch-fee-payment at-target-chain \
 			remark
 	fi
 
