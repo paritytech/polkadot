@@ -220,12 +220,12 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the scheduler module.
+	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the scheduler module.
+	/// Called by the initializer to finalize the scheduler pallet.
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
@@ -818,7 +818,7 @@ mod tests {
 			Paras::initializer_initialize(b + 1);
 			Scheduler::initializer_initialize(b + 1);
 
-			// In the real runt;me this is expected to be called by the `InclusionInherent` module.
+			// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 			Scheduler::clear();
 			Scheduler::schedule(Vec::new(), b + 1);
 		}
