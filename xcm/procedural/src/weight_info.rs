@@ -81,6 +81,9 @@ fn parse_args_attr(attrs: Vec<syn::Attribute>) -> Option<proc_macro2::TokenStrea
 					let ident: syn::Ident = stream.parse()?;
 					let _colon: syn::Token![:] = stream.parse()?;
 					let ty: syn::Type = stream.parse()?;
+					if stream.peek(syn::Token![,]) {
+						let _trailing_comma: syn::Token![,] = stream.parse()?;
+					}
 					fields.push(quote::quote!(#ident: #ty));
 				}
 				Ok(quote::quote!( #(#fields),* ))
