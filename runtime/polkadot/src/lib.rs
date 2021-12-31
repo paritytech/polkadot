@@ -2121,7 +2121,10 @@ sp_api::impl_runtime_apis! {
 #[cfg(test)]
 mod test_fees {
 	use super::*;
-	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+	use frame_support::{
+		traits::Get,
+		weights::{GetDispatchInfo, WeightToFeePolynomial},
+	};
 	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
 	use separator::Separatable;
@@ -2132,7 +2135,7 @@ mod test_fees {
 		use pallet_staking::WeightInfo;
 		let payout_weight =
 			<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-				MaxRewardableIndividualExposures::get(),
+				<Runtime as pallet_staking::Config>::MaxRewardableIndividualExposures::get(),
 			) as f64;
 		let block_weight = BlockWeights::get().max_block as f64;
 

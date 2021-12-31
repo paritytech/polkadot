@@ -17,7 +17,10 @@
 //! Tests for the Kusama Runtime Configuration
 
 use crate::*;
-use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+use frame_support::{
+	traits::Get,
+	weights::{GetDispatchInfo, WeightToFeePolynomial},
+};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
@@ -50,7 +53,7 @@ fn sample_size_is_sensible() {
 fn payout_weight_portion() {
 	use pallet_staking::WeightInfo;
 	let payout_weight = <Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-		MaxRewardableIndividualExposures::get(),
+		<Runtime as pallet_staking::Config>::MaxRewardableIndividualExposures::get(),
 	) as f64;
 	let block_weight = BlockWeights::get().max_block as f64;
 
