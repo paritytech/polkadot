@@ -997,13 +997,13 @@ const INVALID_TX_BAD_SUBJECT: u8 = 2;
 const INVALID_TX_DOUBLE_VOTE: u8 = 3;
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the configuration pallet.
+	/// Called by the initializer to initialize the paras pallet.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		let weight = Self::prune_old_code(now);
 		weight + Self::process_scheduled_upgrade_changes(now)
 	}
 
-	/// Called by the initializer to finalize the configuration pallet.
+	/// Called by the initializer to finalize the paras pallet.
 	pub(crate) fn initializer_finalize(now: T::BlockNumber) {
 		Self::process_scheduled_upgrade_cooldowns(now);
 	}
@@ -1465,7 +1465,7 @@ impl<T: Config> Pallet<T> {
 	/// does not guarantee that the parachain will eventually be onboarded. This can happen in case
 	/// the PVF does not pass PVF pre-checking.
 	///
-	/// The Para ID should be not activated in this module. The validation code supplied in
+	/// The Para ID should be not activated in this pallet. The validation code supplied in
 	/// `genesis_data` should not be empty. If those conditions are not met, then the para cannot
 	/// be onboarded.
 	pub(crate) fn schedule_para_initialize(

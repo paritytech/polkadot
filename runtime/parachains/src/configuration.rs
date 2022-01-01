@@ -1092,12 +1092,12 @@ pub struct SessionChangeOutcome<BlockNumber> {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the configuration module.
+	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the configuration module.
+	/// Called by the initializer to finalize the configuration pallet.
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
@@ -1146,7 +1146,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Forcibly set the active config. This should be used with extreme care, and typically
-	/// only when enabling parachains runtime modules for the first time on a chain which has
+	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
 	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
 		<Self as Store>::ActiveConfig::set(config);
