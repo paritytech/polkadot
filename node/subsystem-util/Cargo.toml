@@ -10,12 +10,12 @@ async-trait = "0.1.52"
 futures = "0.3.19"
 itertools = "0.10"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-pin-project = "1.0.8"
+pin-project = "1.0.9"
 rand = "0.8.3"
 thiserror = "1.0.30"
 tracing = "0.1.29"
 derive_more = "0.99.17"
-lru = "0.7.1"
+lru = "0.7.2"
 
 polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
