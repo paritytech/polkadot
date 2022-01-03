@@ -45,15 +45,12 @@ struct MetricsInner {
 	fetched_chunks: CounterVec<U64>,
 
 	/// Number of chunks served.
-	///
-	/// Note: Right now, `Succeeded` gets incremented whenever we were able to successfully respond
-	/// to a chunk request. This includes `NoSuchChunk` responses.
 	served_chunks: CounterVec<U64>,
 
+	/// Number of received fetch PoV responses.
+	fetched_povs: CounterVec<U64>,
+
 	/// Number of PoVs served.
-	///
-	/// Note: Right now, `Succeeded` gets incremented whenever we were able to successfully respond
-	/// to a PoV request. This includes `NoSuchPoV` responses.
 	served_povs: CounterVec<U64>,
 
 	/// Number of times our first set of validators did not provide the needed chunk and we had to
@@ -78,6 +75,13 @@ impl Metrics {
 	pub fn on_served_chunk(&self, label: &'static str) {
 		if let Some(metrics) = &self.0 {
 			metrics.served_chunks.with_label_values(&[label]).inc()
+		}
+	}
+
+	/// Increment counter on fetched PoVs.
+	pub fn on_fetched_pov(&self, label: &'static str) {
+		if let Some(metrics) = &self.0 {
+			metrics.fetched_povs.with_label_values(&[label]).inc()
 		}
 	}
 
@@ -114,6 +118,16 @@ impl metrics::Metrics for Metrics {
 					Opts::new(
 						"polkadot_parachain_served_chunks_total",
 						"Total number of chunks served by this backer.",
+					),
+					&["success"]
+				)?,
+				registry,
+			)?,
+			fetched_povs: prometheus::register(
+				CounterVec::new(
+					Opts::new(
+						"polkadot_parachain_fetched_povs_total",
+						"Total number of povs fetches by this backer.",
 					),
 					&["success"]
 				)?,

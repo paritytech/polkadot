@@ -32,7 +32,7 @@ use polkadot_primitives::v0::{self, BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
 use thiserror::Error;
 use trie::{
-	trie_types::{TrieDB, TrieDBMut},
+	trie_types::{TrieDB, TrieDBMutV0 as TrieDBMut},
 	MemoryDB, Trie, TrieMut, EMPTY_PREFIX,
 };
 

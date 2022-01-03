@@ -27,7 +27,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.1.4"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
@@ -88,6 +88,10 @@ default:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+
+.rules-test-pr:            &rules-test-pr
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
@@ -194,13 +198,12 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
-    # disputes feature is needed for zombie-net parachains malus test
-    - time cargo build --release --verbose --bin polkadot --features "disputes"
+    - time cargo build --profile testnet --verbose --bin polkadot
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-    - mv ./target/release/polkadot ./artifacts/.
+    - mv ./target/testnet/polkadot ./artifacts/.
     - pushd artifacts
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256
@@ -256,11 +259,11 @@ build-adder-collator:
   <<:                              *compiler-info
   <<:                              *rules-test-and-rococo
   script:
-    - time cargo build --release --verbose -p test-parachain-adder-collator
+    - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
-    - mv ./target/release/adder-collator ./artifacts/.
+    - mv ./target/testnet/adder-collator ./artifacts/.
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
@@ -276,11 +279,11 @@ build-malus:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
-    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
+    - time cargo build --profile testnet --verbose -p polkadot-test-malus
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
-    - mv ./target/release/malus ./artifacts/.
+    - mv ./target/testnet/malus ./artifacts/.
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
@@ -291,6 +294,7 @@ build-malus:
 .check-dependent-project:          &check-dependent-project
   stage:                           build
   <<:                              *docker-env
+  <<:                              *rules-test-pr
   <<:                              *vault-secrets
   script:
     - git clone
@@ -625,14 +629,14 @@ zombienet-tests-parachains-smoke-test:
 
   before_script:
     - echo "Zombie-net Tests Config"
-    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${ZOMBIENET_IMAGE}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
-    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+    - export COL_IMAGE="docker.io/paritypr/colander:4547" # The collator image is fixed
 
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
@@ -666,7 +670,7 @@ zombienet-tests-malus-dispute-valid:
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
-    - export DEBUG=zombie,zombie::network-node
+    - export DEBUG=zombie*
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
