@@ -1281,7 +1281,7 @@ mod tests {
 
 			// NOTE: this is in reverse initialization order.
 			Hrmp::initializer_finalize();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 			ParasShared::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {

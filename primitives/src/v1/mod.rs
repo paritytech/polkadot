@@ -1031,7 +1031,7 @@ pub struct AbridgedHostConfiguration {
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum period, in blocks, between which parachains can update their validation code.
-	pub validation_upgrade_frequency: BlockNumber,
+	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 }
@@ -1064,7 +1064,7 @@ pub struct AbridgedHrmpChannel {
 }
 
 /// A possible upgrade restriction that prevents a parachain from performing an upgrade.
-#[derive(Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UpgradeRestriction {
 	/// There is an upgrade restriction and there are no details about its specifics nor how long
 	/// it could last.
@@ -1077,7 +1077,7 @@ pub enum UpgradeRestriction {
 ///
 /// This data type appears in the last step of the upgrade process. After the parachain observes it
 /// and reacts to it the upgrade process concludes.
-#[derive(Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UpgradeGoAhead {
 	/// Abort the upgrade process. There is something wrong with the validation code previously
 	/// submitted by the parachain. This variant can also be used to prevent upgrades by the governance

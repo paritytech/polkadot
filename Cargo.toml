@@ -9,6 +9,7 @@ license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+rust-version = "1.57.0" # custom profiles
 readme = "README.md"
 
 [dependencies]
@@ -113,6 +114,16 @@ opt-level = 3
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[profile.production]
+inherits = "release"
+lto = true
+
+[profile.testnet]
+inherits = "release"
+debug = true # debug symbols are useful for profilers
+debug-assertions = true
+overflow-checks = true
 
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]

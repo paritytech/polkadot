@@ -888,6 +888,12 @@ sp_api::impl_runtime_apis! {
 		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
 			runtime_impl::pvfs_require_precheck::<Runtime>()
 		}
+
+		fn validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {

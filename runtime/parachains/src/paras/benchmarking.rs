@@ -81,6 +81,7 @@ benchmarks! {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
+		<Pallet<T> as Store>::CurrentCodeHash::insert(&para_id, new_code.hash());
 		generate_disordered_pruning::<T>();
 	}: _(RawOrigin::Root, para_id, new_code)
 	verify {
@@ -108,6 +109,8 @@ benchmarks! {
 		let s in 1 .. MAX_HEAD_DATA_SIZE;
 		let para_id = ParaId::from(1000);
 		let new_head = HeadData(vec![0; s as usize]);
+		let old_code_hash = ValidationCode(vec![0]).hash();
+		<Pallet<T> as Store>::CurrentCodeHash::insert(&para_id, old_code_hash);
 		// schedule an expired code upgrade for this `para_id` so that force_note_new_head would use
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
@@ -126,6 +129,15 @@ benchmarks! {
 		let next_session = crate::shared::Pallet::<T>::session_index().saturating_add(One::one());
 		assert_last_event::<T>(Event::ActionQueued(para_id, next_session).into());
 	}
+
+	add_trusted_validation_code {
+		let c in 1 .. MAX_CODE_SIZE;
+		let new_code = ValidationCode(vec![0; c as usize]);
+	}: _(RawOrigin::Root, new_code)
+
+	poke_unused_validation_code {
+		let code_hash = [0; 32].into();
+	}: _(RawOrigin::Root, code_hash)
 
 	impl_benchmark_test_suite!(
 		Pallet,

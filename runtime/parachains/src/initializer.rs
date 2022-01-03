@@ -168,7 +168,7 @@ pub mod pallet {
 			total_weight
 		}
 
-		fn on_finalize(_: T::BlockNumber) {
+		fn on_finalize(now: T::BlockNumber) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
@@ -177,7 +177,7 @@ pub mod pallet {
 			session_info::Pallet::<T>::initializer_finalize();
 			inclusion::Pallet::<T>::initializer_finalize();
 			scheduler::Pallet::<T>::initializer_finalize();
-			paras::Pallet::<T>::initializer_finalize();
+			paras::Pallet::<T>::initializer_finalize(now);
 			shared::Pallet::<T>::initializer_finalize();
 			configuration::Pallet::<T>::initializer_finalize();
 

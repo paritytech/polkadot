@@ -3086,7 +3086,7 @@ dependencies = [
  "http",
  "jsonrpsee-types",
  "log",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "rustls-native-certs",
  "serde",
  "serde_json",
@@ -3356,7 +3356,7 @@ dependencies = [
  "libp2p-yamux",
  "multiaddr",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "smallvec",
  "wasm-timer",
 ]
@@ -3381,7 +3381,7 @@ dependencies = [
  "multihash 0.14.0",
  "multistream-select",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "prost",
  "prost-build",
  "rand 0.8.4",
@@ -3622,7 +3622,7 @@ checksum = "0f1a458bbda880107b5b36fcb9b5a1ef0c329685da0e203ed692a8ebe64cc92c"
 dependencies = [
  "futures 0.3.19",
  "log",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "rand 0.7.3",
  "salsa20",
  "sha3",
@@ -3641,7 +3641,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "prost",
  "prost-build",
  "rand 0.7.3",
@@ -3685,7 +3685,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "rand 0.7.3",
  "smallvec",
  "unsigned-varint 0.7.1",
@@ -3925,9 +3925,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "469898e909a1774d844793b347135a0cd344ca2f69d082013ecb8061a2229a3a"
+checksum = "274353858935c992b13c0ca408752e2121da852d07dec7ce5f108c77dfa14d1f"
 dependencies = [
  "hashbrown",
 ]
@@ -4287,7 +4287,7 @@ dependencies = [
  "bytes 1.1.0",
  "futures 0.3.19",
  "log",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "smallvec",
  "unsigned-varint 0.7.1",
 ]
@@ -5717,27 +5717,27 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.28"
+version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "918192b5c59119d51e0cd221f4d49dde9112824ba717369e903c97d076083d0f"
+checksum = "9615c18d31137579e9ff063499264ddc1278e7b1982757ebc111028c4d1dc909"
 dependencies = [
- "pin-project-internal 0.4.28",
+ "pin-project-internal 0.4.29",
 ]
 
 [[package]]
 name = "pin-project"
-version = "1.0.8"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "576bc800220cc65dac09e99e97b08b358cfab6e17078de8dc5fee223bd2d0c08"
+checksum = "58ad3879ad3baf4e44784bc6a718a8698867bb991f8ce24d1bcbe2cfb4c3a75e"
 dependencies = [
- "pin-project-internal 1.0.8",
+ "pin-project-internal 1.0.10",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "0.4.28"
+version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be26700300be6d9d23264c73211d8190e755b6b5ca7a1b28230025511b52a5e"
+checksum = "044964427019eed9d49d9d5bbce6047ef18f37100ea400912a9fa4a3523ab12a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5746,9 +5746,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-internal"
-version = "1.0.8"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e8fe8163d14ce7f0cdac2e040116f22eac817edabff0be91e8aff7e9accf389"
+checksum = "744b6f092ba29c3650faf274db506afd39944f48420f6c86b17cfe0ee1cb36bb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5846,7 +5846,7 @@ dependencies = [
  "derive_more",
  "futures 0.3.19",
  "futures-timer 3.0.2",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -5875,7 +5875,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer 3.0.2",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -5998,7 +5998,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer 3.0.2",
  "lazy_static",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6111,7 +6111,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.1",
+ "lru 0.7.2",
  "merlin",
  "parity-scale-codec",
  "parking_lot",
@@ -6276,7 +6276,7 @@ dependencies = [
  "futures 0.3.19",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -6340,7 +6340,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "hex-literal",
  "parity-scale-codec",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "polkadot-core-primitives",
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
@@ -6518,10 +6518,10 @@ dependencies = [
  "itertools",
  "lazy_static",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "metered-channel",
  "parity-scale-codec",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "polkadot-node-jaeger",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
@@ -6547,7 +6547,7 @@ dependencies = [
  "femme",
  "futures 0.3.19",
  "futures-timer 3.0.2",
- "lru 0.7.1",
+ "lru 0.7.2",
  "metered-channel",
  "parity-util-mem",
  "parking_lot",
@@ -6572,7 +6572,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer 3.0.2",
  "metered-channel",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-overseer-gen-proc-macro",
@@ -6918,7 +6918,7 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "pallet-babe",
  "pallet-im-online",
  "pallet-mmr-primitives",
@@ -7425,9 +7425,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.34"
+version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f84e92c0f7c9d58328b85a78557813e4bd845130db68d7184635344399423b1"
+checksum = "c7342d5883fbccae1cc37a2353b09c87c9b0f3afd73f5fb9bba687a1f733b029"
 dependencies = [
  "unicode-xid",
 ]
@@ -7544,9 +7544,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.10"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38bc8cc6a5f2e3655e0899c1b848643b2562f853f114bfec7be120678e3ace05"
+checksum = "47aa80447ce4daf1717500037052af176af5d38cc3e571d9ec1c7353fc10c87d"
 dependencies = [
  "proc-macro2",
 ]
@@ -8073,7 +8073,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4da5fcb054c46f5a5dff833b129285a93d3f0179531735e6c866e8cc307d2020"
 dependencies = [
  "futures 0.3.19",
- "pin-project 0.4.28",
+ "pin-project 0.4.29",
  "static_assertions",
 ]
 
@@ -8667,10 +8667,10 @@ dependencies = [
  "linked-hash-map",
  "linked_hash_set",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "prost",
  "prost-build",
  "rand 0.7.3",
@@ -8704,7 +8704,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "libp2p",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "sc-network",
  "sp-runtime",
  "substrate-prometheus-endpoint",
@@ -8851,7 +8851,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "rand 0.7.3",
  "sc-block-builder",
  "sc-chain-spec",
@@ -8944,7 +8944,7 @@ dependencies = [
  "libp2p",
  "log",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "rand 0.7.3",
  "serde",
  "serde_json",
@@ -9541,7 +9541,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#b03e8bcf151b
 dependencies = [
  "futures 0.3.19",
  "log",
- "lru 0.7.1",
+ "lru 0.7.2",
  "parity-scale-codec",
  "parking_lot",
  "sp-api",
@@ -10430,9 +10430,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "syn"
-version = "1.0.83"
+version = "1.0.84"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23a1dfb999630e338648c83e91c59a4e9fb7620f520c3194b6b89e276f2f1959"
+checksum = "ecb2e6da8ee5eb9a61068762a32fa9619cc591ceb055b3687f4cd4051ec2e06b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10871,7 +10871,7 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
 dependencies = [
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "tracing",
 ]
 
@@ -11854,6 +11854,7 @@ dependencies = [
 name = "xcm-procedural"
 version = "0.1.0"
 dependencies = [
+ "Inflector",
  "proc-macro2",
  "quote",
  "syn",

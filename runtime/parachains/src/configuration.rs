@@ -77,7 +77,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
 	/// specified by [`pvf_voting_ttl`]. Unlike, [`pvf_voting_ttl`], this parameter uses blocks
 	/// as a unit.
-	pub validation_upgrade_frequency: BlockNumber,
+	#[cfg_attr(feature = "std", serde(alias = "validation_upgrade_frequency"))]
+	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 
@@ -205,6 +206,9 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// To prevent that, we introduce the minimum number of blocks after which the upgrade can be
 	/// scheduled. This number is controlled by this field.
+	///
+	/// This value should be greater than [`chain_availability_period`] and
+	/// [`thread_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
@@ -215,8 +219,8 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
 			no_show_slots: 1u32.into(),
-			validation_upgrade_frequency: Default::default(),
-			validation_upgrade_delay: Default::default(),
+			validation_upgrade_cooldown: Default::default(),
+			validation_upgrade_delay: 2u32.into(),
 			code_retention_period: Default::default(),
 			max_code_size: Default::default(),
 			max_pov_size: Default::default(),
@@ -253,14 +257,14 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
-			minimum_validation_upgrade_delay: 0.into(),
+			minimum_validation_upgrade_delay: 2.into(),
 		}
 	}
 }
 
 /// Enumerates the possible inconsistencies of `HostConfiguration`.
 #[derive(Debug)]
-pub enum InconsistentError {
+pub enum InconsistentError<BlockNumber> {
 	/// `group_rotation_frequency` is set to zero.
 	ZeroGroupRotationFrequency,
 	/// `chain_availability_period` is set to zero.
@@ -275,15 +279,30 @@ pub enum InconsistentError {
 	MaxHeadDataSizeExceedHardLimit { max_head_data_size: u32 },
 	/// `max_pov_size` exceeds the hard limit of `MAX_POV_SIZE`.
 	MaxPovSizeExceedHardLimit { max_pov_size: u32 },
+	/// `minimum_validation_upgrade_delay` is less than `chain_availability_period`.
+	MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
+		minimum_validation_upgrade_delay: BlockNumber,
+		chain_availability_period: BlockNumber,
+	},
+	/// `minimum_validation_upgrade_delay` is less than `thread_availability_period`.
+	MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
+		minimum_validation_upgrade_delay: BlockNumber,
+		thread_availability_period: BlockNumber,
+	},
+	/// `validation_upgrade_delay` is less than or equal 1.
+	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
 }
 
-impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfiguration<BlockNumber> {
+impl<BlockNumber> HostConfiguration<BlockNumber>
+where
+	BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone + From<u32>,
+{
 	/// Checks that this instance is consistent with the requirements on each individual member.
 	///
 	/// # Errors
 	///
 	/// This function returns an error if the configuration is inconsistent.
-	pub fn check_consistency(&self) -> Result<(), InconsistentError> {
+	pub fn check_consistency(&self) -> Result<(), InconsistentError<BlockNumber>> {
 		use InconsistentError::*;
 
 		if self.group_rotation_frequency.is_zero() {
@@ -314,6 +333,24 @@ impl<BlockNumber: Zero + PartialOrd + sp_std::fmt::Debug + Clone> HostConfigurat
 
 		if self.max_pov_size > MAX_POV_SIZE {
 			return Err(MaxPovSizeExceedHardLimit { max_pov_size: self.max_pov_size })
+		}
+
+		if self.minimum_validation_upgrade_delay <= self.chain_availability_period {
+			return Err(MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
+				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
+				chain_availability_period: self.chain_availability_period.clone(),
+			})
+		} else if self.minimum_validation_upgrade_delay <= self.thread_availability_period {
+			return Err(MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
+				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
+				thread_availability_period: self.thread_availability_period.clone(),
+			})
+		}
+
+		if self.validation_upgrade_delay <= 1.into() {
+			return Err(ValidationUpgradeDelayIsTooLow {
+				validation_upgrade_delay: self.validation_upgrade_delay.clone(),
+			})
 		}
 
 		Ok(())
@@ -434,18 +471,18 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Set the validation upgrade frequency.
+		/// Set the validation upgrade cooldown.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_validation_upgrade_frequency(
+		pub fn set_validation_upgrade_cooldown(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.validation_upgrade_frequency = new;
+				config.validation_upgrade_cooldown = new;
 			})
 		}
 
@@ -999,6 +1036,8 @@ pub mod pallet {
 
 		/// Sets the minimum delay between announcing the upgrade block for a parachain until the
 		/// upgrade taking place.
+		///
+		/// See the field documentation for information and constraints for the new value.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -1053,12 +1092,12 @@ pub struct SessionChangeOutcome<BlockNumber> {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the configuration module.
+	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the configuration module.
+	/// Called by the initializer to finalize the configuration pallet.
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
@@ -1107,7 +1146,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Forcibly set the active config. This should be used with extreme care, and typically
-	/// only when enabling parachains runtime modules for the first time on a chain which has
+	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
 	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
 		<Self as Store>::ActiveConfig::set(config);
@@ -1307,11 +1346,11 @@ mod tests {
 			let old_config = Configuration::config();
 			let mut config = old_config.clone();
 			config.validation_upgrade_delay = 100;
-			config.validation_upgrade_frequency = 100;
+			config.validation_upgrade_cooldown = 100;
 			assert!(old_config != config);
 
 			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 100));
+			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 100));
 			assert_eq!(Configuration::config(), old_config);
 			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
 
@@ -1335,7 +1374,7 @@ mod tests {
 				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
 			let final_config = HostConfiguration {
 				validation_upgrade_delay: 100,
-				validation_upgrade_frequency: 99,
+				validation_upgrade_cooldown: 99,
 				..initial_config.clone()
 			};
 
@@ -1350,7 +1389,7 @@ mod tests {
 
 			// We are still waiting until the pending configuration is applied and we add another
 			// update.
-			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 99));
+			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
 
 			// This should result in yet another configiguration change scheduled.
 			assert_eq!(Configuration::config(), initial_config);
@@ -1382,7 +1421,7 @@ mod tests {
 				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
 			let final_config = HostConfiguration {
 				validation_upgrade_delay: 100,
-				validation_upgrade_frequency: 99,
+				validation_upgrade_cooldown: 99,
 				code_retention_period: 98,
 				..initial_config.clone()
 			};
@@ -1398,7 +1437,7 @@ mod tests {
 
 			// The second call should fall into the case where we already have a pending config
 			// update for the scheduled_session, but we want to update it once more.
-			assert_ok!(Configuration::set_validation_upgrade_frequency(Origin::root(), 99));
+			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
 			assert_ok!(Configuration::set_code_retention_period(Origin::root(), 98));
 
 			// This should result in yet another configiguration change scheduled.
@@ -1449,6 +1488,34 @@ mod tests {
 				Configuration::set_thread_availability_period(Origin::root(), 0),
 				Error::<Test>::InvalidNewValue
 			);
+			assert_err!(
+				Configuration::set_no_show_slots(Origin::root(), 0),
+				Error::<Test>::InvalidNewValue
+			);
+
+			<Configuration as Store>::ActiveConfig::put(HostConfiguration {
+				chain_availability_period: 10,
+				thread_availability_period: 8,
+				minimum_validation_upgrade_delay: 11,
+				..Default::default()
+			});
+			assert_err!(
+				Configuration::set_chain_availability_period(Origin::root(), 12),
+				Error::<Test>::InvalidNewValue
+			);
+			assert_err!(
+				Configuration::set_thread_availability_period(Origin::root(), 12),
+				Error::<Test>::InvalidNewValue
+			);
+			assert_err!(
+				Configuration::set_minimum_validation_upgrade_delay(Origin::root(), 9),
+				Error::<Test>::InvalidNewValue
+			);
+
+			assert_err!(
+				Configuration::set_validation_upgrade_delay(Origin::root(), 0),
+				Error::<Test>::InvalidNewValue
+			);
 		});
 	}
 
@@ -1479,7 +1546,7 @@ mod tests {
 	fn setting_pending_config_members() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let new_config = HostConfiguration {
-				validation_upgrade_frequency: 100,
+				validation_upgrade_cooldown: 100,
 				validation_upgrade_delay: 10,
 				code_retention_period: 5,
 				max_code_size: 100_000,
@@ -1526,9 +1593,9 @@ mod tests {
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
 
-			Configuration::set_validation_upgrade_frequency(
+			Configuration::set_validation_upgrade_cooldown(
 				Origin::root(),
-				new_config.validation_upgrade_frequency,
+				new_config.validation_upgrade_cooldown,
 			)
 			.unwrap();
 			Configuration::set_validation_upgrade_delay(
@@ -1552,6 +1619,13 @@ mod tests {
 			Configuration::set_group_rotation_frequency(
 				Origin::root(),
 				new_config.group_rotation_frequency,
+			)
+			.unwrap();
+			// This comes out of order to satisfy the validity criteria for the chain and thread
+			// availability periods.
+			Configuration::set_minimum_validation_upgrade_delay(
+				Origin::root(),
+				new_config.minimum_validation_upgrade_delay,
 			)
 			.unwrap();
 			Configuration::set_chain_availability_period(
@@ -1694,11 +1768,6 @@ mod tests {
 			)
 			.unwrap();
 			Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
-			Configuration::set_minimum_validation_upgrade_delay(
-				Origin::root(),
-				new_config.minimum_validation_upgrade_delay,
-			)
-			.unwrap();
 
 			assert_eq!(
 				<Configuration as Store>::PendingConfigs::get(),
@@ -1745,7 +1814,7 @@ mod tests {
 						.max_upward_message_num_per_candidate,
 					hrmp_max_message_num_per_candidate: ground_truth
 						.hrmp_max_message_num_per_candidate,
-					validation_upgrade_frequency: ground_truth.validation_upgrade_frequency,
+					validation_upgrade_cooldown: ground_truth.validation_upgrade_cooldown,
 					validation_upgrade_delay: ground_truth.validation_upgrade_delay,
 				},
 			);
