@@ -79,7 +79,7 @@ impl MetricEmitter for LabeledMetric {}
 impl MetricEmitter for Counter {}
 
 impl CounterVec {
-	/// Create a new counter metric with specified `name`. This metric needs to be registered
+	/// Create a new counter as specified by `definition`. This metric needs to be registered
 	/// in the client before it can be used.
 	pub const fn new(definition: CounterVecDefinition) -> Self {
 		// No register op is emitted since the metric is supposed to be registered
@@ -95,7 +95,7 @@ impl CounterVec {
 }
 
 impl Counter {
-	/// Create a new counter metric with specified `name`. This metric needs to be registered
+	/// Create a new counter as specified by `definition`. This metric needs to be registered
 	/// in the client before it can be used.
 	pub const fn new(definition: CounterDefinition) -> Self {
 		Counter { name: definition.name }
