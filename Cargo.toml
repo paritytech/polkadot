@@ -121,7 +121,7 @@ lto = true
 
 [profile.testnet]
 inherits = "release"
-debug = true # debug symbols are useful for profilers
+debug = 1 # debug symbols are useful for profilers
 debug-assertions = true
 overflow-checks = true
 
