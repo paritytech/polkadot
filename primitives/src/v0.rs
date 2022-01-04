@@ -227,6 +227,7 @@ pub struct DutyRoster {
 ///
 /// These are global parameters that apply to all parachain candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct GlobalValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
