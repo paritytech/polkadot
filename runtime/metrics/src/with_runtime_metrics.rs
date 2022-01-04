@@ -34,7 +34,6 @@ use sp_std::prelude::*;
 /// like Prometheus CounterVec.
 pub struct CounterVec {
 	name: &'static str,
-	label_values: Option<RuntimeMetricLabelValues>,
 }
 
 /// A counter metric.
@@ -53,51 +52,57 @@ trait MetricEmitter {
 	}
 }
 
-impl MetricEmitter for CounterVec {}
+///
+pub struct LabeledMetric {
+	name: &'static str,
+	label_values: RuntimeMetricLabelValues,
+}
+
+impl LabeledMetric {
+	/// Increment the counter by `value`.
+	pub fn inc_by(&self, value: u64) {
+		let metric_update = RuntimeMetricUpdate {
+			metric_name: Vec::from(self.name),
+			op: RuntimeMetricOp::IncrementCounterVec(value, self.label_values.clone()),
+		};
+
+		Self::emit(&metric_update);
+	}
+
+	/// Increment the counter value.
+	pub fn inc(&self) {
+		self.inc_by(1);
+	}
+}
+
+impl MetricEmitter for LabeledMetric {}
 impl MetricEmitter for Counter {}
 
 impl CounterVec {
 	/// Create a new counter metric with specified `name`. This metric needs to be registered
 	/// in the client before it can be used.
-	pub fn new(definition: CounterVecDefinition) -> Self {
+	pub const fn new(definition: CounterVecDefinition) -> Self {
 		// No register op is emitted since the metric is supposed to be registered
 		// on the client by the time `inc()` is called.
-		CounterVec { name: definition.name, label_values: None }
+		CounterVec { name: definition.name }
 	}
 
-	/// Set the label values. Must be called before each increment operation.
-	pub fn with_label_values(&mut self, label_values: &[&'static str]) -> &mut Self {
-		self.label_values = Some(label_values.into());
-		self
-	}
-
-	/// Increment the counter by `value`.
-	pub fn inc_by(&mut self, value: u64) {
-		self.label_values.take().map(|label_values| {
-			let metric_update = RuntimeMetricUpdate {
-				metric_name: Vec::from(self.name),
-				op: RuntimeMetricOp::IncrementCounterVec(value, label_values),
-			};
-
-			Self::emit(&metric_update);
-		});
-	}
-
-	/// Increment the counter value.
-	pub fn inc(&mut self) {
-		self.inc_by(1);
+	/// Returns a LabeledMetric instance that provides an interface for incrementing
+	/// the metric.
+	pub fn with_label_values(&self, label_values: &[&'static str]) -> LabeledMetric {
+		LabeledMetric { name: self.name, label_values: label_values.into() }
 	}
 }
 
 impl Counter {
 	/// Create a new counter metric with specified `name`. This metric needs to be registered
 	/// in the client before it can be used.
-	pub fn new(definition: CounterDefinition) -> Self {
+	pub const fn new(definition: CounterDefinition) -> Self {
 		Counter { name: definition.name }
 	}
 
 	/// Increment counter by `value`.
-	pub fn inc_by(&mut self, value: u64) {
+	pub fn inc_by(&self, value: u64) {
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: Vec::from(self.name),
 			op: RuntimeMetricOp::IncrementCounter(value),
@@ -107,7 +112,7 @@ impl Counter {
 	}
 
 	/// Increment counter.
-	pub fn inc(&mut self) {
+	pub fn inc(&self) {
 		self.inc_by(1);
 	}
 }

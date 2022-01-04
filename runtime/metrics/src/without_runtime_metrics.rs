@@ -28,7 +28,7 @@ pub struct CounterVec;
 /// Dummy implementation.
 impl CounterVec {
 	/// Constructor.
-	pub fn new(_definition: CounterVecDefinition) -> Self {
+	pub const fn new(_definition: CounterVecDefinition) -> Self {
 		CounterVec
 	}
 	/// Sets label values, implementation is a `no op`.
@@ -44,7 +44,7 @@ impl CounterVec {
 /// Dummy implementation.
 impl Counter {
 	/// Constructor.
-	pub fn new(_definition: CounterDefinition) -> Self {
+	pub const fn new(_definition: CounterDefinition) -> Self {
 		Counter
 	}
 	/// Increment counter by value, implementation is a `no op`.
