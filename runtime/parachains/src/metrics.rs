@@ -88,7 +88,7 @@ impl Metrics {
 			.inc_by(value);
 	}
 
-	/// Increment the number of disputes impoted.
+	/// Increment the number of disputes imported.
 	pub fn on_disputes_imported(&self, value: u64) {
 		self.dispute_sets_processed.with_label_values(&["imported"]).inc_by(value);
 	}

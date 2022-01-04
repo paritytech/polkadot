@@ -32,13 +32,13 @@ impl CounterVec {
 		CounterVec
 	}
 	/// Sets label values, implementation is a `no op`.
-	pub fn with_label_values(&mut self, _label_values: &[&'static str]) -> &mut Self {
+	pub fn with_label_values(&self, _label_values: &[&'static str]) -> &Self {
 		self
 	}
 	/// Increment counter by value, implementation is a `no op`.
-	pub fn inc_by(&mut self, _: u64) {}
+	pub fn inc_by(&self, _: u64) {}
 	/// Increment counter, implementation is a `no op`.
-	pub fn inc(&mut self) {}
+	pub fn inc(&self) {}
 }
 
 /// Dummy implementation.
@@ -48,7 +48,7 @@ impl Counter {
 		Counter
 	}
 	/// Increment counter by value, implementation is a `no op`.
-	pub fn inc_by(&mut self, _: u64) {}
+	pub fn inc_by(&self, _: u64) {}
 	/// Increment counter, implementation is a `no op`.
-	pub fn inc(&mut self) {}
+	pub fn inc(&self) {}
 }
