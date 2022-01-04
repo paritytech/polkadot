@@ -24,37 +24,95 @@ use primitives::v1::metric_definitions::{
 	PARACHAIN_INHERENT_DATA_WEIGHT,
 };
 
-/// Returns a runtime metric instance for sampling inherent data weight.
-pub fn inherent_data_weight() -> CounterVec {
-	CounterVec::new(PARACHAIN_INHERENT_DATA_WEIGHT)
+pub struct Metrics {
+	/// Samples inherent data weight.
+	inherent_data_weight: CounterVec,
+	/// Counts how many inherent bitfields processed in `enter_inner`.
+	bitfields_processed: Counter,
+	/// Counts how many parachain candidates processed in `enter_inner`.
+	candidates_processed: CounterVec,
+	/// Counts dispute statements sets processed in `enter_inner`.
+	dispute_sets_processed: CounterVec,
+	/// Counts dispute statements sets included in `enter_inner`.
+	disputes_included: Counter,
+	/// Counts bitfield signature checks in `enter_inner`.
+	bitfields_signature_checks: CounterVec,
 }
 
-/// Returns a runtime metric instance for recording how many inherent bitfields we process in
-/// `enter_inner`.
-pub fn bitfields_processed() -> Counter {
-	Counter::new(PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED)
+impl Metrics {
+	/// Sample the inherent data weight metric before filtering.
+	pub fn on_before_filter(&self, value: u64) {
+		self.inherent_data_weight.with_label_values(&["before-filter"]).inc_by(value);
+	}
+
+	/// Sample the inherent data weight metric after filtering.
+	pub fn on_after_filter(&self, value: u64) {
+		self.inherent_data_weight.with_label_values(&["after-filter"]).inc_by(value);
+	}
+
+	/// Increment the number of bitfields processed.
+	pub fn on_bitfields_processed(&self, value: u64) {
+		self.bitfields_processed.inc_by(value);
+	}
+
+	/// Increment the number of parachain candidates included.
+	pub fn on_candidates_included(&self, value: u64) {
+		self.candidates_processed.with_label_values(&["included"]).inc_by(value);
+	}
+
+	/// Increment the number of parachain candidates sanitized.
+	pub fn on_candidates_sanitized(&self, value: u64) {
+		self.candidates_processed.with_label_values(&["sanitized"]).inc_by(value);
+	}
+
+	/// Increment the total number of parachain candidates received in `enter_inner`.
+	pub fn on_candidates_processed_total(&self, value: u64) {
+		self.candidates_processed.with_label_values(&["total"]).inc_by(value);
+	}
+
+	/// Sample the relay chain freeze events causing runtime to not process candidates in
+	/// `enter_inner`.
+	pub fn on_relay_chain_freeze(&self) {
+		self.dispute_sets_processed.with_label_values(&["frozen"]).inc();
+	}
+
+	/// Sample the number of dispute sets processed from the current session.
+	pub fn on_current_session_disputes_processed(&self, value: u64) {
+		self.dispute_sets_processed.with_label_values(&["current"]).inc_by(value);
+	}
+
+	/// Increment the number of disputes that have concluded as invalid.
+	pub fn on_disputes_concluded_invalid(&self, value: u64) {
+		self.dispute_sets_processed
+			.with_label_values(&["concluded_invalid"])
+			.inc_by(value);
+	}
+
+	/// Increment the number of disputes impoted.
+	pub fn on_disputes_imported(&self, value: u64) {
+		self.dispute_sets_processed.with_label_values(&["imported"]).inc_by(value);
+	}
+
+	pub fn on_disputes_included(&self, value: u64) {
+		self.disputes_included.inc_by(value);
+	}
+
+	pub fn on_valid_bitfield_signature(&self) {
+		self.bitfields_signature_checks.with_label_values(&["valid"]).inc();
+	}
+
+	pub fn on_invalid_bitfield_signature(&self) {
+		self.bitfields_signature_checks.with_label_values(&["invalid"]).inc();
+	}
 }
 
-/// Returns a runtime metric instance for recording how many parachain candidates we process in
-/// `enter_inner`.
-pub fn candidates_processed() -> CounterVec {
-	CounterVec::new(PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED)
-}
-
-/// Returns a runtime metric instance for counting dispute statements sets processed in
-/// `enter_inner`.
-pub fn dispute_sets_processed() -> CounterVec {
-	CounterVec::new(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED)
-}
-
-/// Returns a runtime metric instance for counting dispute statements sets included in
-/// `enter_inner`.
-pub fn disputes_included() -> Counter {
-	Counter::new(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED)
-}
-
-/// Returns a runtime metric instance for counting bitfield signature checks in
-/// `enter_inner`.
-pub fn bitfields_signature_checks() -> CounterVec {
-	CounterVec::new(PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS)
-}
+pub const METRICS: Metrics = Metrics {
+	inherent_data_weight: CounterVec::new(PARACHAIN_INHERENT_DATA_WEIGHT),
+	bitfields_processed: Counter::new(PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED),
+	candidates_processed: CounterVec::new(PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED),
+	dispute_sets_processed: CounterVec::new(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED),
+	disputes_included: Counter::new(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED),
+	bitfields_signature_checks: CounterVec::new(
+		PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS,
+	),
+};

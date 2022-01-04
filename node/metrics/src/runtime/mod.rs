@@ -25,7 +25,8 @@
 
 use codec::Decode;
 use primitives::v1::{
-	metric_definitions::*, RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
+	metric_definitions::{CounterDefinition, CounterVecDefinition},
+	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 use std::{
 	collections::hash_map::HashMap,
