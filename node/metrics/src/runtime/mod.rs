@@ -24,7 +24,9 @@
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
-use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate};
+use primitives::v1::{
+	metric_definitions::*, RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
+};
 use std::{
 	collections::hash_map::HashMap,
 	sync::{Arc, Mutex, MutexGuard},
@@ -54,15 +56,13 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Register a counter vec metric.
-	pub fn register_countervec(
-		&self,
-		metric_name: &'static str,
-		description: &'static str,
-		labels: &[&'static str],
-	) {
+	pub fn register_countervec(&self, countervec: CounterVecDefinition) {
 		self.with_counter_vecs_lock_held(|mut hashmap| {
-			hashmap.entry(metric_name.to_owned()).or_insert(register(
-				CounterVec::new(Opts::new(metric_name, description), labels)?,
+			hashmap.entry(countervec.name.to_owned()).or_insert(register(
+				CounterVec::new(
+					Opts::new(countervec.name, countervec.description),
+					countervec.labels,
+				)?,
 				&self.0,
 			)?);
 			Ok(())
@@ -70,11 +70,11 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Register a counter metric.
-	pub fn register_counter(&self, metric_name: &'static str, description: &'static str) {
+	pub fn register_counter(&self, counter: CounterDefinition) {
 		self.with_counters_lock_held(|mut hashmap| {
 			hashmap
-				.entry(metric_name.to_owned())
-				.or_insert(register(Counter::new(metric_name, description)?, &self.0)?);
+				.entry(counter.name.to_owned())
+				.or_insert(register(Counter::new(counter.name, counter.description)?, &self.0)?);
 			return Ok(())
 		})
 	}

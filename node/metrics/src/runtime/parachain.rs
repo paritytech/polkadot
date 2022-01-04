@@ -18,40 +18,16 @@
 //! All of the metrics have a correspondent runtime metric definition.
 
 use crate::runtime::RuntimeMetricsProvider;
+use primitives::v1::metric_definitions::*;
 
 /// Register the parachain runtime metrics.
 pub fn register_metrics(runtime_metrics_provider: &RuntimeMetricsProvider) {
-	runtime_metrics_provider.register_countervec(
-		"polkadot_parachain_inherent_data_weight",
-		"Inherent data weight before and after filtering",
-		&["when"],
-	);
+	runtime_metrics_provider.register_counter(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED);
+	runtime_metrics_provider.register_counter(PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED);
 
-	runtime_metrics_provider.register_counter(
-		"polkadot_parachain_inherent_data_bitfields_processed",
-		"Counts the number of bitfields processed in `enter_inner`.",
-	);
-
-	runtime_metrics_provider.register_countervec(
-		"polkadot_parachain_inherent_data_candidates_processed",
-		"Counts the number of parachain block candidates processed in `enter_inner`.",
-		&["category"],
-	);
-
-	runtime_metrics_provider.register_countervec(
-		"polkadot_parachain_inherent_data_dispute_sets_processed",
-		"Counts the number of dispute statements sets processed in `enter_inner`.",
-		&["category"],
-	);
-
-	runtime_metrics_provider.register_counter(
-		"polkadot_parachain_inherent_data_dispute_sets_included",
-		"Counts the number of dispute statements sets included in a block in `enter_inner`.",
-	);
-
-	runtime_metrics_provider.register_countervec(
-		"polkadot_parachain_create_inherent_bitfields_signature_checks",
-		"Counts the number of bitfields signature checked in `enter_inner`.",
-		&["validity"],
-	)
+	runtime_metrics_provider.register_countervec(PARACHAIN_INHERENT_DATA_WEIGHT);
+	runtime_metrics_provider.register_countervec(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED);
+	runtime_metrics_provider.register_countervec(PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED);
+	runtime_metrics_provider
+		.register_countervec(PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS);
 }

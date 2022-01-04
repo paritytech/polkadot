@@ -23,7 +23,11 @@
 const TRACING_TARGET: &'static str = "metrics";
 
 use parity_scale_codec::Encode;
-use primitives::v1::{RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate};
+use primitives::v1::{
+	metric_definitions::{CounterDefinition, CounterVecDefinition},
+	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
+};
+
 use sp_std::prelude::*;
 
 /// Holds a set of counters that have different values for their labels,
@@ -55,10 +59,10 @@ impl MetricEmitter for Counter {}
 impl CounterVec {
 	/// Create a new counter metric with specified `name`. This metric needs to be registered
 	/// in the client before it can be used.
-	pub fn new(name: &'static str) -> Self {
+	pub fn new(definition: CounterVecDefinition) -> Self {
 		// No register op is emitted since the metric is supposed to be registered
 		// on the client by the time `inc()` is called.
-		CounterVec { name, label_values: None }
+		CounterVec { name: definition.name, label_values: None }
 	}
 
 	/// Set the label values. Must be called before each increment operation.
@@ -88,8 +92,8 @@ impl CounterVec {
 impl Counter {
 	/// Create a new counter metric with specified `name`. This metric needs to be registered
 	/// in the client before it can be used.
-	pub fn new(name: &'static str) -> Self {
-		Counter { name }
+	pub fn new(definition: CounterDefinition) -> Self {
+		Counter { name: definition.name }
 	}
 
 	/// Increment counter by `value`.

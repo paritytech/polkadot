@@ -18,6 +18,8 @@
 //! provide a dummy implementation for the native runtime to avoid cluttering the runtime code
 //! with `#[cfg(feature = "runtime-metrics")]`.
 
+use primitives::v1::metric_definitions::{CounterDefinition, CounterVecDefinition};
+
 /// A dummy Counter.
 pub struct Counter;
 /// A dummy CounterVec.
@@ -26,7 +28,7 @@ pub struct CounterVec;
 /// Dummy implementation.
 impl CounterVec {
 	/// Constructor.
-	pub fn new(_name: &'static str) -> Self {
+	pub fn new(_definition: CounterVecDefinition) -> Self {
 		CounterVec
 	}
 	/// Sets label values, implementation is a `no op`.
@@ -42,7 +44,7 @@ impl CounterVec {
 /// Dummy implementation.
 impl Counter {
 	/// Constructor.
-	pub fn new(_name: &'static str) -> Self {
+	pub fn new(_definition: CounterDefinition) -> Self {
 		Counter
 	}
 	/// Increment counter by value, implementation is a `no op`.
