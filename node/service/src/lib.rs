@@ -756,7 +756,7 @@ where
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	let grandpa_protocol_name = grandpa::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().unwrap_or_default(),
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
 	config
@@ -765,7 +765,7 @@ where
 		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
 	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().unwrap_or_default(),
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
 	if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
