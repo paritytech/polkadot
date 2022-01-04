@@ -15,18 +15,18 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 #![cfg(feature = "runtime-metrics")]
 
+use hyper::{Client, Uri};
+use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
+use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
+use sp_keyring::AccountKeyring::*;
+use std::convert::TryFrom;
+
 const RUNTIME_METRIC_NAME: &str = "polkadot_parachain_inherent_data_bitfields_processed";
 const DEFAULT_PROMETHEUS_PORT: u16 = 9615;
 use std::collections::HashMap;
 
 #[substrate_test_utils::test]
 async fn runtime_can_publish_metrics() {
-	use hyper::{Client, Uri};
-	use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
-	use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
-	use sp_keyring::AccountKeyring::*;
-	use std::convert::TryFrom;
-
 	let mut alice_config =
 		node_config(|| {}, tokio::runtime::Handle::current(), Alice, Vec::new(), true);
 
@@ -34,7 +34,8 @@ async fn runtime_can_publish_metrics() {
 	alice_config.prometheus_config = Some(test_prometheus_config(DEFAULT_PROMETHEUS_PORT));
 
 	let mut builder = sc_cli::LoggerBuilder::new("");
-	// Enable profiling with wasm tracing target.
+
+	// Enable profiling with `wasm_tracing` target.
 	builder.with_profiling(Default::default(), String::from("wasm_tracing=trace"));
 
 	// Setup the runtime metrics provider.
@@ -64,25 +65,25 @@ async fn runtime_can_publish_metrics() {
 	alice.wait_for_blocks(2).await;
 
 	let metrics_uri = format!("http://localhost:{}/metrics", DEFAULT_PROMETHEUS_PORT);
-
-	let res = Client::new()
-		.get(Uri::try_from(&metrics_uri).expect("bad URI"))
-		.await
-		.expect("GET request failed");
-
-	let body = String::from_utf8(
-		hyper::body::to_bytes(res).await.expect("can't get body as bytes").to_vec(),
-	)
-	.expect("body is not an UTF8 string");
-
-	let metrics = scrape_prometheus_metrics(body);
+	let metrics = scrape_prometheus_metrics(&metrics_uri).await;
 
 	// There should be at least 2 bitfields processed by now.
 	assert!(*metrics.get(&RUNTIME_METRIC_NAME.to_owned()).unwrap() > 2);
 }
 
-fn scrape_prometheus_metrics(metrics_string: String) -> HashMap<String, u64> {
-	let lines: Vec<_> = metrics_string.lines().map(|s| Ok(s.to_owned())).collect();
+async fn scrape_prometheus_metrics(metrics_uri: &str) -> HashMap<String, u64> {
+	let res = Client::new()
+		.get(Uri::try_from(metrics_uri).expect("bad URI"))
+		.await
+		.expect("GET request failed");
+
+	// Retrieve the `HTTP` response body.
+	let body = String::from_utf8(
+		hyper::body::to_bytes(res).await.expect("can't get body as bytes").to_vec(),
+	)
+	.expect("body is not an UTF8 string");
+
+	let lines: Vec<_> = body.lines().map(|s| Ok(s.to_owned())).collect();
 	prometheus_parse::Scrape::parse(lines.into_iter())
 		.expect("Scraper failed to parse Prometheus metrics")
 		.samples
@@ -97,10 +98,6 @@ fn scrape_prometheus_metrics(metrics_string: String) -> HashMap<String, u64> {
 					_ => unreachable!("unexpected metric type"),
 				},
 			)
-		})
-		.map(|(m, v)| {
-			println!("{} = {}", m, v);
-			(m, v)
 		})
 		.collect()
 }
