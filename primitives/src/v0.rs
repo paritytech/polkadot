@@ -394,6 +394,7 @@ impl Ord for CandidateReceipt {
 /// All the data which is omitted in an `AbridgedCandidateReceipt`, but that
 /// is necessary for validation of the parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct OmittedValidationData<N = BlockNumber> {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationData<N>,
@@ -811,7 +812,9 @@ impl AttestedCandidate {
 }
 
 /// A fee schedule for messages. This is a linear function in the number of bytes of a message.
-#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[derive(
+	PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode, TypeInfo, RuntimeDebug,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.
