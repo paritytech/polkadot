@@ -1640,7 +1640,7 @@ pub type Executive = frame_executive::Executive<
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// The nicks pallet was removed at block xxx from the runtime, without any consideration of the
+/// The nicks pallet was removed at block 569325 from the runtime, without any consideration of the
 /// fact that numerous accounts had reserved funds in this pallet. This migration is the outcome of
 /// an investigation that tries to refund all of the accounts that had a nick set for them prior to
 /// removal, if they still have the amount in their reserved balance. Otherwise, we ignore the
