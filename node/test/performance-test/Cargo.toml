@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 thiserror = "1.0.30"
-quote = "1.0.10"
+quote = "1.0.14"
 env_logger = "0.9"
 log = "0.4"
 

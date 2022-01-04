@@ -23,8 +23,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
-use super::{db, participation};
-use crate::real::{CodecError, LOG_TARGET};
+use crate::LOG_TARGET;
+use parity_scale_codec::Error as CodecError;
 
 /// Errors for this subsystem.
 #[derive(Debug, Error)]
@@ -86,11 +86,11 @@ pub enum Fatal {
 	#[error("Writing to database failed: {0}")]
 	DbWriteFailed(std::io::Error),
 
-	#[error("Oneshow for receiving block number from chain API got cancelled")]
-	CanceledBlockNumber,
+	#[error("Oneshot for receiving response from chain API got cancelled")]
+	ChainApiSenderDropped,
 
-	#[error("Retrieving block number from chain API failed with error: {0}")]
-	ChainApiBlockNumber(ChainApiError),
+	#[error("Retrieving response from chain API unexpectedly failed with error: {0}")]
+	ChainApi(#[from] ChainApiError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -126,16 +126,7 @@ pub enum NonFatal {
 	Runtime(#[from] runtime::NonFatal),
 
 	#[error(transparent)]
-	QueueError(#[from] participation::QueueError),
-}
-
-impl From<db::v1::Error> for Error {
-	fn from(err: db::v1::Error) -> Self {
-		match err {
-			db::v1::Error::Io(io) => Self::NonFatal(NonFatal::Io(io)),
-			db::v1::Error::Codec(e) => Self::NonFatal(NonFatal::Codec(e)),
-		}
-	}
+	QueueError(#[from] crate::real::participation::QueueError),
 }
 
 /// Utility for eating top level errors and log them.
