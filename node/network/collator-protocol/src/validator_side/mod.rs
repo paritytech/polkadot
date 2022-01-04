@@ -66,7 +66,6 @@ const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 const COST_CORRUPTED_MESSAGE: Rep = Rep::CostMinor("Message was corrupt");
 /// Network errors that originated at the remote host should have same cost as timeout.
 const COST_NETWORK_ERROR: Rep = Rep::CostMinor("Some network error");
-const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Invalid network message signature");
 const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const COST_WRONG_PARA: Rep = Rep::Malicious("A collator provided a collation for the wrong para");
@@ -1212,7 +1211,7 @@ async fn poll_requests(
 		if !result.is_ready() {
 			retained_requested.insert(pending_collation.clone());
 		}
-		if let CollationFetchResult::Error(rep) = result {
+		if let CollationFetchResult::Error(Some(rep)) = result {
 			reputation_changes.push((pending_collation.peer_id.clone(), rep));
 		}
 	}
@@ -1333,8 +1332,8 @@ enum CollationFetchResult {
 	/// The collation was fetched successfully.
 	Success,
 	/// An error occurred when fetching a collation or it was invalid.
-	/// A reputation change should be applied to the peer.
-	Error(Rep),
+	/// A given reputation change should be applied to the peer.
+	Error(Option<Rep>),
 }
 
 impl CollationFetchResult {
@@ -1380,7 +1379,19 @@ async fn poll_collation_response(
 					err = ?err,
 					"Collator provided response that could not be decoded"
 				);
-				CollationFetchResult::Error(COST_CORRUPTED_MESSAGE)
+				CollationFetchResult::Error(Some(COST_CORRUPTED_MESSAGE))
+			},
+			Err(err) if err.is_timed_out() => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					hash = ?pending_collation.relay_parent,
+					para_id = ?pending_collation.para_id,
+					peer_id = ?pending_collation.peer_id,
+					"Request timed out"
+				);
+				// For now we don't want to change reputation on timeout, to mitigate issues like
+				// this: https://github.com/paritytech/polkadot/issues/4617
+				CollationFetchResult::Error(None)
 			},
 			Err(RequestError::NetworkError(err)) => {
 				tracing::debug!(
@@ -1392,24 +1403,21 @@ async fn poll_collation_response(
 					"Fetching collation failed due to network error"
 				);
 				// A minor decrease in reputation for any network failure seems
-				// sensible. In theory this could be exploited, by Dosing this node,
+				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
-				CollationFetchResult::Error(COST_NETWORK_ERROR)
+				CollationFetchResult::Error(Some(COST_NETWORK_ERROR))
 			},
-			Err(RequestError::Canceled(_)) => {
+			Err(RequestError::Canceled(err)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,
 					peer_id = ?pending_collation.peer_id,
-					"Request timed out"
+					err = ?err,
+					"Canceled should be handled by `is_timed_out` above - this is a bug!"
 				);
-				// A minor decrease in reputation for any network failure seems
-				// sensible. In theory this could be exploited, by Dosing this node,
-				// which would result in reduced reputation for proper nodes, but the
-				// same can happen for penalties on timeouts, which we also have.
-				CollationFetchResult::Error(COST_REQUEST_TIMED_OUT)
+				CollationFetchResult::Error(None)
 			},
 			Ok(CollationFetchingResponse::Collation(receipt, _))
 				if receipt.descriptor().para_id != pending_collation.para_id =>
@@ -1422,7 +1430,7 @@ async fn poll_collation_response(
 					"Got wrong para ID for requested collation."
 				);
 
-				CollationFetchResult::Error(COST_WRONG_PARA)
+				CollationFetchResult::Error(Some(COST_WRONG_PARA))
 			},
 			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
 				tracing::debug!(
