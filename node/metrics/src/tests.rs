@@ -13,18 +13,23 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Polkadot metrics tests.
+
 #![cfg(feature = "runtime-metrics")]
 
 use hyper::{Client, Uri};
 use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
+use primitives::v1::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
 use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
 use sp_keyring::AccountKeyring::*;
-use std::convert::TryFrom;
+use std::{collections::HashMap, convert::TryFrom};
 
-const RUNTIME_METRIC_NAME: &str = "polkadot_parachain_inherent_data_bitfields_processed";
-const DEFAULT_PROMETHEUS_PORT: u16 = 9615;
-use std::collections::HashMap;
+const DEFAULT_PROMETHEUS_PORT: u16 = 9616;
 
+// The `runtime_can_publish_metrics` test uses the `test-runtime`, which does not support
+// the `runtime-benchmarks` feature.
+#[cfg(not(feature = "runtime-benchmarks"))]
 #[substrate_test_utils::test]
 async fn runtime_can_publish_metrics() {
 	let mut alice_config =
@@ -41,7 +46,7 @@ async fn runtime_can_publish_metrics() {
 	// Setup the runtime metrics provider.
 	crate::logger_hook()(&mut builder, &alice_config);
 
-	// Override default native strategy, we need to use the wasm runtime for this test.
+	// Override default native strategy, runtime metrics are available only in the wasm runtime.
 	alice_config.execution_strategies = ExecutionStrategies {
 		syncing: ExecutionStrategy::AlwaysWasm,
 		importing: ExecutionStrategy::AlwaysWasm,
@@ -61,14 +66,18 @@ async fn runtime_can_publish_metrics() {
 	// Start validator Bob.
 	let _bob = run_validator_node(bob_config, None);
 
-	// Wait until one block is authored by Alice.
+	// Wait for Alice to author two blocks.
 	alice.wait_for_blocks(2).await;
 
 	let metrics_uri = format!("http://localhost:{}/metrics", DEFAULT_PROMETHEUS_PORT);
 	let metrics = scrape_prometheus_metrics(&metrics_uri).await;
 
-	// There should be at least 2 bitfields processed by now.
-	assert!(*metrics.get(&RUNTIME_METRIC_NAME.to_owned()).unwrap() > 2);
+	// There should be at least 1 bitfield processed by now.
+	assert!(
+		*metrics
+			.get(&PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED.name.to_owned())
+			.unwrap() > 1
+	);
 }
 
 async fn scrape_prometheus_metrics(metrics_uri: &str) -> HashMap<String, u64> {
