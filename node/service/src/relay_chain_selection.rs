@@ -298,9 +298,17 @@ where
 
 #[derive(thiserror::Error, Debug)]
 enum Error {
-	// A request to the subsystem was canceled.
-	#[error("Overseer is disconnected from Chain Selection")]
-	OverseerDisconnected(oneshot::Canceled),
+	// Oneshot for requesting leaves from chain selection got canceled - check errors in that
+	// subsystem.
+	#[error("Request for leaves from chain selection got canceled")]
+	LeavesCanceled(oneshot::Canceled),
+	#[error("Request for leaves from chain selection got canceled")]
+	BestLeafContainingCanceled(oneshot::Canceled),
+	// Requesting recent disputes oneshot got canceled.
+	#[error("Request for determining the undisputed chain from DisputeCoordinator got canceled")]
+	DetermineUndisputedChainCanceled(oneshot::Canceled),
+	#[error("Request approved ancestor from approval voting got canceled")]
+	ApprovedAncestorCanceled(oneshot::Canceled),
 	/// Chain selection returned empty leaves.
 	#[error("ChainSelection returned no leaves")]
 	EmptyLeaves,
@@ -338,7 +346,7 @@ where
 
 		let leaves = rx
 			.await
-			.map_err(Error::OverseerDisconnected)
+			.map_err(Error::LeavesCanceled)
 			.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 		tracing::trace!(target: LOG_TARGET, ?leaves, "Chain selection leaves");
@@ -392,7 +400,7 @@ where
 
 			let best = rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::BestLeafContainingCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 			tracing::trace!(target: LOG_TARGET, ?best, "Best leaf containing");
@@ -467,7 +475,7 @@ where
 
 			match rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::ApprovedAncestorCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			{
 				// No approved ancestors means target hash is maximal vote.
@@ -514,7 +522,7 @@ where
 				.await;
 			let (subchain_number, subchain_head) = rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::DetermineUndisputedChainCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 			// The the total lag accounting for disputes.
