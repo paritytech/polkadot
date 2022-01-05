@@ -123,7 +123,7 @@ pub mod metric_definitions {
 		pub name: &'static str,
 		/// The description of the metric.
 		pub description: &'static str,
-		/// The labels names of the metric.
+		/// The label names of the metric.
 		pub labels: &'a [&'static str],
 	}
 
