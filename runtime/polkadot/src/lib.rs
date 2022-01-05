@@ -569,8 +569,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
-	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
+	type SortedListProvider = BagsList;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
