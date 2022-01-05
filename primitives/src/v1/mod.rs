@@ -65,8 +65,8 @@ pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
 mod metrics;
 pub use metrics::{
-	RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels,
-	RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+	metric_definitions, RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues,
+	RuntimeMetricLabels, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 
 /// A declarations of storage keys where an external observer can find some interesting data.
