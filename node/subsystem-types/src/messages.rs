@@ -228,6 +228,9 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 }
 
 /// Messages received by the dispute coordinator subsystem.
+///
+/// NOTE: Any response oneshots might get cancelled if the `DisputeCoordinator` was not yet
+/// properly initialized for some reason.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
 	/// Import statements by validators about a candidate.
