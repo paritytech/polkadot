@@ -3037,6 +3037,7 @@ impl OnRuntimeUpgrade for RefundNickPalletDeposit {
 			Self::execute(false)
 		} else {
 			log::warn!(target: "runtime::kusama", "RefundNickPalletDeposit should be removed");
+			0
 		}
 	}
 
