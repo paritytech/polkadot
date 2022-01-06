@@ -1103,6 +1103,7 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 		),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1125,6 +1126,7 @@ pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
 		),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1146,6 +1148,7 @@ pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
 				.expect("Westend Staging telemetry url is valid; qed"),
 		),
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1171,6 +1174,7 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 				.expect("Rococo Staging telemetry url is valid; qed"),
 		),
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1649,6 +1653,7 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1667,6 +1672,7 @@ pub fn kusama_development_config() -> Result<KusamaChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1684,6 +1690,7 @@ pub fn westend_development_config() -> Result<WestendChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1707,6 +1714,7 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1728,6 +1736,7 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some("versi"),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1751,6 +1760,7 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some(WOCOCO_DEV_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1783,6 +1793,7 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1813,6 +1824,7 @@ pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1845,6 +1857,7 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1876,6 +1889,7 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
@@ -1931,6 +1945,7 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	))
 }
@@ -1952,6 +1967,7 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	))
