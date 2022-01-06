@@ -3035,6 +3035,8 @@ impl OnRuntimeUpgrade for RefundNickPalletDeposit {
 		if VERSION.spec_version == 9150 {
 			log::info!(target: "runtime::kusama", "executing the refund migration of https://github.com/paritytech/polkadot/pull/4656");
 			Self::execute(false)
+		} else {
+			log::warn!(target: "runtime::kusama", "RefundNickPalletDeposit should be removed");
 		}
 	}
 
