@@ -25,9 +25,7 @@ use parity_scale_codec as codec;
 use serde::{Deserialize, Serialize};
 use std::{env, sync::Mutex};
 use tokio::sync::broadcast;
-use tokio_tungstenite::{
-	connect_async, tungstenite::protocol::Message 
-};
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 mod errors;
 use errors::BackchannelError;
