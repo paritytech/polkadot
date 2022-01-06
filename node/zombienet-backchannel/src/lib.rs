@@ -65,7 +65,7 @@ impl Broadcaster {
 		}
 	}
 
-	/// Provides a simple api to send a key/value to the zombienet websocket server.
+	/// Provides a simple API to send a key/value to the zombienet websocket server.
 	pub async fn send(
 		&mut self,
 		key: &'static str,
