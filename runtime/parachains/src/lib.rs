@@ -29,6 +29,7 @@ pub mod dmp;
 pub mod hrmp;
 pub mod inclusion;
 pub mod initializer;
+pub mod metrics;
 pub mod origin;
 pub mod paras;
 pub mod paras_inherent;

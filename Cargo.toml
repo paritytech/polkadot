@@ -9,6 +9,7 @@ license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+rust-version = "1.57.0" # custom profiles
 readme = "README.md"
 
 [dependencies]
@@ -115,6 +116,16 @@ opt-level = 3
 # Polkadot runtime requires unwinding.
 panic = "unwind"
 
+[profile.production]
+inherits = "release"
+lto = true
+
+[profile.testnet]
+inherits = "release"
+debug = 1 # debug symbols are useful for profilers
+debug-assertions = true
+overflow-checks = true
+
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
@@ -150,7 +161,6 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
-
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"
