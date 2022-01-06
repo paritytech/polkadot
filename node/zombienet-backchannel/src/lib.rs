@@ -19,14 +19,14 @@
 //! values in the test specifications, through a bidirectional message passing
 //! implemented as a `backchannel`.
 
-use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use lazy_static::lazy_static;
 use parity_scale_codec as codec;
 use serde::{Deserialize, Serialize};
 use std::{env, sync::Mutex};
-use tokio::{net::TcpStream, sync::broadcast};
+use tokio::sync::broadcast;
 use tokio_tungstenite::{
-	connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
+	connect_async, tungstenite::protocol::Message 
 };
 
 mod errors;
