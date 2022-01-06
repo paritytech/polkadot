@@ -6,7 +6,7 @@
 # setting DEPLOY_TAG will only deploy the tagged image
 #
 # please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-test-and-rococo preset. And "kubernetes-env" with "docker-env" to set a runner
+# &rules-test preset. And "kubernetes-env" with "docker-env" to set a runner
 # which executes the job.
 
 stages:
@@ -76,18 +76,9 @@ default:
 .rules-test:                       &rules-test
   # these jobs run always*
   rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-
-.rules-test-and-rococo:            &rules-test-and-rococo
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
 
 .rules-test-pr:            &rules-test-pr
   rules:
@@ -194,7 +185,6 @@ test-build-linux-stable:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
@@ -257,7 +247,7 @@ build-adder-collator:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *rules-test-and-rococo
+  <<:                              *rules-test
   script:
     - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -416,12 +406,6 @@ publish-polkadot-image:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      variables:
-        <<:                        *image-variables
-        IMAGE_NAME:                docker.io/parity/rococo
-        DOCKER_USER:               ${DOCKER_HUB_USER}
-        DOCKER_PASS:               ${DOCKER_HUB_PASS}
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
@@ -439,7 +423,7 @@ publish-adder-collator-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
-  <<:                              *rules-test-and-rococo
+  <<:                              *rules-test
   variables:
     <<:                            *image-variables
     # scripts/dockerfiles/collator_injected.Dockerfile
@@ -618,15 +602,12 @@ zombienet-tests-parachains-smoke-test:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
-
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains'
-
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE}"
@@ -637,7 +618,6 @@ zombienet-tests-parachains-smoke-test:
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE="docker.io/paritypr/colander:4547" # The collator image is fixed
-
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
@@ -655,15 +635,12 @@ zombienet-tests-malus-dispute-valid:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
-
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests'
-
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -674,7 +651,6 @@ zombienet-tests-malus-dispute-valid:
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
-
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
