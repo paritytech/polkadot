@@ -7,7 +7,7 @@
 # Please do not add new jobs without "rules:" and "*-env". There are &test-refs for everything,
 # "docker-env" is used for Rust jobs.
 # And "kubernetes-env" for everything else. Please mention "image:" container name to be used
-# with it, as there's no default.
+# with it, as there's no default one.
 
 stages:
   - test
@@ -93,7 +93,6 @@ default:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
 
 .publish-refs:                     &publish-refs
   rules:
@@ -282,7 +281,6 @@ build-malus:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *test-and-rococo-refs
   script:
     - time cargo build --profile testnet --verbose -p polkadot-test-malus
     - sccache -s
