@@ -162,7 +162,7 @@ where
 		beefy.beefy_commitment_stream,
 		beefy.beefy_best_block_stream,
 		beefy.subscription_executor,
-	);
+	)?;
 	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(handler));
 
 	Ok(io)
