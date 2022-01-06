@@ -3032,7 +3032,10 @@ impl RefundNickPalletDeposit {
 
 impl OnRuntimeUpgrade for RefundNickPalletDeposit {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Self::execute(false)
+		if VERSION.spec_version == 9150 {
+			log::info!(target: "runtime::kusama", "executing the refund migration of https://github.com/paritytech/polkadot/pull/4656");
+			Self::execute(false)
+		}
 	}
 
 	#[cfg(feature = "try-runtime")]
