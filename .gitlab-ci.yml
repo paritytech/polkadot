@@ -2,12 +2,12 @@
 #
 # polkadot
 #
-# pipelines can be triggered manually in the web
-# setting DEPLOY_TAG will only deploy the tagged image
+# Pipelines can be triggered manually in the web.
 #
-# please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-test preset. And "kubernetes-env" with "docker-env" to set a runner
-# which executes the job.
+# Please do not add new jobs without "rules:" and "*-env". There are &test-refs for everything,
+# "docker-env" is used for Rust jobs.
+# And "kubernetes-env" for everything else. Please mention "image:" container name to be used
+# with it, as there's no default.
 
 stages:
   - test
@@ -73,16 +73,34 @@ default:
     - cargo --version
     - sccache -s
 
-.rules-test:                       &rules-test
+.test-refs:                        &test-refs
   # these jobs run always*
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
-.rules-test-pr:            &rules-test-pr
+.test-pr-refs:                     &test-pr-refs
   rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+
+.zombienet-refs:                   &zombienet-refs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+
+.publish-refs:                     &publish-refs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
 
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
@@ -142,7 +160,7 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  <<:                              *rules-test
+  <<:                              *test-refs
   <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
@@ -154,7 +172,7 @@ check-runtime:
 cargo-fmt:
   stage:                           test
   <<:                              *docker-env
-  <<:                              *rules-test
+  <<:                              *test-refs
   script:
     - cargo +nightly --version
     - cargo +nightly fmt --all -- --check
@@ -162,7 +180,7 @@ cargo-fmt:
 
 test-deterministic-wasm:
   stage:                           test
-  <<:                              *rules-test
+  <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *vault-secrets
@@ -208,7 +226,7 @@ test-build-linux-stable:
 
 check-runtime-benchmarks:
   stage:                           test
-  <<:                              *rules-test
+  <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *vault-secrets
@@ -219,7 +237,7 @@ check-runtime-benchmarks:
 
 check-no-default-features:
   stage:                           test
-  <<:                              *rules-test
+  <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *vault-secrets
@@ -231,7 +249,7 @@ check-no-default-features:
 spellcheck:
   stage:                           test
   <<:                              *docker-env
-  <<:                              *rules-test
+  <<:                              *test-refs
   script:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
@@ -247,7 +265,7 @@ build-adder-collator:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *rules-test
+  <<:                              *test-refs
   script:
     - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -264,10 +282,7 @@ build-malus:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *test-and-rococo-refs
   script:
     - time cargo build --profile testnet --verbose -p polkadot-test-malus
     - sccache -s
@@ -284,7 +299,7 @@ build-malus:
 .check-dependent-project:          &check-dependent-project
   stage:                           build
   <<:                              *docker-env
-  <<:                              *rules-test-pr
+  <<:                              *test-pr-refs
   <<:                              *vault-secrets
   script:
     - git clone
@@ -307,7 +322,7 @@ check-dependent-cumulus:
 
 check-transaction-versions:
   stage:                           build
-  <<:                              *rules-test
+  <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *vault-secrets
   image:                           node:15
@@ -325,7 +340,7 @@ check-transaction-versions:
 
 generate-impl-guide:
   stage:                           build
-  <<:                              *rules-test
+  <<:                              *test-refs
   <<:                              *docker-env
   image:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
@@ -336,7 +351,7 @@ generate-impl-guide:
 build-rustdoc:
   stage:                           build
   <<:                              *docker-env
-  <<:                              *rules-test
+  <<:                              *test-refs
   variables:
     SKIP_WASM_BUILD:               1
   artifacts:
@@ -401,6 +416,8 @@ publish-polkadot-image:
   rules:
     # Don't run on releases - this is handled by the Github Action here:
     # .github/workflows/publish-docker-release.yml
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -423,7 +440,7 @@ publish-adder-collator-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
-  <<:                              *rules-test
+  <<:                              *zombienet-refs
   variables:
     <<:                            *image-variables
     # scripts/dockerfiles/collator_injected.Dockerfile
@@ -446,15 +463,12 @@ publish-malus-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
+  <<:                              *zombienet-refs
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/malus.Dockerfile
-    DOCKERFILE:                    dockerfiles/malus.Dockerfile
+    # scripts/dockerfiles/malus_injected.Dockerfile
+    DOCKERFILE:                    dockerfiles/malus_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/malus
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   needs:
     - job:                         build-malus
       artifacts:                   true
@@ -507,6 +521,8 @@ publish-s3-release:                &publish-s3
     GIT_STRATEGY:                  none
     PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
   rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
     # publishing binaries nightly
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
@@ -542,6 +558,8 @@ publish-rustdoc:
   variables:
     GIT_DEPTH:                     100
   rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME == "master"
   # `needs:` can be removed after CI image gets nonroot. In this case `needs:` stops other
@@ -585,9 +603,7 @@ publish-rustdoc:
 
 deploy-parity-testnet:
   stage:                           deploy
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
+  <<:                              *publish-refs
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
@@ -598,10 +614,7 @@ zombienet-tests-parachains-smoke-test:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *zombienet-refs
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
@@ -631,10 +644,7 @@ zombienet-tests-malus-dispute-valid:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *zombienet-refs
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
