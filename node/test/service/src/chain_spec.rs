@@ -45,6 +45,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
+		None,
 		Default::default(),
 	)
 }
@@ -161,7 +162,7 @@ fn polkadot_testnet_genesis(
 		sudo: runtime::SudoConfig { key: Some(root_key) },
 		configuration: runtime::ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 10u32,
+				validation_upgrade_cooldown: 10u32,
 				validation_upgrade_delay: 5,
 				code_retention_period: 1200,
 				max_code_size: MAX_CODE_SIZE,
@@ -171,6 +172,7 @@ fn polkadot_testnet_genesis(
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				no_show_slots: 10,
+				minimum_validation_upgrade_delay: 5,
 				..Default::default()
 			},
 		},
