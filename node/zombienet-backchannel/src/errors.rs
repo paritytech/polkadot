@@ -30,4 +30,10 @@ pub enum BackchannelError {
 
 	#[error("Error sending new value to backchannel")]
 	SendItemFail,
+
+	#[error("Invalid host for connection backchannel")]
+	InvalidHost,
+
+	#[error("Invalid port for connection backchannel")]
+	InvalidPort,
 }

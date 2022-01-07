@@ -55,12 +55,9 @@ impl Broadcaster {
 	/// websocket server.
 	pub fn subscribe(&self) -> Result<broadcast::Receiver<BackchannelItem>, BackchannelError> {
 		let mut zombienet_bkc = ZOMBIENET_BACKCHANNEL.lock().unwrap();
-		let sender = zombienet_bkc.as_mut().unwrap().broadcast_tx.clone();
-		if zombienet_bkc.is_some() {
-			Ok(sender.subscribe())
-		} else {
-			Err(BackchannelError::Uninitialized)
-		}
+		let zombienet_bkc = zombienet_bkc.as_mut().ok_or(BackchannelError::Uninitialized)?;
+		let sender = zombienet_bkc.broadcast_tx.clone();
+		Ok(sender.subscribe())
 	}
 
 	/// Provides a simple API to send a key/value to the zombienet websocket server.
@@ -70,16 +67,15 @@ impl Broadcaster {
 		val: impl codec::Encode,
 	) -> Result<(), BackchannelError> {
 		let mut zombienet_bkc = ZOMBIENET_BACKCHANNEL.lock().unwrap();
-		if zombienet_bkc.is_none() {
-			return Err(BackchannelError::Uninitialized)
-		}
+		let zombienet_bkc = zombienet_bkc.as_mut().ok_or(BackchannelError::Uninitialized)?;
+
 		let encoded = val.encode();
 		let backchannel_item = BackchannelItem {
 			key: key.to_string(),
 			value: String::from_utf8_lossy(&encoded).to_string(),
 		};
 
-		let sender = zombienet_bkc.as_mut().unwrap().ws_tx.clone();
+		let sender = zombienet_bkc.ws_tx.clone();
 		sender.send(backchannel_item).map_err(|e| {
 			tracing::error!(target = ZOMBIENET, "Error sending new item: {}", e);
 			BackchannelError::SendItemFail
@@ -97,6 +93,12 @@ impl ZombienetBackchannel {
 				env::var("BACKCHANNEL_HOST").unwrap_or_else(|_| "backchannel".to_string());
 			let backchannel_port =
 				env::var("BACKCHANNEL_PORT").unwrap_or_else(|_| "3000".to_string());
+
+			// validate port
+			backchannel_port.parse::<u16>().map_err(|_| BackchannelError::InvalidPort)?;
+			// validate non empty string for host
+			if backchannel_host.trim().is_empty() { return Err(BackchannelError::InvalidHost) };
+
 			let ws_url = format!("ws://{}:{}/ws", backchannel_host, backchannel_port);
 			tracing::debug!(target = ZOMBIENET, "Connecting to : {}", &ws_url);
 			let (ws_stream, _) =
