@@ -61,6 +61,7 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
+	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
 	"node/network/bridge",
@@ -91,6 +92,7 @@ members = [
 	"node/test/polkadot-simnet/common",
 	"node/test/polkadot-simnet/node",
 	"node/test/polkadot-simnet/test",
+	"node/zombienet-backchannel",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
@@ -121,7 +123,7 @@ lto = true
 
 [profile.testnet]
 inherits = "release"
-debug = true # debug symbols are useful for profilers
+debug = 1 # debug symbols are useful for profilers
 debug-assertions = true
 overflow-checks = true
 

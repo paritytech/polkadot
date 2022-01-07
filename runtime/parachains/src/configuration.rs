@@ -73,13 +73,41 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum period, in blocks, between which parachains can update their validation code.
 	///
+	/// This number is used to prevent parachains from spamming the relay chain with validation code
+	/// upgrades. The only thing it controls is the number of blocks the `UpgradeRestrictionSignal`
+	/// is set for the parachain in question.
+	///
 	/// If PVF pre-checking is enabled this should be greater than the maximum number of blocks
 	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
 	/// specified by [`pvf_voting_ttl`]. Unlike, [`pvf_voting_ttl`], this parameter uses blocks
 	/// as a unit.
 	#[cfg_attr(feature = "std", serde(alias = "validation_upgrade_frequency"))]
 	pub validation_upgrade_cooldown: BlockNumber,
-	/// The delay, in blocks, before a validation upgrade is applied.
+	/// The delay, in blocks, after which an upgrade of the validation code is applied.
+	///
+	/// The upgrade for a parachain takes place when the first candidate which has relay-parent >=
+	/// the relay-chain block where the upgrade is scheduled. This block is referred as to
+	/// `expected_at`.
+	///
+	/// `expected_at` is determined when the upgrade is scheduled. This happens when the candidate
+	/// that signals the upgrade is enacted. Right now, the relay-parent block number of the
+	/// candidate scheduling the upgrade is used to determine the `expected_at`. This may change in
+	/// the future with [#4601].
+	///
+	/// When PVF pre-checking is enabled, the upgrade is scheduled only after the PVF pre-check has
+	/// been completed.
+	///
+	/// Note, there are situations in which `expected_at` in the past. For example, if
+	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set by
+	/// this field or if PVF pre-check took more time than the delay. In such cases, the upgrade is
+	/// further at the earliest possible time determined by [`minimum_validation_upgrade_delay`].
+	///
+	/// The rationale for this delay has to do with relay-chain reversions. In case there is an
+	/// invalid candidate produced with the new version of the code, then the relay-chain can revert
+	/// [`validation_upgrade_delay`] many blocks back and still find the new code in the storage by
+	/// hash.
+	///
+	/// [#4601]: https://github.com/paritytech/polkadot/issues/4601
 	pub validation_upgrade_delay: BlockNumber,
 
 	/**

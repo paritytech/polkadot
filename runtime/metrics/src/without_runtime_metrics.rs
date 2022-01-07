@@ -18,6 +18,8 @@
 //! provide a dummy implementation for the native runtime to avoid cluttering the runtime code
 //! with `#[cfg(feature = "runtime-metrics")]`.
 
+use primitives::v1::metric_definitions::{CounterDefinition, CounterVecDefinition};
+
 /// A dummy Counter.
 pub struct Counter;
 /// A dummy CounterVec.
@@ -26,27 +28,27 @@ pub struct CounterVec;
 /// Dummy implementation.
 impl CounterVec {
 	/// Constructor.
-	pub fn new(_name: &'static str, _description: &'static str, _labels: &[&'static str]) -> Self {
+	pub const fn new(_definition: CounterVecDefinition) -> Self {
 		CounterVec
 	}
 	/// Sets label values, implementation is a `no op`.
-	pub fn with_label_values(&mut self, _label_values: &[&'static str]) -> &mut Self {
+	pub fn with_label_values(&self, _label_values: &[&'static str]) -> &Self {
 		self
 	}
 	/// Increment counter by value, implementation is a `no op`.
-	pub fn inc_by(&mut self, _: u64) {}
+	pub fn inc_by(&self, _: u64) {}
 	/// Increment counter, implementation is a `no op`.
-	pub fn inc(&mut self) {}
+	pub fn inc(&self) {}
 }
 
 /// Dummy implementation.
 impl Counter {
 	/// Constructor.
-	pub fn new(_name: &'static str, _description: &'static str) -> Self {
+	pub const fn new(_definition: CounterDefinition) -> Self {
 		Counter
 	}
 	/// Increment counter by value, implementation is a `no op`.
-	pub fn inc_by(&mut self, _: u64) {}
+	pub fn inc_by(&self, _: u64) {}
 	/// Increment counter, implementation is a `no op`.
-	pub fn inc(&mut self) {}
+	pub fn inc(&self) {}
 }

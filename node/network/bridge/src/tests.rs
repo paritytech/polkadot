@@ -1228,6 +1228,7 @@ fn spread_event_to_subsystems_is_up_to_date() {
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
 			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
+			AllMessages::PvfChecker(_) => unreachable!("Not interested in network events"),
 			// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 			// notified, `unreachable!()` for those that should not.
 		}
