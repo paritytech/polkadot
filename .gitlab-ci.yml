@@ -281,6 +281,7 @@ build-malus:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
+  <<:                              *test-refs
   script:
     - time cargo build --profile testnet --verbose -p polkadot-test-malus
     - sccache -s
