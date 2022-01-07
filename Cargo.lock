@@ -481,7 +481,6 @@ source = "git+https://github.com/paritytech/substrate?branch=master#0f070c8020fa
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
- "derive_more",
  "futures 0.3.19",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -489,13 +488,10 @@ dependencies = [
  "jsonrpc-pubsub",
  "log",
  "parity-scale-codec",
- "parking_lot",
  "sc-rpc",
- "sc-utils",
  "serde",
  "sp-core",
  "sp-runtime",
- "thiserror",
 ]
 
 [[package]]
@@ -9094,7 +9090,6 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer",
  "lazy_static",
- "parking_lot",
  "prometheus",
 ]
 
