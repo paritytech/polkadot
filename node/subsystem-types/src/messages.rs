@@ -910,3 +910,9 @@ pub enum GossipSupportMessage {
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
 }
+
+/// PVF checker message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum PvfCheckerMessage {}
