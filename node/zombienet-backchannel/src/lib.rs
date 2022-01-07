@@ -97,7 +97,9 @@ impl ZombienetBackchannel {
 			// validate port
 			backchannel_port.parse::<u16>().map_err(|_| BackchannelError::InvalidPort)?;
 			// validate non empty string for host
-			if backchannel_host.trim().is_empty() { return Err(BackchannelError::InvalidHost) };
+			if backchannel_host.trim().is_empty() {
+				return Err(BackchannelError::InvalidHost)
+			};
 
 			let ws_url = format!("ws://{}:{}/ws", backchannel_host, backchannel_port);
 			tracing::debug!(target = ZOMBIENET, "Connecting to : {}", &ws_url);
