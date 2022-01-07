@@ -28,7 +28,7 @@ color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.25"
 async-trait = "0.1.52"
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
 futures = "0.3.19"
 futures-timer = "3.0.2"
 tracing = "0.1.26"
@@ -38,5 +38,5 @@ default = []
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
 futures = { version = "0.3.19", features = ["thread-pool"] }
