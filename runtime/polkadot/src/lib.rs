@@ -621,7 +621,6 @@ parameter_types! {
 	pub EnactmentPeriod: BlockNumber = prod_or_test!(28 * DAYS, 1, "DOT_ENACTMENT_PERIOD");
 	pub CooloffPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1, "DOT_COOLOFF_PERIOD");
 	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
