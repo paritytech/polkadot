@@ -45,9 +45,9 @@ pub fn wait_for(child: &mut Child, secs: usize) -> Option<ExitStatus> {
 /// Wait for at least `n` blocks to be finalized within the specified time.
 pub async fn wait_n_finalized_blocks(
 	n: usize,
-	timeout_secs: u64,
+	timeout_duration: Duration,
 ) -> Result<(), tokio::time::error::Elapsed> {
-	timeout(Duration::from_secs(timeout_secs), wait_n_finalized_blocks_from(n, LOCALHOST_WS)).await
+	timeout(timeout_duration, wait_n_finalized_blocks_from(n, LOCALHOST_WS)).await
 }
 
 /// Wait for at least `n` blocks to be finalized from a specified node.

@@ -15,7 +15,7 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{convert::TryInto, process::Command};
+use std::{convert::TryInto, process::Command, time::Duration};
 use tempfile::tempdir;
 
 pub mod common;
@@ -41,7 +41,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 			.unwrap();
 
 		// Let it produce three blocks.
-		common::wait_n_finalized_blocks(3, 60).await.unwrap();
+		common::wait_n_finalized_blocks(3, Duration::from_secs(60)).await.unwrap();
 
 		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 		kill(Pid::from_raw(cmd.id().try_into().unwrap()), signal).unwrap();

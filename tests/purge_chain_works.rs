@@ -15,7 +15,7 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{convert::TryInto, process::Command};
+use std::{convert::TryInto, process::Command, time::Duration};
 use tempfile::tempdir;
 
 pub mod common;
@@ -37,7 +37,7 @@ async fn purge_chain_works() {
 		.unwrap();
 
 	// Let it produce 1 block.
-	common::wait_n_finalized_blocks(1, 60).await.unwrap();
+	common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await.unwrap();
 
 	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
