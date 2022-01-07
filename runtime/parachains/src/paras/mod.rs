@@ -1425,7 +1425,7 @@ impl<T: Config> Pallet<T> {
 		code_hash: &ValidationCodeHash,
 		causes: Vec<PvfCheckCause<T::BlockNumber>>,
 	) -> Weight {
-		let mut weight = T::DbWeight::get().writes(1);
+		let mut weight = 0;
 
 		for cause in causes {
 			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
