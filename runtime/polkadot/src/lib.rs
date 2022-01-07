@@ -74,7 +74,7 @@ use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify,
+		OpaqueKeys, SaturatedConversion, Verify, Zero,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
@@ -1582,10 +1582,208 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(StakingBagsListMigrationV8, SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
+	(
+		StakingBagsListMigrationV8,
+		SessionHistoricalPalletPrefixMigration,
+		SchedulerMigrationV3,
+		FixCouncilDepositMigration,
+	),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// A migration struct to fix some deposits in the council election pallet.
+///
+/// See more details here: https://github.com/paritytech/polkadot/issues/4160
+pub struct FixCouncilDepositMigration;
+
+impl FixCouncilDepositMigration {
+	fn execute(check: bool) -> frame_support::weights::Weight {
+		let accounts = vec![
+			// 14udY48vCbPLtF2VEpUmqfJLHesmAZWi5ShzeKgnqkuigYaR
+			[
+				172, 216, 115, 87, 170, 243, 188, 88, 181, 73, 157, 16, 214, 192, 48, 146, 239, 79,
+				168, 154, 196, 169, 194, 254, 122, 128, 246, 166, 205, 215, 176, 96,
+			],
+			// 14iGCDW2cEphmcXH22RhbuQBxjAzPP8UJAX8EQw4p5T2ZwsW
+			[
+				164, 44, 232, 74, 83, 194, 159, 82, 232, 179, 36, 255, 38, 50, 209, 27, 131, 102,
+				14, 84, 172, 117, 220, 42, 68, 1, 156, 100, 180, 176, 241, 14,
+			],
+			// 14FrHPF7UWDZCe811yBUXMch8VS7hE4CvV26UR92Pvz5BUia
+			[
+				144, 8, 9, 30, 45, 31, 178, 14, 109, 106, 70, 192, 214, 101, 145, 201, 176, 11,
+				115, 234, 66, 56, 108, 8, 151, 223, 221, 83, 39, 193, 85, 49,
+			],
+			// 14BpBd1EhsbzSAarjKJmpNHA2evTj1B4FjryWACycBCqTxDQ
+			[
+				140, 243, 252, 167, 136, 94, 38, 129, 226, 241, 53, 86, 191, 123, 76, 106, 9, 118,
+				132, 88, 187, 170, 17, 156, 237, 88, 146, 133, 105, 209, 1, 25,
+			],
+			// 13Smi6KLQxEfBNYNPAbiMPiVFVPRpu8WM2qQv42jkmZKnkfo
+			[
+				108, 32, 26, 170, 125, 136, 60, 208, 129, 73, 14, 48, 167, 180, 62, 102, 16, 173,
+				35, 186, 0, 84, 201, 8, 220, 147, 61, 201, 113, 230, 64, 79,
+			],
+			// 1A6Tb4x8T9WbN2Rvq1kQFdFoFQxbNv6GBhc5GAMY9ACQV4j
+			[
+				6, 239, 149, 80, 170, 82, 13, 197, 145, 211, 233, 148, 11, 63, 162, 137, 186, 65,
+				36, 99, 214, 95, 24, 38, 33, 183, 77, 243, 230, 55, 164, 23,
+			],
+			// 14cstG1jBDJuPGcAf41cmX6QWuF2AxN3sMWaxtPac9D5cToJ
+			[
+				160, 17, 148, 94, 22, 13, 118, 174, 174, 230, 77, 85, 60, 34, 25, 135, 10, 214,
+				212, 168, 251, 43, 41, 57, 155, 47, 233, 152, 3, 232, 207, 125,
+			],
+			// 165gfcRhaqPSiwhhw3Vsb6S4iWxALtQtEK5MbtrfJsgDEHQi
+			[
+				224, 191, 172, 240, 87, 30, 41, 24, 135, 105, 21, 246, 198, 223, 211, 33, 187, 40,
+				23, 235, 216, 30, 183, 110, 115, 152, 101, 130, 89, 103, 87, 61,
+			],
+			// 1gNBZtAbG75p4cVcdCJNh6NE8YB7X1F7jr67J8fCBeV96cp
+			[
+				30, 5, 224, 89, 249, 90, 22, 14, 81, 26, 74, 44, 0, 199, 0, 49, 246, 90, 132, 220,
+				218, 82, 237, 53, 50, 244, 232, 214, 149, 157, 57, 93,
+			],
+			// 1EP1PHmnjwpL2X53CToLFJg8UuXqzbuAv3ySXQjkJaCw3Y6
+			[
+				10, 52, 69, 106, 236, 104, 209, 252, 112, 54, 239, 6, 22, 255, 205, 117, 20, 214,
+				60, 209, 217, 67, 60, 15, 85, 179, 114, 221, 70, 156, 136, 17,
+			],
+			// 14v1h36tNjUkxaMGugURtXZncrXns47pkQ86gJcxyPtknsN
+			[
+				2, 252, 48, 175, 174, 77, 94, 53, 172, 150, 26, 125, 182, 0, 149, 0, 209, 114, 46,
+				207, 136, 115, 39, 94, 13, 115, 135, 178, 125, 86, 132, 59,
+			],
+			// 14dQWQ6URVDwApf58KWd61FjGcQ4UPujw7gsz5o8Mcitp24y
+			[
+				160, 120, 170, 132, 20, 103, 222, 160, 137, 141, 113, 85, 183, 237, 251, 51, 79,
+				137, 124, 136, 76, 53, 22, 248, 179, 239, 132, 36, 16, 2, 135, 0,
+			],
+			// 15Xx6ToS88iUagZ6BNJsEMKDbo4V7RcjdJk1FGfdxLtgqVs4
+			[
+				200, 139, 194, 108, 60, 251, 55, 151, 193, 178, 226, 201, 231, 253, 3, 32, 217,
+				137, 146, 113, 186, 146, 85, 162, 64, 140, 79, 238, 179, 60, 212, 37,
+			],
+			// 121YKGZBCaLyCkZjrwfqEkZHHVns1Kt5Q1g6gEfdU6MgbkFy
+			[
+				44, 165, 166, 39, 32, 79, 103, 91, 243, 65, 83, 45, 12, 71, 150, 8, 65, 72, 47,
+				138, 41, 93, 84, 82, 246, 172, 37, 77, 120, 255, 205, 0,
+			],
+			// 14pXP1DJVJnZDt6CcPkuwfT6NHh9nQ22J8LnsUCvkk2LRH65
+			[
+				168, 243, 128, 29, 140, 120, 224, 144, 194, 1, 238, 189, 86, 169, 82, 167, 233, 13,
+				83, 92, 237, 86, 132, 253, 211, 253, 103, 106, 154, 207, 75, 68,
+			],
+			// 14tye3sQ1L3z3p4DSKhvhbXFMW6jQfFQYFd5xi4LBhJ2TJem
+			[
+				172, 88, 225, 14, 65, 37, 22, 93, 132, 13, 83, 22, 158, 17, 26, 78, 118, 72, 127,
+				147, 13, 123, 218, 87, 117, 131, 246, 187, 246, 219, 81, 59,
+			],
+			// 14gUmUjQooUqAgbkP8zEdz5tkLyCqPSz8GZ41AnLLyFzhVw2
+			[
+				162, 208, 190, 35, 76, 208, 148, 91, 47, 116, 178, 159, 123, 17, 212, 247, 90, 174,
+				73, 32, 139, 89, 214, 83, 90, 3, 174, 26, 67, 165, 183, 112,
+			],
+			// 16c552whYN6dr8jJtNdRLm8FKyxMpYwFDP5f5enw26VquJk5
+			[
+				247, 236, 116, 170, 31, 243, 191, 68, 117, 233, 36, 158, 227, 128, 193, 216, 142,
+				209, 41, 184, 91, 128, 225, 244, 111, 216, 85, 70, 197, 255, 107, 44,
+			],
+			// 16UJBPHVqQ3xYXnmhEpaQtvSRnrP9k1XeE7WxoyCxsrL9AvV
+			[
+				241, 254, 159, 123, 160, 254, 171, 158, 71, 104, 77, 64, 6, 237, 37, 173, 108, 68,
+				26, 21, 83, 206, 246, 39, 72, 84, 94, 165, 117, 57, 42, 245,
+			],
+			// 16aHHHXnTYAV72qngKmEDVGXwRw8cknqgioY75BsTtMNJEg3
+			[
+				246, 143, 18, 83, 127, 208, 99, 243, 148, 152, 117, 161, 239, 194, 206, 212, 72,
+				86, 133, 228, 137, 154, 134, 116, 198, 74, 192, 66, 219, 182, 125, 67,
+			],
+			// 16X6fA9y2kPoUDN3wo2Y5PhAfYCd7R8b8soH9jKo754TEoHh
+			[
+				244, 33, 147, 88, 40, 40, 13, 119, 209, 186, 58, 206, 220, 185, 108, 55, 45, 165,
+				35, 15, 86, 139, 143, 62, 89, 66, 182, 145, 129, 57, 5, 38,
+			],
+			// 14M7jxZGVjp8DKNgmqCRPmrJyVpFSNvrUG6CfX7TGcS48JZw
+			[
+				148, 12, 76, 172, 117, 113, 22, 224, 45, 110, 189, 199, 224, 170, 130, 125, 212,
+				121, 33, 129, 247, 254, 11, 118, 205, 112, 146, 85, 229, 36, 187, 19,
+			],
+			// 16kbrXtdXwQKEPrswWQXLtBTao1PqiGhRcXFvyh4ysF5pmoK
+			[
+				254, 110, 12, 120, 57, 60, 85, 65, 211, 12, 63, 67, 45, 168, 180, 85, 164, 150,
+				102, 196, 83, 28, 134, 154, 95, 189, 99, 201, 185, 163, 138, 109,
+			],
+			// 1LWcBbCTEc1E1vvVSSPXXiMfGdX9ZLPv9su3cWN3m9xWEjE
+			[
+				14, 225, 83, 206, 131, 55, 42, 106, 38, 36, 189, 220, 15, 111, 155, 98, 53, 232,
+				95, 87, 98, 25, 56, 12, 208, 210, 160, 62, 172, 112, 77, 83,
+			],
+			// 1n1B9ZPkg9cv152c6UwtQrXuNwR2tXPXvwKDX9cYeMh4fNQ
+			[
+				34, 82, 161, 213, 13, 148, 36, 11, 212, 229, 179, 46, 245, 193, 24, 213, 158, 134,
+				74, 138, 221, 110, 45, 48, 252, 255, 83, 185, 57, 240, 138, 16,
+			],
+			// 1RVaJptRF1XompgRCXuda3Vs8Cxjt22ww5ndSRSvaW7WJBf
+			[
+				18, 174, 20, 73, 241, 49, 142, 117, 34, 7, 71, 237, 232, 254, 238, 5, 97, 245, 0,
+				241, 202, 36, 0, 194, 4, 255, 173, 115, 92, 83, 236, 84,
+			],
+			// 1243tzEb446NSpWzPcaeMGpJh2YZ4TwMb4B85yVCt4275fD8
+			[
+				46, 143, 184, 53, 56, 149, 115, 226, 83, 136, 159, 62, 59, 200, 58, 164, 121, 129,
+				227, 42, 112, 29, 160, 91, 242, 253, 25, 119, 194, 54, 208, 61,
+			],
+			// 14XetcVhGUWtf2W1tbtA6wxP3MwWxTquLsLhZMgKGBG4W7R5
+			[
+				156, 21, 156, 115, 71, 245, 92, 84, 163, 230, 0, 227, 233, 120, 27, 153, 130, 240,
+				92, 168, 113, 189, 234, 206, 107, 103, 117, 220, 169, 238, 189, 17,
+			],
+			// 15rqGn147Drr6nY5Xvyzqo6NgDWJoQzooiqaJHEzkcavFryy
+			[
+				214, 242, 116, 231, 100, 216, 50, 159, 252, 77, 140, 17, 120, 203, 4, 244, 115,
+				129, 156, 227, 192, 228, 32, 224, 58, 167, 125, 103, 154, 67, 208, 60,
+			],
+			// 1629Shw6w88GnyXyyUbRtX7YFipQnjScGKcWr1BaRiMhvmAg
+			[
+				222, 12, 213, 196, 1, 109, 233, 174, 186, 136, 143, 177, 134, 162, 168, 187, 208,
+				151, 155, 47, 220, 232, 133, 120, 133, 142, 111, 42, 219, 127, 143, 78,
+			],
+		];
+		let count = accounts.len() as u64;
+		accounts.into_iter().map(AccountId::from).for_each(|who| {
+			use frame_support::traits::ReservableCurrency;
+			// unreserve up to 4.95 DOTs, if they still have it.
+			let leftover = Balances::unreserve(&who, 495 * UNITS / 100);
+			if check && !leftover.is_zero() {
+				log::warn!(
+					target: "runtime::polkadot",
+					"some account {:?} does not have enough balance for the refund ({}), this is not necessarily a problem.",
+					who,
+					leftover,
+				);
+			}
+		});
+		<Runtime as frame_system::Config>::DbWeight::get().reads_writes(count, count)
+	}
+}
+
+impl OnRuntimeUpgrade for FixCouncilDepositMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		if VERSION.spec_version == 9150 {
+			Self::execute(false)
+		} else {
+			log::warn!(target: "runtime::polkadot", "FixCouncilDepositMigration should be removed.");
+			0
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		Self::execute(true)
+	}
+}
 
 // Migration for scheduler pallet to move from a plain Call to a CallOrHash.
 pub struct SchedulerMigrationV3;
