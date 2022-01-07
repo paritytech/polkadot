@@ -596,15 +596,10 @@ parameter_types! {
 	pub VotingPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
 	pub FastTrackVotingPeriod: BlockNumber = prod_or_test!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * CENTS;
-<<<<<<< HEAD
-	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
-=======
 	pub EnactmentPeriod: BlockNumber = prod_or_test!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
 	pub CooloffPeriod: BlockNumber = prod_or_test!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
->>>>>>> 99abae35f (Squashed commit of the following:)
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;

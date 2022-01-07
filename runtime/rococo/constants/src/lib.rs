@@ -40,11 +40,7 @@ pub mod time {
 	#[cfg(not(feature = "fast-runtime"))]
 	pub const DEFAULT_EPOCH_DURATION: BlockNumber = 10 * MINUTES;
 	frame_support::parameter_types! {
-<<<<<<< HEAD:runtime/rococo/constants/src/lib.rs
-		pub storage EpochDurationInBlocks: BlockNumber = 1 * HOURS;
-=======
 		pub storage EpochDurationInBlocks: BlockNumber = DEFAULT_EPOCH_DURATION;
->>>>>>> 99abae35f (Squashed commit of the following:):runtime/rococo/src/constants.rs
 	}
 
 	// These time units are defined in number of blocks.

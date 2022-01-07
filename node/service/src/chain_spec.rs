@@ -387,14 +387,10 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
-<<<<<<< HEAD
-		xcm_pallet: Default::default(),
-=======
 		xcm_pallet: polkadot::XcmPalletConfig { safe_xcm_version: Some(2) },
 		sudo: polkadot::SudoConfig {
 			key: get_account_id_from_seed::<sr25519::Public>("Alice"),
 		},
->>>>>>> 99abae35f (Squashed commit of the following:)
 	}
 }
 
@@ -774,14 +770,10 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		gilt: Default::default(),
 		paras: Default::default(),
-<<<<<<< HEAD
-		xcm_pallet: Default::default(),
-=======
 		xcm_pallet: kusama::XcmPalletConfig { safe_xcm_version: Some(2) },
 		sudo: kusama::SudoConfig {
 			key: get_account_id_from_seed::<sr25519::Public>("Alice"),
 		},
->>>>>>> 99abae35f (Squashed commit of the following:)
 	}
 }
 
@@ -1351,14 +1343,10 @@ pub fn polkadot_testnet_genesis(
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
-<<<<<<< HEAD
-		xcm_pallet: Default::default(),
-=======
 		xcm_pallet: polkadot::XcmPalletConfig { safe_xcm_version: Some(2) },
 		sudo: polkadot::SudoConfig {
 			key: get_account_id_from_seed::<sr25519::Public>("Alice"),
 		},
->>>>>>> 99abae35f (Squashed commit of the following:)
 	}
 }
 
@@ -1445,14 +1433,10 @@ pub fn kusama_testnet_genesis(
 		},
 		gilt: Default::default(),
 		paras: Default::default(),
-<<<<<<< HEAD
-		xcm_pallet: Default::default(),
-=======
 		xcm_pallet: kusama::XcmPalletConfig { safe_xcm_version: Some(2) },
 		sudo: kusama::SudoConfig {
 			key: get_account_id_from_seed::<sr25519::Public>("Alice"),
 		},
->>>>>>> 99abae35f (Squashed commit of the following:)
 	}
 }
 

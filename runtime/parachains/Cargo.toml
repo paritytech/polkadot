@@ -101,7 +101,4 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-vesting/try-runtime",
 ]
-<<<<<<< HEAD
 runtime-metrics = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/runtime-metrics"]
-=======
->>>>>>> 99abae35f (Squashed commit of the following:)
