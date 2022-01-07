@@ -61,6 +61,7 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
+	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
 	"node/network/bridge",

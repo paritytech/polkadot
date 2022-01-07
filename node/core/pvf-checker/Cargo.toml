@@ -1,0 +1,28 @@
+[package]
+name = "polkadot-node-core-pvf-checker"
+version = "0.9.13"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.17"
+thiserror = "1.0.30"
+tracing = "0.1.29"
+
+polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-overseer = { path = "../../overseer" }
+
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+futures-timer = "3.0.2"
