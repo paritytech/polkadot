@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot metrics tests.
+//! Polkadot runtime metrics integration test.
 
-#![cfg(feature = "runtime-metrics")]
+#![cfg(all(feature = "runtime-metrics", not(feature = "runtime-benchmarks")))]
 
 use hyper::{Client, Uri};
 use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
@@ -27,9 +27,6 @@ use std::{collections::HashMap, convert::TryFrom};
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9616;
 
-// The `runtime_can_publish_metrics` test uses the `test-runtime`, which does not support
-// the `runtime-benchmarks` feature.
-#[cfg(not(feature = "runtime-benchmarks"))]
 #[substrate_test_utils::test]
 async fn runtime_can_publish_metrics() {
 	let mut alice_config =

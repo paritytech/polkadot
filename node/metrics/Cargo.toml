@@ -39,3 +39,4 @@ prometheus-parse = {version = "0.2.2"}
 [features]
 default = []
 runtime-metrics = []
+runtime-benchmarks = []
