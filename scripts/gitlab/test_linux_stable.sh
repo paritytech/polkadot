@@ -10,4 +10,4 @@ time cargo test --workspace --profile testnet --verbose --locked --features=runt
 # We need to separately run the `polkadot-node-metrics` tests. More specifically, because the 
 # `runtime_can_publish_metrics` test uses the `test-runtime` which doesn't support
 # the `runtime-benchmarks` feature.
-time cargo test --release --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
+time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
