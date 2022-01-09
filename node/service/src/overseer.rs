@@ -61,6 +61,7 @@ pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
 pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
+pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
@@ -109,6 +110,8 @@ where
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
 	/// Enable to disputes.
 	pub disputes_enabled: bool,
+	/// Enable PVF pre-checking
+	pub pvf_checker_enabled: bool,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -136,12 +139,14 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		chain_selection_config,
 		dispute_coordinator_config,
 		disputes_enabled,
+		pvf_checker_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	OverseerBuilder<
 		Spawner,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
+		PvfCheckerSubsystem,
 		CandidateBackingSubsystem<Spawner>,
 		StatementDistributionSubsystem,
 		AvailabilityDistributionSubsystem,
@@ -208,6 +213,7 @@ where
 			Metrics::register(registry)?, // candidate-validation metrics
 			Metrics::register(registry)?, // validation host metrics
 		))
+		.pvf_checker(PvfCheckerSubsystem::new(pvf_checker_enabled, keystore.clone()))
 		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
