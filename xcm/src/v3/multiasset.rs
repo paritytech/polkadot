@@ -70,9 +70,18 @@ impl TryFrom<OldAssetId> for AssetId {
 
 impl AssetId {
 	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+	pub fn prepend_with(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend.clone()).map_err(|_| ())?;
+		}
+		Ok(())
+	}
+
+	/// Mutate the asset to represent the same value from the perspective of a new `target`
+	/// location. The local chain's location is provided in `ancestry`.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+		if let AssetId::Concrete(ref mut l) = self {
+			l.reanchor(target, ancestry)?;
 		}
 		Ok(())
 	}
@@ -129,13 +138,24 @@ impl MultiAsset {
 	}
 
 	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
-		self.id.reanchor(prepend)
+	pub fn prepend_with(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+		self.id.prepend_with(prepend)
 	}
 
-	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
-	pub fn reanchored(mut self, prepend: &MultiLocation) -> Result<Self, ()> {
-		self.reanchor(prepend)?;
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+		self.id.reanchor(target, ancestry)
+	}
+
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
+	pub fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		ancestry: &MultiLocation,
+	) -> Result<Self, ()> {
+		self.id.reanchor(target, ancestry)?;
 		Ok(self)
 	}
 
@@ -195,8 +215,10 @@ impl From<Vec<MultiAsset>> for MultiAssets {
 						(
 							MultiAsset { fun: Fungibility::Fungible(a_amount), id: a_id },
 							MultiAsset { fun: Fungibility::Fungible(b_amount), id: b_id },
-						) if a_id == b_id =>
-							MultiAsset { id: a_id, fun: Fungibility::Fungible(a_amount + b_amount) },
+						) if a_id == b_id => MultiAsset {
+							id: a_id,
+							fun: Fungibility::Fungible(a_amount.saturating_add(b_amount)),
+						},
 						(
 							MultiAsset { fun: Fungibility::NonFungible(a_instance), id: a_id },
 							MultiAsset { fun: Fungibility::NonFungible(b_instance), id: b_id },
@@ -307,8 +329,14 @@ impl MultiAssets {
 	}
 
 	/// Prepend a `MultiLocation` to any concrete asset items, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
-		self.0.iter_mut().try_for_each(|i| i.reanchor(prepend))
+	pub fn prepend_with(&mut self, prefix: &MultiLocation) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.prepend_with(prefix))
+	}
+
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, ancestry))
 	}
 
 	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
@@ -361,11 +389,11 @@ impl TryFrom<(OldWildMultiAsset, u32)> for WildMultiAsset {
 }
 
 impl WildMultiAsset {
-	/// Returns true if the wild element of `self` matches `inner`.
+	/// Returns true if `self` is a super-set of the given `inner`.
 	///
-	/// Note that for `Counted` variants of wildcards, then it will disregard the count except for
-	/// always returning `false` when equal to 0.
-	pub fn matches(&self, inner: &MultiAsset) -> bool {
+	/// Typically, any wildcard is never contained in anything else, and a wildcard can contain any other non-wildcard.
+	/// For more details, see the implementation and tests.
+	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use WildMultiAsset::*;
 		match self {
 			AllOfCounted { count: 0, .. } | AllCounted(0) => false,
@@ -373,6 +401,15 @@ impl WildMultiAsset {
 				inner.fun.is_kind(*fun) && &inner.id == id,
 			All | AllCounted(_) => true,
 		}
+	}
+
+	/// Returns true if the wild element of `self` matches `inner`.
+	///
+	/// Note that for `Counted` variants of wildcards, then it will disregard the count except for
+	/// always returning `false` when equal to 0.
+	#[deprecated = "Use `contains` instead"]
+	pub fn matches(&self, inner: &MultiAsset) -> bool {
+		self.contains(inner)
 	}
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
@@ -456,7 +493,7 @@ impl MultiAssetFilter {
 	pub fn matches(&self, inner: &MultiAsset) -> bool {
 		match self {
 			MultiAssetFilter::Definite(ref assets) => assets.contains(inner),
-			MultiAssetFilter::Wild(ref wild) => wild.matches(inner),
+			MultiAssetFilter::Wild(ref wild) => wild.contains(inner),
 		}
 	}
 

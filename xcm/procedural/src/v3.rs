@@ -23,15 +23,12 @@ const MAX_JUNCTIONS: usize = 8;
 pub mod multilocation {
 	use super::*;
 
-	// Support up to 8 Parents in a tuple, assuming that most use cases don't go past 8 parents.
-	const MAX_PARENTS: usize = 8;
-
 	pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<TokenStream> {
 		if !input.is_empty() {
 			return Err(syn::Error::new(Span::call_site(), "No arguments expected"))
 		}
 
-		let from_tuples = generate_conversion_from_tuples(MAX_JUNCTIONS, MAX_PARENTS);
+		let from_tuples = generate_conversion_from_tuples(8, 8);
 
 		Ok(quote! {
 			#from_tuples
@@ -39,11 +36,12 @@ pub mod multilocation {
 	}
 
 	fn generate_conversion_from_tuples(max_junctions: usize, max_parents: usize) -> TokenStream {
-		(0..=max_junctions)
+		let mut from_tuples = (0..=max_junctions)
 			.map(|num_junctions| {
 				let types = (0..num_junctions).map(|i| format_ident!("J{}", i)).collect::<Vec<_>>();
 				let idents =
 					(0..num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
+				let array_size = num_junctions;
 				let interior = if num_junctions == 0 {
 					quote!(Junctions::Here)
 				} else {
@@ -53,25 +51,70 @@ pub mod multilocation {
 					}
 				};
 
-				(0..=max_parents)
-					.map(|cur_parents| {
-						let parents =
-							(0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
-						let underscores = (0..cur_parents)
-							.map(|_| Token![_](Span::call_site()))
-							.collect::<Vec<_>>();
+				let mut from_tuple = quote! {
+					impl< #(#types : Into<Junction>,)* > From<( Ancestor, #( #types ),* )> for MultiLocation {
+						fn from( ( Ancestor(parents), #(#idents),* ): ( Ancestor, #( #types ),* ) ) -> Self {
+							MultiLocation { parents, interior: #interior }
+						}
+					}
 
-						quote! {
-							impl< #(#types : Into<Junction>,)* > From<( #( #parents , )* #( #types , )* )> for MultiLocation {
-								fn from( ( #(#underscores,)* #(#idents,)* ): ( #(#parents,)* #(#types,)* ) ) -> Self {
-									Self { parents: #cur_parents as u8, interior: #interior }
-								}
+					impl From<[Junction; #array_size]> for MultiLocation {
+						fn from(j: [Junction; #array_size]) -> Self {
+							let [#(#idents),*] = j;
+							MultiLocation { parents: 0, interior: #interior }
+						}
+					}
+				};
+
+				let from_parent_tuples = (0..=max_parents).map(|cur_parents| {
+					let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
+					let underscores =
+						(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
+
+					quote! {
+						impl< #(#types : Into<Junction>,)* > From<( #( #parents , )* #( #types , )* )> for MultiLocation {
+							fn from( ( #(#underscores,)* #(#idents,)* ): ( #(#parents,)* #(#types,)* ) ) -> Self {
+								Self { parents: #cur_parents as u8, interior: #interior }
 							}
 						}
-					})
-					.collect::<TokenStream>()
+				}
+				});
+
+				from_tuple.extend(from_parent_tuples);
+				from_tuple
 			})
-			.collect()
+			.collect::<TokenStream>();
+
+		let from_parent_junctions_tuples = (0..=max_parents).map(|cur_parents| {
+			let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
+			let underscores =
+				(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
+
+			quote! {
+				impl From<( #(#parents,)* Junctions )> for MultiLocation {
+					fn from( (#(#underscores,)* junctions): ( #(#parents,)* Junctions ) ) -> Self {
+						MultiLocation { parents: #cur_parents as u8, interior: junctions }
+					}
+				}
+			}
+		});
+		from_tuples.extend(from_parent_junctions_tuples);
+
+		quote! {
+			impl From<(Ancestor, Junctions)> for MultiLocation {
+				fn from((Ancestor(parents), interior): (Ancestor, Junctions)) -> Self {
+					MultiLocation { parents, interior }
+				}
+			}
+
+			impl From<Junction> for MultiLocation {
+				fn from(x: Junction) -> Self {
+					MultiLocation { parents: 0, interior: Junctions::X1(x) }
+				}
+			}
+
+			#from_tuples
+		}
 	}
 }
 
