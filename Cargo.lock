@@ -7159,59 +7159,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-simnet"
-version = "0.9.13"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-collective",
- "pallet-democracy",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "polkadot-cli",
- "polkadot-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
- "polkadot-service",
- "sc-cli",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-manual-seal",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-service",
- "sc-tracing",
- "sp-consensus-babe",
- "sp-keyring",
- "sp-runtime",
- "structopt",
- "test-runner",
-]
-
-[[package]]
-name = "polkadot-simnet-node"
-version = "0.9.13"
-dependencies = [
- "polkadot-simnet",
-]
-
-[[package]]
-name = "polkadot-simnet-test"
-version = "0.9.13"
-dependencies = [
- "frame-system",
- "pallet-balances",
- "polkadot-runtime",
- "polkadot-simnet",
- "sc-client-api",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
 name = "polkadot-statement-distribution"
 version = "0.9.13"
 dependencies = [
@@ -8596,40 +8543,6 @@ dependencies = [
  "sc-consensus",
  "sp-blockchain",
  "sp-runtime",
-]
-
-[[package]]
-name = "sc-consensus-manual-seal"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#b54c21f354fd973e6a35a53c37b317ae293dbfc8"
-dependencies = [
- "assert_matches",
- "async-trait",
- "derive_more",
- "futures 0.3.19",
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "log",
- "parity-scale-codec",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-epochs",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "serde",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-consensus-slots",
- "sp-core",
- "sp-inherents",
- "sp-keystore",
- "sp-runtime",
- "sp-timestamp",
- "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -10769,51 +10682,6 @@ dependencies = [
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
-]
-
-[[package]]
-name = "test-runner"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#b54c21f354fd973e6a35a53c37b317ae293dbfc8"
-dependencies = [
- "frame-system",
- "futures 0.3.19",
- "jsonrpc-core",
- "log",
- "num-traits",
- "sc-basic-authorship",
- "sc-cli",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-manual-seal",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-informant",
- "sc-network",
- "sc-rpc",
- "sc-rpc-server",
- "sc-service",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "sp-api",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-externalities",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-keyring",
- "sp-offchain",
- "sp-runtime",
- "sp-runtime-interface",
- "sp-session",
- "sp-state-machine",
- "sp-transaction-pool",
- "sp-wasm-interface",
- "tokio",
 ]
 
 [[package]]
