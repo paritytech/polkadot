@@ -37,7 +37,7 @@ use parity_scale_codec::{self, Decode, Encode};
 /// between two locations, and cannot generally be used to refer to a location universally. It is comprised of a
 /// number of *junctions*, each morphing the previous location, either diving down into one of its internal locations,
 /// called a *sub-consensus*, or going up into its parent location. Correct `MultiLocation` values must have all
-/// `Parent` junctions as a prefix to all *sub-consensus* junctions.
+/// `Parent` junctions as a prefix to all *sub-consensus* junctions. // TODO encode this somewhere
 ///
 /// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
 ///

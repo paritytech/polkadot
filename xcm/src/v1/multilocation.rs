@@ -895,12 +895,61 @@ mod tests {
 
 	#[test]
 	fn reanchor_works() {
+		// Test where the target is on the same branch as the current id.
 		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000)).into();
 		let expected = GeneralIndex(42).into();
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
+
+		// Test where the target is on a different branch than the current id.
+		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// Test where target and id are on different branches, and target is deeper
+		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), Parachain(3000), Parachain(4000)).into();
+		let expected = (Parent, Parent, GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// Test where target and id are on different branches, and id is deeper
+		let mut id: MultiLocation = (Parent, Parachain(1000), Parachain(4000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// Test relying on ancestry
+		let mut id: MultiLocation = (Parent, Parachain(4000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// What happens when you have bad inputs? no ancestor? the below failed a little bit nonsensically
+		// let mut id: MultiLocation = (Parachain(4000), GeneralIndex(42)).into();
+		// let ancestry = Parachain(2000).into();
+		// let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		// let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
+		// id.reanchor(&target, &ancestry).unwrap();
+		// assert_eq!(id, expected);
+
+		// Test with repeated ancestor in Junctions
+		// let mut id: MultiLocation = (Parent, Parachain(2000), Parachain(4000), GeneralIndex(42)).into();
+		// let ancestry = Parachain(2000).into();
+		// let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		// let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
+		// id.reanchor(&target, &ancestry).unwrap();
+		// assert_eq!(id, expected);
 	}
 
 	#[test]
