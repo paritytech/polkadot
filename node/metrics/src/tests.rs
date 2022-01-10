@@ -16,8 +16,6 @@
 
 //! Polkadot runtime metrics integration test.
 
-#![cfg(all(feature = "runtime-metrics", not(feature = "runtime-benchmarks")))]
-
 use hyper::{Client, Uri};
 use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
 use primitives::v1::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
