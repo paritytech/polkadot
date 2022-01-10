@@ -732,6 +732,7 @@ pub enum ProxyType {
 	IdentityJudgement,
 	CancelProxy,
 	Auction,
+	SudoParas,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -803,6 +804,21 @@ impl InstanceFilter<Call> for ProxyType {
 				c,
 				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
 			),
+			ProxyType::SudoParas => match c {
+				Call::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
+					matches!(
+						x.as_ref(),
+						&Call::Auctions(..) |
+						&Call::Hrmp(..) |
+						&Call::Paras(..) |
+						&Call::Registrar(..) |
+						&Call::Slots(..) |
+						&Call::XcmPallet(..)
+					)
+				},
+				Call::Utility(..) => true,
+				_ => false,
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -810,7 +826,9 @@ impl InstanceFilter<Call> for ProxyType {
 			(x, y) if x == y => true,
 			(ProxyType::Any, _) => true,
 			(_, ProxyType::Any) => false,
-			(ProxyType::NonTransfer, _) => true,
+			(ProxyType::NonTransfer, ProxyType::Staking) => true,
+			(ProxyType::NonTransfer, ProxyType::IdentityJudgement) => true,
+			(ProxyType::NonTransfer, ProxyType::CancelProxy) => true,
 			_ => false,
 		}
 	}
