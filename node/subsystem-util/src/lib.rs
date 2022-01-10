@@ -29,8 +29,8 @@ use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, BoundToRelayParent, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemSender,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemSender,
 };
 
 pub use overseer::{
@@ -48,15 +48,18 @@ use futures::{
 };
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
-use polkadot_node_jaeger as jaeger;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+		GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+		PersistedValidationData, SessionIndex, Signed, SigningContext, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
 use sp_application_crypto::AppKey;
-use sp_core::{traits::SpawnNamed, Public};
+use sp_core::{traits::SpawnNamed, ByteArray};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use std::{
 	collections::{hash_map::Entry, HashMap},
@@ -64,7 +67,6 @@ use std::{
 	fmt,
 	marker::Unpin,
 	pin::Pin,
-	sync::Arc,
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -209,9 +211,12 @@ specialize_requests! {
 	fn request_assumed_validation_data(para_id: ParaId, expected_persisted_validation_data_hash: Hash) -> Option<(PersistedValidationData, ValidationCodeHash)>; AssumedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_validation_code_by_hash(validation_code_hash: ValidationCodeHash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
+	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		-> Option<ValidationCodeHash>; ValidationCodeHash;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
@@ -234,6 +239,27 @@ pub async fn signing_key_and_index(
 		}
 	}
 	None
+}
+
+/// Sign the given data with the given validator ID.
+///
+/// Returns `Ok(None)` if the private key that correponds to that validator ID is not found in the
+/// given keystore. Returns an error if the key could not be used for signing.
+pub async fn sign(
+	keystore: &SyncCryptoStorePtr,
+	key: &ValidatorId,
+	data: &[u8],
+) -> Result<Option<ValidatorSignature>, KeystoreError> {
+	use std::convert::TryInto;
+
+	let signature =
+		CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
+
+	match signature {
+		Some(sig) =>
+			Ok(Some(sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?)),
+		None => Ok(None),
+	}
 }
 
 /// Find the validator group the given validator index belongs to.
@@ -485,15 +511,14 @@ pub trait JobTrait: Unpin + Sized {
 	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
-	/// Name of the job, i.e. `CandidateBackingJob`
+	/// Name of the job, i.e. `candidate-backing-job`
 	const NAME: &'static str;
 
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
 	fn run<S: SubsystemSender>(
-		parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -541,8 +566,7 @@ where
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
 	fn spawn_job<Job, Sender>(
 		&mut self,
-		parent_hash: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 		sender: Sender,
@@ -550,13 +574,13 @@ where
 		Job: JobTrait<ToJob = ToJob>,
 		Sender: SubsystemSender,
 	{
+		let hash = leaf.hash;
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(
-				parent_hash,
-				span,
+				leaf,
 				run_args,
 				metrics,
 				to_job_rx,
@@ -566,7 +590,7 @@ where
 			{
 				tracing::error!(
 					job = Job::NAME,
-					parent_hash = %parent_hash,
+					parent_hash = %hash,
 					err = ?e,
 					"job finished with an error",
 				);
@@ -577,12 +601,16 @@ where
 			Ok(())
 		});
 
-		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
+		self.spawner.spawn(
+			Job::NAME,
+			Some(Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME)),
+			future.map(drop).boxed(),
+		);
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };
 
-		self.running.insert(parent_hash, handle);
+		self.running.insert(hash, handle);
 	}
 
 	/// Stop the job associated with this `parent_hash`.
@@ -625,13 +653,13 @@ where
 }
 
 /// Parameters to a job subsystem.
-struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
+pub struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 	/// A spawner for sub-tasks.
 	spawner: Spawner,
 	/// Arguments to each job.
 	run_args: RunArgs,
 	/// Metrics for the subsystem.
-	metrics: Metrics,
+	pub metrics: Metrics,
 }
 
 /// A subsystem which wraps jobs.
@@ -643,7 +671,8 @@ struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 ///   include a hash, then they're forwarded to the appropriate individual job.
 /// - On outgoing messages from the jobs, it forwards them to the overseer.
 pub struct JobSubsystem<Job: JobTrait, Spawner> {
-	params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
+	#[allow(missing_docs)]
+	pub params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
 	_marker: std::marker::PhantomData<Job>,
 }
 
@@ -683,8 +712,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							for activated in activated {
 								let sender = ctx.sender().clone();
 								jobs.spawn_job::<Job, _>(
-									activated.hash,
-									activated.span,
+									activated,
 									run_args.clone(),
 									metrics.clone(),
 									sender,
@@ -750,6 +778,6 @@ where
 			Ok(())
 		});
 
-		SpawnedSubsystem { name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME), future }
+		SpawnedSubsystem { name: Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME), future }
 	}
 }

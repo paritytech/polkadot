@@ -69,8 +69,8 @@ enum AllMessages {
     ApprovalDistribution(ApprovalDistributionMessage),
     GossipSupport(GossipSupportMessage),
     DisputeCoordinator(DisputeCoordinatorMessage),
-    DisputeParticipation(DisputeParticipationMessage),
     ChainSelection(ChainSelectionMessage),
+    PvfChecker(PvfCheckerMessage),
 }
 ```
 
@@ -473,30 +473,6 @@ pub enum ImportStatementsResult {
 }
 ```
 
-## Dispute Participation Message
-
-Messages received by the [Dispute Participation subsystem](../node/disputes/dispute-participation.md)
-
-This subsystem simply executes requests to evaluate a candidate.
-
-```rust
-enum DisputeParticipationMessage {
-    /// Validate a candidate for the purposes of participating in a dispute.
-    Participate {
-        /// The hash of the candidate
-        candidate_hash: CandidateHash,
-        /// The candidate receipt itself.
-        candidate_receipt: CandidateReceipt,
-        /// The session the candidate appears in.
-        session: SessionIndex,
-        /// The number of validators in the session.
-        n_validators: u32,
-        /// Give immediate feedback on whether the candidate was available or
-        /// not.
-        report_availability: oneshot::Sender<bool>,
-    }
-}
-```
 
 ## Dispute Distribution Message
 
@@ -567,7 +543,7 @@ enum NetworkBridgeMessage {
     /// `PeerConnected` events from the network bridge.
     ConnectToValidators {
         /// Ids of the validators to connect to.
-        validator_ids: Vec<AuthorityDiscoveryId>,
+        validator_ids: HashSet<AuthorityDiscoveryId>,
         /// The underlying protocol to use for this request.
         peer_set: PeerSet,
         /// Sends back the number of `AuthorityDiscoveryId`s which
@@ -776,6 +752,25 @@ Various modules request that the [Candidate Validation subsystem](../node/utilit
 
 ```rust
 
+/// The outcome of the candidate-validation's PVF pre-check request.
+pub enum PreCheckOutcome {
+    /// The PVF has been compiled successfully within the given constraints.
+    Valid,
+    /// The PVF could not be compiled. This variant is used when the candidate-validation subsystem
+    /// can be sure that the PVF is invalid. To give a couple of examples: a PVF that cannot be
+    /// decompressed or that does not represent a structurally valid WebAssembly file.
+    Invalid,
+    /// This variant is used when the PVF cannot be compiled but for other reasons that are not
+    /// included into [`PreCheckOutcome::Invalid`]. This variant can indicate that the PVF in
+    /// question is invalid, however it is not necessary that PVF that received this judgement
+    /// is invalid.
+    ///
+    /// For example, if during compilation the preparation worker was killed we cannot be sure why
+    /// it happened: because the PVF was malicious made the worker to use too much memory or its
+    /// because the host machine is under severe memory pressure and it decided to kill the worker.
+    Failed,
+}
+
 /// Result of the validation of the candidate.
 enum ValidationResult {
     /// Candidate is valid, and here are the outputs and the validation data used to form inputs.
@@ -830,7 +825,27 @@ pub enum CandidateValidationMessage {
         Duration, // Execution timeout.
         oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
     ),
+    /// Try to compile the given validation code and send back
+    /// the outcome.
+    ///
+    /// The validation code is specified by the hash and will be queried from the runtime API at the
+    /// given relay-parent.
+    PreCheck(
+        // Relay-parent
+        Hash,
+        ValidationCodeHash,
+        oneshot::Sender<PreCheckOutcome>,
+    ),
 }
+```
+
+## PVF Pre-checker Message
+
+Currently, the PVF pre-checker subsystem receives no specific messages.
+
+```rust
+/// Non-instantiable message type
+pub enum PvfCheckerMessage { }
 ```
 
 [NBE]: ../network.md#network-bridge-event

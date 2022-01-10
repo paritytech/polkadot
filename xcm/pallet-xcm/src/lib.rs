@@ -484,8 +484,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
 		///   `dest` side. May not be empty.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -721,8 +721,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
 		///   `dest` side. May not be empty.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
@@ -777,13 +777,12 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let ancestry = T::LocationInverter::ancestry();
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
-				.reanchored(&inv_dest)
+				.reanchored(&dest, &ancestry)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets: MultiAssets = assets.into();
@@ -835,13 +834,12 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let ancestry = T::LocationInverter::ancestry();
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
-				.reanchored(&inv_dest)
+				.reanchored(&dest, &ancestry)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets: MultiAssets = assets.into();
@@ -1192,6 +1190,11 @@ pub mod pallet {
 		/// Note that a particular destination to whom we would like to send a message is unknown
 		/// and queue it for version discovery.
 		fn note_unknown_version(dest: &MultiLocation) {
+			log::trace!(
+				target: "xcm::pallet_xcm::note_unknown_version",
+				"XCM version is unknown for destination: {:?}",
+				dest,
+			);
 			let versioned_dest = VersionedMultiLocation::from(dest.clone());
 			VersionDiscoveryQueue::<T>::mutate(|q| {
 				if let Some(index) = q.iter().position(|i| &i.0 == &versioned_dest) {
@@ -1214,7 +1217,14 @@ pub mod pallet {
 					Self::note_unknown_version(dest);
 					SafeXcmVersion::<T>::get()
 				})
-				.ok_or(())
+				.ok_or_else(|| {
+					log::trace!(
+						target: "xcm::pallet_xcm::wrap_version",
+						"Could not determine a version to wrap XCM for destination: {:?}",
+						dest,
+					);
+					()
+				})
 				.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
 		}
 	}
@@ -1248,6 +1258,12 @@ pub mod pallet {
 		fn stop(dest: &MultiLocation) -> XcmResult {
 			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 			Ok(())
+		}
+
+		/// Return true if a location is subscribed to XCM version changes.
+		fn is_subscribed(dest: &MultiLocation) -> bool {
+			let versioned_dest = LatestVersionedMultiLocation(dest);
+			VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest)
 		}
 	}
 

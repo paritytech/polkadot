@@ -44,13 +44,19 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
-	rolling_session_window::RollingSessionWindow,
+	rolling_session_window::{
+		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
+		SessionsUnavailable,
+	},
 	TimeoutExt,
 };
-use polkadot_primitives::v1::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
+		ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -65,7 +71,9 @@ use futures::{
 };
 
 use std::{
-	collections::{btree_map::Entry, BTreeMap, HashMap, HashSet},
+	collections::{
+		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
+	},
 	sync::Arc,
 	time::Duration,
 };
@@ -92,7 +100,8 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-const APPROVAL_SESSIONS: SessionIndex = 6;
+pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
+
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
@@ -236,7 +245,7 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			imported_candidates_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_imported_candidates_total",
+					"polkadot_parachain_imported_candidates_total",
 					"Number of candidates imported by the approval voting subsystem",
 				)?,
 				registry,
@@ -244,7 +253,7 @@ impl metrics::Metrics for Metrics {
 			assignments_produced: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_assignments_produced",
+						"polkadot_parachain_assignments_produced",
 						"Assignments and tranches produced by the approval voting subsystem",
 					).buckets(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 25.0, 40.0, 70.0]),
 				)?,
@@ -253,7 +262,7 @@ impl metrics::Metrics for Metrics {
 			approvals_produced_total: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_approvals_produced_total",
+						"polkadot_parachain_approvals_produced_total",
 						"Number of approvals produced by the approval voting subsystem",
 					),
 					&["status"]
@@ -262,14 +271,14 @@ impl metrics::Metrics for Metrics {
 			)?,
 			no_shows_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_approvals_no_shows_total",
+					"polkadot_parachain_approvals_no_shows_total",
 					"Number of assignments which became no-shows in the approval voting subsystem",
 				)?,
 				registry,
 			)?,
 			wakeups_triggered_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_approvals_wakeups_total",
+					"polkadot_parachain_approvals_wakeups_total",
 					"Number of times we woke up to process a candidate in the approval voting subsystem",
 				)?,
 				registry,
@@ -277,7 +286,7 @@ impl metrics::Metrics for Metrics {
 			candidate_approval_time_ticks: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_approvals_candidate_approval_time_ticks",
+						"polkadot_parachain_approvals_candidate_approval_time_ticks",
 						"Number of ticks (500ms) to approve candidates.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
 				)?,
@@ -286,7 +295,7 @@ impl metrics::Metrics for Metrics {
 			block_approval_time_ticks: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_approvals_blockapproval_time_ticks",
+						"polkadot_parachain_approvals_blockapproval_time_ticks",
 						"Number of ticks (500ms) to approve blocks.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
 				)?,
@@ -295,7 +304,7 @@ impl metrics::Metrics for Metrics {
 			time_db_transaction: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_time_approval_db_transaction",
+						"polkadot_parachain_time_approval_db_transaction",
 						"Time spent writing an approval db transaction.",
 					)
 				)?,
@@ -304,7 +313,7 @@ impl metrics::Metrics for Metrics {
 			time_recover_and_approve: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_time_recover_and_approve",
+						"polkadot_parachain_time_recover_and_approve",
 						"Time spent recovering and approving data in approval voting",
 					)
 				)?,
@@ -396,7 +405,7 @@ impl Wakeups {
 			}
 
 			// we are replacing previous wakeup with an earlier one.
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(*prev) {
+			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(*prev) {
 				if let Some(pos) =
 					entry.get().iter().position(|x| x == &(block_hash, candidate_hash))
 				{
@@ -432,7 +441,7 @@ impl Wakeups {
 		});
 
 		for (tick, pruned) in pruned_wakeups {
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(tick) {
 				entry.get_mut().retain(|wakeup| !pruned.contains(wakeup));
 				if entry.get().is_empty() {
 					let _ = entry.remove();
@@ -453,10 +462,10 @@ impl Wakeups {
 			Some(tick) => {
 				clock.wait(tick).await;
 				match self.wakeups.entry(tick) {
-					Entry::Vacant(_) => {
+					BTMEntry::Vacant(_) => {
 						panic!("entry is known to exist since `first` was `Some`; qed")
 					},
-					Entry::Occupied(mut entry) => {
+					BTMEntry::Occupied(mut entry) => {
 						let (hash, candidate_hash) = entry.get_mut().pop()
 							.expect("empty entries are removed here and in `schedule`; no other mutation of this map; qed");
 
@@ -503,9 +512,7 @@ impl ApprovalState {
 }
 
 struct CurrentlyCheckingSet {
-	/// Invariant: The contained `Vec` needs to stay sorted as we are using `binary_search_by_key`
-	/// on it.
-	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
+	candidate_hash_map: HashMap<CandidateHash, HashSet<Hash>>,
 	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }
 
@@ -525,21 +532,26 @@ impl CurrentlyCheckingSet {
 		relay_block: Hash,
 		launch_work: impl Future<Output = SubsystemResult<RemoteHandle<ApprovalState>>>,
 	) -> SubsystemResult<()> {
-		let val = self.candidate_hash_map.entry(candidate_hash).or_insert(Default::default());
-
-		if let Err(k) = val.binary_search_by_key(&relay_block, |v| *v) {
-			let _ = val.insert(k, relay_block);
-			let work = launch_work.await?;
-			self.currently_checking.push(Box::pin(async move {
-				match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
-					None => ApprovalState {
-						candidate_hash,
-						validator_index,
-						approval_outcome: ApprovalOutcome::TimedOut,
-					},
-					Some(approval_state) => approval_state,
-				}
-			}));
+		match self.candidate_hash_map.entry(candidate_hash) {
+			HMEntry::Occupied(mut entry) => {
+				// validation already undergoing. just add the relay hash if unknown.
+				entry.get_mut().insert(relay_block);
+			},
+			HMEntry::Vacant(entry) => {
+				// validation not ongoing. launch work and time out the remote handle.
+				entry.insert(HashSet::new()).insert(relay_block);
+				let work = launch_work.await?;
+				self.currently_checking.push(Box::pin(async move {
+					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
+						None => ApprovalState {
+							candidate_hash,
+							validator_index,
+							approval_outcome: ApprovalOutcome::TimedOut,
+						},
+						Some(approval_state) => approval_state,
+					}
+				}));
+			},
 		}
 
 		Ok(())
@@ -548,7 +560,7 @@ impl CurrentlyCheckingSet {
 	pub async fn next(
 		&mut self,
 		approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
-	) -> (Vec<Hash>, ApprovalState) {
+	) -> (HashSet<Hash>, ApprovalState) {
 		if !self.currently_checking.is_empty() {
 			if let Some(approval_state) = self.currently_checking.next().await {
 				let out = self
@@ -568,7 +580,7 @@ impl CurrentlyCheckingSet {
 }
 
 struct State {
-	session_window: RollingSessionWindow,
+	session_window: Option<RollingSessionWindow>,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
@@ -577,9 +589,30 @@ struct State {
 
 impl State {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
-		self.session_window.session_info(i)
+		self.session_window.as_ref().and_then(|w| w.session_info(i))
 	}
 
+	/// Bring `session_window` up to date.
+	pub async fn cache_session_info_for_head(
+		&mut self,
+		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+		head: Hash,
+	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
+		let session_window = self.session_window.take();
+		match session_window {
+			None => {
+				self.session_window =
+					Some(RollingSessionWindow::new(ctx, APPROVAL_SESSIONS, head).await?);
+				Ok(None)
+			},
+			Some(mut session_window) => {
+				let r =
+					session_window.cache_session_info_for_head(ctx, head).await.map(Option::Some);
+				self.session_window = Some(session_window);
+				r
+			},
+		}
+	}
 	// Compute the required tranches for approval for this block and candidate combo.
 	// Fails if there is no approval entry for the block under the candidate or no candidate entry
 	// under the block, or if the session is out of bounds.
@@ -671,7 +704,7 @@ where
 	B: Backend,
 {
 	let mut state = State {
-		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
+		session_window: None,
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,

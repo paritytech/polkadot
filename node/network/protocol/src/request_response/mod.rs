@@ -95,7 +95,7 @@ pub const CHUNK_REQUEST_TIMEOUT: Duration = DEFAULT_REQUEST_TIMEOUT_CONNECTED;
 /// This timeout is based on what seems sensible from a time budget perspective, considering 6
 /// second block time. This is going to be tough, if we have multiple forks and large PoVs, but we
 /// only have so much time.
-const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1000);
+const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1200);
 
 /// We want timeout statement requests fast, so we don't waste time on slow nodes. Responders will
 /// try their best to either serve within that timeout or return an error immediately. (We need to
@@ -133,7 +133,7 @@ impl Protocol {
 			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: POV_RESPONSE_SIZE as u64 / 10,
+				max_response_size: POV_RESPONSE_SIZE as u64 * 3,
 				// We are connected to all validators:
 				request_timeout: CHUNK_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),

@@ -103,7 +103,7 @@ struct RunningTask {
 
 	/// Index of validator group to fetch the chunk from.
 	///
-	/// Needef for reporting bad validators.
+	/// Needed for reporting bad validators.
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
@@ -203,7 +203,9 @@ impl FetchTask {
 	/// Remove leaves and cancel the task, if it was the last one and the task has still been
 	/// fetching.
 	pub fn remove_leaves(&mut self, leaves: &HashSet<Hash>) {
-		self.live_in.difference(leaves);
+		for leaf in leaves {
+			self.live_in.remove(leaf);
+		}
 		if self.live_in.is_empty() && !self.is_finished() {
 			self.state = FetchedState::Canceled
 		}
@@ -327,7 +329,7 @@ impl RunningTask {
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect),
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError),
 			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;

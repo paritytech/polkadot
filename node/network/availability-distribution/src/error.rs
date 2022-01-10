@@ -18,6 +18,7 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::request_response::outgoing::RequestError;
+use polkadot_primitives::v1::SessionIndex;
 use thiserror::Error;
 
 use futures::channel::oneshot;
@@ -49,18 +50,18 @@ impl From<runtime::Error> for Error {
 #[derive(Debug, Error)]
 pub enum Fatal {
 	/// Spawning a running task failed.
-	#[error("Spawning subsystem task failed")]
+	#[error("Spawning subsystem task failed: {0}")]
 	SpawnTask(#[source] SubsystemError),
 
 	/// Requester stream exhausted.
 	#[error("Erasure chunk requester stream exhausted")]
 	RequesterExhausted,
 
-	#[error("Receive channel closed")]
+	#[error("Receive channel closed: {0}")]
 	IncomingMessageChannel(#[source] SubsystemError),
 
 	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information")]
+	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::Fatal),
 }
 
@@ -76,15 +77,15 @@ pub enum NonFatal {
 	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
 
 	/// We tried accessing a session that was not cached.
-	#[error("Session is not cached.")]
-	NoSuchCachedSession,
+	#[error("Session {missing_session} is not cached, cached sessions: {available_sessions:?}.")]
+	NoSuchCachedSession { available_sessions: Vec<SessionIndex>, missing_session: SessionIndex },
 
 	/// Sending request response failed (Can happen on timeouts for example).
 	#[error("Sending a request's response failed.")]
 	SendResponse,
 
 	/// Fetching PoV failed with `RequestError`.
-	#[error("FetchPoV request error")]
+	#[error("FetchPoV request error: {0}")]
 	FetchPoV(#[source] RequestError),
 
 	/// Fetching PoV failed as the received PoV did not match the expected hash.
@@ -99,7 +100,7 @@ pub enum NonFatal {
 	InvalidValidatorIndex,
 
 	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information")]
+	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::NonFatal),
 }
 
@@ -120,7 +121,7 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 			match error {
 				NonFatal::UnexpectedPoV |
 				NonFatal::InvalidValidatorIndex |
-				NonFatal::NoSuchCachedSession |
+				NonFatal::NoSuchCachedSession { .. } |
 				NonFatal::QueryAvailableDataResponseChannel(_) |
 				NonFatal::QueryChunkResponseChannel(_) =>
 					tracing::warn!(target: LOG_TARGET, error = %error, ctx),

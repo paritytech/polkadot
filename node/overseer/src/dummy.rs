@@ -156,9 +156,9 @@ where
 		+ Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
+		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<PvfCheckerMessage>, SubsystemError>,
 {
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
@@ -170,6 +170,7 @@ where
 		.bitfield_signing(subsystem.clone())
 		.candidate_backing(subsystem.clone())
 		.candidate_validation(subsystem.clone())
+		.pvf_checker(subsystem.clone())
 		.chain_api(subsystem.clone())
 		.collation_generation(subsystem.clone())
 		.collator_protocol(subsystem.clone())
@@ -181,7 +182,6 @@ where
 		.approval_voting(subsystem.clone())
 		.gossip_support(subsystem.clone())
 		.dispute_coordinator(subsystem.clone())
-		.dispute_participation(subsystem.clone())
 		.dispute_distribution(subsystem.clone())
 		.chain_selection(subsystem)
 		.activation_external_listeners(Default::default())

@@ -27,6 +27,7 @@ use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 use std::collections::HashMap;
 
 use super::db::v1::{CandidateVotes, RecentDisputes};
+use crate::error::FatalResult;
 
 #[derive(Debug)]
 pub enum BackendWriteOp {
@@ -53,7 +54,7 @@ pub trait Backend {
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
-	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
+	fn write<I>(&mut self, ops: I) -> FatalResult<()>
 	where
 		I: IntoIterator<Item = BackendWriteOp>;
 }

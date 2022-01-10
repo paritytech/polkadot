@@ -19,7 +19,6 @@
 use codec::Encode;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature};
 use finality_grandpa::voter_set::VoterSet;
-use sp_application_crypto::Public;
 use sp_finality_grandpa::{AuthorityId, AuthorityList, AuthorityWeight};
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
@@ -45,7 +44,8 @@ impl Account {
 		let data = self.0.encode();
 		let mut bytes = [0_u8; 32];
 		bytes[0..data.len()].copy_from_slice(&*data);
-		SecretKey::from_bytes(&bytes).expect("A static array of the correct length is a known good.")
+		SecretKey::from_bytes(&bytes)
+			.expect("A static array of the correct length is a known good.")
 	}
 
 	pub fn pair(&self) -> Keypair {
@@ -57,7 +57,8 @@ impl Account {
 		let public = self.public();
 		pair[32..].copy_from_slice(&public.to_bytes());
 
-		Keypair::from_bytes(&pair).expect("We expect the SecretKey to be good, so this must also be good.")
+		Keypair::from_bytes(&pair)
+			.expect("We expect the SecretKey to be good, so this must also be good.")
 	}
 
 	pub fn sign(&self, msg: &[u8]) -> Signature {
@@ -68,7 +69,7 @@ impl Account {
 
 impl From<Account> for AuthorityId {
 	fn from(p: Account) -> Self {
-		AuthorityId::from_slice(&p.public().to_bytes())
+		sp_application_crypto::UncheckedFrom::unchecked_from(p.public().to_bytes())
 	}
 }
 
@@ -79,10 +80,7 @@ pub fn voter_set() -> VoterSet<AuthorityId> {
 
 /// Convenience function to get a list of Grandpa authorities.
 pub fn authority_list() -> AuthorityList {
-	test_keyring()
-		.iter()
-		.map(|(id, w)| (AuthorityId::from(*id), *w))
-		.collect()
+	test_keyring().iter().map(|(id, w)| (AuthorityId::from(*id), *w)).collect()
 }
 
 /// Get the corresponding identities from the keyring for the "standard" authority set.

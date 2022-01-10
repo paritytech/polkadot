@@ -75,7 +75,7 @@ impl PeerSet {
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
-					in_peers: if is_authority == IsAuthority::Yes { 25 } else { 0 },
+					in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: if is_authority == IsAuthority::Yes {

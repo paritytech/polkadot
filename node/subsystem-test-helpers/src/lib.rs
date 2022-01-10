@@ -212,7 +212,7 @@ where
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.spawn.spawn(name, s);
+		self.spawn.spawn(name, None, s);
 		Ok(())
 	}
 
@@ -221,7 +221,7 @@ where
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.spawn.spawn_blocking(name, s);
+		self.spawn.spawn_blocking(name, None, s);
 		Ok(())
 	}
 
@@ -396,7 +396,7 @@ mod tests {
 
 		let mut handle = Handle::new(handle);
 
-		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
+		spawner.spawn("overseer", None, overseer.run().then(|_| async { () }).boxed());
 
 		block_on(handle.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
 		assert!(matches!(

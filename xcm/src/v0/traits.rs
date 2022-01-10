@@ -56,12 +56,12 @@ pub enum Error {
 	/// An asset wildcard was passed where it was not expected (e.g. as the asset to withdraw in a
 	/// `WithdrawAsset` XCM).
 	Wildcard,
-	/// The case where an XCM message has specified a optional weight limit and the weight required for
-	/// processing is too great.
+	/// The case where an XCM message has specified a weight limit on an interior call and this
+	/// limit is too low.
 	///
 	/// Used by:
 	/// - `Transact`
-	TooMuchWeightRequired,
+	MaxWeightInvalid,
 	/// The fees specified by the XCM message were not found in the holding account.
 	///
 	/// Used by:

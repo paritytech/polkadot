@@ -157,6 +157,8 @@ pub mod pallet {
 		ParaLocked,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
+		/// Registering parachain with empty code is not allowed.
+		EmptyCode,
 	}
 
 	/// Pending swap operations.
@@ -547,6 +549,7 @@ impl<T: Config> Pallet<T> {
 		parachain: bool,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
+		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);
 		ensure!(validation_code.0.len() <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
 		ensure!(
 			genesis_head.0.len() <= config.max_head_data_size as usize,
@@ -575,11 +578,12 @@ mod tests {
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
 	use primitives::v1::{Balance, BlockNumber, Header};
-	use runtime_parachains::{configuration, shared};
+	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
+		transaction_validity::TransactionPriority,
 		Perbill,
 	};
 
@@ -595,11 +599,20 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-			Parachains: paras::{Pallet, Origin, Call, Storage, Config, Event},
+			Parachains: paras::{Pallet, Call, Storage, Config, Event},
 			ParasShared: shared::{Pallet, Call, Storage},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+			ParachainsOrigin: origin::{Pallet, Origin},
 		}
 	);
+
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+	where
+		Call: From<C>,
+	{
+		type Extrinsic = UncheckedExtrinsic;
+		type OverarchingCall = Call;
+	}
 
 	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
@@ -634,6 +647,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -654,10 +668,17 @@ mod tests {
 
 	impl shared::Config for Test {}
 
+	impl origin::Config for Test {}
+
+	parameter_types! {
+		pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	}
+
 	impl paras::Config for Test {
-		type Origin = Origin;
 		type Event = Event;
 		type WeightInfo = paras::TestWeightInfo;
+		type UnsignedPriority = ParasUnsignedPriority;
+		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 
 	impl configuration::Config for Test {

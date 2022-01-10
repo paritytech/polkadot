@@ -17,11 +17,6 @@
 /// A priority assigned to execution of a PVF.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Priority {
-	/// Jobs in this priority will be executed in the background, meaning that they will be only
-	/// given spare CPU time.
-	///
-	/// This is mainly for cache warmings.
-	Background,
 	/// Normal priority for things that do not require immediate response, but still need to be
 	/// done pretty quick.
 	///
@@ -37,10 +32,5 @@ impl Priority {
 	/// Returns `true` if `self` is `Crticial`
 	pub fn is_critical(self) -> bool {
 		self == Priority::Critical
-	}
-
-	/// Returns `true` if `self` is `Background`
-	pub fn is_background(self) -> bool {
-		self == Priority::Background
 	}
 }

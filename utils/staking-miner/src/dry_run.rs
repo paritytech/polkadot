@@ -17,10 +17,11 @@
 //! The dry-run command.
 
 use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
+	prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
 };
 use codec::Encode;
 use frame_support::traits::Currency;
+use jsonrpsee::rpc_params;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
@@ -74,7 +75,7 @@ async fn print_info<T: EPM::Config>(
 	let info = rpc::<pallet_transaction_payment::RuntimeDispatchInfo<Balance>>(
 		client,
 		"payment_queryInfo",
-		params! { extrinsic },
+		rpc_params! { extrinsic },
 	)
 	.await;
 	log::info!(
@@ -149,7 +150,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		});
 		log::info!(target: LOG_TARGET, "dispatch result is {:?}", dispatch_result);
 
-		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", params!{ bytes })
+		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", rpc_params!{ bytes })
 			.await
 			.map_err::<Error<Runtime>, _>(Into::into)?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);

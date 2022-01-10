@@ -147,7 +147,7 @@ pub mod pallet {
 			// - Paras
 			// - Scheduler
 			// - Inclusion
-			// - SessionInfo
+			// - `SessionInfo`
 			// - Disputes
 			// - DMP
 			// - UMP
@@ -168,7 +168,7 @@ pub mod pallet {
 			total_weight
 		}
 
-		fn on_finalize(_: T::BlockNumber) {
+		fn on_finalize(now: T::BlockNumber) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
@@ -177,7 +177,7 @@ pub mod pallet {
 			session_info::Pallet::<T>::initializer_finalize();
 			inclusion::Pallet::<T>::initializer_finalize();
 			scheduler::Pallet::<T>::initializer_finalize();
-			paras::Pallet::<T>::initializer_finalize();
+			paras::Pallet::<T>::initializer_finalize(now);
 			shared::Pallet::<T>::initializer_finalize();
 			configuration::Pallet::<T>::initializer_finalize();
 
@@ -221,8 +221,6 @@ impl<T: Config> Pallet<T> {
 		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
-		let prev_config = <configuration::Pallet<T>>::config();
-
 		let random_seed = {
 			let mut buf = [0u8; 32];
 			// TODO: audit usage of randomness API
@@ -233,11 +231,9 @@ impl<T: Config> Pallet<T> {
 			buf
 		};
 
-		// We can't pass the new config into the thing that determines the new config,
-		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Pallet::<T>::initializer_on_new_session(&session_index);
-
-		let new_config = <configuration::Pallet<T>>::config();
+		let configuration::SessionChangeOutcome { prev_config, new_config } =
+			configuration::Pallet::<T>::initializer_on_new_session(&session_index);
+		let new_config = new_config.unwrap_or_else(|| prev_config.clone());
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
@@ -292,9 +288,9 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// Allow to trigger `on_new_session` in tests, this is needed as long as `pallet_session` is not
 	// implemented in mock.
-	#[cfg(test)]
+	#[cfg(any(test, feature = "runtime-benchmarks"))]
 	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
 		changed: bool,
 		session_index: SessionIndex,
@@ -339,7 +335,8 @@ mod tests {
 		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
 		System,
 	};
-	use primitives::v1::Id as ParaId;
+	use primitives::v1::{HeadData, Id as ParaId};
+	use test_helpers::dummy_validation_code;
 
 	use frame_support::{
 		assert_ok,
@@ -426,8 +423,8 @@ mod tests {
 
 		let mock_genesis = crate::paras::ParaGenesisArgs {
 			parachain: true,
-			genesis_head: Default::default(),
-			validation_code: Default::default(),
+			genesis_head: HeadData(vec![4, 5, 6]),
+			validation_code: dummy_validation_code(),
 		};
 
 		new_test_ext(MockGenesisConfig {

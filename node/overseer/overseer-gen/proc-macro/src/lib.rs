@@ -98,6 +98,8 @@ pub(crate) fn impl_overseer_gen(
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_dispatch(&info));
 
+	// Write to a file for expansion, and then use it via `include!()`
+	// in order to obtain better compiler errors when modifying `overlord`.
 	if cfg!(feature = "expansion") {
 		use std::io::Write;
 
