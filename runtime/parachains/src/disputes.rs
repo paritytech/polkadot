@@ -134,10 +134,10 @@ pub trait DisputesHandler<BlockNumber> {
 	/// Whether the given candidate concluded invalid in a dispute with supermajority.
 	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
 
-	/// Called by the initializer to initialize the configuration module.
+	/// Called by the initializer to initialize the disputes pallet.
 	fn initializer_initialize(now: BlockNumber) -> Weight;
 
-	/// Called by the initializer to finalize the configuration module.
+	/// Called by the initializer to finalize the disputes pallet.
 	fn initializer_finalize();
 
 	/// Called by the initializer to note that a new session has started.
@@ -678,10 +678,10 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Called by the initializer to finalize the disputes module.
+	/// Called by the initializer to finalize the disputes pallet.
 	pub(crate) fn initializer_finalize() {}
 
-	/// Called by the initializer to note a new session in the disputes module.
+	/// Called by the initializer to note a new session in the disputes pallet.
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
@@ -704,7 +704,7 @@ impl<T: Config> Pallet<T> {
 				// This should be small, as disputes are rare, so `None` is fine.
 				<Disputes<T>>::remove_prefix(to_prune, None);
 
-				// This is larger, and will be extracted to the `shared` module for more proper pruning.
+				// This is larger, and will be extracted to the `shared` pallet for more proper pruning.
 				// TODO: https://github.com/paritytech/polkadot/issues/3469
 				<Included<T>>::remove_prefix(to_prune, None);
 				SpamSlots::<T>::remove(to_prune);

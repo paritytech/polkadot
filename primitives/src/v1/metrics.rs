@@ -19,33 +19,14 @@
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
-/// Metric registration parameters.
-#[derive(Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct RuntimeMetricRegisterParams {
-	/// Metric description.
-	description: Vec<u8>,
-	/// Only for counter vec.
-	pub labels: Option<RuntimeMetricLabels>,
-}
-
 /// Runtime metric operations.
 #[derive(Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum RuntimeMetricOp {
-	/// Register a new metric.
-	Register(RuntimeMetricRegisterParams),
 	/// Increment a counter metric with labels by value.
 	IncrementCounterVec(u64, RuntimeMetricLabelValues),
 	/// Increment a counter metric by value.
 	IncrementCounter(u64),
-}
-
-impl RuntimeMetricRegisterParams {
-	/// Create new metric registration params.
-	pub fn new(description: Vec<u8>, labels: Option<RuntimeMetricLabels>) -> Self {
-		Self { description, labels }
-	}
 }
 
 /// Runtime metric update event.
@@ -60,18 +41,6 @@ pub struct RuntimeMetricUpdate {
 
 fn vec_to_str<'a>(v: &'a Vec<u8>, default: &'static str) -> &'a str {
 	return sp_std::str::from_utf8(v).unwrap_or(default)
-}
-
-impl RuntimeMetricRegisterParams {
-	/// Returns the metric description.
-	pub fn description(&self) -> &str {
-		vec_to_str(&self.description, "No description provided.")
-	}
-
-	/// Returns a label names as an `Option` of `Vec<&str>`.
-	pub fn labels(&self) -> Option<Vec<&str>> {
-		self.labels.as_ref().map(|labels| labels.as_str_vec())
-	}
 }
 
 impl RuntimeMetricLabels {
@@ -136,4 +105,75 @@ impl From<&'static str> for RuntimeMetricLabel {
 	fn from(s: &'static str) -> Self {
 		Self(s.as_bytes().to_vec())
 	}
+}
+
+/// Contains all runtime metrics defined as constants.
+pub mod metric_definitions {
+	/// `Counter` metric definition.
+	pub struct CounterDefinition {
+		/// The name of the metric.
+		pub name: &'static str,
+		/// The description of the metric.
+		pub description: &'static str,
+	}
+
+	/// `CounterVec` metric definition.
+	pub struct CounterVecDefinition<'a> {
+		/// The name of the metric.
+		pub name: &'static str,
+		/// The description of the metric.
+		pub description: &'static str,
+		/// The label names of the metric.
+		pub labels: &'a [&'static str],
+	}
+
+	/// Counts parachain inherent data weights. Use `before` and `after` labels to differentiate
+	/// between the weight before and after filtering.
+	pub const PARACHAIN_INHERENT_DATA_WEIGHT: CounterVecDefinition = CounterVecDefinition {
+		name: "polkadot_parachain_inherent_data_weight",
+		description: "Inherent data weight before and after filtering",
+		labels: &["when"],
+	};
+
+	/// Counts the number of bitfields processed in `enter_inner`.
+	pub const PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED: CounterDefinition = CounterDefinition {
+		name: "polkadot_parachain_inherent_data_bitfields_processed",
+		description: "Counts the number of bitfields processed in `enter_inner`.",
+	};
+
+	/// Counts the `total`, `sanitized` and `included` number of parachain block candidates
+	/// in `enter_inner`.
+	pub const PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED: CounterVecDefinition =
+		CounterVecDefinition {
+			name: "polkadot_parachain_inherent_data_candidates_processed",
+			description:
+				"Counts the number of parachain block candidates processed in `enter_inner`.",
+			labels: &["category"],
+		};
+
+	/// Counts the number of `imported`, `current` and `concluded_invalid` dispute statements sets
+	/// processed in `enter_inner`. The `current` label refers to the disputes statement sets of
+	/// the current session.
+	pub const PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED: CounterVecDefinition =
+		CounterVecDefinition {
+			name: "polkadot_parachain_inherent_data_dispute_sets_processed",
+			description: "Counts the number of dispute statements sets processed in `enter_inner`.",
+			labels: &["category"],
+		};
+
+	/// Counts the number of dispute statements sets included in a block in `enter_inner`.
+	pub const PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED: CounterDefinition =
+		CounterDefinition {
+			name: "polkadot_parachain_inherent_data_dispute_sets_included",
+			description:
+				"Counts the number of dispute statements sets included in a block in `enter_inner`.",
+		};
+
+	/// Counts the number of `valid` and `invalid` bitfields signature checked in `enter_inner`.
+	pub const PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS: CounterVecDefinition =
+		CounterVecDefinition {
+			name: "polkadot_parachain_create_inherent_bitfields_signature_checks",
+			description: "Counts the number of bitfields signature checked in `enter_inner`.",
+			labels: &["validity"],
+		};
 }

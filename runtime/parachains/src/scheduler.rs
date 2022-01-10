@@ -220,12 +220,12 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the scheduler module.
+	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the scheduler module.
+	/// Called by the initializer to finalize the scheduler pallet.
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
@@ -797,7 +797,7 @@ mod tests {
 			let b = System::block_number();
 
 			Scheduler::initializer_finalize();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 
 			if let Some(notification) = new_session(b + 1) {
 				let mut notification_with_session_index = notification;
@@ -818,7 +818,7 @@ mod tests {
 			Paras::initializer_initialize(b + 1);
 			Scheduler::initializer_initialize(b + 1);
 
-			// In the real runt;me this is expected to be called by the `InclusionInherent` module.
+			// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 			Scheduler::clear();
 			Scheduler::schedule(Vec::new(), b + 1);
 		}
@@ -831,7 +831,7 @@ mod tests {
 		run_to_block(to, &new_session);
 
 		Scheduler::initializer_finalize();
-		Paras::initializer_finalize();
+		Paras::initializer_finalize(to);
 
 		if let Some(notification) = new_session(to + 1) {
 			Paras::initializer_on_new_session(&notification);
