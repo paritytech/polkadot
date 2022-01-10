@@ -4434,6 +4434,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "node-primitives"
+version = "2.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#c0f688d2c957d7a816b9abfad70d7d89a094996c"
+dependencies = [
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5898,9 +5911,12 @@ dependencies = [
  "assert_cmd",
  "color-eyre",
  "nix",
+ "node-primitives",
  "parity-util-mem",
  "polkadot-cli",
+ "remote-externalities",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -6542,10 +6558,15 @@ dependencies = [
  "nix",
  "parity-scale-codec",
  "polkadot-primitives",
+ "polkadot-test-service",
+ "prometheus-parse",
  "sc-cli",
+ "sc-client-api",
  "sc-service",
  "sc-tracing",
+ "sp-keyring",
  "substrate-prometheus-endpoint",
+ "substrate-test-utils",
  "tempfile",
  "tokio",
  "tracing",
@@ -7574,6 +7595,17 @@ dependencies = [
  "memchr",
  "parking_lot",
  "thiserror",
+]
+
+[[package]]
+name = "prometheus-parse"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c996f3caea1c51aa034c0d2dfd8447a12c555f4567b02677ef8a865ac4cce712"
+dependencies = [
+ "chrono",
+ "lazy_static",
+ "regex",
 ]
 
 [[package]]
