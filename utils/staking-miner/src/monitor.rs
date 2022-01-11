@@ -19,9 +19,11 @@
 use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig};
 use codec::Encode;
 use jsonrpsee::{
+	core::{
+		client::{Client as WsClient, Subscription, SubscriptionClientT},
+		Error as RpcError,
+	},
 	rpc_params,
-	types::{traits::SubscriptionClient, Subscription},
-	ws_client::WsClient,
 };
 
 use sc_transaction_pool_api::TransactionStatus;
@@ -86,7 +88,22 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				.await
 				.unwrap();
 
-			while let Some(now) = subscription.next().await? {
+			while let Some(rp) = subscription.next().await {
+				let now = match rp {
+					Ok(r) => r,
+					Err(RpcError::SubscriptionClosed(reason)) => {
+						log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
+						continue;
+					}
+					Err(e) => {
+						// NOTE(niklasad1): this should only occur if the response couldn't
+						// be decoded as `Header`.
+						log::error!("{:?}", e);
+						return Err(e.into());
+					}
+				};
+
+
 				let hash = now.hash();
 				log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
@@ -151,7 +168,21 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					}
 				};
 
-				while let Some(status_update) = tx_subscription.next().await? {
+				while let Some(rp) = tx_subscription.next().await {
+					let status_update = match rp {
+						Ok(r) => r,
+						Err(RpcError::SubscriptionClosed(reason)) => {
+							log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
+							continue;
+						}
+						Err(e) => {
+							// NOTE(niklasad1): this should only occur if the response couldn't
+							// be decoded as `Header`.
+							log::error!("{:?}", e);
+							return Err(e.into());
+						}
+					};
+
 					log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
 					match status_update {
 						TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,

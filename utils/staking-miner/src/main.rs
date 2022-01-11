@@ -40,7 +40,7 @@ pub(crate) use signer::get_account_info;
 
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
-use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
+use jsonrpsee::{core::client::Client as WsClient, ws_client::WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
@@ -225,7 +225,7 @@ macro_rules! any_runtime_unit {
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee::types::Error),
+	JsonRpsee(#[from] jsonrpsee::core::Error),
 	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
