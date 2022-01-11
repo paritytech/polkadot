@@ -59,6 +59,9 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-serde_json = "1.0.73"
+serde_json = "1.0.74"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tokio = { version = "1.15", features = ["macros"] }
+
+[features]
+runtime-metrics=["polkadot-test-runtime/runtime-metrics"]

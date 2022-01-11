@@ -228,6 +228,9 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 }
 
 /// Messages received by the dispute coordinator subsystem.
+///
+/// NOTE: Any response oneshots might get cancelled if the `DisputeCoordinator` was not yet
+/// properly initialized for some reason.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
 	/// Import statements by validators about a candidate.
@@ -681,6 +684,13 @@ pub enum RuntimeApiRequest {
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
 	PvfsRequirePrecheck(RuntimeApiSender<Vec<ValidationCodeHash>>),
+	/// Get the validation code used by the specified para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently occupies a core.
+	ValidationCodeHash(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCodeHash>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.
@@ -911,3 +921,9 @@ pub enum GossipSupportMessage {
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
 }
+
+/// PVF checker message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum PvfCheckerMessage {}

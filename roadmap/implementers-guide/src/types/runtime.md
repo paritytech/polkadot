@@ -9,7 +9,7 @@ The internal-to-runtime configuration of the parachain host. This is expected to
 ```rust
 struct HostConfiguration {
 	/// The minimum period, in blocks, between which parachains can update their validation code.
-	pub validation_upgrade_frequency: BlockNumber,
+	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 	/// How long to keep code on-chain, in blocks. This should be sufficiently long that disputes
@@ -127,6 +127,6 @@ struct ParaInherentData {
 	bitfields: Bitfields,
 	backed_candidates: BackedCandidates,
 	dispute_statements: MultiDisputeStatementSet,
-  parent_header: Header
+	parent_header: Header
 }
 ```
