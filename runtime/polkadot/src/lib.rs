@@ -1448,7 +1448,7 @@ impl pallet_xcm::Config for Runtime {
 	// ...but they must match our filter, which rejects all.
 	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Nothing;
+	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Nothing;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
