@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
-	GroupIndex, Hash, Id as ParaId,
+	Hash, Id as ParaId,
 };
 use polkadot_subsystem::{
 	jaeger,
@@ -66,12 +66,8 @@ const COST_APPARENT_FLOOD: Rep =
 ///
 /// This is to protect from a single slow validator preventing collations from happening.
 ///
-/// With a collation size of 5MB and bandwidth of 500Mbit/s (requirement for Kusama validators),
-/// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
-/// plenty and should be low enough for later validators to still be able to finish on time.
-///
-/// There is debug logging output, so we can adjust this value based on production results.
-const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(400);
+/// For considerations on this value, see: https://github.com/paritytech/polkadot/issues/4386
+const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -116,28 +112,28 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			advertisements_made: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_collation_advertisements_made_total",
+					"polkadot_parachain_collation_advertisements_made_total",
 					"A number of collation advertisements sent to validators.",
 				)?,
 				registry,
 			)?,
 			collations_send_requested: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_collations_sent_requested_total",
+					"polkadot_parachain_collations_sent_requested_total",
 					"A number of collations requested to be sent to validators.",
 				)?,
 				registry,
 			)?,
 			collations_sent: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_collations_sent_total",
+					"polkadot_parachain_collations_sent_total",
 					"A number of collations sent to validators.",
 				)?,
 				registry,
 			)?,
 			process_msg: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_collator_protocol_collator_process_msg",
+					"polkadot_parachain_collator_protocol_collator_process_msg",
 					"Time spent within `collator_protocol_collator::process_msg`",
 				))?,
 				registry,
@@ -148,20 +144,23 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-/// The group of validators that is assigned to our para at a given point of time.
+/// Info about validators we are currently connected to.
 ///
-/// This structure is responsible for keeping track of which validators belong to a certain group for a para. It also
-/// stores a mapping from [`PeerId`] to [`ValidatorId`] as we learn about it over the lifetime of this object. Besides
-/// that it also keeps track to which validators we advertised our collation.
+/// It keeps track to which validators we advertised our collation.
 #[derive(Debug)]
 struct ValidatorGroup {
-	/// All [`AuthorityDiscoveryId`]'s that are assigned to us in this group.
-	discovery_ids: HashSet<AuthorityDiscoveryId>,
 	/// All [`ValidatorId`]'s of the current group to that we advertised our collation.
 	advertised_to: HashSet<AuthorityDiscoveryId>,
 }
 
 impl ValidatorGroup {
+	/// Create a new `ValidatorGroup`
+	///
+	/// without any advertisements.
+	fn new() -> Self {
+		Self { advertised_to: HashSet::new() }
+	}
+
 	/// Returns `true` if we should advertise our collation to the given peer.
 	fn should_advertise_to(
 		&self,
@@ -185,12 +184,6 @@ impl ValidatorGroup {
 				self.advertised_to.insert(a.clone());
 			});
 		}
-	}
-}
-
-impl From<HashSet<AuthorityDiscoveryId>> for ValidatorGroup {
-	fn from(discovery_ids: HashSet<AuthorityDiscoveryId>) -> Self {
-		Self { discovery_ids, advertised_to: HashSet::new() }
 	}
 }
 
@@ -328,15 +321,14 @@ impl State {
 
 /// Distribute a collation.
 ///
-/// Figure out the core our para is assigned to and the relevant validators.
-/// Issue a connection request to these validators.
-/// If the para is not scheduled or next up on any core, at the relay-parent,
-/// or the relay-parent isn't in the active-leaves set, we ignore the message
-/// as it must be invalid in that case - although this indicates a logic error
-/// elsewhere in the node.
+/// If the para is not scheduled on any core, at the relay parent,
+/// or the relay parent isn't in our view or we already collated on the relay parent,
+/// we ignore the message as it must be invalid in that case -
+/// although this indicates a logic error elsewhere in the node.
+///
+/// Otherwise, start advertising the collation to interested peers.
 async fn distribute_collation<Context>(
 	ctx: &mut Context,
-	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	id: ParaId,
 	receipt: CandidateReceipt,
@@ -365,32 +357,8 @@ where
 		return Ok(())
 	}
 
-	// Determine which core the para collated-on is assigned to.
-	// If it is not scheduled then ignore the message.
-	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
-		Some(core) => core,
-		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				para_id = %id,
-				?relay_parent,
-				"looks like no core is assigned to {} at {}", id, relay_parent,
-			);
-
-			return Ok(())
-		},
-	};
-
-	// Determine the group on that core.
-	let current_validators =
-		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
-
-	if current_validators.validators.is_empty() {
-		tracing::warn!(
-			target: LOG_TARGET,
-			core = ?our_core,
-			"there are no validators assigned to core",
-		);
+	if !state.our_validators_groups.contains_key(&relay_parent) {
+		tracing::warn!(target: LOG_TARGET, "Could not determine validators assigned to the core.");
 
 		return Ok(())
 	}
@@ -401,18 +369,8 @@ where
 		relay_parent = %relay_parent,
 		candidate_hash = ?receipt.hash(),
 		pov_hash = ?pov.hash(),
-		core = ?our_core,
-		?current_validators,
-		"Accepted collation, connecting to validators."
+		"Accepted collation",
 	);
-
-	let validator_group: HashSet<_> =
-		current_validators.validators.iter().map(Clone::clone).collect();
-
-	// Issue a discovery request for the validators of the current group:
-	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
-
-	state.our_validators_groups.insert(relay_parent, validator_group.into());
 
 	if let Some(result_sender) = result_sender {
 		state.collation_result_senders.insert(receipt.hash(), result_sender);
@@ -458,8 +416,6 @@ where
 /// Validators of a particular group index.
 #[derive(Debug)]
 struct GroupValidators {
-	/// The group those validators belong to.
-	group: GroupIndex,
 	/// The validators of above group (their discovery keys).
 	validators: Vec<AuthorityDiscoveryId>,
 }
@@ -498,8 +454,7 @@ where
 	let current_validators =
 		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
-	let current_validators =
-		GroupValidators { group: current_group_index, validators: current_validators };
+	let current_validators = GroupValidators { validators: current_validators };
 
 	Ok(current_validators)
 }
@@ -535,7 +490,7 @@ where
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	// ignore address resolution failure
-	// will reissue a new request on new collation
+	// will reissue a new request on new relay parent
 	let (failed, _) = oneshot::channel();
 	ctx.send_message(NetworkBridgeMessage::ConnectToValidators {
 		validator_ids,
@@ -646,8 +601,7 @@ where
 					);
 				},
 				Some(id) => {
-					distribute_collation(ctx, runtime, state, id, receipt, pov, result_sender)
-						.await?;
+					distribute_collation(ctx, state, id, receipt, pov, result_sender).await?;
 				},
 				None => {
 					tracing::warn!(
@@ -932,13 +886,13 @@ where
 		},
 		OurViewChange(view) => {
 			tracing::trace!(target: LOG_TARGET, ?view, "Own view change");
-			handle_our_view_change(state, view).await?;
+			handle_our_view_change(ctx, runtime, state, view).await?;
 		},
 		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
 		NewGossipTopology(..) => {
-			// impossibru!
+			// impossible!
 		},
 	}
 
@@ -946,7 +900,16 @@ where
 }
 
 /// Handles our view changes.
-async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> {
+async fn handle_our_view_change<Context>(
+	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
+	state: &mut State,
+	view: OurView,
+) -> Result<()>
+where
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+{
 	for removed in state.view.difference(&view) {
 		tracing::debug!(target: LOG_TARGET, relay_parent = ?removed, "Removing relay parent because our view changed.");
 
@@ -980,6 +943,60 @@ async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> 
 	}
 
 	state.view = view;
+	if state.view.is_empty() {
+		return Ok(())
+	}
+
+	let id = match state.collating_on {
+		Some(id) => id,
+		None => return Ok(()),
+	};
+
+	// all validators assigned to the core
+	// across all active leaves
+	// this is typically our current group
+	// but can also include the previous group at
+	// rotation boundaries and considering forks
+	let mut group_validators = HashSet::new();
+
+	for relay_parent in state.view.iter().cloned() {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?relay_parent,
+			para_id = ?id,
+			"Processing relay parent.",
+		);
+
+		// Determine our assigned core.
+		// If it is not scheduled then ignore the relay parent.
+		let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
+			Some(core) => core,
+			None => continue,
+		};
+
+		// Determine the group on that core.
+		let current_validators =
+			determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
+
+		let validators = current_validators.validators;
+		group_validators.extend(validators);
+
+		state.our_validators_groups.entry(relay_parent).or_insert(ValidatorGroup::new());
+	}
+
+	let validators: Vec<_> = group_validators.into_iter().collect();
+	let no_one_is_assigned = validators.is_empty();
+	if no_one_is_assigned {
+		tracing::warn!(target: LOG_TARGET, "No validators assigned to our core.",);
+		return Ok(())
+	}
+	tracing::debug!(
+		target: LOG_TARGET,
+		?validators,
+		para_id = ?id,
+		"Connecting to validators.",
+	);
+	connect_to_validators(ctx, validators).await;
 
 	Ok(())
 }

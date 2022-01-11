@@ -29,12 +29,12 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
-use crate::real::LOG_TARGET;
-
-use super::{
+use crate::{
 	error::{Fatal, FatalResult, NonFatal, Result},
-	ordering::CandidateComparator,
+	LOG_TARGET,
 };
+
+use super::ordering::CandidateComparator;
 
 #[cfg(test)]
 mod tests;

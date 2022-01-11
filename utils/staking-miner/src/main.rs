@@ -115,6 +115,7 @@ fn signed_ext_builder_polkadot(
 ) -> polkadot_runtime_exports::SignedExtra {
 	use polkadot_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -133,6 +134,7 @@ fn signed_ext_builder_kusama(
 ) -> kusama_runtime_exports::SignedExtra {
 	use kusama_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -150,6 +152,7 @@ fn signed_ext_builder_westend(
 ) -> westend_runtime_exports::SignedExtra {
 	use westend_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -316,10 +319,12 @@ struct MonitorConfig {
 #[derive(Debug, Clone, StructOpt)]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
+	#[allow(dead_code)]
 	#[structopt(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
+	#[allow(dead_code)]
 	#[structopt(subcommand)]
 	solver: Solvers,
 
