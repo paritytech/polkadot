@@ -230,7 +230,6 @@ where
 
 				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
 				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities).await?;
-
 				let other_authorities = {
 					let mut authorities = all_authorities.clone();
 					authorities.swap_remove(our_index);
