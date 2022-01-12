@@ -388,6 +388,9 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		},
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		sudo: polkadot::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 	}
 }
 
@@ -768,6 +771,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		sudo: kusama::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 	}
 }
 
@@ -1338,6 +1344,9 @@ pub fn polkadot_testnet_genesis(
 		},
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		sudo: polkadot::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 	}
 }
 
@@ -1425,6 +1434,9 @@ pub fn kusama_testnet_genesis(
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		sudo: kusama::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 	}
 }
 
