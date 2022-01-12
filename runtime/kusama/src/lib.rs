@@ -1263,11 +1263,9 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
-pub const LEASE_PERIOD: BlockNumber = 6 * WEEKS;
-
 parameter_types! {
 	// 6 weeks
-	pub const LeasePeriod: BlockNumber = LEASE_PERIOD;
+	pub LeasePeriod: BlockNumber = prod_or_fast!(6 * WEEKS, 6 * WEEKS, "KSM_LEASE_PERIOD");
 }
 
 impl slots::Config for Runtime {
