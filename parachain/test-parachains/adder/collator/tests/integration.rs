@@ -31,23 +31,27 @@ async fn collating_using_adder_collator() {
 
 	let para_id = ParaId::from(100);
 
-	// start alice
-	let alice = polkadot_test_service::run_validator_node(
+	let alice_config = polkadot_test_service::node_config(
+		|| {},
 		tokio::runtime::Handle::current(),
 		Alice,
+		Vec::new(),
+		true,
+	);
+
+	// start alice
+	let alice = polkadot_test_service::run_validator_node(alice_config, Some(PUPPET_EXE.into()));
+
+	let bob_config = polkadot_test_service::node_config(
 		|| {},
-		vec![],
-		Some(PUPPET_EXE.into()),
+		tokio::runtime::Handle::current(),
+		Bob,
+		vec![alice.addr.clone()],
+		true,
 	);
 
 	// start bob
-	let bob = polkadot_test_service::run_validator_node(
-		tokio::runtime::Handle::current(),
-		Bob,
-		|| {},
-		vec![alice.addr.clone()],
-		Some(PUPPET_EXE.into()),
-	);
+	let bob = polkadot_test_service::run_validator_node(bob_config, Some(PUPPET_EXE.into()));
 
 	let collator = test_parachain_adder_collator::Collator::new();
 

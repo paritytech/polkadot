@@ -40,6 +40,10 @@ use primitives::{
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
+use test_helpers::{
+	dummy_candidate_descriptor, dummy_collator, dummy_collator_signature, dummy_hash,
+	dummy_validation_code,
+};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -58,7 +62,7 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
 						id,
 						ParaGenesisArgs {
 							genesis_head: Vec::new().into(),
-							validation_code: Vec::new().into(),
+							validation_code: dummy_validation_code(),
 							parachain: is_chain,
 						},
 					)
@@ -109,7 +113,7 @@ pub(crate) async fn back_candidate(
 	kind: BackingKind,
 ) -> BackedCandidate {
 	let mut validator_indices = bitvec::bitvec![BitOrderLsb0, u8; 0; group.len()];
-	let threshold = (group.len() / 2) + 1;
+	let threshold = minimum_backing_votes(group.len());
 
 	let signing = match kind {
 		BackingKind::Unanimous => group.len(),
@@ -147,8 +151,8 @@ pub(crate) async fn back_candidate(
 			Some(validators[group[i].0 as usize].public().into())
 		})
 		.ok()
-		.unwrap_or(0) *
-			2 > group.len();
+		.unwrap_or(0) >=
+			threshold;
 
 	match kind {
 		BackingKind::Unanimous | BackingKind::Threshold => assert!(successfully_backed),
@@ -166,7 +170,7 @@ pub(crate) fn run_to_block(
 		let b = System::block_number();
 
 		ParaInclusion::initializer_finalize();
-		Paras::initializer_finalize();
+		Paras::initializer_finalize(b);
 		ParasShared::initializer_finalize();
 
 		if let Some(notification) = new_session(b + 1) {
@@ -238,7 +242,6 @@ pub(crate) async fn sign_bitfield(
 	.unwrap()
 }
 
-#[derive(Default)]
 pub(crate) struct TestCandidateBuilder {
 	pub(crate) para_id: ParaId,
 	pub(crate) head_data: HeadData,
@@ -251,6 +254,23 @@ pub(crate) struct TestCandidateBuilder {
 	pub(crate) hrmp_watermark: BlockNumber,
 }
 
+impl std::default::Default for TestCandidateBuilder {
+	fn default() -> Self {
+		let zeros = Hash::zero();
+		Self {
+			para_id: 0.into(),
+			head_data: Default::default(),
+			para_head_hash: None,
+			pov_hash: zeros,
+			relay_parent: zeros,
+			persisted_validation_data_hash: zeros,
+			new_validation_code: None,
+			validation_code: dummy_validation_code(),
+			hrmp_watermark: 0u32.into(),
+		}
+	}
+}
+
 impl TestCandidateBuilder {
 	pub(crate) fn build(self) -> CommittedCandidateReceipt {
 		CommittedCandidateReceipt {
@@ -261,7 +281,9 @@ impl TestCandidateBuilder {
 				persisted_validation_data_hash: self.persisted_validation_data_hash,
 				validation_code_hash: self.validation_code.hash(),
 				para_head: self.para_head_hash.unwrap_or_else(|| self.head_data.hash()),
-				..Default::default()
+				erasure_root: Default::default(),
+				signature: dummy_collator_signature(),
+				collator: dummy_collator(),
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
@@ -388,7 +410,13 @@ fn bitfield_checks() {
 					p_id,
 					CandidatePendingAvailability {
 						availability_votes: default_availability_votes(),
-						..Default::default()
+						core: Default::default(),
+						hash: Default::default(),
+						descriptor: dummy_candidate_descriptor(dummy_hash()),
+						backers: Default::default(),
+						relay_parent_number: Default::default(),
+						backed_in_number: Default::default(),
+						backing_group: Default::default(),
 					},
 				)
 			}
@@ -1279,10 +1307,8 @@ fn candidate_checks() {
 			{
 				let cfg = Configuration::config();
 				let expected_at = 10 + cfg.validation_upgrade_delay;
-				assert_eq!(expected_at, 10);
+				assert_eq!(expected_at, 12);
 				Paras::schedule_code_upgrade(chain_a, vec![1, 2, 3, 4].into(), expected_at, &cfg);
-
-				assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(expected_at));
 			}
 
 			assert_noop!(
@@ -1625,6 +1651,10 @@ fn backing_works() {
 			assure_candidate_sorting(candidate_receipt_with_backing_validator_indices)
 		);
 
+		let backers = {
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
+			backing_bitfield(&(0..num_backers).collect::<Vec<_>>())
+		};
 		assert_eq!(
 			<PendingAvailability<Test>>::get(&chain_a),
 			Some(CandidatePendingAvailability {
@@ -1634,7 +1664,7 @@ fn backing_works() {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
-				backers: backing_bitfield(&[0, 1]),
+				backers,
 				backing_group: GroupIndex::from(0),
 			})
 		);
@@ -1643,6 +1673,10 @@ fn backing_works() {
 			Some(candidate_a.commitments),
 		);
 
+		let backers = {
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
+			backing_bitfield(&(0..num_backers).map(|v| v + 2).collect::<Vec<_>>())
+		};
 		assert_eq!(
 			<PendingAvailability<Test>>::get(&chain_b),
 			Some(CandidatePendingAvailability {
@@ -1652,7 +1686,7 @@ fn backing_works() {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
-				backers: backing_bitfield(&[2, 3]),
+				backers,
 				backing_group: GroupIndex::from(1),
 			})
 		);
@@ -1764,6 +1798,10 @@ fn can_include_candidate_with_ok_code_upgrade() {
 
 		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
 
+		let backers = {
+			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());
+			backing_bitfield(&(0..num_backers).collect::<Vec<_>>())
+		};
 		assert_eq!(
 			<PendingAvailability<Test>>::get(&chain_a),
 			Some(CandidatePendingAvailability {
@@ -1773,7 +1811,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
-				backers: backing_bitfield(&[0, 1, 2]),
+				backers,
 				backing_group: GroupIndex::from(0),
 			})
 		);

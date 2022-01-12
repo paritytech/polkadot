@@ -124,7 +124,7 @@ isolate/BG
 iterable
 jaeger/MS
 js
-judgement
+judgement/S
 keccak256/M
 keypair/MS
 keystore/MS
@@ -280,6 +280,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unassign
 unconcluded
 unfinalize/B
 unfinalized
