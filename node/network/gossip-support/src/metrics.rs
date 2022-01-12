@@ -33,8 +33,8 @@ struct MetricsInner {
 }
 
 impl Metrics {
-	#[cfg(test)]
 	/// Dummy constructor for testing.
+	#[cfg(test)]
 	pub fn new_dummy() -> Self {
 		Self(None)
 	}
