@@ -24,4 +24,3 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 parking_lot = "0.11"
 assert_matches = "1"
 kvdb-memorydb = "0.10.0"
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }

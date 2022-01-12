@@ -33,7 +33,6 @@ use assert_matches::assert_matches;
 use futures::channel::oneshot;
 use parity_scale_codec::Encode;
 use parking_lot::Mutex;
-use sc_keystore::LocalKeystore;
 use sp_core::testing::TaskExecutor;
 
 use polkadot_node_subsystem::{
@@ -235,7 +234,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 ) {
 	let pool = TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
-	let keystore = Arc::new(LocalKeystore::in_memory()) as SyncCryptoStorePtr;
 
 	let backend = TestBackend::default();
 	let clock = TestClock::new(0);
@@ -244,7 +242,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		backend.clone(),
 		StagnantCheckInterval::new(TEST_STAGNANT_INTERVAL),
 		Box::new(clock.clone()),
-		keystore,
 	);
 
 	let test_fut = test(backend, clock, virtual_overseer);

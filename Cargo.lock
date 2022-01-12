@@ -6385,7 +6385,6 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sc-keystore",
  "sp-core",
  "sp-keystore",
  "thiserror",
