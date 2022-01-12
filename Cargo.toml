@@ -1,4 +1,4 @@
-		[[bin]]
+[[bin]]
 name = "polkadot"
 path = "src/main.rs"
 
