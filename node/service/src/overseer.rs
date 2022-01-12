@@ -282,11 +282,7 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.chain_selection(ChainSelectionSubsystem::new(
-			chain_selection_config,
-			parachains_db,
-			keystore.clone(),
-		))
+		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()
