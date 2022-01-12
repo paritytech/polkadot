@@ -57,6 +57,10 @@ use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
 #[cfg(test)]
 mod tests;
 
+mod metrics;
+
+use metrics::Metrics;
+
 const LOG_TARGET: &str = "parachain::gossip-support";
 // How much time should we wait to reissue a connection request
 // since the last authority discovery resolution failure.
@@ -104,6 +108,9 @@ pub struct GossipSupport<AD> {
 	connected_authorities_by_peer_id: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 	/// Authority discovery service.
 	authority_discovery: AD,
+
+	/// Subsystem metrics.
+	metrics: Metrics,
 }
 
 impl<AD> GossipSupport<AD>
@@ -111,7 +118,10 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
+		// Initialize the `polkadot_node_is_authority` metric.
+		metrics.on_is_not_authority();
+
 		Self {
 			keystore,
 			last_session_index: None,
@@ -121,6 +131,7 @@ where
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
 			authority_discovery,
+			metrics,
 		}
 	}
 
@@ -212,7 +223,14 @@ where
 				}
 
 				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities).await?;
+				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities)
+					.await
+					.map_err(|e| {
+						self.metrics.on_is_not_authority();
+						e
+					})?;
+				self.metrics.on_is_authority();
+
 				let other_authorities = {
 					let mut authorities = all_authorities.clone();
 					authorities.swap_remove(our_index);

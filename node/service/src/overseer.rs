@@ -264,6 +264,7 @@ where
 		.gossip_support(GossipSupportSubsystem::new(
 			keystore.clone(),
 			authority_discovery_service.clone(),
+			Metrics::register(registry)?,
 		))
 		.dispute_coordinator(if disputes_enabled {
 			DisputeCoordinatorSubsystem::new(
