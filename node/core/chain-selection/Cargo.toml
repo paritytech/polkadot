@@ -16,6 +16,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 kvdb = "0.10.0"
 thiserror = "1.0.30"
 parity-scale-codec = "2"
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
