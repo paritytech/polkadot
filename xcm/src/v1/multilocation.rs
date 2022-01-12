@@ -335,7 +335,7 @@ impl MultiLocation {
 			for i in 0..target.interior.len() {
 				if target.interior.at(i) != self.interior.at(i) {
 					first_different = Some(i);
-					break;
+					break
 				}
 			}
 
@@ -356,7 +356,9 @@ impl MultiLocation {
 		} else if target.parents > self.parents {
 			// Handle when the target has more parents so we have to go through ancestry
 			self.parents = target.len() as u8 - 1;
-			self.interior.push_front(ancestry.interior.first().unwrap_or(&Junction::OnlyChild).clone()).map_err(|_| ())?;
+			self.interior
+				.push_front(ancestry.interior.first().unwrap_or(&Junction::OnlyChild).clone())
+				.map_err(|_| ())?;
 		} else if target.parents < self.parents {
 			// Handle when the id has more parents so we must go all the way up the target path
 			self.parents = self.parents + target.interior().len() as u8;
