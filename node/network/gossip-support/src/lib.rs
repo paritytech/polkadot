@@ -220,16 +220,16 @@ where
 						"New session detected",
 					);
 					self.last_session_index = Some(session_index);
+
+					// Update the authority status metric on every new session.
+					match util::Validator::new(leaf, self.keystore.clone(), ctx.sender()).await {
+						Ok(_) => self.metrics.on_is_authority(),
+						Err(_) => self.metrics.on_is_not_authority(),
+					}
 				}
 
 				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities)
-					.await
-					.map_err(|e| {
-						self.metrics.on_is_not_authority();
-						e
-					})?;
-				self.metrics.on_is_authority();
+				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities).await?;
 
 				let other_authorities = {
 					let mut authorities = all_authorities.clone();
