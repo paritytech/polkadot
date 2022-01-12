@@ -317,7 +317,10 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_session_info(&mut self, key: SessionIndex, value: Option<SessionInfo>) {
-		self.session_info.insert(key, ResidentSizeOf(value));
+		// only cache Some(SessionInfo)
+		if value.is_some() {
+			self.session_info.insert(key, ResidentSizeOf(value));
+		}
 	}
 
 	pub(crate) fn dmq_contents(
