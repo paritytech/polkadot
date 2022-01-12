@@ -329,18 +329,38 @@ impl MultiLocation {
 	///
 	/// Does not modify `self` in case of overflow.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
-		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
+		if target.parents == self.parents {
+			// Find the first junction that is different as we travel along the paths from ancestry to self and target
+			let mut first_different = None;
+			for i in 0..target.interior.len() {
+				if target.interior.at(i) != self.interior.at(i) {
+					first_different = Some(i);
+					break;
+				}
+			}
 
-		// 1. Use our `ancestry` to figure out how the `target` would address us.
-		let inverted_target = ancestry.inverted(target)?;
-
-		// 2. Prepend `inverted_target` to `self` to get self's location from the perspective of
-		// `target`.
-		self.prepend_with(inverted_target).map_err(|_| ())?;
-
-		// 3. Given that we know some of `target` ancestry, ensure that any parents in `self` are
-		// strictly needed.
-		self.simplify(target.interior());
+			if let Some(i) = first_different {
+				// In the case where the self and target paths split, remove just the shared path
+				self.parents = (target.interior.len() - i) as u8;
+				for _ in 0..i {
+					self.take_first_interior();
+				}
+			} else {
+				// In the case where the paths are the same all the way to the target,
+				// remove all the junctions on the shared path
+				for _ in 0..target.interior.len() {
+					self.parents = 0;
+					self.take_first_interior();
+				}
+			}
+		} else if target.parents > self.parents {
+			// Handle when the target has more parents so we have to go through ancestry
+			self.parents = target.len() as u8 - 1;
+			self.interior.push_front(ancestry.interior.first().unwrap_or(&Junction::OnlyChild).clone()).map_err(|_| ())?;
+		} else if target.parents < self.parents {
+			// Handle when the id has more parents so we must go all the way up the target path
+			self.parents = self.parents + target.interior().len() as u8;
+		}
 
 		Ok(())
 	}
@@ -895,7 +915,7 @@ mod tests {
 
 	#[test]
 	fn reanchor_works() {
-		// Test where the target is on the same branch as the current id.
+		// Test where the target is on the same branch as the current id (target shallower).
 		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000)).into();
@@ -903,7 +923,15 @@ mod tests {
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
 
-		// Test where the target is on a different branch than the current id.
+		// Test where the target is on the same branch as the current id (target deeper).
+		let mut id: MultiLocation = (Parent, Parachain(1000)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), GeneralIndex(42)).into();
+		let expected = (Parent, Here).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// Test where the target is on the same branch as the current id (equal path length).
 		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000), Parachain(3000)).into();
@@ -911,7 +939,7 @@ mod tests {
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
 
-		// Test where target and id are on different branches, and target is deeper
+		// Test where the target is on the same branch as the current id (target deeper), longer example.
 		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000), Parachain(3000), Parachain(4000)).into();
@@ -919,15 +947,16 @@ mod tests {
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
 
-		// Test where target and id are on different branches, and id is deeper
-		let mut id: MultiLocation = (Parent, Parachain(1000), Parachain(4000), GeneralIndex(42)).into();
+		// Test where the target is on the same branch as the current id (target shallower), longer example.
+		let mut id: MultiLocation =
+			(Parent, Parachain(1000), Parachain(4000), GeneralIndex(42)).into();
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000), Parachain(3000)).into();
 		let expected = (Parent, Parachain(4000), GeneralIndex(42)).into();
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
 
-		// Test relying on ancestry
+		// Test where target and current id are on different branches
 		let mut id: MultiLocation = (Parent, Parachain(4000), GeneralIndex(42)).into();
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000), Parachain(3000)).into();
@@ -935,21 +964,30 @@ mod tests {
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
 
-		// What happens when you have bad inputs? no ancestor? the below failed a little bit nonsensically
-		// let mut id: MultiLocation = (Parachain(4000), GeneralIndex(42)).into();
-		// let ancestry = Parachain(2000).into();
-		// let target = (Parent, Parachain(1000), Parachain(3000)).into();
-		// let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
-		// id.reanchor(&target, &ancestry).unwrap();
-		// assert_eq!(id, expected);
+		// Test where id has no parent
+		let mut id: MultiLocation = (Parachain(4000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, Parent, Parachain(2000), Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
 
-		// Test with repeated ancestor in Junctions
-		// let mut id: MultiLocation = (Parent, Parachain(2000), Parachain(4000), GeneralIndex(42)).into();
-		// let ancestry = Parachain(2000).into();
-		// let target = (Parent, Parachain(1000), Parachain(3000)).into();
-		// let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
-		// id.reanchor(&target, &ancestry).unwrap();
-		// assert_eq!(id, expected);
+		// Test where target has no parent
+		let mut id: MultiLocation = (Parent, Parachain(4000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// Test where id has similarly indexed parachain as ancestry
+		let mut id: MultiLocation =
+			(Parent, Parachain(2000), Parachain(4000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, Parent, Parachain(2000), Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
 	}
 
 	#[test]
