@@ -126,7 +126,11 @@ async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, Hash
 }
 
 fn make_subsystem() -> GossipSupport<MockAuthorityDiscovery> {
-	GossipSupport::new(make_ferdie_keystore(), MOCK_AUTHORITY_DISCOVERY.clone())
+	GossipSupport::new(
+		make_ferdie_keystore(),
+		MOCK_AUTHORITY_DISCOVERY.clone(),
+		Metrics::new_dummy(),
+	)
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(

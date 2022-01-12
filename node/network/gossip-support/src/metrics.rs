@@ -33,6 +33,12 @@ struct MetricsInner {
 }
 
 impl Metrics {
+	#[cfg(test)]
+	/// Dummy constructor for testing.
+	pub fn new_dummy() -> Self {
+		Self(None)
+	}
+
 	/// Set the authority flag.
 	pub fn on_is_authority(&self) {
 		if let Some(metrics) = &self.0 {
