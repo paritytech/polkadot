@@ -715,7 +715,17 @@ where
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
 
-	let mut last_finalized_height: Option<BlockNumber> = None;
+	let mut last_finalized_height: Option<BlockNumber> = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(ChainApiMessage::FinalizedBlockNumber(tx)).await;
+		match rx.await? {
+			Ok(number) => Some(number),
+			Err(err) => {
+				tracing::warn!(target: LOG_TARGET, ?err, "Failed fetching finalized number");
+				None
+			},
+		}
+	};
 
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
