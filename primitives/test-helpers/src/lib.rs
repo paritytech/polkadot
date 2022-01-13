@@ -27,8 +27,6 @@ use polkadot_primitives::v1::{
 	ValidatorId,
 };
 
-use polkadot_primitives::v2::SessionInfo;
-
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
