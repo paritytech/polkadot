@@ -32,10 +32,10 @@ use variants::*;
 #[structopt(about = "Malus - the nemesis of polkadot.")]
 #[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
+	/// Store garbage chunks in the availability store
+	StoreMaliciousAvailableData(RunCmd),
 	/// Suggest a candidate with an invalid proof of validity.
 	SuggestGarbageCandidate(RunCmd),
-	/// Back a candidate with a specifically crafted proof of validity.
-	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
 	DisputeAncestor(RunCmd),
 
@@ -63,10 +63,10 @@ impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
-			NemesisVariant::SuggestGarbageCandidate(_cmd) => panic! {},
-			//polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
+			NemesisVariant::StoreMaliciousAvailableData(cmd) =>
+				polkadot_cli::run_node(run_cmd(cmd), StoreMaliciousAvailableDataWrapper)?,
+			NemesisVariant::SuggestGarbageCandidate(cmd) =>
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper)?,
 			NemesisVariant::DisputeAncestor(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {

@@ -22,5 +22,7 @@ mod store_malicious_available_data;
 mod suggest_garbage_candidate;
 
 pub(crate) use self::{
-	back_garbage_candidate::BackGarbageCandidate, dispute_valid_candidates::DisputeValidCandidates,
+	dispute_valid_candidates::DisputeValidCandidates,
+	store_malicious_available_data::StoreMaliciousAvailableDataWrapper,
+	suggest_garbage_candidate::BackGarbageCandidateWrapper,
 };

@@ -60,7 +60,7 @@ const TOMBSTONE_VALUE: &[u8] = &*b" ";
 
 /// Replace outgoing approval messages with disputes.
 #[derive(Clone)]
-struct StoreMaliciousAvailableData {
+pub(crate) struct StoreMaliciousAvailableData {
 	db: Arc<dyn KeyValueDB>,
 	config: AvailabilityConfig,
 }
@@ -187,9 +187,9 @@ fn store_malicious_available_data(
 }
 
 /// Generates an overseer that disputes instead of approving valid candidates.
-pub(crate) struct DisputeValidCandidates;
+pub(crate) struct StoreMaliciousAvailableDataWrapper;
 
-impl OverseerGen for DisputeValidCandidates {
+impl OverseerGen for StoreMaliciousAvailableDataWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
