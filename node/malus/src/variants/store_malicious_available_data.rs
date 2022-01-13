@@ -103,6 +103,8 @@ where
 						let _ = tx.send(Err(()));
 					},
 				}
+
+				// We needn't actually drop this message, but there is no benefit in handling it.
 				None
 			},
 			_ => Some(msg),

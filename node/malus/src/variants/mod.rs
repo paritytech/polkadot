@@ -23,5 +23,4 @@ mod suggest_garbage_candidate;
 
 pub(crate) use self::{
 	back_garbage_candidate::BackGarbageCandidate, dispute_valid_candidates::DisputeValidCandidates,
-	suggest_garbage_candidate::SuggestGarbageCandidate,
 };
