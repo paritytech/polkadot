@@ -34,6 +34,7 @@ assert_matches = "1.5"
 structopt = "0.3.25"
 async-trait = "0.1.52"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.16"
 futures-timer = "3.0.2"
 tracing = "0.1.26"

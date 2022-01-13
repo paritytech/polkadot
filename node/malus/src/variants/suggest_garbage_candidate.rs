@@ -196,9 +196,9 @@ where
 }
 
 /// Generates an overseer that disputes instead of approving valid candidates.
-pub(crate) struct DisputeValidCandidates;
+pub(crate) struct BackGarbageCandidateWrapper;
 
-impl OverseerGen for DisputeValidCandidates {
+impl OverseerGen for BackGarbageCandidateWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
