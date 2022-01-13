@@ -319,13 +319,11 @@ struct MonitorConfig {
 #[derive(Debug, Clone, Parser)]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[allow(dead_code)]
 	#[clap(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
-	#[allow(dead_code)]
-	#[clap(subcommand)]
+    #[clap(subcommand)]
 	solver: Solvers,
 
 	/// The number of top backed winners to take. All are taken, if not provided.

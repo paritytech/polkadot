@@ -18,7 +18,6 @@
 
 use crate::{prelude::*, EmergencySolutionConfig, Error, SharedConfig};
 use codec::Encode;
-use frame_election_provider_support::SequentialPhragmen;
 use std::io::Write;
 
 macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
@@ -28,15 +27,15 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 		config: EmergencySolutionConfig,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), None, vec![]).await?;
+
+		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, vec![]).await?;
+		let (raw_solution, _witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
+
 		ext.execute_with(|| {
 			assert!(EPM::Pallet::<Runtime>::current_phase().is_emergency());
 
-			// NOTE: this internally calls feasibility_check, but we just re-do it here as an easy way
-			// to get a `ReadySolution`.
-			let (raw_solution, _) =
-				<EPM::Pallet<Runtime>>::mine_solution::<SequentialPhragmen<AccountId, sp_runtime::Perbill>>()?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+
 			let mut ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
 
 			// maybe truncate.
