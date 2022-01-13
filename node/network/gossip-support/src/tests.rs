@@ -218,32 +218,6 @@ async fn test_neighbors(overseer: &mut VirtualOverseer) {
 	);
 }
 
-// Helper function to test the `Validator::new()` call from inside ActiveLeavesUpdate
-// handler.
-async fn check_validator_status(overseer: &mut VirtualOverseer, hash: Hash) {
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::Validators(sender),
-		)) => {
-			assert_eq!(relay_parent, hash);
-			sender.send(Ok(Vec::new())).unwrap();
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::SessionIndexForChild(sender),
-		)) => {
-			assert_eq!(relay_parent, hash);
-			sender.send(Ok(2)).unwrap();
-		}
-	);
-}
-
 #[test]
 fn issues_a_connection_request_on_new_session() {
 	let hash = Hash::repeat_byte(0xAA);
@@ -260,8 +234,6 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(1)).unwrap();
 			}
 		);
-
-		check_validator_status(overseer, hash).await;
 
 		assert_matches!(
 			overseer_recv(overseer).await,
@@ -286,6 +258,17 @@ fn issues_a_connection_request_on_new_session() {
 		);
 
 		test_neighbors(overseer).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(1, sender),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				sender.send(Ok(Some(polkadot_primitives::v2::SessionInfo::default()))).unwrap();
+			}
+		);
 
 		virtual_overseer
 	});
@@ -330,8 +313,6 @@ fn issues_a_connection_request_on_new_session() {
 			}
 		);
 
-		check_validator_status(overseer, hash).await;
-
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -355,6 +336,17 @@ fn issues_a_connection_request_on_new_session() {
 		);
 
 		test_neighbors(overseer).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(2, sender),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				sender.send(Ok(Some(polkadot_primitives::v2::SessionInfo::default()))).unwrap();
+			}
+		);
 
 		virtual_overseer
 	});
@@ -415,8 +407,6 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				}
 			);
 
-			check_validator_status(overseer, hash).await;
-
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -444,6 +434,17 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			);
 
 			test_neighbors(overseer).await;
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionInfo(1, sender),
+				)) => {
+					assert_eq!(relay_parent, hash);
+					sender.send(Ok(Some(polkadot_primitives::v2::SessionInfo::default()))).unwrap();
+				}
+			);
 
 			virtual_overseer
 		})

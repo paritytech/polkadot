@@ -28,7 +28,8 @@ use parity_util_mem::MallocSizeOf;
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf, Default))]
+#[cfg_attr(all(feature = "std", test), derive(Default))]
 pub struct SessionInfo {
 	/****** New in v2 *******/
 	/// All the validators actively participating in parachain consensus.

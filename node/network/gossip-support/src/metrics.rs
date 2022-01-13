@@ -28,8 +28,10 @@ pub struct Metrics(Option<MetricsInner>);
 
 #[derive(Clone)]
 struct MetricsInner {
-	/// Tracks authority status.
+	/// Tracks authority status for producing relay chain blocks.
 	is_authority: Gauge<U64>,
+	/// Tracks authority status for parachain approval checking.
+	is_parachain_validator: Gauge<U64>,
 }
 
 impl Metrics {
@@ -39,17 +41,31 @@ impl Metrics {
 		Self(None)
 	}
 
-	/// Set the authority flag.
-	pub fn on_role_is_authority(&self) {
+	/// Set the `relaychain validator` metric.
+	pub fn on_is_authority(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.is_authority.set(1);
 		}
 	}
 
-	/// Unset the authority flag.
-	pub fn on_role_is_not_authority(&self) {
+	/// Unset the `relaychain validator` metric.
+	pub fn on_is_not_authority(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.is_authority.set(0);
+		}
+	}
+
+	/// Set the `parachain validator` metric.
+	pub fn on_is_parachain_validator(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.is_parachain_validator.set(1);
+		}
+	}
+
+	/// Unset the `parachain validator` metric.
+	pub fn on_is_not_parachain_validator(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.is_parachain_validator.set(0);
 		}
 	}
 }
@@ -58,7 +74,14 @@ impl metrics::Metrics for Metrics {
 	fn try_register(registry: &Registry) -> Result<Self, PrometheusError> {
 		let metrics = MetricsInner {
 			is_authority: prometheus::register(
-				Gauge::new("polkadot_node_is_authority", "Tracks the node authority status.")?,
+				Gauge::new("polkadot_node_is_authority", "Tracks the node authority status across sessions. \
+				An authority is any node that is a potential block producer in a session.")?,
+				registry,
+			)?,
+			is_parachain_validator: prometheus::register(
+				Gauge::new("polkadot_node_is_parachain_validator", 
+				"Tracks the node parachain validator status across sessions. Parachain validators are a \
+				subset of authorities that perform approval checking of all parachain candidates in a session.")?,
 				registry,
 			)?,
 		};

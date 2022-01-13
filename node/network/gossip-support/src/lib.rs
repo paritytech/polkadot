@@ -49,7 +49,7 @@ use polkadot_node_subsystem::{
 		RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
+	SubsystemError, SubsystemSender,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
@@ -119,8 +119,9 @@ where
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
 	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
-		// Initialize the `polkadot_node_is_authority` metric.
-		metrics.on_role_is_not_authority();
+		// Initialize metrics to `0`.
+		metrics.on_is_not_authority();
+		metrics.on_is_not_parachain_validator();
 
 		Self {
 			keystore,
@@ -220,14 +221,6 @@ where
 						"New session detected",
 					);
 					self.last_session_index = Some(session_index);
-
-					// Update the authority status metric on every new session.
-					match util::Validator::new(leaf, self.keystore.clone(), ctx.sender()).await {
-						Ok(_) => self.metrics.on_role_is_authority(),
-						Err(util::Error::NotAValidator) => self.metrics.on_role_is_not_authority(),
-						// Don't update on runtime errors.
-						Err(_) => {},
-					}
 				}
 
 				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
@@ -242,10 +235,59 @@ where
 
 				if is_new_session {
 					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
+					self.update_authority_status_metrics(leaf, ctx.sender()).await?;
 				}
 			}
 		}
+		Ok(())
+	}
 
+	async fn update_authority_status_metrics(
+		&mut self,
+		leaf: Hash,
+		sender: &mut impl SubsystemSender,
+	) -> Result<(), util::Error> {
+		if let Some(session_info) = util::request_session_info(
+			leaf,
+			self.last_session_index
+				.expect("Last session index is always set on every session index change"),
+			sender,
+		)
+		.await
+		.await??
+		{
+			let maybe_index = match ensure_i_am_an_authority(
+				&self.keystore,
+				&session_info.discovery_keys,
+			)
+			.await
+			{
+				Ok(index) => {
+					self.metrics.on_is_authority();
+					Some(index)
+				},
+				Err(util::Error::NotAValidator) => {
+					self.metrics.on_is_not_authority();
+					None
+				},
+				// Don't update on runtime errors.
+				Err(_) => None,
+			};
+
+			if let Some(validator_index) = maybe_index {
+				// The subset of authorities participating in parachain consensus.
+				let parachain_validators_this_session = session_info.validators;
+
+				// First `maxValidators` entries are the parachain validators. We'll check
+				// if our index is in this set to avoid searching for the keys.
+				// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
+				if validator_index < parachain_validators_this_session.len() {
+					self.metrics.on_is_parachain_validator();
+				} else {
+					self.metrics.on_is_not_parachain_validator();
+				}
+			}
+		}
 		Ok(())
 	}
 
