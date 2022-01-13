@@ -224,7 +224,9 @@ where
 					// Update the authority status metric on every new session.
 					match util::Validator::new(leaf, self.keystore.clone(), ctx.sender()).await {
 						Ok(_) => self.metrics.on_is_authority(),
-						Err(_) => self.metrics.on_is_not_authority(),
+						Err(util::Error::NotAValidator) => self.metrics.on_is_not_authority(),
+						// Don't update on runtime errors.
+						Err(_) => {},
 					}
 				}
 
