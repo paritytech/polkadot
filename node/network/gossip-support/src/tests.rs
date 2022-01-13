@@ -236,10 +236,10 @@ async fn check_validator_status(overseer: &mut VirtualOverseer, hash: Hash) {
 		overseer_recv(overseer).await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 			relay_parent,
-			RuntimeApiRequest::SessionIndexForChild(tx),
+			RuntimeApiRequest::SessionIndexForChild(sender),
 		)) => {
 			assert_eq!(relay_parent, hash);
-			tx.send(Ok(2)).unwrap();
+			sender.send(Ok(2)).unwrap();
 		}
 	);
 }
