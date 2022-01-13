@@ -58,6 +58,22 @@ lazy_static! {
 		Sr25519Keyring::Charlie.public().into(),
 		Sr25519Keyring::Eve.public().into(),
 	];
+	static ref SESSION_INFO: polkadot_primitives::v2::SessionInfo =
+		polkadot_primitives::v2::SessionInfo {
+			active_validator_indices: Vec::new(),
+			random_seed: [0u8; 32],
+			dispute_period: 10,
+			validators: Vec::new(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: Vec::new(),
+			n_cores: 1,
+			zeroth_delay_tranche_width: 0,
+			relay_vrf_modulo_samples: 0,
+			n_delay_tranches: 0,
+			no_show_slots: 0,
+			needed_approvals: 0,
+		};
 }
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMessage>;
@@ -266,7 +282,7 @@ fn issues_a_connection_request_on_new_session() {
 				RuntimeApiRequest::SessionInfo(1, sender),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				sender.send(Ok(Some(polkadot_primitives::v2::SessionInfo::default()))).unwrap();
+				sender.send(Ok(Some(SESSION_INFO.clone()))).unwrap();
 			}
 		);
 
@@ -344,7 +360,7 @@ fn issues_a_connection_request_on_new_session() {
 				RuntimeApiRequest::SessionInfo(2, sender),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				sender.send(Ok(Some(polkadot_primitives::v2::SessionInfo::default()))).unwrap();
+				sender.send(Ok(Some(SESSION_INFO.clone()))).unwrap();
 			}
 		);
 
@@ -442,7 +458,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					RuntimeApiRequest::SessionInfo(1, sender),
 				)) => {
 					assert_eq!(relay_parent, hash);
-					sender.send(Ok(Some(polkadot_primitives::v2::SessionInfo::default()))).unwrap();
+					sender.send(Ok(Some(SESSION_INFO.clone()))).unwrap();
 				}
 			);
 
