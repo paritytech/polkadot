@@ -35,7 +35,7 @@ pub mod runtime;
 #[cfg(feature = "runtime-metrics")]
 pub use self::runtime::logger_hook;
 
-/// Export a dummy logger hook when `wasm tracing` is not enabled.
+/// Export a dummy logger hook when the `runtime-metrics` feature is not enabled.
 #[cfg(not(feature = "runtime-metrics"))]
 pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
 	|_logger_builder, _config| {}
@@ -81,5 +81,5 @@ pub mod metrics {
 	}
 }
 
-#[cfg(test)]
+#[cfg(all(feature = "runtime-metrics", not(feature = "runtime-benchmarks"), test))]
 mod tests;

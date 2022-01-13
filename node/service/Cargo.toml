@@ -115,6 +115,7 @@ polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-chain-selection = { path = "../core/chain-selection", optional = true }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
+polkadot-node-core-pvf-checker = { path = "../core/pvf-checker", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 
@@ -154,6 +155,7 @@ full-node = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
+	"polkadot-node-core-pvf-checker",
 	"kvdb-rocksdb"
 ]
 

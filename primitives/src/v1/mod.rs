@@ -65,8 +65,8 @@ pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
 mod metrics;
 pub use metrics::{
-	RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels,
-	RuntimeMetricOp, RuntimeMetricRegisterParams, RuntimeMetricUpdate,
+	metric_definitions, RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues,
+	RuntimeMetricLabels, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 
 /// A declarations of storage keys where an external observer can find some interesting data.
@@ -336,8 +336,8 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -378,8 +378,8 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 }
 
 /// A candidate-receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -403,8 +403,7 @@ impl<H> CandidateReceipt<H> {
 }
 
 /// All data pertaining to the execution of a para candidate.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
@@ -416,8 +415,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -497,8 +496,8 @@ impl Ord for CommittedCandidateReceipt {
 ///
 /// The `PersistedValidationData` should be relatively lightweight primarily because it is constructed
 /// during inclusion for each candidate and therefore lies on the critical path of inclusion.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default, MallocSizeOf))]
 pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
@@ -518,8 +517,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf, Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -655,8 +654,10 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 }
 
 /// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(
+	Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
+)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {
@@ -677,13 +678,13 @@ impl From<u32> for GroupIndex {
 }
 
 /// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ParathreadEntry {
 	/// The claim.
 	pub claim: ParathreadClaim,
@@ -692,8 +693,8 @@ pub struct ParathreadEntry {
 }
 
 /// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
 	/// A parathread.
 	Parathread(ParathreadEntry),
@@ -702,8 +703,8 @@ pub enum CoreOccupied {
 }
 
 /// A helper data-type for tracking validator-group rotations.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct GroupRotationInfo<N = BlockNumber> {
 	/// The block number where the session started.
 	pub session_start_block: N,
@@ -790,8 +791,8 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 	/// If this core is freed by availability, this is the assignment that is next up on this
@@ -826,8 +827,8 @@ impl<H, N> OccupiedCore<H, N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -836,8 +837,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = 0)]
@@ -872,8 +873,8 @@ impl<N> CoreState<N> {
 }
 
 /// An assumption being made about the state of an occupied core.
-#[derive(Clone, Copy, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash, Debug))]
+#[derive(Clone, Copy, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
 	#[codec(index = 0)]
@@ -887,8 +888,8 @@ pub enum OccupiedCoreAssumption {
 }
 
 /// An even concerning a candidate.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
 	/// This includes the core index the candidate is now occupying.
