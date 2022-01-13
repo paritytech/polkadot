@@ -33,12 +33,11 @@ pub mod currency {
 /// Time and blocks.
 pub mod time {
 	use primitives::v0::{BlockNumber, Moment};
+	use runtime_common::prod_or_fast;
+
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	#[cfg(feature = "fast-runtime")]
-	pub const DEFAULT_EPOCH_DURATION: BlockNumber = 1 * MINUTES;
-	#[cfg(not(feature = "fast-runtime"))]
-	pub const DEFAULT_EPOCH_DURATION: BlockNumber = 1 * HOURS;
+	pub const DEFAULT_EPOCH_DURATION: BlockNumber = prod_or_fast!(1 * HOURS, 1 * MINUTES);
 	frame_support::parameter_types! {
 		pub storage EpochDurationInBlocks: BlockNumber = DEFAULT_EPOCH_DURATION;
 	}
