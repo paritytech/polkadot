@@ -268,6 +268,7 @@ where
 				},
 				Err(util::Error::NotAValidator) => {
 					self.metrics.on_is_not_authority();
+					self.metrics.on_is_not_parachain_validator();
 					None
 				},
 				// Don't update on runtime errors.
