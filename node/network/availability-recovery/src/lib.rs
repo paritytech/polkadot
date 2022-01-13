@@ -48,9 +48,12 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt,
+		GroupIndex, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use polkadot_subsystem::{
 	errors::RecoveryError,
@@ -566,8 +569,20 @@ const fn is_unavailable(
 }
 
 /// Re-encode the data into erasure chunks in order to verify
-/// the root hash of the provided merkle tree, which is built
+/// the root hash of the provided Merkle tree, which is built
 /// on-top of the encoded chunks.
+///
+/// This (expensive) check is necessary, as otherwise we can't be sure that some chunks won't have
+/// been tampered with by the backers, which would result in some validators considering the data
+/// valid and some invalid as having fetched different set of chunks. The checking of the Merkle
+/// proof for individual chunks only gives us guarantees, that we have fetched a chunk belonging to
+/// a set the backers have committed to.
+///
+/// NOTE: It is fine to do this check with already decoded data, because if the decoding failed for
+/// some validators, we can be sure that chunks have been tampered with (by the backers) or the
+/// data was invalid to begin with. In the former case, validators fetching valid chunks will see
+/// invalid data as well, because the root won't match. In the latter case the situation is the
+/// same for anyone anyways.
 fn reconstructed_data_matches_root(
 	n_validators: usize,
 	expected_root: &Hash,

@@ -5,8 +5,11 @@ parachains and parathreads cannot change except at session boundaries and after 
 session has passed. This is primarily to ensure that the number and meaning of bits required for the
 availability bitfields does not change except at session boundaries.
 
-It's also responsible for managing parachain validation code upgrades as well as maintaining
-availability of old parachain code and its pruning.
+It's also responsible for:
+
+- managing parachain validation code upgrades as well as maintaining availability of old parachain 
+code and its pruning.
+- vetting PVFs by means of the PVF pre-checking mechanism.
 
 ## Storage
 
@@ -38,13 +41,6 @@ pub struct ParaPastCodeMeta {
  last_pruned: Option<BlockNumber>,
 }
 
-enum UseCodeAt {
- // Use the current code.
- Current,
- // Use the code that was replaced at the given block number.
- ReplacedAt(BlockNumber),
-}
-
 struct ParaGenesisArgs {
   /// The initial head-data to use.
   genesis_head: HeadData,
@@ -71,18 +67,49 @@ pub enum ParaLifecycle {
   /// Parachain is being offboarded.
   OutgoingParachain,
 }
+
+enum PvfCheckCause {
+  /// PVF vote was initiated by the initial onboarding process of the given para.
+  Onboarding(ParaId),
+  /// PVF vote was initiated by signalling of an upgrade by the given para.
+  Upgrade {
+    /// The ID of the parachain that initiated or is waiting for the conclusion of pre-checking.
+    id: ParaId,
+    /// The relay-chain block number that was used as the relay-parent for the parablock that
+    /// initiated the upgrade.
+    relay_parent_number: BlockNumber,
+  },
+}
+
+struct PvfCheckActiveVoteState {
+  // The two following vectors have their length equal to the number of validators in the active
+  // set. They start with all zeroes. A 1 is set at an index when the validator at the that index
+  // makes a vote. Once a 1 is set for either of the vectors, that validator cannot vote anymore.
+  // Since the active validator set changes each session, the bit vectors are reinitialized as
+  // well: zeroed and resized so that each validator gets its own bit.
+  votes_accept: BitVec,
+  votes_reject: BitVec,
+
+  /// The number of session changes this PVF vote has observed. Therefore, this number is
+  /// increased at each session boundary. When created, it is initialized with 0.
+  age: SessionIndex,
+  /// The block number at which this PVF vote was created.
+  created_at: BlockNumber,
+  /// A list of causes for this PVF pre-checking. Has at least one.
+  causes: Vec<PvfCheckCause>,
+}
 ```
 
 #### Para Lifecycle
 
-Because the state of parachains and parathreads are delayed by a session, we track the specific
-state of the para using the `ParaLifecycle` enum.
+Because the state changes of parachains and parathreads are delayed, we track the specific state of 
+the para using the `ParaLifecycle` enum.
 
 ```
 None                 Parathread                  Parachain
  +                        +                          +
  |                        |                          |
- |   (2 Session Delay)    |                          |
+ |   (≈2 Session Delay)   |                          |
  |                        |                          |
  +----------------------->+                          |
  |       Onboarding       |                          |
@@ -105,11 +132,21 @@ None                 Parathread                  Parachain
  +                        +                          +
 ```
 
+Note that if PVF pre-checking is enabled, onboarding of a para may potentially be delayed. This can
+happen due to PVF pre-checking voting concluding late.
+
 During the transition period, the para object is still considered in its existing state.
 
 ### Storage Layout
 
 ```rust
+/// All currently active PVF pre-checking votes.
+///
+/// Invariant:
+/// - There are no PVF pre-checking votes that exists in list but not in the set and vice versa.
+PvfActiveVoteMap: map ValidationCodeHash => PvfCheckActiveVoteState;
+/// The list of all currently active PVF votes. Auxiliary to `PvfActiveVoteMap`.
+PvfActiveVoteList: Vec<ValidationCodeHash>;
 /// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 Parachains: Vec<ParaId>,
 /// The current lifecycle state of all known Para Ids.
@@ -169,6 +206,9 @@ UpcomingUpgrades: Vec<(ParaId, T::BlockNumber)>;
 /// The actions to perform during the start of a specific session index.
 ActionsQueue: map SessionIndex => Vec<ParaId>;
 /// Upcoming paras instantiation arguments.
+///
+/// NOTE that after PVF pre-checking is enabled the para genesis arg will have it's code set 
+/// to empty. Instead, the code will be saved into the storage right away via `CodeByHash`.
 UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 /// The number of references on the validation code in `CodeByHash` storage.
 CodeByHashRefs: map ValidationCodeHash => u32;
@@ -194,8 +234,13 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
      `ParaLifecycle`.
   1. Downgrade all parachains that should become parathreads, updating the `Parachains` list and
      `ParaLifecycle`.
-  1. Return list of outgoing paras to the initializer for use by other modules.
-
+  1. (Deferred) Return list of outgoing paras to the initializer for use by other modules.
+1. Go over all active PVF pre-checking votes:
+  1. Increment `age` of the vote.
+  1. If `age` reached `cfg.pvf_voting_ttl`, then enact PVF rejection and remove the vote from the active list.
+  1. Otherwise, reinitialize the ballots.
+    1. Resize the `votes_accept`/`votes_reject` to have the same length as the incoming validator set.
+    1. Zero all the votes.
 ## Initialization
 
 1. Do pruning based on all entries in `PastCodePruning` with `BlockNumber <= now`. Update the
@@ -211,9 +256,10 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 * `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up after the next full session.
 * `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain.
 * `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
-* `schedule_code_upgrade(ParaId, CurrentCode, relay_parent: BlockNumber, HostConfiguration)`: Schedule a future code
-  upgrade of the given parachain, to be applied after inclusion of a block of the same parachain
-  executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_frequency`.
+* `schedule_code_upgrade(ParaId, new_code, relay_parent: BlockNumber, HostConfiguration)`: Schedule a future code
+  upgrade of the given parachain. In case the PVF pre-checking is disabled, or the new code is already present in the storage, the upgrade will be applied after inclusion of a block of the same parachain
+  executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_cooldown`.
+In case the PVF pre-checking is enabled, or the new code is not already present in the storage, then the PVF pre-checking run will be scheduled for that validation code. If the pre-checking concludes with rejection, then the upgrade is canceled. Otherwise, after pre-checking is concluded the upgrade will be scheduled and be enacted as described above.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head,
   where the new head was executed in the context of a relay-chain block with given number. This will
   apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
@@ -225,6 +271,7 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 * `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live parathread
   or live parachain.
 * `can_upgrade_validation_code(ParaId) -> bool`: Returns true if the given para can signal code upgrade right now.
+* `pvfs_require_prechecking() -> Vec<ValidationCodeHash>`: Returns the list of PVF validation code hashes that require PVF pre-checking votes.
 
 ## Finalization
 

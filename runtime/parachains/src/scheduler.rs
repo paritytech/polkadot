@@ -220,12 +220,12 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the scheduler module.
+	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the scheduler module.
+	/// Called by the initializer to finalize the scheduler pallet.
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
@@ -797,7 +797,7 @@ mod tests {
 			let b = System::block_number();
 
 			Scheduler::initializer_finalize();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 
 			if let Some(notification) = new_session(b + 1) {
 				let mut notification_with_session_index = notification;
@@ -818,7 +818,7 @@ mod tests {
 			Paras::initializer_initialize(b + 1);
 			Scheduler::initializer_initialize(b + 1);
 
-			// In the real runt;me this is expected to be called by the `InclusionInherent` module.
+			// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 			Scheduler::clear();
 			Scheduler::schedule(Vec::new(), b + 1);
 		}
@@ -831,7 +831,7 @@ mod tests {
 		run_to_block(to, &new_session);
 
 		Scheduler::initializer_finalize();
-		Paras::initializer_finalize();
+		Paras::initializer_finalize(to);
 
 		if let Some(notification) = new_session(to + 1) {
 			Paras::initializer_on_new_session(&notification);
@@ -850,6 +850,10 @@ mod tests {
 			scheduling_lookahead: 2,
 			parathread_retries: 1,
 			pvf_checking_enabled: false,
+			// This field does not affect anything that scheduler does. However, `HostConfiguration`
+			// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
+			// is greater than `chain_availability_period` and `thread_availability_period`.
+			minimum_validation_upgrade_delay: 6,
 			..Default::default()
 		}
 	}

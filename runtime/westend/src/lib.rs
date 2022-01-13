@@ -22,17 +22,20 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v1::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote,
-	OffchainSolutionLengthLimit, OffchainSolutionWeightLimit, RocksDbWeight,
-	SlowAdjustingFeeUpdate,
+	slots, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -45,24 +48,11 @@ use runtime_parachains::{
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
-use xcm::latest::prelude::*;
-use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, LocationInverter,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents, WeightInfoBounds,
-};
-use xcm_executor::XcmExecutor;
-
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
-	},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -106,6 +96,9 @@ mod weights;
 // Voter bag threshold definitions.
 mod bag_thresholds;
 
+// XCM configurations.
+mod xcm_config;
+
 #[cfg(test)]
 mod tests;
 
@@ -125,6 +118,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
 	transaction_version: 8,
+	state_version: 0,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -477,7 +471,6 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
 	type SortedListProvider = BagsList;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
@@ -860,7 +853,8 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type Event = Event;
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
+	type UmpSink =
+		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 }
@@ -973,113 +967,6 @@ impl auctions::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
-}
-
-parameter_types! {
-	pub const WndLocation: MultiLocation = Here.into();
-	pub const Ancestry: MultiLocation = Here.into();
-	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
-	pub CheckAccount: AccountId = XcmPallet::check_account();
-}
-
-pub type LocationConverter =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<WestendNetwork, AccountId>);
-
-pub type LocalAssetTransactor = XcmCurrencyAdapter<
-	// Use this currency:
-	Balances,
-	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<WndLocation>,
-	// We can convert the MultiLocations with our converter above:
-	LocationConverter,
-	// Our chain's account ID type (we can't get away without mentioning it explicitly):
-	AccountId,
-	// It's a native asset so we keep track of the teleports to maintain total issuance.
-	CheckAccount,
->;
-
-type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<WestendNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
-);
-
-/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
-/// individual routers.
-pub type XcmRouter = (
-	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
-);
-
-parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(1000).into();
-	pub const Encointer: MultiLocation = Parachain(1001).into();
-	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
-	pub const WestendForEncointer: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Encointer::get());
-	pub const MaxInstructions: u32 = 100;
-}
-pub type TrustedTeleporters =
-	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForEncointer>);
-
-/// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
-	// Weight that is paid for may be consumed.
-	TakeWeightCredit,
-	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
-	// Messages coming from system parachains need not pay for execution.
-	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
-	// Expected responses are OK.
-	AllowKnownQueryResponses<XcmPallet>,
-	// Subscriptions for version tracking are OK.
-	AllowSubscriptionsFrom<Everything>,
-);
-
-pub struct XcmConfig;
-impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
-	type XcmSender = XcmRouter;
-	type AssetTransactor = LocalAssetTransactor;
-	type OriginConverter = LocalOriginConverter;
-	type IsReserve = ();
-	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
-	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = XcmPallet;
-	type AssetTrap = XcmPallet;
-	type AssetClaims = XcmPallet;
-	type SubscriptionService = XcmPallet;
-}
-
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
-pub type LocalOriginToLocation = (
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
-);
-
-impl pallet_xcm::Config for Runtime {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which rejects everything.
-	type XcmExecuteFilter = Nothing;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
-	type Call = Call;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
-	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 construct_runtime! {
@@ -1305,7 +1192,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
 		}
@@ -1387,7 +1274,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_pvf_check_statement(
-			stmt: primitives::v1::PvfCheckStatement,
+			stmt: primitives::v2::PvfCheckStatement,
 			signature: primitives::v1::ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
@@ -1395,6 +1282,12 @@ sp_api::impl_runtime_apis! {
 
 		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
 			parachains_runtime_api_impl::pvfs_require_precheck::<Runtime>()
+		}
+
+		fn validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
 	}
 
@@ -1643,11 +1536,15 @@ sp_api::impl_runtime_apis! {
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
-			use xcm::latest::MultiAsset;
+			use xcm::latest::{
+				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
+				Response,
+			};
+			use xcm_config::{Westmint, WndLocation};
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
-				type XcmConfig = XcmConfig;
-				type AccountIdConverter = LocationConverter;
+				type XcmConfig = xcm_config::XcmConfig;
+				type AccountIdConverter = xcm_config::LocationConverter;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
 				}
@@ -1670,7 +1567,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
-				type CheckedAccount = CheckAccount;
+				type CheckedAccount = xcm_config::CheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
 
 				fn get_multi_asset() -> MultiAsset {

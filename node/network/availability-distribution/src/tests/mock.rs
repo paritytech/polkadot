@@ -22,10 +22,13 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
-use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
-	ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+		GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_collator, dummy_collator_signature, dummy_hash, dummy_validation_code,
@@ -61,6 +64,9 @@ pub fn make_session_info() -> SessionInfo {
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: Vec::new(),
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }
 

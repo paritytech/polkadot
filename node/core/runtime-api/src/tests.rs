@@ -20,11 +20,14 @@ use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState,
+		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -53,6 +56,7 @@ struct MockRuntimeApi {
 	on_chain_votes: Option<ScrapedOnChainVotes>,
 	submitted_pvf_check_statement: Arc<Mutex<Vec<(PvfCheckStatement, ValidatorSignature)>>>,
 	pvfs_require_precheck: Vec<ValidationCodeHash>,
+	validation_code_hash: HashMap<ParaId, ValidationCodeHash>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -179,6 +183,14 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
 			self.pvfs_require_precheck.clone()
+		}
+
+		fn validation_code_hash(
+			&self,
+			para: ParaId,
+			_assumption: OccupiedCoreAssumption,
+		) -> Option<ValidationCodeHash> {
+			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
 	}
 
@@ -508,6 +520,9 @@ fn dummy_session_info() -> SessionInfo {
 		n_delay_tranches: 2u32,
 		no_show_slots: 0u32,
 		needed_approvals: 1u32,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }
 #[test]
@@ -858,7 +873,7 @@ fn multiple_requests_in_parallel_are_working() {
 }
 
 #[test]
-fn request_babe_epoch() {
+fn requests_babe_epoch() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let epoch = BabeEpoch {
@@ -976,6 +991,54 @@ fn requests_pvfs_require_precheck() {
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), vec![[1; 32].into(), [2; 32].into()]);
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
+fn requests_validation_code_hash() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+
+	let relay_parent = [1; 32].into();
+	let para_a = 5.into();
+	let para_b = 6.into();
+	let spawner = sp_core::testing::TaskExecutor::new();
+	let validation_code_hash = dummy_validation_code().hash();
+
+	let mut runtime_api = MockRuntimeApi::default();
+	runtime_api.validation_code_hash.insert(para_a, validation_code_hash.clone());
+	let runtime_api = Arc::new(runtime_api);
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeHash(para_a, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), Some(validation_code_hash));
+
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeHash(para_b, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), None);
+
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 

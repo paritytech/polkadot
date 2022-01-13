@@ -156,7 +156,7 @@ max_upward_queue_size                    : pre.max_upward_queue_size,
 max_upward_message_size                  : pre.max_upward_message_size,
 max_upward_message_num_per_candidate     : pre.max_upward_message_num_per_candidate,
 hrmp_max_message_num_per_candidate       : pre.hrmp_max_message_num_per_candidate,
-validation_upgrade_frequency             : pre.validation_upgrade_frequency,
+validation_upgrade_cooldown              : pre.validation_upgrade_frequency,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
@@ -347,7 +347,7 @@ mod tests {
 			assert_eq!(v1.max_upward_message_size                  , v2.max_upward_message_size);
 			assert_eq!(v1.max_upward_message_num_per_candidate     , v2.max_upward_message_num_per_candidate);
 			assert_eq!(v1.hrmp_max_message_num_per_candidate       , v2.hrmp_max_message_num_per_candidate);
-			assert_eq!(v1.validation_upgrade_frequency             , v2.validation_upgrade_frequency);
+			assert_eq!(v1.validation_upgrade_frequency             , v2.validation_upgrade_cooldown);
 			assert_eq!(v1.validation_upgrade_delay                 , v2.validation_upgrade_delay);
 			assert_eq!(v1.max_pov_size                             , v2.max_pov_size);
 			assert_eq!(v1.max_downward_message_size                , v2.max_downward_message_size);

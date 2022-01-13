@@ -23,7 +23,10 @@ mod handle_new_activations {
 		Future,
 	};
 	use polkadot_node_primitives::{BlockData, Collation, CollationResult, PoV, POV_BOMB_LIMIT};
-	use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
+	use polkadot_node_subsystem::{
+		errors::RuntimeApiError,
+		messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	};
 	use polkadot_node_subsystem_test_helpers::{
 		subsystem_test_harness, TestSubsystemContextHandle,
 	};
@@ -259,13 +262,13 @@ mod handle_new_activations {
 					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
-						RuntimeApiRequest::ValidationCode(
+						RuntimeApiRequest::ValidationCodeHash(
 							_para_id,
 							OccupiedCoreAssumption::Free,
 							tx,
 						),
 					))) => {
-						tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
+						tx.send(Ok(Some(ValidationCode(vec![1, 2, 3]).hash()))).unwrap();
 					},
 					Some(msg) => {
 						panic!("didn't expect any other overseer requests; got {:?}", msg)
@@ -359,6 +362,125 @@ mod handle_new_activations {
 					expect_descriptor
 				};
 				assert_eq!(descriptor, &expect_descriptor);
+			},
+			_ => panic!("received wrong message type"),
+		}
+	}
+
+	#[test]
+	fn fallback_when_no_validation_code_hash_api() {
+		// This is a variant of the above test, but with the validation code hash API disabled.
+
+		let activated_hashes: Vec<Hash> = vec![
+			Hash::repeat_byte(1),
+			Hash::repeat_byte(4),
+			Hash::repeat_byte(9),
+			Hash::repeat_byte(16),
+		];
+
+		let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
+			loop {
+				match handle.try_recv().await {
+					None => break,
+					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						hash,
+						RuntimeApiRequest::AvailabilityCores(tx),
+					))) => {
+						tx.send(Ok(vec![
+							CoreState::Free,
+							CoreState::Scheduled(scheduled_core_for(
+								(hash.as_fixed_bytes()[0] * 4) as u32,
+							)),
+							CoreState::Scheduled(scheduled_core_for(
+								(hash.as_fixed_bytes()[0] * 5) as u32,
+							)),
+						]))
+						.unwrap();
+					},
+					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_hash,
+						RuntimeApiRequest::PersistedValidationData(
+							_para_id,
+							_occupied_core_assumption,
+							tx,
+						),
+					))) => {
+						tx.send(Ok(Some(test_validation_data()))).unwrap();
+					},
+					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_hash,
+						RuntimeApiRequest::Validators(tx),
+					))) => {
+						tx.send(Ok(vec![dummy_validator(); 3])).unwrap();
+					},
+					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_hash,
+						RuntimeApiRequest::ValidationCodeHash(
+							_para_id,
+							OccupiedCoreAssumption::Free,
+							tx,
+						),
+					))) => {
+						tx.send(Err(RuntimeApiError::NotSupported {
+							runtime_api_name: "validation_code_hash",
+						}))
+						.unwrap();
+					},
+					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_hash,
+						RuntimeApiRequest::ValidationCode(
+							_para_id,
+							OccupiedCoreAssumption::Free,
+							tx,
+						),
+					))) => {
+						tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
+					},
+					Some(msg) => {
+						panic!("didn't expect any other overseer requests; got {:?}", msg)
+					},
+				}
+			}
+		};
+
+		let config = test_config(16u32);
+		let subsystem_config = config.clone();
+
+		let (tx, rx) = mpsc::channel(0);
+
+		// empty vec doesn't allocate on the heap, so it's ok we throw it away
+		let sent_messages = Arc::new(Mutex::new(Vec::new()));
+		let subsystem_sent_messages = sent_messages.clone();
+		subsystem_test_harness(overseer, |mut ctx| async move {
+			handle_new_activations(
+				subsystem_config,
+				activated_hashes,
+				&mut ctx,
+				Metrics(None),
+				&tx,
+			)
+			.await
+			.unwrap();
+
+			std::mem::drop(tx);
+
+			*subsystem_sent_messages.lock().await = rx.collect().await;
+		});
+
+		let sent_messages = Arc::try_unwrap(sent_messages)
+			.expect("subsystem should have shut down by now")
+			.into_inner();
+
+		let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
+
+		assert_eq!(sent_messages.len(), 1);
+		match &sent_messages[0] {
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+				CandidateReceipt { descriptor, .. },
+				_pov,
+				..,
+			)) => {
+				assert_eq!(expect_validation_code_hash, descriptor.validation_code_hash);
 			},
 			_ => panic!("received wrong message type"),
 		}

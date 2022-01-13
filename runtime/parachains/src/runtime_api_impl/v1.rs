@@ -21,12 +21,15 @@ use crate::{
 	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
-use primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+use primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+		CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+		ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode, ValidationCodeHash,
+		ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -177,8 +180,9 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 fn current_relay_parent<T: frame_system::Config>(
 ) -> (<T as frame_system::Config>::BlockNumber, <T as frame_system::Config>::Hash) {
 	use parity_scale_codec::Decode as _;
+	let state_version = <frame_system::Pallet<T>>::runtime_version().state_version();
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
-	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root(state_version)[..])
 		.expect("storage root must decode to the Hash type; qed");
 	(relay_parent_number, relay_parent_storage_root)
 }
@@ -384,4 +388,17 @@ pub fn submit_pvf_check_statement<T: paras::Config>(
 /// [`paras::Pallet::pvfs_require_precheck`].
 pub fn pvfs_require_precheck<T: paras::Config>() -> Vec<ValidationCodeHash> {
 	<paras::Pallet<T>>::pvfs_require_precheck()
+}
+
+/// Returns the validation code hash for the given parachain making the given `OccupiedCoreAssumption`.
+pub fn validation_code_hash<T>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+) -> Option<ValidationCodeHash>
+where
+	T: inclusion::Config,
+{
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		<paras::Pallet<T>>::current_code_hash(&para_id)
+	})
 }

@@ -740,6 +740,24 @@ impl ChainBuilder {
 	}
 }
 
+fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
+	SessionInfo {
+		validators: keys.iter().map(|v| v.public().into()).collect(),
+		discovery_keys: keys.iter().map(|v| v.public().into()).collect(),
+		assignment_keys: keys.iter().map(|v| v.public().into()).collect(),
+		validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+		n_cores: keys.len() as _,
+		needed_approvals: 2,
+		zeroth_delay_tranche_width: 5,
+		relay_vrf_modulo_samples: 3,
+		n_delay_tranches: 50,
+		no_show_slots: 2,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
+	}
+}
+
 async fn import_block(
 	overseer: &mut VirtualOverseer,
 	hashes: &[(Hash, Header)],
@@ -757,18 +775,7 @@ async fn import_block(
 
 	let session_info = config.session_info.clone().unwrap_or({
 		let validators = vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob];
-		SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
-			n_cores: validators.len() as _,
-			needed_approvals: 1,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
-		}
+		SessionInfo { needed_approvals: 1, ..session_info(&validators) }
 	});
 
 	overseer_send(
@@ -944,6 +951,13 @@ fn subsystem_rejects_bad_assignment_ok_criteria() {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
@@ -997,6 +1011,12 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 	test_harness(config, |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -1034,6 +1054,12 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 fn blank_subsystem_act_on_bad_block() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle, .. } = test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let (tx, rx) = oneshot::channel();
 
@@ -1079,6 +1105,12 @@ fn subsystem_rejects_approval_if_no_candidate_entry() {
 	test_harness(config, |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -1136,6 +1168,12 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -1172,6 +1210,12 @@ fn subsystem_rejects_approval_before_assignment() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 
@@ -1230,6 +1274,12 @@ fn subsystem_rejects_assignment_in_future() {
 	test_harness(config, |test_harness| async move {
 		let TestHarness { mut virtual_overseer, clock, sync_oracle_handle: _sync_oracle_handle } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -1278,6 +1328,12 @@ fn subsystem_accepts_duplicate_assignment() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -1323,6 +1379,12 @@ fn subsystem_rejects_assignment_with_unknown_candidate() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 7;
@@ -1363,6 +1425,12 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 
@@ -1427,7 +1495,12 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
-
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 		clock.inner.lock().set_tick(APPROVAL_DELAY);
 
 		let block_hash = Hash::repeat_byte(0x01);
@@ -1452,20 +1525,13 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
 			needed_approvals: 1,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		// Add block hash 0x01...
@@ -1545,6 +1611,13 @@ fn subsystem_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 			..
 		} = test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_index = 0;
@@ -1586,6 +1659,13 @@ fn subsystem_process_wakeup_schedules_wakeup() {
 			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hash = Hash::repeat_byte(0x01);
 
@@ -1632,6 +1712,13 @@ fn linear_import_act_on_leaf() {
 
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let mut head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
@@ -1683,6 +1770,13 @@ fn forkful_import_at_same_height_act_on_leaf() {
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let mut head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
@@ -1751,6 +1845,13 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			..
 		} = test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 		let validator_index_a = ValidatorIndex(0);
 		let validator_index_b = ValidatorIndex(1);
@@ -1763,20 +1864,12 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidate_descriptor = make_candidate(1.into(), &block_hash);
@@ -1894,6 +1987,13 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 
 		let candidate_receipt1 = {
@@ -1923,20 +2023,12 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		ChainBuilder::new()
@@ -2031,6 +2123,13 @@ fn approved_ancestor_test(
 	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
 			test_harness;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
 
 		let block_hashes = vec![
 			Hash::repeat_byte(0x01),
@@ -2192,6 +2291,13 @@ fn subsystem_validate_approvals_cache() {
 			..
 		} = test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 		let fork_block_hash = Hash::repeat_byte(0x02);
 		let candidate_commitments = CandidateCommitments::default();
@@ -2209,20 +2315,12 @@ fn subsystem_validate_approvals_cache() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidates = Some(vec![(candidate_receipt.clone(), CoreIndex(0), GroupIndex(0))]);
@@ -2407,6 +2505,13 @@ where
 			..
 		} = test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_receipt = dummy_candidate_receipt(block_hash);
 		let candidate_hash = candidate_receipt.hash();
@@ -2422,20 +2527,14 @@ where
 			Sr25519Keyring::Ferdie,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(3)],
 				vec![ValidatorIndex(4), ValidatorIndex(5)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
 			relay_vrf_modulo_samples: 2,
-			n_delay_tranches: 50,
 			no_show_slots,
+			..session_info(&validators)
 		};
 
 		ChainBuilder::new()
@@ -2726,6 +2825,13 @@ fn pre_covers_dont_stall_approval() {
 			..
 		} = test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		let block_hash = Hash::repeat_byte(0x01);
 		let validator_index_a = ValidatorIndex(0);
 		let validator_index_b = ValidatorIndex(1);
@@ -2740,20 +2846,12 @@ fn pre_covers_dont_stall_approval() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidate_descriptor = make_candidate(1.into(), &block_hash);
@@ -2905,6 +3003,13 @@ fn waits_until_approving_assignments_are_old_enough() {
 			..
 		} = test_harness;
 
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
 		clock.inner.lock().set_tick(APPROVAL_DELAY);
 
 		let block_hash = Hash::repeat_byte(0x01);
@@ -2920,20 +3025,12 @@ fn waits_until_approving_assignments_are_old_enough() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
 			validator_groups: vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
 			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
+			..session_info(&validators)
 		};
 
 		let candidate_descriptor = make_candidate(1.into(), &block_hash);

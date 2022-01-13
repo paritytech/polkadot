@@ -29,7 +29,14 @@ nix = "0.23.1"
 tempfile = "3.2.0"
 hyper = { version = "0.14.16", default-features = false, features = ["http1", "tcp"] }
 tokio = "1.13"
+polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-parse = {version = "0.2.2"}
 
 [features]
 default = []
 runtime-metrics = []
+runtime-benchmarks = []
