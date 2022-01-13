@@ -34,7 +34,6 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_primitives_test_helpers::dummy_session_info;
 use test_helpers::mock::make_ferdie_keystore;
 
 use super::*;
@@ -267,7 +266,7 @@ fn issues_a_connection_request_on_new_session() {
 				RuntimeApiRequest::SessionInfo(1, sender),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				sender.send(Ok(Some(dummy_session_info()))).unwrap();
+				sender.send(Ok(None)).unwrap();
 			}
 		);
 
@@ -345,7 +344,7 @@ fn issues_a_connection_request_on_new_session() {
 				RuntimeApiRequest::SessionInfo(2, sender),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				sender.send(Ok(Some(dummy_session_info()))).unwrap();
+				sender.send(Ok(None)).unwrap();
 			}
 		);
 
@@ -443,7 +442,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					RuntimeApiRequest::SessionInfo(1, sender),
 				)) => {
 					assert_eq!(relay_parent, hash);
-					sender.send(Ok(Some(dummy_session_info()))).unwrap();
+					sender.send(Ok(None)).unwrap();
 				}
 			);
 

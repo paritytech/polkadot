@@ -227,21 +227,3 @@ impl TestCandidateBuilder {
 		CandidateReceipt { descriptor, commitments_hash: self.commitments_hash }
 	}
 }
-
-pub fn dummy_session_info() -> SessionInfo {
-	SessionInfo {
-		active_validator_indices: Vec::new(),
-		random_seed: [0u8; 32],
-		dispute_period: 10,
-		validators: Vec::new(),
-		discovery_keys: Vec::new(),
-		assignment_keys: Vec::new(),
-		validator_groups: Vec::new(),
-		n_cores: 0,
-		zeroth_delay_tranche_width: 0,
-		relay_vrf_modulo_samples: 0,
-		n_delay_tranches: 0,
-		no_show_slots: 0,
-		needed_approvals: 0,
-	}
-}
