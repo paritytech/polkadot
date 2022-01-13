@@ -120,7 +120,7 @@ where
 	/// Create a new instance of the [`GossipSupport`] subsystem.
 	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
 		// Initialize the `polkadot_node_is_authority` metric.
-		metrics.on_is_not_authority();
+		metrics.on_role_is_not_authority();
 
 		Self {
 			keystore,
@@ -223,8 +223,8 @@ where
 
 					// Update the authority status metric on every new session.
 					match util::Validator::new(leaf, self.keystore.clone(), ctx.sender()).await {
-						Ok(_) => self.metrics.on_is_authority(),
-						Err(util::Error::NotAValidator) => self.metrics.on_is_not_authority(),
+						Ok(_) => self.metrics.on_role_is_authority(),
+						Err(util::Error::NotAValidator) => self.metrics.on_role_is_not_authority(),
 						// Don't update on runtime errors.
 						Err(_) => {},
 					}

@@ -218,6 +218,32 @@ async fn test_neighbors(overseer: &mut VirtualOverseer) {
 	);
 }
 
+// Helper function to test the `Validator::new()` call from inside ActiveLeavesUpdate
+// handler.
+async fn check_validator_status(overseer: &mut VirtualOverseer, hash: Hash) {
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::Validators(sender),
+		)) => {
+			assert_eq!(relay_parent, hash);
+			sender.send(Ok(Vec::new())).unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::SessionIndexForChild(tx),
+		)) => {
+			assert_eq!(relay_parent, hash);
+			tx.send(Ok(2)).unwrap();
+		}
+	);
+}
+
 #[test]
 fn issues_a_connection_request_on_new_session() {
 	let hash = Hash::repeat_byte(0xAA);
@@ -234,6 +260,9 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(1)).unwrap();
 			}
 		);
+
+		check_validator_status(overseer, hash).await;
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -300,6 +329,9 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(2)).unwrap();
 			}
 		);
+
+		check_validator_status(overseer, hash).await;
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -382,6 +414,9 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					tx.send(Ok(1)).unwrap();
 				}
 			);
+
+			check_validator_status(overseer, hash).await;
+
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(

@@ -40,14 +40,14 @@ impl Metrics {
 	}
 
 	/// Set the authority flag.
-	pub fn on_is_authority(&self) {
+	pub fn on_role_is_authority(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.is_authority.set(1);
 		}
 	}
 
 	/// Unset the authority flag.
-	pub fn on_is_not_authority(&self) {
+	pub fn on_role_is_not_authority(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.is_authority.set(0);
 		}
