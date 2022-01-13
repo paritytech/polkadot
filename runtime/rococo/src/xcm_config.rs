@@ -17,7 +17,7 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AllPalletsWithSystem, AccountId, Balances, Call, Event, Origin, ParaId,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Call, Event, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
