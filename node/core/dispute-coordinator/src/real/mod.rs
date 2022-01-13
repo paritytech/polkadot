@@ -390,11 +390,13 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-			// Note: It seems we really should not receive any messages before the first
-			// `ActiveLeavesUpdate`, if that proves wrong over time and we do receive
-			// messages before the first `ActiveLeavesUpdate` that should not be dropped,
-			// this can easily be fixed by collecting those messages and passing them on to
-			// `Initialized::new()`.
+			// NOTE: We could technically actually handle a couple of message types, even if
+			// not initialized (e.g. all requests that only query the database). The problem
+			// is, we would deliver potentially outdated information, especially in the event
+			// of bugs where initialization fails for a while (e.g. `SessionInfo`s are not
+			// available). So instead of telling subsystems, everything is fine, because of an
+			// hour old database state, we should rather cancel contained oneshots and delay
+			// finality until we are fully functional.
 				tracing::warn!(
 					target: LOG_TARGET,
 					?msg,

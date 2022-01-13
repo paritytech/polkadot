@@ -15,14 +15,14 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{convert::TryInto, process::Command, thread, time::Duration};
+use std::{convert::TryInto, process::Command, time::Duration};
 use tempfile::tempdir;
 
-mod common;
+pub mod common;
 
-#[test]
+#[tokio::test]
 #[cfg(unix)]
-fn purge_chain_works() {
+async fn purge_chain_works() {
 	use nix::{
 		sys::signal::{kill, Signal::SIGINT},
 		unistd::Pid,
@@ -36,15 +36,12 @@ fn purge_chain_works() {
 		.spawn()
 		.unwrap();
 
-	// Let it produce some blocks.
-	// poll once per second for faster failure
-	for _ in 0..30 {
-		thread::sleep(Duration::from_secs(1));
-		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
-	}
+	// Let it produce 1 block.
+	common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await.unwrap();
 
-	// Stop the process
+	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
+	// Wait for the node to handle it and exit.
 	assert!(common::wait_for(&mut cmd, 30).map(|x| x.success()).unwrap_or_default());
 
 	// Purge chain

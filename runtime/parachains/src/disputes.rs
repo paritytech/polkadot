@@ -1237,7 +1237,6 @@ mod tests {
 		assert_err, assert_noop, assert_ok, assert_storage_noop,
 		traits::{OnFinalize, OnInitialize},
 	};
-	use frame_system::InitKind;
 	use primitives::v1::BlockNumber;
 	use sp_core::{crypto::CryptoType, Pair};
 
@@ -1265,7 +1264,8 @@ mod tests {
 				System::finalize();
 			}
 
-			System::initialize(&(b + 1), &Default::default(), &Default::default(), InitKind::Full);
+			System::reset_events();
+			System::initialize(&(b + 1), &Default::default(), &Default::default());
 			AllPalletsWithSystem::on_initialize(b + 1);
 
 			if let Some(new_session) = new_session(b + 1) {
