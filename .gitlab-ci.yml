@@ -658,13 +658,12 @@ zombienet-test-parachains-upgrade-smoke-test:
 
   before_script:
     - echo "Zombie-net Tests Config"
+    - echo "docker.io/parity/polkadot:latest"
+    - echo "docker.io/parity/polkadot-collator:latest"
     - echo "${ZOMBIENET_IMAGE}"
-    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
-    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
-    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
-    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
     - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
 
   script:
