@@ -35,11 +35,9 @@ use crate::interceptor::*;
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_backing::CandidateBackingSubsystem;
 use polkadot_node_subsystem::messages::{
 	ApprovalDistributionMessage, CandidateBackingMessage, DisputeCoordinatorMessage,
 };
-use sp_keystore::SyncCryptoStorePtr;
 
 use std::sync::Arc;
 
@@ -104,17 +102,10 @@ impl OverseerGen for DisputeValidCandidates {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
-		let spawner = args.spawner.clone();
-		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 		let filter = ReplaceApprovalsWithDisputes;
 
 		prepared_overseer_builder(args)?
-			.replace_candidate_backing(move |cb| {
-				InterceptedSubsystem::new(
-					CandidateBackingSubsystem::new(spawner, crypto_store_ptr, cb.params.metrics),
-					filter,
-				)
-			})
+			.replace_candidate_backing(move |cb| InterceptedSubsystem::new(cb, filter))
 			.build_with_connector(connector)
 			.map_err(|e| e.into())
 	}

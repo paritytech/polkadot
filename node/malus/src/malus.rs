@@ -105,22 +105,17 @@ fn main() -> eyre::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
+mod tests;
 
-	#[test]
-	fn subcommand_works() {
-		let cli = MalusCli::from_iter_safe(IntoIterator::into_iter([
-			"malus",
-			"dispute-ancestor",
-			"--bob",
-		]))
-		.unwrap();
-		assert_matches::assert_matches!(cli, MalusCli {
-			variant: NemesisVariant::DisputeAncestor(run),
-			..
-		} => {
-			assert!(run.base.bob);
-		});
-	}
+#[test]
+fn subcommand_works() {
+	let cli =
+		MalusCli::from_iter_safe(IntoIterator::into_iter(["malus", "dispute-ancestor", "--bob"]))
+			.unwrap();
+	assert_matches::assert_matches!(cli, MalusCli {
+		variant: NemesisVariant::DisputeAncestor(run),
+		..
+	} => {
+		assert!(run.base.bob);
+	});
 }

@@ -20,10 +20,15 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator" }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
 polkadot-node-core-backing = { path = "../core/backing" }
+polkadot-node-core-av-store = { path = "../core/av-store" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
+kvdb = "0.10.0"
+bitvec = "0.20.1"
+parity-scale-codec = { version = "2.3.1", features = ["derive"] }
+erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.25"

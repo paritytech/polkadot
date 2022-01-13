@@ -18,6 +18,7 @@
 
 mod back_garbage_candidate;
 mod dispute_valid_candidates;
+mod store_malicious_available_data;
 mod suggest_garbage_candidate;
 
 pub(crate) use self::{

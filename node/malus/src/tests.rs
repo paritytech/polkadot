@@ -14,15 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::*;
-
 use polkadot_node_subsystem_test_helpers::*;
 
 use polkadot_node_subsystem::{
 	messages::{AllMessages, AvailabilityStoreMessage},
-	overseer::{dummy::DummySubsystem, gen::TimeoutExt, Subsystem},
+	overseer::{self, dummy::DummySubsystem, gen::TimeoutExt, OverseerSignal, Subsystem},
 	SubsystemError,
 };
+
+use futures::Future;
+
+// Filter wrapping related types.
+use crate::interceptor::*;
 
 #[derive(Clone, Debug)]
 struct BlackHoleInterceptor;
@@ -131,7 +134,8 @@ fn integrity_test_pass() {
 					AvailabilityStoreMessage::QueryChunk(Default::default(), 0.into(), tx),
 				)
 				.await;
-				let _ = rx.timeout(std::time::Duration::from_millis(100)).await.unwrap();
+				let resp = rx.timeout(std::time::Duration::from_secs(10)).await.unwrap();
+				println!("RESP {:?}", resp);
 				overseer
 			},
 			sub_intercepted,
