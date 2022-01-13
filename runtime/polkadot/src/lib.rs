@@ -1432,6 +1432,7 @@ pub type Executive = frame_executive::Executive<
 		SessionHistoricalPalletPrefixMigration,
 		SchedulerMigrationV3,
 		FixCouncilDepositMigration,
+		ElectionsPhragmenMigrationV5,
 	),
 >;
 /// The payload being signed in transactions.
@@ -1626,7 +1627,8 @@ impl OnRuntimeUpgrade for FixCouncilDepositMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		Self::execute(true)
+		Self::execute(true);
+		Ok(())
 	}
 }
 
@@ -1685,6 +1687,27 @@ impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
 		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+}
+
+/// Migrate any accounts in elections-phragmen that have a locked amount greater than their free
+/// balance.
+pub struct ElectionsPhragmenMigrationV5;
+impl OnRuntimeUpgrade for ElectionsPhragmenMigrationV5 {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_elections_phragmen::migrations::v5::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_elections_phragmen::migrations::v5::pre_migrate::<Runtime>();
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_elections_phragmen::migrations::v5::post_migrate::<Runtime>();
 		Ok(())
 	}
 }
