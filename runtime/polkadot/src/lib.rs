@@ -1427,13 +1427,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		StakingBagsListMigrationV8,
-		SessionHistoricalPalletPrefixMigration,
-		SchedulerMigrationV3,
-		FixCouncilDepositMigration,
-		ElectionsPhragmenMigrationV5,
-	),
+	(SchedulerMigrationV3, FixCouncilDepositMigration, ElectionsPhragmenMigrationV5),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
