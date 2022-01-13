@@ -1039,7 +1039,6 @@ fn process_message(
 			let _ = tx.send(a);
 		},
 		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
-			println!("THIS IS MOST DEFF WORKING");
 			let _timer = subsystem.metrics.time_get_chunk();
 			let _ =
 				tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
