@@ -1478,7 +1478,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
+	(SchedulerMigrationV3, RefundNickPalletDeposit),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -2885,8 +2885,9 @@ impl OnRuntimeUpgrade for RefundNickPalletDeposit {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn pre_migrate() -> Result<(), &'static str> {
-		Self::execute(true)
+	fn pre_upgrade() -> Result<(), &'static str> {
+		let _ = Self::execute(true);
+		Ok(())
 	}
 }
 
