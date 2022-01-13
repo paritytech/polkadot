@@ -303,7 +303,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	// Update session info based on most recent head.
+	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -329,6 +329,7 @@ pub(crate) async fn handle_new_head(
 		}
 	};
 
+	// Update session info based on most recent head.
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			tracing::debug!(
@@ -350,9 +351,10 @@ pub(crate) async fn handle_new_head(
 		Ok(_) => {},
 	}
 
-	// If we've just started the node and haven't yet received any finality notifications,
-	// we don't do any look-back. Approval voting is only for nodes were already online.
-	let lower_bound_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
+	// If we've just started the node and are far behind,
+	// import at most `MAX_HEADS_LOOK_BACK` blocks.
+	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
+	let lower_bound_number = finalized_number.unwrap_or(lower_bound_number).max(lower_bound_number);
 
 	let new_blocks = determine_new_blocks(
 		ctx.sender(),
