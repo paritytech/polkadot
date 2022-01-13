@@ -602,7 +602,7 @@ async fn main() {
 
 	let outcome = any_runtime! {
 		match command.clone() {
-			Command::Monitor(c) => monitor_cmd(&client, shared, c, signer_account).await
+			Command::Monitor(c) => monitor_cmd(client, shared, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
 				}),

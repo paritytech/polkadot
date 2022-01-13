@@ -25,9 +25,10 @@ use jsonrpsee::{
 	},
 	rpc_params,
 };
-
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
@@ -68,18 +69,22 @@ async fn ensure_no_previous_solution<
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
-		client: &WsClient,
+		client: WsClient,
 		shared: SharedConfig,
 		config: MonitorConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 
+		let client = Arc::new(client);
+
 		let (sub, unsub) = if config.listen == "head" {
 			("chain_subscribeNewHeads", "chain_unsubscribeNewHeads")
 		} else {
 			("chain_subscribeFinalizedHeads", "chain_unsubscribeFinalizedHeads")
 		};
+
+		let (tx, mut rx) = mpsc::unbounded_channel::<RpcError>();
 
 		loop {
 			log::info!(target: LOG_TARGET, "subscribing to {:?} / {:?}", sub, unsub);
@@ -96,130 +101,164 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				}
 			};
 
-			// If this fails try to re-establish the subscription again in the next loop iteration.
-			while let Some(rp) = subscription.next().await {
-				let now = match rp {
-					Ok(r) => r,
-					Err(RpcError::SubscriptionClosed(reason)) => {
-						log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
-						continue;
-					}
-					Err(e) => {
-						// NOTE(niklasad1): this should only occur if the response couldn't
-						// be decoded as `Header` => it's a bug.
-						log::error!("[rpc]: subscription failed to decode Header {:?}, this is bug please file an issue", e);
-						return Err(e.into());
-					}
-				};
+			let rp = tokio::select! {
+				Some(rp) = subscription.next() => rp,
+				Some(err) = rx.recv() => return Err(err.into()),
+				else => {
+					log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
+					continue
+				}
+			};
 
-
-				let hash = now.hash();
-				log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
-
-				// if the runtime version has changed, terminate.
-				crate::check_versions::<Runtime>(client).await?;
-
-				// we prefer doing this check before fetching anything into a remote-ext.
-				if ensure_signed_phase::<Runtime, Block>(client, hash).await.is_err() {
-					log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
-					continue;
-				};
-
-				// grab an externalities without staking, just the election snapshot.
-				let mut ext = crate::create_election_ext::<Runtime, Block>(
-					shared.uri.clone(),
-					Some(hash),
-					vec![],
-				).await?;
-
-				if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
-					log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+			let now = match rp {
+				Ok(r) => r,
+				Err(RpcError::SubscriptionClosed(reason)) => {
+					log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
 					continue;
 				}
+				Err(e) => {
+					// NOTE(niklasad1): this should only occur if the response couldn't
+					// be decoded as `Header` => it's a bug.
+					log::error!("[rpc]: subscription failed to decode Header {:?}, this is bug please file an issue", e);
+					return Err(e.into());
+				}
+			};
 
-				// mine a solution, and run feasibility check on it as well.
-				let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, true)?;
-				log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+			let hash = now.hash();
+			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
-				let nonce = crate::get_account_info::<Runtime>(client, &signer.account, Some(hash))
-					.await?
-					.map(|i| i.nonce)
-					.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
-				let tip = 0 as Balance;
-				let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
-				let current_block = now.number.saturating_sub(1);
-				let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
-				log::trace!(
-					target: LOG_TARGET, "transaction mortality: {:?} -> {:?}",
-					era.birth(current_block.into()),
-					era.death(current_block.into()),
-				);
-				let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
-				let bytes = sp_core::Bytes(extrinsic.encode());
+			// if the runtime version has changed, terminate.
+			crate::check_versions::<Runtime>(&*client).await?;
 
-				let mut tx_subscription: Subscription<
-					TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
-				> = match client
-					.subscribe(&"author_submitAndWatchExtrinsic", rpc_params! { bytes }, "author_unwatchExtrinsic")
-					.await
-				{
-					Ok(sub) => sub,
-					Err(RpcError::RestartNeeded(e)) => {
-						log::error!("{:?}", e);
-						return Err(RpcError::RestartNeeded(e).into());
-					}
-					Err(why) => {
-					// This usually happens when we've been busy with mining for a few blocks, and
-					// now we're receiving the subscriptions of blocks in which we were busy. In
-					// these blocks, we still don't have a solution, so we re-compute a new solution
-					// and submit it with an outdated `Nonce`, which yields most often `Stale`
-					// error. NOTE: to improve this overall, and to be able to introduce an array of
-					// other fancy features, we should make this multi-threaded and do the
-					// computation outside of this callback.
-						log::warn!(target: LOG_TARGET, "failing to submit a transaction {:?}. continuing...", why);
-						continue
-					}
-				};
+			// we prefer doing this check before fetching anything into a remote-ext.
+			if ensure_signed_phase::<Runtime, Block>(&*client, hash).await.is_err() {
+				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
+				continue;
+			};
 
-				while let Some(rp) = tx_subscription.next().await {
-					let status_update = match rp {
-						Ok(r) => r,
-						Err(RpcError::SubscriptionClosed(reason)) => {
-							log::warn!("[rpc]: subscription closed by the server: {:?}; continuing...", reason);
-							continue;
-						}
-						Err(e) => {
-							log::error!("[rpc]: subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
-							return Err(e.into());
-						}
-					};
+			// grab an externalities without staking, just the election snapshot.
+			let mut ext = crate::create_election_ext::<Runtime, Block>(
+				shared.uri.clone(),
+				Some(hash),
+				vec![],
+			).await?;
 
-					log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
-					match status_update {
-						TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
-						TransactionStatus::InBlock(hash) => {
-							log::info!(target: LOG_TARGET, "included at {:?}", hash);
-							let key = StorageKey(frame_support::storage::storage_prefix(b"System",b"Events").to_vec());
-							let events = get_storage::<Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
-							>(client, rpc_params!{ key, hash }).await?.unwrap_or_default();
-							log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
-						}
-						TransactionStatus::Retracted(hash) => {
-							log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
-						}
-						TransactionStatus::Finalized(hash) => {
-							log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
-							break
-						}
-						_ => {
-							log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status_update);
-							break
-						}
-					}
-				};
+			if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
+				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+				continue;
 			}
 
-			log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub)
+			// mine a solution, and run feasibility check on it as well.
+			let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, true)?;
+			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+
+			let nonce = crate::get_account_info::<Runtime>(&*client, &signer.account, Some(hash))
+				.await?
+				.map(|i| i.nonce)
+				.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
+			let tip = 0 as Balance;
+			let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
+			let current_block = now.number.saturating_sub(1);
+			let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
+			log::trace!(
+				target: LOG_TARGET, "transaction mortality: {:?} -> {:?}",
+				era.birth(current_block.into()),
+				era.death(current_block.into()),
+			);
+			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+			let bytes = sp_core::Bytes(extrinsic.encode());
+
+			let client2 = client.clone();
+			let tx2 = tx.clone();
+
+			// send and watch extrinsic
+			tokio::spawn(async move {
+					let mut tx_subscription: Subscription<
+						TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
+					> = match client2.subscribe(
+						"author_submitAndWatchExtrinsic",
+						rpc_params! { bytes },
+						"author_unwatchExtrinsic"
+					).await {
+						Ok(sub) => sub,
+						Err(RpcError::RestartNeeded(e)) => {
+							log::error!("{:?}", e);
+							tx2.send(RpcError::RestartNeeded(e)).unwrap();
+							return
+						},
+						Err(why) => {
+							// This usually happens when we've been busy with mining for a few blocks, and
+							// now we're receiving the subscriptions of blocks in which we were busy. In
+							// these blocks, we still don't have a solution, so we re-compute a new solution
+							// and submit it with an outdated `Nonce`, which yields most often `Stale`
+							// error. NOTE: to improve this overall, and to be able to introduce an array of
+							// other fancy features, we should make this multi-threaded and do the
+							// computation outside of this callback.
+							log::warn!(
+								target: LOG_TARGET,
+								"failing to submit a transaction {:?}. continuing...",
+								why
+							);
+							return;
+						},
+					};
+
+					while let Some(rp) = tx_subscription.next().await {
+						let status_update = match rp {
+							Ok(r) => r,
+							Err(RpcError::SubscriptionClosed(reason)) => {
+								log::warn!(
+									"[rpc]: subscription closed by the server: {:?}; continuing...",
+									reason
+								);
+								continue
+							},
+							Err(e) => {
+								log::error!("[rpc]: subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
+								tx2.send(e).unwrap();
+								return;
+							},
+						};
+
+						log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
+						match status_update {
+							TransactionStatus::Ready |
+							TransactionStatus::Broadcast(_) |
+							TransactionStatus::Future => continue,
+							TransactionStatus::InBlock(hash) => {
+								log::info!(target: LOG_TARGET, "included at {:?}", hash);
+								let key = StorageKey(
+									frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
+								);
+
+								// TODO(niklasad1): what to do if this fails; the task will die here now
+								let events = get_storage::<
+									Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
+								>(&*client2, rpc_params! { key, hash })
+								.await
+								.unwrap()
+								.unwrap_or_default();
+
+								log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
+							},
+							TransactionStatus::Retracted(hash) => {
+								log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
+							},
+							TransactionStatus::Finalized(hash) => {
+								log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
+								break
+							},
+							_ => {
+								log::warn!(
+									target: LOG_TARGET,
+									"Stopping listen due to other status {:?}",
+									status_update
+								);
+								break
+							},
+						};
+				}
+			});
 		}
 	}
 }}}
