@@ -1627,7 +1627,7 @@ impl OnRuntimeUpgrade for FixCouncilDepositMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		Self::execute(true);
+		let _ = Self::execute(true);
 		Ok(())
 	}
 }
