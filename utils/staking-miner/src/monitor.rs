@@ -83,11 +83,20 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 		loop {
 			log::info!(target: LOG_TARGET, "subscribing to {:?} / {:?}", sub, unsub);
-			let mut subscription: Subscription<Header> = client
-				.subscribe(&sub, None, &unsub)
-				.await
-				.unwrap();
 
+			let mut subscription = match client.subscribe::<Header>(&sub, None, &unsub).await {
+				Ok(sub) => sub,
+				Err(RpcError::RestartNeeded(e)) => {
+					log::error!("[rpc] connection closed: {:?}", e);
+					return Err(RpcError::RestartNeeded(e).into());
+				}
+				Err(e) => {
+					log::warn!("[rpc] subscription: `{}` failed {:?}; retrying", sub, e);
+					continue;
+				}
+			};
+
+			// If this fails try to re-establish the subscription again in the next loop iteration.
 			while let Some(rp) = subscription.next().await {
 				let now = match rp {
 					Ok(r) => r,
@@ -97,8 +106,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					}
 					Err(e) => {
 						// NOTE(niklasad1): this should only occur if the response couldn't
-						// be decoded as `Header`.
-						log::error!("{:?}", e);
+						// be decoded as `Header` => it's a bug.
+						log::error!("[rpc]: subscription failed to decode Header {:?}, this is bug please file an issue", e);
 						return Err(e.into());
 					}
 				};
@@ -155,6 +164,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					.await
 				{
 					Ok(sub) => sub,
+					Err(RpcError::RestartNeeded(e)) => {
+						log::error!("{:?}", e);
+						return Err(RpcError::RestartNeeded(e).into());
+					}
 					Err(why) => {
 					// This usually happens when we've been busy with mining for a few blocks, and
 					// now we're receiving the subscriptions of blocks in which we were busy. In
@@ -172,13 +185,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					let status_update = match rp {
 						Ok(r) => r,
 						Err(RpcError::SubscriptionClosed(reason)) => {
-							log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
+							log::warn!("[rpc]: subscription closed by the server: {:?}; continuing...", reason);
 							continue;
 						}
 						Err(e) => {
-							// NOTE(niklasad1): this should only occur if the response couldn't
-							// be decoded as `Header`.
-							log::error!("{:?}", e);
+							log::error!("[rpc]: subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
 							return Err(e.into());
 						}
 					};

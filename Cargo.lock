@@ -3102,11 +3102,11 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bc39096d2bd470ecbd5ed96c8464e2b2c2ef7ec6f8cb9611604255608624773"
 dependencies = [
- "futures 0.3.18",
+ "futures 0.3.19",
  "http",
  "jsonrpsee-core",
  "jsonrpsee-types 0.7.0",
- "pin-project 1.0.8",
+ "pin-project 1.0.10",
  "soketto",
  "thiserror",
  "tokio",
