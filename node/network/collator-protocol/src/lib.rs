@@ -58,7 +58,7 @@ pub struct CollatorEvictionPolicy {
 impl Default for CollatorEvictionPolicy {
 	fn default() -> Self {
 		CollatorEvictionPolicy {
-			inactive_collator: Duration::from_secs(24),
+			inactive_collator: Duration::from_secs(5),
 			undeclared: Duration::from_secs(1),
 		}
 	}

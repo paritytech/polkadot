@@ -207,5 +207,6 @@ impl<O> ConvertOrigin<O> for Tuple {
 /// Means of inverting a location: given a location which describes a `target` interpreted from the
 /// `source`, this will provide the corresponding location which describes the `source`.
 pub trait InvertLocation {
+	fn ancestry() -> MultiLocation;
 	fn invert_location(l: &MultiLocation) -> Result<MultiLocation, ()>;
 }

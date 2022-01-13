@@ -29,8 +29,8 @@ use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, BoundToRelayParent, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemSender,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemSender,
 };
 
 pub use overseer::{
@@ -48,15 +48,18 @@ use futures::{
 };
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
-use polkadot_node_jaeger as jaeger;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+		GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+		PersistedValidationData, SessionIndex, Signed, SigningContext, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
 use sp_application_crypto::AppKey;
-use sp_core::{traits::SpawnNamed, Public};
+use sp_core::{traits::SpawnNamed, ByteArray};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use std::{
 	collections::{hash_map::Entry, HashMap},
@@ -64,7 +67,6 @@ use std::{
 	fmt,
 	marker::Unpin,
 	pin::Pin,
-	sync::Arc,
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -213,6 +215,8 @@ specialize_requests! {
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
+	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		-> Option<ValidationCodeHash>; ValidationCodeHash;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
@@ -514,8 +518,7 @@ pub trait JobTrait: Unpin + Sized {
 	///
 	/// The job should be ended when `receiver` returns `None`.
 	fn run<S: SubsystemSender>(
-		parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -563,8 +566,7 @@ where
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
 	fn spawn_job<Job, Sender>(
 		&mut self,
-		parent_hash: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 		sender: Sender,
@@ -572,13 +574,13 @@ where
 		Job: JobTrait<ToJob = ToJob>,
 		Sender: SubsystemSender,
 	{
+		let hash = leaf.hash;
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(
-				parent_hash,
-				span,
+				leaf,
 				run_args,
 				metrics,
 				to_job_rx,
@@ -588,7 +590,7 @@ where
 			{
 				tracing::error!(
 					job = Job::NAME,
-					parent_hash = %parent_hash,
+					parent_hash = %hash,
 					err = ?e,
 					"job finished with an error",
 				);
@@ -608,7 +610,7 @@ where
 
 		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };
 
-		self.running.insert(parent_hash, handle);
+		self.running.insert(hash, handle);
 	}
 
 	/// Stop the job associated with this `parent_hash`.
@@ -710,8 +712,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							for activated in activated {
 								let sender = ctx.sender().clone();
 								jobs.spawn_job::<Job, _>(
-									activated.hash,
-									activated.span,
+									activated,
 									run_args.clone(),
 									metrics.clone(),
 									sender,

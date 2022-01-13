@@ -19,7 +19,7 @@
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
 use sp_runtime::RuntimeDebug;
 use sp_std::vec::Vec;
-use sp_trie::{read_trie_value, Layout, MemoryDB, StorageProof};
+use sp_trie::{read_trie_value, LayoutV1, MemoryDB, StorageProof};
 
 /// This struct is used to read storage values from a subset of a Merklized database. The "proof"
 /// is a subset of the nodes in the Merkle structure of the database, so that it provides
@@ -52,7 +52,8 @@ where
 	/// Reads a value from the available subset of storage. If the value cannot be read due to an
 	/// incomplete or otherwise invalid proof, this returns an error.
 	pub fn read_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
-		read_trie_value::<Layout<H>, _>(&self.db, &self.root, key)
+		// LayoutV1 or LayoutV0 is identical for proof that only read values.
+		read_trie_value::<LayoutV1<H>, _>(&self.db, &self.root, key)
 			.map_err(|_| Error::StorageValueUnavailable)
 	}
 }
@@ -70,15 +71,20 @@ pub enum Error {
 pub fn craft_valid_storage_proof() -> (sp_core::H256, StorageProof) {
 	use sp_state_machine::{backend::Backend, prove_read, InMemoryBackend};
 
+	let state_version = sp_runtime::StateVersion::default();
+
 	// construct storage proof
-	let backend = <InMemoryBackend<sp_core::Blake2Hasher>>::from(vec![
-		(None, vec![(b"key1".to_vec(), Some(b"value1".to_vec()))]),
-		(None, vec![(b"key2".to_vec(), Some(b"value2".to_vec()))]),
-		(None, vec![(b"key3".to_vec(), Some(b"value3".to_vec()))]),
-		// Value is too big to fit in a branch node
-		(None, vec![(b"key11".to_vec(), Some(vec![0u8; 32]))]),
-	]);
-	let root = backend.storage_root(std::iter::empty()).0;
+	let backend = <InMemoryBackend<sp_core::Blake2Hasher>>::from((
+		vec![
+			(None, vec![(b"key1".to_vec(), Some(b"value1".to_vec()))]),
+			(None, vec![(b"key2".to_vec(), Some(b"value2".to_vec()))]),
+			(None, vec![(b"key3".to_vec(), Some(b"value3".to_vec()))]),
+			// Value is too big to fit in a branch node
+			(None, vec![(b"key11".to_vec(), Some(vec![0u8; 32]))]),
+		],
+		state_version,
+	));
+	let root = backend.storage_root(std::iter::empty(), state_version).0;
 	let proof = StorageProof::new(
 		prove_read(backend, &[&b"key1"[..], &b"key2"[..], &b"key22"[..]])
 			.unwrap()

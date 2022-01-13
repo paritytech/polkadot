@@ -53,7 +53,7 @@ use polkadot_subsystem::{
 		DisputeCoordinatorMessage, ImportStatementsResult, ProvisionableData, ProvisionerMessage,
 		RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
 	},
-	overseer, PerLeafSpan, Stage, SubsystemSender,
+	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -190,8 +190,16 @@ struct AttestingData {
 	backing: Vec<ValidatorIndex>,
 }
 
-const fn group_quorum(n_validators: usize) -> usize {
-	(n_validators / 2) + 1
+/// How many votes we need to consider a candidate backed.
+fn minimum_votes(n_validators: usize) -> usize {
+	// Runtime change going live, see: https://github.com/paritytech/polkadot/pull/4437
+	let old_runtime_value = n_validators / 2 + 1;
+	let new_runtime_value = std::cmp::min(2, n_validators);
+
+	// Until new runtime is live everywhere and we don't yet have
+	// https://github.com/paritytech/polkadot/issues/4576, we want to err on the higher value for
+	// secured block production:
+	std::cmp::max(old_runtime_value, new_runtime_value)
 }
 
 #[derive(Default)]
@@ -223,7 +231,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
-		self.groups.get(group).map_or(usize::MAX, |g| group_quorum(g.len()))
+		self.groups.get(group).map_or(usize::MAX, |g| minimum_votes(g.len()))
 	}
 }
 
@@ -1180,13 +1188,13 @@ impl util::JobTrait for CandidateBackingJob {
 	const NAME: &'static str = "candidate-backing-job";
 
 	fn run<S: SubsystemSender>(
-		parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let parent = leaf.hash;
 		async move {
 			macro_rules! try_runtime_api {
 				($x: expr) => {
@@ -1208,7 +1216,7 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
-			let span = PerLeafSpan::new(span, "backing");
+			let span = PerLeafSpan::new(leaf.span, "backing");
 			let _span = span.child("runtime-apis");
 
 			let (validators, groups, session_index, cores) = futures::try_join!(
@@ -1364,35 +1372,35 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			signed_statements_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_candidate_backing_signed_statements_total",
+					"polkadot_parachain_candidate_backing_signed_statements_total",
 					"Number of statements signed.",
 				)?,
 				registry,
 			)?,
 			candidates_seconded_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_candidate_backing_candidates_seconded_total",
+					"polkadot_parachain_candidate_backing_candidates_seconded_total",
 					"Number of candidates seconded.",
 				)?,
 				registry,
 			)?,
 			process_second: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_backing_process_second",
+					"polkadot_parachain_candidate_backing_process_second",
 					"Time spent within `candidate_backing::process_second`",
 				))?,
 				registry,
 			)?,
 			process_statement: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_backing_process_statement",
+					"polkadot_parachain_candidate_backing_process_statement",
 					"Time spent within `candidate_backing::process_statement`",
 				))?,
 				registry,
 			)?,
 			get_backed_candidates: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_backing_get_backed_candidates",
+					"polkadot_parachain_candidate_backing_get_backed_candidates",
 					"Time spent within `candidate_backing::get_backed_candidates`",
 				))?,
 				registry,
