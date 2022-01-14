@@ -8467,6 +8467,7 @@ dependencies = [
 name = "rococo-runtime"
 version = "0.9.18"
 dependencies = [
+ "beefy-merkle-tree",
  "beefy-primitives",
  "bp-messages",
  "bp-rococo",

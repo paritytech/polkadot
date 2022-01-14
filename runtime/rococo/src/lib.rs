@@ -21,7 +21,10 @@
 #![recursion_limit = "256"]
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
+use beefy_primitives::{
+	crypto::AuthorityId as BeefyId,
+	mmr::{BeefyDataProvider, MmrLeafVersion},
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem},
@@ -673,23 +676,15 @@ impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 }
 
+type MmrHash = <Keccak256 as traits::Hash>::Output;
+
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
-	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
 	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
-}
-
-pub struct ParasProvider;
-impl pallet_beefy_mmr::ParachainHeadsProvider for ParasProvider {
-	fn parachain_heads() -> Vec<(u32, Vec<u8>)> {
-		Paras::parachains()
-			.into_iter()
-			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
-			.collect()
-	}
 }
 
 parameter_types! {
@@ -709,10 +704,25 @@ parameter_types! {
 	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
+pub struct ParasProvider;
+impl BeefyDataProvider for ParasProvider {
+	fn extra_data() -> Vec<u8> {
+		let mut para_heads = Paras::parachains()
+			.into_iter()
+			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
+			.collect();
+		para_heads.sort();
+		beefy_merkle_tree::merkle_root::<pallet_beefy_mmr::Pallet<Runtime>, _, _>(
+			para_heads.into_iter().map(|pair| pair.encode()),
+		)
+		.to_vec()
+	}
+}
+
 impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
-	type ParachainHeads = ParasProvider;
+	type BeefyDataProvider = ParasProvider;
 }
 
 parameter_types! {
