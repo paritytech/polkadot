@@ -33,7 +33,7 @@ pub mod parachains;
 
 use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
 
-use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::{MmrLeafVersion, BeefyDataProvider}, ValidatorSet};
+use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::{MmrLeafVersion}, ValidatorSet};
 use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
@@ -308,20 +308,10 @@ parameter_types! {
 	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
-
-pub struct ParachainHeadsProvider;
-
-impl BeefyDataProvider for ParachainHeadsProvider {
-	fn extra_data() -> Vec<u8> {
-		Vec::new()
-	}
-}
-
-
 impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
-	type BeefyDataProvider = ParachainHeadsProvider;
+	type BeefyDataProvider = ();
 }
 
 parameter_types! {
