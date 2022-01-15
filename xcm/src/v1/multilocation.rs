@@ -17,7 +17,11 @@
 //! Cross-Consensus Message format data structures.
 
 use super::Junction;
-use core::{convert::TryFrom, mem, result};
+use core::{
+	cmp::max,
+	convert::TryFrom,
+	mem, result,
+};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -353,15 +357,21 @@ impl MultiLocation {
 					self.take_first_interior();
 				}
 			}
-		} else if target.parents > self.parents {
-			// Handle when the target has more parents so we have to go through ancestry
-			self.parents = target.len() as u8 - 1;
-			self.interior
-				.push_front(ancestry.interior.first().unwrap_or(&Junction::OnlyChild).clone())
+		} else {
+			let common_ancestor = max(target.parents, self.parents) as usize;
+			let parents = (common_ancestor - target.parents as usize + target.interior.len()) as u8;
+
+			for j in (self.parents as usize)..common_ancestor {
+				self.push_front_interior(
+					ancestry
+						.interior
+						.at(ancestry.len() - j - 1)
+						.unwrap_or(&Junction::OnlyChild)
+						.clone(),
+				)
 				.map_err(|_| ())?;
-		} else if target.parents < self.parents {
-			// Handle when the id has more parents so we must go all the way up the target path
-			self.parents = self.parents + target.interior().len() as u8;
+			}
+			self.parents = parents;
 		}
 
 		Ok(())
@@ -379,6 +389,25 @@ impl MultiLocation {
 		}
 		let parents = target.interior().len() as u8;
 		Ok(MultiLocation::new(parents, junctions))
+	}
+
+	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
+	/// interpreted in.
+	pub fn simplify(&mut self, context: &Junctions) {
+		if context.len() < self.parents as usize {
+			// Not enough context
+			return
+		}
+		while self.parents > 0 {
+			let maybe = context.at(context.len() - (self.parents as usize));
+			match (self.interior.first(), maybe) {
+				(Some(i), Some(j)) if i == j => {
+					self.interior.take_first();
+					self.parents -= 1;
+				},
+				_ => break,
+			}
+		}
 	}
 }
 
@@ -921,6 +950,31 @@ mod tests {
 		let ancestry = Parachain(2000).into();
 		let target = (Parent, Parachain(1000), Parachain(3000)).into();
 		let expected = (Parent, Parent, Parachain(2000), Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		// Test where target and current id are on different branches and multiple ancestry junctions
+		let mut id: MultiLocation = (Parent, Parachain(4000), GeneralIndex(42)).into();
+		let ancestry =
+			(Parachain(2000), Parachain(2022), PalletInstance(50), GeneralIndex(32)).into();
+		let target = (Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+
+		let mut id: MultiLocation = (Parachain(4000), GeneralIndex(42)).into();
+		let ancestry =
+			(Parachain(2000), Parachain(2022), PalletInstance(50), GeneralIndex(32)).into();
+		let target = (Parent, Parent, Parachain(1000), Parachain(3000)).into();
+		let expected = (
+			Parent,
+			Parent,
+			PalletInstance(50),
+			GeneralIndex(32),
+			Parachain(4000),
+			GeneralIndex(42),
+		)
+			.into();
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
 	}
