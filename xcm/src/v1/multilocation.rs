@@ -17,11 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use super::Junction;
-use core::{
-	cmp::max,
-	convert::TryFrom,
-	mem, result,
-};
+use core::{cmp::max, convert::TryFrom, mem, result};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -328,35 +324,39 @@ impl MultiLocation {
 		Ok(())
 	}
 
+	fn reanchor_on_same_branch(&mut self, target: &MultiLocation) {
+		// Find the first junction that is different as we travel along the paths from ancestry to self and target
+		let mut first_different = None;
+		for i in 0..target.interior.len() {
+			if target.interior.at(i) != self.interior.at(i) {
+				first_different = Some(i);
+				break
+			}
+		}
+
+		if let Some(i) = first_different {
+			// In the case where the self and target paths split, remove just the shared path
+			self.parents = (target.interior.len() - i) as u8;
+			for _ in 0..i {
+				self.take_first_interior();
+			}
+		} else {
+			// In the case where the paths are the same all the way to the target,
+			// remove all the junctions on the shared path
+			for _ in 0..target.interior.len() {
+				self.parents = 0;
+				self.take_first_interior();
+			}
+		}
+	}
+
 	/// Mutate `self` so that it represents the same location from the point of view of `target`.
 	/// The context of `self` is provided as `ancestry`.
 	///
 	/// Does not modify `self` in case of overflow.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		if target.parents == self.parents {
-			// Find the first junction that is different as we travel along the paths from ancestry to self and target
-			let mut first_different = None;
-			for i in 0..target.interior.len() {
-				if target.interior.at(i) != self.interior.at(i) {
-					first_different = Some(i);
-					break
-				}
-			}
-
-			if let Some(i) = first_different {
-				// In the case where the self and target paths split, remove just the shared path
-				self.parents = (target.interior.len() - i) as u8;
-				for _ in 0..i {
-					self.take_first_interior();
-				}
-			} else {
-				// In the case where the paths are the same all the way to the target,
-				// remove all the junctions on the shared path
-				for _ in 0..target.interior.len() {
-					self.parents = 0;
-					self.take_first_interior();
-				}
-			}
+			self.reanchor_on_same_branch(target);
 		} else {
 			let common_ancestor = max(target.parents, self.parents) as usize;
 			let parents = (common_ancestor - target.parents as usize + target.interior.len()) as u8;
