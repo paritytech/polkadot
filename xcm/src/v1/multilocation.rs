@@ -359,8 +359,6 @@ impl MultiLocation {
 			self.reanchor_on_same_branch(target);
 		} else {
 			let common_ancestor = max(target.parents, self.parents) as usize;
-			let parents = (common_ancestor - target.parents as usize + target.interior.len()) as u8;
-
 			for j in (self.parents as usize)..common_ancestor {
 				self.push_front_interior(
 					ancestry
@@ -371,7 +369,7 @@ impl MultiLocation {
 				)
 				.map_err(|_| ())?;
 			}
-			self.parents = parents;
+			self.parents = common_ancestor as u8 - target.parents + target.interior.len() as u8;
 		}
 
 		Ok(())
@@ -389,25 +387,6 @@ impl MultiLocation {
 		}
 		let parents = target.interior().len() as u8;
 		Ok(MultiLocation::new(parents, junctions))
-	}
-
-	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
-	/// interpreted in.
-	pub fn simplify(&mut self, context: &Junctions) {
-		if context.len() < self.parents as usize {
-			// Not enough context
-			return
-		}
-		while self.parents > 0 {
-			let maybe = context.at(context.len() - (self.parents as usize));
-			match (self.interior.first(), maybe) {
-				(Some(i), Some(j)) if i == j => {
-					self.interior.take_first();
-					self.parents -= 1;
-				},
-				_ => break,
-			}
-		}
 	}
 }
 
