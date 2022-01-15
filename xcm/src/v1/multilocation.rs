@@ -359,6 +359,7 @@ impl MultiLocation {
 			self.reanchor_on_same_branch(target);
 		} else {
 			let common_ancestor = max(target.parents, self.parents) as usize;
+			// Add junctions for the path from common ancestor to where `self` branches from `ancestry`
 			for j in (self.parents as usize)..common_ancestor {
 				self.push_front_interior(
 					ancestry
