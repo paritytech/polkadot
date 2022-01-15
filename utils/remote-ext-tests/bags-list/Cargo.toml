@@ -5,9 +5,9 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot" }
-kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
-westend-runtime = { version = "0.9.8", path = "../../../runtime/westend" }
+polkadot-runtime = { version = "0.9.15-1", path = "../../../runtime/polkadot" }
+kusama-runtime = { version = "0.9.15-1", path = "../../../runtime/kusama" }
+westend-runtime = { version = "0.9.15-1", path = "../../../runtime/westend" }
 
 pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15-1" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15-1" }
