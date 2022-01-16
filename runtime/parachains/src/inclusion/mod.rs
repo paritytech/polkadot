@@ -224,28 +224,15 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 	/// upon the given relay-parent.
 	///
 	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
-	/// If a previous relay-parent is passed, then this only passes if the new relay-parent is
+	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent is
 	/// more recent than the previous.
-	pub(crate) fn acquire_info(&self, relay_parent: Hash, prev: Option<Hash>)
+	pub(crate) fn acquire_info(&self, relay_parent: Hash, prev: Option<BlockNumber>)
 		-> Option<(Hash, BlockNumber)>
 	{
 		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
 
 		if let Some(prev) = prev {
-			if let Some(prev_pos) = self.buffer.iter().position(|(rp, _)| rp == &prev) {
-				if prev_pos >= pos {
-					// parachain relay-parent either did not advance or moved backwards.
-					//
-					// there are ways we could allow them to stay the same for a few
-					// parachain-blocks, but it complicates things a lot and doesn't give any
-					// clear benefit.
-					return None;
-				}
-			}
-
-			// Note: if the previous relay-parent wasn't found in the buffer, it obviously can't
-			// be from the future so it must be from the past. As such, the relay-parent has
-			// advanced and we're all good.
+			if prev >= self.latest_number { return None }
 		}
 
 		let age = (self.buffer.len() - 1) - pos;
