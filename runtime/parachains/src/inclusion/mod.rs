@@ -36,8 +36,12 @@ use primitives::v1::{
 	ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{traits::One, DispatchError};
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_runtime::{traits::{One, AtLeast32BitUnsigned}, DispatchError};
+use sp_std::{
+	collections::btree_set::BTreeSet,
+	collections::vec_deque::VecDeque,
+	prelude::*,
+};
 
 pub use pallet::*;
 
@@ -176,6 +180,79 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// and
 	// https://github.com/paritytech/polkadot/issues/4386
 	sp_std::cmp::min(n_validators, 2)
+}
+
+/// Information about past relay-parents.
+#[derive(Encode, Decode, Default)]
+pub struct AllowedRelayParents<Hash, BlockNumber> {
+	// The past relay parents, paired with state roots, that are viable to build upon.
+	//
+	// They are in ascending chronologic order, so the newest relay parents are at
+	// the back of the deque.
+	//
+	// (relay_parent, state_root)
+	buffer: VecDeque<(Hash, Hash)>,
+
+	// The number of the most recent relay-parent, if any.
+	// If the buffer is empty, this value has no meaning and may
+	// be nonsensical.
+	latest_number: BlockNumber,
+}
+
+impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
+	AllowedRelayParents<Hash, BlockNumber>
+{
+	/// Add a new relay-parent to the allowed relay parents, along with info about the header.
+	/// Provide a maximum length for the buffer, which will cause old relay-parents to be pruned.
+	pub(crate) fn update(
+		&mut self,
+		relay_parent: Hash,
+		state_root: Hash,
+		number: BlockNumber,
+		max_len: usize,
+	) {
+		self.buffer.push_back((relay_parent, state_root));
+		self.latest_number = number;
+		while self.buffer.len() > max_len {
+			let _ = self.buffer.pop_front();
+		}
+
+		// if max_len == 0, then latest_number is nonsensical. Otherwise, it's fine.
+	}
+
+	/// Attempt to acquire the state root and block number to be used when building
+	/// upon the given relay-parent.
+	///
+	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
+	/// If a previous relay-parent is passed, then this only passes if the new relay-parent is
+	/// more recent than the previous.
+	pub(crate) fn acquire_info(&self, relay_parent: Hash, prev: Option<Hash>)
+		-> Option<(Hash, BlockNumber)>
+	{
+		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
+
+		if let Some(prev) = prev {
+			if let Some(prev_pos) = self.buffer.iter().position(|(rp, _)| rp == &prev) {
+				if prev_pos >= pos {
+					// parachain relay-parent either did not advance or moved backwards.
+					//
+					// there are ways we could allow them to stay the same for a few
+					// parachain-blocks, but it complicates things a lot and doesn't give any
+					// clear benefit.
+					return None;
+				}
+			}
+
+			// Note: if the previous relay-parent wasn't found in the buffer, it obviously can't
+			// be from the future so it must be from the past. As such, the relay-parent has
+			// advanced and we're all good.
+		}
+
+		let age = (self.buffer.len() - 1) - pos;
+		let number = self.latest_number.clone() - BlockNumber::from(age as u32);
+
+		Some((self.buffer[pos].1, number))
+	}
 }
 
 #[frame_support::pallet]
@@ -460,6 +537,8 @@ impl<T: Config> Pallet<T> {
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
 	{
+		// TODO [now]: before anything else, update the allowed relay-parents.
+
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
