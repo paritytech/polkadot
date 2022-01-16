@@ -721,13 +721,23 @@ impl<T: Config> Pallet<T> {
 				      -> bool {
 					// never include a concluded-invalid candidate
 					concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
-							// Instead of checking the candidates with code upgrades twice
-							// move the checking up here and skip it in the training wheels fallback.
-							// That way we avoid possible duplicate checks while assuring all
-							// backed candidates fine to pass on.
-							check_ctx
-								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
-								.is_err()
+						// Instead of checking the candidates with code upgrades twice
+						// move the checking up here and skip it in the training wheels fallback.
+						// That way we avoid possible duplicate checks while assuring all
+						// backed candidates fine to pass on.
+						//
+						// NOTE: this is the only place where we check the relay-parent.
+						{
+							match check_ctx.verify_backed_candidate(
+								parent_hash,
+								parent_storage_root,
+								candidate_idx,
+								backed_candidate,
+							) {
+								Err(_) | Ok(Err(_)) => true,
+								Ok(Ok(_)) => false,
+							}
+						}
 				},
 				&scheduled[..],
 			);

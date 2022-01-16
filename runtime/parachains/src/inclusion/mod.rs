@@ -524,12 +524,20 @@ impl<T: Config> Pallet<T> {
 				candidates.iter().enumerate()
 			{
 				if let FullCheck::Yes = full_check {
-					check_ctx.verify_backed_candidate(
+					match check_ctx.verify_backed_candidate(
 						parent_hash,
 						parent_storage_root,
 						candidate_idx,
 						backed_candidate,
-					)?;
+					)? {
+						Err(FailedToCreatePVD) => {
+							// We don't want to error out here because it will
+							// brick the relay-chain. So we return early without
+							// doing anything.
+							return Ok(ProcessedCandidates::default())
+						},
+						Ok(rpn) => rpn,
+					}
 				}
 
 				let para_id = backed_candidate.descriptor().para_id;
@@ -927,6 +935,7 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 	relay_parent_number: T::BlockNumber,
 }
 
+pub(crate) struct FailedToCreatePVD;
 impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
@@ -945,7 +954,7 @@ impl<T: Config> CandidateCheckContext<T> {
 		parent_storage_root: T::Hash,
 		candidate_idx: usize,
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
-	) -> Result<(), Error<T>> {
+	) -> Result<Result<(), FailedToCreatePVD>, Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
 		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now - One::one();
@@ -958,12 +967,7 @@ impl<T: Config> CandidateCheckContext<T> {
 				parent_storage_root,
 			) {
 				Some(l) => l,
-				None => {
-					// We don't want to error out here because it will
-					// brick the relay-chain. So we return early without
-					// doing anything.
-					return Ok(())
-				},
+				None => return Ok(Err(FailedToCreatePVD)),
 			};
 
 			let expected = persisted_validation_data.hash();
@@ -1016,7 +1020,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			);
 			Err(err.strip_into_dispatch_err::<T>())?;
 		};
-		Ok(())
+		Ok(Ok(()))
 	}
 
 	/// Check the given outputs after candidate validation on whether it passes the acceptance
