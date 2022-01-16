@@ -526,6 +526,7 @@ impl<T: Config> Pallet<T> {
 				if let FullCheck::Yes = full_check {
 					check_ctx.verify_backed_candidate(
 						parent_hash,
+						parent_storage_root,
 						candidate_idx,
 						backed_candidate,
 					)?;
@@ -542,32 +543,6 @@ impl<T: Config> Pallet<T> {
 							ensure!(
 								required_collator == &backed_candidate.descriptor().collator,
 								Error::<T>::WrongCollator,
-							);
-						}
-
-						{
-							// this should never fail because the para is registered
-							let persisted_validation_data =
-								match crate::util::make_persisted_validation_data::<T>(
-									para_id,
-									relay_parent_number,
-									parent_storage_root,
-								) {
-									Some(l) => l,
-									None => {
-										// We don't want to error out here because it will
-										// brick the relay-chain. So we return early without
-										// doing anything.
-										return Ok(ProcessedCandidates::default())
-									},
-								};
-
-							let expected = persisted_validation_data.hash();
-
-							ensure!(
-								expected ==
-									backed_candidate.descriptor().persisted_validation_data_hash,
-								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
 
@@ -967,10 +942,37 @@ impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn verify_backed_candidate(
 		&self,
 		parent_hash: <T as frame_system::Config>::Hash,
+		parent_storage_root: T::Hash,
 		candidate_idx: usize,
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
 	) -> Result<(), Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
+		let now = <frame_system::Pallet<T>>::block_number();
+		let relay_parent_number = now - One::one();
+
+		{
+			// this should never fail because the para is registered
+			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+				parent_storage_root,
+			) {
+				Some(l) => l,
+				None => {
+					// We don't want to error out here because it will
+					// brick the relay-chain. So we return early without
+					// doing anything.
+					return Ok(())
+				},
+			};
+
+			let expected = persisted_validation_data.hash();
+
+			ensure!(
+				expected == backed_candidate.descriptor().persisted_validation_data_hash,
+				Error::<T>::ValidationDataHashMismatch,
+			);
+		}
 
 		// we require that the candidate is in the context of the parent block.
 		ensure!(
