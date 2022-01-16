@@ -1531,3 +1531,7 @@ fn verify_upgrade_restriction_signal_is_externally_accessible() {
 		);
 	});
 }
+
+// TODO [now]: Check that offboarding removes most recent context.
+// TODO [now]: Check that onboarding sets most recent context to 0.
+// TODO [now]: Check that note-new-head sets more recent context
