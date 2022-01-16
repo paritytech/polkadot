@@ -26,6 +26,7 @@ use crate::{
 	inclusion,
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
+	paras,
 	metrics::METRICS,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump, ParaId,
@@ -48,10 +49,10 @@ use primitives::v1::{
 use rand::{seq::SliceRandom, SeedableRng};
 
 use scale_info::TypeInfo;
-use sp_runtime::traits::{Header as HeaderT, One};
+use sp_runtime::traits::{Header as HeaderT, One, AtLeast32BitUnsigned};
 use sp_std::{
 	cmp::Ordering,
-	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
 	prelude::*,
 	vec::Vec,
 };
@@ -91,6 +92,79 @@ impl DisputedBitfield {
 	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
 		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
+	}
+}
+
+/// The maximum amount of relay-parent lookback.
+// TODO [now]: put this in the configuration module or file an issue to discuss
+// doing that. It's probably OK as a constant.
+pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 3;
+
+/// Information about past relay-parents.
+#[derive(Encode, Decode, Default, TypeInfo)]
+pub struct AllowedRelayParentsTracker<Hash, BlockNumber> {
+	// The past relay parents, paired with state roots, that are viable to build upon.
+	//
+	// They are in ascending chronologic order, so the newest relay parents are at
+	// the back of the deque.
+	//
+	// (relay_parent, state_root)
+	buffer: VecDeque<(Hash, Hash)>,
+
+	// The number of the most recent relay-parent, if any.
+	// If the buffer is empty, this value has no meaning and may
+	// be nonsensical.
+	latest_number: BlockNumber,
+}
+
+impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
+	AllowedRelayParentsTracker<Hash, BlockNumber>
+{
+	/// Add a new relay-parent to the allowed relay parents, along with info about the header.
+	/// Provide a maximum length for the buffer, which will cause old relay-parents to be pruned.
+	pub(crate) fn update(
+		&mut self,
+		relay_parent: Hash,
+		state_root: Hash,
+		number: BlockNumber,
+		max_len: usize,
+	) {
+		self.buffer.push_back((relay_parent, state_root));
+		self.latest_number = number;
+		while self.buffer.len() > max_len {
+			let _ = self.buffer.pop_front();
+		}
+
+		// if max_len == 0, then latest_number is nonsensical. Otherwise, it's fine.
+
+		// TODO [now]: disallow relay parents from past session?
+		// We don't currently do that. But they would have to be signed with
+		// the validator set of the current session. We have the 'for_child' system
+		// now which makes that fine but only for the last block of the previous session
+		// and no older.
+		//
+		// Disallowing contexts from the previous session means that we would have
+	}
+
+	/// Attempt to acquire the state root and block number to be used when building
+	/// upon the given relay-parent.
+	///
+	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
+	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent is
+	/// more recent than the previous.
+	pub(crate) fn acquire_info(&self, relay_parent: Hash, prev: Option<BlockNumber>)
+		-> Option<(Hash, BlockNumber)>
+	{
+		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
+
+		if let Some(prev) = prev {
+			if prev >= self.latest_number { return None }
+		}
+
+		let age = (self.buffer.len() - 1) - pos;
+		let number = self.latest_number.clone() - BlockNumber::from(age as u32);
+
+		Some((self.buffer[pos].1, number))
 	}
 }
 
@@ -139,6 +213,15 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn on_chain_votes)]
 	pub(crate) type OnChainVotes<T: Config> = StorageValue<_, ScrapedOnChainVotes<T::Hash>>;
+
+	/// All allowed relay-parents.
+	#[pallet::storage]
+	pub(crate) type AllowedRelayParents<T: Config> =
+		StorageValue<
+			_,
+			AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
+			ValueQuery,
+		>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -282,6 +365,22 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 
+		// Before anything else, update the allowed relay-parents.
+		{
+			let parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
+
+			AllowedRelayParents::<T>::mutate(|tracker| {
+				tracker.update(
+					parent_hash,
+					parent_storage_root,
+					parent_number,
+					ALLOWED_RELAY_PARENT_LOOKBACK,
+				);
+			});
+		}
+		let allowed_relay_parents = AllowedRelayParents::<T>::get();
+
 		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
@@ -415,7 +514,6 @@ impl<T: Config> Pallet<T> {
 
 		let scheduled = <scheduler::Pallet<T>>::scheduled();
 		let backed_candidates = sanitize_backed_candidates::<T, _>(
-			parent_hash,
 			backed_candidates,
 			move |_candidate_index: usize, backed_candidate: &BackedCandidate<T::Hash>| -> bool {
 				<T>::DisputesHandler::concluded_invalid(current_session, backed_candidate.hash())
@@ -427,12 +525,11 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
 		// Process backed candidates according to scheduled cores.
-		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
 		} = <inclusion::Pallet<T>>::process_candidates(
-			parent_storage_root,
+			&allowed_relay_parents,
 			backed_candidates,
 			scheduled,
 			<scheduler::Pallet<T>>::group_validators,
@@ -489,6 +586,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+		let now = <frame_system::Pallet<T>>::block_number();
 
 		if parent_hash != parent_header.hash() {
 			log::warn!(
@@ -504,8 +602,28 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
+		// Update the allowed relay-parents
+		let allowed_relay_parents = {
+			let parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
+			let mut tracker = AllowedRelayParents::<T>::get();
+
+			tracker.update(
+				parent_hash,
+				parent_storage_root,
+				parent_number,
+				ALLOWED_RELAY_PARENT_LOOKBACK,
+			);
+
+			tracker
+		};
+
 		let (mut backed_candidates, mut bitfields) =
 			frame_support::storage::with_transaction(|| {
+				{
+
+				}
+
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
 				// if this fails for whatever reason, that's ok
@@ -593,24 +711,33 @@ impl<T: Config> Pallet<T> {
 
 				let scheduled = <scheduler::Pallet<T>>::scheduled();
 
-				let relay_parent_number = now - One::one();
-
-				let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 				let backed_candidates = sanitize_backed_candidates::<T, _>(
-					parent_hash,
 					backed_candidates,
 					move |candidate_idx: usize,
 					      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
 					      -> bool {
+						let para_id = backed_candidate.descriptor().para_id;
+						let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
+						let check_ctx = CandidateCheckContext::<T>::new(prev_context);
+
 						// never include a concluded-invalid candidate
 						concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
 							// Instead of checking the candidates with code upgrades twice
 							// move the checking up here and skip it in the training wheels fallback.
 							// That way we avoid possible duplicate checks while assuring all
 							// backed candidates fine to pass on.
-							check_ctx
-								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
-								.is_err()
+							//
+							// NOTE: this is the only place where we check the relay-parent.
+							{
+								match check_ctx.verify_backed_candidate(
+									&allowed_relay_parents,
+									candidate_idx,
+									backed_candidate,
+								) {
+									Err(_) | Ok(Err(_)) => true,
+									Ok(Ok(_)) => false,
+								}
+							}
 					},
 					&scheduled[..],
 				);
@@ -925,7 +1052,6 @@ fn sanitize_backed_candidates<
 	T: crate::inclusion::Config,
 	F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool,
 >(
-	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
 	scheduled: &[CoreAssignment],
@@ -943,12 +1069,11 @@ fn sanitize_backed_candidates<
 
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
-	// Also checks the candidate references the correct relay parent.
-
+	// We don't check the relay-parent because this is done in the closure when
+	// constructing the inherent and during actual processing otherwise.
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent &&
-			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
+		scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
 	});
 
 	// Sort the `Vec` last, once there is a guarantee that these

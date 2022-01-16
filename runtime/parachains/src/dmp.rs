@@ -175,9 +175,13 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), ProcessedDownwardMessagesAcceptanceErr> {
 		let dmq_length = Self::dmq_length(para);
 
+		// TODO [now]: unclear how to deal with advancement rule with
+		// asynchronous backing. Queue may have been empty in the context
+		// of the candidate.
 		if dmq_length > 0 && processed_downward_messages == 0 {
 			return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule)
 		}
+
 		if dmq_length < processed_downward_messages {
 			return Err(ProcessedDownwardMessagesAcceptanceErr::Underflow {
 				processed_downward_messages,
