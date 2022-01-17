@@ -113,8 +113,8 @@ impl sp_std::fmt::LowerHex for ValidationCodeHash {
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, MallocSizeOf))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.

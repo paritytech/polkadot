@@ -309,9 +309,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub storage SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub storage BondingDuration: pallet_staking::EraIndex = 28;
+	pub storage BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
-	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub storage SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);

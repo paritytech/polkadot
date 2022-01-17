@@ -20,7 +20,7 @@ automated and require no human action.
 1. To initiate the release process:
   1. branch master off to a release candidate branch:
   - `git checkout master; git pull; git checkout -b release-v0.8.26`
-  2. In the [substrate](https://github.com/paritytech/substrate) repo, check out the commit used by polkadot (this can be found using the following command in the *polkadot* repo: `grep 'paritytech/substrate' Cargo.lock | grep -Eo '[0-9a-f]{40}' | uniq`
+  2. In the [substrate](https://github.com/paritytech/substrate) repo, check out the commit used by polkadot (this can be found using the following command in the *polkadot* repo: `grep 'paritytech/substrate' Cargo.lock | grep -E '[0-9a-f]{40}' | sort | uniq `
   3. Branch off this **substrate** commit into its own branch: `git branch -b polkadot-v0.8.26; git push origin refs/heads/polkadot-v0.8.26`
   4. In the **polkadot** repository, use [diener](https://github.com/bkchr/diener/) to switch to this branch: `diener update --branch "polkadot-v0.8.26" --substrate`. Update Cargo.lock (to do this, you can run `cargo build` and then ctrl+c once it finishes fetching and begins compiling)
   5. Push the **polkadot** `release-v0.8.26` branch to Github: `git push origin refs/heads/release-v0.8.26`
