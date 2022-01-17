@@ -102,7 +102,7 @@ mod weights;
 
 mod bag_thresholds;
 
-mod xcm_config;
+pub mod xcm_config;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
