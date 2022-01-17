@@ -609,8 +609,6 @@ impl<T: Config> Pallet<T> {
 							// move the checking up here and skip it in the training wheels fallback.
 							// That way we avoid possible duplicate checks while assuring all
 							// backed candidates fine to pass on.
-							//
-							// NOTE: this is the only place where we check the relay-parent.
 							{
 								match check_ctx.verify_backed_candidate(
 									parent_hash,
