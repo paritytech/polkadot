@@ -860,6 +860,13 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl sp_session::SessionBoundaryApi<Block, BlockNumber> for Runtime {
+		fn get_session_boundary() -> BlockNumber {
+			<Session as pallet_session::SessionBoundary<BlockNumber>>::get_session_boundary();
+
+		}
+	}
+
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn current_set_id() -> fg_primitives::SetId {
 			Grandpa::current_set_id()

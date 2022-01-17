@@ -1362,6 +1362,13 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl sp_session::SessionBoundaryApi<Block, BlockNumber> for Runtime {
+		fn get_session_boundary() -> BlockNumber {
+			<Session as pallet_session::SessionBoundary<BlockNumber>>::get_session_boundary();
+
+		}
+	}
+
 	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
 		fn generate_proof(leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
