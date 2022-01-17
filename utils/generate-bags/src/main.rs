@@ -27,7 +27,7 @@ use polkadot_runtime::Runtime as PolkadotRuntime;
 use std::path::{Path, PathBuf};
 use westend_runtime::Runtime as WestendRuntime;
 
-#[derive(Debug, ArgEnum)]
+#[derive(Clone, Debug, ArgEnum)]
 #[clap(rename_all = "PascalCase")]
 enum Runtime {
 	Westend,
@@ -70,7 +70,7 @@ struct Opt {
 }
 
 fn main() -> Result<(), std::io::Error> {
-	let Opt { n_bags, output, runtime, total_issuance, minimum_balance } = Opt::from_args();
+	let Opt { n_bags, output, runtime, total_issuance, minimum_balance } = Opt::parse();
 
 	runtime.generate_thresholds_fn()(n_bags, &output, total_issuance, minimum_balance)
 }

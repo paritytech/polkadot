@@ -521,7 +521,7 @@ async fn main() {
 		.format_module_path(true)
 		.format_level(true)
 		.init();
-	let Opt { shared, command } = Opt::from_args();
+	let Opt { shared, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
 	let client = loop {
