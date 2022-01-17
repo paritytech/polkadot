@@ -127,14 +127,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	let consumes = &info.consumes();
 
-	let subsyste_ctx_name =
-		Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
-
 	let builder_where_clause = quote! {
 		where
 			S: #support_crate ::SpawnNamed,
 		#(
-			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>,
+			#builder_generic_ty : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
 		)*
 	};
 
@@ -355,7 +352,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					// Convert owned `snake case` string to a `kebab case` static str.
 					let subsystem_static_str = Box::leak(subsystem_string.replace("_", "-").into_boxed_str());
 
-					let ctx = #subsyste_ctx_name::< #consumes >::new(
+					let ctx = #subsystem_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),
