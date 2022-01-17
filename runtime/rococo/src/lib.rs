@@ -24,8 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, IsInVec, KeyOwnerProofSystem, Nothing, Randomness},
-	weights::Weight,
+	traits::{Contains, KeyOwnerProofSystem, Randomness},
 	PalletId,
 };
 use frame_system::EnsureRoot;
@@ -46,8 +45,7 @@ use primitives::{
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight,
-	SlowAdjustingFeeUpdate,
+	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -87,18 +85,11 @@ use polkadot_parachain::primitives::Id as ParaId;
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
 use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
-use xcm::latest::prelude::*;
-use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality,
-	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, LocationInverter,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
-};
-use xcm_executor::XcmExecutor;
 
 mod bridge_messages;
 mod validator_manager;
 mod weights;
+mod xcm_config;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -782,7 +773,8 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type Event = Event;
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
+	type UmpSink =
+		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 }

@@ -400,11 +400,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
 		let header = Self::header(block_number.clone());
 
+		frame_system::Pallet::<T>::reset_events();
 		frame_system::Pallet::<T>::initialize(
 			&header.number(),
 			&header.hash(),
 			&Digest { logs: Vec::new() },
-			Default::default(),
 		);
 
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);

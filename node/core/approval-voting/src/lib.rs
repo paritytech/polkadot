@@ -1098,8 +1098,9 @@ async fn handle_from_overseer(
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
-							tracing::trace!(
+							tracing::debug!(
 								target: LOG_TARGET,
+								block_number = ?block_batch.block_number,
 								block_hash = ?block_batch.block_hash,
 								num_candidates = block_batch.imported_candidates.len(),
 								"Imported new block.",
@@ -1142,6 +1143,7 @@ async fn handle_from_overseer(
 			actions
 		},
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			tracing::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized",);
 			*last_finalized_height = Some(block_number);
 
 			crate::ops::canonicalize(db, block_number, block_hash)
@@ -1252,14 +1254,17 @@ async fn handle_approved_ancestor(
 		// entries we can fail.
 		let entry = match db.load_block_entry(&block_hash)? {
 			None => {
-				tracing::trace! {
+				let block_number = target_number.saturating_sub(i as u32);
+				tracing::info!(
 					target: LOG_TARGET,
+					unknown_number = ?block_number,
+					unknown_hash = ?block_hash,
 					"Chain between ({}, {}) and {} not fully known. Forcing vote on {}",
 					target,
 					target_number,
 					lower_bound,
 					lower_bound,
-				}
+				);
 				return Ok(None)
 			},
 			Some(b) => b,
@@ -1382,7 +1387,7 @@ async fn handle_approved_ancestor(
 		}
 	}
 
-	tracing::trace!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		"approved blocks {}-[{}]-{}",
 		target_number,
