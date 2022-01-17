@@ -19,7 +19,7 @@
 use clap::{ArgEnum, Parser};
 use std::convert::TryInto;
 
-#[derive(Debug, ArgEnum)]
+#[derive(Clone, Debug, ArgEnum)]
 #[clap(rename_all = "PascalCase")]
 enum Command {
 	CheckMigration,
@@ -27,7 +27,7 @@ enum Command {
 	Snapshot,
 }
 
-#[derive(Debug, ArgEnum)]
+#[derive(Clone, Debug, ArgEnum)]
 #[clap(rename_all = "PascalCase")]
 enum Runtime {
 	Polkadot,
@@ -49,7 +49,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() {
-	let options = Cli::from_args();
+	let options = Cli::parse();
 	sp_tracing::try_init_simple();
 
 	log::info!(
