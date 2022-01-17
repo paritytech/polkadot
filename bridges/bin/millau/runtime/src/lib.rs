@@ -654,16 +654,13 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_session::SessionBoundaryApi<Block, BlockNumber> for Runtime {
-		fn get_session_boundary() -> BlockNumber {
-			<Session as pallet_session::SessionBoundary<BlockNumber>>::get_session_boundary();
-
-		}
-	}
-
-	impl beefy_primitives::BeefyApi<Block> for Runtime {
+	impl beefy_primitives::BeefyApi<Block, BlockNumber> for Runtime {
 		fn validator_set() -> ValidatorSet<BeefyId> {
 			Beefy::validator_set()
+		}
+
+		fn get_session_boundary() -> BlockNumber {
+			Session::get_session_boundary();
 		}
 	}
 

@@ -621,9 +621,13 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block> for Runtime {
+	impl beefy_primitives::BeefyApi<Block, BlockNumber> for Runtime {
 		fn validator_set() -> ValidatorSet<BeefyId> {
 			Beefy::validator_set()
+		}
+
+		fn get_session_boundary() -> BlockNumber {
+			Session::get_session_boundary();
 		}
 	}
 
@@ -857,13 +861,6 @@ impl_runtime_apis! {
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
 			SessionKeys::decode_into_raw_public_keys(&encoded)
-		}
-	}
-
-	impl sp_session::SessionBoundaryApi<Block, BlockNumber> for Runtime {
-		fn get_session_boundary() -> BlockNumber {
-			<Session as pallet_session::SessionBoundary<BlockNumber>>::get_session_boundary();
-
 		}
 	}
 
