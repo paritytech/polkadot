@@ -1291,7 +1291,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn get_session_boundary() -> BlockNumber {
-			Session::get_session_boundary();
+			Session::get_session_boundary()
 		}
 	}
 
