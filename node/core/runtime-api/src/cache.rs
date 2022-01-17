@@ -38,7 +38,7 @@ const AVAILABILITY_CORES_CACHE_SIZE: usize = 64 * 1024;
 const PERSISTED_VALIDATION_DATA_CACHE_SIZE: usize = 64 * 1024;
 const ASSUMED_VALIDATION_DATA_CACHE_SIZE: usize = 64 * 1024;
 const CHECK_VALIDATION_OUTPUTS_CACHE_SIZE: usize = 64 * 1024;
-const SESSION_INDEX_FOR_CHILD_CACHE_SIZE: usize = 64 * 1024;
+const CHILD_SESSION_INDEX_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATION_CODE_CACHE_SIZE: usize = 10 * 1024 * 1024;
 const CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE: usize = 64 * 1024;
 const CANDIDATE_EVENTS_CACHE_SIZE: usize = 64 * 1024;
@@ -92,7 +92,7 @@ pub(crate) struct RequestResultCache {
 	>,
 	check_validation_outputs:
 		MemoryLruCache<(Hash, ParaId, CandidateCommitments), ResidentSizeOf<bool>>,
-	session_index_for_child: MemoryLruCache<Hash, ResidentSizeOf<SessionIndex>>,
+	child_session_index: MemoryLruCache<Hash, ResidentSizeOf<SessionIndex>>,
 	validation_code: MemoryLruCache<
 		(Hash, ParaId, OccupiedCoreAssumption),
 		ResidentSizeOf<Option<ValidationCode>>,
@@ -128,7 +128,7 @@ impl Default for RequestResultCache {
 			persisted_validation_data: MemoryLruCache::new(PERSISTED_VALIDATION_DATA_CACHE_SIZE),
 			assumed_validation_data: MemoryLruCache::new(ASSUMED_VALIDATION_DATA_CACHE_SIZE),
 			check_validation_outputs: MemoryLruCache::new(CHECK_VALIDATION_OUTPUTS_CACHE_SIZE),
-			session_index_for_child: MemoryLruCache::new(SESSION_INDEX_FOR_CHILD_CACHE_SIZE),
+			child_session_index: MemoryLruCache::new(CHILD_SESSION_INDEX_CACHE_SIZE),
 			validation_code: MemoryLruCache::new(VALIDATION_CODE_CACHE_SIZE),
 			validation_code_by_hash: MemoryLruCache::new(VALIDATION_CODE_CACHE_SIZE),
 			candidate_pending_availability: MemoryLruCache::new(
@@ -238,16 +238,16 @@ impl RequestResultCache {
 		self.check_validation_outputs.insert(key, ResidentSizeOf(value));
 	}
 
-	pub(crate) fn session_index_for_child(&mut self, relay_parent: &Hash) -> Option<&SessionIndex> {
-		self.session_index_for_child.get(relay_parent).map(|v| &v.0)
+	pub(crate) fn child_session_index(&mut self, relay_parent: &Hash) -> Option<&SessionIndex> {
+		self.child_session_index.get(relay_parent).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_session_index_for_child(
+	pub(crate) fn cache_child_session_index(
 		&mut self,
 		relay_parent: Hash,
 		index: SessionIndex,
 	) {
-		self.session_index_for_child.insert(relay_parent, ResidentSizeOf(index));
+		self.child_session_index.insert(relay_parent, ResidentSizeOf(index));
 	}
 
 	pub(crate) fn validation_code(

@@ -102,7 +102,7 @@ impl RollingSessionWindow {
 		window_size: SessionWindowSize,
 		block_hash: Hash,
 	) -> Result<Self, SessionsUnavailable> {
-		let session_index = get_session_index_for_head(ctx, block_hash).await?;
+		let session_index = get_child_session_index(ctx, block_hash).await?;
 
 		let window_start = session_index.saturating_sub(window_size.get() - 1);
 
@@ -160,7 +160,7 @@ impl RollingSessionWindow {
 		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 		block_hash: Hash,
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
-		let session_index = get_session_index_for_head(ctx, block_hash).await?;
+		let session_index = get_child_session_index(ctx, block_hash).await?;
 
 		let old_window_start = self.earliest_session;
 
@@ -212,7 +212,7 @@ impl RollingSessionWindow {
 	}
 }
 
-async fn get_session_index_for_head(
+async fn get_child_session_index(
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	block_hash: Hash,
 ) -> Result<SessionIndex, SessionsUnavailable> {

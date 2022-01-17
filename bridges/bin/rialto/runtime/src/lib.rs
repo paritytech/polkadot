@@ -774,8 +774,8 @@ impl_runtime_apis! {
 			polkadot_runtime_parachains::runtime_api_impl::v1::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
 
-		fn session_index_for_child() -> polkadot_primitives::v1::SessionIndex {
-			polkadot_runtime_parachains::runtime_api_impl::v1::session_index_for_child::<Runtime>()
+		fn child_session_index() -> polkadot_primitives::v1::SessionIndex {
+			polkadot_runtime_parachains::runtime_api_impl::v1::child_session_index::<Runtime>()
 		}
 
 		fn validation_code(

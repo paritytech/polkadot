@@ -1799,7 +1799,7 @@ impl StatementDistributionSubsystem {
 					);
 
 					let session_index =
-						runtime.get_session_index(ctx.sender(), relay_parent).await?;
+						runtime.get_child_session_index(ctx.sender(), relay_parent).await?;
 					let info = runtime
 						.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 						.await?;

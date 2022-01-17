@@ -36,7 +36,7 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	request_availability_cores, request_candidate_events, request_session_index_for_child,
+	request_availability_cores, request_candidate_events, request_child_session_index,
 	request_session_info, request_validation_code_by_hash, request_validator_groups,
 };
 
@@ -117,8 +117,9 @@ impl RuntimeInfo {
 		}
 	}
 
-	/// Retrieve the current session index.
-	pub async fn get_session_index<Sender>(
+	/// Retrieve the current session index.- fix the name and comment.
+	/// Add comment about why using the child session index.
+	pub async fn get_child_session_index<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		parent: Hash,
@@ -130,7 +131,7 @@ impl RuntimeInfo {
 			Some(index) => Ok(*index),
 			None => {
 				let index =
-					recv_runtime(request_session_index_for_child(parent, sender).await).await?;
+					recv_runtime(request_child_session_index(parent, sender).await).await?;
 				self.session_index_cache.put(parent, index);
 				Ok(index)
 			},
@@ -146,7 +147,7 @@ impl RuntimeInfo {
 	where
 		Sender: SubsystemSender,
 	{
-		let session_index = self.get_session_index(sender, parent).await?;
+		let session_index = self.get_child_session_index(sender, parent).await?;
 
 		self.get_session_info_by_index(sender, parent, session_index).await
 	}
@@ -195,7 +196,7 @@ impl RuntimeInfo {
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
-		let session_index = self.get_session_index(sender, parent).await?;
+		let session_index = self.get_child_session_index(sender, parent).await?;
 		let info = self.get_session_info_by_index(sender, parent, session_index).await?;
 		Ok(check_signature(session_index, &info.session_info, parent, signed))
 	}

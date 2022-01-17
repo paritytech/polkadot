@@ -43,7 +43,7 @@ struct MockRuntimeApi {
 	availability_cores: Vec<CoreState>,
 	availability_cores_wait: Arc<Mutex<()>>,
 	validation_data: HashMap<ParaId, PersistedValidationData>,
-	session_index_for_child: SessionIndex,
+	child_session_index: SessionIndex,
 	session_info: HashMap<SessionIndex, SessionInfo>,
 	validation_code: HashMap<ParaId, ValidationCode>,
 	validation_code_by_hash: HashMap<ValidationCodeHash, ValidationCode>,
@@ -121,8 +121,8 @@ sp_api::mock_impl_runtime_apis! {
 				)
 		}
 
-		fn session_index_for_child(&self) -> SessionIndex {
-			self.session_index_for_child.clone()
+		fn child_session_index(&self) -> SessionIndex {
+			self.child_session_index.clone()
 		}
 
 		fn session_info(&self, index: SessionIndex) -> Option<SessionInfo> {
@@ -483,7 +483,7 @@ fn requests_check_validation_outputs() {
 }
 
 #[test]
-fn requests_session_index_for_child() {
+fn requests_child_session_index() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
@@ -500,7 +500,7 @@ fn requests_session_index_for_child() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.session_index_for_child);
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.child_session_index);
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};

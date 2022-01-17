@@ -98,36 +98,36 @@ impl Requester {
 		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Stale leaves happen after a reversion - we don't want to re-run availability there.
-		let activated = activated.and_then(|h| match h.status {
+		if let Some(leaf) = activated.and_then(|h| match h.status {
 			LeafStatus::Stale => None,
 			LeafStatus::Fresh => Some(h),
-		});
+		}) {
+			self.start_requesting_chunks(ctx, runtime, leaf).await?;
+		}
+
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;
 		self.stop_requesting_chunks(deactivated.into_iter());
 		Ok(())
 	}
 
-	/// Start requesting chunks for newly imported heads.
+	/// Start requesting chunks for newly imported relay chain head.
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		new_heads: impl Iterator<Item = ActivatedLeaf>,
+		leaf: ActivatedLeaf,
 	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
-		for ActivatedLeaf { hash: leaf, .. } in new_heads {
-			let cores = get_occupied_cores(ctx, leaf).await?;
-			tracing::trace!(
-				target: LOG_TARGET,
-				occupied_cores = ?cores,
-				"Query occupied core"
-			);
-			self.add_cores(ctx, runtime, leaf, cores).await?;
-		}
+		let cores = get_occupied_cores(ctx, leaf.hash).await?;
+		tracing::trace!(
+			target: LOG_TARGET,
+			occupied_cores = ?cores,
+			"Query occupied core"
+		);
+		self.add_cores(ctx, runtime, leaf.hash, cores).await?;
 		Ok(())
 	}
 
@@ -175,8 +175,9 @@ impl Requester {
 							ctx,
 							runtime,
 							// We use leaf here, as relay_parent must be in the same session as the
-							// leaf. (Cores are dropped at session boundaries.) At the same time,
-							// only leaves are guaranteed to be fetchable by the state trie.
+							// leaf. This is guaranteed by runtime which ensures that cores are cleared
+							// at session boundaries. At the same time, only leaves are guaranteed to
+							// be fetchable by the state trie.
 							leaf,
 							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)

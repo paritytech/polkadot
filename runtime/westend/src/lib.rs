@@ -1220,8 +1220,8 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
 
-		fn session_index_for_child() -> SessionIndex {
-			parachains_runtime_api_impl::session_index_for_child::<Runtime>()
+		fn child_session_index() -> SessionIndex {
+			parachains_runtime_api_impl::child_session_index::<Runtime>()
 		}
 
 		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
