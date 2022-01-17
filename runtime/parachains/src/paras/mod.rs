@@ -512,6 +512,9 @@ pub mod pallet {
 		PvfCheckDoubleVote,
 		/// The given PVF does not exist at the moment of process a vote.
 		PvfCheckSubjectInvalid,
+		/// The PVF pre-checking statement cannot be included since the PVF pre-checking mechanism
+		/// is disabled.
+		PvfCheckDisabled,
 	}
 
 	/// All currently active PVF pre-checking votes.
@@ -875,6 +878,13 @@ pub mod pallet {
 			signature: ValidatorSignature,
 		) -> DispatchResult {
 			ensure_none(origin)?;
+
+			// Make sure that PVF pre-checking is enabled.
+			ensure!(
+				configuration::Pallet::<T>::config().pvf_checking_enabled,
+				Error::<T>::PvfCheckDisabled,
+			);
+
 			let validators = shared::Pallet::<T>::active_validator_keys();
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
@@ -957,6 +967,10 @@ pub mod pallet {
 				_ => return InvalidTransaction::Call.into(),
 			};
 
+			if !configuration::Pallet::<T>::config().pvf_checking_enabled {
+				return InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
+			}
+
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
 				return InvalidTransaction::Stale.into()
@@ -1017,6 +1031,7 @@ pub mod pallet {
 const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
 const INVALID_TX_BAD_SUBJECT: u8 = 2;
 const INVALID_TX_DOUBLE_VOTE: u8 = 3;
+const INVALID_TX_PVF_CHECK_DISABLED: u8 = 4;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the paras pallet.
