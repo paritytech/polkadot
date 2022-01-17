@@ -323,7 +323,7 @@ struct EmergencySolutionConfig {
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
-    #[clap(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 
 	/// The number of top backed winners to take. All are taken, if not provided.
