@@ -32,11 +32,8 @@ use futures::{
 	Stream,
 };
 
-use polkadot_node_subsystem_util::{
-	request_session_index_for_child,
-	runtime::{self, get_occupied_cores, RuntimeInfo},
-};
-use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore, SessionIndex};
+use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
+use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
 	messages::{AllMessages, ChainApiMessage},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
@@ -146,18 +143,22 @@ impl Requester {
 		Context: SubsystemContext,
 	{
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
-		let ancestors_in_session =
-			get_block_ancestors_in_same_session(ctx, leaf, Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION)
-				.await
-				.unwrap_or_else(|err| {
-					tracing::debug!(
-						target: LOG_TARGET,
-						leaf = ?leaf,
-						"Failed to fetch leaf ancestors in the same session due to an error: {}",
-						err
-					);
-					Vec::new()
-				});
+		let ancestors_in_session = get_block_ancestors_in_same_session(
+			ctx,
+			runtime,
+			leaf,
+			Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION,
+		)
+		.await
+		.unwrap_or_else(|err| {
+			tracing::debug!(
+				target: LOG_TARGET,
+				leaf = ?leaf,
+				"Failed to fetch leaf ancestors in the same session due to an error: {}",
+				err
+			);
+			Vec::new()
+		});
 		for hash in std::iter::once(leaf).chain(ancestors_in_session.clone()) {
 			let cores = get_occupied_cores(ctx, hash).await?;
 			tracing::trace!(
@@ -267,6 +268,7 @@ impl Stream for Requester {
 /// Requests up to `limit` ancestor hashes of relay parent in the same session.
 async fn get_block_ancestors_in_same_session<Context>(
 	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
 	head: Hash,
 	limit: usize,
 ) -> Result<Vec<Hash>>
@@ -282,7 +284,7 @@ where
 
 	// `head` is the child of the first block in `ancestors`, request its session index.
 	let head_session_index = match ancestors.first() {
-		Some(parent) => get_session_index_for_child(ctx, *parent).await?,
+		Some(parent) => runtime.get_session_index(ctx.sender(), *parent).await?,
 		None => {
 			// No first element, i.e. empty.
 			return Ok(ancestors)
@@ -292,7 +294,7 @@ where
 	let mut session_ancestry_len = 0;
 	for parent in ancestors.iter().skip(1) {
 		// Parent is the i-th ancestor, request session index for its child -- (i-1)th element.
-		let session_index = get_session_index_for_child(ctx, *parent).await?;
+		let session_index = runtime.get_session_index(ctx.sender(), *parent).await?;
 		if session_index == head_session_index {
 			session_ancestry_len += 1;
 		} else {
@@ -325,21 +327,4 @@ where
 
 	let ancestors = rx.await.map_err(Fatal::ChainApiSenderDropped)?.map_err(Fatal::ChainApi)?;
 	Ok(ancestors)
-}
-
-/// Request session index for the child of the relay parent from the Runtime API.
-async fn get_session_index_for_child<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-) -> Result<SessionIndex>
-where
-	Context: SubsystemContext,
-{
-	let rx = request_session_index_for_child(relay_parent, ctx.sender()).await;
-	let session_index = rx
-		.await
-		.map_err(|err| runtime::Error::Fatal(runtime::Fatal::RuntimeRequestCanceled(err)))?
-		.map_err(|err| runtime::Error::NonFatal(runtime::NonFatal::RuntimeRequest(err)))?;
-
-	Ok(session_index)
 }
