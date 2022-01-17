@@ -1018,7 +1018,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Westmint: MultiLocation = Parachain(1000).into_location();
-	pub const Encointer: MultiLocation = Parachain(1001).into();
+	pub const Encointer: MultiLocation = Parachain(1001).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
 	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
 	pub const WndForEncointer: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Encointer::get());

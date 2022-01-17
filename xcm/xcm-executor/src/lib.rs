@@ -93,16 +93,15 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			message,
 			weight_credit,
 		);
-		if let Err(_) =
+		if let Err(e) =
 			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
 		{
 			log::debug!(
 				target: "xcm::execute_xcm_in_credit",
-				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
+				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",
 				e,
 				origin,
 				message,
-				weight_limit,
 				weight_credit,
 			);
 			return Outcome::Error(XcmError::Barrier)
@@ -314,7 +313,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
-				let ancestry = Config::LocationInverter::ancestry();
+				let ancestry = Config::LocationInverter::universal_location().into();
 				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
@@ -594,7 +593,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		dest: &MultiLocation,
 		maybe_failed_bin: Option<&mut Assets>,
 	) -> MultiAssets {
-		assets.reanchor(dest, &Config::LocationInverter::ancestry(), maybe_failed_bin);
+		let ancestry = Config::LocationInverter::universal_location().into();
+		assets.reanchor(dest, &ancestry, maybe_failed_bin);
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 }

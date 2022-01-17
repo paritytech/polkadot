@@ -1314,12 +1314,11 @@ parameter_types! {
 	/// The location of the DOT token, from the context of this chain. Since this token is native to this
 	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
 	/// the context".
-	pub const DotLocation: MultiLocation = Here.into();
+	pub const DotLocation: MultiLocation = Here.into_location();
 	/// The Polkadot network ID. This is named.
 	pub const PolkadotNetwork: NetworkId = NetworkId::Polkadot;
-	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
-	/// Polkadot is a top-level relay-chain, there is no ancestry.
-	pub const Ancestry: MultiLocation = Here.into();
+	/// Our location in the universe of consensus systems.
+	pub const UniversalLocation: InteriorMultiLocation = X1(GlobalConsensus(NetworkId::Polkadot));
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -1377,7 +1376,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
-	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
+	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
@@ -1409,7 +1408,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type LocationInverter = LocationInverter<UniversalLocation>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
@@ -1420,6 +1419,9 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	// No bridges yet...
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
 
 parameter_types! {
@@ -1454,7 +1456,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Nothing;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type LocationInverter = LocationInverter<UniversalLocation>;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
