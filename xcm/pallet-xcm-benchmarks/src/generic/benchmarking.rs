@@ -96,7 +96,8 @@ benchmarks! {
 		let mut executor = new_executor::<T>(Default::default());
 		let (query_id, response) = T::worst_case_response();
 		let max_weight = u64::MAX;
-		let instruction = Instruction::QueryResponse { query_id, response, max_weight };
+		let querier: Option<MultiLocation> = Some(Here.into());
+		let instruction = Instruction::QueryResponse { query_id, response, max_weight, querier };
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.execute(xcm)?;
