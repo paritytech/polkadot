@@ -194,7 +194,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn expect_error(_error: &Option<(u32, XcmError)>) -> Weight {
 		XcmGeneric::<Runtime>::expect_error()
 	}
-	fn query_pallet(_module_name: &Vec<u8>, _response_info: QueryResponseInfo) -> Weight {
+	fn query_pallet(_module_name: &Vec<u8>, _response_info: &QueryResponseInfo) -> Weight {
 		XcmGeneric::<Runtime>::query_pallet()
 	}
 	fn expect_pallet(
