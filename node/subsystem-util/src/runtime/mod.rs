@@ -117,8 +117,8 @@ impl RuntimeInfo {
 		}
 	}
 
-	/// Retrieve the current session index.- fix the name and comment.
-	/// Add comment about why using the child session index.
+	/// Returns the session index expected at any child of the `parent` block.
+	/// This does not return the session index for the `parent` block.
 	pub async fn get_session_index_for_child<Sender>(
 		&mut self,
 		sender: &mut Sender,

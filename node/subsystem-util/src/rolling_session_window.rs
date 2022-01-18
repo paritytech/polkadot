@@ -212,6 +212,11 @@ impl RollingSessionWindow {
 	}
 }
 
+// Returns the session index expected at any child of the `parent` block.
+//
+// Note: This internal `fn` is a duplicate of the one exported by `subsystem-util`,
+// that is because `RollingSessionWindow` already implements it's own caching mechanism.
+// It would not make sense to have 2 layers of caching.
 async fn get_session_index_for_child(
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	block_hash: Hash,
