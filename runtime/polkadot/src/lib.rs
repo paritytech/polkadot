@@ -142,48 +142,48 @@ impl Contains<Call> for BaseFilter {
 	fn contains(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:
-			Call::Democracy(_) |
-			Call::Council(_) |
-			Call::TechnicalCommittee(_) |
-			Call::TechnicalMembership(_) |
-			Call::Treasury(_) |
-			Call::PhragmenElection(_) |
-			Call::System(_) |
-			Call::Scheduler(_) |
-			Call::Preimage(_) |
-			Call::Indices(_) |
-			Call::Babe(_) |
-			Call::Timestamp(_) |
-			Call::Balances(_) |
-			Call::Authorship(_) |
-			Call::Staking(_) |
-			Call::Session(_) |
-			Call::Grandpa(_) |
-			Call::ImOnline(_) |
-			Call::Utility(_) |
-			Call::Claims(_) |
-			Call::Vesting(_) |
-			Call::Identity(_) |
-			Call::Proxy(_) |
-			Call::Multisig(_) |
-			Call::Bounties(_) |
-			Call::Tips(_) |
-			Call::ElectionProviderMultiPhase(_) |
-			Call::Configuration(_) |
-			Call::ParasShared(_) |
-			Call::ParaInclusion(_) |
-			Call::Paras(_) |
-			Call::Initializer(_) |
-			Call::ParaInherent(_) |
-			Call::Dmp(_) |
-			Call::Ump(_) |
-			Call::Hrmp(_) |
-			Call::Slots(_) |
-			Call::Registrar(_) |
-			Call::Auctions(_) |
-			Call::Crowdloan(_) |
-			Call::BagsList(_) |
-			Call::XcmPallet(_) => true,
+			Call::Democracy(_)
+			| Call::Council(_)
+			| Call::TechnicalCommittee(_)
+			| Call::TechnicalMembership(_)
+			| Call::Treasury(_)
+			| Call::PhragmenElection(_)
+			| Call::System(_)
+			| Call::Scheduler(_)
+			| Call::Preimage(_)
+			| Call::Indices(_)
+			| Call::Babe(_)
+			| Call::Timestamp(_)
+			| Call::Balances(_)
+			| Call::Authorship(_)
+			| Call::Staking(_)
+			| Call::Session(_)
+			| Call::Grandpa(_)
+			| Call::ImOnline(_)
+			| Call::Utility(_)
+			| Call::Claims(_)
+			| Call::Vesting(_)
+			| Call::Identity(_)
+			| Call::Proxy(_)
+			| Call::Multisig(_)
+			| Call::Bounties(_)
+			| Call::Tips(_)
+			| Call::ElectionProviderMultiPhase(_)
+			| Call::Configuration(_)
+			| Call::ParasShared(_)
+			| Call::ParaInclusion(_)
+			| Call::Paras(_)
+			| Call::Initializer(_)
+			| Call::ParaInherent(_)
+			| Call::Dmp(_)
+			| Call::Ump(_)
+			| Call::Hrmp(_)
+			| Call::Slots(_)
+			| Call::Registrar(_)
+			| Call::Auctions(_)
+			| Call::Crowdloan(_)
+			| Call::BagsList(_)
+			| Call::XcmPallet(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -245,7 +245,7 @@ pub struct OriginPrivilegeCmp;
 impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
 	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
 		if left == right {
-			return Some(Ordering::Equal)
+			return Some(Ordering::Equal);
 		}
 
 		match (left, right) {
@@ -523,8 +523,8 @@ parameter_types! {
 	// Six sessions in an era (24 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
-	pub const BondingDuration: pallet_staking::EraIndex = 28;
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub const BondingDuration: sp_staking::EraIndex = 28;
+	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -1111,22 +1111,22 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Governance => matches!(
 				c,
-				Call::Democracy(..) |
-					Call::Council(..) | Call::TechnicalCommittee(..) |
-					Call::PhragmenElection(..) |
-					Call::Treasury(..) | Call::Bounties(..) |
-					Call::Tips(..) | Call::Utility(..)
+				Call::Democracy(..)
+					| Call::Council(..) | Call::TechnicalCommittee(..)
+					| Call::PhragmenElection(..)
+					| Call::Treasury(..) | Call::Bounties(..)
+					| Call::Tips(..) | Call::Utility(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
-			},
+			}
 			ProxyType::IdentityJudgement => matches!(
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement { .. }) | Call::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
-			},
+			}
 			ProxyType::Auction => matches!(
 				c,
 				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
@@ -1685,17 +1685,90 @@ impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
 	}
 }
 
+const ELECTIONS_PHRAGMEN_OVER_LOCKED: [[u8; 32]; 12] = [
+	// 139FmAGiyRyBzALwDZAHMmx3xgdSvKxG454YyQNwdpChr1i8
+	[
+		94, 196, 31, 17, 185, 217, 142, 116, 34, 23, 65, 72, 205, 116, 141, 188, 124, 94, 175, 251,
+		35, 155, 9, 70, 222, 76, 27, 244, 61, 183, 47, 35,
+	],
+	// 19u6pqqWaZtHtqMegtX7Ra2SxvFb44yuW7vMjGGK99PUVpA
+	[
+		6, 201, 89, 82, 72, 180, 89, 62, 102, 25, 163, 65, 138, 113, 184, 32, 80, 110, 235, 197,
+		224, 70, 146, 125, 63, 30, 136, 249, 164, 116, 130, 35,
+	],
+	// 1466J4seHiDZS53tZ6DgS35xitiTkPdKpGEoZVnqtdemDYyo
+	[
+		136, 150, 191, 218, 183, 47, 95, 117, 155, 220, 102, 55, 179, 133, 209, 38, 159, 124, 58,
+		204, 255, 0, 172, 137, 47, 54, 147, 106, 85, 52, 11, 119,
+	],
+	// 13RDY9nrJpyTDBSUdBw12dGwhk19sGwsrVZ2bxkzYHBSagP2
+	[
+		106, 240, 143, 107, 184, 65, 130, 91, 22, 141, 223, 121, 131, 126, 112, 216, 141, 117, 225,
+		197, 178, 144, 183, 79, 169, 124, 237, 253, 102, 141, 210, 44,
+	],
+	// 16fttU3nadc7KgFwxUqLyyryUiqW5VMbVMpTQ18GzNtbK9Tz
+	[
+		250, 215, 41, 56, 213, 195, 246, 167, 16, 182, 237, 4, 157, 216, 125, 29, 243, 61, 86, 239,
+		91, 67, 190, 145, 6, 236, 127, 135, 74, 155, 226, 124,
+	],
+	// 1zugcapYNZWiec8B2q4H5YdsTkspujXiHi1jrBVrCtNTqDa
+	[
+		44, 42, 85, 181, 225, 239, 164, 186, 190, 252, 218, 224, 124, 76, 233, 196, 104, 43, 31,
+		87, 176, 243, 8, 15, 242, 234, 213, 234, 6, 98, 75, 106,
+	],
+	// 14BP6oSYP62om8VKh7mScEcZqb472EzanSFJK2E3bwdWGtah
+	[
+		140, 159, 140, 183, 121, 161, 94, 193, 194, 3, 17, 32, 128, 174, 128, 93, 253, 222, 175, 1,
+		34, 23, 9, 75, 234, 165, 238, 42, 182, 155, 128, 111,
+	],
+	//  15FvfitLXpn4tMSgs2RqaPiATcxfVZRGdsneRxeHX4o7x4wN
+	[
+		188, 83, 7, 226, 91, 33, 103, 80, 52, 248, 146, 180, 101, 143, 165, 246, 6, 151, 162, 241,
+		45, 252, 194, 225, 146, 61, 9, 38, 193, 229, 130, 29,
+	],
+	// 11gqpAyU17G9EFW5n5MNngh824F3Y2as72V2rgc7Wq5JVRd
+	[
+		0, 134, 30, 106, 96, 1, 123, 111, 170, 177, 31, 56, 36, 106, 165, 54, 168, 95, 149, 190,
+		43, 170, 203, 73, 92, 154, 159, 95, 227, 169, 121, 100,
+	],
+	// 15JobZzEavXuPNHdnJYnQpnTbum3TqvtaftmSuPtzhJiiyqR
+	[
+		190, 132, 246, 59, 158, 48, 244, 56, 113, 31, 73, 180, 162, 243, 226, 81, 197, 65, 249,
+		166, 228, 59, 14, 157, 244, 246, 78, 131, 148, 186, 81, 126,
+	],
+	// 15wXcfFCshEuNF7B9n2T1Gh66buE6BN5tsbMLgfcRAcJcoWE
+	[
+		218, 135, 62, 139, 4, 134, 173, 66, 86, 165, 45, 92, 159, 65, 207, 120, 201, 251, 26, 186,
+		52, 26, 24, 184, 184, 217, 71, 48, 172, 198, 22, 56,
+	],
+	// 12BMEir1eczcBNKoRh8ahBZ27xHaKrbbyLiPyhgPYj6TdBCV
+	[
+		52, 32, 207, 84, 197, 152, 220, 122, 166, 211, 41, 170, 244, 151, 101, 240, 239, 248, 19,
+		53, 140, 249, 149, 110, 73, 115, 116, 52, 6, 237, 128, 53,
+	],
+];
+
 /// Migrate any accounts in elections-phragmen that have a locked amount greater than their free
 /// balance.
 pub struct ElectionsPhragmenMigrationV5;
 impl OnRuntimeUpgrade for ElectionsPhragmenMigrationV5 {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_elections_phragmen::migrations::v5::migrate::<Runtime>()
+		pallet_elections_phragmen::migrations::v5::migrate::<Runtime>(
+			ELECTIONS_PHRAGMEN_OVER_LOCKED
+				.iter()
+				.map(|a| AccountId::from(a.clone()))
+				.collect(),
+		)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_elections_phragmen::migrations::v5::pre_migrate::<Runtime>();
+		pallet_elections_phragmen::migrations::v5::pre_migrate_fn::<Runtime>(
+			ELECTIONS_PHRAGMEN_OVER_LOCKED
+				.iter()
+				.map(|a| AccountId::from(a.clone()))
+				.collect(),
+		)();
 		Ok(())
 	}
 

@@ -201,7 +201,7 @@ pub struct OriginPrivilegeCmp;
 impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
 	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
 		if left == right {
-			return Some(Ordering::Equal)
+			return Some(Ordering::Equal);
 		}
 
 		match (left, right) {
@@ -527,9 +527,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: pallet_staking::EraIndex = 28;
+	pub const BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
@@ -1122,22 +1122,22 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Governance => matches!(
 				c,
-				Call::Democracy(..) |
-					Call::Council(..) | Call::TechnicalCommittee(..) |
-					Call::PhragmenElection(..) |
-					Call::Treasury(..) | Call::Bounties(..) |
-					Call::Tips(..) | Call::Utility(..)
+				Call::Democracy(..)
+					| Call::Council(..) | Call::TechnicalCommittee(..)
+					| Call::PhragmenElection(..)
+					| Call::Treasury(..) | Call::Bounties(..)
+					| Call::Tips(..) | Call::Utility(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
-			},
+			}
 			ProxyType::IdentityJudgement => matches!(
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement { .. }) | Call::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
-			},
+			}
 			ProxyType::Auction => matches!(
 				c,
 				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
@@ -2931,17 +2931,55 @@ impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
 	}
 }
 
+const ELECTIONS_PHRAGMEN_OVER_LOCKED: [[u8; 32]; 5] = [
+	// 'GPW2dFhQyxVPSLqVwBUQdCvQPdauiZRxtt3fymGcgbzrF8P',
+	[
+		168, 176, 158, 34, 73, 77, 195, 235, 190, 198, 231, 174, 81, 174, 202, 99, 219, 183, 220,
+		4, 216, 95, 64, 254, 135, 161, 130, 228, 157, 18, 205, 122,
+	],
+	// 'Hc79UkPXVNNZAEsiNqkEeNcFXJztswvAy9vnSxHCdwwiVCq',
+	[
+		222, 138, 3, 168, 47, 235, 43, 28, 115, 169, 226, 29, 67, 193, 30, 183, 72, 81, 4, 147,
+		218, 79, 231, 207, 17, 195, 208, 221, 212, 176, 87, 124,
+	],
+	// 'Cp1o55bJijtPchgSFvptFFHiVMnQrs52pvqvUzMSYF6R7v4',
+	[
+		10, 113, 198, 160, 251, 249, 182, 58, 192, 137, 197, 57, 91, 222, 164, 145, 122, 132, 170,
+		187, 52, 117, 212, 69, 65, 71, 196, 210, 76, 225, 1, 58,
+	],
+	// 'D8rBgbN7NWa4k9Wa5aeupP2rjo6iYoHPTxxJU5ef35PUQJN',
+	[
+		24, 207, 22, 134, 65, 156, 65, 220, 93, 62, 118, 211, 115, 227, 23, 108, 50, 198, 210, 60,
+		117, 95, 225, 252, 53, 127, 156, 117, 95, 252, 0, 25,
+	],
+	// 'CbaNLeJQ8e8aCJMTLa9euDKuTDmnT5oPmGFt4AmuvXmYFGN',
+	[
+		0, 245, 60, 245, 158, 228, 186, 225, 252, 71, 181, 223, 82, 29, 72, 163, 204, 45, 2, 213,
+		193, 95, 213, 211, 191, 163, 214, 164, 162, 230, 165, 118,
+	],
+];
+
 /// Migrate any accounts in elections-phragmen that have a locked amount greater than their free
 /// balance.
 pub struct ElectionsPhragmenMigrationV5;
 impl OnRuntimeUpgrade for ElectionsPhragmenMigrationV5 {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_elections_phragmen::migrations::v5::migrate::<Runtime>()
+		pallet_elections_phragmen::migrations::v5::migrate::<Runtime>(
+			ELECTIONS_PHRAGMEN_OVER_LOCKED
+				.iter()
+				.map(|a| AccountId::from(a.clone()))
+				.collect(),
+		)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_elections_phragmen::migrations::v5::pre_migrate::<Runtime>();
+		pallet_elections_phragmen::migrations::v5::pre_migrate_fn::<Runtime>(
+			ELECTIONS_PHRAGMEN_OVER_LOCKED
+				.iter()
+				.map(|a| AccountId::from(a.clone()))
+				.collect(),
+		)();
 		Ok(())
 	}
 
