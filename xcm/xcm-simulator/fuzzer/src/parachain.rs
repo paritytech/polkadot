@@ -106,7 +106,7 @@ parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::parent();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
-	pub ParentAccount: AccountId = PalletId(*b"xcm-simulator-fuzzer-relay-chain").into_account();
+	pub ParentAccount: AccountId = PalletId(*b"fuzzer").into_account();
 }
 
 pub type LocationToAccountId = (
