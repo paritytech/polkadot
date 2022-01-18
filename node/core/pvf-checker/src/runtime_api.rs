@@ -26,7 +26,7 @@ use polkadot_primitives::{
 	v2::PvfCheckStatement,
 };
 
-pub(crate) async fn child_session_index(
+pub(crate) async fn session_index_for_child(
 	sender: &mut impl SubsystemSender,
 	relay_parent: Hash,
 ) -> Result<SessionIndex, RuntimeRequestError> {

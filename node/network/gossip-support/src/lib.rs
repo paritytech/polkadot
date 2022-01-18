@@ -200,7 +200,7 @@ where
 	{
 		for leaf in leaves {
 			let current_index =
-				util::request_child_session_index(leaf, ctx.sender()).await.await??;
+				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
 			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
 			let force_request = since_failure >= BACKOFF_DURATION;
 			let leaf_session = Some((current_index, leaf));

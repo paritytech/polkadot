@@ -370,7 +370,7 @@ async fn examine_activation(
 		_ => (leaf_number, leaf_hash),
 	};
 
-	let new_session_index = match runtime_api::child_session_index(sender, leaf_hash).await {
+	let new_session_index = match runtime_api::session_index_for_child(sender, leaf_hash).await {
 		Ok(session_index) =>
 			if state.latest_session.map_or(true, |l| l < session_index) {
 				let signing_credentials =

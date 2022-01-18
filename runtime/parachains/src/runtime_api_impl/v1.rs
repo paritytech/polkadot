@@ -264,8 +264,8 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
-/// Implementation for the `child_session_index` function of the runtime API.
-pub fn child_session_index<T: initializer::Config>() -> SessionIndex {
+/// Implementation for the `session_index_for_child` function of the runtime API.
+pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	// Just returns the session index from `inclusion`. Runtime APIs follow
 	// initialization so the initializer will have applied any pending session change
 	// which is expected at the child of the block whose context the runtime API was invoked
@@ -281,7 +281,7 @@ pub fn child_session_index<T: initializer::Config>() -> SessionIndex {
 /// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>(
 ) -> Vec<AuthorityDiscoveryId> {
-	let current_session_index = child_session_index::<T>();
+	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Pallet<T>>::earliest_stored_session();
 
 	// Due to `max_validators`, the `SessionInfo` stores only the validators who are actively

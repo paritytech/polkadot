@@ -209,7 +209,7 @@ specialize_requests! {
 	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
 	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_assumed_validation_data(para_id: ParaId, expected_persisted_validation_data_hash: Hash) -> Option<(PersistedValidationData, ValidationCodeHash)>; AssumedValidationData;
-	fn request_child_session_index() -> SessionIndex; SessionIndexForChild;
+	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_validation_code_by_hash(validation_code_hash: ValidationCodeHash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
@@ -326,12 +326,12 @@ impl Validator {
 		keystore: SyncCryptoStorePtr,
 		sender: &mut impl SubsystemSender,
 	) -> Result<Self, Error> {
-		// Note: request_validators and request_child_session_index do not and cannot
+		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
 		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
 		let (validators, session_index) = futures::try_join!(
 			request_validators(parent, sender).await,
-			request_child_session_index(parent, sender).await,
+			request_session_index_for_child(parent, sender).await,
 		)?;
 
 		let signing_context = SigningContext { session_index: session_index?, parent_hash: parent };

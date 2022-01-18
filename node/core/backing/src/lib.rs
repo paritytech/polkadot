@@ -37,7 +37,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
-	request_child_session_index, request_from_runtime, request_validator_groups,
+	request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::v1::{
@@ -1222,7 +1222,7 @@ impl util::JobTrait for CandidateBackingJob {
 			let (validators, groups, session_index, cores) = futures::try_join!(
 				request_validators(parent, &mut sender).await,
 				request_validator_groups(parent, &mut sender).await,
-				request_child_session_index(parent, &mut sender).await,
+				request_session_index_for_child(parent, &mut sender).await,
 				request_from_runtime(parent, &mut sender, |tx| {
 					RuntimeApiRequest::AvailabilityCores(tx)
 				},)

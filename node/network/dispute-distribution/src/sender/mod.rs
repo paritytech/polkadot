@@ -329,7 +329,7 @@ async fn get_active_session_indeces<Context: SubsystemContext>(
 ) -> Result<HashMap<SessionIndex, Hash>> {
 	let mut indeces = HashMap::new();
 	for head in active_heads {
-		let session_index = runtime.get_child_session_index(ctx.sender(), *head).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), *head).await?;
 		indeces.insert(session_index, *head);
 	}
 	Ok(indeces)

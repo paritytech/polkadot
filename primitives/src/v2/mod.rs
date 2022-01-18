@@ -171,7 +171,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
-		fn child_session_index() -> v1::SessionIndex;
+		fn session_index_for_child() -> v1::SessionIndex;
 
 		/// Old method to fetch v1 session info.
 		#[changed_in(2)]

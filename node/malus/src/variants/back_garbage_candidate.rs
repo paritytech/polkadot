@@ -141,7 +141,7 @@ where
 						Some("malus"),
 						Box::pin(async move {
 							let relay_parent = candidate_descriptor.relay_parent;
-							let session_index = util::request_child_session_index(
+							let session_index = util::request_session_index_for_child(
 								relay_parent,
 								&mut subsystem_sender,
 							)

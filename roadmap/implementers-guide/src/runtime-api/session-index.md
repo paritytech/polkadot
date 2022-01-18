@@ -8,5 +8,5 @@ This session index can be used to derive a [`SigningContext`](../types/candidate
 
 ```rust
 /// Returns the session index expected at a child of the block.
-fn child_session_index(at: Block) -> SessionIndex;
+fn session_index_for_child(at: Block) -> SessionIndex;
 ```

@@ -135,7 +135,7 @@ where
 				.requests_cache
 				.cache_check_validation_outputs((relay_parent, para_id, commitments), b),
 			SessionIndexForChild(relay_parent, session_index) =>
-				self.requests_cache.cache_child_session_index(relay_parent, session_index),
+				self.requests_cache.cache_session_index_for_child(relay_parent, session_index),
 			ValidationCode(relay_parent, para_id, assumption, code) => self
 				.requests_cache
 				.cache_validation_code((relay_parent, para_id, assumption), code),
@@ -224,7 +224,7 @@ where
 			Request::CheckValidationOutputs(para, commitments, sender) =>
 				query!(check_validation_outputs(para, commitments), sender)
 					.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
-			Request::SessionIndexForChild(sender) => query!(child_session_index(), sender)
+			Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender)
 				.map(|sender| Request::SessionIndexForChild(sender)),
 			Request::ValidationCode(para, assumption, sender) =>
 				query!(validation_code(para, assumption), sender)
@@ -430,7 +430,7 @@ where
 			sender
 		),
 		Request::SessionIndexForChild(sender) =>
-			query!(SessionIndexForChild, child_session_index(), ver = 1, sender),
+			query!(SessionIndexForChild, session_index_for_child(), ver = 1, sender),
 		Request::ValidationCode(para, assumption, sender) =>
 			query!(ValidationCode, validation_code(para, assumption), ver = 1, sender),
 		Request::ValidationCodeByHash(validation_code_hash, sender) => query!(
