@@ -3012,7 +3012,8 @@ impl OnRuntimeUpgrade for RefundNickPalletDeposit {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_migrate() -> Result<(), &'static str> {
-		Self::execute(true)
+		Self::execute(true);
+		Ok(())
 	}
 }
 
