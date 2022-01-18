@@ -66,7 +66,7 @@ impl From<Error> for XcmError {
 ///     pub RelayChain: MultiLocation = Parent.into();
 ///     pub CheckingAccount: AccountId =
 ///         AccountId::decode(&mut TrailingZeroInput::zeroes()).unwrap();
-///     pub ParentAccount: AccountId = PalletId(*b"relay-chain").into_account();
+///     pub ParentAccount: AccountId = PalletId(*b"testacct").into_account();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
