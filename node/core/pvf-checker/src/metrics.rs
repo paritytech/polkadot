@@ -98,7 +98,7 @@ impl metrics::Metrics for Metrics {
 			votes_started: prometheus::register(
 				prometheus::Counter::new(
 					"polkadot_pvf_precheck_votes_started",
-					"The number of votes that are started submission, but not yet submitted.",
+					"The number of votes that are pending submission",
 				)?,
 				registry,
 			)?,
@@ -120,7 +120,7 @@ the same session.",
 			pvfs_left: prometheus::register(
 				prometheus::Counter::new(
 					"polkadot_pvf_precheck_pvfs_left",
-					"The number of PVFs left the view.",
+					"The number of PVFs removed from the view.",
 				)?,
 				registry,
 			)?,
