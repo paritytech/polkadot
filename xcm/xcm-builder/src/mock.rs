@@ -216,7 +216,11 @@ thread_local! {
 }
 pub struct TestResponseHandler;
 impl OnResponse for TestResponseHandler {
-	fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool {
+	fn expecting_response(
+		origin: &MultiLocation,
+		query_id: u64,
+		_querier: Option<&MultiLocation>,
+	) -> bool {
 		QUERIES.with(|q| match q.borrow().get(&query_id) {
 			Some(ResponseSlot::Expecting(ref l)) => l == origin,
 			_ => false,
@@ -225,6 +229,7 @@ impl OnResponse for TestResponseHandler {
 	fn on_response(
 		_origin: &MultiLocation,
 		query_id: u64,
+		_querier: Option<&MultiLocation>,
 		response: xcm::latest::Response,
 		_max_weight: Weight,
 	) -> Weight {
