@@ -34,12 +34,18 @@ members = [
 	"primitives/test-helpers",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
+	"runtime/metrics",
 	"runtime/parachains",
 	"runtime/polkadot",
+	"runtime/polkadot/constants",
 	"runtime/kusama",
+	"runtime/kusama/constants",
 	"runtime/rococo",
+	"runtime/rococo/constants",
 	"runtime/westend",
+	"runtime/westend/constants",
 	"runtime/test-runtime",
+	"runtime/test-runtime/constants",
 	"statement-table",
 	"xcm",
 	"xcm/xcm-builder",
@@ -93,9 +99,12 @@ members = [
 	"node/test/performance-test",
 	"node/test/service",
 	"node/zombienet-backchannel",
+	"rpc",
+	"parachain",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
+	"parachain/test-parachains/halt",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
@@ -130,8 +139,8 @@ overflow-checks = true
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
+fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
-
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

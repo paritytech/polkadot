@@ -314,6 +314,16 @@ enum PvfCheckCause<BlockNumber> {
 	},
 }
 
+impl<BlockNumber> PvfCheckCause<BlockNumber> {
+	/// Returns the ID of the para that initiated or subscribed to the pre-checking vote.
+	fn para_id(&self) -> ParaId {
+		match *self {
+			PvfCheckCause::Onboarding(id) => id,
+			PvfCheckCause::Upgrade { id, .. } => id,
+		}
+	}
+}
+
 /// Specifies what was the outcome of a PVF pre-checking vote.
 #[derive(Copy, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 enum PvfCheckOutcome {
@@ -467,6 +477,15 @@ pub mod pallet {
 		NewHeadNoted(ParaId),
 		/// A para has been queued to execute pending actions. `para_id`
 		ActionQueued(ParaId, SessionIndex),
+		/// The given para either initiated or subscribed to a PVF check for the given validation
+		/// code. `code_hash` `para_id`
+		PvfCheckStarted(ValidationCodeHash, ParaId),
+		/// The given validation code was rejected by the PVF pre-checking vote.
+		/// `code_hash` `para_id`
+		PvfCheckAccepted(ValidationCodeHash, ParaId),
+		/// The given validation code was accepted by the PVF pre-checking vote.
+		/// `code_hash` `para_id`
+		PvfCheckRejected(ValidationCodeHash, ParaId),
 	}
 
 	#[pallet::error]
@@ -493,6 +512,9 @@ pub mod pallet {
 		PvfCheckDoubleVote,
 		/// The given PVF does not exist at the moment of process a vote.
 		PvfCheckSubjectInvalid,
+		/// The PVF pre-checking statement cannot be included since the PVF pre-checking mechanism
+		/// is disabled.
+		PvfCheckDisabled,
 	}
 
 	/// All currently active PVF pre-checking votes.
@@ -856,6 +878,13 @@ pub mod pallet {
 			signature: ValidatorSignature,
 		) -> DispatchResult {
 			ensure_none(origin)?;
+
+			// Make sure that PVF pre-checking is enabled.
+			ensure!(
+				configuration::Pallet::<T>::config().pvf_checking_enabled,
+				Error::<T>::PvfCheckDisabled,
+			);
+
 			let validators = shared::Pallet::<T>::active_validator_keys();
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
@@ -938,6 +967,10 @@ pub mod pallet {
 				_ => return InvalidTransaction::Call.into(),
 			};
 
+			if !configuration::Pallet::<T>::config().pvf_checking_enabled {
+				return InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
+			}
+
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
 				return InvalidTransaction::Stale.into()
@@ -998,6 +1031,7 @@ pub mod pallet {
 const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
 const INVALID_TX_BAD_SUBJECT: u8 = 2;
 const INVALID_TX_DOUBLE_VOTE: u8 = 3;
+const INVALID_TX_PVF_CHECK_DISABLED: u8 = 4;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the paras pallet.
@@ -1345,6 +1379,9 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		let mut weight = 0;
 		for cause in causes {
+			weight += T::DbWeight::get().reads_writes(3, 2);
+			Self::deposit_event(Event::PvfCheckAccepted(*code_hash, cause.para_id()));
+
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
 					weight += Self::proceed_with_onboarding(*id, sessions_observed);
@@ -1431,6 +1468,9 @@ impl<T: Config> Pallet<T> {
 			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
 			// Now we need to unbump it.
 			weight += Self::decrease_code_ref(code_hash);
+
+			weight += T::DbWeight::get().reads_writes(3, 2);
+			Self::deposit_event(Event::PvfCheckRejected(*code_hash, cause.para_id()));
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
@@ -1712,6 +1752,9 @@ impl<T: Config> Pallet<T> {
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		let mut weight = 0;
+
+		weight += T::DbWeight::get().reads_writes(3, 2);
+		Self::deposit_event(Event::PvfCheckStarted(code_hash, cause.para_id()));
 
 		weight += T::DbWeight::get().reads(1);
 		match PvfActiveVoteMap::<T>::get(&code_hash) {
