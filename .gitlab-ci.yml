@@ -230,8 +230,19 @@ check-runtime-benchmarks:
   <<:                              *compiler-info
   <<:                              *vault-secrets
   script:
-    # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - ./scripts/gitlab/check_runtime_benchmarks.sh
+    # Check that everything compiles with `runtime-benchmarks` feature flag.
+    - cargo check --features runtime-benchmarks --all
+    - sccache -s
+
+check-try-runtime:
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *vault-secrets
+  script:
+    # Check that everything compiles with `try-runtime` feature flag.
+    - cargo check --features try-runtime --all
     - sccache -s
 
 check-no-default-features:
@@ -242,7 +253,8 @@ check-no-default-features:
   <<:                              *vault-secrets
   script:
     # Check that polkadot-cli will compile no default features.
-    - ./scripts/gitlab/check_no_default_features.sh
+    - pushd node/service && cargo check --no-default-features && popd
+    - pushd cli && cargo check --no-default-features --features "service" && popd
     - sccache -s
 
 spellcheck:
