@@ -66,13 +66,6 @@ pub struct Requester {
 	/// Localized information about sessions we are currently interested in.
 	session_cache: SessionCache,
 
-	/// Chain of up to [`LEAF_ANCESTRY_LEN_WITHIN_SESSION`] ancestors of activated leaves.
-	/// leaf -> [leaf parent, leaf grandparent, ...]
-	/// Fetch tasks also get launched for array `relay_ancestors[leaf]`, this helps with
-	/// possibly missing activated leaves updates, as well as with "slow" validators which do not
-	/// manage to fetch their chunks in time.
-	relay_ancestors: HashMap<Hash, Vec<Hash>>,
-
 	/// Sender to be cloned for `FetchTask`s.
 	tx: mpsc::Sender<FromFetchTask>,
 
@@ -93,14 +86,7 @@ impl Requester {
 	/// by advancing the stream.
 	pub fn new(metrics: Metrics) -> Self {
 		let (tx, rx) = mpsc::channel(1);
-		Requester {
-			fetches: HashMap::new(),
-			session_cache: SessionCache::new(),
-			relay_ancestors: HashMap::new(),
-			tx,
-			rx,
-			metrics,
-		}
+		Requester { fetches: HashMap::new(), session_cache: SessionCache::new(), tx, rx, metrics }
 	}
 
 	/// Update heads that need availability distribution.
@@ -159,18 +145,23 @@ impl Requester {
 			);
 			Vec::new()
 		});
-		for hash in std::iter::once(leaf).chain(ancestors_in_session.clone()) {
+		// Also spawn or bump tasks for candidates in ancestry in the same session.
+		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
 			let cores = get_occupied_cores(ctx, hash).await?;
 			tracing::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
 				"Query occupied core"
 			);
-			self.add_cores(ctx, runtime, hash, cores).await?;
+			// Important:
+			// We mark the whole ancestry as live in the **leaf** hash, so we don't need to track
+			// any tasks separately.
+			//
+			// The next time the subsystem receives leaf update, some of spawned task will be bumped
+			// to be live in fresh relay parent, while some might get dropped due to the current leaf
+			// being deactivated.
+			self.add_cores(ctx, runtime, leaf, cores).await?;
 		}
-
-		// Save leaf ancestors for tasks pruning in the future.
-		self.relay_ancestors.insert(leaf, ancestors_in_session);
 
 		Ok(())
 	}
@@ -178,12 +169,7 @@ impl Requester {
 	/// Stop requesting chunks for obsolete heads.
 	///
 	fn stop_requesting_chunks(&mut self, obsolete_leaves: impl Iterator<Item = Hash>) {
-		let obsolete_leaves: HashSet<_> = obsolete_leaves
-			.flat_map(|leaf| {
-				let leaf_ancestors = self.relay_ancestors.remove(&leaf).unwrap_or_default();
-				std::iter::once(leaf).chain(leaf_ancestors)
-			})
-			.collect();
+		let obsolete_leaves: HashSet<_> = obsolete_leaves.collect();
 		self.fetches.retain(|_, task| {
 			task.remove_leaves(&obsolete_leaves);
 			task.is_live()
