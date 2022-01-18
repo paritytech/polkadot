@@ -142,6 +142,7 @@ fn report_holding_works() {
 					query_id: response_info.query_id,
 					response: Response::Assets(vec![].into()),
 					max_weight: response_info.max_weight,
+					querier: Some(Here.into().into()),
 				}]),
 			)]
 		);
