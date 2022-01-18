@@ -71,7 +71,7 @@ pub(crate) enum FullCheck {
 
 /// A backed candidate pending availability.
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(test, derive(Debug, Default))]
+#[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
@@ -167,6 +167,15 @@ impl<H> Default for ProcessedCandidates<H> {
 			candidate_receipt_with_backing_validator_indices: Vec::new(),
 		}
 	}
+}
+
+/// Number of backing votes we need for a valid backing.
+pub fn minimum_backing_votes(n_validators: usize) -> usize {
+	// For considerations on this value see:
+	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
+	// and
+	// https://github.com/paritytech/polkadot/issues/4386
+	sp_std::cmp::min(n_validators, 2)
 }
 
 #[frame_support::pallet]
@@ -578,7 +587,7 @@ impl<T: Config> Pallet<T> {
 
 							match maybe_amount_validated {
 								Ok(amount_validated) => ensure!(
-									amount_validated * 2 > group_vals.len(),
+									amount_validated >= minimum_backing_votes(group_vals.len()),
 									Error::<T>::InsufficientBacking,
 								),
 								Err(()) => {

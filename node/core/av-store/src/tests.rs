@@ -21,13 +21,14 @@ use std::convert::TryFrom;
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
+use ::test_helpers::TestCandidateBuilder;
 use parking_lot::Mutex;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
-	CandidateDescriptor, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
-	Id as ParaId, PersistedValidationData, ValidatorId,
+	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
+	PersistedValidationData, ValidatorId,
 };
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
@@ -46,28 +47,6 @@ mod columns {
 const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns::META };
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
-
-#[derive(Default)]
-struct TestCandidateBuilder {
-	para_id: ParaId,
-	pov_hash: Hash,
-	relay_parent: Hash,
-	commitments_hash: Hash,
-}
-
-impl TestCandidateBuilder {
-	fn build(self) -> CandidateReceipt {
-		CandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: self.para_id,
-				pov_hash: self.pov_hash,
-				relay_parent: self.relay_parent,
-				..Default::default()
-			},
-			commitments_hash: self.commitments_hash,
-		}
-	}
-}
 
 #[derive(Clone)]
 struct TestClock {
@@ -261,7 +240,18 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 				RuntimeApiRequest::CandidateEvents(tx),
 			)) => {
 				assert_eq!(relay_parent, new_leaf);
-				tx.send(Err(RuntimeApiError::from("oh no".to_string()))).unwrap();
+				#[derive(Debug)]
+				struct FauxError;
+				impl std::error::Error for FauxError {}
+				impl std::fmt::Display for FauxError {
+					fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+						Ok(())
+					}
+				}
+				tx.send(Err(RuntimeApiError::Execution {
+					runtime_api_name: "faux",
+					source: Arc::new(FauxError),
+				})).unwrap();
 			}
 		);
 

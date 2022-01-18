@@ -38,14 +38,17 @@ use polkadot_node_primitives::{
 	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
 	SignedFullStatement, ValidationResult,
 };
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
-	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+		CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+		CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+		OccupiedCoreAssumption, PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
+		SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId,
+		ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use polkadot_statement_table::v1::Misbehavior;
 use std::{
@@ -225,6 +228,9 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 }
 
 /// Messages received by the dispute coordinator subsystem.
+///
+/// NOTE: Any response oneshots might get cancelled if the `DisputeCoordinator` was not yet
+/// properly initialized for some reason.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
 	/// Import statements by validators about a candidate.
@@ -558,7 +564,8 @@ pub enum ChainApiMessage {
 	/// Request the `k` ancestors block hashes of a block with the given hash.
 	/// The response channel may return a `Vec` of size up to `k`
 	/// filled with ancestors hashes with the following order:
-	/// `parent`, `grandparent`, ...
+	/// `parent`, `grandparent`, ... up to the hash of genesis block
+	/// with number 0, including it.
 	Ancestors {
 		/// The hash of the block in question.
 		hash: Hash,
@@ -665,6 +672,17 @@ pub enum RuntimeApiRequest {
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
 	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
+	/// Submits a PVF pre-checking statement into the transaction pool.
+	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
+	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
+	PvfsRequirePrecheck(RuntimeApiSender<Vec<ValidationCodeHash>>),
+	/// Get the validation code used by the specified para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently occupies a core.
+	ValidationCodeHash(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCodeHash>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.
@@ -895,3 +913,9 @@ pub enum GossipSupportMessage {
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
 }
+
+/// PVF checker message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum PvfCheckerMessage {}

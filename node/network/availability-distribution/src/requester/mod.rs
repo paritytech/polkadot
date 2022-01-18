@@ -35,7 +35,7 @@ use futures::{
 use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
 use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActivatedLeaf, ActiveLeavesUpdate, SubsystemContext,
+	messages::AllMessages, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
 };
 
 use super::{Metrics, LOG_TARGET};
@@ -97,6 +97,11 @@ impl Requester {
 	{
 		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
+		// Stale leaves happen after a reversion - we don't want to re-run availability there.
+		let activated = activated.and_then(|h| match h.status {
+			LeafStatus::Stale => None,
+			LeafStatus::Fresh => Some(h),
+		});
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
 		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;

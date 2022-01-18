@@ -1,6 +1,6 @@
 Description: Smoke Test
 Network: ./0001-parachains-smoke-test.toml
-Creds: config.gcloud
+Creds: config
 
 
 alice: is up
