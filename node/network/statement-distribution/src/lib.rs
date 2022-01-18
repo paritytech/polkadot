@@ -624,9 +624,9 @@ struct ActiveHeadData {
 	statements: IndexMap<StoredStatementComparator, SignedFullStatement>,
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
-	/// The validators at this head.
+	/// The parachain validators at the head's child session index.
 	validators: Vec<ValidatorId>,
-	/// The session index this head is at.
+	/// The session index this head's child is at.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
@@ -1798,6 +1798,7 @@ impl StatementDistributionSubsystem {
 						"New active leaf",
 					);
 
+					// Retrieve the parachain validators at the child of the head we track.
 					let session_index =
 						runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 					let info = runtime

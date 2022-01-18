@@ -309,7 +309,7 @@ impl DisputeSender {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 	) -> Result<bool> {
-		let new_sessions = get_active_session_indeces(ctx, runtime, &self.active_heads).await?;
+		let new_sessions = get_active_session_indices(ctx, runtime, &self.active_heads).await?;
 		let new_sessions_raw: HashSet<_> = new_sessions.keys().collect();
 		let old_sessions_raw: HashSet<_> = self.active_sessions.keys().collect();
 		let updated = new_sessions_raw != old_sessions_raw;
@@ -322,12 +322,13 @@ impl DisputeSender {
 /// Retrieve the currently active sessions.
 ///
 /// List is all indices of all active sessions together with the head that was used for the query.
-async fn get_active_session_indeces<Context: SubsystemContext>(
+async fn get_active_session_indices<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
 ) -> Result<HashMap<SessionIndex, Hash>> {
 	let mut indeces = HashMap::new();
+	// Iterate all heads we track as active and fetch the child' session indices.
 	for head in active_heads {
 		let session_index = runtime.get_session_index_for_child(ctx.sender(), *head).await?;
 		indeces.insert(session_index, *head);
