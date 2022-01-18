@@ -63,10 +63,12 @@ fn report_outcome_notify_works() {
 				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
 			])
 		);
+		let querier: MultiLocation = Here.into();
 		let status = QueryStatus::Pending {
 			responder: MultiLocation::from(Parachain(PARA_ID)).into(),
 			maybe_notify: Some((4, 2)),
 			timeout: 100,
+			maybe_match_querier: Some(querier.clone().into()),
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
@@ -76,6 +78,7 @@ fn report_outcome_notify_works() {
 				query_id: 0,
 				response: Response::ExecutionResult(None),
 				max_weight: 1_000_000,
+				querier: Some(querier),
 			}]),
 			1_000_000_000,
 		);
@@ -117,10 +120,12 @@ fn report_outcome_works() {
 				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
 			])
 		);
+		let querier: MultiLocation = Here.into();
 		let status = QueryStatus::Pending {
 			responder: MultiLocation::from(Parachain(PARA_ID)).into(),
 			maybe_notify: None,
 			timeout: 100,
+			maybe_match_querier: Some(querier.clone().into()),
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
@@ -130,6 +135,7 @@ fn report_outcome_works() {
 				query_id: 0,
 				response: Response::ExecutionResult(None),
 				max_weight: 0,
+				querier: Some(querier),
 			}]),
 			1_000_000_000,
 		);
@@ -617,7 +623,12 @@ fn basic_subscription_works() {
 		let weight = BaseXcmWeight::get();
 		let mut message = Xcm::<()>(vec![
 			// Remote supports XCM v1
-			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
+			QueryResponse {
+				query_id: 0,
+				max_weight: 0,
+				response: Response::Version(1),
+				querier: None,
+			},
 		]);
 		assert_ok!(AllowKnownQueryResponses::<XcmPallet>::should_execute(
 			&remote,
@@ -722,7 +733,12 @@ fn subscription_side_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
-		let instr = QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) };
+		let instr = QueryResponse {
+			query_id: 0,
+			max_weight: 0,
+			response: Response::Version(1),
+			querier: None,
+		};
 		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
 
 		// A runtime upgrade which doesn't alter the version sends no notifications.
@@ -736,7 +752,12 @@ fn subscription_side_works() {
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
 		XcmPallet::on_initialize(2);
-		let instr = QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) };
+		let instr = QueryResponse {
+			query_id: 0,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
 		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
 	});
 }
@@ -762,9 +783,24 @@ fn subscription_side_upgrades_work_with_notify() {
 		XcmPallet::on_runtime_upgrade();
 		XcmPallet::on_initialize(1);
 
-		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
-		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
-		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
+		let instr0 = QueryResponse {
+			query_id: 69,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
+		let instr1 = QueryResponse {
+			query_id: 70,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
+		let instr2 = QueryResponse {
+			query_id: 71,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
 		let mut sent = take_sent_xcm();
 		sent.sort_by_key(|k| match (k.1).0[0] {
 			QueryResponse { query_id: q, .. } => q,
@@ -836,7 +872,12 @@ fn subscriber_side_subscription_works() {
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
 			// Remote supports XCM v1
-			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
+			QueryResponse {
+				query_id: 0,
+				max_weight: 0,
+				response: Response::Version(1),
+				querier: None,
+			},
 		]);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -848,7 +889,12 @@ fn subscriber_side_subscription_works() {
 
 		let message = Xcm(vec![
 			// Remote upgraded to XCM v2
-			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) },
+			QueryResponse {
+				query_id: 0,
+				max_weight: 0,
+				response: Response::Version(2),
+				querier: None,
+			},
 		]);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -903,7 +949,12 @@ fn auto_subscription_works() {
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
 			// Remote supports XCM v2
-			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) },
+			QueryResponse {
+				query_id: 0,
+				max_weight: 0,
+				response: Response::Version(2),
+				querier: None,
+			},
 		]);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, weight);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -928,7 +979,12 @@ fn auto_subscription_works() {
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
 			// Remote supports XCM v1
-			QueryResponse { query_id: 1, max_weight: 0, response: Response::Version(1) },
+			QueryResponse {
+				query_id: 1,
+				max_weight: 0,
+				response: Response::Version(1),
+				querier: None,
+			},
 		]);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, weight);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -967,9 +1023,24 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		}
 		assert_eq!(counter, 4);
 
-		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
-		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
-		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
+		let instr0 = QueryResponse {
+			query_id: 69,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
+		let instr1 = QueryResponse {
+			query_id: 70,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
+		let instr2 = QueryResponse {
+			query_id: 71,
+			max_weight: 0,
+			response: Response::Version(2),
+			querier: None,
+		};
 		let mut sent = take_sent_xcm();
 		sent.sort_by_key(|k| match (k.1).0[0] {
 			QueryResponse { query_id: q, .. } => q,
