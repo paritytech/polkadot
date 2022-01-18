@@ -58,9 +58,9 @@ fn derive_replacable_generic_lists(
 /// Elements tagged with `wip` are not covered here.
 pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let overseer_name = info.overseer_name.clone();
-	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
-	let handle = Ident::new(&(overseer_name.to_string() + "Handle"), overseer_name.span());
-	let connector = Ident::new(&(overseer_name.to_string() + "Connector"), overseer_name.span());
+	let builder = format_ident!("{}Builder", overseer_name);
+	let handle = format_ident!("{}Handle", overseer_name);
+	let connector = format_ident!("{}Connector", overseer_name);
 
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let subsystem_name_init_with = &info
