@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::traits::Get;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
+use sp_runtime::traits::AccountIdConversion;
 use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::{Junction::*, Junctions::*, MultiLocation, NetworkId, Parent};
 use xcm_executor::traits::{Convert, InvertLocation};
@@ -35,26 +35,22 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone
 	}
 }
 
-/// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to all zeros
-/// for `AccountId`.
-pub struct ParentIsAllZeroes<AccountId>(PhantomData<AccountId>);
-impl<AccountId: Decode + Eq + Clone> Convert<MultiLocation, AccountId>
-	for ParentIsAllZeroes<AccountId>
+/// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
+/// `AccountId` specified in `A`.
+pub struct ParentIs<A: Get<AccountId>, AccountId>(PhantomData<(AccountId, A)>);
+impl<AccountId: Eq + Clone, A: Get<AccountId>> Convert<MultiLocation, AccountId>
+	for ParentIs<A, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		if location.borrow().contains_parents_only(1) {
-			Ok(AccountId::decode(&mut TrailingZeroInput::zeroes())
-				.expect("infinite length input; no invalid inputs for type; qed"))
+			Ok(A::get())
 		} else {
 			Err(())
 		}
 	}
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		if who.borrow() ==
-			&AccountId::decode(&mut TrailingZeroInput::zeroes())
-				.expect("inifinite length input; no invalid inputs for type; qed")
-		{
+		if who.borrow() == &A::get() {
 			Ok(Parent.into())
 		} else {
 			Err(())
