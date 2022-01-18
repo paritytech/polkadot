@@ -89,7 +89,7 @@ use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 mod bridge_messages;
 mod validator_manager;
 mod weights;
-mod xcm_config;
+pub mod xcm_config;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
