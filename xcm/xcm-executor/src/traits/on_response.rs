@@ -21,25 +21,25 @@ use xcm::latest::{Error as XcmError, MultiLocation, QueryId, Response, Result as
 pub trait OnResponse {
 	/// Returns `true` if we are expecting a response from `origin` for query `query_id` that was
 	/// queried by `querier`.
-	fn expecting_response(origin: &MultiLocation, query_id: u64, querier: &Option<MultiLocation>) -> bool;
+	fn expecting_response(origin: &MultiLocation, query_id: u64, querier: Option<&MultiLocation>) -> bool;
 	/// Handler for receiving a `response` from `origin` relating to `query_id` initiated by
 	/// `querier`.
 	fn on_response(
 		origin: &MultiLocation,
 		query_id: u64,
-		querier: &Option<MultiLocation>,
+		querier: Option<&MultiLocation>,
 		response: Response,
 		max_weight: Weight,
 	) -> Weight;
 }
 impl OnResponse for () {
-	fn expecting_response(_origin: &MultiLocation, _query_id: u64, _querier: &Option<MultiLocation>) -> bool {
+	fn expecting_response(_origin: &MultiLocation, _query_id: u64, _querier: Option<&MultiLocation>) -> bool {
 		false
 	}
 	fn on_response(
 		_origin: &MultiLocation,
 		_query_id: u64,
-		_querier: &Option<MultiLocation>,
+		_querier: Option<&MultiLocation>,
 		_response: Response,
 		_max_weight: Weight,
 	) -> Weight {

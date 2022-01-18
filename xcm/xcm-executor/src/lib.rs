@@ -394,7 +394,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			QueryResponse { query_id, response, max_weight, querier } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::ResponseHandler::on_response(origin, query_id, &querier, response, max_weight);
+				Config::ResponseHandler::on_response(origin, query_id, querier.as_ref(), response, max_weight);
 				Ok(())
 			},
 			DescendOrigin(who) => self

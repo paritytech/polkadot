@@ -1413,13 +1413,13 @@ pub mod pallet {
 	}
 
 	impl<T: Config> OnResponse for Pallet<T> {
-		fn expecting_response(origin: &MultiLocation, query_id: QueryId, querier: &Option<MultiLocation>) -> bool {
+		fn expecting_response(origin: &MultiLocation, query_id: QueryId, querier: Option<&MultiLocation>) -> bool {
 			match Queries::<T>::get(query_id) {
 				Some(QueryStatus::Pending { responder, maybe_match_querier, .. }) =>
 					MultiLocation::try_from(responder).map_or(false, |r| origin == &r) &&
 					maybe_match_querier.map_or(true, |match_querier|
 						MultiLocation::try_from(match_querier)
-						.map_or(false, |match_querier| querier.as_ref().map_or(false, |q| q == &match_querier))
+						.map_or(false, |match_querier| querier.map_or(false, |q| q == &match_querier))
 					),
 				Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
 					MultiLocation::try_from(r).map_or(false, |r| origin == &r),
@@ -1430,7 +1430,7 @@ pub mod pallet {
 		fn on_response(
 			origin: &MultiLocation,
 			query_id: QueryId,
-			querier: &Option<MultiLocation>,
+			querier: Option<&MultiLocation>,
 			response: Response,
 			max_weight: Weight,
 		) -> Weight {
@@ -1490,12 +1490,12 @@ pub mod pallet {
 								return 0
 							}
 						};
-						if querier.as_ref().map_or(false, |q| q != &match_querier) {
+						if querier.map_or(false, |q| q != &match_querier) {
 							Self::deposit_event(Event::InvalidQuerier(
 								origin.clone(),
 								query_id,
 								match_querier,
-								querier.clone(),
+								querier.cloned(),
 							));
 							return 0
 						}
