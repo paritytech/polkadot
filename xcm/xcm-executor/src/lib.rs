@@ -394,7 +394,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			QueryResponse { query_id, response, max_weight, querier } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::ResponseHandler::on_response(origin, query_id, querier.as_ref(), response, max_weight);
+				Config::ResponseHandler::on_response(
+					origin,
+					query_id,
+					querier.as_ref(),
+					response,
+					max_weight,
+				);
 				Ok(())
 			},
 			DescendOrigin(who) => self
@@ -410,7 +416,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				Self::respond(self.origin.clone(), Response::ExecutionResult(self.error), response_info)
+				Self::respond(
+					self.origin.clone(),
+					Response::ExecutionResult(self.error),
+					response_info,
+				)
 			},
 			DepositAsset { assets, beneficiary } => {
 				let deposited = self.holding.saturating_take(assets);
@@ -461,7 +471,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// from Holding.
 				let assets =
 					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
-					Self::respond(self.origin.clone(), Response::Assets(assets), response_info)
+				Self::respond(self.origin.clone(), Response::Assets(assets), response_info)
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -567,13 +577,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
-			ReportTransactStatus(response_info) => {
-				Self::respond(
-					self.origin.clone(),
-					Response::DispatchResult(self.transact_status.clone()),
-					response_info,
-				)
-			},
+			ReportTransactStatus(response_info) => Self::respond(
+				self.origin.clone(),
+				Response::DispatchResult(self.transact_status.clone()),
+				response_info,
+			),
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
 				Ok(())
@@ -594,7 +602,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			None => None,
 			Some(q) => Some(
 				q.reanchored(&destination, &Config::LocationInverter::ancestry())
-					.map_err(|_| XcmError::ReanchorFailed)?
+					.map_err(|_| XcmError::ReanchorFailed)?,
 			),
 		})
 	}

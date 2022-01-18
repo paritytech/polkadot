@@ -481,24 +481,28 @@ pub mod pallet {
 				maybe_notify: Option<(u8, u8)>,
 				timeout: BlockNumber,
 			},
-			VersionNotifier { origin: VersionedMultiLocation, is_active: bool },
-			Ready { response: VersionedResponse, at: BlockNumber },
+			VersionNotifier {
+				origin: VersionedMultiLocation,
+				is_active: bool,
+			},
+			Ready {
+				response: VersionedResponse,
+				at: BlockNumber,
+			},
 		}
 		impl<B> From<QueryStatusV0<B>> for QueryStatus<B> {
 			fn from(old: QueryStatusV0<B>) -> Self {
 				use QueryStatusV0::*;
 				match old {
-					Pending { responder, maybe_notify, timeout }
-					=> QueryStatus::Pending {
+					Pending { responder, maybe_notify, timeout } => QueryStatus::Pending {
 						responder,
 						maybe_notify,
 						timeout,
 						maybe_match_querier: Some(MultiLocation::here().into()),
 					},
-					VersionNotifier { origin, is_active }
-					=> QueryStatus::VersionNotifier { origin, is_active },
-					Ready { response, at }
-					=> QueryStatus::Ready { response, at },
+					VersionNotifier { origin, is_active } =>
+						QueryStatus::VersionNotifier { origin, is_active },
+					Ready { response, at } => QueryStatus::Ready { response, at },
 				}
 			}
 		}
@@ -514,12 +518,10 @@ pub mod pallet {
 
 			if on_chain_storage_version < 1 {
 				let mut count = 0;
-				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(
-					|_key, value| {
-						count += 1;
-						Some(value.into())
-					},
-				);
+				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(|_key, value| {
+					count += 1;
+					Some(value.into())
+				});
 				StorageVersion::new(1).put::<P>();
 				log::info!(
 					target: "runtime::xcm",
@@ -1042,7 +1044,8 @@ pub mod pallet {
 						},
 					};
 					let response = Response::Version(xcm_version);
-					let message = Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
+					let message =
+						Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
 					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 						Ok(()) => {
 							let value = (query_id, max_weight, xcm_version);
@@ -1088,8 +1091,12 @@ pub mod pallet {
 						} else {
 							// Need to notify target.
 							let response = Response::Version(xcm_version);
-							let message =
-								Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
+							let message = Xcm(vec![QueryResponse {
+								query_id,
+								response,
+								max_weight,
+								querier: None,
+							}]);
 							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 								Ok(()) => {
 									VersionNotifyTargets::<T>::insert(
@@ -1259,7 +1266,11 @@ pub mod pallet {
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
-		pub fn new_query(responder: impl Into<MultiLocation>, timeout: T::BlockNumber, match_querier: impl Into<MultiLocation>) -> u64 {
+		pub fn new_query(
+			responder: impl Into<MultiLocation>,
+			timeout: T::BlockNumber,
+			match_querier: impl Into<MultiLocation>,
+		) -> u64 {
 			Self::do_new_query(responder, None, timeout, match_querier)
 		}
 
@@ -1413,14 +1424,19 @@ pub mod pallet {
 	}
 
 	impl<T: Config> OnResponse for Pallet<T> {
-		fn expecting_response(origin: &MultiLocation, query_id: QueryId, querier: Option<&MultiLocation>) -> bool {
+		fn expecting_response(
+			origin: &MultiLocation,
+			query_id: QueryId,
+			querier: Option<&MultiLocation>,
+		) -> bool {
 			match Queries::<T>::get(query_id) {
 				Some(QueryStatus::Pending { responder, maybe_match_querier, .. }) =>
 					MultiLocation::try_from(responder).map_or(false, |r| origin == &r) &&
-					maybe_match_querier.map_or(true, |match_querier|
-						MultiLocation::try_from(match_querier)
-						.map_or(false, |match_querier| querier.map_or(false, |q| q == &match_querier))
-					),
+						maybe_match_querier.map_or(true, |match_querier| {
+							MultiLocation::try_from(match_querier).map_or(false, |match_querier| {
+								querier.map_or(false, |q| q == &match_querier)
+							})
+						}),
 				Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
 					MultiLocation::try_from(r).map_or(false, |r| origin == &r),
 				_ => false,
@@ -1478,7 +1494,12 @@ pub mod pallet {
 					Self::deposit_event(Event::SupportedVersionChanged(origin, v));
 					0
 				},
-				(response, Some(QueryStatus::Pending { responder, maybe_notify, maybe_match_querier, .. })) => {
+				(
+					response,
+					Some(QueryStatus::Pending {
+						responder, maybe_notify, maybe_match_querier, ..
+					}),
+				) => {
 					if let Some(match_querier) = maybe_match_querier {
 						let match_querier = match MultiLocation::try_from(match_querier) {
 							Ok(mq) => mq,
@@ -1488,7 +1509,7 @@ pub mod pallet {
 									query_id,
 								));
 								return 0
-							}
+							},
 						};
 						if querier.map_or(false, |q| q != &match_querier) {
 							Self::deposit_event(Event::InvalidQuerier(

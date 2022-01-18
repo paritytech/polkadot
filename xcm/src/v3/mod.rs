@@ -881,8 +881,12 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets),
 			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets),
 			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets),
-			QueryResponse { query_id, response, max_weight } =>
-				Self::QueryResponse { query_id, response: response.try_into()?, max_weight, querier: None },
+			QueryResponse { query_id, response, max_weight } => Self::QueryResponse {
+				query_id,
+				response: response.try_into()?,
+				max_weight,
+				querier: None,
+			},
 			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, xcm } =>
 				Self::TransferReserveAsset { assets, dest, xcm: xcm.try_into()? },
