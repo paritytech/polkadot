@@ -194,10 +194,16 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn expect_error(_error: &Option<(u32, XcmError)>) -> Weight {
 		XcmGeneric::<Runtime>::expect_error()
 	}
-	fn query_pallet() -> Weight {
+	fn query_pallet(_module_name: &Vec<u8>, _response_info: QueryResponseInfo) -> Weight {
 		XcmGeneric::<Runtime>::query_pallet()
 	}
-	fn expect_pallet(_pallet_index: &u32) -> Weight {
+	fn expect_pallet(
+		_index: &u32,
+		_name: &Vec<u8>,
+		_module_name: &Vec<u8>,
+		_crate_major: &u32,
+		_min_crate_minor: &u32,
+	) -> Weight {
 		XcmGeneric::<Runtime>::expect_pallet()
 	}
 	fn report_transact_status(_response_info: &QueryResponseInfo) -> Weight {

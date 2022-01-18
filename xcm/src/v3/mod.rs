@@ -35,13 +35,11 @@ pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use traits::{
-	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{
 	Ancestor, AncestorThen, BodyId, BodyPart, InteriorMultiLocation, Junction, Junctions,
-	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WeightLimit,
+	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, Weight, WeightLimit,
 };
 
 /// This module's XCM version.
@@ -218,7 +216,7 @@ pub struct QueryResponseInfo {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -771,7 +769,7 @@ impl<Call> Instruction<Call> {
 				QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
-			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
+			ReportTransactStatus(response_info) => ReportTransactStatus(response_info),
 			ClearTransactStatus => ClearTransactStatus,
 		}
 	}
@@ -822,8 +820,10 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectAsset(assets) => W::expect_asset(assets),
 			ExpectOrigin(origin) => W::expect_origin(origin),
 			ExpectError(error) => W::expect_error(error),
-			QueryPallet { .. } => W::query_pallet(),
-			ExpectPallet { index, .. } => W::expect_pallet(index),
+			QueryPallet { module_name, response_info } =>
+				W::query_pallet(module_name, response_info),
+			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
+				W::expect_pallet(index, name, module_name, crate_major, min_crate_minor),
 			ReportTransactStatus(response_info) => W::report_transact_status(response_info),
 			ClearTransactStatus => W::clear_transact_status(),
 		}
