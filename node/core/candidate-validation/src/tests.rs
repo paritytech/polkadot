@@ -204,7 +204,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 		}
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfCode) -> Result<(), PrepareError> {
 		unreachable!()
 	}
 }
@@ -788,7 +788,7 @@ impl ValidationBackend for MockPreCheckBackend {
 		unreachable!()
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfCode) -> Result<(), PrepareError> {
 		self.result.clone()
 	}
 }

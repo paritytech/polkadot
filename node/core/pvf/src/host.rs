@@ -62,7 +62,7 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn precheck_pvf(
 		&mut self,
-		pvf: Pvf,
+		pvf: PvfCode,
 		result_tx: PrepareResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
@@ -108,7 +108,7 @@ impl ValidationHost {
 
 enum ToHost {
 	PrecheckPvf {
-		pvf: Pvf,
+		pvf: PvfCode,
 		result_tx: PrepareResultSender,
 	},
 	ExecutePvf {
@@ -432,13 +432,9 @@ async fn handle_to_host(
 async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	pvf: Pvf,
+	pvf: PvfCode,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
-	let pvf = match pvf {
-		Pvf::Code(code) => code,
-		Pvf::Hash(_) => todo!(),
-	};
 	let artifact_id = pvf.as_artifact_id();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
@@ -1032,9 +1028,7 @@ mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::Code(PvfCode::from_discriminator(1)), result_tx)
-			.await
-			.unwrap();
+		host.precheck_pvf(PvfCode::from_discriminator(1), result_tx).await.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1055,9 +1049,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::Code(PvfCode::from_discriminator(2)), result_tx)
-				.await
-				.unwrap();
+			host.precheck_pvf(PvfCode::from_discriminator(2), result_tx).await.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 		// Received prepare request.
@@ -1107,9 +1099,7 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::Code(PvfCode::from_discriminator(1)), result_tx)
-			.await
-			.unwrap();
+		host.precheck_pvf(PvfCode::from_discriminator(1), result_tx).await.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
@@ -1131,9 +1121,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::Code(PvfCode::from_discriminator(2)), result_tx)
-				.await
-				.unwrap();
+			host.precheck_pvf(PvfCode::from_discriminator(2), result_tx).await.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 

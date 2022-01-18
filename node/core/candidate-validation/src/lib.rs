@@ -24,7 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, PvfCode, ValidationError,
+	ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -314,6 +315,10 @@ async fn precheck_pvf<Sender>(
 where
 	Sender: SubsystemSender,
 {
+	// Even though the PVF host is capable of looking for code by its hash, we still
+	// request the validation code from the runtime right away. The reasoning is that
+	// the host is only expected to have the PVF cached in case there was a transient error
+	// that allows precheck retrying, otherwise the Runtime API request is necessary.
 	let validation_code =
 		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
 			Ok(Some(code)) => code,
@@ -336,7 +341,7 @@ where
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => Pvf::from_code(code.into_owned()),
+		Ok(code) => PvfCode::from_code(code.into_owned()),
 		Err(e) => {
 			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
@@ -586,7 +591,7 @@ trait ValidationBackend {
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
+	async fn precheck_pvf(&mut self, pvf: PvfCode) -> Result<(), PrepareError>;
 }
 
 #[async_trait]
@@ -621,7 +626,7 @@ impl ValidationBackend for ValidationHost {
 		validation_result
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, pvf: PvfCode) -> Result<(), PrepareError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(_) = self.precheck_pvf(pvf, tx).await {
 			return Err(PrepareError::DidNotMakeIt)
