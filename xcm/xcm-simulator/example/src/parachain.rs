@@ -21,11 +21,12 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
+	PalletId,
 };
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
-	traits::{Hash, IdentityLookup},
+	traits::{AccountIdConversion, Hash, IdentityLookup},
 	AccountId32,
 };
 use sp_std::{convert::TryFrom, prelude::*};
@@ -105,11 +106,11 @@ parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::parent();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
-	pub CheckingAccount: AccountId = AccountId::from([0; 32]);
+	pub ParentAccount: AccountId = PalletId(*b"xcm-simulator-relay-chain").into_account();
 }
 
 pub type LocationToAccountId = (
-	ParentIs<CheckingAccount, AccountId>,
+	ParentIs<ParentAccount, AccountId>,
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 );

@@ -53,8 +53,8 @@ impl From<Error> for XcmError {
 /// # Example
 /// ```
 /// use parity_scale_codec::Decode;
-/// use frame_support::parameter_types;
-/// use sp_runtime::traits::TrailingZeroInput;
+/// use frame_support::{parameter_types, PalletId};
+/// use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 /// use xcm::latest::prelude::*;
 /// use xcm_builder::{ParentIs, CurrencyAdapter, IsConcrete};
 ///
@@ -66,11 +66,12 @@ impl From<Error> for XcmError {
 ///     pub RelayChain: MultiLocation = Parent.into();
 ///     pub CheckingAccount: AccountId =
 ///         AccountId::decode(&mut TrailingZeroInput::zeroes()).unwrap();
+///     pub ParentAccount: AccountId = PalletId(*b"relay-chain").into_account();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
 /// /// messages from the parent (relay chain).
-/// pub type LocationConvertor = (ParentIs<AccountId, CheckingAccount>);
+/// pub type LocationConvertor = (ParentIs<ParentAccount, AccountId>);
 ///
 /// /// Final currency adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
 /// pub type AssetTransactor = CurrencyAdapter<
