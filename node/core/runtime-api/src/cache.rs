@@ -242,11 +242,7 @@ impl RequestResultCache {
 		self.child_session_index.get(relay_parent).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_child_session_index(
-		&mut self,
-		relay_parent: Hash,
-		index: SessionIndex,
-	) {
+	pub(crate) fn cache_child_session_index(&mut self, relay_parent: Hash, index: SessionIndex) {
 		self.child_session_index.insert(relay_parent, ResidentSizeOf(index));
 	}
 

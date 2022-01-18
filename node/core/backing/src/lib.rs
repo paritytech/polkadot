@@ -37,7 +37,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
-	request_from_runtime, request_child_session_index, request_validator_groups,
+	request_child_session_index, request_from_runtime, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::v1::{

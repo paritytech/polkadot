@@ -130,8 +130,7 @@ impl RuntimeInfo {
 		match self.session_index_cache.get(&parent) {
 			Some(index) => Ok(*index),
 			None => {
-				let index =
-					recv_runtime(request_child_session_index(parent, sender).await).await?;
+				let index = recv_runtime(request_child_session_index(parent, sender).await).await?;
 				self.session_index_cache.put(parent, index);
 				Ok(index)
 			},

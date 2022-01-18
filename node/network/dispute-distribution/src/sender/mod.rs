@@ -190,8 +190,24 @@ impl DisputeSender {
 		dispute: (SessionIndex, CandidateHash),
 	) -> Result<()> {
 		let (session_index, candidate_hash) = dispute;
-		// We need some relay chain head for context for receiving session info information:
-		let ref_head = self.active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
+		// A relay chain head is required as context for receiving session info information from runtime and
+		// storage. We will iterate `active_sessions` to find a suitable head. We assume that there is at
+		// least one active head which, by `session_index`, is at least as recent as the `dispute` passed in.
+		// We need to avoid picking an older one from a session that might not yet exist in storage.
+		// Related to https://github.com/paritytech/polkadot/issues/4730.
+		let ref_head = self
+			.active_sessions
+			.iter()
+			.find_map(|(active_session_index, head_hash)| {
+				// Pick the first one that is at least as recent as the dispute.
+				if active_session_index >= &session_index {
+					Some(head_hash)
+				} else {
+					None
+				}
+			})
+			.ok_or(NonFatal::NoActiveHeads)?;
+
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), *ref_head, session_index)
 			.await?;
