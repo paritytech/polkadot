@@ -35,11 +35,13 @@ pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
+pub use traits::{
+	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
+};
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{
 	Ancestor, AncestorThen, BodyId, BodyPart, InteriorMultiLocation, Junction, Junctions,
-	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, Weight, WeightLimit,
+	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WeightLimit,
 };
 
 /// This module's XCM version.
@@ -216,7 +218,7 @@ pub struct QueryResponseInfo {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -660,7 +662,6 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors: *Fallible*.
-	#[weight_args()]
 	QueryPallet { module_name: Vec<u8>, response_info: QueryResponseInfo },
 
 	/// Ensure that a particular pallet with a particular version exists.
@@ -677,7 +678,6 @@ pub enum Instruction<Call> {
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: In case any of the expectations are broken.
-	#[weight_args(index: &u32)]
 	ExpectPallet {
 		#[codec(compact)]
 		index: u32,
@@ -771,7 +771,7 @@ impl<Call> Instruction<Call> {
 				QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
-			ReportTransactStatus(response_info) => ReportTransactStatus(response_info),
+			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
 			ClearTransactStatus => ClearTransactStatus,
 		}
 	}
