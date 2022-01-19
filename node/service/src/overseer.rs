@@ -213,7 +213,11 @@ where
 			Metrics::register(registry)?, // candidate-validation metrics
 			Metrics::register(registry)?, // validation host metrics
 		))
-		.pvf_checker(PvfCheckerSubsystem::new(pvf_checker_enabled, keystore.clone()))
+		.pvf_checker(PvfCheckerSubsystem::new(
+			pvf_checker_enabled,
+			keystore.clone(),
+			Metrics::register(registry)?,
+		))
 		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
@@ -264,6 +268,7 @@ where
 		.gossip_support(GossipSupportSubsystem::new(
 			keystore.clone(),
 			authority_discovery_service.clone(),
+			Metrics::register(registry)?,
 		))
 		.dispute_coordinator(if disputes_enabled {
 			DisputeCoordinatorSubsystem::new(

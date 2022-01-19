@@ -33,8 +33,8 @@ use primitives::{
 	v2::SessionInfo,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, BlockHashCount,
-	BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
+	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
 	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use sp_core::u32_trait::{_1, _2, _3, _5};
@@ -101,7 +101,7 @@ mod weights;
 mod bag_thresholds;
 
 // XCM configurations.
-mod xcm_config;
+pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
@@ -249,9 +249,13 @@ impl pallet_preimage::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
+	pub EpochDuration: u64 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS as u64,
+		2 * MINUTES as u64,
+		"KSM_EPOCH_DURATION"
+	);
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-	pub const ReportLongevity: u64 =
+	pub ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
@@ -385,8 +389,17 @@ impl pallet_session::historical::Config for Runtime {
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
-	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
+	// in testing: 1min or half of the session for each
+	pub SignedPhase: u32 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
+		"KSM_SIGNED_PHASE"
+	);
+	pub UnsignedPhase: u32 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
+		"KSM_UNSIGNED_PHASE"
+	);
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
@@ -527,9 +540,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: pallet_staking::EraIndex = 28;
+	pub const BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
@@ -573,12 +586,12 @@ impl pallet_staking::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
+	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
+	pub VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
+	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	pub EnactmentPeriod: BlockNumber = prod_or_fast!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
+	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
@@ -638,7 +651,7 @@ impl pallet_democracy::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = 3 * DAYS;
+	pub CouncilMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -662,7 +675,7 @@ parameter_types! {
 	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Daily council elections
-	pub const TermDuration: BlockNumber = 24 * HOURS;
+	pub TermDuration: BlockNumber = prod_or_fast!(24 * HOURS, 2 * MINUTES, "KSM_TERM_DURATION");
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
@@ -690,7 +703,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-	pub const TechnicalMotionDuration: BlockNumber = 3 * DAYS;
+	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
 }
@@ -1253,7 +1266,7 @@ impl paras_registrar::Config for Runtime {
 
 parameter_types! {
 	// 6 weeks
-	pub const LeasePeriod: BlockNumber = 6 * WEEKS;
+	pub LeasePeriod: BlockNumber = prod_or_fast!(6 * WEEKS, 6 * WEEKS, "KSM_LEASE_PERIOD");
 }
 
 impl slots::Config for Runtime {
@@ -1479,7 +1492,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
+	(SchedulerMigrationV3, RefundNickPalletDeposit),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -2886,8 +2899,9 @@ impl OnRuntimeUpgrade for RefundNickPalletDeposit {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn pre_migrate() -> Result<(), &'static str> {
-		Self::execute(true)
+	fn pre_upgrade() -> Result<(), &'static str> {
+		let _ = Self::execute(true);
+		Ok(())
 	}
 }
 
