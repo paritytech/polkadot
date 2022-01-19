@@ -1511,7 +1511,7 @@ pub mod pallet {
 								return 0
 							},
 						};
-						if querier.map_or(false, |q| q != &match_querier) {
+						if querier.map_or(true, |q| q != &match_querier) {
 							Self::deposit_event(Event::InvalidQuerier(
 								origin.clone(),
 								query_id,
