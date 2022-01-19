@@ -114,10 +114,11 @@ pub enum VerifyDisputeSignatures {
 	Skip,
 }
 
-/// Sort the dispute statements according to the following prioritization:
-///  1. Prioritize local disputes over remote disputes.
-///  2. Prioritize older disputes over newer disp
-fn sort_by_closure<T: DisputesHandler<BlockNumber>, BlockNumber: Ord>(
+/// Provide a `Ordering` for the two provided dispute statement sets according to the
+/// following prioritization:
+///  1. Prioritize local disputes over remote disputes
+///  2. Prioritize older disputes over newer disputes
+fn dispute_ordering_compare<T: DisputesHandler<BlockNumber>, BlockNumber: Ord>(
 	a: &DisputeStatementSet,
 	b: &DisputeStatementSet,
 ) -> Ordering
@@ -162,7 +163,7 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	fn assure_deduplicated_and_sorted(statement_sets: &MultiDisputeStatementSet) -> Result<(), ()> {
 		if !IsSortedBy::is_sorted_by(
 			statement_sets.as_slice(),
-			sort_by_closure::<Self, BlockNumber>,
+			dispute_ordering_compare::<Self, BlockNumber>,
 		) {
 			return Err(())
 		}
@@ -187,7 +188,7 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		// TODO: https://github.com/paritytech/polkadot/issues/4527
 		let n = statement_sets.len();
 
-		statement_sets.sort_by(sort_by_closure::<Self, BlockNumber>);
+		statement_sets.sort_by(dispute_ordering_compare::<Self, BlockNumber>);
 		statement_sets
 			.dedup_by(|a, b| a.session == b.session && a.candidate_hash == b.candidate_hash);
 
@@ -732,7 +733,7 @@ impl StatementSetFilter {
 					None
 				} else {
 					// we just checked correctness when filtering.
-					Some(CheckedDisputeStatementSet::from_unchecked(statement_set))
+					Some(CheckedDisputeStatementSet::unchecked_from_unchecked(statement_set))
 				}
 			},
 		}
@@ -1789,7 +1790,10 @@ mod tests {
 
 			assert_ok!(
 				Pallet::<Test>::process_checked_multi_dispute_data(
-					stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+					stmts
+						.into_iter()
+						.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+						.collect()
 				),
 				vec![(1, candidate_hash.clone())],
 			);
@@ -1858,7 +1862,10 @@ mod tests {
 				],
 			}];
 			assert!(Pallet::<Test>::process_checked_multi_dispute_data(
-				stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				stmts
+					.into_iter()
+					.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+					.collect()
 			)
 			.is_ok());
 
@@ -1931,7 +1938,10 @@ mod tests {
 
 			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
 			assert!(Pallet::<Test>::process_checked_multi_dispute_data(
-				stmts.into_iter().map(CheckedDisputeStatementSet::from_unchecked).collect()
+				stmts
+					.into_iter()
+					.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+					.collect()
 			)
 			.is_ok());
 			assert_eq!(Frozen::<Test>::get(), Some(2));
@@ -3078,7 +3088,7 @@ mod tests {
 
 			assert_eq!(
 				statements,
-				Some(CheckedDisputeStatementSet::from_unchecked(DisputeStatementSet {
+				Some(CheckedDisputeStatementSet::unchecked_from_unchecked(DisputeStatementSet {
 					candidate_hash: candidate_hash.clone(),
 					session: 1,
 					statements: vec![
@@ -3299,7 +3309,7 @@ mod tests {
 			let old_statements = statements
 				.clone()
 				.into_iter()
-				.map(CheckedDisputeStatementSet::from_unchecked)
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
 				.collect::<Vec<_>>();
 			let statements = apply_filter_all::<Test, _>(statements);
 
@@ -3434,7 +3444,7 @@ mod tests {
 
 			assert_eq!(
 				statements,
-				vec![CheckedDisputeStatementSet::from_unchecked(DisputeStatementSet {
+				vec![CheckedDisputeStatementSet::unchecked_from_unchecked(DisputeStatementSet {
 					candidate_hash: candidate_hash_b.clone(),
 					session: 1,
 					statements: vec![(
