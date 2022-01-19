@@ -16,11 +16,7 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{
-	configuration::{self, HostConfiguration},
-	initializer::SessionChangeNotification,
-	session_info,
-};
+use crate::{configuration, initializer::SessionChangeNotification, session_info};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
@@ -1288,6 +1284,7 @@ fn check_signature(
 mod tests {
 	use super::*;
 	use crate::{
+		configuration::HostConfiguration,
 		disputes::DisputesHandler,
 		mock::{
 			new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
