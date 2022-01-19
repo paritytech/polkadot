@@ -526,9 +526,15 @@ where
 			// Try to fetch response from `dispute-coordinator`. If an error occurs we just log it
 			// and return `target_hash` as maximal vote. It is safer to contain this error here
 			// and not push it up the stack to cause additional issues in GRANDPA/BABE.
-			let (subchain_number, subchain_head) =
+			let (lag, subchain_head) =
 				match rx.await.map_err(Error::DetermineUndisputedChainCanceled) {
-					Ok((lag, subchain_head)) => (lag, subchain_head),
+					// If request succeded we will receive (block number, block hash).
+					Ok((subchain_number, subchain_head)) => {
+						// The the total lag accounting for disputes.
+						let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+						self.metrics.note_disputes_finality_lag(lag_disputes);
+						(lag_disputes, subchain_head)
+					},
 					Err(e) => {
 						tracing::warn!(
 							target: LOG_TARGET,
@@ -541,11 +547,7 @@ where
 						return Ok(target_hash)
 					},
 				};
-
-			// The the total lag accounting for disputes.
-			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
-			self.metrics.note_disputes_finality_lag(lag_disputes);
-			(lag_disputes, subchain_head)
+			(lag, subchain_head)
 		} else {
 			(lag, subchain_head)
 		};
