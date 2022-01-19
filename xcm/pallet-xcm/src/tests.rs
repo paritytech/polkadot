@@ -150,6 +150,71 @@ fn report_outcome_works() {
 	});
 }
 
+#[test]
+fn custom_querier_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let querier: MultiLocation =
+			(Parent, AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }).into();
+
+		let r = TestNotifier::prepare_new_query(Origin::signed(ALICE), querier.clone());
+		assert_eq!(r, Ok(()));
+		let status = QueryStatus::Pending {
+			responder: MultiLocation::from(AccountId32 {
+				network: AnyNetwork::get(),
+				id: ALICE.into(),
+			})
+			.into(),
+			maybe_notify: None,
+			timeout: 100,
+			maybe_match_querier: Some(querier.clone().into()),
+		};
+		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
+
+		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
+			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+			Xcm(vec![QueryResponse {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+				max_weight: 0,
+				querier: Some(MultiLocation::here()),
+			}]),
+			1_000_000_000,
+			1_000,
+		);
+		assert_eq!(r, Outcome::Complete(1_000));
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::InvalidQuerier(
+				AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+				0,
+				querier.clone(),
+				Some(MultiLocation::here()),
+			)),
+		);
+
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+			Xcm(vec![QueryResponse {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+				max_weight: 0,
+				querier: Some(querier),
+			}]),
+			1_000_000_000,
+		);
+		assert_eq!(r, Outcome::Complete(1_000));
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(None),))
+		);
+
+		let response = Some((Response::ExecutionResult(None), 1));
+		assert_eq!(XcmPallet::take_response(0), response);
+	});
+}
+
 /// Test sending an `XCM` message (`XCM::ReserveAssetDeposit`)
 ///
 /// Asserts that the expected message is sent and the event is emitted

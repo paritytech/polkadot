@@ -225,8 +225,8 @@ pub mod pallet {
 		///
 		/// \[ origin location, id \]
 		InvalidQuerierVersion(MultiLocation, QueryId),
-		/// Expected query response has been received but the origin location of the response does
-		/// not match that expected. The query remains registered for a later, valid, response to
+		/// Expected query response has been received but the querier location of the response does
+		/// not match the expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
 		///
 		/// \[ origin location, id, expected querier, maybe actual querier \]
