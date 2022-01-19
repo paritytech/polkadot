@@ -376,8 +376,6 @@ impl<T: Config> Pallet<T> {
 				max_block_weight
 			{
 				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
-				// Technically this is not necessary, since we bail at the end of the scope
-				// still good for clarity and foot-gun prevention.
 				backed_candidates.clear();
 				signed_bitfields.clear();
 			}
