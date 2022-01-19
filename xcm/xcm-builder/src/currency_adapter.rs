@@ -64,8 +64,7 @@ impl From<Error> for XcmError {
 /// /// Our relay chain's location.
 /// parameter_types! {
 ///     pub RelayChain: MultiLocation = Parent.into();
-///     pub CheckingAccount: AccountId =
-///         AccountId::decode(&mut TrailingZeroInput::zeroes()).unwrap();
+///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account();
 ///     pub ParentAccount: AccountId = PalletId(*b"testacct").into_account();
 /// }
 ///
