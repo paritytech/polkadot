@@ -870,7 +870,7 @@ impl<T: Config> Pallet<T> {
 	// It either removes the entire dispute statement set or some specific votes from it.
 	//
 	// Votes which are duplicate or already known by the chain are filtered out.
-	// The entire set is removed if the dispute is ancient or concluded.
+	// The entire set is removed if the dispute is both, ancient and concluded.
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
