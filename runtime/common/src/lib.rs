@@ -37,7 +37,6 @@ mod integration_tests;
 #[cfg(test)]
 mod mock;
 
-use parity_scale_codec::{Decode, Encode};
 pub use frame_support::weights::constants::{
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 };
@@ -49,6 +48,7 @@ use frame_support::{
 };
 use frame_system::limits;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
+use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
 use sp_core::TypeId;
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
