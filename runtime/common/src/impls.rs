@@ -155,6 +155,7 @@ mod tests {
 		type OnSlash = ();
 		type ProposalBond = ();
 		type ProposalBondMinimum = ();
+		type ProposalBondMaximum = ();
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
