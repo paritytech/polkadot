@@ -73,6 +73,14 @@ impl Pvf {
 		Self::Code(PvfCode::from_code(code))
 	}
 
+	/// Returns the validation code hash of the given PVF.
+	pub fn hash(&self) -> ValidationCodeHash {
+		match self {
+			Pvf::Code(code) => code.code_hash,
+			Pvf::Hash(hash) => *hash,
+		}
+	}
+
 	/// Returns the artifact ID that corresponds to this PVF.
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
 		match self {

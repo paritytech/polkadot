@@ -1185,4 +1185,64 @@ mod tests {
 
 		test.poll_ensure_to_execute_queue_is_empty().await;
 	}
+
+	#[async_std::test]
+	async fn artifact_cache() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		let pvf_code = Pvf::Code(PvfCode::from_discriminator(1));
+		let pvf_hash = Pvf::Hash(pvf_code.hash());
+
+		// First, ensure that we receive an `ArtifactNotFound` error when sending
+		// an unknown code hash.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.execute_pvf(
+			pvf_hash.clone(),
+			TEST_EXECUTION_TIMEOUT,
+			Vec::new(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		assert_matches!(
+			result_rx.now_or_never().unwrap().unwrap(),
+			Err(ValidationError::ArtifactNotFound)
+		);
+
+		// Supply the code and retry the request.
+		let (result_tx, _result_rx) = oneshot::channel();
+		host.execute_pvf(
+			pvf_code, // Code.
+			TEST_EXECUTION_TIMEOUT,
+			Vec::new(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+
+		let (result_tx, result_rx) = oneshot::channel();
+		host.execute_pvf(
+			pvf_hash, // Hash.
+			TEST_EXECUTION_TIMEOUT,
+			Vec::new(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		// The execution is queued, no error expected.
+		assert_matches!(result_rx.now_or_never(), None);
+	}
 }
