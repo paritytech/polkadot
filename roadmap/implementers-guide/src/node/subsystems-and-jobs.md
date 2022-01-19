@@ -90,8 +90,8 @@ digraph {
     cand_sel    -> cand_back    [arrowhead = "onormal", label = "Second"]
     cand_sel    -> coll_prot    [arrowhead = "onormal", label = "ReportCollator"]
 
-    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::PersistedValidationData"]
-    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::ValidationCode"]
+    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::AssumedValidationData"]
+    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::ValidationCodeByHash"]
     cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::CheckValidationOutputs"]
 
     coll_gen    -> coll_prot    [arrowhead = "onormal", label = "DistributeCollation"]

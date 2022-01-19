@@ -28,11 +28,11 @@ For a [`CandidateValidationMessage`][CVM]`::ValidateFromExhaustive`, these param
 
 For a [`CandidateValidationMessage`][CVM]`::ValidateFromChainState`, some more work needs to be done. Due to the uncertainty of Availability Cores (implemented in the [`Scheduler`](../../runtime/scheduler.md) module of the runtime), a candidate at a particular relay-parent and for a particular para may have two different valid validation-data to be executed under depending on what is assumed to happen if the para is occupying a core at the onset of the new block. This is encoded as an `OccupiedCoreAssumption` in the runtime API.
 
-The way that we can determine which assumption the candidate is meant to be executed under is simply to do an exhaustive check of both possibilities based on the state of the relay-parent. First we fetch the validation data under the assumption that the block occupying becomes available. If the `validation_data_hash` of the `CandidateDescriptor` matches this validation data, we use that. Otherwise, if the `validation_data_hash` matches the validation data fetched under the `TimedOut` assumption, we use that. Otherwise, we return a `ValidationResult::Invalid` response and conclude.
+For this reason this subsystem uses a convenient Runtime API endpoint — [`AssumedValidationData`](../../types/overseer-protocol.md#runtime-api-message). It accepts two parameters: parachain ID and the expected hash of the validation data, — the one we obtain from the `CandidateDescriptor`. Then the runtime tries to construct the validation data for the given parachain first without force enacting the core and, if its hash doesn't match the expected one, tries again with it. In case of a match the API returns the constructed validation data along with the corresponding validation code hash, or `None` otherwise. The latter means that the validation data hash in the descriptor is not based on the relay parent and thus given candidate is invalid.
 
-Then, we can fetch the validation code from the runtime based on which type of candidate this is. This gives us all the parameters. The descriptor and PoV come from the request itself, and the other parameters have been derived from the state.
+The validation backend, the one that is responsible for actually compiling and executing wasm code, keeps an artifact cache. This allows the subsystem to attempt the validation by the code hash obtained earlier. If the code with the given hash is missing though, we will have to perform another request necessary to obtain the validation function: `ValidationCodeByHash`.
 
-> TODO: This would be a great place for caching to avoid making lots of runtime requests. That would need a job, though.
+This gives us all the parameters. The descriptor and PoV come from the request itself, and the other parameters have been derived from the state.
 
 ### Execution of the Parachain Wasm
 

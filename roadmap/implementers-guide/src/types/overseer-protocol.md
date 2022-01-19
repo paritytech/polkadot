@@ -690,6 +690,13 @@ enum RuntimeApiRequest {
         OccupiedCoreAssumption,
         ResponseChannel<Option<PersistedValidationData>>,
     ),
+    /// Get the persisted validation data for a particular para along with the current validation code
+    /// hash, matching the data hash against an expected one.
+    AssumedValidationData(
+        ParaId,
+        Hash,
+        RuntimeApiSender<Option<(PersistedValidationData, ValidationCodeHash)>>,
+    ),
     /// Sends back `true` if the commitments pass all acceptance criteria checks.
     CheckValidationOutputs(
         ParaId,
