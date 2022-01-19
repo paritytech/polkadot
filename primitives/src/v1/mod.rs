@@ -1285,6 +1285,12 @@ pub struct DisputeStatementSet {
 	pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
 
+impl From<CheckedDisputeStatementSet> for DisputeStatementSet {
+	fn from(other: CheckedDisputeStatementSet) -> Self {
+		other.0
+	}
+}
+
 impl AsRef<DisputeStatementSet> for DisputeStatementSet {
 	fn as_ref(&self) -> &DisputeStatementSet {
 		&self
@@ -1301,12 +1307,6 @@ pub struct CheckedDisputeStatementSet(DisputeStatementSet);
 impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {
 	fn as_ref(&self) -> &DisputeStatementSet {
 		&self.0
-	}
-}
-
-impl Into<DisputeStatementSet> for CheckedDisputeStatementSet {
-	fn into(self) -> DisputeStatementSet {
-		self.0
 	}
 }
 
