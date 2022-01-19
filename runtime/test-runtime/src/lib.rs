@@ -44,12 +44,15 @@ use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v1::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
@@ -97,6 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -305,9 +309,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub storage SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub storage BondingDuration: pallet_staking::EraIndex = 28;
+	pub storage BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
-	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub storage SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -795,7 +799,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			runtime_impl::validators::<Runtime>()
 		}
@@ -873,12 +877,29 @@ sp_api::impl_runtime_apis! {
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			runtime_impl::on_chain_votes::<Runtime>()
 		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v2::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			runtime_impl::pvfs_require_precheck::<Runtime>()
+		}
+
+		fn validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			None
 		}
 	}
 

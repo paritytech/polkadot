@@ -61,10 +61,13 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+use beefy_gadget::notification::{BeefyBestBlockStream, BeefySignedCommitmentStream};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
 	/// Receives notifications about signed commitment events from BEEFY.
-	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block>,
+	pub beefy_commitment_stream: BeefySignedCommitmentStream<Block>,
+	/// Receives notifications about best block events from BEEFY.
+	pub beefy_best_block_stream: BeefyBestBlockStream<Block>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
@@ -155,12 +158,12 @@ where
 		deny_unsafe,
 	)?));
 
-	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-		beefy_gadget_rpc::BeefyRpcHandler::new(
-			beefy.beefy_commitment_stream,
-			beefy.subscription_executor,
-		),
-	));
+	let handler: beefy_gadget_rpc::BeefyRpcHandler<Block> = beefy_gadget_rpc::BeefyRpcHandler::new(
+		beefy.beefy_commitment_stream,
+		beefy.beefy_best_block_stream,
+		beefy.subscription_executor,
+	)?;
+	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(handler));
 
 	Ok(io)
 }

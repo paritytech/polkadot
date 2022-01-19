@@ -144,10 +144,13 @@ impl SessionCache {
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
 	pub fn report_bad(&mut self, report: BadValidators) -> crate::Result<()> {
-		let session = self
-			.session_info_cache
-			.get_mut(&report.session_index)
-			.ok_or(NonFatal::NoSuchCachedSession)?;
+		let available_sessions = self.session_info_cache.iter().map(|(k, _)| *k).collect();
+		let session = self.session_info_cache.get_mut(&report.session_index).ok_or(
+			NonFatal::NoSuchCachedSession {
+				available_sessions,
+				missing_session: report.session_index,
+			},
+		)?;
 		let group = session.validator_groups.get_mut(report.group_index.0 as usize).expect(
 			"A bad validator report must contain a valid group for the reported session. qed.",
 		);

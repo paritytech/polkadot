@@ -24,8 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, IsInVec, KeyOwnerProofSystem, Nothing, Randomness},
-	weights::Weight,
+	traits::{Contains, KeyOwnerProofSystem, Randomness},
 	PalletId,
 };
 use frame_system::EnsureRoot;
@@ -35,17 +34,18 @@ use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
-	Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+use primitives::{
+	v1::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
+		Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, Signature,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo as SessionInfoData},
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight,
-	SlowAdjustingFeeUpdate,
+	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -85,18 +85,11 @@ use polkadot_parachain::primitives::Id as ParaId;
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
 use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
-use xcm::latest::prelude::*;
-use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality,
-	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, LocationInverter,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
-};
-use xcm_executor::XcmExecutor;
 
 mod bridge_messages;
 mod validator_manager;
 mod weights;
+pub mod xcm_config;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -114,6 +107,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
+	state_version: 0,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -631,140 +625,6 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-parameter_types! {
-	pub const RocLocation: MultiLocation = Here.into();
-	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: MultiLocation = Here.into();
-	pub CheckAccount: AccountId = XcmPallet::check_account();
-}
-
-pub type SovereignAccountOf =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<RococoNetwork, AccountId>);
-
-pub type LocalAssetTransactor = XcmCurrencyAdapter<
-	// Use this currency:
-	Balances,
-	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<RocLocation>,
-	// We can convert the MultiLocations with our converter above:
-	SovereignAccountOf,
-	// Our chain's account ID type (we can't get away without mentioning it explicitly):
-	AccountId,
-	// It's a native asset so we keep track of the teleports to maintain total issuance.
-	CheckAccount,
->;
-
-type LocalOriginConverter = (
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<RococoNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
-);
-
-parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000_000_000;
-}
-
-/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
-/// individual routers.
-pub type XcmRouter = (
-	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
-);
-
-parameter_types! {
-	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(RocLocation::get()) });
-	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(100).into());
-	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(110).into());
-	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
-	pub const RococoForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1000).into());
-	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
-	pub const RococoForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1003).into());
-	pub const MaxInstructions: u32 = 100;
-}
-pub type TrustedTeleporters = (
-	xcm_builder::Case<RococoForTick>,
-	xcm_builder::Case<RococoForTrick>,
-	xcm_builder::Case<RococoForTrack>,
-	xcm_builder::Case<RococoForStatemine>,
-	xcm_builder::Case<RococoForCanvas>,
-	xcm_builder::Case<RococoForEncointer>,
-);
-
-parameter_types! {
-	pub AllowUnpaidFrom: Vec<MultiLocation> =
-		vec![
-			Parachain(100).into(),
-			Parachain(110).into(),
-			Parachain(120).into(),
-			Parachain(1000).into(),
-			Parachain(1002).into(),
-			Parachain(1003).into(),
-		];
-}
-
-use xcm_builder::{AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, TakeWeightCredit};
-pub type Barrier = (
-	TakeWeightCredit,
-	AllowTopLevelPaidExecutionFrom<Everything>,
-	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
-	// Expected responses are OK.
-	AllowKnownQueryResponses<XcmPallet>,
-	// Subscriptions for version tracking are OK.
-	AllowSubscriptionsFrom<Everything>,
-);
-
-pub struct XcmConfig;
-impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
-	type XcmSender = XcmRouter;
-	type AssetTransactor = LocalAssetTransactor;
-	type OriginConverter = LocalOriginConverter;
-	type IsReserve = ();
-	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = XcmPallet;
-	type AssetTrap = XcmPallet;
-	type AssetClaims = XcmPallet;
-	type SubscriptionService = XcmPallet;
-}
-
-parameter_types! {
-	pub const CollectiveBodyId: BodyId = BodyId::Unit;
-}
-
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
-pub type LocalOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
-	// `Unit` body.
-	BackingToPlurality<Origin, pallet_collective::Origin<Runtime>, CollectiveBodyId>,
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
-);
-
-impl pallet_xcm::Config for Runtime {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which right now rejects everything.
-	type XcmExecuteFilter = Nothing;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
-	type Call = Call;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
-	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
-}
-
 impl parachains_session_info::Config for Runtime {}
 
 parameter_types! {
@@ -773,7 +633,8 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type Event = Event;
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
+	type UmpSink =
+		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 }
@@ -801,9 +662,9 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
-	pub const PermanentSlotLeasePeriodLength: u32 = 26;
-	pub const TemporarySlotLeasePeriodLength: u32 = 1;
-	pub const MaxPermanentSlots: u32 = 5;
+	pub const PermanentSlotLeasePeriodLength: u32 = 356;
+	pub const TemporarySlotLeasePeriodLength: u32 = 3;
+	pub const MaxPermanentSlots: u32 = 25;
 	pub const MaxTemporarySlots: u32 = 20;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
@@ -1292,7 +1153,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			runtime_api_impl::validators::<Runtime>()
 		}
@@ -1371,6 +1232,20 @@ sp_api::impl_runtime_apis! {
 
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			runtime_api_impl::on_chain_votes::<Runtime>()
+		}
+
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature) {
+			runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			runtime_api_impl::pvfs_require_precheck::<Runtime>()
+		}
+
+		fn validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
 	}
 
@@ -1482,7 +1357,7 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			Beefy::validator_set()
 		}
 	}
