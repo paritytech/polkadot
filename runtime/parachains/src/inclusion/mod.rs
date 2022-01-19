@@ -214,7 +214,11 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Validator indices are out of order or contains duplicates.
 		UnsortedOrDuplicateValidatorIndices,
-		UnsortedOrDuplicate,
+		/// Dispute statement sets are out of order or contain duplicates.
+		UnsortedOrDuplicateDisputeStatementSet,
+		/// Backed candidates are out of order (core index) or contain duplicates.
+		UnsortedOrDuplicateBackedCandidates,
+		/// A different relay parent was provided compared to the on-chain stored one.
 		UnexpectedRelayParent,
 		/// Availability bitfield has unexpected size.
 		WrongBitfieldSize,

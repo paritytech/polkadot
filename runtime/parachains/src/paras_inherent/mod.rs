@@ -1161,7 +1161,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 
 	for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
 		if candidate_has_concluded_invalid_dispute_or_is_invalid(idx, backed_candidate) {
-			return Err(Error::<T>::UnsortedOrDuplicate)
+			return Err(Error::<T>::UnsortedOrDuplicateBackedCandidates)
 		}
 		// Assure the backed candidate's `ParaId`'s core is free.
 		// This holds under the assumption that `Scheduler::schedule` is called _before_.
@@ -1182,7 +1182,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 		scheduled_paras_to_core_idx[&x.descriptor().para_id]
 			.cmp(&scheduled_paras_to_core_idx[&y.descriptor().para_id])
 	}) {
-		return Err(Error::<T>::UnsortedOrDuplicate)
+		return Err(Error::<T>::UnsortedOrDuplicateBackedCandidates)
 	}
 	Ok(())
 }
