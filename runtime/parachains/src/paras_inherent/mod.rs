@@ -331,8 +331,8 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 
-		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
-		let bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
+		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
+		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 		let current_session = <shared::Pallet<T>>::session_index();
@@ -377,17 +377,25 @@ impl<T: Config> Pallet<T> {
 			{
 				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
 				backed_candidates.clear();
+				candidates_weight = 0;
 				signed_bitfields.clear();
+				bitfields_weight = 0;
 			}
 
 			let entropy = compute_entropy::<T>(parent_hash);
 			let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
-			limit_and_sanitize_disputes::<T, _>(
+			let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T, _>(
 				disputes,
 				&dispute_set_validity_check,
 				max_block_weight,
 				&mut rng,
+			);
+			(
+				checked_disputes,
+				checked_disputes_weight
+					.saturating_add(candidates_weight)
+					.saturating_add(bitfields_weight),
 			)
 		};
 
