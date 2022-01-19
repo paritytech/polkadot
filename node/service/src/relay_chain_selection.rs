@@ -522,10 +522,25 @@ where
 					std::any::type_name::<Self>(),
 				)
 				.await;
-			let (subchain_number, subchain_head) = rx
-				.await
-				.map_err(Error::DetermineUndisputedChainCanceled)
-				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
+
+			// Try to fetch response from `dispute-coordinator`. If an error occurs we just log it
+			// and return `target_hash` as maximal vote. It is safer to contain this error here
+			// and not push it up the stack to cause additional issues in GRANDPA/BABE.
+			let (subchain_number, subchain_head) =
+				match rx.await.map_err(Error::DetermineUndisputedChainCanceled) {
+					Ok((lag, subchain_head)) => (lag, subchain_head),
+					Err(e) => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Call to `DetermineUndisputedChain` failed: {}",
+							e
+						);
+						// We need to return a sane finality target. But, we are unable to ensure we are not
+						// finalizing something that is being disputed or has been concluded as invalid. We will be
+						// conservative here and not vote for finality above the ancestor passed in.
+						return Ok(target_hash)
+					},
+				};
 
 			// The the total lag accounting for disputes.
 			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
