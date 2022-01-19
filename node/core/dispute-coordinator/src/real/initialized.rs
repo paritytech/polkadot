@@ -80,6 +80,7 @@ pub struct Initialized {
 	ordering_provider: OrderingProvider,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
+	error: bool,
 }
 
 impl Initialized {
@@ -105,6 +106,7 @@ impl Initialized {
 			participation,
 			participation_receiver,
 			metrics,
+			error: false,
 		}
 	}
 
@@ -245,22 +247,23 @@ impl Initialized {
 			.await?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
-		let new_activations = update.activated.into_iter().map(|a| a.hash);
-		for new_leaf in new_activations {
+		if let Some(new_leaf) = update.activated {
+			let new_leaf = new_leaf.hash;
 			match self.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 				Err(e) => {
 					tracing::warn!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Failed to update session cache for disputes",
+						target: LOG_TARGET,
+						err = ?e,
+						"Failed to update session cache for disputes",
 					);
-					continue
+					self.error = true;
 				},
 				Ok(SessionWindowUpdate::Advanced {
 					new_window_end: window_end,
 					new_window_start,
 					..
 				}) => {
+					self.error = false;
 					let session = window_end;
 					if self.highest_session < session {
 						tracing::trace!(
