@@ -626,7 +626,7 @@ struct ActiveHeadData {
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
 	/// The parachain validators at the head's child session index.
 	validators: Vec<ValidatorId>,
-	/// The session index this head's child is at.
+	/// The current session index of this fork.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,

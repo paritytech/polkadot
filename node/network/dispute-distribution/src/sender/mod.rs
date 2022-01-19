@@ -194,12 +194,14 @@ impl DisputeSender {
 		// storage. We will iterate `active_sessions` to find a suitable head. We assume that there is at
 		// least one active head which, by `session_index`, is at least as recent as the `dispute` passed in.
 		// We need to avoid picking an older one from a session that might not yet exist in storage.
-		// Related to https://github.com/paritytech/polkadot/issues/4730.
+		// Related to <https://github.com/paritytech/polkadot/issues/4730> .
 		let ref_head = self
 			.active_sessions
 			.iter()
 			.find_map(|(active_session_index, head_hash)| {
-				// Pick the first one that is at least as recent as the dispute.
+				// There might be more than one session index that is at least as recent as the dispute
+				// so we just pick the first one. Keep in mind we are talking about the session index for the
+				// child of block identified by `head_hash` and not the session index for the block.
 				if active_session_index >= &session_index {
 					Some(head_hash)
 				} else {

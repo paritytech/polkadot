@@ -98,15 +98,12 @@ impl Requester {
 		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Stale leaves happen after a reversion - we don't want to re-run availability there.
-		if let Some(leaf) = activated.and_then(|h| match h.status {
-			LeafStatus::Stale => None,
-			LeafStatus::Fresh => Some(h),
-		}) {
+		if let Some(leaf) = activated.filter(|leaf| leaf.status == LeafStatus::Fresh) {
+			// Order important! We need to handle activated, prior to deactivated, otherwise we might
+			// cancel still needed jobs.
 			self.start_requesting_chunks(ctx, runtime, leaf).await?;
 		}
 
-		// Order important! We need to handle activated, prior to deactivated, otherwise we might
-		// cancel still needed jobs.
 		self.stop_requesting_chunks(deactivated.into_iter());
 		Ok(())
 	}
