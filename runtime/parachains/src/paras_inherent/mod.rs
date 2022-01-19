@@ -341,7 +341,7 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_before_filter(candidates_weight + bitfields_weight + disputes_weight);
 
-		T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes)
+		T::DisputesHandler::assure_deduplicated_and_sorted(&mut disputes)
 			.map_err(|_e| Error::<T>::DisputeStatementsUnsortedOrDuplicates)?;
 
 		let (checked_disputes, total_consumed_weight) = {
