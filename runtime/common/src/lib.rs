@@ -37,17 +37,20 @@ mod integration_tests;
 #[cfg(test)]
 mod mock;
 
+use parity_scale_codec::{Decode, Encode};
 pub use frame_support::weights::constants::{
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 };
 use frame_support::{
 	parameter_types,
+	storage::bounded_vec::BoundedVec,
 	traits::{ConstU32, Currency, OneSessionHandler},
 	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, Weight},
 };
 use frame_system::limits;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
+use sp_core::TypeId;
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
@@ -58,6 +61,15 @@ pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
+
+/// A parent blockchain identifier. Used primarily when parachains need to refer to a parent chain's
+/// `AccountId`.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, scale_info::TypeInfo)]
+pub struct ParentChainId(pub BoundedVec<u8, ConstU32<20>>);
+
+impl TypeId for ParentChainId {
+	const TYPE_ID: [u8; 4] = *b"prnt";
+}
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
