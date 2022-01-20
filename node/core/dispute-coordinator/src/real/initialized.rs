@@ -22,6 +22,7 @@ use futures::{
 	channel::{mpsc, oneshot},
 	FutureExt, StreamExt,
 };
+use lru::LruCache;
 
 use sc_keystore::LocalKeystore;
 
@@ -67,6 +68,9 @@ use super::{
 	OverlayedBackend,
 };
 
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 20;
+const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 20;
+
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
@@ -84,6 +88,8 @@ pub struct Initialized {
 	// This tracks only rolling session window failures.
 	// It can be a `Vec` if the need to track more arises.
 	error: Option<SessionsUnavailable>,
+	/// Latest relay blocks that have been succesfully scraped.
+	last_scraped_blocks: LruCache<Hash, ()>,
 }
 
 impl Initialized {
@@ -110,6 +116,7 @@ impl Initialized {
 			participation_receiver,
 			metrics,
 			error: None,
+			last_scraped_blocks: LruCache::new(LRU_SCRAPED_BLOCKS_CAPACITY),
 		}
 	}
 
@@ -251,8 +258,7 @@ impl Initialized {
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
-			let new_leaf = new_leaf.hash;
-			match self.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
+			match self.rolling_session_window.cache_session_info_for_head(ctx, new_leaf.hash).await {
 				Err(e) => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -283,7 +289,32 @@ impl Initialized {
 				},
 				Ok(SessionWindowUpdate::Unchanged) => {},
 			};
-			self.scrape_on_chain_votes(ctx, overlay_db, new_leaf, now).await?;
+
+			// Scrape the head if above rolling session update went well.
+			if self.error.is_none() {
+				self.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now).await?;
+			}
+			
+			// Try to scrape any blocks for which we could not get the current session or did not receive an
+			// active leaves update. Notice the `+1`, that is because `get_block_ancestors()` doesn't
+			// include the head and target block in the response.
+			let target_block = new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS + 1);
+			let ancestors = OrderingProvider::get_block_ancestors(ctx.sender(), new_leaf.hash, new_leaf.number, target_block, &mut self.last_scraped_blocks)
+				.await
+				.unwrap_or_else(|err| {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Skipping leaf ancestors scraping due to error: {}",
+						err
+					);
+					Vec::new()
+				});
+
+			// Maybe run these in parallel ?
+			for ancestor in ancestors.iter() {
+				self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await?;
+			}
+
 		}
 
 		Ok(())
@@ -299,6 +330,11 @@ impl Initialized {
 		new_leaf: Hash,
 		now: u64,
 	) -> Result<()> {
+		// Avoid scraping twice.
+		if self.last_scraped_blocks.get(&new_leaf).is_some() {
+			return Ok(())
+		}
+
 		// obtain the concluded disputes as well as the candidate backing votes
 		// from the new leaf
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = {
@@ -337,6 +373,8 @@ impl Initialized {
 		};
 
 		if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
+			// Mark this block as scraped succesfully, still we did not get anything out of this block.
+			self.last_scraped_blocks.put(new_leaf, ());
 			return Ok(())
 		}
 
@@ -419,6 +457,7 @@ impl Initialized {
 		}
 
 		if disputes.is_empty() {
+			self.last_scraped_blocks.put(new_leaf, ());
 			return Ok(())
 		}
 
@@ -496,6 +535,8 @@ impl Initialized {
 																		"Attempted import of on-chain statement of concluded dispute failed"),
 			}
 		}
+
+		self.last_scraped_blocks.put(new_leaf, ());
 		Ok(())
 	}
 
