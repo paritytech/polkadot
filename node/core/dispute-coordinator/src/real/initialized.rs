@@ -296,13 +296,18 @@ impl Initialized {
 
 			// Scrape the head if above rolling session update went well.
 			if self.error.is_none() {
-				let _ = self.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now).await.map_err(|err| {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Skipping scraping block #{}({}) due to error: {}",
-						new_leaf.number, new_leaf.hash, err
-					);
-				});
+				let _ = self
+					.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now)
+					.await
+					.map_err(|err| {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Skipping scraping block #{}({}) due to error: {}",
+							new_leaf.number,
+							new_leaf.hash,
+							err
+						);
+					});
 			}
 
 			// Try to scrape any blocks for which we could not get the current session or did not receive an
@@ -328,13 +333,16 @@ impl Initialized {
 			// We could do this in parallel, but we don't want to overindex on the wasm instances
 			// usage.
 			for ancestor in ancestors.iter() {
-				let _ = self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await.map_err(|err| {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Skipping scraping block {} due to error: {}",
-						*ancestor, err
-					);
-				});
+				let _ = self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await.map_err(
+					|err| {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Skipping scraping block {} due to error: {}",
+							*ancestor,
+							err
+						);
+					},
+				);
 			}
 		}
 
@@ -610,7 +618,7 @@ impl Initialized {
 				} else {
 					std::collections::BTreeMap::new()
 				};
-				
+
 				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
@@ -624,7 +632,9 @@ impl Initialized {
 				};
 
 				let _ = tx.send(
-					get_active_with_status(recent_disputes.into_iter(), now).map(|(k, _)| k).collect(),
+					get_active_with_status(recent_disputes.into_iter(), now)
+						.map(|(k, _)| k)
+						.collect(),
 				);
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
@@ -671,7 +681,7 @@ impl Initialized {
 			} => {
 				// Return error if session information is missing.
 				self.ensure_no_errors()?;
-	
+
 				let undisputed_chain = determine_undisputed_chain(
 					overlay_db,
 					base_number,
