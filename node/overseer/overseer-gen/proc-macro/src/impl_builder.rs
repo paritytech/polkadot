@@ -16,41 +16,9 @@
 
 use quote::{format_ident, quote};
 use syn::Ident;
+use inflector::Inflector;
 
 use super::*;
-
-/// Returns all combinations for a single replacement:
-/// 1. generic args with `NEW` in place
-/// 2. subsystem type to be replaced
-/// 3. the subsystem name to be replaced by a new type and value
-/// 4. all other subsystems that are supposed to be kept
-fn derive_replacable_generic_lists(
-	info: &OverseerInfo,
-) -> Vec<(TokenStream, Ident, Ident, Vec<Ident>)> {
-	// subsystem generic types
-	let builder_generic_ty = info.builder_generic_types();
-
-	let to_be_replaced_name = info.subsystem_names_without_wip();
-	let baggage_generic_ty = &info.baggage_generic_types();
-
-	builder_generic_ty
-		.iter()
-		.enumerate()
-		.map(|(idx, to_be_replaced_ty)| {
-			let mut to_keep_name = to_be_replaced_name.clone();
-			let to_be_replaced_name: Ident = to_keep_name.remove(idx);
-
-			let mut builder_generic_ty = builder_generic_ty.clone();
-			builder_generic_ty[idx] = format_ident!("NEW");
-
-			let generics_ts = quote! {
-				<S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
-			};
-
-			(generics_ts, to_be_replaced_ty.clone(), to_be_replaced_name, to_keep_name)
-		})
-		.collect::<Vec<(_, _, _, _)>>()
-}
 
 /// Implement a builder pattern for the `Overseer`-type,
 /// which acts as the gateway to constructing the overseer.
@@ -63,19 +31,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let connector = format_ident!("{}Connector", overseer_name);
 
 	let subsystem_name = &info.subsystem_names_without_wip();
-	let subsystem_name_init_with = &info
-		.subsystem_names_without_wip()
-		.iter()
-		.map(|subsystem_name| format_ident!("{}_with", subsystem_name))
-		.collect::<Vec<_>>();
-	let subsystem_name_replace_with = &info
-		.subsystem_names_without_wip()
-		.iter()
-		.map(|subsystem_name| format_ident!("replace_{}", subsystem_name))
-		.collect::<Vec<_>>();
 
-	let builder_generic_ty = &info.builder_generic_types();
-
+	let consumes = &info.consumes_without_wip();
 	let channel_name = &info.channel_names_without_wip("");
 	let channel_name_unbounded = &info.channel_names_without_wip("_unbounded");
 
@@ -85,10 +42,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let channel_name_rx = &info.channel_names_without_wip("_rx");
 	let channel_name_unbounded_rx = &info.channel_names_without_wip("_unbounded_rx");
 
-	let baggage_generic_ty = &info.baggage_generic_types();
 	let baggage_name = &info.baggage_names();
-	let baggage_ty = &info.baggage_types();
-
 	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
 
 	let error_ty = &info.extern_error_ty;
@@ -107,43 +61,379 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		})
 		.collect::<Vec<_>>();
 
-	let generics = quote! {
-		< S, #( #baggage_generic_ty, )* >
-	};
-	let where_clause = quote! {
-		where
-			S: #support_crate ::SpawnNamed,
-	};
+	// A helper structure to carry fields of a builder to produce setters
+	struct BuilderFieldHelper {
+		// Used to distinguish baggage and subsystems
+		is_subsystem: bool,
+		// Valid for baggage as all subsystems are generics
+		is_generic: bool,
+		// Field name
+		name: Ident,
+		// Field type (either generic or not)
+		field_ty: TokenStream,
+		// Type to use in generics (like __FieldName)
+		placeholder_type: TokenStream,
+		// Used to constrain setter generics
+		where_clause: Option<TokenStream>,
+		// Specific initialised type, like OverseerFieldInit<T>
+		inited_ty: TokenStream,
+		// Specific uninitialised type, like OverseerFieldUninit<T>
+		uninited_ty: TokenStream,
+		// Order of the field in a target structure
+		order: usize,
+	}
 
-	let builder_generics = quote! {
-		<S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
-	};
+	let mut field_helpers = info.subsystems()
+		.iter()
+		.filter(|ssf| !ssf.wip)
+		.enumerate()
+		.map(|(idx, ssf)| {
+			let prefixed_ident = format_ident!("__{}",
+				ssf.name.to_string().to_class_case());
+			let consumes = &ssf.consumes;
+			let generic_ty = &ssf.generic;
+			BuilderFieldHelper {
+				is_subsystem: true,
+				is_generic: true,
+				name: ssf.name.clone(),
+				field_ty: quote!(#generic_ty),
+				placeholder_type: quote! { #prefixed_ident },
+				where_clause: Some(quote! {
+					#generic_ty : #support_crate ::Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>
+				}),
+				inited_ty: quote! {
+					OverseerFieldInit<SubsystemFieldInitMethod<#generic_ty>>
+				},
+				uninited_ty: quote! {
+					OverseerFieldUninit<SubsystemFieldInitMethod<#generic_ty>>
+				},
+				order: idx
+			}
+		})
+		.collect::<Vec<_>>();
+	let last_subsystem_idx = field_helpers.len();
+	field_helpers.extend(info.baggage()
+		.iter()
+		.enumerate()
+		.map(|(idx, bgf)| {
+			let prefixed_ident = format_ident!("__{}", bgf.field_name
+				.to_string().to_class_case());
+			let baggage_ty = &bgf.field_ty;
 
-	// all subsystems must have the same context
-	// even if the overseer does not impose such a limit.
-	let builder_additional_generics = quote! {
-		<#( #builder_generic_ty, )* >
-	};
+			BuilderFieldHelper {
+				is_subsystem: false,
+				is_generic: bgf.generic,
+				name: bgf.field_name.clone(),
+				field_ty: quote!(#baggage_ty),
+				placeholder_type: quote! { #prefixed_ident },
+				where_clause: None,
+				inited_ty: quote! {
+					OverseerFieldInit<#baggage_ty>
+				},
+				uninited_ty: quote! {
+					OverseerFieldUninit<#baggage_ty>
+				},
+				order: idx + last_subsystem_idx
+			}
+		})
+	);
 
-	let consumes = &info.consumes();
+	let struct_common_generics = field_helpers
+		.iter()
+		.filter(|fh| fh.is_generic)
+		.map(|fh| &fh.field_ty)
+		.collect::<Vec<_>>();
+	let builder_common_generics = field_helpers
+		.iter()
+		.map(|fh| &fh.placeholder_type)
+		.collect::<Vec<_>>();
+	let where_clause_elts = field_helpers
+		.iter()
+		.filter_map(|fh| fh.where_clause.as_ref())
+		.collect::<Vec<_>>();
 
 	let builder_where_clause = quote! {
 		where
-			S: #support_crate ::SpawnNamed,
-		#(
-			#builder_generic_ty : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
-		)*
+			#( #where_clause_elts, )*
+			S: #support_crate ::SpawnNamed
+	};
+
+	let builder_subsystem_setters = field_helpers
+		.iter()
+		.enumerate()
+		.map(|(idx, field_helper)| {
+			let setter_name = &field_helper.name;
+			let var_type = &field_helper.field_ty;
+
+			let impl_generics = if !field_helper.is_generic {
+				// For non generics we exclude type definition for the field being set
+				field_helpers
+					.iter()
+					.filter(|other_field| other_field.order != idx)
+					.map(|other_field| &other_field.placeholder_type)
+					.collect::<Vec<_>>()
+			}
+			else {
+				// For generics we replace placeholder type with a real generic type
+				field_helpers
+					.iter()
+					.map(|other_field| {
+						if other_field.order == idx {
+							&other_field.field_ty
+						}
+						else {
+							&other_field.placeholder_type
+						}
+					})
+					.collect::<Vec<_>>()
+			};
+			// For the type generics we replace placeholder type with Uninit<T>
+			let type_specific_generics = field_helpers
+				.iter()
+				.map(|other_field| {
+					if other_field.order == idx {
+						&other_field.uninited_ty
+					}
+					else {
+						&other_field.placeholder_type
+					}
+				})
+				.collect::<Vec<_>>();
+			// For the setter return type generics we replace placeholder type with Init<T>
+			let return_type_generics = field_helpers
+				.iter()
+				.map(|other_field| {
+					if other_field.order == idx {
+						&other_field.inited_ty
+					}
+					else {
+						&other_field.placeholder_type
+					}
+				})
+				.collect::<Vec<_>>();
+			// To set specific fields in a setter
+			let fields_definitions = field_helpers
+				.iter()
+				.map(|other_field| {
+					let fname = &other_field.name;
+					if other_field.order == idx {
+						if other_field.is_subsystem {
+							// We need to pack it one more time to distinguish from
+							// Fn initialization
+							quote! { #fname: OverseerFieldInit::
+								<SubsystemFieldInitMethod::<#var_type>>(
+									SubsystemFieldInitMethod::<#var_type>::Value(var)
+								)
+							}
+						}
+						else {
+							quote! { #fname: OverseerFieldInit::<#var_type>(var) }
+						}
+					}
+					else {
+						quote!{ #fname: self.#fname }
+					}
+				})
+				.collect::<Vec<_>>();
+			// Setter that is common for baggage and subsystem
+			let mut setter = quote! {
+				impl <S, #( #impl_generics, )*>
+				#builder <S, #( #type_specific_generics, )*> #builder_where_clause {
+					/// Specify the field in the builder
+					pub fn #setter_name (self, var: #var_type ) ->
+						#builder <S, #( #return_type_generics, )*>
+					{
+						#builder {
+							#(
+								#fields_definitions,
+							)*
+							spawner: self.spawner,
+						}
+					}
+				}
+			};
+
+			if field_helper.is_subsystem {
+				// Produce one more setter to init from a function
+				let setter_name_init_with = format_ident!("{}_with", setter_name);
+
+				let other_fields_definitions = field_helpers
+					.iter()
+					.filter(|other_field| other_field.order != idx)
+					.map(|other_field| {
+						let fname = &other_field.name;
+						quote!{ #fname: self.#fname }
+					})
+					.collect::<Vec<_>>();
+				let setter_with = quote! {
+					impl <S, #( #impl_generics, )*>
+					#builder <S, #( #type_specific_generics, )*> #builder_where_clause {
+						/// Specify the the init function for a subsystem
+						pub fn #setter_name_init_with<'a, F>(self, subsystem_init_fn: F ) ->
+							#builder <S, #( #return_type_generics, )*>
+							where
+							F: 'static + FnOnce(#handle) ->
+								::std::result::Result<#var_type, #error_ty>,
+						{
+							let boxed_func = SubsystemFieldInitMethod::Fn(
+								Box::new(subsystem_init_fn) as SubsystemInitFn<#var_type>
+							);
+							#builder {
+								#(
+									#other_fields_definitions,
+								)*
+								#setter_name: OverseerFieldInit::
+									<SubsystemFieldInitMethod::<#var_type>>(boxed_func),
+								spawner: self.spawner,
+							}
+						}
+					}
+				};
+				setter.extend(setter_with);
+
+				// For subsystems, we also need a replacement method
+				let setter_name_replace = format_ident!("replace_{}", setter_name);
+				let modified_generic_ty = quote!{
+					OverseerFieldInit<SubsystemFieldInitMethod<NEW>>
+				};
+				let mut modified_generic_return_type = return_type_generics.clone();
+				modified_generic_return_type[idx] = &modified_generic_ty;
+				// We can use idx here as it is exactly the same as subsystems_wihout_wip idx
+				let cur_consumes = &consumes[idx];
+				let new_where_condition = quote! {
+					#support_crate ::Subsystem<#subsystem_ctx_name< #cur_consumes >, #error_ty>
+				};
+				// Another note is that replace function requires the subsystem field
+				// to be initialized first
+				let setter_replace = quote! {
+					impl <S, #( #impl_generics, )*>
+					#builder <S, #( #return_type_generics, )*> #builder_where_clause {
+						/// Replace a subsystem by another implementation for the
+						/// consumable message type.
+						pub fn #setter_name_replace<NEW, F>(self, gen_replacement_fn: F)
+							-> #builder <S, #( #modified_generic_return_type, )*>
+						where
+							#var_type: 'static,
+							F: 'static + FnOnce(#var_type) -> NEW,
+							NEW: #new_where_condition,
+						{
+							let replacement: SubsystemFieldInitMethod<NEW> = match self.#setter_name.0 {
+								SubsystemFieldInitMethod::Fn(fx) =>
+									SubsystemFieldInitMethod::Fn(Box::new(move |handle: #handle| {
+									let orig = fx(handle)?;
+									Ok(gen_replacement_fn(orig))
+								})),
+								SubsystemFieldInitMethod::Value(val) =>
+									SubsystemFieldInitMethod::Value(gen_replacement_fn(val)),
+							};
+							#builder::<S, #( #modified_generic_return_type, )*> {
+								#setter_name: OverseerFieldInit::
+									<SubsystemFieldInitMethod::<NEW>>(replacement),
+								#(
+									#other_fields_definitions,
+								)*
+								spawner: self.spawner,
+							}
+						}
+					}
+				};
+				setter.extend(setter_replace);
+			}
+			setter
+		})
+		.collect::<Vec<_>>();
+
+	// Used as a implementation spec for a builder with all fields uninitialised
+	let all_uninit_generics = field_helpers
+		.iter()
+		.map(|fh| &fh.uninited_ty)
+		.collect::<Vec<_>>();
+	// Similarly, defines all field types as initialised
+	let all_init_generics = field_helpers
+		.iter()
+		.map(|fh| &fh.inited_ty)
+		.collect::<Vec<_>>();
+	// Defines all fields to be set to uninit<T>
+	let uninit_builder_field_def = field_helpers
+		.iter()
+		.map(|fh| {
+			let (field_name, field_ty) = (&fh.name, &fh.field_ty);
+			if fh.is_subsystem {
+				quote! { #field_name: OverseerFieldUninit::<SubsystemFieldInitMethod<#field_ty>>::default() }
+			}
+			else {
+				quote! { #field_name: OverseerFieldUninit::<#field_ty>::default() }
+			}
+		})
+		.collect::<Vec<_>>();
+	let struct_field_definition = field_helpers
+		.iter()
+		.map(|fh| {
+			let (field_name, field_gen_ty) = (&fh.name, &fh.placeholder_type);
+			quote!{ #field_name: #field_gen_ty }
+		})
+		.collect::<Vec<_>>();
+
+	let builder_struct = quote! {
+		pub struct #builder <S, #( #builder_common_generics, )*> {
+			#(
+				#struct_field_definition,
+			)*
+			spawner: ::std::option::Option< S >,
+		}
+	};
+
+	let uninit_builder_impl = quote! {
+		impl<S, #( #struct_common_generics, )*> #builder<S, #( #all_uninit_generics, )*>
+		#builder_where_clause {
+			fn new() -> Self {
+				// explicitly assure the required traits are implemented
+				fn trait_from_must_be_implemented<E>()
+				where
+					E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>
+				{}
+
+				trait_from_must_be_implemented::< #error_ty >();
+				Self {
+					#(
+						#uninit_builder_field_def,
+					)*
+					spawner: None,
+				}
+			}
+		}
 	};
 
 	let event = &info.extern_event_ty;
 
 	let mut ts = quote! {
-		impl #generics #overseer_name #generics #where_clause {
+		/// Type for the initialised field of the overseer builder
+		#[derive(Default, Debug)]
+		pub struct OverseerFieldInit<T>(T);
+		/// Type marker for the uninitialised field of the overseer builder
+		/// Phantom data is used for type hinting when creating uninitialized
+		/// builder.
+		#[derive(Debug)]
+		pub struct OverseerFieldUninit<T>(::core::marker::PhantomData<T>);
+
+		/// Trait used to mark fields status in a builder
+		trait OverseerFieldSt<T> {}
+
+		impl<T> OverseerFieldSt<T> for OverseerFieldInit<T> {}
+		impl<T> OverseerFieldSt<T> for OverseerFieldUninit<T> {}
+
+		impl<T> std::default::Default for OverseerFieldUninit<T> {
+			fn default() -> Self {
+				OverseerFieldUninit::<T>(::core::marker::PhantomData::<T>::default())
+			}
+		}
+
+		impl<S> #overseer_name <S> {
 			/// Create a new overseer utilizing the builder.
-			pub fn builder #builder_additional_generics () -> #builder #builder_generics
-				#builder_where_clause
+			pub fn builder<#( #struct_common_generics, )*>() ->
+				#builder<S, #( #all_uninit_generics, )* > #builder_where_clause
 			{
-				#builder :: default()
+				#builder :: new()
 			}
 		}
 
@@ -194,55 +484,22 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
 
 		/// Initialization type to be used for a field of the overseer.
-		enum FieldInitMethod<T> {
+		pub enum SubsystemFieldInitMethod<T> {
 			/// Defer initialization to a point where the `handle` is available.
 			Fn(SubsystemInitFn<T>),
 			/// Directly initialize the subsystem with the given subsystem type `T`.
 			Value(T),
-			/// Subsystem field does not have a value just yet.
-			Uninitialized
-		}
-
-		impl<T> ::std::default::Default for FieldInitMethod<T> {
-			fn default() -> Self {
-				Self::Uninitialized
-			}
 		}
 
 		#[allow(missing_docs)]
-		pub struct #builder #builder_generics {
-			#(
-				#subsystem_name : FieldInitMethod< #builder_generic_ty >,
-			)*
-			#(
-				#baggage_name : ::std::option::Option< #baggage_ty >,
-			)*
-			spawner: ::std::option::Option< S >,
-		}
+		#builder_struct
 
-		impl #builder_generics Default for #builder #builder_generics {
-			fn default() -> Self {
-				// explicitly assure the required traits are implemented
-				fn trait_from_must_be_implemented<E>()
-				where
-					E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>
-				{}
+		#uninit_builder_impl
 
-				trait_from_must_be_implemented::< #error_ty >();
+		#( #builder_subsystem_setters )*
 
-				Self {
-				#(
-					#subsystem_name: Default::default(),
-				)*
-				#(
-					#baggage_name: None,
-				)*
-					spawner: None,
-				}
-			}
-		}
-
-		impl #builder_generics #builder #builder_generics #builder_where_clause {
+		impl<S, #( #struct_common_generics, )*> #builder<S, #( #all_init_generics, )*>
+		#builder_where_clause {
 			/// The spawner to use for spawning tasks.
 			pub fn spawner(mut self, spawner: S) -> Self
 			where
@@ -252,41 +509,16 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				self
 			}
 
-			#(
-				/// Specify the particular subsystem implementation.
-				pub fn #subsystem_name (mut self, subsystem: #builder_generic_ty ) -> Self {
-					self. #subsystem_name = FieldInitMethod::Value( subsystem );
-					self
-				}
-
-				/// Specify the particular subsystem by giving a init function.
-				pub fn #subsystem_name_init_with <'a, F> (mut self, subsystem_init_fn: F ) -> Self
-				where
-					F: 'static + FnOnce(#handle) -> ::std::result::Result<#builder_generic_ty, #error_ty>,
-				{
-					self. #subsystem_name = FieldInitMethod::Fn(
-						Box::new(subsystem_init_fn) as SubsystemInitFn<#builder_generic_ty>
-					);
-					self
-				}
-			)*
-
-			#(
-				/// Attach the user defined addendum type.
-				pub fn #baggage_name (mut self, baggage: #baggage_ty ) -> Self {
-					self. #baggage_name = Some( baggage );
-					self
-				}
-			)*
-
 			/// Complete the construction and create the overseer type.
-			pub fn build(self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty> {
+			pub fn build(self)
+				-> ::std::result::Result<(#overseer_name<S>, #handle), #error_ty> {
 				let connector = #connector ::default();
 				self.build_with_connector(connector)
 			}
 
 			/// Complete the construction and create the overseer type based on an existing `connector`.
-			pub fn build_with_connector(self, connector: #connector) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
+			pub fn build_with_connector(self, connector: #connector)
+				-> ::std::result::Result<(#overseer_name<S>, #handle), #error_ty>
 			{
 				let #connector {
 					handle: events_tx,
@@ -331,13 +563,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					>::new();
 
 				#(
-					// TODO generate a builder pattern that ensures this
-					// TODO https://github.com/paritytech/polkadot/issues/3427
-					let #subsystem_name = match self. #subsystem_name {
-						FieldInitMethod::Fn(func) => func(handle.clone())?,
-						FieldInitMethod::Value(val) => val,
-						FieldInitMethod::Uninitialized =>
-							panic!("All subsystems must exist with the builder pattern."),
+					let #subsystem_name = match self. #subsystem_name .0 {
+						SubsystemFieldInitMethod::Fn(func) => func(handle.clone())?,
+						SubsystemFieldInitMethod::Value(val) => val,
 					};
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
@@ -373,25 +601,16 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						)?;
 				)*
 
-				#(
-					let #baggage_name = self. #baggage_name .expect(
-						&format!("Baggage variable `{0}` of `{1}` must be set by the user!",
-							stringify!(#baggage_name),
-							stringify!(#overseer_name)
-						)
-					);
-				)*
-
 				use #support_crate ::StreamExt;
 
 				let to_overseer_rx = to_overseer_rx.fuse();
 				let overseer = #overseer_name {
 					#(
-						#subsystem_name,
+						#subsystem_name: #subsystem_name,
 					)*
 
 					#(
-						#baggage_name,
+						#baggage_name: self.#baggage_name.0,
 					)*
 
 					spawner,
@@ -404,82 +623,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 	};
-
-	let mut acc = TokenStream::new();
-
-	for (
-		(
-			(
-				ref modified_generics,
-				ref to_be_replaced_ty,
-				ref to_be_replaced_name,
-				ref to_keep_name,
-			),
-			subsystem_name_replace_with,
-		),
-		consumes,
-	) in derive_replacable_generic_lists(info)
-		.into_iter()
-		.zip(subsystem_name_replace_with.iter())
-		.zip(consumes.iter())
-	{
-		let replace1 = quote! {
-			/// Replace a subsystem by another implementation for the
-			/// consumable message type.
-			pub fn #subsystem_name_replace_with < NEW, F >
-			(self, gen_replacement_fn: F) -> #builder #modified_generics
-			where
-				#to_be_replaced_ty: 'static,
-				F: 'static + FnOnce(#to_be_replaced_ty) -> NEW,
-				NEW: #support_crate ::Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
-			{
-
-				let Self {
-					#to_be_replaced_name,
-					#(
-						#to_keep_name,
-					)*
-					#(
-						#baggage_name,
-					)*
-					spawner,
-				} = self;
-
-				// Some cases require that parts of the original are copied
-				// over, since they include a one time initialization.
-				let replacement: FieldInitMethod<NEW> = match #to_be_replaced_name {
-					FieldInitMethod::Fn(fx) => FieldInitMethod::Fn(
-						Box::new(move |handle: #handle| {
-							let orig = fx(handle)?;
-							Ok(gen_replacement_fn(orig))
-						})
-					),
-					FieldInitMethod::Value(val) => FieldInitMethod::Value(gen_replacement_fn(val)),
-					FieldInitMethod::Uninitialized => panic!("Must have a value before it can be replaced. qed"),
-				};
-
-				#builder :: #modified_generics {
-					#to_be_replaced_name: replacement,
-					#(
-						#to_keep_name,
-					)*
-					#(
-						#baggage_name,
-					)*
-					spawner,
-				}
-			}
-		};
-		acc.extend(replace1);
-	}
-
-	ts.extend(quote! {
-		impl #builder_generics #builder #builder_generics
-			#builder_where_clause
-		{
-			#acc
-		}
-	});
 
 	ts.extend(impl_task_kind(info));
 	ts

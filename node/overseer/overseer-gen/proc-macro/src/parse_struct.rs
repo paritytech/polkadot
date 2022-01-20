@@ -264,6 +264,10 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
+	pub(crate) fn baggage(&self) -> &[BaggageField] {
+		self.baggage.as_slice()
+	}
+
 	pub(crate) fn baggage_names(&self) -> Vec<Ident> {
 		self.baggage.iter().map(|bag| bag.field_name.clone()).collect::<Vec<_>>()
 	}
