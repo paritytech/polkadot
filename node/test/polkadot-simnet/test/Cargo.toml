@@ -6,16 +6,16 @@ edition = "2018"
 
 [dependencies]
 # substrate primitives
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
 # frame pallets
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
 # substrate client libs
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
 # polkadot deps
 polkadot-simnet = { path = "../common" }

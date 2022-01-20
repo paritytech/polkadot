@@ -5,26 +5,26 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-benchmarking = { package = "frame-benchmarking", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+benchmarking = { package = "frame-benchmarking", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
-test-runner = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
 polkadot-primitives = { path = "../../../../primitives" }
 polkadot-cli = { path = "../../../../cli", features = ["cli"] }
