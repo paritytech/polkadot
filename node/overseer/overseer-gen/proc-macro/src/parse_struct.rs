@@ -271,9 +271,6 @@ impl OverseerInfo {
 	pub(crate) fn baggage_names(&self) -> Vec<Ident> {
 		self.baggage.iter().map(|bag| bag.field_name.clone()).collect::<Vec<_>>()
 	}
-	pub(crate) fn baggage_types(&self) -> Vec<Path> {
-		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
-	}
 	pub(crate) fn baggage_decl(&self) -> Vec<TokenStream> {
 		self.baggage
 			.iter()
@@ -282,15 +279,6 @@ impl OverseerInfo {
 				quote! { #vis #field_name: #field_ty }
 			})
 			.collect::<Vec<TokenStream>>()
-	}
-
-	/// Generic types per subsystem, as defined by the user.
-	pub(crate) fn builder_generic_types(&self) -> Vec<Ident> {
-		self.subsystems
-			.iter()
-			.filter(|ssf| !ssf.wip)
-			.map(|sff| sff.generic.clone())
-			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
