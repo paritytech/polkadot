@@ -268,6 +268,53 @@ mod universal_exports {
 			Router::send_xcm(bridge, message)
 		}
 	}
+
+	/// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
+	/// and sends it to a destination known to be able to handle it.
+	///
+	/// No effort is made to make payment to the bridge for its services, so the bridge location
+	/// must have been configured with a barrier rule allowing unpaid execution for this message
+	/// coming from our origin.
+	///
+	/// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
+	/// and `DescendOrigin` in order to ensure that the message is executed with our Origin.
+	pub struct UnpaidRemoteExporter<
+		Bridges,
+		Router,
+		Ancestry,
+	>(PhantomData<(Bridges, Router, Ancestry)>);
+	impl<
+		Bridges: ExporterFor,
+		Router: SendXcm,
+		Ancestry: Get<InteriorMultiLocation>,
+	> SendXcm for UnpaidRemoteExporter<Bridges, Router, Ancestry> {
+		fn send_xcm(dest: impl Into<MultiLocation>, xcm: Xcm<()>) -> SendResult {
+			let dest = dest.into();
+
+			// TODO: proper matching so we can be sure that it's the only viable send_xcm before we
+			// attempt and thus can acceptably consume dest & xcm.
+			let err = SendError::CannotReachDestination(dest.clone(), xcm.clone());
+
+			let devolved = ensure_is_remote(Ancestry::get(), dest).map_err(|_| err.clone())?;
+			let (remote_network, remote_location, local_network, local_location) = devolved;
+
+			let bridge = Bridges::exporter_for(&remote_network, &remote_location).ok_or(err)?;
+
+			let mut inner_xcm: Xcm<()> = vec![
+				UniversalOrigin(GlobalConsensus(local_network)),
+				DescendOrigin(local_location),
+			].into();
+			inner_xcm.inner_mut().extend(xcm.into_iter());
+			let message = Xcm(vec![
+				ExportMessage {
+					network: remote_network,
+					destination: remote_location,
+					xcm: inner_xcm,
+				},
+			]);
+			Router::send_xcm(bridge, message)
+		}
+	}
 /*
 	/// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
 	/// and sends it to a destination known to be able to handle it.
