@@ -558,7 +558,7 @@ pub mod pallet {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			ensure!(
 				<Self as Store>::HrmpOpenChannelRequestsList::decode_len().unwrap_or_default()
-					as u32 == open_requests,
+					as u32 <= open_requests,
 				Error::<T>::WrongWitness
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
