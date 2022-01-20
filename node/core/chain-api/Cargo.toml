@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.19"
 tracing = "0.1.29"
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-primitives = { path = "../../../primitives" }
@@ -15,7 +15,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-futures = { version = "0.3.17", features = ["thread-pool"] }
+futures = { version = "0.3.19", features = ["thread-pool"] }
 maplit = "1.0.2"
 parity-scale-codec = "2.3.1"
 polkadot-node-primitives = { path = "../../primitives" }

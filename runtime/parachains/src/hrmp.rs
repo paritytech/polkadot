@@ -56,28 +56,28 @@ pub struct TestWeightInfo;
 #[cfg(feature = "std")]
 impl WeightInfo for TestWeightInfo {
 	fn hrmp_accept_open_channel() -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn force_clean_hrmp(_: u32, _: u32) -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn force_process_hrmp_close(_: u32) -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn force_process_hrmp_open(_: u32) -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn hrmp_cancel_open_request(_: u32) -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn hrmp_close_channel() -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn hrmp_init_open_channel() -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 	fn clean_open_channel_requests(_: u32) -> Weight {
-		1000_000_000
+		Weight::MAX
 	}
 }
 
@@ -1390,7 +1390,7 @@ mod tests {
 
 			// NOTE: this is in reverse initialization order.
 			Hrmp::initializer_finalize();
-			Paras::initializer_finalize();
+			Paras::initializer_finalize(b);
 			ParasShared::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
@@ -1479,6 +1479,7 @@ mod tests {
 			configuration: crate::configuration::GenesisConfig {
 				config: crate::configuration::HostConfiguration {
 					max_downward_message_size: 1024,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 			},

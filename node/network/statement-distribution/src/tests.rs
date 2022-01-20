@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v1::{SessionInfo, ValidationCode};
+use polkadot_primitives::{v1::ValidationCode, v2::SessionInfo};
 use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
@@ -703,7 +703,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
@@ -895,7 +895,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1394,7 +1394,7 @@ fn share_prioritizes_backing_group() {
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1679,7 +1679,7 @@ fn peer_cant_flood_with_large_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1851,5 +1851,8 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: Vec::new(),
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }

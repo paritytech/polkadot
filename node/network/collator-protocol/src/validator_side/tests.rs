@@ -624,17 +624,6 @@ fn fetch_collations_works() {
 		assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 			.await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		let response_channel_non_exclusive =
 			assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 				.await;
@@ -861,17 +850,6 @@ fn inactive_disconnected() {
 
 		Delay::new(ACTIVITY_TIMEOUT * 3).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
 		virtual_overseer
 	});
@@ -924,17 +902,6 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_b).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		assert_fetch_collation_request(&mut virtual_overseer, hash_b, test_state.chain_ids[0])
 			.await;
 
@@ -942,32 +909,10 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_c).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		assert_fetch_collation_request(&mut virtual_overseer, hash_c, test_state.chain_ids[0])
 			.await;
 
 		Delay::new(ACTIVITY_TIMEOUT * 3 / 2).await;
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
 
 		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
 

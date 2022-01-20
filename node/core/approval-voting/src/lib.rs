@@ -50,10 +50,13 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::v1::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v1::{
+		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
+		ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	v2::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -68,7 +71,9 @@ use futures::{
 };
 
 use std::{
-	collections::{btree_map::Entry, BTreeMap, HashMap, HashSet},
+	collections::{
+		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
+	},
 	sync::Arc,
 	time::Duration,
 };
@@ -400,7 +405,7 @@ impl Wakeups {
 			}
 
 			// we are replacing previous wakeup with an earlier one.
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(*prev) {
+			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(*prev) {
 				if let Some(pos) =
 					entry.get().iter().position(|x| x == &(block_hash, candidate_hash))
 				{
@@ -436,7 +441,7 @@ impl Wakeups {
 		});
 
 		for (tick, pruned) in pruned_wakeups {
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(tick) {
 				entry.get_mut().retain(|wakeup| !pruned.contains(wakeup));
 				if entry.get().is_empty() {
 					let _ = entry.remove();
@@ -457,10 +462,10 @@ impl Wakeups {
 			Some(tick) => {
 				clock.wait(tick).await;
 				match self.wakeups.entry(tick) {
-					Entry::Vacant(_) => {
+					BTMEntry::Vacant(_) => {
 						panic!("entry is known to exist since `first` was `Some`; qed")
 					},
-					Entry::Occupied(mut entry) => {
+					BTMEntry::Occupied(mut entry) => {
 						let (hash, candidate_hash) = entry.get_mut().pop()
 							.expect("empty entries are removed here and in `schedule`; no other mutation of this map; qed");
 
@@ -507,9 +512,7 @@ impl ApprovalState {
 }
 
 struct CurrentlyCheckingSet {
-	/// Invariant: The contained `Vec` needs to stay sorted as we are using `binary_search_by_key`
-	/// on it.
-	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
+	candidate_hash_map: HashMap<CandidateHash, HashSet<Hash>>,
 	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }
 
@@ -529,21 +532,26 @@ impl CurrentlyCheckingSet {
 		relay_block: Hash,
 		launch_work: impl Future<Output = SubsystemResult<RemoteHandle<ApprovalState>>>,
 	) -> SubsystemResult<()> {
-		let val = self.candidate_hash_map.entry(candidate_hash).or_insert(Default::default());
-
-		if let Err(k) = val.binary_search_by_key(&relay_block, |v| *v) {
-			let _ = val.insert(k, relay_block);
-			let work = launch_work.await?;
-			self.currently_checking.push(Box::pin(async move {
-				match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
-					None => ApprovalState {
-						candidate_hash,
-						validator_index,
-						approval_outcome: ApprovalOutcome::TimedOut,
-					},
-					Some(approval_state) => approval_state,
-				}
-			}));
+		match self.candidate_hash_map.entry(candidate_hash) {
+			HMEntry::Occupied(mut entry) => {
+				// validation already undergoing. just add the relay hash if unknown.
+				entry.get_mut().insert(relay_block);
+			},
+			HMEntry::Vacant(entry) => {
+				// validation not ongoing. launch work and time out the remote handle.
+				entry.insert(HashSet::new()).insert(relay_block);
+				let work = launch_work.await?;
+				self.currently_checking.push(Box::pin(async move {
+					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
+						None => ApprovalState {
+							candidate_hash,
+							validator_index,
+							approval_outcome: ApprovalOutcome::TimedOut,
+						},
+						Some(approval_state) => approval_state,
+					}
+				}));
+			},
 		}
 
 		Ok(())
@@ -552,7 +560,7 @@ impl CurrentlyCheckingSet {
 	pub async fn next(
 		&mut self,
 		approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
-	) -> (Vec<Hash>, ApprovalState) {
+	) -> (HashSet<Hash>, ApprovalState) {
 		if !self.currently_checking.is_empty() {
 			if let Some(approval_state) = self.currently_checking.next().await {
 				let out = self
@@ -707,7 +715,17 @@ where
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
 
-	let mut last_finalized_height: Option<BlockNumber> = None;
+	let mut last_finalized_height: Option<BlockNumber> = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(ChainApiMessage::FinalizedBlockNumber(tx)).await;
+		match rx.await? {
+			Ok(number) => Some(number),
+			Err(err) => {
+				tracing::warn!(target: LOG_TARGET, ?err, "Failed fetching finalized number");
+				None
+			},
+		}
+	};
 
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
@@ -1090,8 +1108,9 @@ async fn handle_from_overseer(
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
-							tracing::trace!(
+							tracing::debug!(
 								target: LOG_TARGET,
+								block_number = ?block_batch.block_number,
 								block_hash = ?block_batch.block_hash,
 								num_candidates = block_batch.imported_candidates.len(),
 								"Imported new block.",
@@ -1134,6 +1153,7 @@ async fn handle_from_overseer(
 			actions
 		},
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			tracing::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
 			crate::ops::canonicalize(db, block_number, block_hash)
@@ -1244,14 +1264,17 @@ async fn handle_approved_ancestor(
 		// entries we can fail.
 		let entry = match db.load_block_entry(&block_hash)? {
 			None => {
-				tracing::trace! {
+				let block_number = target_number.saturating_sub(i as u32);
+				tracing::info!(
 					target: LOG_TARGET,
+					unknown_number = ?block_number,
+					unknown_hash = ?block_hash,
 					"Chain between ({}, {}) and {} not fully known. Forcing vote on {}",
 					target,
 					target_number,
 					lower_bound,
 					lower_bound,
-				}
+				);
 				return Ok(None)
 			},
 			Some(b) => b,
@@ -1374,7 +1397,7 @@ async fn handle_approved_ancestor(
 		}
 	}
 
-	tracing::trace!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		"approved blocks {}-[{}]-{}",
 		target_number,

@@ -22,7 +22,6 @@ use sc_executor_common::{
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
-use sp_wasm_interface::HostFunctions as _;
 use std::any::{Any, TypeId};
 
 const CONFIG: Config = Config {
@@ -114,10 +113,9 @@ pub unsafe fn execute(
 	let mut ext = ValidationExternalities(extensions);
 
 	sc_executor::with_externalities_safe(&mut ext, || {
-		let runtime = sc_executor_wasmtime::create_runtime_from_artifact(
+		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
 			compiled_artifact,
 			CONFIG,
-			HostFunctions::host_functions(),
 		)?;
 		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 	})?
@@ -172,11 +170,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("place_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn storage_root(&mut self) -> Vec<u8> {
+	fn storage_root(&mut self, _: sp_core::storage::StateVersion) -> Vec<u8> {
 		panic!("storage_root: unsupported feature for parachain validation")
 	}
 
-	fn child_storage_root(&mut self, _: &ChildInfo) -> Vec<u8> {
+	fn child_storage_root(&mut self, _: &ChildInfo, _: sp_core::storage::StateVersion) -> Vec<u8> {
 		panic!("child_storage_root: unsupported feature for parachain validation")
 	}
 
