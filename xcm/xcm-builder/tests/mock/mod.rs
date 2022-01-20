@@ -22,10 +22,12 @@ use frame_support::{
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
+use parity_scale_codec::Encode;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
 use xcm::latest::{opaque, prelude::*};
+use xcm::VersionedXcm;
 use xcm_executor::XcmExecutor;
 
 use xcm_builder::{
@@ -48,8 +50,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
-		Ok(())
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg.clone())));
+		Ok(VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256))
 	}
 }
 

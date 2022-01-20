@@ -17,12 +17,13 @@
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
 use xcm_executor::traits::FilterAssetLocation;
+use xcm::VersionedXcm;
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
 impl xcm::opaque::latest::SendXcm for DevNull {
-	fn send_xcm(_: impl Into<MultiLocation>, _: Xcm<()>) -> SendResult {
-		Ok(())
+	fn send_xcm(_: impl Into<MultiLocation>, msg: Xcm<()>) -> SendResult {
+		Ok(VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256))
 	}
 }
 

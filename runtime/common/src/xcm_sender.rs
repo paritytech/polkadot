@@ -35,13 +35,15 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 				let versioned_xcm =
 					W::wrap_version(&dest, msg).map_err(|()| SendError::DestinationUnsupported)?;
 				let config = <configuration::Pallet<T>>::config();
+				let encoded = versioned_xcm.encode();
+				let hash = sp_io::hashing::blake2_256(&encoded[..]);
 				<dmp::Pallet<T>>::queue_downward_message(
 					&config,
 					id.into(),
 					versioned_xcm.encode(),
 				)
 				.map_err(Into::<SendError>::into)?;
-				Ok(())
+				Ok(hash)
 			},
 			dest => Err(SendError::CannotReachDestination(dest, msg)),
 		}

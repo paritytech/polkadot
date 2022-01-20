@@ -276,8 +276,11 @@ pub enum SendError {
 	ExceedsMaxMessageSize,
 }
 
+/// A hash type for identifying messages.
+pub type XcmHash = [u8; 32];
+
 /// Result value when attempting to send an XCM message.
-pub type SendResult = result::Result<(), SendError>;
+pub type SendResult = result::Result<XcmHash, SendError>;
 
 /// Utility for sending an XCM message.
 ///
@@ -289,6 +292,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// # Example
 /// ```rust
 /// # use xcm::v3::prelude::*;
+/// # use xcm::VersionedXcm;
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -304,7 +308,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
 ///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = destination.into() {
-///             Ok(())
+///             Ok(VersionedXcm::from(message).using_encoded(sp_io::hashing::blake2_256))
 ///         } else {
 ///             Err(SendError::Unroutable)
 ///         }
@@ -317,7 +321,8 @@ pub type SendResult = result::Result<(), SendError>;
 ///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
 ///         let destination = destination.into();
 ///         match destination {
-///             MultiLocation { parents: 1, interior: Here } => Ok(()),
+///             MultiLocation { parents: 1, interior: Here }
+///             => Ok(VersionedXcm::from(message).using_encoded(sp_io::hashing::blake2_256))
 ///             _ => Err(SendError::CannotReachDestination(destination, message)),
 ///         }
 ///     }

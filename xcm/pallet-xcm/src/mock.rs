@@ -20,7 +20,7 @@ use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
-use xcm::latest::prelude::*;
+use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
@@ -29,6 +29,7 @@ use xcm_builder::{
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
+use codec::Encode;
 
 use crate as pallet_xcm;
 
@@ -148,8 +149,8 @@ pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: impl Into<MultiLocation>, msg: Xcm<()>) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
-		Ok(())
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg.clone())));
+		Ok(VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256))
 	}
 }
 /// Sender that returns error if `X8` junction and stops routing
@@ -160,8 +161,8 @@ impl SendXcm for TestSendXcmErrX8 {
 		if dest.len() == 8 {
 			Err(SendError::Transport("Destination location full"))
 		} else {
-			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
-			Ok(())
+			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg.clone())));
+			Ok(VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256))
 		}
 	}
 }

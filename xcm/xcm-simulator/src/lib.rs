@@ -297,20 +297,20 @@ macro_rules! decl_test_network {
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
 			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
-				use $crate::{UmpSink, XcmpMessageHandlerT};
+				use $crate::{UmpSink, XcmpMessageHandlerT, Encode};
 
 				let destination = destination.into();
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						$crate::PARA_MESSAGE_BUS.with(
-							|b| b.borrow_mut().push_back((T::get(), destination, message)));
-						Ok(())
+							|b| b.borrow_mut().push_back((T::get(), destination, message.clone())));
+						Ok(message.using_encoded(sp_io::hashing::blake2_256))
 					},
 					$(
 						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
 							$crate::PARA_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((T::get(), destination, message)));
-							Ok(())
+								|b| b.borrow_mut().push_back((T::get(), destination, message.clone())));
+							Ok(message.using_encoded(sp_io::hashing::blake2_256))
 						},
 					)*
 					_ => Err($crate::SendError::CannotReachDestination(destination, message)),
@@ -322,15 +322,15 @@ macro_rules! decl_test_network {
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
 			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
-				use $crate::DmpMessageHandlerT;
+				use $crate::{DmpMessageHandlerT, Encode};
 
 				let destination = destination.into();
 				match destination.interior() {
 					$(
 						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
 							$crate::RELAY_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((destination, message)));
-							Ok(())
+								|b| b.borrow_mut().push_back((destination, message.clone())));
+							Ok(message.using_encoded(sp_io::hashing::blake2_256))
 						},
 					)*
 					_ => Err($crate::SendError::Unroutable),

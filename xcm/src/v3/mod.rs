@@ -35,7 +35,7 @@ pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, XcmHash};
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{
 	Ancestor, AncestorThen, BodyId, BodyPart, InteriorMultiLocation, Junction, Junctions,
@@ -133,7 +133,7 @@ pub mod prelude {
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
-			XcmWeightInfo, VERSION as XCM_VERSION,
+			XcmHash, XcmWeightInfo, VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};

@@ -25,12 +25,8 @@ use frame_support::{
 use parity_scale_codec::Encode;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::{
-	Error as XcmError, ExecuteXcm,
-	Instruction::{self, *},
-	MaybeErrorCode, MultiAsset, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo,
-	Response, SendXcm, Xcm,
-};
+use xcm::latest::prelude::*;
+use xcm::latest::{MaybeErrorCode, PalletInfo};
 
 pub mod traits;
 use traits::{
@@ -336,7 +332,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				Config::XcmSender::send_xcm(dest, Xcm(message))?;
+				Ok(())
 			},
 			ReceiveTeleportedAsset(assets) => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
@@ -410,7 +407,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				Self::respond(Response::ExecutionResult(self.error), response_info)
+				Self::respond(Response::ExecutionResult(self.error), response_info)?;
+				Ok(())
 			},
 			DepositAsset { assets, beneficiary } => {
 				let deposited = self.holding.saturating_take(assets);
@@ -429,7 +427,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				Config::XcmSender::send_xcm(dest, Xcm(message))?;
+				Ok(())
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				// Note that here we are able to place any assets which could not be reanchored
@@ -441,7 +440,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
+				Config::XcmSender::send_xcm(reserve, Xcm(message))?;
+				Ok(())
 			},
 			InitiateTeleport { assets, dest, xcm } => {
 				// We must do this first in order to resolve wildcards.
@@ -454,14 +454,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				Config::XcmSender::send_xcm(dest, Xcm(message))?;
+				Ok(())
 			},
 			ReportHolding { response_info, assets } => {
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
 				// from Holding.
 				let assets =
 					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
-				Self::respond(Response::Assets(assets), response_info)
+				Self::respond(Response::Assets(assets), response_info)?;
+				Ok(())
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -551,7 +553,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let response = Response::PalletsInfo(pallets);
 				let instruction = QueryResponse { query_id, response, max_weight };
 				let message = Xcm(vec![instruction]);
-				Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+				Config::XcmSender::send_xcm(destination, message)?;
+				Ok(())
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
 				let pallet = Config::PalletInstancesInfo::infos()
@@ -566,8 +569,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
-			ReportTransactStatus(response_info) =>
-				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info),
+			ReportTransactStatus(response_info) => {
+				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info)?;
+				Ok(())
+			},
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
 				Ok(())
@@ -580,7 +585,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Send a bare `QueryResponse` message containing `response` informed by the given `info`.
-	fn respond(response: Response, info: QueryResponseInfo) -> Result<(), XcmError> {
+	fn respond(response: Response, info: QueryResponseInfo) -> Result<XcmHash, XcmError> {
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight };
 		let message = Xcm(vec![instruction]);

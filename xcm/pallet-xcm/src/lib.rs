@@ -954,7 +954,7 @@ pub mod pallet {
 					let response = Response::Version(xcm_version);
 					let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
-						Ok(()) => {
+						Ok(_) => {
 							let value = (query_id, max_weight, xcm_version);
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
 							Event::VersionChangeNotified(new_key, xcm_version)
@@ -1001,7 +1001,7 @@ pub mod pallet {
 							let message =
 								Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
-								Ok(()) => {
+								Ok(_) => {
 									VersionNotifyTargets::<T>::insert(
 										XCM_VERSION,
 										versioned_key,
@@ -1061,7 +1061,7 @@ pub mod pallet {
 			interior: impl Into<Junctions>,
 			dest: impl Into<MultiLocation>,
 			mut message: Xcm<()>,
-		) -> Result<(), SendError> {
+		) -> SendResult {
 			let interior = interior.into();
 			let dest = dest.into();
 			if interior != Junctions::Here {
