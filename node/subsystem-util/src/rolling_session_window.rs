@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 use thiserror::Error;
 
 /// Sessions unavailable in state to cache.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SessionsUnavailableKind {
 	/// Runtime API subsystem was unavailable.
 	RuntimeApiUnavailable(oneshot::Canceled),
@@ -45,7 +45,7 @@ pub enum SessionsUnavailableKind {
 }
 
 /// Information about the sessions being fetched.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SessionsUnavailableInfo {
 	/// The desired window start.
 	pub window_start: SessionIndex,
@@ -56,7 +56,7 @@ pub struct SessionsUnavailableInfo {
 }
 
 /// Sessions were unavailable to fetch from the state for some reason.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub struct SessionsUnavailable {
 	/// The error kind.
 	kind: SessionsUnavailableKind,

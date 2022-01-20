@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate,
+	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
 use polkadot_primitives::{
 	v1::{
@@ -48,11 +48,12 @@ use polkadot_primitives::{
 	v2::SessionInfo,
 };
 
-use crate::{metrics::Metrics, real::DisputeCoordinatorSubsystem, LOG_TARGET};
-
 use crate::{
-	error::{log_error, Fatal, FatalResult, NonFatal, NonFatalResult, Result},
+	error::{log_error, Error, Fatal, FatalResult, NonFatal, NonFatalResult, Result},
+	metrics::Metrics,
+	real::DisputeCoordinatorSubsystem,
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
+	LOG_TARGET,
 };
 
 use super::{
@@ -80,7 +81,9 @@ pub struct Initialized {
 	ordering_provider: OrderingProvider,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
-	error: bool,
+	// This tracks only rolling session window failures.
+	// It can be a `Vec` if the need to track more arises.
+	error: Option<SessionsUnavailable>,
 }
 
 impl Initialized {
@@ -106,7 +109,7 @@ impl Initialized {
 			participation,
 			participation_receiver,
 			metrics,
-			error: false,
+			error: None,
 		}
 	}
 
@@ -256,14 +259,14 @@ impl Initialized {
 						err = ?e,
 						"Failed to update session cache for disputes",
 					);
-					self.error = true;
+					self.error = Some(e);
 				},
 				Ok(SessionWindowUpdate::Advanced {
 					new_window_end: window_end,
 					new_window_start,
 					..
 				}) => {
-					self.error = false;
+					self.error = None;
 					let session = window_end;
 					if self.highest_session < session {
 						tracing::trace!(
@@ -536,31 +539,45 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
-				let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
-				let _ = tx.send(recent_disputes.keys().cloned().collect());
+				// Return error if session information is missing.
+				if let Some(subsystem_error) = self.error.clone() {
+					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+				} else {
+					let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+					let _ = tx.send(recent_disputes.keys().cloned().collect());
+				}
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
-				let recent_disputes =
-					overlay_db.load_recent_disputes()?.unwrap_or_default().into_iter();
-				let _ =
-					tx.send(get_active_with_status(recent_disputes, now).map(|(k, _)| k).collect());
+				if let Some(subsystem_error) = self.error.clone() {
+					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+				} else {
+					let recent_disputes =
+						overlay_db.load_recent_disputes()?.unwrap_or_default().into_iter();
+					let _ = tx.send(
+						get_active_with_status(recent_disputes, now).map(|(k, _)| k).collect(),
+					);
+				}
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
-				let mut query_output = Vec::new();
-				for (session_index, candidate_hash) in query.into_iter() {
-					if let Some(v) =
-						overlay_db.load_candidate_votes(session_index, &candidate_hash)?
-					{
-						query_output.push((session_index, candidate_hash, v.into()));
-					} else {
-						tracing::debug!(
-							target: LOG_TARGET,
-							session_index,
-							"No votes found for candidate",
-						);
+				if let Some(subsystem_error) = self.error.clone() {
+					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+				} else {
+					let mut query_output = Vec::new();
+					for (session_index, candidate_hash) in query.into_iter() {
+						if let Some(v) =
+							overlay_db.load_candidate_votes(session_index, &candidate_hash)?
+						{
+							query_output.push((session_index, candidate_hash, v.into()));
+						} else {
+							tracing::debug!(
+								target: LOG_TARGET,
+								session_index,
+								"No votes found for candidate",
+							);
+						}
 					}
+					let _ = tx.send(query_output);
 				}
-				let _ = tx.send(query_output);
 			},
 			DisputeCoordinatorMessage::IssueLocalStatement(
 				session,
@@ -584,14 +601,19 @@ impl Initialized {
 				block_descriptions,
 				tx,
 			} => {
-				let undisputed_chain = determine_undisputed_chain(
-					overlay_db,
-					base_number,
-					base_hash,
-					block_descriptions,
-				)?;
+				// Return error if session information is missing.
+				if let Some(subsystem_error) = self.error.clone() {
+					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+				} else {
+					let undisputed_chain = determine_undisputed_chain(
+						overlay_db,
+						base_number,
+						base_hash,
+						block_descriptions,
+					)?;
 
-				let _ = tx.send(undisputed_chain);
+					let _ = tx.send(undisputed_chain);
+				}
 			},
 		}
 
