@@ -1255,7 +1255,7 @@ fn limit_and_sanitize_disputes<
 			.unwrap_err();
 
 		// Due to the binary search predicate above, the index computed will constitute the beginning
-		// of the remote disputes sub-array
+		// of the remote disputes sub-array `[Local, Local, Local, ^Remote, Remote]`.
 		let remote_disputes = disputes.split_off(idx);
 
 		// Accumualated weight of all disputes picked, that passed the checks.
