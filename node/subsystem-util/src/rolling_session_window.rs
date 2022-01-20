@@ -35,7 +35,7 @@ use thiserror::Error;
 
 /// Sessions unavailable in state to cache.
 #[derive(Debug, Clone)]
-pub enum SessionsUnavailableKind {
+pub enum SessionsUnavailableReason {
 	/// Runtime API subsystem was unavailable.
 	RuntimeApiUnavailable(oneshot::Canceled),
 	/// The runtime API itself returned an error.
@@ -59,7 +59,7 @@ pub struct SessionsUnavailableInfo {
 #[derive(Debug, Error, Clone)]
 pub struct SessionsUnavailable {
 	/// The error kind.
-	kind: SessionsUnavailableKind,
+	kind: SessionsUnavailableReason,
 	/// The info about the session window, if any.
 	info: Option<SessionsUnavailableInfo>,
 }
@@ -229,12 +229,12 @@ async fn get_session_index_for_head(
 		Ok(Ok(s)) => Ok(s),
 		Ok(Err(e)) =>
 			return Err(SessionsUnavailable {
-				kind: SessionsUnavailableKind::RuntimeApi(e),
+				kind: SessionsUnavailableReason::RuntimeApi(e),
 				info: None,
 			}),
 		Err(e) =>
 			return Err(SessionsUnavailable {
-				kind: SessionsUnavailableKind::RuntimeApiUnavailable(e),
+				kind: SessionsUnavailableReason::RuntimeApiUnavailable(e),
 				info: None,
 			}),
 	}
@@ -245,7 +245,7 @@ async fn load_all_sessions(
 	block_hash: Hash,
 	start: SessionIndex,
 	end_inclusive: SessionIndex,
-) -> Result<Vec<SessionInfo>, SessionsUnavailableKind> {
+) -> Result<Vec<SessionInfo>, SessionsUnavailableReason> {
 	let mut v = Vec::new();
 	for i in start..=end_inclusive {
 		let (tx, rx) = oneshot::channel();
@@ -257,9 +257,9 @@ async fn load_all_sessions(
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing(i)),
-			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
-			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
+			Ok(Ok(None)) => return Err(SessionsUnavailableReason::Missing(i)),
+			Ok(Err(e)) => return Err(SessionsUnavailableReason::RuntimeApi(e)),
+			Err(canceled) => return Err(SessionsUnavailableReason::RuntimeApiUnavailable(canceled)),
 		};
 
 		v.push(session_info);
