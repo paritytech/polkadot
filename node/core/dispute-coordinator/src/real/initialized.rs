@@ -300,9 +300,8 @@ impl Initialized {
 			}
 
 			// Try to scrape any blocks for which we could not get the current session or did not receive an
-			// active leaves update. Notice the `+1`, that is because `get_block_ancestors()` doesn't
-			// include the head and target block in the response.
-			let target_block = new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS + 1);
+			// active leaves update.
+			let target_block = new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS);
 			let ancestors = OrderingProvider::get_block_ancestors(
 				ctx.sender(),
 				new_leaf.hash,
