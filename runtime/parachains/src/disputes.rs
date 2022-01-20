@@ -16,18 +16,15 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{
-	configuration::{self, HostConfiguration},
-	initializer::SessionChangeNotification,
-	session_info,
-};
+use crate::{configuration, initializer::SessionChangeNotification, session_info};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-use frame_support::{ensure, storage::TransactionOutcome, traits::Get, weights::Weight};
+use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
-	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
+	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
+	DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
 	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -36,7 +33,7 @@ use sp_runtime::{
 	traits::{AppVerify, One, Saturating, Zero},
 	DispatchError, RuntimeDebug, SaturatedConversion,
 };
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_std::{cmp::Ordering, prelude::*};
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -100,24 +97,120 @@ impl PunishValidators for () {
 	fn punish_inconclusive(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
 }
 
+/// Binary discriminator to determine if the expensive signature
+/// checks are necessary.
+#[derive(Clone, Copy)]
+pub enum VerifyDisputeSignatures {
+	/// Yes, verify the signatures.
+	Yes,
+	/// No, skip the signature verification.
+	///
+	/// Only done if there exists an invariant that
+	/// can guaranteed the signature was checked before.
+	Skip,
+}
+
+/// Provide a `Ordering` for the two provided dispute statement sets according to the
+/// following prioritization:
+///  1. Prioritize local disputes over remote disputes
+///  2. Prioritize older disputes over newer disputes
+fn dispute_ordering_compare<T: DisputesHandler<BlockNumber>, BlockNumber: Ord>(
+	a: &DisputeStatementSet,
+	b: &DisputeStatementSet,
+) -> Ordering
+where
+	T: ?Sized,
+{
+	let a_local_block =
+		<T as DisputesHandler<BlockNumber>>::included_state(a.session, a.candidate_hash);
+	let b_local_block =
+		<T as DisputesHandler<BlockNumber>>::included_state(b.session, b.candidate_hash);
+	match (a_local_block, b_local_block) {
+		// Prioritize local disputes over remote disputes.
+		(None, Some(_)) => Ordering::Greater,
+		(Some(_), None) => Ordering::Less,
+		// For local disputes, prioritize those that occur at an earlier height.
+		(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
+		// Prioritize earlier remote disputes using session as rough proxy.
+		(None, None) => {
+			let session_ord = a.session.cmp(&b.session);
+			if session_ord == Ordering::Equal {
+				// sort by hash as last resort, to make below dedup work consistently
+				a.candidate_hash.cmp(&b.candidate_hash)
+			} else {
+				session_ord
+			}
+		},
+	}
+}
+
+use super::paras_inherent::IsSortedBy;
+
 /// Hook into disputes handling.
 ///
 /// Allows decoupling parachains handling from disputes so that it can
 /// potentially be disabled when instantiating a specific runtime.
-pub trait DisputesHandler<BlockNumber> {
+pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Whether the chain is frozen, if the chain is frozen it will not accept
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
 
-	/// Handler for filtering any dispute statements before including them as part
-	/// of inherent data. This can be useful to filter out ancient and duplicate
-	/// dispute statements.
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet);
+	/// Assure sanity
+	fn assure_deduplicated_and_sorted(statement_sets: &MultiDisputeStatementSet) -> Result<(), ()> {
+		if !IsSortedBy::is_sorted_by(
+			statement_sets.as_slice(),
+			dispute_ordering_compare::<Self, BlockNumber>,
+		) {
+			return Err(())
+		}
+		if statement_sets.as_slice().windows(2).any(|sub| sub.get(0) == sub.get(1)) {
+			return Err(())
+		}
+		Ok(())
+	}
+
+	/// Remove dispute statement duplicates and sort the non-duplicates based on
+	/// local (lower indicies) vs remotes (higher indices) and age (older with lower indices).
+	///
+	/// Returns `Ok(())` if no duplicates were present, `Err(())` otherwise.
+	///
+	/// Unsorted data does not change the return value, while the node side
+	/// is generally expected to pass them in sorted.
+	fn deduplicate_and_sort_dispute_data(
+		statement_sets: &mut MultiDisputeStatementSet,
+	) -> Result<(), ()> {
+		// TODO: Consider trade-of to avoid `O(n * log(n))` average lookups of `included_state`
+		// TODO: instead make a single pass and store the values lazily.
+		// TODO: https://github.com/paritytech/polkadot/issues/4527
+		let n = statement_sets.len();
+
+		statement_sets.sort_by(dispute_ordering_compare::<Self, BlockNumber>);
+		statement_sets
+			.dedup_by(|a, b| a.session == b.session && a.candidate_hash == b.candidate_hash);
+
+		// if there were any duplicates, indicate that to the caller.
+		if n == statement_sets.len() {
+			Ok(())
+		} else {
+			Err(())
+		}
+	}
+
+	/// Filter a single dispute statement set.
+	///
+	/// Used in cases where more granular control is required, i.e. when
+	/// accounting for maximum block weight.
+	fn filter_dispute_data(
+		statement_set: DisputeStatementSet,
+		max_spam_slots: u32,
+		post_conclusion_acceptance_period: BlockNumber,
+		verify_sigs: VerifyDisputeSignatures,
+	) -> Option<CheckedDisputeStatementSet>;
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
-	fn provide_multi_dispute_data(
-		statement_sets: MultiDisputeStatementSet,
+	fn process_checked_multi_dispute_data(
+		statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
 
 	/// Note that the given candidate has been included.
@@ -144,17 +237,29 @@ pub trait DisputesHandler<BlockNumber> {
 	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumber>);
 }
 
-impl<BlockNumber> DisputesHandler<BlockNumber> for () {
+impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	fn is_frozen() -> bool {
 		false
 	}
 
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		statement_sets.clear()
+	fn deduplicate_and_sort_dispute_data(
+		statement_sets: &mut MultiDisputeStatementSet,
+	) -> Result<(), ()> {
+		statement_sets.clear();
+		Ok(())
 	}
 
-	fn provide_multi_dispute_data(
-		_statement_sets: MultiDisputeStatementSet,
+	fn filter_dispute_data(
+		_set: DisputeStatementSet,
+		_max_spam_slots: u32,
+		_post_conclusion_acceptance_period: BlockNumber,
+		_verify_sigs: VerifyDisputeSignatures,
+	) -> Option<CheckedDisputeStatementSet> {
+		None
+	}
+
+	fn process_checked_multi_dispute_data(
+		_statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		Ok(Vec::new())
 	}
@@ -186,19 +291,33 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {}
 }
 
-impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
+impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T>
+where
+	T::BlockNumber: Ord,
+{
 	fn is_frozen() -> bool {
 		pallet::Pallet::<T>::is_frozen()
 	}
 
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets)
+	fn filter_dispute_data(
+		set: DisputeStatementSet,
+		max_spam_slots: u32,
+		post_conclusion_acceptance_period: T::BlockNumber,
+		verify_sigs: VerifyDisputeSignatures,
+	) -> Option<CheckedDisputeStatementSet> {
+		pallet::Pallet::<T>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			max_spam_slots,
+			verify_sigs,
+		)
+		.filter_statement_set(set)
 	}
 
-	fn provide_multi_dispute_data(
-		statement_sets: MultiDisputeStatementSet,
+	fn process_checked_multi_dispute_data(
+		statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
-		pallet::Pallet::<T>::provide_multi_dispute_data(statement_sets)
+		pallet::Pallet::<T>::process_checked_multi_dispute_data(statement_sets)
 	}
 
 	fn note_included(
@@ -593,7 +712,7 @@ impl StatementSetFilter {
 	fn filter_statement_set(
 		self,
 		mut statement_set: DisputeStatementSet,
-	) -> Option<DisputeStatementSet> {
+	) -> Option<CheckedDisputeStatementSet> {
 		match self {
 			StatementSetFilter::RemoveAll => None,
 			StatementSetFilter::RemoveIndices(mut indices) => {
@@ -609,7 +728,8 @@ impl StatementSetFilter {
 				if statement_set.statements.is_empty() {
 					None
 				} else {
-					Some(statement_set)
+					// we just checked correctness when filtering.
+					Some(CheckedDisputeStatementSet::unchecked_from_unchecked(statement_set))
 				}
 			},
 		}
@@ -717,33 +837,28 @@ impl<T: Config> Pallet<T> {
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
 	///
+	/// Assumes `statement_sets` were already de-duplicated.
+	///
 	/// # Warning
 	///
 	/// This functions modifies the state when failing. It is expected to be called in inherent,
 	/// and to fail the extrinsic on error. As invalid inherents are not allowed, the dirty state
 	/// is not committed.
-	pub(crate) fn provide_multi_dispute_data(
-		statement_sets: MultiDisputeStatementSet,
+	pub(crate) fn process_checked_multi_dispute_data(
+		statement_sets: CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		let config = <configuration::Pallet<T>>::config();
 
-		// Deduplicate.
-		{
-			let mut targets: Vec<_> =
-				statement_sets.iter().map(|set| (set.candidate_hash.0, set.session)).collect();
-
-			targets.sort();
-
-			let submitted = targets.len();
-			targets.dedup();
-
-			ensure!(submitted == targets.len(), Error::<T>::DuplicateDisputeStatementSets);
-		}
-
 		let mut fresh = Vec::with_capacity(statement_sets.len());
 		for statement_set in statement_sets {
-			let dispute_target = (statement_set.session, statement_set.candidate_hash);
-			if Self::provide_dispute_data(&config, statement_set)? {
+			let dispute_target = {
+				let statement_set: &DisputeStatementSet = statement_set.as_ref();
+				(statement_set.session, statement_set.candidate_hash)
+			};
+			if Self::process_checked_dispute_data(
+				statement_set,
+				config.dispute_post_conclusion_acceptance_period,
+			)? {
 				fresh.push(dispute_target);
 			}
 		}
@@ -751,48 +866,23 @@ impl<T: Config> Pallet<T> {
 		Ok(fresh)
 	}
 
-	/// Removes all duplicate disputes.
-	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		frame_support::storage::with_transaction(|| {
-			let config = <configuration::Pallet<T>>::config();
-
-			let old_statement_sets = sp_std::mem::take(statement_sets);
-
-			// Deduplicate.
-			let dedup_iter = {
-				let mut targets = BTreeSet::new();
-				old_statement_sets.into_iter().filter(move |set| {
-					let target = (set.candidate_hash, set.session);
-					targets.insert(target)
-				})
-			};
-
-			*statement_sets = dedup_iter
-				.filter_map(|set| {
-					let filter = Self::filter_dispute_data(&config, &set);
-
-					filter.filter_statement_set(set)
-				})
-				.collect();
-			TransactionOutcome::Rollback(())
-		})
-	}
-
 	// Given a statement set, this produces a filter to be applied to the statement set.
 	// It either removes the entire dispute statement set or some specific votes from it.
 	//
 	// Votes which are duplicate or already known by the chain are filtered out.
-	// The entire set is removed if the dispute is ancient or concluded.
+	// The entire set is removed if the dispute is both, ancient and concluded.
 	fn filter_dispute_data(
-		config: &HostConfiguration<T::BlockNumber>,
 		set: &DisputeStatementSet,
+		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
+		max_spam_slots: u32,
+		verify_sigs: VerifyDisputeSignatures,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
 		// Dispute statement sets on any dispute which concluded
 		// before this point are to be rejected.
 		let now = <frame_system::Pallet<T>>::block_number();
-		let oldest_accepted = now.saturating_sub(config.dispute_post_conclusion_acceptance_period);
+		let oldest_accepted = now.saturating_sub(post_conclusion_acceptance_period);
 
 		// Load session info to access validators
 		let session_info = match <session_info::Pallet<T>>::session_info(set.session) {
@@ -843,25 +933,28 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				// Check signature after attempting import.
-				//
-				// Since we expect that this filter will be applied to
-				// disputes long after they're concluded, 99% of the time,
-				// the duplicate filter above will catch them before needing
-				// to do a heavy signature check.
-				//
-				// This is only really important until the post-conclusion acceptance threshold
-				// is reached, and then no part of this loop will be hit.
-				if let Err(()) = check_signature(
-					&validator_public,
-					set.candidate_hash,
-					set.session,
-					statement,
-					signature,
-				) {
-					importer.undo(undo);
-					filter.remove_index(i);
-					continue
+				// Avoid checking signatures repeatedly.
+				if let VerifyDisputeSignatures::Yes = verify_sigs {
+					// Check signature after attempting import.
+					//
+					// Since we expect that this filter will be applied to
+					// disputes long after they're concluded, 99% of the time,
+					// the duplicate filter above will catch them before needing
+					// to do a heavy signature check.
+					//
+					// This is only really important until the post-conclusion acceptance threshold
+					// is reached, and then no part of this loop will be hit.
+					if let Err(()) = check_signature(
+						&validator_public,
+						set.candidate_hash,
+						set.session,
+						statement,
+						signature,
+					) {
+						importer.undo(undo);
+						filter.remove_index(i);
+						continue
+					}
 				}
 			}
 
@@ -887,7 +980,7 @@ impl<T: Config> Pallet<T> {
 					.expect("index is in-bounds, as checked above; qed");
 
 				if let SpamSlotChange::Inc = spam_slot_change {
-					if *spam_slot >= config.dispute_max_spam_slots {
+					if *spam_slot >= max_spam_slots {
 						// Find the vote by this validator and filter it out.
 						let first_index_in_set = set
 							.statements
@@ -941,14 +1034,16 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Fails if the dispute data is invalid. Returns a boolean indicating whether the
 	/// dispute is fresh.
-	fn provide_dispute_data(
-		config: &HostConfiguration<T::BlockNumber>,
-		set: DisputeStatementSet,
+	fn process_checked_dispute_data(
+		set: CheckedDisputeStatementSet,
+		dispute_post_conclusion_acceptance_period: T::BlockNumber,
 	) -> Result<bool, DispatchError> {
 		// Dispute statement sets on any dispute which concluded
 		// before this point are to be rejected.
 		let now = <frame_system::Pallet<T>>::block_number();
-		let oldest_accepted = now.saturating_sub(config.dispute_post_conclusion_acceptance_period);
+		let oldest_accepted = now.saturating_sub(dispute_post_conclusion_acceptance_period);
+
+		let set = set.as_ref();
 
 		// Load session info to access validators
 		let session_info = match <session_info::Pallet<T>>::session_info(set.session) {
@@ -980,25 +1075,10 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
-		// Check and import all votes.
+		// Import all votes. They were pre-checked.
 		let summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
-			for (statement, validator_index, signature) in &set.statements {
-				let validator_public = session_info
-					.validators
-					.get(validator_index.0 as usize)
-					.ok_or(Error::<T>::ValidatorIndexOutOfBounds)?;
-
-				// Check signature before importing.
-				check_signature(
-					&validator_public,
-					set.candidate_hash,
-					set.session,
-					statement,
-					signature,
-				)
-				.map_err(|()| Error::<T>::InvalidSignature)?;
-
+			for (statement, validator_index, _signature) in &set.statements {
 				let valid = statement.indicates_validity();
 
 				importer.import(*validator_index, valid).map_err(Error::<T>::from)?;
@@ -1014,48 +1094,23 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::SingleSidedDispute,
 		);
 
-		// Apply spam slot changes. Bail early if too many occupied.
-		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
-		if !is_local {
-			let mut spam_slots: Vec<u32> =
-				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
+		let DisputeStatementSet { session, candidate_hash, .. } = set.clone();
 
-			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
-				let spam_slot = spam_slots
-					.get_mut(validator_index.0 as usize)
-					.expect("index is in-bounds, as checked above; qed");
-
-				match spam_slot_change {
-					SpamSlotChange::Inc => {
-						ensure!(
-							*spam_slot < config.dispute_max_spam_slots,
-							Error::<T>::PotentialSpam,
-						);
-
-						*spam_slot += 1;
-					},
-					SpamSlotChange::Dec => {
-						*spam_slot = spam_slot.saturating_sub(1);
-					},
-				}
-			}
-
-			SpamSlots::<T>::insert(&set.session, spam_slots);
-		}
+		// we can omit spam slot checks, `fn filter_disputes_data` is
+		// always called before calling this `fn`.
 
 		if fresh {
+			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
+
 			Self::deposit_event(Event::DisputeInitiated(
-				set.candidate_hash,
+				candidate_hash,
 				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
 			));
 		}
 
 		{
 			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(
-					set.candidate_hash,
-					DisputeResult::Valid,
-				));
+				Self::deposit_event(Event::DisputeConcluded(candidate_hash, DisputeResult::Valid));
 			}
 
 			// It is possible, although unexpected, for a dispute to conclude twice.
@@ -1064,7 +1119,7 @@ impl<T: Config> Pallet<T> {
 
 			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
 				Self::deposit_event(Event::DisputeConcluded(
-					set.candidate_hash,
+					candidate_hash,
 					DisputeResult::Invalid,
 				));
 			}
@@ -1072,24 +1127,24 @@ impl<T: Config> Pallet<T> {
 
 		// Reward statements.
 		T::RewardValidators::reward_dispute_statement(
-			set.session,
+			session,
 			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
 		);
 
 		// Slash participants on a losing side.
 		{
 			// a valid candidate, according to 2/3. Punish those on the 'against' side.
-			T::PunishValidators::punish_against_valid(set.session, summary.slash_against);
+			T::PunishValidators::punish_against_valid(session, summary.slash_against);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(set.session, summary.slash_for);
+			T::PunishValidators::punish_for_invalid(session, summary.slash_for);
 		}
 
-		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
+		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
 
 		// Freeze if just concluded against some local candidate
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
+			if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
 				Self::revert_and_freeze(revert_to);
 			}
 		}
@@ -1228,17 +1283,42 @@ fn check_signature(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{
-		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
-		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
-		REWARD_VALIDATORS,
+	use crate::{
+		configuration::HostConfiguration,
+		disputes::DisputesHandler,
+		mock::{
+			new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
+			Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
+			REWARD_VALIDATORS,
+		},
 	};
 	use frame_support::{
-		assert_err, assert_noop, assert_ok, assert_storage_noop,
+		assert_err, assert_noop, assert_ok,
 		traits::{OnFinalize, OnInitialize},
 	};
 	use primitives::v1::BlockNumber;
 	use sp_core::{crypto::CryptoType, Pair};
+
+	/// Filtering updates the spam slots, as such update them.
+	fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
+		let config = <configuration::Pallet<Test>>::config();
+		let max_spam_slots = config.dispute_max_spam_slots;
+		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
+
+		stmts
+			.into_iter()
+			.filter_map(|set| {
+				// updates spam slots implicitly
+				let filter = Pallet::<Test>::filter_dispute_data(
+					&set,
+					post_conclusion_acceptance_period,
+					max_spam_slots,
+					VerifyDisputeSignatures::Skip,
+				);
+				filter.filter_statement_set(set)
+			})
+			.collect::<Vec<_>>()
+	}
 
 	// All arguments for `initializer::on_new_session`
 	type NewSession<'a> = (
@@ -1559,11 +1639,13 @@ mod tests {
 				],
 			}];
 
+			let stmts = update_spam_slots(stmts);
+			assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
+				Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 				vec![(9, candidate_hash.clone())],
 			);
-			assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
 
 			// Run to timeout period
 			run_to_block(start + dispute_conclusion_by_time_out_period, |_| None);
@@ -1623,12 +1705,12 @@ mod tests {
 	}
 
 	#[test]
-	fn test_provide_multi_dispute_data_duplicate_error() {
+	fn test_provide_data_duplicate_error() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let candidate_hash_1 = CandidateHash(sp_core::H256::repeat_byte(1));
 			let candidate_hash_2 = CandidateHash(sp_core::H256::repeat_byte(2));
 
-			let stmts = vec![
+			let mut stmts = vec![
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_2,
 					session: 2,
@@ -1646,18 +1728,13 @@ mod tests {
 				},
 			];
 
-			assert_err!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
-				DispatchError::from(Error::<Test>::DuplicateDisputeStatementSets),
-			);
+			assert!(Pallet::<Test>::deduplicate_and_sort_dispute_data(&mut stmts).is_err());
+			assert_eq!(stmts.len(), 2);
 		})
 	}
 
-	// Test:
-	// * wrong signature fails
-	// * signature is checked for correct validator
 	#[test]
-	fn test_provide_multi_dispute_is_checking_signature_correctly() {
+	fn test_provide_multi_dispute_is_providing() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -1709,31 +1786,13 @@ mod tests {
 			}];
 
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
+				Pallet::<Test>::process_checked_multi_dispute_data(
+					stmts
+						.into_iter()
+						.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+						.collect()
+				),
 				vec![(1, candidate_hash.clone())],
-			);
-
-			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-			let stmts = vec![DisputeStatementSet {
-				candidate_hash: candidate_hash.clone(),
-				session: 2,
-				statements: vec![(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-					ValidatorIndex(0),
-					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 2,
-						}
-						.signing_payload(),
-					),
-				)],
-			}];
-
-			assert_noop!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
-				DispatchError::from(Error::<Test>::InvalidSignature),
 			);
 		})
 	}
@@ -1799,7 +1858,13 @@ mod tests {
 					),
 				],
 			}];
-			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts).is_ok());
+			assert!(Pallet::<Test>::process_checked_multi_dispute_data(
+				stmts
+					.into_iter()
+					.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+					.collect()
+			)
+			.is_ok());
 
 			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
 			assert_eq!(Frozen::<Test>::get(), Some(2));
@@ -1869,7 +1934,13 @@ mod tests {
 			}];
 
 			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
-			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts).is_ok());
+			assert!(Pallet::<Test>::process_checked_multi_dispute_data(
+				stmts
+					.into_iter()
+					.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+					.collect()
+			)
+			.is_ok());
 			assert_eq!(Frozen::<Test>::get(), Some(2));
 		});
 	}
@@ -1961,11 +2032,13 @@ mod tests {
 				],
 			}];
 
+			let stmts = update_spam_slots(stmts);
+			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
+
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
+				Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 				vec![(3, candidate_hash.clone())],
 			);
-			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
 
 			// v1 votes for 4 and for 3, v6 votes against 4.
 			let stmts = vec![
@@ -2017,8 +2090,10 @@ mod tests {
 				},
 			];
 
+			let stmts = update_spam_slots(stmts);
+
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
+				Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 				vec![(4, candidate_hash.clone())],
 			);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0])); // Confirmed as no longer spam
@@ -2073,8 +2148,10 @@ mod tests {
 					],
 				},
 			];
+
+			let stmts = update_spam_slots(stmts);
 			assert_ok!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
+				Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 				vec![(5, candidate_hash.clone())],
 			);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
@@ -2116,7 +2193,8 @@ mod tests {
 					)],
 				},
 			];
-			assert_ok!(Pallet::<Test>::provide_multi_dispute_data(stmts), vec![]);
+			let stmts = update_spam_slots(stmts);
+			assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
 			assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 0, 0, 0, 0, 0]));
@@ -2197,7 +2275,8 @@ mod tests {
 					],
 				},
 			];
-			assert_ok!(Pallet::<Test>::provide_multi_dispute_data(stmts), vec![]);
+			let stmts = update_spam_slots(stmts);
+			assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
 
 			assert_eq!(
 				Pallet::<Test>::disputes(),
@@ -2797,6 +2876,139 @@ mod tests {
 	}
 
 	#[test]
+	fn deduplication_and_sorting_works() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(3, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![
+						(&0, v0.public()),
+						(&1, v1.public()),
+						(&2, v2.public()),
+						(&3, v3.public()),
+					],
+					Some(vec![
+						(&0, v0.public()),
+						(&1, v1.public()),
+						(&2, v2.public()),
+						(&3, v3.public()),
+					]),
+				))
+			});
+
+			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(2));
+			let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(3));
+
+			let create_explicit_statement = |vidx: ValidatorIndex,
+			                                 validator: &<ValidatorId as CryptoType>::Pair,
+			                                 c_hash: &CandidateHash,
+			                                 valid,
+			                                 session| {
+				let payload =
+					ExplicitDisputeStatement { valid, candidate_hash: c_hash.clone(), session }
+						.signing_payload();
+				let sig = validator.sign(&payload);
+				(DisputeStatement::Valid(ValidDisputeStatementKind::Explicit), vidx, sig.clone())
+			};
+
+			let explicit_triple_a =
+				create_explicit_statement(ValidatorIndex(0), &v0, &candidate_hash_a, true, 1);
+			let explicit_triple_a_bad =
+				create_explicit_statement(ValidatorIndex(1), &v1, &candidate_hash_a, false, 1);
+
+			let explicit_triple_b =
+				create_explicit_statement(ValidatorIndex(0), &v0, &candidate_hash_b, true, 2);
+			let explicit_triple_b_bad =
+				create_explicit_statement(ValidatorIndex(1), &v1, &candidate_hash_b, false, 2);
+
+			let explicit_triple_c =
+				create_explicit_statement(ValidatorIndex(0), &v0, &candidate_hash_c, true, 2);
+			let explicit_triple_c_bad =
+				create_explicit_statement(ValidatorIndex(1), &v1, &candidate_hash_c, false, 2);
+
+			let mut disputes = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_b.clone(),
+					session: 2,
+					statements: vec![explicit_triple_b.clone(), explicit_triple_b_bad.clone()],
+				},
+				// same session as above
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_c.clone(),
+					session: 2,
+					statements: vec![explicit_triple_c, explicit_triple_c_bad],
+				},
+				// the duplicate set
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_b.clone(),
+					session: 2,
+					statements: vec![explicit_triple_b.clone(), explicit_triple_b_bad.clone()],
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: vec![explicit_triple_a, explicit_triple_a_bad],
+				},
+			];
+
+			let disputes_orig = disputes.clone();
+
+			<Pallet<Test> as DisputesHandler<
+					<Test as frame_system::Config>::BlockNumber,
+				>>::deduplicate_and_sort_dispute_data(&mut disputes).unwrap_err();
+
+			use core::cmp::Ordering;
+
+			assert_eq!(disputes_orig.len(), disputes.len() + 1);
+
+			// assert ordering of local only disputes
+			disputes.windows(2).for_each(|window| {
+				let a = window[0].clone();
+				let b = window[1].clone();
+				// we only have local disputes here, so sorting of those adheres to the
+				// simplified sorting logic
+				let session_cmp = a.session.cmp(&b.session);
+				let cmp = if session_cmp == Ordering::Equal {
+					b.candidate_hash.cmp(&b.candidate_hash)
+				} else {
+					session_cmp
+				};
+				assert_ne!(cmp, Ordering::Greater);
+			});
+		})
+	}
+
+	fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
+		sets: I,
+	) -> Vec<CheckedDisputeStatementSet> {
+		let config = <configuration::Pallet<T>>::config();
+		let max_spam_slots = config.dispute_max_spam_slots;
+		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
+
+		let mut acc = Vec::<CheckedDisputeStatementSet>::new();
+		for dispute_statement in sets {
+			if let Some(checked) =
+				<Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
+					dispute_statement,
+					max_spam_slots,
+					post_conclusion_acceptance_period,
+					VerifyDisputeSignatures::Yes,
+				) {
+				acc.push(checked);
+			}
+		}
+		acc
+	}
+
+	#[test]
 	fn filter_removes_duplicates_within_set() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -2833,7 +3045,7 @@ mod tests {
 			let sig_c = v0.sign(&payload);
 			let sig_d = v1.sign(&payload_against);
 
-			let mut statements = vec![DisputeStatementSet {
+			let statements = DisputeStatementSet {
 				candidate_hash: candidate_hash.clone(),
 				session: 1,
 				statements: vec![
@@ -2858,13 +3070,22 @@ mod tests {
 						sig_d.clone(),
 					),
 				],
-			}];
+			};
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let max_spam_slots = 10;
+			let post_conclusion_acceptance_period = 10;
+			let statements = <Pallet<Test> as DisputesHandler<
+				<Test as frame_system::Config>::BlockNumber,
+			>>::filter_dispute_data(
+				statements,
+				max_spam_slots,
+				post_conclusion_acceptance_period,
+				VerifyDisputeSignatures::Yes,
+			);
 
 			assert_eq!(
 				statements,
-				vec![DisputeStatementSet {
+				Some(CheckedDisputeStatementSet::unchecked_from_unchecked(DisputeStatementSet {
 					candidate_hash: candidate_hash.clone(),
 					session: 1,
 					statements: vec![
@@ -2879,8 +3100,8 @@ mod tests {
 							sig_d,
 						),
 					]
-				}]
-			)
+				}))
+			);
 		})
 	}
 
@@ -2925,7 +3146,7 @@ mod tests {
 			let sig_0 = v0.sign(&payload_a);
 			let sig_1 = v1.sign(&payload_a_bad);
 
-			let mut statements = vec![DisputeStatementSet {
+			let statements = vec![DisputeStatementSet {
 				candidate_hash: candidate_hash_a.clone(),
 				session: 1,
 				statements: vec![
@@ -2942,7 +3163,7 @@ mod tests {
 				],
 			}];
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let statements = apply_filter_all::<Test, _>(statements);
 
 			assert!(statements.is_empty());
 		})
@@ -3023,7 +3244,7 @@ mod tests {
 			let sig_2b = v2.sign(&payload_b_bad);
 			let sig_2c = v2.sign(&payload_c_bad);
 
-			let mut statements = vec![
+			let statements = vec![
 				// validators 0 and 2 get 1 spam slot from this.
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
@@ -3082,8 +3303,12 @@ mod tests {
 				},
 			];
 
-			let old_statements = statements.clone();
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let old_statements = statements
+				.clone()
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect::<Vec<_>>();
+			let statements = apply_filter_all::<Test, _>(statements);
 
 			assert_eq!(statements, old_statements);
 		})
@@ -3110,7 +3335,7 @@ mod tests {
 
 			let sig_a = v0.sign(&payload);
 
-			let mut statements = vec![DisputeStatementSet {
+			let statements = vec![DisputeStatementSet {
 				candidate_hash: candidate_hash.clone(),
 				session: 100,
 				statements: vec![(
@@ -3120,7 +3345,7 @@ mod tests {
 				)],
 			}];
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let statements = apply_filter_all::<Test, _>(statements);
 
 			assert!(statements.is_empty());
 		})
@@ -3191,7 +3416,7 @@ mod tests {
 			let sig_a = v0.sign(&payload_a);
 			let sig_b = v0.sign(&payload_b);
 
-			let mut statements = vec![
+			let statements = vec![
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
@@ -3212,11 +3437,11 @@ mod tests {
 				},
 			];
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let statements = apply_filter_all::<Test, _>(statements);
 
 			assert_eq!(
 				statements,
-				vec![DisputeStatementSet {
+				vec![CheckedDisputeStatementSet::unchecked_from_unchecked(DisputeStatementSet {
 					candidate_hash: candidate_hash_b.clone(),
 					session: 1,
 					statements: vec![(
@@ -3224,7 +3449,7 @@ mod tests {
 						ValidatorIndex(0),
 						sig_b,
 					),]
-				}]
+				})]
 			);
 		})
 	}
@@ -3302,7 +3527,11 @@ mod tests {
 				},
 			];
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			// `Err(())` indicates presence of duplicates
+			assert!(<Pallet::<Test> as DisputesHandler<
+				<Test as frame_system::Config>::BlockNumber,
+			>>::deduplicate_and_sort_dispute_data(&mut statements)
+			.is_err());
 
 			assert_eq!(
 				statements,
@@ -3347,7 +3576,7 @@ mod tests {
 
 			let sig_a = v0.sign(&payload);
 
-			let mut statements = vec![DisputeStatementSet {
+			let statements = vec![DisputeStatementSet {
 				candidate_hash: candidate_hash_a.clone(),
 				session: 1,
 				statements: vec![(
@@ -3357,7 +3586,7 @@ mod tests {
 				)],
 			}];
 
-			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
+			let statements = apply_filter_all::<Test, _>(statements);
 
 			assert!(statements.is_empty());
 		})
@@ -3394,10 +3623,8 @@ mod tests {
 				)],
 			}];
 
-			assert_err!(
-				Pallet::<Test>::provide_multi_dispute_data(statements),
-				DispatchError::from(Error::<Test>::SingleSidedDispute),
-			);
+			let statements = apply_filter_all::<Test, _>(statements);
+			assert!(statements.is_empty());
 		})
 	}
 }
