@@ -27,7 +27,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.1.4"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.3"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
@@ -646,6 +646,42 @@ zombienet-tests-parachains-smoke-test:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-smoke-test.feature"
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
+zombienet-test-parachains-upgrade-smoke-test:
+  stage:                           deploy
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  needs:
+    - job:                         publish-polkadot-image
+    - job:                         publish-malus-image
+    - job:                         publish-adder-collator-image
+
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains'
+
+  before_script:
+    - echo "ZombieNet Tests Config"
+    - echo "docker.io/parity/polkadot:latest"
+    - echo "docker.io/parity/polkadot-collator:latest"
+    - echo "${ZOMBIENET_IMAGE}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
+    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
+
+  script:
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0002-parachains-upgrade-smoke-test.feature"
   allow_failure:                   true
   retry: 2
   tags:
