@@ -113,7 +113,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
-	type PalletInstancesInfo = ();
+	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 

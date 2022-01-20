@@ -21,9 +21,10 @@ use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{
-	latest::{prelude::*, MultiAssets},
+	latest::{prelude::*, MaybeErrorCode, MultiAssets},
 	DoubleEncoded,
 };
+use xcm_executor::ExecutorError;
 
 benchmarks! {
 	report_holding {
@@ -254,12 +255,10 @@ benchmarks! {
 	} : {
 		_result = executor.execute(xcm);
 	} verify {
-		match _result {
-			Err(error) if error.xcm_error == XcmError::Trap(10) => {
-				// This is the success condition
-			},
-			_ => Err("xcm trap did not return the expected error")?
-		};
+		assert!(matches!(_result, Err(ExecutorError {
+			xcm_error: XcmError::Trap(10),
+			..
+		})));
 	}
 
 	subscribe_version {
@@ -306,11 +305,139 @@ benchmarks! {
 		executor.holding = holding.into();
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
-	}:{
+	}: {
 		executor.execute(xcm)?;
 	} verify {
 		// The execute completing successfully is as good as we can check.
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	burn_asset {
+		let holding = T::worst_case_holding(0);
+		let assets = holding.clone();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.holding = holding.into();
+
+		let instruction = Instruction::BurnAsset(assets.into());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		assert!(executor.holding.is_empty());
+	}
+
+	expect_asset {
+		let holding = T::worst_case_holding(0);
+		let assets = holding.clone();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.holding = holding.into();
+
+		let instruction = Instruction::ExpectAsset(assets.into());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// `execute` completing successfully is as good as we can check.
+	}
+
+	expect_origin {
+		let expected_origin = Parent.into();
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::ExpectOrigin(Some(expected_origin));
+		let xcm = Xcm(vec![instruction]);
+		let mut _result = Ok(());
+	}: {
+		_result = executor.execute(xcm);
+	} verify {
+		assert!(matches!(_result, Err(ExecutorError {
+			xcm_error: XcmError::ExpectationFalse,
+			..
+		})));
+	}
+
+	expect_error {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.error = Some((3u32, XcmError::Overflow));
+
+		let instruction = Instruction::ExpectError(None);
+		let xcm = Xcm(vec![instruction]);
+		let mut _result = Ok(());
+	}: {
+		_result = executor.execute(xcm);
+	} verify {
+		assert!(matches!(_result, Err(ExecutorError {
+			xcm_error: XcmError::ExpectationFalse,
+			..
+		})));
+	}
+
+	query_pallet {
+		let query_id = Default::default();
+		let destination = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let max_weight = Default::default();
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::QueryPallet {
+			module_name: b"frame_system".to_vec(),
+			response_info: QueryResponseInfo { destination, query_id, max_weight },
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	expect_pallet {
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::ExpectPallet {
+			index: 0,
+			name: b"System".to_vec(),
+			module_name: b"frame_system".to_vec(),
+			crate_major: 4,
+			min_crate_minor: 0,
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// the execution succeeding is all we need to verify this xcm was successful
+	}
+
+	report_transact_status {
+		let query_id = Default::default();
+		let destination = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let max_weight = Default::default();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+
+		let instruction = Instruction::ReportTransactStatus(QueryResponseInfo {
+			query_id,
+			destination,
+			max_weight,
+		});
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	clear_transact_status {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+
+		let instruction = Instruction::ClearTransactStatus;
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.transact_status, MaybeErrorCode::Success);
 	}
 
 	impl_benchmark_test_suite!(
