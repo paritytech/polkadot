@@ -1245,9 +1245,9 @@ fn limit_and_sanitize_disputes<
 			.binary_search_by(|probe| {
 				if T::DisputesHandler::included_state(probe.session, probe.candidate_hash).is_some()
 				{
-					Ordering::Greater
-				} else {
 					Ordering::Less
+				} else {
+					Ordering::Greater
 				}
 			})
 			// The above predicate will never find an item and therefore we are guaranteed to obtain
