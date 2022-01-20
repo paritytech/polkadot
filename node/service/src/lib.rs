@@ -1099,6 +1099,7 @@ where
 			backend: backend.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
+			sync_oracle: network.clone(),
 			signed_commitment_sender: beefy_links.0,
 			beefy_best_block_sender: beefy_links.1,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
@@ -1106,7 +1107,7 @@ where
 			protocol_name: beefy_protocol_name,
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
+		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.

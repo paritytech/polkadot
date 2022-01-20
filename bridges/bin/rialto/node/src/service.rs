@@ -691,6 +691,7 @@ where
 		backend: backend.clone(),
 		key_store: keystore_opt.clone(),
 		network: network.clone(),
+		sync_oracle: network.clone(),
 		signed_commitment_sender,
 		min_block_delta: 2,
 		prometheus_registry: prometheus_registry.clone(),
@@ -700,7 +701,7 @@ where
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"beefy-gadget",
 		None,
-		beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params),
+		beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params),
 	);
 
 	let config = sc_finality_grandpa::Config {
