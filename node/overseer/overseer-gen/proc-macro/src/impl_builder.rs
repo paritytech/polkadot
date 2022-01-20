@@ -498,17 +498,19 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		#( #builder_subsystem_setters )*
 
-		impl<S, #( #struct_common_generics, )*> #builder<S, #( #all_init_generics, )*>
-		#builder_where_clause {
+		impl<S, #( #builder_common_generics, )*> #builder<S, #( #builder_common_generics, )*>
+			where S: #support_crate ::SpawnNamed + Send
+		{
 			/// The spawner to use for spawning tasks.
 			pub fn spawner(mut self, spawner: S) -> Self
-			where
-				S: #support_crate ::SpawnNamed + Send
 			{
 				self.spawner = Some(spawner);
 				self
 			}
+		}
 
+		impl<S, #( #struct_common_generics, )*> #builder<S, #( #all_init_generics, )*>
+			#builder_where_clause {
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
 				-> ::std::result::Result<(#overseer_name<S>, #handle), #error_ty> {
