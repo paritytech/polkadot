@@ -68,7 +68,7 @@ use super::{
 	OverlayedBackend,
 };
 
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 20;
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 40;
 const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 20;
 
 /// After the first active leaves update we transition to `Initialized` state.
@@ -296,7 +296,13 @@ impl Initialized {
 
 			// Scrape the head if above rolling session update went well.
 			if self.error.is_none() {
-				self.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now).await?;
+				let _ = self.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now).await.map_err(|err| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Skipping scraping block #{}({}) due to error: {}",
+						new_leaf.number, new_leaf.hash, err
+					);
+				});
 			}
 
 			// Try to scrape any blocks for which we could not get the current session or did not receive an
@@ -319,9 +325,16 @@ impl Initialized {
 				Vec::new()
 			});
 
-			// Maybe run these in parallel ?
+			// We could do this in parallel, but we don't want to overindex on the wasm instances
+			// usage.
 			for ancestor in ancestors.iter() {
-				self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await?;
+				let _ = self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await.map_err(|err| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Skipping scraping block {} due to error: {}",
+						*ancestor, err
+					);
+				});
 			}
 		}
 
@@ -381,7 +394,8 @@ impl Initialized {
 		};
 
 		if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
-			// Mark this block as scraped succesfully, still we did not get anything out of this block.
+			// This block is not interesting as it doesnt contain any backing votes or disputes. We'll
+			// mark it here as scraped to prevent further processing.
 			self.last_scraped_blocks.put(new_leaf, ());
 			return Ok(())
 		}
@@ -589,44 +603,49 @@ impl Initialized {
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
 				// Return error if session information is missing.
-				if let Some(subsystem_error) = self.error.clone() {
-					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+				self.ensure_no_errors()?;
+
+				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
+					disputes
 				} else {
-					let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
-					let _ = tx.send(recent_disputes.keys().cloned().collect());
-				}
+					std::collections::BTreeMap::new()
+				};
+				
+				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
-				if let Some(subsystem_error) = self.error.clone() {
-					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+				// Return error if session information is missing.
+				self.ensure_no_errors()?;
+
+				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
+					disputes
 				} else {
-					let recent_disputes =
-						overlay_db.load_recent_disputes()?.unwrap_or_default().into_iter();
-					let _ = tx.send(
-						get_active_with_status(recent_disputes, now).map(|(k, _)| k).collect(),
-					);
-				}
+					std::collections::BTreeMap::new()
+				};
+
+				let _ = tx.send(
+					get_active_with_status(recent_disputes.into_iter(), now).map(|(k, _)| k).collect(),
+				);
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
-				if let Some(subsystem_error) = self.error.clone() {
-					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
-				} else {
-					let mut query_output = Vec::new();
-					for (session_index, candidate_hash) in query.into_iter() {
-						if let Some(v) =
-							overlay_db.load_candidate_votes(session_index, &candidate_hash)?
-						{
-							query_output.push((session_index, candidate_hash, v.into()));
-						} else {
-							tracing::debug!(
-								target: LOG_TARGET,
-								session_index,
-								"No votes found for candidate",
-							);
-						}
+				// Return error if session information is missing.
+				self.ensure_no_errors()?;
+
+				let mut query_output = Vec::new();
+				for (session_index, candidate_hash) in query {
+					if let Some(v) =
+						overlay_db.load_candidate_votes(session_index, &candidate_hash)?
+					{
+						query_output.push((session_index, candidate_hash, v.into()));
+					} else {
+						tracing::debug!(
+							target: LOG_TARGET,
+							session_index,
+							"No votes found for candidate",
+						);
 					}
-					let _ = tx.send(query_output);
 				}
+				let _ = tx.send(query_output);
 			},
 			DisputeCoordinatorMessage::IssueLocalStatement(
 				session,
@@ -651,22 +670,29 @@ impl Initialized {
 				tx,
 			} => {
 				// Return error if session information is missing.
-				if let Some(subsystem_error) = self.error.clone() {
-					return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
-				} else {
-					let undisputed_chain = determine_undisputed_chain(
-						overlay_db,
-						base_number,
-						base_hash,
-						block_descriptions,
-					)?;
+				self.ensure_no_errors()?;
+	
+				let undisputed_chain = determine_undisputed_chain(
+					overlay_db,
+					base_number,
+					base_hash,
+					block_descriptions,
+				)?;
 
-					let _ = tx.send(undisputed_chain);
-				}
+				let _ = tx.send(undisputed_chain);
 			},
 		}
 
 		Ok(Box::new(|| Ok(())))
+	}
+
+	// Helper function for checking subsystem errors in mesasge processing.
+	fn ensure_no_errors(&self) -> Result<()> {
+		if let Some(subsystem_error) = self.error.clone() {
+			return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+		}
+
+		Ok(())
 	}
 
 	async fn handle_import_statements(

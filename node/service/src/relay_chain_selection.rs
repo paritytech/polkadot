@@ -536,7 +536,7 @@ where
 						(lag_disputes, subchain_head)
 					},
 					Err(e) => {
-						tracing::warn!(
+						tracing::error!(
 							target: LOG_TARGET,
 							"Call to `DetermineUndisputedChain` failed: {}",
 							e
