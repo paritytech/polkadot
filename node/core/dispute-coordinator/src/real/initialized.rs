@@ -88,7 +88,7 @@ pub struct Initialized {
 	// This tracks only rolling session window failures.
 	// It can be a `Vec` if the need to track more arises.
 	error: Option<SessionsUnavailable>,
-	/// Latest relay blocks that have been succesfully scraped.
+	/// Latest relay blocks that have been successfully scraped.
 	last_scraped_blocks: LruCache<Hash, ()>,
 }
 
