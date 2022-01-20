@@ -21,10 +21,8 @@
 //! to included.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield},
-	scheduler::CoreAssignment,
-	shared, ump,
+	configuration, disputes, dmp, hrmp, paras, paras_inherent::DisputedBitfield,
+	scheduler::CoreAssignment, shared, ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
@@ -58,7 +56,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 
 /// Determines if all checks should be applied or if a subset was already completed
 /// in a code path that will be executed afterwards or was already executed before.
-#[derive(Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub(crate) enum FullCheck {
 	/// Yes, do a full check, skip nothing.
 	Yes,
@@ -214,8 +212,18 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// Validator indices are out of order or contains duplicates.
+		UnsortedOrDuplicateValidatorIndices,
+		/// Dispute statement sets are out of order or contain duplicates.
+		UnsortedOrDuplicateDisputeStatementSet,
+		/// Backed candidates are out of order (core index) or contain duplicates.
+		UnsortedOrDuplicateBackedCandidates,
+		/// A different relay parent was provided compared to the on-chain stored one.
+		UnexpectedRelayParent,
 		/// Availability bitfield has unexpected size.
 		WrongBitfieldSize,
+		/// Bitfield consists of zeros only.
+		BitfieldAllZeros,
 		/// Multiple bitfields submitted by same validator or validators out of order by index.
 		BitfieldDuplicateOrUnordered,
 		/// Validator index out of bounds.
@@ -311,11 +319,12 @@ impl<T: Config> Pallet<T> {
 	/// Extract the freed cores based on cores that became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
-	pub(crate) fn update_pending_availability_and_get_freed_cores<F, const ON_CHAIN_USE: bool>(
+	pub(crate) fn update_pending_availability_and_get_freed_cores<F>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: F,
+		enact_candidate: bool,
 	) -> Vec<(CoreIndex, CandidateHash)>
 	where
 		F: Fn(CoreIndex) -> Option<ParaId>,
@@ -387,7 +396,7 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				if ON_CHAIN_USE {
+				if enact_candidate {
 					let receipt = CommittedCandidateReceipt {
 						descriptor: pending_availability.descriptor,
 						commitments,
@@ -420,29 +429,31 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Vec<(CoreIndex, CandidateHash)> {
+		full_check: FullCheck,
+	) -> Result<Vec<(CoreIndex, CandidateHash)>, crate::inclusion::Error<T>> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T>(
+		let checked_bitfields = crate::paras_inherent::assure_sanity_bitfields::<T>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
 			parent_hash,
 			session_index,
 			&validators[..],
-			FullCheck::Yes,
-		);
+			full_check,
+		)?;
 
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
+		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_>(
 			expected_bits,
 			&validators[..],
 			checked_bitfields,
 			core_lookup,
+			true,
 		);
 
-		freed_cores
+		Ok(freed_cores)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates

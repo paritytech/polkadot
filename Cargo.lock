@@ -6991,6 +6991,7 @@ dependencies = [
 name = "polkadot-runtime-parachains"
 version = "0.9.13"
 dependencies = [
+ "assert_matches",
  "bitflags",
  "bitvec",
  "derive_more",
@@ -7030,6 +7031,7 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-tracing",
+ "thousands",
  "xcm",
  "xcm-executor",
 ]
@@ -10692,6 +10694,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "thousands"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf63baf9f5039dadc247375c29eb13706706cfde997d0330d05aa63a77d8820"
 
 [[package]]
 name = "thread_local"
