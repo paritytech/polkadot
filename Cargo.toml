@@ -9,6 +9,7 @@ license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+rust-version = "1.57.0" # custom profiles
 readme = "README.md"
 
 [dependencies]
@@ -20,6 +21,9 @@ parity-util-mem = { version = "*", default-features = false, features = ["jemall
 assert_cmd = "2.0.2"
 nix = "0.23.1"
 tempfile = "3.2.0"
+tokio = "1.15.0"
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+node-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [workspace]
 members = [
@@ -30,12 +34,18 @@ members = [
 	"primitives/test-helpers",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
+	"runtime/metrics",
 	"runtime/parachains",
 	"runtime/polkadot",
+	"runtime/polkadot/constants",
 	"runtime/kusama",
+	"runtime/kusama/constants",
 	"runtime/rococo",
+	"runtime/rococo/constants",
 	"runtime/westend",
+	"runtime/westend/constants",
 	"runtime/test-runtime",
+	"runtime/test-runtime/constants",
 	"statement-table",
 	"xcm",
 	"xcm/xcm-builder",
@@ -60,6 +70,7 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
+	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
 	"node/network/bridge",
@@ -87,12 +98,13 @@ members = [
 	"node/test/client",
 	"node/test/performance-test",
 	"node/test/service",
-	"node/test/polkadot-simnet/common",
-	"node/test/polkadot-simnet/node",
-	"node/test/polkadot-simnet/test",
+	"node/zombienet-backchannel",
+	"rpc",
+	"parachain",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
+	"parachain/test-parachains/halt",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
@@ -114,11 +126,21 @@ opt-level = 3
 # Polkadot runtime requires unwinding.
 panic = "unwind"
 
+[profile.production]
+inherits = "release"
+lto = true
+
+[profile.testnet]
+inherits = "release"
+debug = 1 # debug symbols are useful for profilers
+debug-assertions = true
+overflow-checks = true
+
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
+fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
-
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
@@ -149,7 +171,6 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
-
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"

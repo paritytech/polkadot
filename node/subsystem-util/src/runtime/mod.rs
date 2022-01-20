@@ -26,10 +26,13 @@ use sp_core::crypto::ByteArray;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
-use polkadot_primitives::v1::{
-	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
-	SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
+		SessionIndex, Signed, SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash,
+		ValidatorId, ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 
 use crate::{

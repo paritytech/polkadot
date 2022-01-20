@@ -20,7 +20,10 @@
 //! care about the state of particular blocks.
 
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::{
+	v1::{Hash, SessionIndex},
+	v2::SessionInfo,
+};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -37,8 +40,8 @@ pub enum SessionsUnavailableKind {
 	RuntimeApiUnavailable(oneshot::Canceled),
 	/// The runtime API itself returned an error.
 	RuntimeApi(RuntimeApiError),
-	/// Missing session info from runtime API.
-	Missing,
+	/// Missing session info from runtime API for given `SessionIndex`.
+	Missing(SessionIndex),
 }
 
 /// Information about the sessions being fetched.
@@ -254,7 +257,7 @@ async fn load_all_sessions(
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing),
+			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing(i)),
 			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
 			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
 		};
@@ -288,6 +291,9 @@ mod tests {
 			n_delay_tranches: index as _,
 			no_show_slots: index as _,
 			needed_approvals: index as _,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 

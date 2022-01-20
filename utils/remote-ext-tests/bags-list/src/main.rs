@@ -40,7 +40,7 @@ arg_enum! {
 
 #[derive(StructOpt)]
 struct Cli {
-	#[structopt(long, short, default_value = "wss://kusama-rpc.polkadot.io")]
+	#[structopt(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
 	uri: String,
 	#[structopt(long, short, case_insensitive = true, possible_values = &Runtime::variants(), default_value = "kusama")]
 	runtime: Runtime,
