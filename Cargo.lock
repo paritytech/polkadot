@@ -6718,6 +6718,7 @@ dependencies = [
 name = "polkadot-overseer-gen-proc-macro"
 version = "0.9.13"
 dependencies = [
+ "Inflector",
  "assert_matches",
  "proc-macro-crate 1.1.0",
  "proc-macro2",
