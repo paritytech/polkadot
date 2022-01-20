@@ -97,7 +97,7 @@ mod weights;
 mod bag_thresholds;
 
 // XCM configurations.
-mod xcm_config;
+pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
