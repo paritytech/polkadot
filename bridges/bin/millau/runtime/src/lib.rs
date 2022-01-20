@@ -658,6 +658,10 @@ impl_runtime_apis! {
 		fn validator_set() -> ValidatorSet<BeefyId> {
 			Beefy::validator_set()
 		}
+
+		fn mmr_root() -> Option<MmrHash> {
+			Some(Mmr::mmr_root_hash())
+		}
 	}
 
 	impl pallet_mmr_primitives::MmrApi<Block, MmrHash> for Runtime {

@@ -1360,6 +1360,10 @@ sp_api::impl_runtime_apis! {
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			Beefy::validator_set()
 		}
+
+		fn mmr_root() -> Option<<Keccak256 as sp_runtime::traits::Hash>::Output> {
+			Some(Mmr::mmr_root_hash())
+		}
 	}
 
 	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {

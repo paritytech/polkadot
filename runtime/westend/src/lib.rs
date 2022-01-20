@@ -69,7 +69,7 @@ use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify,
+		Keccak256, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
@@ -1287,6 +1287,10 @@ sp_api::impl_runtime_apis! {
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
+			None
+		}
+
+		fn mmr_root() -> Option<<Keccak256 as sp_runtime::traits::Hash>::Output> {
 			None
 		}
 	}
