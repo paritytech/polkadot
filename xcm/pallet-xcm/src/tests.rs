@@ -172,6 +172,30 @@ fn custom_querier_works() {
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
+		// Supplying no querier when one is expected will fail
+		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
+			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+			Xcm(vec![QueryResponse {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+				max_weight: 0,
+				querier: None,
+			}]),
+			1_000_000_000,
+			1_000,
+		);
+		assert_eq!(r, Outcome::Complete(1_000));
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::InvalidQuerier(
+				AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+				0,
+				querier.clone(),
+				None,
+			)),
+		);
+
+		// Supplying the wrong querier will also fail
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
 			Xcm(vec![QueryResponse {
@@ -194,6 +218,7 @@ fn custom_querier_works() {
 			)),
 		);
 
+		// Multiple failures should not have changed the query state
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
 			Xcm(vec![QueryResponse {
