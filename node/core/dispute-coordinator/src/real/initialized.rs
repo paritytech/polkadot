@@ -258,7 +258,11 @@ impl Initialized {
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
-			match self.rolling_session_window.cache_session_info_for_head(ctx, new_leaf.hash).await {
+			match self
+				.rolling_session_window
+				.cache_session_info_for_head(ctx, new_leaf.hash)
+				.await
+			{
 				Err(e) => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -294,27 +298,32 @@ impl Initialized {
 			if self.error.is_none() {
 				self.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now).await?;
 			}
-			
+
 			// Try to scrape any blocks for which we could not get the current session or did not receive an
 			// active leaves update. Notice the `+1`, that is because `get_block_ancestors()` doesn't
 			// include the head and target block in the response.
 			let target_block = new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS + 1);
-			let ancestors = OrderingProvider::get_block_ancestors(ctx.sender(), new_leaf.hash, new_leaf.number, target_block, &mut self.last_scraped_blocks)
-				.await
-				.unwrap_or_else(|err| {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Skipping leaf ancestors scraping due to error: {}",
-						err
-					);
-					Vec::new()
-				});
+			let ancestors = OrderingProvider::get_block_ancestors(
+				ctx.sender(),
+				new_leaf.hash,
+				new_leaf.number,
+				target_block,
+				&mut self.last_scraped_blocks,
+			)
+			.await
+			.unwrap_or_else(|err| {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Skipping leaf ancestors scraping due to error: {}",
+					err
+				);
+				Vec::new()
+			});
 
 			// Maybe run these in parallel ?
 			for ancestor in ancestors.iter() {
 				self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await?;
 			}
-
 		}
 
 		Ok(())

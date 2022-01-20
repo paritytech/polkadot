@@ -186,18 +186,24 @@ impl OrderingProvider {
 		if let Some(activated) = update.activated.as_ref() {
 			// Fetch ancestors of the activated leaf.
 			let finalized_block_number = get_finalized_block_number(sender).await?;
-			
-			let ancestors = Self::get_block_ancestors(sender, activated.hash, activated.number, finalized_block_number, &mut self.last_observed_blocks)
-				.await
-				.unwrap_or_else(|err| {
-					tracing::debug!(
-						target: LOG_TARGET,
-						activated_leaf = ?activated,
-						"Skipping leaf ancestors due to an error: {}",
-						err
-					);
-					Vec::new()
-				});
+
+			let ancestors = Self::get_block_ancestors(
+				sender,
+				activated.hash,
+				activated.number,
+				finalized_block_number,
+				&mut self.last_observed_blocks,
+			)
+			.await
+			.unwrap_or_else(|err| {
+				tracing::debug!(
+					target: LOG_TARGET,
+					activated_leaf = ?activated,
+					"Skipping leaf ancestors due to an error: {}",
+					err
+				);
+				Vec::new()
+			});
 			// Ancestors block numbers are consecutive in the descending order.
 			let earliest_block_number = activated.number - ancestors.len() as u32;
 			let block_numbers = (earliest_block_number..=activated.number).rev();
@@ -254,7 +260,7 @@ impl OrderingProvider {
 		mut head: Hash,
 		mut head_number: BlockNumber,
 		target_ancestor: BlockNumber,
-		lookup_cache: &mut LruCache<Hash, ()>
+		lookup_cache: &mut LruCache<Hash, ()>,
 	) -> Result<Vec<Hash>> {
 		let mut ancestors = Vec::new();
 
