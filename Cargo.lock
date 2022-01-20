@@ -11942,6 +11942,7 @@ version = "0.9.13"
 dependencies = [
  "frame-support",
  "frame-system",
+ "impl-trait-for-tuples",
  "log",
  "pallet-balances",
  "pallet-transaction-payment",
