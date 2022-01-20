@@ -551,7 +551,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
-	type WeightInfo = ();
+	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
 impl parachains_scheduler::Config for Runtime {}

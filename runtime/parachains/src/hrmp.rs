@@ -50,10 +50,8 @@ pub trait WeightInfo {
 }
 
 /// A weight info that is only suitable for testing.
-#[cfg(feature = "std")]
 pub struct TestWeightInfo;
 
-#[cfg(feature = "std")]
 impl WeightInfo for TestWeightInfo {
 	fn hrmp_accept_open_channel() -> Weight {
 		Weight::MAX
