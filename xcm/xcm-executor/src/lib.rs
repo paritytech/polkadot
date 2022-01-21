@@ -25,8 +25,7 @@ use frame_support::{
 use parity_scale_codec::Encode;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::prelude::*;
-use xcm::latest::{MaybeErrorCode, PalletInfo};
+use xcm::latest::{prelude::*, MaybeErrorCode, PalletInfo};
 
 pub mod traits;
 use traits::{
@@ -570,7 +569,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ReportTransactStatus(response_info) => {
-				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info)?;
+				Self::respond(
+					Response::DispatchResult(self.transact_status.clone()),
+					response_info,
+				)?;
 				Ok(())
 			},
 			ClearTransactStatus => {

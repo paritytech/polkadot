@@ -19,15 +19,17 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
+use parity_scale_codec::Encode;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
-use parity_scale_codec::Encode;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
-use xcm::latest::{opaque, prelude::*};
-use xcm::VersionedXcm;
+use xcm::{
+	latest::{opaque, prelude::*},
+	VersionedXcm,
+};
 use xcm_executor::XcmExecutor;
 
 use xcm_builder::{

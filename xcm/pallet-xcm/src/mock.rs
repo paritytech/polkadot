@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use codec::Encode;
 use frame_support::{construct_runtime, parameter_types, traits::Everything, weights::Weight};
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
@@ -29,7 +30,6 @@ use xcm_builder::{
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
-use codec::Encode;
 
 use crate as pallet_xcm;
 
