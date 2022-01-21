@@ -8,7 +8,10 @@ and any unknown annotations will be passed to that.
 
 ## Usage
 
-`fatality` currently only provides a `trait Fatality` with a single `fn is_fatal(&self) -> bool`.
+`#[fatality]` currently provides a `trait Fatality` with a single `fn is_fatal(&self) -> bool` by default.
+
+Annotating with `#[fatality(splitabl)]` (which disallows usage of `forward` variant annotations), allows to split the type into two sub-types, a `Jfyi*` and a `Fatal*` one via `fn split(self) -> Result<Self::Jfyi, Self::Fatal>`.
+
 
 The derive macro implements them, and can defer calls, based on `thiserror` annotations, specifically
 `#[source]` and `#[transparent]` on `enum` variants and their members.
@@ -39,6 +42,34 @@ enum OhMy {
     #[fatal]
     #[error("So dead")]
     SoDead(#[source] InnerError),
+}
+```
+
+```rust
+#[fatality(splitable)]
+enum Yikes {
+    #[error("An apple a day")]
+    Orange,
+
+    #[fatal]
+    #[error("So dead")]
+    Dead,
+}
+
+fn foo() -> Result<(), Yikes> {
+    Err(Yikes::Dead)
+}
+
+fn i_call_foo() -> Result<(), FatalYikes> {
+    // TODO: not yet implemented
+    let x = foo().fatal_or_log(|jfyi| { log::warn!(..) })?;
+}
+
+fn i_call_foo_too() -> Result<(), FatalYikes> {
+    // implemented
+    if let Err(e) = foo() {
+        log::warn!("Jfyi: {:?}", e.split()?);
+    }
 }
 ```
 
