@@ -59,6 +59,7 @@ pub struct XcmExecutor<Config: config::Config> {
 	pub appendix: Xcm<Config::Call>,
 	pub appendix_weight: u64,
 	pub transact_status: MaybeErrorCode,
+	pub topic: Option<[u8; 32]>,
 	_config: PhantomData<Config>,
 }
 
@@ -177,6 +178,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			appendix: Xcm(vec![]),
 			appendix_weight: 0,
 			transact_status: Default::default(),
+			topic: None,
 			_config: PhantomData,
 		}
 	}
@@ -577,6 +579,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
+				Ok(())
+			},
+			SetTopic(topic) => {
+				self.topic = Some(topic);
+				Ok(())
+			},
+			ClearTopic => {
+				self.topic = None;
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),

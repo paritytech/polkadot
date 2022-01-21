@@ -708,6 +708,22 @@ pub enum Instruction<Call> {
 	///
 	/// Errors: *Infallible*.
 	ClearTransactStatus,
+
+	/// Set the Topic Register.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	SetTopic([u8; 32]),
+
+	/// Clear the Topic Register.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
+	ClearTopic,
 }
 
 impl<Call> Xcm<Call> {
@@ -771,6 +787,8 @@ impl<Call> Instruction<Call> {
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
 			ReportTransactStatus(response_info) => ReportTransactStatus(response_info),
 			ClearTransactStatus => ClearTransactStatus,
+			SetTopic(topic) => SetTopic(topic),
+			ClearTopic => ClearTopic,
 		}
 	}
 }
@@ -826,6 +844,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 				W::expect_pallet(index, name, module_name, crate_major, min_crate_minor),
 			ReportTransactStatus(response_info) => W::report_transact_status(response_info),
 			ClearTransactStatus => W::clear_transact_status(),
+			SetTopic(topic) => W::set_topic(topic),
+			ClearTopic => W::clear_topic(),
 		}
 	}
 }
