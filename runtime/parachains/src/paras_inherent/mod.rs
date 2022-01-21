@@ -97,8 +97,8 @@ impl DisputedBitfield {
 
 /// The maximum amount of relay-parent lookback.
 // TODO [now]: put this in the configuration module or file an issue to discuss
-// doing that. It's probably OK as a constant.
-pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 3;
+// doing that. It's probably OK as a constant for now.
+pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 4;
 
 /// Information about past relay-parents.
 #[derive(Encode, Decode, Default, TypeInfo)]
@@ -137,13 +137,11 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 
 		// if max_len == 0, then latest_number is nonsensical. Otherwise, it's fine.
 
-		// TODO [now]: disallow relay parents from past session?
-		// We don't currently do that. But they would have to be signed with
-		// the validator set of the current session. We have the 'for_child' system
-		// now which makes that fine but only for the last block of the previous session
-		// and no older.
-		//
-		// Disallowing contexts from the previous session means that we would have
+		// We don't disallow relay-parents from previous sessions. But we do
+		// require that blocks be backed by the _current_ assignees of any parachain.
+		// Off-chain, this implies that some degree of 're-backing' is expected, where
+		// a new group of validators assigned to a parachain picks up candidates that were
+		// backed by a previous group, possibly from the previous session.
 	}
 
 	/// Attempt to acquire the state root and block number to be used when building
