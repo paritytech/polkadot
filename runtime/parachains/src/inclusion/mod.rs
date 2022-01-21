@@ -935,6 +935,8 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 	relay_parent_number: T::BlockNumber,
 }
 
+/// An error indicating that creating Persisted Validation Data failed 
+/// while checking a candidate's validity.
 pub(crate) struct FailedToCreatePVD;
 impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
