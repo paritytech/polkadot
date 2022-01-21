@@ -167,4 +167,10 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub(crate) fn clear_transact_status() -> Weight {
 		(5_100_000 as Weight)
 	}
+	pub(crate) fn set_topic() -> Weight {
+		(1_000 as Weight)
+	}
+	pub(crate) fn clear_topic() -> Weight {
+		(1_000 as Weight)
+	}
 }

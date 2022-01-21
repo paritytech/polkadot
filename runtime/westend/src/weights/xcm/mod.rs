@@ -212,4 +212,10 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn clear_transact_status() -> Weight {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
+	fn set_topic(_topic: &[u8; 32]) -> Weight {
+		XcmGeneric::<Runtime>::set_topic()
+	}
+	fn clear_topic() -> Weight {
+	    XcmGeneric::<Runtime>::clear_topic()
+	}
 }
