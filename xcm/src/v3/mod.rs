@@ -791,8 +791,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			WithdrawAsset(assets) => W::withdraw_asset(assets),
 			ReserveAssetDeposited(assets) => W::reserve_asset_deposited(assets),
 			ReceiveTeleportedAsset(assets) => W::receive_teleported_asset(assets),
-			QueryResponse { query_id, response, max_weight, .. } =>
-				W::query_response(query_id, response, max_weight),
+			QueryResponse { query_id, response, max_weight, querier } =>
+				W::query_response(query_id, response, max_weight, querier),
 			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
 			TransferReserveAsset { assets, dest, xcm } =>
 				W::transfer_reserve_asset(&assets, dest, xcm),
