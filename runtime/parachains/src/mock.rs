@@ -236,6 +236,7 @@ impl crate::hrmp::Config for Test {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = pallet_balances::Pallet<Test>;
+	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
 
 impl crate::disputes::Config for Test {
@@ -363,6 +364,7 @@ impl UmpSink for TestUmpSink {
 			let id = sp_io::hashing::blake2_256(actual_msg);
 			return Err((id, weight))
 		}
+
 		PROCESSED.with(|opt_hook| {
 			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
 		});
@@ -395,6 +397,9 @@ impl inclusion::RewardValidators for TestRewardValidators {
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
 	use sp_std::sync::Arc;
+
+	sp_tracing::try_init_simple();
+
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 

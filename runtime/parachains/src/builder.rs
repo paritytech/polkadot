@@ -606,7 +606,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
 				let statements = (0..statements_len)
 					.map(|validator_index| {
-						let validator_public = &validators.get(validator_index as usize).unwrap();
+						let validator_public = &validators.get(validator_index as usize).expect("Test case is not borked. `ValidatorIndex` out of bounds of `ValidatorId`s.");
 
 						// We need dispute statements on each side. And we don't want a revert log
 						// so we make sure that we have a super majority with valid statements.

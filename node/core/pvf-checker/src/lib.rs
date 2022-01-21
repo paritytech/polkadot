@@ -36,22 +36,27 @@ use std::collections::HashSet;
 const LOG_TARGET: &str = "parachain::pvf-checker";
 
 mod interest_view;
+mod metrics;
 mod runtime_api;
 
 #[cfg(test)]
 mod tests;
 
-use self::interest_view::{InterestView, Judgement};
+use self::{
+	interest_view::{InterestView, Judgement},
+	metrics::Metrics,
+};
 
 /// PVF pre-checking subsystem.
 pub struct PvfCheckerSubsystem {
 	enabled: bool,
 	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
 }
 
 impl PvfCheckerSubsystem {
-	pub fn new(enabled: bool, keystore: SyncCryptoStorePtr) -> Self {
-		PvfCheckerSubsystem { enabled, keystore }
+	pub fn new(enabled: bool, keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+		PvfCheckerSubsystem { enabled, keystore, metrics }
 	}
 }
 
@@ -62,7 +67,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {
-			let future = run(ctx, self.keystore)
+			let future = run(ctx, self.keystore, self.metrics)
 				.map_err(|e| SubsystemError::with_origin("pvf-checker", e))
 				.boxed();
 
@@ -118,7 +123,11 @@ struct State {
 		FuturesUnordered<BoxFuture<'static, Option<(PreCheckOutcome, ValidationCodeHash)>>>,
 }
 
-async fn run<Context>(mut ctx: Context, keystore: SyncCryptoStorePtr) -> SubsystemResult<()>
+async fn run<Context>(
+	mut ctx: Context,
+	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
+) -> SubsystemResult<()>
 where
 	Context: SubsystemContext<Message = PvfCheckerMessage>,
 	Context: overseer::SubsystemContext<Message = PvfCheckerMessage>,
@@ -141,6 +150,7 @@ where
 						&mut state,
 						&mut sender,
 						&keystore,
+						&metrics,
 						outcome,
 						validation_code_hash,
 					).await;
@@ -154,6 +164,7 @@ where
 					&mut state,
 					&mut sender,
 					&keystore,
+					&metrics,
 					from_overseer?,
 				)
 				.await;
@@ -170,6 +181,7 @@ async fn handle_pvf_check(
 	state: &mut State,
 	sender: &mut impl SubsystemSender,
 	keystore: &SyncCryptoStorePtr,
+	metrics: &Metrics,
 	outcome: PreCheckOutcome,
 	validation_code_hash: ValidationCodeHash,
 ) {
@@ -218,6 +230,7 @@ async fn handle_pvf_check(
 				keystore,
 				&mut state.voted,
 				credentials,
+				metrics,
 				recent_block.1,
 				session_index,
 				judgement,
@@ -236,6 +249,7 @@ async fn handle_from_overseer(
 	state: &mut State,
 	sender: &mut impl SubsystemSender,
 	keystore: &SyncCryptoStorePtr,
+	metrics: &Metrics,
 	from_overseer: FromOverseer<PvfCheckerMessage>,
 ) -> Option<Conclude> {
 	match from_overseer {
@@ -248,7 +262,7 @@ async fn handle_from_overseer(
 			None
 		},
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-			handle_leaves_update(state, sender, keystore, update).await;
+			handle_leaves_update(state, sender, keystore, metrics, update).await;
 			None
 		},
 		FromOverseer::Communication { msg } => match msg {
@@ -261,6 +275,7 @@ async fn handle_leaves_update(
 	state: &mut State,
 	sender: &mut impl SubsystemSender,
 	keystore: &SyncCryptoStorePtr,
+	metrics: &Metrics,
 	update: ActiveLeavesUpdate,
 ) {
 	if let Some(activated) = update.activated {
@@ -280,11 +295,13 @@ async fn handle_leaves_update(
 		state.recent_block = Some(recent_block);
 
 		// Update the PVF view and get the previously unseen PVFs and start working on them.
-		let newcomers = state
+		let outcome = state
 			.view
 			.on_leaves_update(Some((activated.hash, pending_pvfs)), &update.deactivated);
-		for newcomer in newcomers {
-			initiate_precheck(state, sender, recent_block_hash, newcomer).await;
+		metrics.on_pvf_observed(outcome.newcomers.len());
+		metrics.on_pvf_left(outcome.left_num);
+		for newcomer in outcome.newcomers {
+			initiate_precheck(state, sender, recent_block_hash, newcomer, metrics).await;
 		}
 
 		if let Some((new_session_index, credentials)) = new_session_index {
@@ -305,6 +322,7 @@ async fn handle_leaves_update(
 						keystore,
 						&mut state.voted,
 						credentials,
+						metrics,
 						recent_block_hash,
 						new_session_index,
 						judgement,
@@ -429,6 +447,7 @@ async fn sign_and_submit_pvf_check_statement(
 	keystore: &SyncCryptoStorePtr,
 	voted: &mut HashSet<ValidationCodeHash>,
 	credentials: &SigningCredentials,
+	metrics: &Metrics,
 	relay_parent: Hash,
 	session_index: SessionIndex,
 	judgement: Judgement,
@@ -442,6 +461,8 @@ async fn sign_and_submit_pvf_check_statement(
 		judgement,
 	);
 
+	metrics.on_vote_submission_started();
+
 	if voted.contains(&validation_code_hash) {
 		tracing::trace!(
 			target: LOG_TARGET,
@@ -449,6 +470,7 @@ async fn sign_and_submit_pvf_check_statement(
 			?validation_code_hash,
 			"already voted for this validation code",
 		);
+		metrics.on_vote_duplicate();
 		return
 	}
 
@@ -492,7 +514,9 @@ async fn sign_and_submit_pvf_check_statement(
 	};
 
 	match runtime_api::submit_pvf_check_statement(sender, relay_parent, stmt, signature).await {
-		Ok(()) => (),
+		Ok(()) => {
+			metrics.on_vote_submitted();
+		},
 		Err(e) => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -514,6 +538,7 @@ async fn initiate_precheck(
 	sender: &mut impl SubsystemSender,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
+	metrics: &Metrics,
 ) {
 	tracing::debug!(
 		target: LOG_TARGET,
@@ -528,7 +553,10 @@ async fn initiate_precheck(
 			CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx).into(),
 		)
 		.await;
+
+	let timer = metrics.time_pre_check_judgement();
 	state.currently_checking.push(Box::pin(async move {
+		let _timer = timer;
 		match rx.await {
 			Ok(accept) => Some((accept, validation_code_hash)),
 			Err(oneshot::Canceled) => {
