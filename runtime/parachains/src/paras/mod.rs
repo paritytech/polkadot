@@ -553,7 +553,8 @@ pub mod pallet {
 	/// The context (relay-chain block number) of the most recent parachain head.
 	#[pallet::storage]
 	#[pallet::getter(fn para_most_recent_context)]
-	pub(super) type MostRecentContext<T: Config> = StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
+	pub(super) type MostRecentContext<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
 
 	/// The validation code hash of every live para.
 	///

@@ -22,7 +22,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield, AllowedRelayParentsTracker},
+	paras_inherent::{sanitize_bitfields, AllowedRelayParentsTracker, DisputedBitfield},
 	scheduler::CoreAssignment,
 	shared, ump,
 };
@@ -37,10 +37,7 @@ use primitives::v1::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::DispatchError;
-use sp_std::{
-	collections::btree_set::BTreeSet,
-	prelude::*,
-};
+use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 pub use pallet::*;
 
@@ -513,8 +510,10 @@ impl<T: Config> Pallet<T> {
 				let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
 
 				let check_ctx = CandidateCheckContext::<T>::new(prev_context);
-				let signing_context =
-					SigningContext { parent_hash: relay_parent_hash, session_index: shared::Pallet::<T>::session_index() };
+				let signing_context = SigningContext {
+					parent_hash: relay_parent_hash,
+					session_index: shared::Pallet::<T>::session_index(),
+				};
 
 				let relay_parent_number = if let FullCheck::Yes = full_check {
 					match check_ctx.verify_backed_candidate(
@@ -527,7 +526,7 @@ impl<T: Config> Pallet<T> {
 							// brick the relay-chain. So we return early without
 							// doing anything.
 							return Ok(ProcessedCandidates::default())
-						}
+						},
 						Ok(rpn) => rpn,
 					}
 				} else {
@@ -980,21 +979,19 @@ impl<T: Config> CandidateCheckContext<T> {
 
 		{
 			// this should never fail because the para is registered
-			let persisted_validation_data =
-				match crate::util::make_persisted_validation_data::<T>(
-					para_id,
-					relay_parent_number,
-					relay_parent_storage_root,
-				) {
-					Some(l) => l,
-					None => return Ok(Err(FailedToCreatePVD)),
-				};
+			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+				relay_parent_storage_root,
+			) {
+				Some(l) => l,
+				None => return Ok(Err(FailedToCreatePVD)),
+			};
 
 			let expected = persisted_validation_data.hash();
 
 			ensure!(
-				expected ==
-					backed_candidate.descriptor().persisted_validation_data_hash,
+				expected == backed_candidate.descriptor().persisted_validation_data_hash,
 				Error::<T>::ValidationDataHashMismatch,
 			);
 		}
@@ -1071,7 +1068,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		}
 
 		// check if the candidate passes the messaging acceptance criteria
-		<dmp::Pallet<T>>::check_processed_downward_messages(para_id, relay_parent_number, processed_downward_messages)?;
+		<dmp::Pallet<T>>::check_processed_downward_messages(
+			para_id,
+			relay_parent_number,
+			processed_downward_messages,
+		)?;
 		<ump::Pallet<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
 		<hrmp::Pallet<T>>::check_hrmp_watermark(para_id, relay_parent_number, hrmp_watermark)?;
 		<hrmp::Pallet<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;

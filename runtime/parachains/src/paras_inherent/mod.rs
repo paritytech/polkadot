@@ -26,8 +26,8 @@ use crate::{
 	inclusion,
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
-	paras,
 	metrics::METRICS,
+	paras,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump, ParaId,
 };
@@ -49,7 +49,7 @@ use primitives::v1::{
 use rand::{seq::SliceRandom, SeedableRng};
 
 use scale_info::TypeInfo;
-use sp_runtime::traits::{Header as HeaderT, One, AtLeast32BitUnsigned};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Header as HeaderT, One};
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
@@ -152,13 +152,17 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
 	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent is
 	/// more recent than the previous.
-	pub(crate) fn acquire_info(&self, relay_parent: Hash, prev: Option<BlockNumber>)
-		-> Option<(Hash, BlockNumber)>
-	{
+	pub(crate) fn acquire_info(
+		&self,
+		relay_parent: Hash,
+		prev: Option<BlockNumber>,
+	) -> Option<(Hash, BlockNumber)> {
 		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
 
 		if let Some(prev) = prev {
-			if prev >= self.latest_number { return None }
+			if prev >= self.latest_number {
+				return None
+			}
 		}
 
 		let age = (self.buffer.len() - 1) - pos;
@@ -217,11 +221,7 @@ pub mod pallet {
 	/// All allowed relay-parents.
 	#[pallet::storage]
 	pub(crate) type AllowedRelayParents<T: Config> =
-		StorageValue<
-			_,
-			AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
-			ValueQuery,
-		>;
+		StorageValue<_, AllowedRelayParentsTracker<T::Hash, T::BlockNumber>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -620,9 +620,7 @@ impl<T: Config> Pallet<T> {
 
 		let (mut backed_candidates, mut bitfields) =
 			frame_support::storage::with_transaction(|| {
-				{
-
-				}
+				{}
 
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
