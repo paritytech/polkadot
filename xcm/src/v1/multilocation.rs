@@ -324,6 +324,21 @@ impl MultiLocation {
 		Ok(())
 	}
 
+	/// Consume `self` and return the value representing the same location from the point of view
+	/// of `target`. The context of `self` is provided as `ancestry`.
+	///
+	/// Returns an `Err` with the unmodified `self` in the case of error.
+	pub fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		ancestry: &MultiLocation,
+	) -> Result<Self, Self> {
+		match self.reanchor(target, ancestry) {
+			Ok(()) => Ok(self),
+			Err(()) => Err(self),
+		}
+	}
+
 	/// Mutate `self` so that it represents the same location from the point of view of `target`.
 	/// The context of `self` is provided as `ancestry`.
 	///

@@ -108,6 +108,9 @@ pub enum Error {
 	/// The given operation would lead to an overflow of the Holding Register.
 	#[codec(index = 26)]
 	HoldingWouldOverflow,
+	/// `MultiLocation` value failed to be reanchored.
+	#[codec(index = 27)]
+	ReanchorFailed,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.

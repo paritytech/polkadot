@@ -27,10 +27,16 @@ impl xcm::opaque::latest::SendXcm for DevNull {
 }
 
 impl xcm_executor::traits::OnResponse for DevNull {
-	fn expecting_response(_: &MultiLocation, _: u64) -> bool {
+	fn expecting_response(_: &MultiLocation, _: u64, _: Option<&MultiLocation>) -> bool {
 		false
 	}
-	fn on_response(_: &MultiLocation, _: u64, _: Response, _: Weight) -> Weight {
+	fn on_response(
+		_: &MultiLocation,
+		_: u64,
+		_: Option<&MultiLocation>,
+		_: Response,
+		_: Weight,
+	) -> Weight {
 		0
 	}
 }
