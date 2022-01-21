@@ -345,7 +345,8 @@ impl ActiveParas {
 		sender: &mut impl SubsystemSender,
 		keystore: &SyncCryptoStorePtr,
 		new_relay_parents: impl IntoIterator<Item = Hash>,
-	) {
+	) -> Vec<(Hash, ParaId)> {
+		let mut out = Vec::new();
 		for relay_parent in new_relay_parents {
 			let mv = polkadot_node_subsystem_util::request_validators(relay_parent, sender)
 				.await
@@ -418,11 +419,14 @@ impl ActiveParas {
 						"Assigned to a parachain",
 					);
 				}
+				out.push((relay_parent.clone(), para_now));
 			}
 
 			self.relay_parent_assignments
 				.insert(relay_parent, GroupAssignments { current: para_now });
 		}
+
+		out
 	}
 
 	fn remove_outgoing(&mut self, old_relay_parents: impl IntoIterator<Item = Hash>) {
@@ -964,8 +968,13 @@ where
 		state.span_per_relay_parent.remove(&removed);
 	}
 
-	state.active_paras.assign_incoming(ctx.sender(), keystore, added).await;
+	let out = state.active_paras.assign_incoming(ctx.sender(), keystore, added).await;
 	state.active_paras.remove_outgoing(removed);
+
+	for (relay_parent, para_id) in out.into_iter() {
+		ctx.send_message(CandidateBackingMessage::MaliciousSecond(relay_parent.clone(), para_id))
+			.await;
+	}
 
 	for (peer_id, peer_data) in state.peer_data.iter_mut() {
 		peer_data.prune_old_advertisements(&state.view);
