@@ -332,13 +332,13 @@ impl Initialized {
 
 			// We could do this in parallel, but we don't want to overindex on the wasm instances
 			// usage.
-			for ancestor in ancestors.iter() {
-				let _ = self.scrape_on_chain_votes(ctx, overlay_db, *ancestor, now).await.map_err(
+			for ancestor in ancestors {
+				let _ = self.scrape_on_chain_votes(ctx, overlay_db, ancestor, now).await.map_err(
 					|err| {
 						tracing::warn!(
 							target: LOG_TARGET,
 							"Skipping scraping block {} due to error: {}",
-							*ancestor,
+							ancestor,
 							err
 						);
 					},
