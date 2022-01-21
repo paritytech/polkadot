@@ -226,7 +226,7 @@ frame_benchmarking::benchmarks! {
 		assert_eq!(HrmpChannels::<T>::iter().count() as u32, 0);
 		// borrow this function from the tests to make sure state is clear, given that we do a lot
 		// of out-of-ordinary ops here.
-		crate::hrmp::tests::assert_storage_consistency_exhaustive();
+		Hrmp::<T>::assert_storage_consistency_exhaustive();
 	}
 
 	force_process_hrmp_open {

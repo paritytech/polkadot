@@ -1376,6 +1376,171 @@ impl<T: Config> Pallet<T> {
 			});
 		});
 	}
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn assert_storage_consistency_exhaustive() {
+		fn assert_is_sorted<T: Ord>(slice: &[T], id: &str) {
+			assert!(slice.windows(2).all(|xs| xs[0] <= xs[1]), "{} supposed to be sorted", id);
+		}
+
+		let assert_contains_only_onboarded = |paras: Vec<ParaId>, cause: &str| {
+			for para in paras {
+				assert!(
+					crate::paras::Pallet::<T>::is_valid_para(para),
+					"{}: {:?} para is offboarded",
+					cause,
+					para
+				);
+			}
+		};
+
+		assert_eq!(
+			<Self as Store>::HrmpOpenChannelRequests::iter()
+				.map(|(k, _)| k)
+				.collect::<BTreeSet<_>>(),
+			<Self as Store>::HrmpOpenChannelRequestsList::get()
+				.into_iter()
+				.collect::<BTreeSet<_>>(),
+		);
+
+		// verify that the set of keys in `HrmpOpenChannelRequestCount` corresponds to the set
+		// of _senders_ in `HrmpOpenChannelRequests`.
+		//
+		// having ensured that, we can go ahead and go over all counts and verify that they match.
+		assert_eq!(
+			<Self as Store>::HrmpOpenChannelRequestCount::iter()
+				.map(|(k, _)| k)
+				.collect::<BTreeSet<_>>(),
+			<Self as Store>::HrmpOpenChannelRequests::iter()
+				.map(|(k, _)| k.sender)
+				.collect::<BTreeSet<_>>(),
+		);
+		for (open_channel_initiator, expected_num) in
+			<Self as Store>::HrmpOpenChannelRequestCount::iter()
+		{
+			let actual_num = <Self as Store>::HrmpOpenChannelRequests::iter()
+				.filter(|(ch, _)| ch.sender == open_channel_initiator)
+				.count() as u32;
+			assert_eq!(expected_num, actual_num);
+		}
+
+		// The same as above, but for accepted channel request count. Note that we are interested
+		// only in confirmed open requests.
+		assert_eq!(
+			<Self as Store>::HrmpAcceptedChannelRequestCount::iter()
+				.map(|(k, _)| k)
+				.collect::<BTreeSet<_>>(),
+			<Self as Store>::HrmpOpenChannelRequests::iter()
+				.filter(|(_, v)| v.confirmed)
+				.map(|(k, _)| k.recipient)
+				.collect::<BTreeSet<_>>(),
+		);
+		for (channel_recipient, expected_num) in
+			<Self as Store>::HrmpAcceptedChannelRequestCount::iter()
+		{
+			let actual_num = <Self as Store>::HrmpOpenChannelRequests::iter()
+				.filter(|(ch, v)| ch.recipient == channel_recipient && v.confirmed)
+				.count() as u32;
+			assert_eq!(expected_num, actual_num);
+		}
+
+		assert_eq!(
+			<Self as Store>::HrmpCloseChannelRequests::iter()
+				.map(|(k, _)| k)
+				.collect::<BTreeSet<_>>(),
+			<Self as Store>::HrmpCloseChannelRequestsList::get()
+				.into_iter()
+				.collect::<BTreeSet<_>>(),
+		);
+
+		// A HRMP watermark can be None for an onboarded parachain. However, an offboarded parachain
+		// cannot have an HRMP watermark: it should've been cleanup.
+		assert_contains_only_onboarded(
+			<Self as Store>::HrmpWatermarks::iter().map(|(k, _)| k).collect::<Vec<_>>(),
+			"HRMP watermarks should contain only onboarded paras",
+		);
+
+		// An entry in `HrmpChannels` indicates that the channel is open. Only open channels can
+		// have contents.
+		for (non_empty_channel, contents) in <Self as Store>::HrmpChannelContents::iter() {
+			assert!(<Self as Store>::HrmpChannels::contains_key(&non_empty_channel));
+
+			// pedantic check: there should be no empty vectors in storage, those should be modeled
+			// by a removed kv pair.
+			assert!(!contents.is_empty());
+		}
+
+		// Senders and recipients must be onboarded. Otherwise, all channels associated with them
+		// are removed.
+		assert_contains_only_onboarded(
+			<Self as Store>::HrmpChannels::iter()
+				.flat_map(|(k, _)| vec![k.sender, k.recipient])
+				.collect::<Vec<_>>(),
+			"senders and recipients in all channels should be onboarded",
+		);
+
+		// Check the docs for `HrmpIngressChannelsIndex` and `HrmpEgressChannelsIndex` in decl
+		// storage to get an index what are the channel mappings indexes.
+		//
+		// Here, from indexes.
+		//
+		// ingress         egress
+		//
+		// a -> [x, y]     x -> [a, b]
+		// b -> [x, z]     y -> [a]
+		//                 z -> [b]
+		//
+		// we derive a list of channels they represent.
+		//
+		//   (a, x)         (a, x)
+		//   (a, y)         (a, y)
+		//   (b, x)         (b, x)
+		//   (b, z)         (b, z)
+		//
+		// and then that we compare that to the channel list in the `HrmpChannels`.
+		let channel_set_derived_from_ingress = <Self as Store>::HrmpIngressChannelsIndex::iter()
+			.flat_map(|(p, v)| v.into_iter().map(|i| (i, p)).collect::<Vec<_>>())
+			.collect::<BTreeSet<_>>();
+		let channel_set_derived_from_egress = <Self as Store>::HrmpEgressChannelsIndex::iter()
+			.flat_map(|(p, v)| v.into_iter().map(|e| (p, e)).collect::<Vec<_>>())
+			.collect::<BTreeSet<_>>();
+		let channel_set_ground_truth = <Self as Store>::HrmpChannels::iter()
+			.map(|(k, _)| (k.sender, k.recipient))
+			.collect::<BTreeSet<_>>();
+		assert_eq!(channel_set_derived_from_ingress, channel_set_derived_from_egress);
+		assert_eq!(channel_set_derived_from_egress, channel_set_ground_truth);
+
+		<Self as Store>::HrmpIngressChannelsIndex::iter()
+			.map(|(_, v)| v)
+			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
+		<Self as Store>::HrmpEgressChannelsIndex::iter()
+			.map(|(_, v)| v)
+			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
+
+		assert_contains_only_onboarded(
+			<Self as Store>::HrmpChannelDigests::iter().map(|(k, _)| k).collect::<Vec<_>>(),
+			"HRMP channel digests should contain only onboarded paras",
+		);
+		for (_digest_for_para, digest) in <Self as Store>::HrmpChannelDigests::iter() {
+			// Assert that items are in **strictly** ascending order. The strictness also implies
+			// there are no duplicates.
+			assert!(digest.windows(2).all(|xs| xs[0].0 < xs[1].0));
+
+			for (_, mut senders) in digest {
+				assert!(!senders.is_empty());
+
+				// check for duplicates. For that we sort the vector, then perform deduplication.
+				// if the vector stayed the same, there are no duplicates.
+				senders.sort();
+				let orig_senders = senders.clone();
+				senders.dedup();
+				assert_eq!(
+					orig_senders, senders,
+					"duplicates removed implies existence of duplicates"
+				);
+			}
+		}
+	}
 }
 
 #[cfg(test)]
@@ -1387,7 +1552,7 @@ pub(crate) mod tests {
 	};
 	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 	use primitives::v1::BlockNumber;
-	use std::collections::{BTreeMap, HashSet};
+	use std::collections::BTreeMap;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		let config = Configuration::config();
@@ -1517,167 +1682,10 @@ pub(crate) mod tests {
 		<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
 	}
 
-	pub(crate) fn assert_storage_consistency_exhaustive() {
-		assert_eq!(
-			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
-				.map(|(k, _)| k)
-				.collect::<HashSet<_>>(),
-			<Hrmp as Store>::HrmpOpenChannelRequestsList::get()
-				.into_iter()
-				.collect::<HashSet<_>>(),
-		);
-
-		// verify that the set of keys in `HrmpOpenChannelRequestCount` corresponds to the set
-		// of _senders_ in `HrmpOpenChannelRequests`.
-		//
-		// having ensured that, we can go ahead and go over all counts and verify that they match.
-		assert_eq!(
-			<Hrmp as Store>::HrmpOpenChannelRequestCount::iter()
-				.map(|(k, _)| k)
-				.collect::<HashSet<_>>(),
-			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
-				.map(|(k, _)| k.sender)
-				.collect::<HashSet<_>>(),
-		);
-		for (open_channel_initiator, expected_num) in
-			<Hrmp as Store>::HrmpOpenChannelRequestCount::iter()
-		{
-			let actual_num = <Hrmp as Store>::HrmpOpenChannelRequests::iter()
-				.filter(|(ch, _)| ch.sender == open_channel_initiator)
-				.count() as u32;
-			assert_eq!(expected_num, actual_num);
-		}
-
-		// The same as above, but for accepted channel request count. Note that we are interested
-		// only in confirmed open requests.
-		assert_eq!(
-			<Hrmp as Store>::HrmpAcceptedChannelRequestCount::iter()
-				.map(|(k, _)| k)
-				.collect::<HashSet<_>>(),
-			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
-				.filter(|(_, v)| v.confirmed)
-				.map(|(k, _)| k.recipient)
-				.collect::<HashSet<_>>(),
-		);
-		for (channel_recipient, expected_num) in
-			<Hrmp as Store>::HrmpAcceptedChannelRequestCount::iter()
-		{
-			let actual_num = <Hrmp as Store>::HrmpOpenChannelRequests::iter()
-				.filter(|(ch, v)| ch.recipient == channel_recipient && v.confirmed)
-				.count() as u32;
-			assert_eq!(expected_num, actual_num);
-		}
-
-		assert_eq!(
-			<Hrmp as Store>::HrmpCloseChannelRequests::iter()
-				.map(|(k, _)| k)
-				.collect::<HashSet<_>>(),
-			<Hrmp as Store>::HrmpCloseChannelRequestsList::get()
-				.into_iter()
-				.collect::<HashSet<_>>(),
-		);
-
-		// A HRMP watermark can be None for an onboarded parachain. However, an offboarded parachain
-		// cannot have an HRMP watermark: it should've been cleanup.
-		assert_contains_only_onboarded(
-			<Hrmp as Store>::HrmpWatermarks::iter().map(|(k, _)| k),
-			"HRMP watermarks should contain only onboarded paras",
-		);
-
-		// An entry in `HrmpChannels` indicates that the channel is open. Only open channels can
-		// have contents.
-		for (non_empty_channel, contents) in <Hrmp as Store>::HrmpChannelContents::iter() {
-			assert!(<Hrmp as Store>::HrmpChannels::contains_key(&non_empty_channel));
-
-			// pedantic check: there should be no empty vectors in storage, those should be modeled
-			// by a removed kv pair.
-			assert!(!contents.is_empty());
-		}
-
-		// Senders and recipients must be onboarded. Otherwise, all channels associated with them
-		// are removed.
-		assert_contains_only_onboarded(
-			<Hrmp as Store>::HrmpChannels::iter().flat_map(|(k, _)| vec![k.sender, k.recipient]),
-			"senders and recipients in all channels should be onboarded",
-		);
-
-		// Check the docs for `HrmpIngressChannelsIndex` and `HrmpEgressChannelsIndex` in decl
-		// storage to get an index what are the channel mappings indexes.
-		//
-		// Here, from indexes.
-		//
-		// ingress         egress
-		//
-		// a -> [x, y]     x -> [a, b]
-		// b -> [x, z]     y -> [a]
-		//                 z -> [b]
-		//
-		// we derive a list of channels they represent.
-		//
-		//   (a, x)         (a, x)
-		//   (a, y)         (a, y)
-		//   (b, x)         (b, x)
-		//   (b, z)         (b, z)
-		//
-		// and then that we compare that to the channel list in the `HrmpChannels`.
-		let channel_set_derived_from_ingress = <Hrmp as Store>::HrmpIngressChannelsIndex::iter()
-			.flat_map(|(p, v)| v.into_iter().map(|i| (i, p)).collect::<Vec<_>>())
-			.collect::<HashSet<_>>();
-		let channel_set_derived_from_egress = <Hrmp as Store>::HrmpEgressChannelsIndex::iter()
-			.flat_map(|(p, v)| v.into_iter().map(|e| (p, e)).collect::<Vec<_>>())
-			.collect::<HashSet<_>>();
-		let channel_set_ground_truth = <Hrmp as Store>::HrmpChannels::iter()
-			.map(|(k, _)| (k.sender, k.recipient))
-			.collect::<HashSet<_>>();
-		assert_eq!(channel_set_derived_from_ingress, channel_set_derived_from_egress);
-		assert_eq!(channel_set_derived_from_egress, channel_set_ground_truth);
-
-		<Hrmp as Store>::HrmpIngressChannelsIndex::iter()
-			.map(|(_, v)| v)
-			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
-		<Hrmp as Store>::HrmpEgressChannelsIndex::iter()
-			.map(|(_, v)| v)
-			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
-
-		assert_contains_only_onboarded(
-			<Hrmp as Store>::HrmpChannelDigests::iter().map(|(k, _)| k),
-			"HRMP channel digests should contain only onboarded paras",
-		);
-		for (_digest_for_para, digest) in <Hrmp as Store>::HrmpChannelDigests::iter() {
-			// Assert that items are in **strictly** ascending order. The strictness also implies
-			// there are no duplicates.
-			assert!(digest.windows(2).all(|xs| xs[0].0 < xs[1].0));
-
-			for (_, mut senders) in digest {
-				assert!(!senders.is_empty());
-
-				// check for duplicates. For that we sort the vector, then perform deduplication.
-				// if the vector stayed the same, there are no duplicates.
-				senders.sort();
-				let orig_senders = senders.clone();
-				senders.dedup();
-				assert_eq!(
-					orig_senders, senders,
-					"duplicates removed implies existence of duplicates"
-				);
-			}
-		}
-
-		fn assert_contains_only_onboarded(iter: impl Iterator<Item = ParaId>, cause: &str) {
-			for para in iter {
-				assert!(Paras::is_valid_para(para), "{}: {} para is offboarded", cause, para);
-			}
-		}
-	}
-
-	fn assert_is_sorted<T: Ord>(slice: &[T], id: &str) {
-		assert!(slice.windows(2).all(|xs| xs[0] <= xs[1]), "{} supposed to be sorted", id);
-	}
-
 	#[test]
 	fn empty_state_consistent_state() {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -1695,12 +1703,12 @@ pub(crate) mod tests {
 
 			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 			assert!(System::events().iter().any(|record| record.event ==
 				MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
 
 			Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 			assert!(System::events().iter().any(|record| record.event ==
 				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
 
@@ -1708,7 +1716,7 @@ pub(crate) mod tests {
 			// not been created yet.
 			run_to_block(6, None);
 			assert!(!channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 
 			// Now let the session change happen and thus open the channel.
 			run_to_block(8, Some(vec![8]));
@@ -1738,12 +1746,12 @@ pub(crate) mod tests {
 			let channel_id = HrmpChannelId { sender: para_a, recipient: para_b };
 			Hrmp::hrmp_close_channel(para_b_origin.into(), channel_id.clone()).unwrap();
 			assert!(channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 
 			// After the session change the channel should be closed.
 			run_to_block(8, Some(vec![8]));
 			assert!(!channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 			assert!(System::events().iter().any(|record| record.event ==
 				MockEvent::Hrmp(Event::ChannelClosed(para_b, channel_id.clone()))));
 		});
@@ -1776,14 +1784,14 @@ pub(crate) mod tests {
 			let config = Configuration::config();
 			assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 			let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 
 			// On Block 7:
 			// B receives the message sent by A. B sets the watermark to 6.
 			run_to_block(7, None);
 			assert!(Hrmp::check_hrmp_watermark(para_b, 7, 6).is_ok());
 			let _ = Hrmp::prune_hrmp(para_b, 6);
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -1846,7 +1854,7 @@ pub(crate) mod tests {
 			run_to_block(7, Some(vec![6, 7]));
 			assert!(!Paras::is_valid_para(para_a));
 			assert!(!channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -1905,7 +1913,7 @@ pub(crate) mod tests {
 				],
 			);
 
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -2054,7 +2062,7 @@ pub(crate) mod tests {
 			// The channel should be removed.
 			assert!(!Paras::is_valid_para(para_a));
 			assert!(!channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 100);
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
@@ -2092,7 +2100,7 @@ pub(crate) mod tests {
 			// The outcome we expect is `para_b` should receive the refund.
 			assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
 			assert!(!channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -2121,7 +2129,7 @@ pub(crate) mod tests {
 
 			run_to_block(10, Some(vec![10]));
 			assert!(!channel_exists(para_a, para_b));
-			assert_storage_consistency_exhaustive();
+			Hrmp::assert_storage_consistency_exhaustive();
 		});
 	}
 }
