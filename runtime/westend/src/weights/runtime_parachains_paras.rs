@@ -63,6 +63,13 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+	// Storage: Paras MostRecentContext (r:0 w:1)
+	fn force_set_current_most_recent_context(s: u32, ) -> Weight {
+		(11_803_000 as Weight)
+			// Standard Error: 0
+			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
 	// Storage: Paras FutureCodeHash (r:1 w:1)
 	// Storage: Paras CurrentCodeHash (r:1 w:0)
 	// Storage: Paras UpgradeCooldowns (r:1 w:1)
