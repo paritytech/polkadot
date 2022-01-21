@@ -119,7 +119,7 @@ fn trait_fatality_impl(
 		impl #fatality_trait for #who {
 			fn is_fatal(&self) -> bool {
 				match self {
-					#( #pat => #resolution ),*
+					#( #pat => #resolution, )*
 				}
 			}
 		}
@@ -298,9 +298,10 @@ fn variant_to_pattern(
 }
 
 fn unnamed_fields_variant_pattern_constructor_binding_name(ith: usize) -> Ident {
-	Ident::new(format!("arg_{}", ith), Span::call_site())
+	Ident::new(format!("arg_{}", ith).as_str(), Span::call_site())
 }
 
+#[derive(Hash, Debug)]
 struct VariantPattern(Variant);
 
 impl ToTokens for VariantPattern {
@@ -308,17 +309,17 @@ impl ToTokens for VariantPattern {
 		let variant_name = &self.0.ident;
 		let variant_fields = &self.0.fields;
 		let span = variant_fields.span();
-		let me = PathSegment { ident: Ident::new("Self", span), arguments: PathArguments::None };
 		let path = Path {
 			leading_colon: None,
-			segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![
-				me,
-				variant.ident.clone().into(),
-			]),
+			segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![PathSegment::from(
+				variant_name.clone(),
+			)]),
 		};
 
 		let pattern = match variant_fields {
-			Fields::Unit => Pat::Path(PatPath { attrs: vec![], qself: None, path }),
+			Fields::Unit => Some(Pat::Path(PatPath { attrs: vec![], qself: None, path }))
+				.into_iter()
+				.collect::<Punctuated<Pat, Token![,]>>(),
 			Fields::Unnamed(unnamed) => unnamed
 				.unnamed
 				.iter()
@@ -332,7 +333,7 @@ impl ToTokens for VariantPattern {
 						subpat: None,
 					})
 				})
-				.collect::<Punctuated<Token![,], Pat>>(),
+				.collect::<Punctuated<Pat, Token![,]>>(),
 			Fields::Named(named) => named
 				.named
 				.iter()
@@ -341,17 +342,18 @@ impl ToTokens for VariantPattern {
 						attrs: vec![],
 						by_ref: None,
 						mutability: None,
-						ident: field.ident.expect("Named field has a name. qed"),
+						ident: field.ident.clone().expect("Named field has a name. qed"),
 						subpat: None,
 					})
 				})
-				.collect::<Punctuated<Token![,], Pat>>(),
+				.collect::<Punctuated<Pat, Token![,]>>(),
 		};
-		ts.extend(pattern);
+		ts.extend(pattern.into_token_stream());
 	}
 }
 
 /// Constructs an enum variant.
+#[derive(Hash, Debug)]
 struct VariantConstructor(Variant);
 
 impl ToTokens for VariantConstructor {
@@ -362,8 +364,8 @@ impl ToTokens for VariantConstructor {
 			Fields::Named(named) => named
 				.named
 				.iter()
-				.map(|field| field.ident.expect("Named must have named fields. qed"))
-				.collect::<Punctuated<Token![,]>>()
+				.map(|field| field.ident.clone().expect("Named must have named fields. qed"))
+				.collect::<Punctuated<Ident, Token![,]>>()
 				.into_token_stream(),
 			Fields::Unit => TokenStream::new(),
 			Fields::Unnamed(unnamed) => unnamed
@@ -371,7 +373,7 @@ impl ToTokens for VariantConstructor {
 				.iter()
 				.enumerate()
 				.map(|(ith, _field)| unnamed_fields_variant_pattern_constructor_binding_name(ith))
-				.collect::<Punctuated<Token![,]>>()
+				.collect::<Punctuated<Ident, Token![,]>>()
 				.into_token_stream(),
 		};
 		ts.extend(quote! {
@@ -385,65 +387,67 @@ fn variant_to_pattern_and_constructor(
 ) -> Result<IndexMap<Pat, VariantConstructor>, syn::Error> {
 	let variants = variants.as_ref();
 
-	variants
+	Ok(variants
 		.iter()
 		.map(|variant| {
 			variant_to_pattern(
 				variant,
 				ResolutionMode::None, // dummy
 			)
-			.map(|(pat, _)| (variant.clone(), pat))
+			.map(|(pat, _)| (pat, VariantConstructor(variant.clone())))
 		})
-		.collect::<Result<IndexMap<_, _>, syn::Error>>()?;
+		.collect::<Result<IndexMap<Pat, VariantConstructor>, syn::Error>>()?)
 }
 
 // Generate the Jfyi and Fatal sub enums.
 fn trait_split_impl(
 	attr: Attr,
-	original: EnumItem,
-	jfyi_variants: Vec<Variant>,
-	fatal_variants: Vec<Variant>,
+	original: ItemEnum,
+	jfyi_variants: &[Variant],
+	fatal_variants: &[Variant],
 ) -> Result<TokenStream, syn::Error> {
 	if let Attr::Empty = attr {
 		return Ok(TokenStream::new())
 	}
 
+	let span = original.span();
+
 	let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
-	let thiserror = abs_helper_path(thiserror, name.span());
+	let thiserror = abs_helper_path(thiserror, span);
 
 	let split_trait = abs_helper_path(Ident::new("Split", span), span);
 
-	let original_ident = original_ident.clone();
+	let original_ident = original.ident.clone();
 
 	// Generate the splittable types:
 	//   Fatal
-	let fatal_ident = Ident::new(format!("Fatal{}", name).as_str(), original.span());
+	let fatal_ident = Ident::new(format!("Fatal{}", original_ident).as_str(), span);
 	let mut fatal = original.clone();
-	fatal.variants = fatal_variants.clone();
-	fatal.ident = fatal_name.clone();
+	fatal.variants = fatal_variants.iter().cloned().collect();
+	fatal.ident = fatal_ident.clone();
 
 	//  Informational (just for your information)
-	let jfyi_ident = Ident::new(format!("Jfyi{}", name).as_str(), original.span());
+	let jfyi_ident = Ident::new(format!("Jfyi{}", original_ident).as_str(), span);
 	let mut jfyi = original.clone();
-	jfyi.variants = jfyi_variants.clone();
+	jfyi.variants = jfyi_variants.iter().cloned().collect();
 	jfyi.ident = jfyi_ident.clone();
 
 	let fatal_patterns = fatal_variants
 		.iter()
-		.filter_map(|variant| VariantPattern(variant.clone()))
+		.map(|variant| VariantPattern(variant.clone()))
 		.collect::<Vec<_>>();
 	let jfyi_patterns = jfyi_variants
 		.iter()
-		.filter_map(|variant| VariantPattern(variant.clone()))
+		.map(|variant| VariantPattern(variant.clone()))
 		.collect::<Vec<_>>();
 
 	let fatal_constructors = fatal_variants
 		.iter()
-		.filter_map(|variant| VariantConstructor(variant.clone()))
+		.map(|variant| VariantConstructor(variant.clone()))
 		.collect::<Vec<_>>();
 	let jfyi_constructors = jfyi_variants
 		.iter()
-		.filter_map(|variant| VariantConstructor(variant.clone()))
+		.map(|variant| VariantConstructor(variant.clone()))
 		.collect::<Vec<_>>();
 
 	Ok(quote! {
@@ -451,7 +455,7 @@ fn trait_split_impl(
 			fn from(fatal: #fatal_ident) -> Self {
 				match fatal {
 					// Fatal
-					#( #fatal_ident :: #fatal_patterns => Self:: #fatal_constructors),*
+					#( #fatal_ident :: #fatal_patterns => Self:: #fatal_constructors, )*
 				}
 			}
 		}
@@ -460,7 +464,7 @@ fn trait_split_impl(
 			fn from(jfyi: #jfyi_ident) -> Self {
 				match jfyi {
 					// JFYI
-					#( #jfyi_ident :: #jfyi_patterns => Self:: #jfyi_constructors),*
+					#( #jfyi_ident :: #jfyi_patterns => Self:: #jfyi_constructors, )*
 				}
 			}
 		}
@@ -472,15 +476,15 @@ fn trait_split_impl(
 		#jfyi
 
 		impl #split_trait for #original_ident {
-			type Jfyi = #jfyi_ident;
 			type Fatal = #fatal_ident;
+			type Jfyi = #jfyi_ident;
 
 			fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
 				match self {
-					// JFYI
-					#( Self :: #jfyi_patterns => #jfyi_ident :: #jfyi_constructors),*
 					// Fatal
-					#( Self :: #fatal_patterns => #fatal_ident :: #fatal_constructors),*
+					#( Self:: #fatal_patterns => Err(#fatal_ident :: #fatal_constructors), )*
+					// JFYI
+					#( Self:: #jfyi_patterns => Ok(#jfyi_ident :: #jfyi_constructors), )*
 				}
 			}
 		}
@@ -492,6 +496,9 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 	let mut original = item.clone();
 
 	let mut has_fatal_annotation = IndexMap::new();
+
+	let mut jfyi_variants = Vec::new();
+	let mut fatal_variants = Vec::new();
 
 	// if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(thiserror::Error, Debug)]`
 	// without the intermediate type. But impl `trait Fatality` on-top.
@@ -516,9 +523,9 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 
 		// If no `#[fatal]` annotation, this one is non-fatal for sure, statically.
 		if let ResolutionMode::None = resolution_mode {
-			jfyi.variants.push(variant.clone());
+			jfyi_variants.push(variant.clone());
 		} else {
-			fatal.variants.push(variant.clone());
+			fatal_variants.push(variant.clone());
 		}
 		has_fatal_annotation.insert(variant.clone(), resolution_mode);
 	}
@@ -546,12 +553,13 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 			.and_then(|x| {
 				// currently we don't support, `forward` in combination with `splitable`
 				if let Attr::Splitable(keyword_splitable) = attr {
-					if let ResolutionMode::Forward(keyword_forward) = x.1 {
-						return Err(syn::Error::new_spanned(
+					if let ResolutionMode::Forward(keyword_forward, _) = x.1 {
+						let mut err = syn::Error::new_spanned(
 							keyword_splitable,
 							"Cannot use `split` when using `forward` annotations",
-						)
-						.combine(syn::Error::new_spanned(keyword_forward, "used here")))
+						);
+						err.combine(syn::Error::new_spanned(keyword_forward, "used here"));
+						return Err(err)
 					}
 				}
 				Ok(x)
@@ -562,7 +570,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 	let mut ts = TokenStream::new();
 	ts.extend(original_enum);
 	ts.extend(trait_fatality_impl(&original.ident, &pattern_and_resolution));
-	ts.extend(trait_split_impl(attr, original, jfyi_variants, fatal_variants));
+	ts.extend(trait_split_impl(attr, original, &jfyi_variants, &fatal_variants));
 	Ok(ts)
 }
 
@@ -574,13 +582,14 @@ enum Attr {
 
 impl Parse for Attr {
 	fn parse(input: ParseStream) -> syn::Result<Self> {
+		let content;
 		let _ = syn::parenthesized!(content in input);
 
 		let lookahead = content.lookahead1();
 
 		if lookahead.peek(kw::splitable) {
 			Ok(Self::Splitable(content.parse::<kw::splitable>()?))
-		} else if lookahead.is_empty() {
+		} else if content.is_empty() {
 			Ok(Self::Empty)
 		} else {
 			Err(lookahead.error())
@@ -601,8 +610,16 @@ fn fatality2(
 		Ok(item) => item,
 	};
 
-	let attr = syn::parse2::<Attr>(attr)?;
-	let res = fatality_gen(attr, &item).unwrap_or_else(|e| e.to_compile_error());
+	let mut res = TokenStream::new();
+
+	let attr = match syn::parse2::<Attr>(attr) {
+		Ok(attr) => attr,
+		Err(e) => {
+			res.extend(e.to_compile_error());
+			Attr::Empty
+		},
+	};
+	res.extend(fatality_gen(attr, item).unwrap_or_else(|e| e.to_compile_error()));
 	res
 }
 

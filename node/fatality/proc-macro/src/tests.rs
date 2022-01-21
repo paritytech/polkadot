@@ -241,54 +241,51 @@ mod splitable {
 				impl crate::Fatality for Kaboom {
 					fn is_fatal(&self) -> bool {
 						match self {
-							Self::A(ref inner, ..) => inner.is_fatal(),
-							Self::B(ref inner, ..) => inner.is_fatal(),
-							Self::C{ref z, ..} => z.is_fatal(),
-							Self::What => false,
-							Self::O(..) => true
+							Self::Eh => false,
+							Self::Explosion => true,
 						}
 					}
 				}
 
-				impl From<JfyiKaboom> for Kaboom {
-					fn from(jfyi: JfyiKaboom) -> Self {
-						match jfyi {
-							JfyiKaboom::Eh => Kaboom::Eh,
-						}
-					}
-				}
-
-
-				impl From<FatalKaboom> for Kaboom {
+				impl ::std::convert::From<FatalKaboom> for Kaboom {
 					fn from(fatal: FatalKaboom) -> Self {
 						match fatal {
-							FatalKaboom::Explosion => Kaboom::Explosion,
+							FatalKaboom::Explosion => Self::Explosion,
 						}
 					}
+				}
+
+				impl ::std::convert::From<JfyiKaboom> for Kaboom {
+					fn from(jfyi: JfyiKaboom) -> Self {
+						match jfyi {
+							JfyiKaboom::Eh => Self::Eh,
+						}
+					}
+				}
+
+
+				#[derive(crate::thiserror::Error, Debug)]
+				enum FatalKaboom {
+					#[error("Explosion")]
+					Explosion
 				}
 
 				#[derive(crate::thiserror::Error, Debug)]
 				enum JfyiKaboom {
 					#[error("Eh?")]
-					Eh,
-				}
-
-				#[derive(crate::thiserror::Error, Debug)]
-				enum FatalKaboom {
-					#[error("Explosion")]
-					Explosion,
+					Eh
 				}
 
 				impl crate::Split for Kaboom {
-					type Jfyi = JfyiKaboom;
 					type Fatal = FatalKaboom;
+					type Jfyi = JfyiKaboom;
 
 					fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
 						match self {
-							// jfyi
-							Self::Eh => Ok(<Self::Fatal>::Eh),
-							// fatal
-							Self::Explosion => Err(<Self::Fatal>::Explosion)
+							// Fatal
+							Self::Explosion => Err(FatalKaboom::Explosion),
+							// JFYI
+							Self::Eh => Ok(JfyiKaboom::Eh),
 						}
 					}
 				}
