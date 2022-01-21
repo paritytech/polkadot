@@ -1039,6 +1039,20 @@ impl<T: Config> CandidateCheckContext<T> {
 
 	/// Check the given outputs after candidate validation on whether it passes the acceptance
 	/// criteria.
+	///
+	/// The things that are checked can be roughly divided into limits and minimums.
+	///
+	/// Limits are things like max message queue sizes and max head data size.
+	///
+	/// Minimums are things like the minimum amount of messages that must be processed
+	/// by the parachain block.
+	///
+	/// Limits are checked against the current state. The parachain block must be acceptable
+	/// by the current relay-chain state regardless of whether it was acceptable at some relay-chain
+	/// state in the past.
+	///
+	/// Minimums are checked against the current state but modulated by
+	/// considering the information available at the relay-parent of the parachain block.
 	fn check_validation_outputs(
 		&self,
 		para_id: ParaId,
