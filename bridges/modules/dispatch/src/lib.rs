@@ -64,8 +64,7 @@ pub mod pallet {
 			+ MaybeSerializeDeserialize
 			+ Debug
 			+ MaybeDisplay
-			+ Ord
-			+ Default;
+			+ Ord;
 		/// Type of account public key on target chain.
 		type TargetChainAccountPublic: Parameter + IdentifyAccount<AccountId = Self::AccountId>;
 		/// Type of signature that may prove that the message has been signed by
