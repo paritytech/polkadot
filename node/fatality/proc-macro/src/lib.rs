@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -34,6 +34,8 @@ mod kw {
 	syn::custom_keyword!(forward);
 	// Scrape the `thiserror` `transparent` annotation.
 	syn::custom_keyword!(transparent);
+	// Enum annotation to be splitable.
+	syn::custom_keyword!(splitable);
 }
 
 #[derive(Clone, Debug)]
@@ -105,12 +107,20 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 	path
 }
 
-fn trait_fatality_impl(who: &Ident, logic: TokenStream) -> TokenStream {
+fn trait_fatality_impl(
+	who: &Ident,
+	pattern_and_resolution: &IndexMap<Pat, ResolutionMode>,
+) -> TokenStream {
+	let pat = pattern_and_resolution.keys();
+	let resolution = pattern_and_resolution.values();
+
 	let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
 	quote! {
 		impl #fatality_trait for #who {
 			fn is_fatal(&self) -> bool {
-				#logic
+				match self {
+					#( #pat => #resolution ),*
+				}
 			}
 		}
 	}
@@ -287,21 +297,199 @@ fn variant_to_pattern(
 	Ok((pat, resolution))
 }
 
-fn fatality_gen(item: &ItemEnum) -> Result<TokenStream, syn::Error> {
+fn unnamed_fields_variant_pattern_constructor_binding_name(ith: usize) -> Ident {
+	Ident::new(format!("arg_{}", ith), Span::call_site())
+}
+
+struct VariantPattern(Variant);
+
+impl ToTokens for VariantPattern {
+	fn to_tokens(&self, ts: &mut TokenStream) {
+		let variant_name = &self.0.ident;
+		let variant_fields = &self.0.fields;
+		let span = variant_fields.span();
+		let me = PathSegment { ident: Ident::new("Self", span), arguments: PathArguments::None };
+		let path = Path {
+			leading_colon: None,
+			segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![
+				me,
+				variant.ident.clone().into(),
+			]),
+		};
+
+		let pattern = match variant_fields {
+			Fields::Unit => Pat::Path(PatPath { attrs: vec![], qself: None, path }),
+			Fields::Unnamed(unnamed) => unnamed
+				.unnamed
+				.iter()
+				.enumerate()
+				.map(|(ith, _field)| {
+					Pat::Ident(PatIdent {
+						attrs: vec![],
+						by_ref: None,
+						mutability: None,
+						ident: unnamed_fields_variant_pattern_constructor_binding_name(ith),
+						subpat: None,
+					})
+				})
+				.collect::<Punctuated<Token![,], Pat>>(),
+			Fields::Named(named) => named
+				.named
+				.iter()
+				.map(|field| {
+					Pat::Ident(PatIdent {
+						attrs: vec![],
+						by_ref: None,
+						mutability: None,
+						ident: field.ident.expect("Named field has a name. qed"),
+						subpat: None,
+					})
+				})
+				.collect::<Punctuated<Token![,], Pat>>(),
+		};
+		ts.extend(pattern);
+	}
+}
+
+/// Constructs an enum variant.
+struct VariantConstructor(Variant);
+
+impl ToTokens for VariantConstructor {
+	fn to_tokens(&self, ts: &mut TokenStream) {
+		let variant_name = &self.0.ident;
+		let variant_fields = &self.0.fields;
+		let args = match variant_fields {
+			Fields::Named(named) => named
+				.named
+				.iter()
+				.map(|field| field.ident.expect("Named must have named fields. qed"))
+				.collect::<Punctuated<Token![,]>>()
+				.into_token_stream(),
+			Fields::Unit => TokenStream::new(),
+			Fields::Unnamed(unnamed) => unnamed
+				.unnamed
+				.iter()
+				.enumerate()
+				.map(|(ith, _field)| unnamed_fields_variant_pattern_constructor_binding_name(ith))
+				.collect::<Punctuated<Token![,]>>()
+				.into_token_stream(),
+		};
+		ts.extend(quote! {
+			#variant_name #args
+		});
+	}
+}
+
+fn variant_to_pattern_and_constructor(
+	variants: impl AsRef<[Variant]>,
+) -> Result<IndexMap<Pat, VariantConstructor>, syn::Error> {
+	let variants = variants.as_ref();
+
+	variants
+		.iter()
+		.map(|variant| {
+			variant_to_pattern(
+				variant,
+				ResolutionMode::None, // dummy
+			)
+			.map(|(pat, _)| (variant.clone(), pat))
+		})
+		.collect::<Result<IndexMap<_, _>, syn::Error>>()?;
+}
+
+// Generate the Jfyi and Fatal sub enums.
+fn trait_split_impl(
+	attr: Attr,
+	original: EnumItem,
+	jfyi_variants: Vec<Variant>,
+	fatal_variants: Vec<Variant>,
+) -> Result<TokenStream, syn::Error> {
+	if let Attr::Empty = attr {
+		return Ok(TokenStream::new())
+	}
+
+	let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
+	let thiserror = abs_helper_path(thiserror, name.span());
+
+	let split_trait = abs_helper_path(Ident::new("Split", span), span);
+
+	let original_ident = original_ident.clone();
+
+	// Generate the splittable types:
+	//   Fatal
+	let fatal_ident = Ident::new(format!("Fatal{}", name).as_str(), original.span());
+	let mut fatal = original.clone();
+	fatal.variants = fatal_variants.clone();
+	fatal.ident = fatal_name.clone();
+
+	//  Informational (just for your information)
+	let jfyi_ident = Ident::new(format!("Jfyi{}", name).as_str(), original.span());
+	let mut jfyi = original.clone();
+	jfyi.variants = jfyi_variants.clone();
+	jfyi.ident = jfyi_ident.clone();
+
+	let fatal_patterns = fatal_variants
+		.iter()
+		.filter_map(|variant| VariantPattern(variant.clone()))
+		.collect::<Vec<_>>();
+	let jfyi_patterns = jfyi_variants
+		.iter()
+		.filter_map(|variant| VariantPattern(variant.clone()))
+		.collect::<Vec<_>>();
+
+	let fatal_constructors = fatal_variants
+		.iter()
+		.filter_map(|variant| VariantConstructor(variant.clone()))
+		.collect::<Vec<_>>();
+	let jfyi_constructors = jfyi_variants
+		.iter()
+		.filter_map(|variant| VariantConstructor(variant.clone()))
+		.collect::<Vec<_>>();
+
+	Ok(quote! {
+		impl ::std::convert::From< #fatal_ident> for #original_ident {
+			fn from(fatal: #fatal_ident) -> Self {
+				match fatal {
+					// Fatal
+					#( #fatal_ident :: #fatal_patterns => Self:: #fatal_constructors),*
+				}
+			}
+		}
+
+		impl ::std::convert::From< #jfyi_ident> for #original_ident {
+			fn from(jfyi: #jfyi_ident) -> Self {
+				match jfyi {
+					// JFYI
+					#( #jfyi_ident :: #jfyi_patterns => Self:: #jfyi_constructors),*
+				}
+			}
+		}
+
+		#[derive(#thiserror, Debug)]
+		#fatal
+
+		#[derive(#thiserror, Debug)]
+		#jfyi
+
+		impl #split_trait for #original_ident {
+			type Jfyi = #jfyi_ident;
+			type Fatal = #fatal_ident;
+
+			fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+				match self {
+					// JFYI
+					#( Self :: #jfyi_patterns => #jfyi_ident :: #jfyi_constructors),*
+					// Fatal
+					#( Self :: #fatal_patterns => #fatal_ident :: #fatal_constructors),*
+				}
+			}
+		}
+	})
+}
+
+fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 	let name = item.ident.clone();
 	let mut original = item.clone();
-
-	#[cfg(wip)]
-	{
-	let mut fatal = original.clone();
-	fatal.variants.clear();
-	fatal.ident = Ident::new(format!("Fatal{}", name).as_str(), original.span());
-
-
-	let mut jfyi = original.clone();
-	jfyi.variants.clear();
-	jfyi.ident = Ident::new(format!("Jfyi{}", name).as_str(), original.span());
-	}
 
 	let mut has_fatal_annotation = IndexMap::new();
 
@@ -325,8 +513,8 @@ fn fatality_gen(item: &ItemEnum) -> Result<TokenStream, syn::Error> {
 				resolution_mode = parse2::<ResolutionMode>(attr.tokens.into_token_stream())?;
 			}
 		}
+
 		// If no `#[fatal]` annotation, this one is non-fatal for sure, statically.
-		#[cfg(wip)]
 		if let ResolutionMode::None = resolution_mode {
 			jfyi.variants.push(variant.clone());
 		} else {
@@ -344,7 +532,8 @@ fn fatality_gen(item: &ItemEnum) -> Result<TokenStream, syn::Error> {
 		#original
 	};
 
-	// Obtain the patterns for each variant, and the resolution, which can either be `forward`, `true`, or `false`
+	// Obtain the patterns for each variant, and the resolution, which can either
+	// be `forward`, `true`, or `false`
 	// as used in the `trait Fatality`.
 	let pattern_and_resolution = original
 		.variants
@@ -354,21 +543,49 @@ fn fatality_gen(item: &ItemEnum) -> Result<TokenStream, syn::Error> {
 				variant,
 				has_fatal_annotation.get(&*variant).cloned().unwrap_or_default(),
 			)
+			.and_then(|x| {
+				// currently we don't support, `forward` in combination with `splitable`
+				if let Attr::Splitable(keyword_splitable) = attr {
+					if let ResolutionMode::Forward(keyword_forward) = x.1 {
+						return Err(syn::Error::new_spanned(
+							keyword_splitable,
+							"Cannot use `split` when using `forward` annotations",
+						)
+						.combine(syn::Error::new_spanned(keyword_forward, "used here")))
+					}
+				}
+				Ok(x)
+			})
 		})
 		.collect::<Result<IndexMap<_, _>, syn::Error>>()?;
-	let pat = pattern_and_resolution.keys().cloned();
-	let resolution = pattern_and_resolution.values().cloned();
+
 	let mut ts = TokenStream::new();
 	ts.extend(original_enum);
-	ts.extend(trait_fatality_impl(
-		&original.ident,
-		quote! {
-			match self {
-				#( #pat => #resolution ),*
-			}
-		},
-	));
+	ts.extend(trait_fatality_impl(&original.ident, &pattern_and_resolution));
+	ts.extend(trait_split_impl(attr, original, jfyi_variants, fatal_variants));
 	Ok(ts)
+}
+
+#[derive(Clone, Copy)]
+enum Attr {
+	Splitable(kw::splitable),
+	Empty,
+}
+
+impl Parse for Attr {
+	fn parse(input: ParseStream) -> syn::Result<Self> {
+		let _ = syn::parenthesized!(content in input);
+
+		let lookahead = content.lookahead1();
+
+		if lookahead.peek(kw::splitable) {
+			Ok(Self::Splitable(content.parse::<kw::splitable>()?))
+		} else if lookahead.is_empty() {
+			Ok(Self::Empty)
+		} else {
+			Err(lookahead.error())
+		}
+	}
 }
 
 fn fatality2(
@@ -383,12 +600,9 @@ fn fatality2(
 		},
 		Ok(item) => item,
 	};
-	if !attr.is_empty() {
-		return syn::Error::new_spanned(attr, "fatality does not take any arguments")
-			.into_compile_error()
-			.into_token_stream()
-	}
-	let res = fatality_gen(&item).unwrap_or_else(|e| e.to_compile_error());
+
+	let attr = syn::parse2::<Attr>(attr)?;
+	let res = fatality_gen(attr, &item).unwrap_or_else(|e| e.to_compile_error());
 	res
 }
 
@@ -406,192 +620,4 @@ pub fn fatality(
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-	fn run_test(input: TokenStream, expected: TokenStream) {
-		let output = fatality2(TokenStream::new(), input);
-		let output = output.to_string();
-		println!(
-			r##">>>>>>>>>>>>>>>>>>>
-	{}
-	>>>>>>>>>>>>>>>>>>>"##,
-			output.as_str()
-		);
-		assert_eq!(output, expected.to_string(),);
-	}
-
-	#[test]
-	fn transparent_fatal_implicit() {
-		run_test(
-			quote! {
-				enum Q {
-					#[fatal]
-					#[error(transparent)]
-					V(I),
-				}
-			},
-			quote! {
-				#[derive(crate::thiserror::Error, Debug)]
-				enum Q {
-					#[error(transparent)]
-					V(I),
-				}
-
-
-				impl crate::Fatality for Q {
-					fn is_fatal(&self) -> bool {
-						match self {
-							Self::V(..) => true
-						}
-					}
-				}
-			},
-		);
-	}
-
-	#[test]
-	fn transparent_fatal_fwd() {
-		run_test(
-			quote! {
-				enum Q {
-					#[fatal(forward)]
-					#[error(transparent)]
-					V(I),
-				}
-			},
-			quote! {
-				#[derive(crate::thiserror::Error, Debug)]
-
-				enum Q {
-					#[error(transparent)]
-					V(I),
-				}
-
-
-				impl crate::Fatality for Q {
-					fn is_fatal(&self) -> bool {
-						match self {
-							Self::V(ref inner, ..) => inner.is_fatal()
-						}
-					}
-				}
-			},
-		);
-	}
-
-	#[test]
-	fn transparent_fatal_true() {
-		run_test(
-			quote! {
-				enum Q {
-					#[fatal(true)]
-					#[error(transparent)]
-					V(I),
-				}
-			},
-			quote! {
-				#[derive(crate::thiserror::Error, Debug)]
-				enum Q {
-					#[error(transparent)]
-					V(I),
-				}
-
-
-				impl crate::Fatality for Q {
-					fn is_fatal(&self) -> bool {
-						match self {
-							Self::V(..) => true
-						}
-					}
-				}
-			},
-		);
-	}
-
-	#[test]
-	fn source_fatal() {
-		run_test(
-			quote! {
-				enum Q {
-					#[fatal(forward)]
-					#[error("DDDDDDDDDDDD")]
-					V(first, #[source] I),
-				}
-			},
-			quote! {
-				#[derive(crate::thiserror::Error, Debug)]
-
-				enum Q {
-					#[error("DDDDDDDDDDDD")]
-					V(first, #[source] I),
-				}
-
-
-				impl crate::Fatality for Q {
-					fn is_fatal(&self) -> bool {
-						match self {
-							Self::V(_, ref inner, ..) => inner.is_fatal()
-						}
-					}
-				}
-			},
-		);
-	}
-
-	#[test]
-	fn full() {
-		run_test(
-			quote! {
-				enum Kaboom {
-					#[fatal(forward)]
-					#[error(transparent)]
-					A(X),
-
-					#[fatal(forward)]
-					#[error("Bar")]
-					B(#[source] Y),
-
-					#[fatal(forward)]
-					#[error("zzzZZzZ")]
-					C {#[source] z: Z },
-
-					#[error("What?")]
-					What,
-
-
-					#[fatal]
-					#[error(transparent)]
-					O(P),
-				}
-			},
-			quote! {
-				#[derive(crate::thiserror::Error, Debug)]
-				enum Kaboom {
-					#[error(transparent)]
-					A(X),
-					#[error("Bar")]
-					B(#[source] Y),
-					#[error("zzzZZzZ")]
-					C {#[source] z: Z },
-					#[error("What?")]
-					What,
-					#[error(transparent)]
-					O(P),
-				}
-
-				impl crate::Fatality for Kaboom {
-					fn is_fatal(&self) -> bool {
-						match self {
-							Self::A(ref inner, ..) => inner.is_fatal(),
-							Self::B(ref inner, ..) => inner.is_fatal(),
-							Self::C{ref z, ..} => z.is_fatal(),
-							Self::What => false,
-							Self::O(..) => true
-						}
-					}
-				}
-			},
-		);
-	}
-}
+mod tests;

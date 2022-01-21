@@ -22,6 +22,22 @@ pub trait Fatality: std::error::Error + std::fmt::Debug {
 	fn is_fatal(&self) -> bool;
 }
 
+/// Spl
+pub trait Split: std::error::Error + std::fmt::Debug {
+	type Jfyi: ::std::error::Error + Send + Sync + 'static;
+	type Fatal: ::std::error::Error + Send + Sync + 'static;
+
+	/// Split the error into it's fatal and non-fatal variants.
+	///
+	/// `Ok(jfyi)` contains a enum representing all non-fatal varians, `Err(fatal)`
+	/// contains all fatal variants.
+	///
+	/// Attention: If the type is splitable, it must _not_ use any `forward`ed finality
+	/// evalutions, or it must be splittable up the point where no more `forward` annotations
+	/// were used.
+	fn split(&self) -> Result<Self::Jfyi, Self::Fatal>;
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

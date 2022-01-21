@@ -44,5 +44,5 @@ enum OhMy {
 
 ## Roadmap
 
-* Reduce the marco overhead, replace `#[fatal($args)]#[error(..` with `#[fatal($args;..)]` and generate the correct `#[error]` annotations for `thiserror`.
-* Add an optional arg to `finality`: `root` determines if a this is the root error that shall be handled, and hence should be splitable into two enums `Fatal` and `Jfyi` errors, with `trai FatalitySplit` and `fn resolve() -> Result<Jfyi, Fatal> {..}`.
+* [] Reduce the marco overhead, replace `#[fatal($args)]#[error(..` with `#[fatal($args;..)]` and generate the correct `#[error]` annotations for `thiserror`.
+* [] Add an optional arg to `finality`: `splitable` determines if a this is the root error that shall be handled, and hence should be splitable into two enums `Fatal` and `Jfyi` errors, with `trai FatalitySplit` and `fn resolve() -> Result<Jfyi, Fatal> {..}`.
