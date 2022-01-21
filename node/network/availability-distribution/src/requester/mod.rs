@@ -270,9 +270,10 @@ where
 	// is obtained through its parent. It always gets truncated because
 	// `session_ancestry_len` can only be incremented `ancestors.len() - 1` times.
 	let mut ancestors = get_block_ancestors(ctx, head, limit + 1).await?;
+	let mut ancestors_iter = ancestors.iter();
 
 	// `head` is the child of the first block in `ancestors`, request its session index.
-	let head_session_index = match ancestors.first() {
+	let head_session_index = match ancestors_iter.next() {
 		Some(parent) => runtime.get_session_index(ctx.sender(), *parent).await?,
 		None => {
 			// No first element, i.e. empty.
@@ -281,7 +282,8 @@ where
 	};
 
 	let mut session_ancestry_len = 0;
-	for parent in ancestors.iter().skip(1) {
+	// The first parent is skipped.
+	for parent in ancestors_iter {
 		// Parent is the i-th ancestor, request session index for its child -- (i-1)th element.
 		let session_index = runtime.get_session_index(ctx.sender(), *parent).await?;
 		if session_index == head_session_index {
