@@ -320,7 +320,7 @@ pub enum InconsistentError<BlockNumber> {
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
 	/// Maximum UMP message size (`MAX_UPWARD_MESSAGE_SIZE_BOUND`) exceeded.
-	MaxUpwardMessageSizeExceeded,
+	MaxUpwardMessageSizeExceeded { max_message_size: u32 },
 }
 
 impl<BlockNumber> HostConfiguration<BlockNumber>
@@ -384,7 +384,7 @@ where
 		}
 
 		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
-			return Err(MaxUpwardMessageSizeExceeded)
+			return Err(MaxUpwardMessageSizeExceeded { max_message_size: self.max_upward_message_size })
 		}
 
 		Ok(())

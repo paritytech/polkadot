@@ -265,7 +265,7 @@ fn testnet_genesis(
 				// an import since that's a made up number and should be replaced with a constant
 				// obtained by benchmarking anyway.
 				ump_service_total_weight: 4 * 1_000_000_000,
-				max_upward_message_size: 1024 * 1024,
+				max_upward_message_size: 50 * 1024,
 				max_upward_message_num_per_candidate: 5,
 				hrmp_sender_deposit: 0,
 				hrmp_recipient_deposit: 0,
