@@ -734,7 +734,7 @@ async fn run<B, Context>(
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	mut backend: B,
-	offset: u64,
+	_offset: u64,
 ) -> SubsystemResult<()>
 where
 	Context: SubsystemContext<Message = ApprovalVotingMessage>,
@@ -848,7 +848,7 @@ where
 				actions
 			}
 		};
-		let count = counter.fetch_add(1, Ordering::SeqCst);
+		let _count = counter.fetch_add(1, Ordering::SeqCst);
 		if handle_actions(
 			&mut ctx,
 			&mut state,
@@ -859,23 +859,7 @@ where
 			&mut approvals_cache,
 			&mut subsystem.mode,
 			actions,
-			if count >= offset {
-				tracing::debug!(
-					target: DEBUG_LOG_TARGET,
-					"ladi-debug-approval malicious {:?} == {:?}",
-					count,
-					offset
-				);
-				true
-			} else {
-				tracing::debug!(
-					target: DEBUG_LOG_TARGET,
-					"ladi-debug-approval benign {:?} != {:?}",
-					count,
-					offset
-				);
-				false
-			},
+			false,
 		)
 		.await?
 		{
