@@ -118,7 +118,7 @@ where
 	output
 }
 
-/// Prefix value for account generation. These numbers are used as seeds to crete distinct (para)
+/// Prefix value for account generation. These numbers are used as seeds to create distinct (para)
 /// accounts.
 ///
 /// To maintain sensibility created accounts should always be unique and never overlap. For example,
