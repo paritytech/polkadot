@@ -1177,8 +1177,6 @@ impl pallet_proxy::Config for Runtime {
 impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
-	type HrmpMaxOutboundChannelsBound = frame_support::traits::ConstU32<128>;
-	type HrmpMaxInboundChannelsBound = frame_support::traits::ConstU32<128>;
 	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
 }
 

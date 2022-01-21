@@ -634,8 +634,6 @@ mod tests {
 
 	impl parachains_configuration::Config for Test {
 		type WeightInfo = parachains_configuration::TestWeightInfo;
-		type HrmpMaxOutboundChannelsBound = ConstU32<128>;
-		type HrmpMaxInboundChannelsBound = ConstU32<128>;
 	}
 
 	parameter_types! {

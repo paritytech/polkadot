@@ -465,8 +465,6 @@ impl pallet_sudo::Config for Runtime {
 
 impl parachains_configuration::Config for Runtime {
 	type WeightInfo = parachains_configuration::TestWeightInfo;
-	type HrmpMaxOutboundChannelsBound = frame_support::traits::ConstU32<128>;
-	type HrmpMaxInboundChannelsBound = frame_support::traits::ConstU32<128>;
 }
 
 impl parachains_shared::Config for Runtime {}

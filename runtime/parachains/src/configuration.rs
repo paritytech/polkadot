@@ -319,6 +319,10 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
+	/// Maximum number of HRMP outbound channels exceeded.
+	MaxHrmpOutboundChannelsExceeded,
+	/// Maximum number of HRMP inbound channels exceeded.
+	MaxHrmpInboundChannelsExceeded,
 }
 
 impl<BlockNumber> HostConfiguration<BlockNumber>
@@ -381,6 +385,15 @@ where
 			})
 		}
 
+		if self.hrmp_max_parachain_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND
+		{
+			return Err(MaxHrmpOutboundChannelsExceeded)
+		}
+
+		if self.hrmp_max_parachain_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
+			return Err(MaxHrmpInboundChannelsExceeded)
+		}
+
 		Ok(())
 	}
 
@@ -440,18 +453,6 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + shared::Config {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
-
-		/// Maximum value that `hrmp_max_parachain_outbound_channels` or
-		/// `hrmp_max_parathread_outbound_channels` can be set to.
-		///
-		/// This is used for benchmarking sanely bounding relevant storage items.
-		type HrmpMaxOutboundChannelsBound: Get<u32>;
-
-		/// Maximum value that `hrmp_max_parachain_inbound_channels` or
-		/// `hrmp_max_parathread_inbound_channels` can be set to.
-		///
-		/// This is used for benchmarking sanely bounding relevant storage items.
-		type HrmpMaxInboundChannelsBound: Get<u32>;
 	}
 
 	#[pallet::error]
@@ -960,7 +961,6 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new <= T::HrmpMaxInboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_parachain_inbound_channels = new;
 			})
@@ -976,7 +976,6 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new <= T::HrmpMaxInboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_parathread_inbound_channels = new;
 			})
@@ -1004,7 +1003,6 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new <= T::HrmpMaxOutboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_parachain_outbound_channels = new;
 			})
@@ -1020,7 +1018,6 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new <= T::HrmpMaxOutboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_parathread_outbound_channels = new;
 			})

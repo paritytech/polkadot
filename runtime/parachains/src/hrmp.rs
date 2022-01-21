@@ -35,6 +35,14 @@ use sp_std::{
 
 pub use pallet::*;
 
+/// Maximum bound that can be set for inbound channels.
+///
+/// If inaccurate, the weighing of this pallet might become inaccurate. It is expected form the
+/// `configurations` pallet to check these values before setting
+pub const HRMP_MAX_INBOUND_CHANNELS_BOUND: u32 = 128;
+/// Same as [`HRMP_MAX_INBOUND_CHANNELS_BOUND`], but for outbound channels.
+pub const HRMP_MAX_OUTBOUND_CHANNELS_BOUND: u32 = 128;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -312,7 +320,7 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, HrmpChannelId, HrmpOpenChannelRequest>;
 
 	// NOTE: could become bounded, but we don't have a global maximum for this.
-	// `HrmpMaxOutboundChannelsBound` are per parachain/parathread, while this storage tracks the
+	// `HRMP_MAX_INBOUND_CHANNELS_BOUND` are per parachain/parathread, while this storage tracks the
 	// global state.
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestsList<T: Config> =

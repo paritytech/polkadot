@@ -127,13 +127,13 @@ where
 /// `PREFIX_2`.
 ///
 /// These values are chosen large enough so that the likelihood of any clash is already very low.
-/// Nonetheless, the value for `Config::HrmpMaxInboundChannelsBound` and
-/// `Config::HrmpMaxOutboundChannelsBound` need to be checked in some places.
 const PREFIX_0: u32 = 10_000;
 const PREFIX_1: u32 = PREFIX_0 * 2;
 const MAX_UNIQUE_CHANNELS: u32 = 128;
 
 static_assertions::const_assert!(MAX_UNIQUE_CHANNELS < PREFIX_0);
+static_assertions::const_assert!(HRMP_MAX_INBOUND_CHANNELS_BOUND < PREFIX_0);
+static_assertions::const_assert!(HRMP_MAX_OUTBOUND_CHANNELS_BOUND < PREFIX_0);
 
 frame_benchmarking::benchmarks! {
 	where_clause { where <T as frame_system::Config>::Origin: From<crate::Origin> }
@@ -179,14 +179,9 @@ frame_benchmarking::benchmarks! {
 	// channels.
 	force_clean_hrmp {
 		// ingress channels to a single leaving parachain that need to be closed.
-		let i in 0 .. (<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() - 1);
+		let i in 0 .. (HRMP_MAX_INBOUND_CHANNELS_BOUND - 1);
 		// egress channels to a single leaving parachain that need to be closed.
-		let e in 0 .. (<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() - 1);
-
-		// we use 10_000 in this benchmark as the prefix of accounts. The components must be greater
-		// than the configured bounds to keep accounts sane.
-		assert!(<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() < PREFIX_0);
-		assert!(<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() < PREFIX_0);
+		let e in 0 .. (HRMP_MAX_OUTBOUND_CHANNELS_BOUND - 1);
 
 		// first, update the configs to support this many open channels...
 		assert_ok!(

@@ -25,7 +25,7 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{ConstU32, GenesisBuild, KeyOwnerProofSystem},
+	traits::{GenesisBuild, KeyOwnerProofSystem},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -184,8 +184,6 @@ impl crate::initializer::Config for Test {
 
 impl crate::configuration::Config for Test {
 	type WeightInfo = crate::configuration::TestWeightInfo;
-	type HrmpMaxOutboundChannelsBound = ConstU32<128>;
-	type HrmpMaxInboundChannelsBound = ConstU32<128>;
 }
 
 impl crate::shared::Config for Test {}
