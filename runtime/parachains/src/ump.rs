@@ -28,6 +28,12 @@ use xcm::latest::Outcome;
 
 pub use pallet::*;
 
+/// Maximum value that `max_upward_message_size` can be set to
+///
+/// This is used for benchmarking sanely bounding relevant storate items. It is expected form the `configurations`
+/// pallet to check these values before setting.
+pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 

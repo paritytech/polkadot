@@ -175,7 +175,6 @@ impl pallet_balances::Config for Test {
 
 impl configuration::Config for Test {
 	type WeightInfo = configuration::TestWeightInfo;
-	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<{ 50 * 1024 }>;
 }
 
 impl shared::Config for Test {}

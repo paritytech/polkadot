@@ -59,7 +59,7 @@ frame_benchmarking::benchmarks! {
 	// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
 	// are taking call and control-flow overhead into account twice.
 	process_upward_message {
-		let s in 0..T::MaxUpwardMessageSizeBound::get();
+		let s in 0..MAX_UPWARD_MESSAGE_SIZE_BOUND;
 		let para = ParaId::from(1978);
 		let host_conf = configuration::ActiveConfig::<T>::get();
 		let weight = host_conf.ump_max_individual_weight + 1;

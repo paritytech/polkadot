@@ -319,6 +319,8 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
+	/// Maximum UMP message size (`MAX_UPWARD_MESSAGE_SIZE_BOUND`) exceeded.
+	MaxUpwardMessageSizeExceeded,
 }
 
 impl<BlockNumber> HostConfiguration<BlockNumber>
@@ -381,6 +383,10 @@ where
 			})
 		}
 
+		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
+			return Err(MaxUpwardMessageSizeExceeded)
+		}
+
 		Ok(())
 	}
 
@@ -441,11 +447,6 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + shared::Config {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
-
-		/// Maximum value that `max_upward_message_size` can be set to
-		///
-		/// This is used for benchmarking sanely bounding relevant storate items.
-		type MaxUpwardMessageSizeBound: Get<u32>;
 	}
 
 	#[pallet::error]
@@ -864,7 +865,6 @@ pub mod pallet {
 		))]
 		pub fn set_max_upward_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new <= T::MaxUpwardMessageSizeBound::get(), Error::<T>::InvalidNewValue);
 			Self::schedule_config_update(|config| {
 				config.max_upward_message_size = new;
 			})

@@ -465,7 +465,6 @@ impl pallet_sudo::Config for Runtime {
 
 impl parachains_configuration::Config for Runtime {
 	type WeightInfo = parachains_configuration::TestWeightInfo;
-	type MaxUpwardMessageSizeBound = frame_support::traits::ConstU32<{ 50 * 1024 }>;
 }
 
 impl parachains_shared::Config for Runtime {}
