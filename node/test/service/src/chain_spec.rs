@@ -32,7 +32,7 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec` parameterized for polkadot test runtime.
 pub type PolkadotChainSpec =
-	service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
+	sc_service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
