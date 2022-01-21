@@ -436,10 +436,10 @@ impl WrapVersion for AlwaysV2 {
 }
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to the latest version before wrapping it.
-pub type AlwaysLatest = AlwaysV1;
+pub type AlwaysLatest = AlwaysV2;
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to the release version before wrapping it.
-pub type AlwaysRelease = AlwaysV0;
+pub type AlwaysRelease = AlwaysV2;
 
 pub mod prelude {
 	pub use super::{
