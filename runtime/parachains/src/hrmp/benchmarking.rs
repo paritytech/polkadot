@@ -118,6 +118,17 @@ where
 	output
 }
 
+/// Prefix value for account generation. These numbers are used as seeds to crete distinct (para)
+/// accounts.
+///
+/// To maintain sensibility created accounts should always be unique and never overlap. For example,
+/// if for some benchmarking component `c`, accounts are being created `for s in 0..c` with seed
+/// `PREFIX_0 + s`, then we must assert that `c <= PREFIX_1`, meaning that it won't overlap with
+/// `PREFIX_2`.
+///
+/// These values are chosen large enough so that the likelihood of any clash is already very low.
+/// Nonetheless, the value for `Config::HrmpMaxInboundChannelsBound` and
+/// `Config::HrmpMaxOutboundChannelsBound` need to be checked in some places.
 const PREFIX_0: u32 = 10_000;
 const PREFIX_1: u32 = PREFIX_0 * 2;
 const MAX_UNIQUE_CHANNELS: u32 = 128;
@@ -198,7 +209,7 @@ frame_benchmarking::benchmarks! {
 		for ingress_para_id in 0..i {
 			// establish ingress channels to `para`.
 			let ingress_para_id = ingress_para_id + PREFIX_0;
-			let _ = establish_para_connection::<T>(ingress_para_id, 1, ParachainSetupStep::Established);
+			let _ = establish_para_connection::<T>(ingress_para_id, para.into(), ParachainSetupStep::Established);
 		}
 
 		// nothing should be left unprocessed.
@@ -207,7 +218,7 @@ frame_benchmarking::benchmarks! {
 		for egress_para_id in 0..e {
 			// establish egress channels to `para`.
 			let egress_para_id = egress_para_id + PREFIX_1;
-			let _ = establish_para_connection::<T>(1, egress_para_id, ParachainSetupStep::Established);
+			let _ = establish_para_connection::<T>(para.into(), egress_para_id, ParachainSetupStep::Established);
 		}
 
 		// nothing should be left unprocessed.
