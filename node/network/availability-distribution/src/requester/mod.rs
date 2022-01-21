@@ -42,6 +42,9 @@ use polkadot_subsystem::{
 use super::{Metrics, Result, LOG_TARGET};
 use crate::error::Fatal;
 
+#[cfg(test)]
+mod tests;
+
 /// Cache for session information.
 mod session_cache;
 use session_cache::SessionCache;
