@@ -682,7 +682,7 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
-	pub const PermanentSlotLeasePeriodLength: u32 = 356;
+	pub const PermanentSlotLeasePeriodLength: u32 = 365;
 	pub const TemporarySlotLeasePeriodLength: u32 = 3;
 	pub const MaxPermanentSlots: u32 = 25;
 	pub const MaxTemporarySlots: u32 = 20;
@@ -941,7 +941,7 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 7 * DAYS;
+	pub const LeasePeriod: BlockNumber = 1 * DAYS;
 }
 
 impl slots::Config for Runtime {
