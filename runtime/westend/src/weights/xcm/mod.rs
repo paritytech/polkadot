@@ -216,6 +216,6 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::set_topic()
 	}
 	fn clear_topic() -> Weight {
-	    XcmGeneric::<Runtime>::clear_topic()
+		XcmGeneric::<Runtime>::clear_topic()
 	}
 }
