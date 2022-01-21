@@ -56,7 +56,7 @@ impl From<Error> for XcmError {
 /// use frame_support::{parameter_types, PalletId};
 /// use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 /// use xcm::latest::prelude::*;
-/// use xcm_builder::{ParentIs, CurrencyAdapter, IsConcrete};
+/// use xcm_builder::{ParentIsPreset, CurrencyAdapter, IsConcrete};
 ///
 /// /// Our chain's account id.
 /// type AccountId = sp_runtime::AccountId32;
@@ -65,12 +65,11 @@ impl From<Error> for XcmError {
 /// parameter_types! {
 ///     pub RelayChain: MultiLocation = Parent.into();
 ///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account();
-///     pub ParentAccount: AccountId = PalletId(*b"testacct").into_account();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
 /// /// messages from the parent (relay chain).
-/// pub type LocationConvertor = (ParentIs<ParentAccount, AccountId>);
+/// pub type LocationConverter = (ParentIsPreset<AccountId>);
 ///
 /// /// Final currency adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
 /// pub type AssetTransactor = CurrencyAdapter<
@@ -78,8 +77,8 @@ impl From<Error> for XcmError {
 ///     u128,
 ///     // The matcher: use the currency when the asset is a concrete asset in our relay chain.
 ///     IsConcrete<RelayChain>,
-///     // The local convertor: default account of the parent relay chain.
-///     LocationConvertor,
+///     // The local converter: default account of the parent relay chain.
+///     LocationConverter,
 ///     // Our chain's account ID type.
 ///     AccountId,
 ///     // The checking account. Can be any deterministic inaccessible account.
