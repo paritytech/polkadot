@@ -208,6 +208,17 @@ pub struct QueryResponseInfo {
 	pub max_weight: Weight,
 }
 
+/// Contextual data pertaining to a specific list of XCM instructions.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+pub struct XcmContext {
+	/// The `MultiLocation` origin of the corresponding XCM.
+	pub origin: Option<MultiLocation>,
+	/// The hash of the XCM.
+	pub message_hash: XcmHash,
+	/// The topic of the XCM.
+	pub topic: Option<[u8; 32]>,
+}
+
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.
