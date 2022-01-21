@@ -224,6 +224,9 @@ frame_benchmarking::benchmarks! {
 	}: _(frame_system::Origin::<T>::Root, para, i, e) verify {
 		// all in all, all of them must be gone by now.
 		assert_eq!(HrmpChannels::<T>::iter().count() as u32, 0);
+		// borrow this function from the tests to make sure state is clear, given that we do a lot
+		// of out-of-ordinary ops here.
+		crate::hrmp::tests::assert_storage_consistency_exhaustive();
 	}
 
 	force_process_hrmp_open {

@@ -1379,7 +1379,7 @@ impl<T: Config> Pallet<T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, Event as MockEvent, Hrmp, MockGenesisConfig, Paras,
@@ -1517,7 +1517,7 @@ mod tests {
 		<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
 	}
 
-	fn assert_storage_consistency_exhaustive() {
+	pub(crate) fn assert_storage_consistency_exhaustive() {
 		assert_eq!(
 			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
 				.map(|(k, _)| k)
