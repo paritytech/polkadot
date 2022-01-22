@@ -58,9 +58,6 @@ use crate::error::FatalResult;
 
 use super::{modify_reputation, Result, LOG_TARGET};
 
-#[cfg(test)]
-mod tests;
-
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 /// Message could not be decoded properly.
 const COST_CORRUPTED_MESSAGE: Rep = Rep::CostMinor("Message was corrupt");
