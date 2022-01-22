@@ -930,8 +930,8 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 		use NewInstruction::*;
 		Ok(match instruction {
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),
-			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets),
-			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets),
+			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets.try_into()?),
+			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
 			QueryResponse { query_id, response, max_weight, .. } =>
 				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
 			TransferAsset { assets, beneficiary } => Self::TransferAsset {

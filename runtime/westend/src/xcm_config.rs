@@ -34,6 +34,7 @@ use xcm_builder::{
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 	UsingComponents, WeightInfoBounds,
 };
+use xcm_executor::XcmExecutor;
 
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();

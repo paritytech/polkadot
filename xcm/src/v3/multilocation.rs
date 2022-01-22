@@ -394,6 +394,17 @@ impl MultiLocation {
 		Ok(())
 	}
 
+	/// Consume `self` and return a new value representing the same location from the point of view
+	/// of `target`. The context of `self` is provided as `ancestry`.
+	///
+	/// Returns the original `self` in case of overflow.
+	pub fn reanchored(mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<Self, Self> {
+		match self.reanchor(target, ancestry) {
+			Ok(()) => Ok(self),
+			Err(()) => Err(self),
+		}
+	}
+
 	/// Treating `self` as a context, determine how it would be referenced by a `target` location.
 	pub fn inverted(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
 		use Junction::OnlyChild;

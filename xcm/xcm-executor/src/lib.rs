@@ -601,7 +601,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(match local_querier {
 			None => None,
 			Some(q) => Some(
-				q.reanchored(&destination, &Config::LocationInverter::ancestry())
+				q.reanchored(&destination, &Config::LocationInverter::universal_location().into())
 					.map_err(|_| XcmError::ReanchorFailed)?,
 			),
 		})

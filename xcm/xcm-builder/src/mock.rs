@@ -36,7 +36,6 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
-use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
 	traits::{
 		ConvertOrigin, ExportXcm, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset,

@@ -17,7 +17,7 @@
 //! Tests for the Westend Runtime Configuration
 
 use crate::*;
-use xcm::latest::{AssetId::*, Fungibility::*, MultiLocation};
+use xcm::latest::prelude::*;
 
 #[test]
 fn remove_keys_weight_is_sensible() {

@@ -161,13 +161,13 @@ fn custom_querier_works() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let querier: MultiLocation =
-			(Parent, AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }).into();
+			(Parent, AccountId32 { network: None, id: ALICE.into() }).into();
 
 		let r = TestNotifier::prepare_new_query(Origin::signed(ALICE), querier.clone());
 		assert_eq!(r, Ok(()));
 		let status = QueryStatus::Pending {
 			responder: MultiLocation::from(AccountId32 {
-				network: AnyNetwork::get(),
+				network: None,
 				id: ALICE.into(),
 			})
 			.into(),
@@ -179,7 +179,7 @@ fn custom_querier_works() {
 
 		// Supplying no querier when one is expected will fail
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
-			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+			AccountId32 { network: None, id: ALICE.into() },
 			Xcm(vec![QueryResponse {
 				query_id: 0,
 				response: Response::ExecutionResult(None),
@@ -193,7 +193,7 @@ fn custom_querier_works() {
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+				AccountId32 { network: None, id: ALICE.into() }.into(),
 				0,
 				querier.clone(),
 				None,
@@ -202,7 +202,7 @@ fn custom_querier_works() {
 
 		// Supplying the wrong querier will also fail
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
-			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+			AccountId32 { network: None, id: ALICE.into() },
 			Xcm(vec![QueryResponse {
 				query_id: 0,
 				response: Response::ExecutionResult(None),
@@ -216,7 +216,7 @@ fn custom_querier_works() {
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+				AccountId32 { network: None, id: ALICE.into() }.into(),
 				0,
 				querier.clone(),
 				Some(MultiLocation::here()),
@@ -225,7 +225,7 @@ fn custom_querier_works() {
 
 		// Multiple failures should not have changed the query state
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into(),
+			AccountId32 { network: None, id: ALICE.into() },
 			Xcm(vec![QueryResponse {
 				query_id: 0,
 				response: Response::ExecutionResult(None),

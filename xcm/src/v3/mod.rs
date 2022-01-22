@@ -44,8 +44,7 @@ pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
 };
 pub use traits::{
-	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-	PreparedMessage,
+	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, PreparedMessage,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};

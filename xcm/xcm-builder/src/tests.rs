@@ -662,7 +662,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 		query_id,
 		response: the_response.clone(),
 		max_weight: 10,
-		querier: Some(Here.into().into()),
+		querier: Some(Here.into()),
 	}]);
 	let weight_limit = 10;
 
