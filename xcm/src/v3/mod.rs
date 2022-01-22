@@ -761,6 +761,9 @@ pub enum Instruction<Call> {
 	/// child which is the root of the local consensus system since it would by extension
 	/// allow it to act as any location within the local consensus.
 	///
+	/// The `Junction` parameter should generally be a `GlobalConsensus` variant since it is only
+	/// these which are children of the Universal Ancestor.
+	///
 	/// Kind: *Instruction*
 	///
 	/// Errors: *Fallible*.
