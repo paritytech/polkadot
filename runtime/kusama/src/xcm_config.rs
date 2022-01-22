@@ -78,7 +78,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	CheckAccount,
 >;
 
-/// The means that we convert an the XCM message origin location into a local dispatch origin.
+/// The means that we convert the XCM message origin location into a local dispatch origin.
 type LocalOriginConverter = (
 	// A `Signed` origin of the sovereign account that the original location controls.
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
