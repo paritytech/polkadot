@@ -372,7 +372,7 @@ fn test_harness(test: impl FnOnce(TestState, VirtualOverseer) -> BoxFuture<'stat
 	)
 	.expect("Generating keys for our node failed");
 
-	let subsystem_task = crate::run(ctx, keystore).map(|x| x.unwrap());
+	let subsystem_task = crate::run(ctx, keystore, crate::Metrics::default()).map(|x| x.unwrap());
 
 	let test_state = TestState::new();
 	let test_task = test(test_state, handle);

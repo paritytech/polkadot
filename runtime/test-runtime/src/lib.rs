@@ -309,9 +309,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub storage SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub storage BondingDuration: pallet_staking::EraIndex = 28;
+	pub storage BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
-	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub storage SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -549,6 +549,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
+	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
 impl parachains_scheduler::Config for Runtime {}
@@ -608,6 +609,7 @@ pub mod pallet_test_notifier {
 			let qid = pallet_xcm::Pallet::<T>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
+				Here,
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
 			Ok(())
@@ -625,6 +627,7 @@ pub mod pallet_test_notifier {
 				Junction::AccountId32 { network: None, id },
 				<T as Config>::Call::from(call),
 				100u32.into(),
+				Here,
 			);
 			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
 			Ok(())

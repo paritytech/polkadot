@@ -662,6 +662,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 		query_id,
 		response: the_response.clone(),
 		max_weight: 10,
+		querier: Some(Here.into().into()),
 	}]);
 	let weight_limit = 10;
 
@@ -751,6 +752,7 @@ fn pallet_query_should_work() {
 				query_id: 1,
 				max_weight: 50,
 				response: Response::PalletsInfo(vec![]),
+				querier: Some(Here.into()),
 			}]),
 		)]
 	);
@@ -790,6 +792,7 @@ fn pallet_query_with_results_should_work() {
 					minor: 42,
 					patch: 69,
 				},]),
+				querier: Some(Here.into()),
 			}]),
 		)]
 	);
@@ -822,6 +825,7 @@ fn report_successful_transact_status_should_work() {
 				response: Response::DispatchResult(MaybeErrorCode::Success),
 				query_id: 42,
 				max_weight: 5000,
+				querier: Some(Here.into()),
 			}])
 		)]
 	);
@@ -854,6 +858,7 @@ fn report_failed_transact_status_should_work() {
 				response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
 				query_id: 42,
 				max_weight: 5000,
+				querier: Some(Here.into()),
 			}])
 		)]
 	);
@@ -887,6 +892,7 @@ fn clear_transact_status_should_work() {
 				response: Response::DispatchResult(MaybeErrorCode::Success),
 				query_id: 42,
 				max_weight: 5000,
+				querier: Some(Here.into()),
 			}])
 		)]
 	);

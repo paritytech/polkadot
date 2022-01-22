@@ -400,11 +400,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
 		let header = Self::header(block_number.clone());
 
+		frame_system::Pallet::<T>::reset_events();
 		frame_system::Pallet::<T>::initialize(
 			&header.number(),
 			&header.hash(),
 			&Digest { logs: Vec::new() },
-			Default::default(),
 		);
 
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
@@ -606,7 +606,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
 				let statements = (0..statements_len)
 					.map(|validator_index| {
-						let validator_public = &validators.get(validator_index as usize).unwrap();
+						let validator_public = &validators.get(validator_index as usize).expect("Test case is not borked. `ValidatorIndex` out of bounds of `ValidatorId`s.");
 
 						// We need dispute statements on each side. And we don't want a revert log
 						// so we make sure that we have a super majority with valid statements.

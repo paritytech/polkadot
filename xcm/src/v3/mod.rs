@@ -254,7 +254,7 @@ pub struct QueryResponseInfo {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -301,8 +301,15 @@ pub enum Instruction<Call> {
 	/// - `query_id`: The identifier of the query that resulted in this message being sent.
 	/// - `response`: The message content.
 	/// - `max_weight`: The maximum weight that handling this response should take.
+	/// - `querier`: The location responsible for the initiation of the response, if there is one.
+	///   In general this will tend to be the same location as the receiver of this message.
+	///   NOTE: As usual, this is interpreted from the perspective of the receiving consensus
+	///   system.
 	///
-	/// Safety: No concerns.
+	/// Safety: Since this is information only, there are no immediate concerns. However, it should
+	/// be remembered that even if the Origin behaves reasonably, it can always be asked to make
+	/// a response to a third-party chain who may or may not be expecting the response. Therefore
+	/// the `querier` should be checked to match the expected value.
 	///
 	/// Kind: *Information*.
 	///
@@ -313,6 +320,7 @@ pub enum Instruction<Call> {
 		response: Response,
 		#[codec(compact)]
 		max_weight: Weight,
+		querier: Option<MultiLocation>,
 	},
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets
@@ -798,8 +806,8 @@ impl<Call> Instruction<Call> {
 			WithdrawAsset(assets) => WithdrawAsset(assets),
 			ReserveAssetDeposited(assets) => ReserveAssetDeposited(assets),
 			ReceiveTeleportedAsset(assets) => ReceiveTeleportedAsset(assets),
-			QueryResponse { query_id, response, max_weight } =>
-				QueryResponse { query_id, response, max_weight },
+			QueryResponse { query_id, response, max_weight, querier } =>
+				QueryResponse { query_id, response, max_weight, querier },
 			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, xcm } =>
 				TransferReserveAsset { assets, dest, xcm },
@@ -838,7 +846,7 @@ impl<Call> Instruction<Call> {
 				QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
-			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
+			ReportTransactStatus(response_info) => ReportTransactStatus(response_info),
 			ClearTransactStatus => ClearTransactStatus,
 			UniversalOrigin(j) => UniversalOrigin(j),
 			ExportMessage { network, destination, xcm } =>
@@ -855,8 +863,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			WithdrawAsset(assets) => W::withdraw_asset(assets),
 			ReserveAssetDeposited(assets) => W::reserve_asset_deposited(assets),
 			ReceiveTeleportedAsset(assets) => W::receive_teleported_asset(assets),
-			QueryResponse { query_id, response, max_weight } =>
-				W::query_response(query_id, response, max_weight),
+			QueryResponse { query_id, response, max_weight, querier } =>
+				W::query_response(query_id, response, max_weight, querier),
 			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
 			TransferReserveAsset { assets, dest, xcm } =>
 				W::transfer_reserve_asset(&assets, dest, xcm),
@@ -892,8 +900,10 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectAsset(assets) => W::expect_asset(assets),
 			ExpectOrigin(origin) => W::expect_origin(origin),
 			ExpectError(error) => W::expect_error(error),
-			QueryPallet { .. } => W::query_pallet(),
-			ExpectPallet { index, .. } => W::expect_pallet(index),
+			QueryPallet { module_name, response_info } =>
+				W::query_pallet(module_name, response_info),
+			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
+				W::expect_pallet(index, name, module_name, crate_major, min_crate_minor),
 			ReportTransactStatus(response_info) => W::report_transact_status(response_info),
 			ClearTransactStatus => W::clear_transact_status(),
 			UniversalOrigin(j) => W::universal_origin(j),
@@ -946,8 +956,12 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),
 			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets.try_into()?),
 			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
-			QueryResponse { query_id, response, max_weight } =>
-				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
+			QueryResponse { query_id, response, max_weight } => Self::QueryResponse {
+				query_id,
+				response: response.try_into()?,
+				max_weight,
+				querier: None,
+			},
 			TransferAsset { assets, beneficiary } => Self::TransferAsset {
 				assets: assets.try_into()?,
 				beneficiary: beneficiary.try_into()?,

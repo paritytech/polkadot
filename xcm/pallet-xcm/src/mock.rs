@@ -78,7 +78,7 @@ pub mod pallet_test_notifier {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(1_000_000)]
-		pub fn prepare_new_query(origin: OriginFor<T>) -> DispatchResult {
+		pub fn prepare_new_query(origin: OriginFor<T>, querier: MultiLocation) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
@@ -86,13 +86,17 @@ pub mod pallet_test_notifier {
 			let qid = crate::Pallet::<T>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
+				querier,
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
 			Ok(())
 		}
 
 		#[pallet::weight(1_000_000)]
-		pub fn prepare_new_notify_query(origin: OriginFor<T>) -> DispatchResult {
+		pub fn prepare_new_notify_query(
+			origin: OriginFor<T>,
+			querier: MultiLocation,
+		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
@@ -103,6 +107,7 @@ pub mod pallet_test_notifier {
 				Junction::AccountId32 { network: None, id },
 				<T as Config>::Call::from(call),
 				100u32.into(),
+				querier,
 			);
 			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
 			Ok(())

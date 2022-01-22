@@ -71,6 +71,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -215,6 +216,22 @@ pub mod pallet {
 		///
 		/// \[ location, query ID \]
 		NotifyTargetMigrationFail(VersionedMultiLocation, QueryId),
+		/// Expected query response has been received but the expected querier location placed in
+		/// storage by this runtime previously cannot be decoded. The query remains registered.
+		///
+		/// This is unexpected (since a location placed in storage in a previously executing
+		/// runtime should be readable prior to query timeout) and dangerous since the possibly
+		/// valid response will be dropped. Manual governance intervention is probably going to be
+		/// needed.
+		///
+		/// \[ origin location, id \]
+		InvalidQuerierVersion(MultiLocation, QueryId),
+		/// Expected query response has been received but the querier location of the response does
+		/// not match the expected. The query remains registered for a later, valid, response to
+		/// be received and acted upon.
+		///
+		/// \[ origin location, id, expected querier, maybe actual querier \]
+		InvalidQuerier(MultiLocation, QueryId, MultiLocation, Option<MultiLocation>),
 	}
 
 	#[pallet::origin]
@@ -269,7 +286,12 @@ pub mod pallet {
 	pub enum QueryStatus<BlockNumber> {
 		/// The query was sent but no response has yet been received.
 		Pending {
+			/// The `QueryResponse` XCM must have this origin to be considered a reply for this
+			/// query.
 			responder: VersionedMultiLocation,
+			/// The `QueryResponse` XCM must have this value as the `querier` field to be
+			/// considered a reply for this query. If `None` then the querier is ignored.
+			maybe_match_querier: Option<VersionedMultiLocation>,
 			maybe_notify: Option<(u8, u8)>,
 			timeout: BlockNumber,
 		},
@@ -449,6 +471,77 @@ pub mod pallet {
 		}
 	}
 
+	pub mod migrations {
+		use super::*;
+		use frame_support::traits::{PalletInfoAccess, StorageVersion};
+
+		#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, TypeInfo)]
+		enum QueryStatusV0<BlockNumber> {
+			Pending {
+				responder: VersionedMultiLocation,
+				maybe_notify: Option<(u8, u8)>,
+				timeout: BlockNumber,
+			},
+			VersionNotifier {
+				origin: VersionedMultiLocation,
+				is_active: bool,
+			},
+			Ready {
+				response: VersionedResponse,
+				at: BlockNumber,
+			},
+		}
+		impl<B> From<QueryStatusV0<B>> for QueryStatus<B> {
+			fn from(old: QueryStatusV0<B>) -> Self {
+				use QueryStatusV0::*;
+				match old {
+					Pending { responder, maybe_notify, timeout } => QueryStatus::Pending {
+						responder,
+						maybe_notify,
+						timeout,
+						maybe_match_querier: Some(MultiLocation::here().into()),
+					},
+					VersionNotifier { origin, is_active } =>
+						QueryStatus::VersionNotifier { origin, is_active },
+					Ready { response, at } => QueryStatus::Ready { response, at },
+				}
+			}
+		}
+
+		pub fn migrate_to_v1<T: Config, P: GetStorageVersion + PalletInfoAccess>(
+		) -> frame_support::weights::Weight {
+			let on_chain_storage_version = <P as GetStorageVersion>::on_chain_storage_version();
+			log::info!(
+				target: "runtime::xcm",
+				"Running migration storage v1 for xcm with storage version {:?}",
+				on_chain_storage_version,
+			);
+
+			if on_chain_storage_version < 1 {
+				let mut count = 0;
+				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(|_key, value| {
+					count += 1;
+					Some(value.into())
+				});
+				StorageVersion::new(1).put::<P>();
+				log::info!(
+					target: "runtime::xcm",
+					"Running migration storage v1 for xcm with storage version {:?} was complete",
+					on_chain_storage_version,
+				);
+				// calculate and return migration weights
+				T::DbWeight::get().reads_writes(count as Weight + 1, count as Weight + 1)
+			} else {
+				log::warn!(
+					target: "runtime::xcm",
+					"Attempted to apply migration to v1 but failed because storage version is {:?}",
+					on_chain_storage_version,
+				);
+				T::DbWeight::get().reads(1)
+			}
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(100_000_000)]
@@ -577,15 +670,21 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::Call>>,
 			max_weight: Weight,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
-			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
+			let outcome = T::XcmExecutor::execute_xcm_in_credit(
+				origin_location,
+				message,
+				max_weight,
+				max_weight,
+			);
+			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
+			result
 		}
 
 		/// Extoll that a particular destination can be communicated with through a particular
@@ -952,7 +1051,8 @@ pub mod pallet {
 						},
 					};
 					let response = Response::Version(xcm_version);
-					let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+					let message =
+						Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
 					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 						Ok(()) => {
 							let value = (query_id, max_weight, xcm_version);
@@ -998,8 +1098,12 @@ pub mod pallet {
 						} else {
 							// Need to notify target.
 							let response = Response::Version(xcm_version);
-							let message =
-								Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+							let message = Xcm(vec![QueryResponse {
+								query_id,
+								response,
+								max_weight,
+								querier: None,
+							}]);
 							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 								Ok(()) => {
 									VersionNotifyTargets::<T>::insert(
@@ -1076,10 +1180,12 @@ pub mod pallet {
 			AccountIdConversion::<T::AccountId>::into_account(&ID)
 		}
 
+		/// Create a new expectation of a query response with the querier being here.
 		fn do_new_query(
 			responder: impl Into<MultiLocation>,
 			maybe_notify: Option<(u8, u8)>,
 			timeout: T::BlockNumber,
+			match_querier: impl Into<MultiLocation>,
 		) -> u64 {
 			QueryCounter::<T>::mutate(|q| {
 				let r = *q;
@@ -1088,6 +1194,7 @@ pub mod pallet {
 					r,
 					QueryStatus::Pending {
 						responder: responder.into().into(),
+						maybe_match_querier: Some(match_querier.into().into()),
 						maybe_notify,
 						timeout,
 					},
@@ -1106,6 +1213,8 @@ pub mod pallet {
 		///
 		/// `report_outcome` may return an error if the `responder` is not invertible.
 		///
+		/// It is assumed that the querier of the response will be `Here`.
+		///
 		/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
 		/// value.
 		pub fn report_outcome(
@@ -1116,7 +1225,7 @@ pub mod pallet {
 			let responder = responder.into();
 			let destination = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-			let query_id = Self::new_query(responder, timeout);
+			let query_id = Self::new_query(responder, timeout, Here);
 			let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
 			let report_error = Xcm(vec![ReportError(response_info)]);
 			message.0.insert(0, SetAppendix(report_error));
@@ -1138,6 +1247,8 @@ pub mod pallet {
 		///
 		/// `report_outcome_notify` may return an error if the `responder` is not invertible.
 		///
+		/// It is assumed that the querier of the response will be `Here`.
+		///
 		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
 		/// lightweight. Its weight is estimated during this function and stored ready for
 		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
@@ -1154,7 +1265,7 @@ pub mod pallet {
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let notify: <T as Config>::Call = notify.into();
 			let max_weight = notify.get_dispatch_info().weight;
-			let query_id = Self::new_notify_query(responder, notify, timeout);
+			let query_id = Self::new_notify_query(responder, notify, timeout, Here);
 			let response_info = QueryResponseInfo { destination, query_id, max_weight };
 			let report_error = Xcm(vec![ReportError(response_info)]);
 			message.0.insert(0, SetAppendix(report_error));
@@ -1162,8 +1273,12 @@ pub mod pallet {
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
-		pub fn new_query(responder: impl Into<MultiLocation>, timeout: T::BlockNumber) -> u64 {
-			Self::do_new_query(responder, None, timeout)
+		pub fn new_query(
+			responder: impl Into<MultiLocation>,
+			timeout: T::BlockNumber,
+			match_querier: impl Into<MultiLocation>,
+		) -> u64 {
+			Self::do_new_query(responder, None, timeout, match_querier)
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond, and
@@ -1172,12 +1287,13 @@ pub mod pallet {
 			responder: impl Into<MultiLocation>,
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
+			match_querier: impl Into<MultiLocation>,
 		) -> u64 {
 			let notify =
 				notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
 					"decode input is output of Call encode; Call guaranteed to have two enums; qed",
 				);
-			Self::do_new_query(responder, Some(notify), timeout)
+			Self::do_new_query(responder, Some(notify), timeout, match_querier)
 		}
 
 		/// Attempt to remove and return the response of query with ID `query_id`.
@@ -1252,7 +1368,7 @@ pub mod pallet {
 
 			let xcm_version = T::AdvertisedXcmVersion::get();
 			let response = Response::Version(xcm_version);
-			let instruction = QueryResponse { query_id, response, max_weight };
+			let instruction = QueryResponse { query_id, response, max_weight, querier: None };
 			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
 
 			let value = (query_id, max_weight, xcm_version);
@@ -1315,10 +1431,19 @@ pub mod pallet {
 	}
 
 	impl<T: Config> OnResponse for Pallet<T> {
-		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
+		fn expecting_response(
+			origin: &MultiLocation,
+			query_id: QueryId,
+			querier: Option<&MultiLocation>,
+		) -> bool {
 			match Queries::<T>::get(query_id) {
-				Some(QueryStatus::Pending { responder, .. }) =>
-					MultiLocation::try_from(responder).map_or(false, |r| origin == &r),
+				Some(QueryStatus::Pending { responder, maybe_match_querier, .. }) =>
+					MultiLocation::try_from(responder).map_or(false, |r| origin == &r) &&
+						maybe_match_querier.map_or(true, |match_querier| {
+							MultiLocation::try_from(match_querier).map_or(false, |match_querier| {
+								querier.map_or(false, |q| q == &match_querier)
+							})
+						}),
 				Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
 					MultiLocation::try_from(r).map_or(false, |r| origin == &r),
 				_ => false,
@@ -1328,6 +1453,7 @@ pub mod pallet {
 		fn on_response(
 			origin: &MultiLocation,
 			query_id: QueryId,
+			querier: Option<&MultiLocation>,
 			response: Response,
 			max_weight: Weight,
 		) -> Weight {
@@ -1375,7 +1501,33 @@ pub mod pallet {
 					Self::deposit_event(Event::SupportedVersionChanged(origin, v));
 					0
 				},
-				(response, Some(QueryStatus::Pending { responder, maybe_notify, .. })) => {
+				(
+					response,
+					Some(QueryStatus::Pending {
+						responder, maybe_notify, maybe_match_querier, ..
+					}),
+				) => {
+					if let Some(match_querier) = maybe_match_querier {
+						let match_querier = match MultiLocation::try_from(match_querier) {
+							Ok(mq) => mq,
+							Err(_) => {
+								Self::deposit_event(Event::InvalidQuerierVersion(
+									origin.clone(),
+									query_id,
+								));
+								return 0
+							},
+						};
+						if querier.map_or(true, |q| q != &match_querier) {
+							Self::deposit_event(Event::InvalidQuerier(
+								origin.clone(),
+								query_id,
+								match_querier,
+								querier.cloned(),
+							));
+							return 0
+						}
+					}
 					let responder = match MultiLocation::try_from(responder) {
 						Ok(r) => r,
 						Err(_) => {

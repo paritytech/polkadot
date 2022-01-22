@@ -305,6 +305,7 @@ mod tests {
 					query_id: query_id_set,
 					response: Response::Assets(MultiAssets::new()),
 					max_weight: 1_000_000_000,
+					querier: Some(Here.into()),
 				}])],
 			);
 		});

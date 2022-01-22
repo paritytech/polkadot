@@ -40,8 +40,8 @@ pub enum SessionsUnavailableKind {
 	RuntimeApiUnavailable(oneshot::Canceled),
 	/// The runtime API itself returned an error.
 	RuntimeApi(RuntimeApiError),
-	/// Missing session info from runtime API.
-	Missing,
+	/// Missing session info from runtime API for given `SessionIndex`.
+	Missing(SessionIndex),
 }
 
 /// Information about the sessions being fetched.
@@ -257,7 +257,7 @@ async fn load_all_sessions(
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing),
+			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing(i)),
 			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
 			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
 		};

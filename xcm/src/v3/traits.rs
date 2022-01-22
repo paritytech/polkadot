@@ -111,6 +111,9 @@ pub enum Error {
 	/// The message was unable to be exported.
 	#[codec(index = 27)]
 	ExportError,
+	/// `MultiLocation` value failed to be reanchored.
+	#[codec(index = 28)]
+	ReanchorFailed,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
