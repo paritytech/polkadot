@@ -102,7 +102,7 @@ pub(crate) struct RequestResultCache {
 	candidate_pending_availability:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
-	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<Option<SessionInfo>>>,
+	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<SessionInfo>>,
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
 	inbound_hrmp_channels_contents: MemoryLruCache<
@@ -309,14 +309,11 @@ impl RequestResultCache {
 		self.candidate_events.insert(relay_parent, ResidentSizeOf(events));
 	}
 
-	pub(crate) fn session_info(
-		&mut self,
-		key: (Hash, SessionIndex),
-	) -> Option<&Option<SessionInfo>> {
-		self.session_info.get(&key.1).map(|v| &v.0)
+	pub(crate) fn session_info(&mut self, key: SessionIndex) -> Option<&SessionInfo> {
+		self.session_info.get(&key).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_session_info(&mut self, key: SessionIndex, value: Option<SessionInfo>) {
+	pub(crate) fn cache_session_info(&mut self, key: SessionIndex, value: SessionInfo) {
 		self.session_info.insert(key, ResidentSizeOf(value));
 	}
 

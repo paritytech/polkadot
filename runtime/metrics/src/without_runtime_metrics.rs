@@ -20,9 +20,9 @@
 
 use primitives::v1::metric_definitions::{CounterDefinition, CounterVecDefinition};
 
-/// A dummy Counter.
+/// A dummy `Counter`.
 pub struct Counter;
-/// A dummy CounterVec.
+/// A dummy `CounterVec`.
 pub struct CounterVec;
 
 /// Dummy implementation.
