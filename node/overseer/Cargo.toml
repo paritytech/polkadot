@@ -19,6 +19,9 @@ polkadot-overseer-gen = { path = "./overseer-gen" }
 tracing = "0.1.29"
 lru = "0.7"
 parity-util-mem = { version = ">= 0.10.1", default-features = false }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+async-trait = "0.1.50"
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }

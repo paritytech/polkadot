@@ -76,6 +76,10 @@ use polkadot_primitives::{
 	v2::ParachainHost,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
+use sc_consensus::block_import::{
+	BlockCheckParams, BlockImport, BlockImportParams, ImportResult,
+};
+use sp_consensus::CacheKeyId;
 
 use polkadot_node_network_protocol::v1 as protocol_v1;
 use polkadot_node_subsystem_types::messages::{
@@ -267,32 +271,64 @@ pub enum ExternalRequest {
 	},
 }
 
+/// Overseer block import service.
+#[derive(Clone)]
+pub struct OverseerBlockImport<I> {
+	inner: I,
+	handle: Handle,
+}
+
+#[async_trait::async_trait]
+impl<I: BlockImport<Block> + Send> BlockImport<Block> for OverseerBlockImport<I> {
+	type Error = I::Error;
+	type Transaction = I::Transaction;
+
+	async fn import_block(
+		&mut self,
+		import_block: BlockImportParams<Block, Self::Transaction>,
+		new_cache: HashMap<CacheKeyId, Vec<u8>>,
+	) -> Result<ImportResult, Self::Error> {
+		// `import_block`, unlike block import notifications, is guaranteed
+		// to be invoked for absolutely every single block the client imports.
+		// This is because it's part of the actualy pipeline that blocks flow through.
+		//
+		// However, this also means that when we're syncing (millions of blocks),
+		// this will be invoked for every single one of those.
+
+		let post_header = import_block.post_header();
+
+		let import_result = self.inner.import_block(import_block, new_cache).await;
+
+		if let Ok(ImportResult::Imported(_)) = import_result {
+			// From this point onwards, the block has actually been imported
+			// in the client if the result. State and block are present in the DB.
+			let block = BlockInfo {
+				hash: post_header.hash(),
+				parent_hash: post_header.parent_hash,
+				number: post_header.number,
+			};
+
+			self.handle.block_imported(block).await;
+		}
+
+		import_result
+	}
+
+	async fn check_block(
+		&mut self,
+		block: BlockCheckParams<Block>,
+	) -> Result<ImportResult, Self::Error> {
+		self.inner.check_block(block).await
+	}
+}
+
 /// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
 /// import and finality notifications into the [`OverseerHandle`].
-pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut handle: Handle) {
+pub async fn forward_finality_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut handle: Handle) {
 	let mut finality = client.finality_notification_stream();
-	let mut imports = client.import_notification_stream();
 
-	loop {
-		select! {
-			f = finality.next() => {
-				match f {
-					Some(block) => {
-						handle.block_finalized(block.into()).await;
-					}
-					None => break,
-				}
-			},
-			i = imports.next() => {
-				match i {
-					Some(block) => {
-						handle.block_imported(block.into()).await;
-					}
-					None => break,
-				}
-			},
-			complete => break,
-		}
+	while let Some(f) = finality.next().await {
+		handle.block_finalized(f.into()).await;
 	}
 }
 
