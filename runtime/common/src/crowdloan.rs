@@ -145,33 +145,33 @@ pub enum LastContribution<BlockNumber> {
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// The owning account who placed the deposit.
-	depositor: AccountId,
+	pub depositor: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
-	verifier: Option<MultiSigner>,
+	pub verifier: Option<MultiSigner>,
 	/// The amount of deposit placed.
-	deposit: Balance,
+	pub deposit: Balance,
 	/// The total amount raised.
-	raised: Balance,
+	pub raised: Balance,
 	/// Block number after which the funding must have succeeded. If not successful at this number
 	/// then everyone may withdraw their funds.
-	end: BlockNumber,
+	pub end: BlockNumber,
 	/// A hard-cap on the amount that may be contributed.
-	cap: Balance,
+	pub cap: Balance,
 	/// The most recent block that this had a contribution. Determines if we make a bid or not.
 	/// If this is `Never`, this fund has never received a contribution.
 	/// If this is `PreEnding(n)`, this fund received a contribution sometime in auction
 	/// number `n` before the ending period.
 	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
 	/// where `n` is how far into the ending period the contribution was made.
-	last_contribution: LastContribution<BlockNumber>,
+	pub last_contribution: LastContribution<BlockNumber>,
 	/// First lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
 	/// as `BlockNumber`.
-	first_period: LeasePeriod,
+	pub first_period: LeasePeriod,
 	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
 	/// as `BlockNumber`.
-	last_period: LeasePeriod,
+	pub last_period: LeasePeriod,
 	/// Index used for the child trie of this fund
-	trie_index: TrieIndex,
+	pub trie_index: TrieIndex,
 }
 
 #[frame_support::pallet]
