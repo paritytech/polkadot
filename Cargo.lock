@@ -6677,6 +6677,7 @@ name = "polkadot-overseer"
 version = "0.9.13"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "femme",
  "futures 0.3.19",
  "futures-timer",
@@ -6692,7 +6693,9 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "sc-client-api",
+ "sc-consensus",
  "sp-api",
+ "sp-consensus",
  "sp-core",
  "tracing",
 ]

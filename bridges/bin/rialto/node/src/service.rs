@@ -595,16 +595,19 @@ where
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
-					let forward = polkadot_overseer::forward_events(overseer_client, handle);
-
-					let forward = forward.fuse();
+					// Note: it's better to use the `polkadot_overseer::BlockImport`
+					// to avoid subsystems missing notifications about small forks.
+					let forward_import = polkadot_overseer::forward_import_events(overseer_client.clone(), handle.clone()).fuse();
+					let forward_finality = polkadot_overseer::forward_finality_events(overseer_client, handle).fuse();
 					let overseer_fut = overseer.run().fuse();
 
 					pin_mut!(overseer_fut);
-					pin_mut!(forward);
+					pin_mut!(forward_import);
+					pin_mut!(forward_finality);
 
 					select! {
-						_ = forward => (),
+						_ = forward_import => (),
+						_ = forward_finality => (),
 						_ = overseer_fut => (),
 						complete => (),
 					}

@@ -328,12 +328,22 @@ impl<I: BlockImport<Block> + Send> BlockImport<Block> for OverseerBlockImport<I>
 }
 
 /// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
-/// import and finality notifications into the [`OverseerHandle`].
+/// finality notifications into the [`OverseerHandle`].
 pub async fn forward_finality_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut handle: Handle) {
 	let mut finality = client.finality_notification_stream();
 
 	while let Some(f) = finality.next().await {
 		handle.block_finalized(f.into()).await;
+	}
+}
+
+/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
+/// import notifications into the [`OverseerHandle`].
+pub async fn forward_import_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut handle: Handle) {
+	let mut import = client.import_notification_stream();
+
+	while let Some(f) = import.next().await {
+		handle.block_imported(f.into()).await;
 	}
 }
 
