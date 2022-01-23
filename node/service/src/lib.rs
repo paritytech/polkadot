@@ -398,6 +398,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 		ExecutorDispatch,
 	>,
 	select_chain: ChainSelection,
+	overseer_handle: Handle,
 ) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, ExecutorDispatch>,
@@ -408,10 +409,12 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 		(
 			impl service::RpcExtensionBuilder,
 			(
-				babe::BabeBlockImport<
-					Block,
-					FullClient<RuntimeApi, ExecutorDispatch>,
-					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+				polkadot_overseer::OverseerBlockImport<
+					babe::BabeBlockImport<
+						Block,
+						FullClient<RuntimeApi, ExecutorDispatch>,
+						FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					>
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
@@ -485,6 +488,8 @@ where
 		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
+
+	let block_import = polkadot_overseer::block_import(block_import, overseer_handle);
 
 	let (beefy_commitment_link, beefy_commitment_stream) =
 		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
@@ -761,6 +766,7 @@ where
 		&mut config,
 		basics,
 		select_chain,
+		overseer_handle.clone(),
 	)?;
 
 	let shared_voter_state = rpc_setup;
@@ -998,7 +1004,7 @@ where
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
-					let forward = polkadot_overseer::forward_events(overseer_client, handle);
+					let forward = polkadot_overseer::forward_finality_events(overseer_client, handle);
 
 					let forward = forward.fuse();
 					let overseer_fut = overseer.run().fuse();
@@ -1197,12 +1203,15 @@ macro_rules! chain_ops {
 		use ::sc_consensus::LongestChain;
 		// use the longest chain selection, since there is no overseer available
 		let chain_selection = LongestChain::new(basics.backend.clone());
+		// use a default handle
+		let overseer_handle = Handle::new(OverseerConnector::default().handle());
 
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
 			new_partial::<$scope::RuntimeApi, $executor, LongestChain<_, Block>>(
 				&mut config,
 				basics,
 				chain_selection,
+				overseer_handle,
 			)?;
 		Ok((Arc::new(Client::$variant(client)), backend, import_queue, task_manager))
 	}};
