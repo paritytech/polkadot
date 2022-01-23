@@ -75,10 +75,8 @@ use polkadot_primitives::{
 	v1::{Block, BlockId, BlockNumber, Hash},
 	v2::ParachainHost,
 };
+use sc_consensus::block_import::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use sc_consensus::block_import::{
-	BlockCheckParams, BlockImport, BlockImportParams, ImportResult,
-};
 use sp_consensus::CacheKeyId;
 
 use polkadot_node_network_protocol::v1 as protocol_v1;
@@ -329,7 +327,10 @@ impl<I: BlockImport<Block> + Send> BlockImport<Block> for OverseerBlockImport<I>
 
 /// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
 /// finality notifications into the [`OverseerHandle`].
-pub async fn forward_finality_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut handle: Handle) {
+pub async fn forward_finality_events<P: BlockchainEvents<Block>>(
+	client: Arc<P>,
+	mut handle: Handle,
+) {
 	let mut finality = client.finality_notification_stream();
 
 	while let Some(f) = finality.next().await {

@@ -414,7 +414,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 						Block,
 						FullClient<RuntimeApi, ExecutorDispatch>,
 						FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
-					>
+					>,
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
@@ -1004,7 +1004,8 @@ where
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
-					let forward = polkadot_overseer::forward_finality_events(overseer_client, handle);
+					let forward =
+						polkadot_overseer::forward_finality_events(overseer_client, handle);
 
 					let forward = forward.fuse();
 					let overseer_fut = overseer.run().fuse();
