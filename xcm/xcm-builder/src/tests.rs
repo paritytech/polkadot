@@ -56,11 +56,11 @@ fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
-	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
+	let r = TakeWeightCredit::should_execute(&Parent.into(), message.inner_mut(), 10, &mut weight_credit);
 	assert_eq!(r, Ok(()));
 	assert_eq!(weight_credit, 0);
 
-	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
+	let r = TakeWeightCredit::should_execute(&Parent.into(), message.inner_mut(), 10, &mut weight_credit);
 	assert_eq!(r, Err(()));
 	assert_eq!(weight_credit, 0);
 }
@@ -74,7 +74,7 @@ fn allow_unpaid_should_work() {
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		&mut message,
+		message.inner_mut(),
 		10,
 		&mut 0,
 	);
@@ -82,7 +82,7 @@ fn allow_unpaid_should_work() {
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parent.into(),
-		&mut message,
+		message.inner_mut(),
 		10,
 		&mut 0,
 	);
@@ -98,7 +98,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		&mut message,
+		message.inner_mut(),
 		10,
 		&mut 0,
 	);
@@ -113,7 +113,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
-		&mut underpaying_message,
+		underpaying_message.inner_mut(),
 		30,
 		&mut 0,
 	);
@@ -128,7 +128,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		&mut paying_message,
+		paying_message.inner_mut(),
 		30,
 		&mut 0,
 	);
@@ -136,7 +136,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
-		&mut paying_message,
+		paying_message.inner_mut(),
 		30,
 		&mut 0,
 	);

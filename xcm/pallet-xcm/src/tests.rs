@@ -721,7 +721,7 @@ fn basic_subscription_works() {
 		]);
 		assert_ok!(AllowKnownQueryResponses::<XcmPallet>::should_execute(
 			&remote,
-			&mut message,
+			message.inner_mut(),
 			weight,
 			&mut 0
 		));

@@ -94,7 +94,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			weight_credit,
 		);
 		if let Err(e) =
-			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
+			Config::Barrier::should_execute(&origin, message.inner_mut(), xcm_weight, &mut weight_credit)
 		{
 			log::debug!(
 				target: "xcm::execute_xcm_in_credit",

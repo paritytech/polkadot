@@ -72,7 +72,7 @@ pub use filter_asset_location::{Case, NativeAsset};
 
 mod universal_exports {
 	use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
-	use frame_support::traits::Get;
+	use frame_support::{traits::Get, ensure};
 	use xcm::prelude::*;
 	use xcm_executor::traits::ExportXcm;
 
@@ -129,6 +129,8 @@ mod universal_exports {
 	///
 	/// No effort is made to charge for any bridge fees, so this can only be used when it is known
 	/// that the message sending cannot be abused in any way.
+	///
+	/// This is only useful when the local chain has bridging capabilities.
 	pub struct LocalUnpaidExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancestry)>);
 	impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm for LocalUnpaidExporter<Exporter, Ancestry> {
 		fn send_xcm(dest: impl Into<MultiLocation>, xcm: Xcm<()>) -> SendResult {
@@ -146,68 +148,33 @@ mod universal_exports {
 		}
 	}
 
-	/// Alternative implentation of `LocalUnpaidExporter` which uses the `ExportMessage`
-	/// instruction executing locally.
-	pub struct LocalUnpaidExecutingExporter<
-		Executer,
-		Ancestry,
-		WeightLimit,
-		Call,
-	>(PhantomData<(Executer, Ancestry, WeightLimit, Call)>);
-	impl<
-		Executer: ExecuteXcm<Call>,
-		Ancestry: Get<InteriorMultiLocation>,
-		WeightLimit: Get<u64>,
-		Call,
-	> SendXcm for LocalUnpaidExecutingExporter<Executer, Ancestry, WeightLimit, Call> {
-		fn send_xcm(dest: impl Into<MultiLocation>, xcm: Xcm<()>) -> SendResult {
-			let dest = dest.into();
+	// TODO: `SendXcm` should include a price/weight calculator for calling prior to `send_xcm`.
 
-			// TODO: proper matching so we can be sure that it's the only viable send_xcm before we
-			// attempt and thus can acceptably consume dest & xcm.
-			let err = Err(SendError::CannotReachDestination(dest.clone(), xcm.clone()));
-
-			let devolved = match ensure_is_remote(Ancestry::get(), dest) {
-				Ok(x) => x,
-				Err(_) => return err,
-			};
-			let (remote_network, remote_location, local_network, local_location) = devolved;
-
-			let mut inner_xcm: Xcm<()> = vec![
-				UniversalOrigin(GlobalConsensus(local_network)),
-				DescendOrigin(local_location),
-			].into();
-			inner_xcm.inner_mut().extend(xcm.into_iter());
-
-			let message = Xcm(vec![ ExportMessage {
-				network: remote_network,
-				destination: remote_location,
-				xcm: inner_xcm,
-			} ]);
-			let pre = match Executer::prepare(message) {
-				Ok(x) => x,
-				Err(_) => return err,
-			};
-			// We just swallow the weight - it should be constant.
-			let weight_credit = pre.weight_of();
-			match Executer::execute(Here, pre, weight_credit) {
-				Outcome::Complete(_) => Ok(()),
-				_ => return err,
-			}
-		}
-	}
-
-	// TODO: `LocalPaidExecutingExporter` able to accept from non-`Here`, but local, origins.
+	// TODO: Payment Barrier should ignore prefix of `UniversalOrigin`, `DescendOrigin`.
+	// TODO: Create `BridgedOrigin` Barrier which understands prefix of `UniversalOrigin`, `DescendOrigin`.
+	// TODO: Check and add/alter other barriers.
 
 	pub trait ExporterFor {
-		fn exporter_for(network: &NetworkId, remote_location: &InteriorMultiLocation) -> Option<MultiLocation>;
+		/// Return the locally-routable bridge (if any) capable of forwarding `message` to the
+		/// `remote_location` on the remote `network`, together with the payment which is required.
+		///
+		/// The payment is specified from the context of the bridge, not the local chain.
+		fn exporter_for(
+			network: &NetworkId,
+			remote_location: &InteriorMultiLocation,
+			message: &Xcm<()>,
+		) -> Option<(MultiLocation, Option<MultiAsset>)>;
 	}
 
 	#[impl_trait_for_tuples::impl_for_tuples(30)]
 	impl ExporterFor for Tuple {
-		fn exporter_for(network: &NetworkId, remote_location: &InteriorMultiLocation) -> Option<MultiLocation> {
+		fn exporter_for(
+			network: &NetworkId,
+			remote_location: &InteriorMultiLocation,
+			message: &Xcm<()>,
+		) -> Option<(MultiLocation, Option<MultiAsset>)> {
 			for_tuples!( #(
-				if let Some(r) = Tuple::exporter_for(network, remote_location) {
+				if let Some(r) = Tuple::exporter_for(network, remote_location, message) {
 					return Some(r);
 				}
 			)* );
@@ -216,21 +183,28 @@ mod universal_exports {
 	}
 
 	pub struct NetworkExportTable<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Get<&'static [(NetworkId, MultiLocation)]>> ExporterFor for NetworkExportTable<T> {
-		fn exporter_for(network: &NetworkId, _: &InteriorMultiLocation) -> Option<MultiLocation> {
-			T::get().iter().find(|(ref j, _)| j == network).map(|(_, l)| l.clone())
+	impl<T: Get<&'static [(NetworkId, MultiLocation, Option<MultiAsset>)]>> ExporterFor for NetworkExportTable<T> {
+		fn exporter_for(
+			network: &NetworkId,
+			_: &InteriorMultiLocation,
+			_: &Xcm<()>,
+		) -> Option<(MultiLocation, Option<MultiAsset>)> {
+			T::get().iter().find(|(ref j, ..)| j == network).map(|(_, l, p)| (l.clone(), p.clone()))
 		}
 	}
 
 	/// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
 	/// and sends it to a destination known to be able to handle it.
 	///
+	/// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
+	/// and `DescendOrigin` in order to ensure that the message is executed with our Origin.
+	///
 	/// No effort is made to make payment to the bridge for its services, so the bridge location
 	/// must have been configured with a barrier rule allowing unpaid execution for this message
 	/// coming from our origin.
 	///
-	/// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
-	/// and `DescendOrigin` in order to ensure that the message is executed with our Origin.
+	/// This is only useful if we have special dispensation by the remote bridges to have the
+	/// `ExportMessage` instruction executed without payment.
 	pub struct UnpaidRemoteExporter<
 		Bridges,
 		Router,
@@ -251,13 +225,23 @@ mod universal_exports {
 			let devolved = ensure_is_remote(Ancestry::get(), dest).map_err(|_| err.clone())?;
 			let (remote_network, remote_location, local_network, local_location) = devolved;
 
-			let bridge = Bridges::exporter_for(&remote_network, &remote_location).ok_or(err)?;
-
+			// Prepend the desired message with instructions which effectively rewrite the origin.
+			//
+			// This only works because the remote chain empowers the bridge
+			// to speak for the local network.
 			let mut inner_xcm: Xcm<()> = vec![
 				UniversalOrigin(GlobalConsensus(local_network)),
 				DescendOrigin(local_location),
 			].into();
 			inner_xcm.inner_mut().extend(xcm.into_iter());
+
+			let (bridge, payment) = Bridges::exporter_for(&remote_network, &remote_location, &inner_xcm)
+				.ok_or(err.clone())?;
+			ensure!(payment.is_none(), err);
+
+			// We then send a normal message to the bridge asking it to export the prepended
+			// message to the remote chain. This will only work if the bridge will do the message
+			// export for free. Common-good chains will typically be afforded this.
 			let message = Xcm(vec![
 				ExportMessage {
 					network: remote_network,
@@ -268,64 +252,71 @@ mod universal_exports {
 			Router::send_xcm(bridge, message)
 		}
 	}
-	
-/*
+
 	/// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
 	/// and sends it to a destination known to be able to handle it.
 	///
-	/// No effort is made to make payment to the bridge for its services, so the bridge location
-	/// must have been configured with a barrier rule allowing this message unpaid execution.
-	///
 	/// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
 	/// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
-	pub struct PaidRemoteExporter<
-		Executer,
+	///
+	/// The `ExportMessage` instruction on the bridge is paid for from the local chain's sovereign
+	/// account on the bridge. The amount paid is determined through the `ExporterFor` trait.
+	pub struct SovereignPaidRemoteExporter<
+		Bridges,
+		Router,
 		Ancestry,
-		WeightLimit,
-		Call,
-	>(PhantomData<(Executer, Ancestry, WeightLimit, Call)>);
+	>(PhantomData<(Bridges, Router, Ancestry)>);
 	impl<
-		Executer: ExecuteXcm<Call>,
+		Bridges: ExporterFor,
+		Router: SendXcm,
 		Ancestry: Get<InteriorMultiLocation>,
-		WeightLimit: Get<u64>,
-		Call,
-	> SendXcm for LocalPaidExecutingExporter<Executer, Ancestry, WeightLimit, Call> {
+	> SendXcm for SovereignPaidRemoteExporter<Bridges, Router, Ancestry> {
 		fn send_xcm(dest: impl Into<MultiLocation>, xcm: Xcm<()>) -> SendResult {
 			let dest = dest.into();
 
 			// TODO: proper matching so we can be sure that it's the only viable send_xcm before we
 			// attempt and thus can acceptably consume dest & xcm.
-			let err = Err(SendError::CannotReachDestination(dest.clone(), xcm.clone()));
+			let err = SendError::CannotReachDestination(dest.clone(), xcm.clone());
 
-			let devolved = match ensure_is_remote(Ancestry::get(), dest) {
-				Ok(x) => x,
-				Err(_) => return err,
-			};
+			let devolved = ensure_is_remote(Ancestry::get(), dest).map_err(|_| err.clone())?;
 			let (remote_network, remote_location, local_network, local_location) = devolved;
 
+			// Prepend the desired message with instructions which effectively rewrite the origin.
+			//
+			// This only works because the remote chain empowers the bridge
+			// to speak for the local network.
 			let mut inner_xcm: Xcm<()> = vec![
 				UniversalOrigin(GlobalConsensus(local_network)),
 				DescendOrigin(local_location),
 			].into();
 			inner_xcm.inner_mut().extend(xcm.into_iter());
 
-			let message = Xcm(vec![
-				WithdrawAsset((Here, ).into()),
-				BuyExecution { fees: Wild(AllCounted(1)), weight_limit: Unlimited },
-				DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
-				ExportMessage { network: remote_network, destination: remote_location, xcm: inner_xcm },
-			]);
-			let pre = match Executer::prepare(message) {
-				Ok(x) => x,
-				Err(_) => return err,
+			let (bridge, maybe_payment) = Bridges::exporter_for(&remote_network, &remote_location, &inner_xcm)
+				.ok_or(err.clone())?;
+			let local_from_bridge = MultiLocation::from(Ancestry::get()).inverted(&bridge)
+				.map_err(|_| err.clone())?;
+
+			// We then send a normal message to the bridge asking it to export the prepended
+			// message to the remote chain. This will only work if the bridge will do the message
+			// export for free. Common-good chains will typically be afforded this.
+			let export_instruction = ExportMessage {
+				network: remote_network,
+				destination: remote_location,
+				xcm: inner_xcm,
 			};
-			// We just swallow the weight - it should be constant.
-			let weight_credit = pre.weight_of();
-			match Executer::execute(Here, pre, weight_credit) {
-				Outcome::Complete(_) => Ok(()),
-				_ => return err,
-			}
+
+			let message = Xcm(if let Some(payment) = maybe_payment {
+				vec![
+					WithdrawAsset(payment.clone().into()),
+					BuyExecution { fees: payment, weight_limit: Unlimited },
+					export_instruction,
+					RefundSurplus,
+					DepositAsset { assets: All.into(), beneficiary: local_from_bridge },
+				]
+			} else {
+				vec![export_instruction]
+			});
+			Router::send_xcm(bridge, message)
 		}
 	}
-*/
 }
