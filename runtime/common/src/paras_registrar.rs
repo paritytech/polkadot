@@ -274,38 +274,43 @@ pub mod pallet {
 		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 
-			if PendingSwap::<T>::get(other) == Some(id) {
-				if let Some(other_lifecycle) = paras::Pallet::<T>::lifecycle(other) {
-					if let Some(id_lifecycle) = paras::Pallet::<T>::lifecycle(id) {
-						// identify which is a parachain and which is a parathread
-						if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parathread {
-							// We check that both paras are in an appropriate lifecycle for a swap,
-							// so these should never fail.
-							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
-							debug_assert!(res1.is_ok());
-							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
-							debug_assert!(res2.is_ok());
-							T::OnSwap::on_swap(id, other);
-						} else if id_lifecycle == ParaLifecycle::Parathread && other_lifecycle == ParaLifecycle::Parachain {
-							// We check that both paras are in an appropriate lifecycle for a swap,
-							// so these should never fail.
-							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
-							debug_assert!(res1.is_ok());
-							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
-							debug_assert!(res2.is_ok());
-							T::OnSwap::on_swap(id, other);
-						} else if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parachain {
-							// If both chains are currently parachains, there is nothing funny we
-							// need to do for their lifecycle management, just swap the underlying
-							// data.
-							T::OnSwap::on_swap(id, other);
-						} else {
-							return Error::<T>::CannotSwap;
-						}
+			// If `id` and `other` is the same id, we treat this as a "clear" function, and exit
+			// early, since swapping the same id would otherwise be a noop.
+			if id == other {
+				PendingSwap::<T>::remove(id);
+				return Ok(())
+			}
 
-						PendingSwap::<T>::remove(other);
-					}
+			if PendingSwap::<T>::get(other) == Some(id) {
+				let other_lifecycle = paras::Pallet::<T>::lifecycle(other).ok_or(Error::<T>::NotRegistered)?;
+				let id_lifecycle = paras::Pallet::<T>::lifecycle(id).ok_or(Error::<T>::NotRegistered)?;
+
+				// identify which is a parachain and which is a parathread
+				if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parathread {
+					// We check that both paras are in an appropriate lifecycle for a swap,
+					// so these should never fail.
+					let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
+					debug_assert!(res1.is_ok());
+					let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
+					debug_assert!(res2.is_ok());
+					T::OnSwap::on_swap(id, other);
+				} else if id_lifecycle == ParaLifecycle::Parathread && other_lifecycle == ParaLifecycle::Parachain {
+					// We check that both paras are in an appropriate lifecycle for a swap,
+					// so these should never fail.
+					let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
+					debug_assert!(res1.is_ok());
+					let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
+					debug_assert!(res2.is_ok());
+					T::OnSwap::on_swap(id, other);
+				} else if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parachain {
+					// If both chains are currently parachains, there is nothing funny we
+					// need to do for their lifecycle management, just swap the underlying
+					// data.
+					T::OnSwap::on_swap(id, other);
+				} else {
+					return Err(Error::<T>::CannotSwap);
 				}
+				PendingSwap::<T>::remove(other);
 			} else {
 				PendingSwap::<T>::insert(id, other);
 			}
