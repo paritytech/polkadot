@@ -160,6 +160,9 @@ pub mod pallet {
 		NotReserved,
 		/// Registering parachain with empty code is not allowed.
 		EmptyCode,
+		/// Cannot perform a parachain slot / lifecycle swap. Check that the state of both paras are
+		/// correct for the swap to work.
+		CannotSwap,
 	}
 
 	/// Pending swap operations.
@@ -296,6 +299,8 @@ pub mod pallet {
 							// need to do for their lifecycle management, just swap the underlying
 							// data.
 							T::OnSwap::on_swap(id, other);
+						} else {
+							return Error::<T>::CannotSwap;
 						}
 
 						PendingSwap::<T>::remove(other);
@@ -1062,6 +1067,100 @@ mod tests {
 
 			// Owner cannot call swap anymore
 			assert_noop!(Registrar::swap(Origin::signed(1), para_id, para_id + 2), BadOrigin);
+		});
+	}
+
+	#[test]
+	fn swap_handles_bad_states() {
+		new_test_ext().execute_with(|| {
+			let para_1 = LOWEST_PUBLIC_ID;
+			let para_2 = LOWEST_PUBLIC_ID + 1;
+			run_to_block(1);
+			// paras are not yet registered
+			assert!(!Parachains::is_parathread(para_1));
+			assert!(!Parachains::is_parathread(para_2));
+
+			// Cannot even start a swap
+			assert_noop!(Registrar::swap(Origin::root(), para_1, para_2), Error::<T>::NotRegistered);
+
+			// We register Paras 1 and 2
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(Origin::signed(2)));
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				para_1,
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+			assert_ok!(Registrar::register(
+				Origin::signed(2),
+				para_2,
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+
+			run_to_session(2);
+
+			// They are now a parathread.
+			assert!(Parachains::is_parathread(para_1));
+			assert!(Parachains::is_parathread(para_2));
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+
+			// Some other external process will elevate one parathread to parachain
+			assert_ok!(Registrar::make_parachain(para_1));
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+
+			run_to_session(3);
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+
+			run_to_session(4);
+
+			// It is now a parachain.
+			assert!(Parachains::is_parachain(para_1));
+			assert!(Parachains::is_parathread(para_2));
+
+			// Swap works here.
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(Origin::root(), para_2, para_1));
+
+			run_to_session(5);
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+
+			run_to_session(6);
+
+			// Swap worked!
+			assert!(Parachains::is_parachain(para_2));
+			assert!(Parachains::is_parathread(para_1));
+
+			// Something starts to downgrade a para
+			assert_ok!(Registrar::make_parathread(para_2));
+
+			run_to_session(7);
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+
+			run_to_session(8);
+
+			assert!(Parachains::is_parathread(para_1));
+			assert!(Parachains::is_parathread(para_2));
 		});
 	}
 }
