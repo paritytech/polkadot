@@ -1993,4 +1993,20 @@ impl<T: Config> Pallet<T> {
 	pub fn heads_insert(para_id: &ParaId, head_data: HeadData) {
 		Heads::<T>::insert(para_id, head_data);
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn initialize_para_now(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
+		// first queue this para actions..
+		let _ = Self::schedule_para_initialize(id, genesis)?;
+
+		// .. and immediately apply them.
+		Self::apply_actions_queue(Self::scheduled_session());
+
+		// ensure it has become a para.
+		ensure!(
+			ParaLifecycles::<T>::get(id) == Some(ParaLifecycle::Parachain),
+			"Parachain not created properly"
+		);
+		Ok(())
+	}
 }
