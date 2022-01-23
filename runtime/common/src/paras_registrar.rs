@@ -281,10 +281,11 @@ pub mod pallet {
 				return Ok(())
 			}
 
+			// Sanity check that `id` is even a para.
+			let id_lifecycle = paras::Pallet::<T>::lifecycle(id).ok_or(Error::<T>::NotRegistered)?;
+
 			if PendingSwap::<T>::get(other) == Some(id) {
 				let other_lifecycle = paras::Pallet::<T>::lifecycle(other).ok_or(Error::<T>::NotRegistered)?;
-				let id_lifecycle = paras::Pallet::<T>::lifecycle(id).ok_or(Error::<T>::NotRegistered)?;
-
 				// identify which is a parachain and which is a parathread
 				if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parathread {
 					// We check that both paras are in an appropriate lifecycle for a swap,
@@ -308,7 +309,7 @@ pub mod pallet {
 					// data.
 					T::OnSwap::on_swap(id, other);
 				} else {
-					return Err(Error::<T>::CannotSwap);
+					return Err(Error::<T>::CannotSwap.into());
 				}
 				PendingSwap::<T>::remove(other);
 			} else {
@@ -602,6 +603,7 @@ mod tests {
 		transaction_validity::TransactionPriority,
 		Perbill,
 	};
+	use sp_std::collections::btree_map::BTreeMap;
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -711,7 +713,7 @@ mod tests {
 		type Event = Event;
 		type Origin = Origin;
 		type Currency = Balances;
-		type OnSwap = ();
+		type OnSwap = MockSwap;
 		type ParaDeposit = ParaDeposit;
 		type DataDepositPerByte = DataDepositPerByte;
 		type WeightInfo = TestWeightInfo;
@@ -737,6 +739,22 @@ mod tests {
 			.unwrap();
 
 		t.into()
+	}
+
+	parameter_types! {
+		pub static SwapData: BTreeMap<ParaId, u64> = BTreeMap::new();
+	}
+
+	pub struct MockSwap;
+	impl OnSwap for MockSwap {
+		fn on_swap(one: ParaId, other: ParaId) {
+			let mut swap_data = SwapData::get();
+			let one_data = swap_data.remove(&one).unwrap_or_default();
+			let other_data = swap_data.remove(&other).unwrap_or_default();
+			swap_data.insert(one, other_data);
+			swap_data.insert(other, one_data);
+			SwapData::set(swap_data);
+		}
 	}
 
 	const BLOCKS_PER_SESSION: u32 = 3;
@@ -1012,8 +1030,14 @@ mod tests {
 			));
 			run_to_session(2);
 
-			// Upgrade 1023 into a parachain
+			// Upgrade para 1 into a parachain
 			assert_ok!(Registrar::make_parachain(para_1));
+
+			// Set some mock swap data.
+			let mut swap_data = SwapData::get();
+			swap_data.insert(para_1, 69);
+			swap_data.insert(para_2, 1337);
+			SwapData::set(swap_data);
 
 			run_to_session(4);
 
@@ -1029,20 +1053,15 @@ mod tests {
 
 			run_to_session(6);
 
-			// Deregister a parathread that was originally a parachain
-			assert_eq!(Parachains::lifecycle(para_1), Some(ParaLifecycle::Parathread));
-			assert_ok!(Registrar::deregister(
-				runtime_parachains::Origin::Parachain(para_1).into(),
-				para_1
-			));
-
-			run_to_block(21);
-
 			// Roles are swapped
 			assert!(!Parachains::is_parachain(para_1));
 			assert!(Parachains::is_parathread(para_1));
 			assert!(Parachains::is_parachain(para_2));
 			assert!(!Parachains::is_parathread(para_2));
+
+			// Data is swapped
+			assert_eq!(SwapData::get().get(&para_1).unwrap(), &1337);
+			assert_eq!(SwapData::get().get(&para_2).unwrap(), &69);
 		});
 	}
 
@@ -1085,8 +1104,11 @@ mod tests {
 			assert!(!Parachains::is_parathread(para_1));
 			assert!(!Parachains::is_parathread(para_2));
 
+			println!("{:?}", paras::Pallet::<Test>::lifecycle(para_1));
+			println!("{:?}", paras::Pallet::<Test>::lifecycle(para_2));
+
 			// Cannot even start a swap
-			assert_noop!(Registrar::swap(Origin::root(), para_1, para_2), Error::<T>::NotRegistered);
+			assert_noop!(Registrar::swap(Origin::root(), para_1, para_2), Error::<Test>::NotRegistered);
 
 			// We register Paras 1 and 2
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
