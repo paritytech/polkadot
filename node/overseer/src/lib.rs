@@ -278,6 +278,11 @@ pub struct OverseerBlockImport<I> {
 	handle: Handle,
 }
 
+/// Create a new [`OverseerBlockImport`] with given inner implementation and handle.
+pub fn block_import<I>(inner: I, handle: Handle) -> OverseerBlockImport<I> {
+	OverseerBlockImport { inner, handle }
+}
+
 #[async_trait::async_trait]
 impl<I: BlockImport<Block> + Send> BlockImport<Block> for OverseerBlockImport<I> {
 	type Error = I::Error;
