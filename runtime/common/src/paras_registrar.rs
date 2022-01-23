@@ -282,12 +282,16 @@ pub mod pallet {
 			}
 
 			// Sanity check that `id` is even a para.
-			let id_lifecycle = paras::Pallet::<T>::lifecycle(id).ok_or(Error::<T>::NotRegistered)?;
+			let id_lifecycle =
+				paras::Pallet::<T>::lifecycle(id).ok_or(Error::<T>::NotRegistered)?;
 
 			if PendingSwap::<T>::get(other) == Some(id) {
-				let other_lifecycle = paras::Pallet::<T>::lifecycle(other).ok_or(Error::<T>::NotRegistered)?;
+				let other_lifecycle =
+					paras::Pallet::<T>::lifecycle(other).ok_or(Error::<T>::NotRegistered)?;
 				// identify which is a parachain and which is a parathread
-				if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parathread {
+				if id_lifecycle == ParaLifecycle::Parachain &&
+					other_lifecycle == ParaLifecycle::Parathread
+				{
 					// We check that both paras are in an appropriate lifecycle for a swap,
 					// so these should never fail.
 					let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
@@ -295,7 +299,9 @@ pub mod pallet {
 					let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
 					debug_assert!(res2.is_ok());
 					T::OnSwap::on_swap(id, other);
-				} else if id_lifecycle == ParaLifecycle::Parathread && other_lifecycle == ParaLifecycle::Parachain {
+				} else if id_lifecycle == ParaLifecycle::Parathread &&
+					other_lifecycle == ParaLifecycle::Parachain
+				{
 					// We check that both paras are in an appropriate lifecycle for a swap,
 					// so these should never fail.
 					let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
@@ -303,13 +309,15 @@ pub mod pallet {
 					let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
 					debug_assert!(res2.is_ok());
 					T::OnSwap::on_swap(id, other);
-				} else if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parachain {
+				} else if id_lifecycle == ParaLifecycle::Parachain &&
+					other_lifecycle == ParaLifecycle::Parachain
+				{
 					// If both chains are currently parachains, there is nothing funny we
 					// need to do for their lifecycle management, just swap the underlying
 					// data.
 					T::OnSwap::on_swap(id, other);
 				} else {
-					return Err(Error::<T>::CannotSwap.into());
+					return Err(Error::<T>::CannotSwap.into())
 				}
 				PendingSwap::<T>::remove(other);
 			} else {
@@ -1108,7 +1116,10 @@ mod tests {
 			println!("{:?}", paras::Pallet::<Test>::lifecycle(para_2));
 
 			// Cannot even start a swap
-			assert_noop!(Registrar::swap(Origin::root(), para_1, para_2), Error::<Test>::NotRegistered);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_1, para_2),
+				Error::<Test>::NotRegistered
+			);
 
 			// We register Paras 1 and 2
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
@@ -1128,7 +1139,10 @@ mod tests {
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
 
 			run_to_session(2);
 
@@ -1138,20 +1152,29 @@ mod tests {
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
 
 			// Some other external process will elevate one parathread to parachain
 			assert_ok!(Registrar::make_parachain(para_1));
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
 
 			run_to_session(3);
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
 
 			run_to_session(4);
 
@@ -1167,7 +1190,10 @@ mod tests {
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
 
 			run_to_session(6);
 
@@ -1182,7 +1208,10 @@ mod tests {
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_noop!(Registrar::swap(Origin::root(), para_2, para_1), Error::<Test>::CannotSwap);
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
 
 			run_to_session(8);
 
