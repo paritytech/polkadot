@@ -275,7 +275,7 @@ pub mod pallet {
 				if let Some(other_lifecycle) = paras::Pallet::<T>::lifecycle(other) {
 					if let Some(id_lifecycle) = paras::Pallet::<T>::lifecycle(id) {
 						// identify which is a parachain and which is a parathread
-						if id_lifecycle.is_parachain() && other_lifecycle.is_parathread() {
+						if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parathread {
 							// We check that both paras are in an appropriate lifecycle for a swap,
 							// so these should never fail.
 							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
@@ -283,13 +283,18 @@ pub mod pallet {
 							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
 							debug_assert!(res2.is_ok());
 							T::OnSwap::on_swap(id, other);
-						} else if id_lifecycle.is_parathread() && other_lifecycle.is_parachain() {
+						} else if id_lifecycle == ParaLifecycle::Parathread && other_lifecycle == ParaLifecycle::Parachain {
 							// We check that both paras are in an appropriate lifecycle for a swap,
 							// so these should never fail.
 							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
 							debug_assert!(res1.is_ok());
 							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
 							debug_assert!(res2.is_ok());
+							T::OnSwap::on_swap(id, other);
+						} else if id_lifecycle == ParaLifecycle::Parachain && other_lifecycle == ParaLifecycle::Parachain {
+							// If both chains are currently parachains, there is nothing funny we
+							// need to do for their lifecycle management, just swap the underlying
+							// data.
 							T::OnSwap::on_swap(id, other);
 						}
 
