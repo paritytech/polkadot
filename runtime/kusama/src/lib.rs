@@ -138,11 +138,11 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-/// Don't allow swaps until parathread story is more mature.
+/// We currently allow all calls.
 pub struct BaseFilter;
 impl Contains<Call> for BaseFilter {
 	fn contains(c: &Call) -> bool {
-		!matches!(c, Call::Registrar(paras_registrar::Call::swap { .. }))
+		true
 	}
 }
 
