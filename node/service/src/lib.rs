@@ -464,6 +464,7 @@ where
 	let babe_config = babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
 		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+	let block_import = polkadot_overseer::block_import(block_import, overseer_handle);
 
 	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
@@ -488,8 +489,6 @@ where
 		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-
-	let block_import = polkadot_overseer::block_import(block_import, overseer_handle);
 
 	let (beefy_commitment_link, beefy_commitment_stream) =
 		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
