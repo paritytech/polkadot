@@ -143,9 +143,7 @@ default:
     REL_MAN_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/REL_MAN_ROOM_ID@kv
       file:                        false
-    SSH_PRIVATE_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/SSH_PRIVATE_KEY@kv
-      file:                        false
+
 
 #### stage:                        test
 
@@ -299,7 +297,6 @@ build-malus:
   stage:                           build
   <<:                              *docker-env
   <<:                              *test-pr-refs
-  <<:                              *vault-secrets
   script:
     - git clone
         --depth=1
