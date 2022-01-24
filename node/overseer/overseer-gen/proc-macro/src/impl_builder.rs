@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use inflector::Inflector;
 use quote::{format_ident, quote};
 use syn::Ident;
-use inflector::Inflector;
 
 use super::*;
 
@@ -64,7 +64,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.collect::<Vec<_>>();
 
 	// Helpers to use within quote! macros
-	let subsystem_where_clause = &info.subsystems()
+	let subsystem_where_clause = &info
+		.subsystems()
 		.iter()
 		.map(|subsys| {
 			let generic_ty = &subsys.generic;
@@ -83,18 +84,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		S, #( #subsystem_type, )* #( #baggage_generic, )*
 	};
 
-	let placeholder_type = create_all_placeholder_idents(subsystem_name.as_slice(),
-														  baggage_name.as_slice());
-	let field_name = subsystem_name
-		.iter()
-		.chain(baggage_name.iter())
-		.collect::<Vec<_>>();
+	let placeholder_type =
+		create_all_placeholder_idents(subsystem_name.as_slice(), baggage_name.as_slice());
+	let field_name = subsystem_name.iter().chain(baggage_name.iter()).collect::<Vec<_>>();
 	let field_type = subsystem_type
 		.iter()
-		.chain(info.baggage()
-			.iter()
-			.filter_map(|bag| bag.field_ty.get_ident())
-		)
+		.chain(info.baggage().iter().filter_map(|bag| bag.field_ty.get_ident()))
 		.collect::<Vec<_>>();
 
 	// Setters logic
@@ -102,17 +97,15 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	// For each setter we need to leave the remaining fields untouched and
 	// remove the field that we are fixing in this setter
 	// For subsystems we also need _with and replace_ setters
-	let subsystem_specific_setters = info.subsystems()
-		.iter()
-		.filter(|ssf| !ssf.wip)
-		.enumerate()
-		.map(|(idx, ssf)| {
+	let subsystem_specific_setters =
+		info.subsystems().iter().filter(|ssf| !ssf.wip).enumerate().map(|(idx, ssf)| {
 			let fname = &ssf.name;
 			let ftype = &ssf.generic;
 			let subsystem_consumes = &ssf.consumes;
 			// Remove placeholder at specific field position
-			let impl_generics = &(placeholder_type[..idx].iter()
-				.chain(placeholder_type[idx+1..].iter())
+			let impl_generics = &(placeholder_type[..idx]
+				.iter()
+				.chain(placeholder_type[idx + 1..].iter())
 				.collect::<Vec<_>>());
 			let fname_with = format_ident!("{}_with", fname);
 			let fname_replace = format_ident!("replace_{}", fname);
@@ -121,23 +114,23 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				ftype,
 				idx,
 				placeholder_type.as_slice(),
-				&Ident::new("OverseerFieldUninit", Span::call_site()));
+				&Ident::new("OverseerFieldUninit", Span::call_site()),
+			);
 			let return_type_generics = produce_setter_generic_permutation(
 				ftype,
 				idx,
 				placeholder_type.as_slice(),
-				&Ident::new("OverseerFieldInit", Span::call_site()));
-			let other_field_name = field_name[..idx].iter()
-				.chain(field_name[idx+1..].iter())
-				.collect::<Vec<_>>();
+				&Ident::new("OverseerFieldInit", Span::call_site()),
+			);
+			let other_field_name =
+				field_name[..idx].iter().chain(field_name[idx + 1..].iter()).collect::<Vec<_>>();
 			let replace_modified_generics = return_type_generics
 				.iter()
 				.enumerate()
 				.map(|(other_idx, generic)| {
 					if other_idx == idx {
 						quote!(OverseerFieldInit<NEW>)
-					}
-					else {
+					} else {
 						generic.clone()
 					}
 				})
@@ -210,56 +203,53 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		});
 	// Produce setters for all baggage fields as well
-	let baggage_specific_setters = info.baggage()
-		.iter()
-		.enumerate()
-		.map(|(idx, bag_field)| {
-			// Baggage fields follow subsystems
-			let baggage_idx = idx + subsystem_name.len();
-			let fname = &bag_field.field_name;
-			let ftype = &bag_field.field_ty;
-			let impl_generics = placeholder_type[..baggage_idx]
-				.iter()
-				.chain(placeholder_type[baggage_idx+1..].iter());
-			let other_field_name = field_name[..baggage_idx]
-				.iter()
-				.chain(field_name[baggage_idx+1..].iter());
+	let baggage_specific_setters = info.baggage().iter().enumerate().map(|(idx, bag_field)| {
+		// Baggage fields follow subsystems
+		let baggage_idx = idx + subsystem_name.len();
+		let fname = &bag_field.field_name;
+		let ftype = &bag_field.field_ty;
+		let impl_generics = placeholder_type[..baggage_idx]
+			.iter()
+			.chain(placeholder_type[baggage_idx + 1..].iter());
+		let other_field_name =
+			field_name[..baggage_idx].iter().chain(field_name[baggage_idx + 1..].iter());
 
-			let uninit_generics = produce_setter_generic_permutation(
-				ftype,
-				baggage_idx,
-				placeholder_type.as_slice(),
-				&Ident::new("OverseerFieldUninit", Span::call_site()));
-			let return_type_generics = produce_setter_generic_permutation(
-				ftype,
-				baggage_idx,
-				placeholder_type.as_slice(),
-				&Ident::new("OverseerFieldInit", Span::call_site()));
-			let additional_baggage_generic = if bag_field.generic {
-				quote!{#ftype,}
-			}
-			else {
-				quote!()
-			};
+		let uninit_generics = produce_setter_generic_permutation(
+			ftype,
+			baggage_idx,
+			placeholder_type.as_slice(),
+			&Ident::new("OverseerFieldUninit", Span::call_site()),
+		);
+		let return_type_generics = produce_setter_generic_permutation(
+			ftype,
+			baggage_idx,
+			placeholder_type.as_slice(),
+			&Ident::new("OverseerFieldInit", Span::call_site()),
+		);
+		let additional_baggage_generic = if bag_field.generic {
+			quote! {#ftype,}
+		} else {
+			quote!()
+		};
 
-			quote! {
-				impl <S, #additional_baggage_generic #( #impl_generics, )*>
-				#builder <S, #( #uninit_generics, )*> #builder_where_clause {
-					/// Specify the baggage in the builder
-					pub fn #fname (self, var: #ftype ) ->
-						#builder <S, #( #return_type_generics, )*>
-					{
-						#builder {
-							#fname: OverseerFieldInit::<#ftype>::Value(var),
-							#(
-								#other_field_name: self.#other_field_name,
-							)*
-							spawner: self.spawner,
-						}
+		quote! {
+			impl <S, #additional_baggage_generic #( #impl_generics, )*>
+			#builder <S, #( #uninit_generics, )*> #builder_where_clause {
+				/// Specify the baggage in the builder
+				pub fn #fname (self, var: #ftype ) ->
+					#builder <S, #( #return_type_generics, )*>
+				{
+					#builder {
+						#fname: OverseerFieldInit::<#ftype>::Value(var),
+						#(
+							#other_field_name: self.#other_field_name,
+						)*
+						spawner: self.spawner,
 					}
 				}
 			}
-		});
+		}
+	});
 
 	let event = &info.extern_event_ty;
 
@@ -601,43 +591,50 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	ts
 }
 
-fn create_all_placeholder_idents(subsystems_names: &[Ident], baggage_names: &[Ident]) -> Vec<Ident> {
-	let mut result = Vec::<Ident>::with_capacity(subsystems_names.len() +
-		baggage_names.len());
+/// This is a helper function that produces placeholder types for all
+/// subsystems and baggage fields of the overseer
+fn create_all_placeholder_idents(
+	subsystems_names: &[Ident],
+	baggage_names: &[Ident],
+) -> Vec<Ident> {
+	let mut result = Vec::<Ident>::with_capacity(subsystems_names.len() + baggage_names.len());
 
-	result.extend(subsystems_names
-					  .iter()
-					  .map(|field_name| format_ident!("__{}",
-						  field_name.to_string().to_class_case()))
+	result.extend(
+		subsystems_names
+			.iter()
+			.map(|field_name| format_ident!("__{}", field_name.to_string().to_class_case())),
 	);
-	result.extend(baggage_names
-		.iter()
-		.map(|field_name| format_ident!("__{}",
-			field_name.to_string().to_class_case()))
+	result.extend(
+		baggage_names
+			.iter()
+			.map(|field_name| format_ident!("__{}", field_name.to_string().to_class_case())),
 	);
 	result
 }
 
+/// This helper function is used to create a replacement for a placeholder types
+/// replacing a field matches specific index with a replacement ident
+/// For example, we have `<A, B, C>` and we want to produce `<A, Init<T>, C>`,
+/// so we call this function for `idx=1` and replacement ident as `Init<T>`
 fn produce_setter_generic_permutation<T>(
 	field_type: T,
 	field_idx: usize,
 	placeholder_types: &[Ident],
-	replacement_type: &Ident
+	replacement_type: &Ident,
 ) -> Vec<TokenStream>
-	where T: ToTokens
+where
+	T: ToTokens,
 {
-	let replaced_type = quote!{#replacement_type<#field_type>};
+	let replaced_type = quote! {#replacement_type<#field_type>};
 	placeholder_types
 		.iter()
 		.enumerate()
 		.map(|(other_idx, placeholder_ty)| {
 			if other_idx == field_idx {
 				replaced_type.clone()
-			}
-			else {
-				quote!{#placeholder_ty}
+			} else {
+				quote! {#placeholder_ty}
 			}
 		})
 		.collect::<Vec<_>>()
 }
-
