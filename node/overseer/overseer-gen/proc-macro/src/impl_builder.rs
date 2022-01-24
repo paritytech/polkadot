@@ -63,20 +63,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.collect::<Vec<_>>();
 
 	// Helpers to use within quote! macros
-	let subsystem_where_clause = &info
-		.subsystems()
-		.iter()
-		.map(|subsys| {
-			let generic_ty = &subsys.generic;
-			let consumes = &subsys.consumes;
-			quote! {
-				#generic_ty : #support_crate ::Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>
-			}
-		})
-		.collect::<Vec<_>>();
 	let builder_where_clause = quote! {
 		where
-			#( #subsystem_where_clause, )*
+			#(
+				#subsystem_type : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
+			)*
 			S: #support_crate ::SpawnNamed + Send
 	};
 	let builder_generics = quote! {
