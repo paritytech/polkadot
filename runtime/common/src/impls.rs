@@ -74,6 +74,7 @@ mod tests {
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
+	const TEST_ACCOUNT: AccountId = AccountId::new([1; 32]);
 
 	frame_support::construct_runtime!(
 		pub enum Test where
@@ -171,7 +172,7 @@ mod tests {
 		where
 			I: 'a,
 		{
-			Some(Default::default())
+			Some(TEST_ACCOUNT)
 		}
 	}
 	impl pallet_authorship::Config for Test {
@@ -197,12 +198,12 @@ mod tests {
 			let tip = Balances::issue(20);
 
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 0);
-			assert_eq!(Balances::free_balance(AccountId::default()), 0);
+			assert_eq!(Balances::free_balance(TEST_ACCOUNT), 0);
 
 			DealWithFees::on_unbalanceds(vec![fee, tip].into_iter());
 
 			// Author gets 100% of tip and 20% of fee = 22
-			assert_eq!(Balances::free_balance(AccountId::default()), 22);
+			assert_eq!(Balances::free_balance(TEST_ACCOUNT), 22);
 			// Treasury gets 80% of fee
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 8);
 		});
