@@ -97,20 +97,20 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						Some(Ok(r)) => r,
 						// Custom `jsonrpsee` message; should not occur.
 						Some(Err(RpcError::SubscriptionClosed(reason))) => {
-							log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
+							log::warn!(target: LOG_TARGET, "subscription to {} terminated: {:?}. Retrying..", reason, sub);
+							subscription = client.subscribe(&sub, None, &unsub).await?;
 							continue;
 						}
 						Some(Err(e)) => {
-							log::error!("[rpc]: subscription failed to decode Header {:?}, this is bug please file an issue", e);
+							log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
 							return Err(e.into());
 						}
 						// The subscription was dropped, should only happen if:
 						//	- the connection was closed.
 						//	- the subscription could not need keep up with the server.
 						None => {
-							log::warn!("[rpc]: restarting header subscription");
-							subscription = client.subscribe(&sub, None, &unsub).await?;
 							log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
+							subscription = client.subscribe(&sub, None, &unsub).await?;
 							continue
 						}
 					}
