@@ -1,0 +1,37 @@
+[settings]
+timeout = 1000
+
+# TODO: Add ability to set relaychain validator count here and not write an entry for each of them.
+# This is mandatory for scale tests when we also need to generate key pairs.
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "versi-local"
+chain_spec_command = "../polkadot/target/release/polkadot build-spec --chain versi-local --disable-default-bootnode"
+default_command = "../polkadot/target/release/polkadot"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  extra_args = [ "--alice", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  extra_args = [ "--bob", "-lparachain=debug"]
+
+# TODO: Add bulk parachain registration option. Register 20 parachains with a specified collator, or even groups
+# of parachains each with different collator settings. We will want to change `adder-collator` to control PoV size 
+# and PVF preparation time, by scaling it to output a larger merkle tree and mutate it across many transactions - 
+# bigger PoV size as well as larger code size.
+[[parachains]]
+id = 100
+addToGenesis = false
+
+  [parachains.collator]
+  name = "collator01"
+  command = "../polkadot/target/release/adder-collator"
+  args = ["-lparachain=debug"]
+
+# TODO: This should not be in here, maybe have a separate file that is included by default ?
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"
