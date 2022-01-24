@@ -71,7 +71,7 @@ use super::{
 	OverlayedBackend,
 };
 
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 40;
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 100;
 const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 20;
 
 /// After the first active leaves update we transition to `Initialized` state.
