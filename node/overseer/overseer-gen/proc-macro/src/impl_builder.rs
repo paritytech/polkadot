@@ -44,7 +44,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let channel_name_unbounded_rx = &info.channel_names_without_wip("_unbounded_rx");
 
 	let baggage_name = &info.baggage_names();
-	let baggage_generic = &info.baggage_generic_types();
+	let baggage_generic_ty = &info.baggage_generic_types();
 	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
 
 	let error_ty = &info.extern_error_ty;
@@ -81,7 +81,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			S: #support_crate ::SpawnNamed + Send
 	};
 	let builder_generics = quote! {
-		S, #( #subsystem_type, )* #( #baggage_generic, )*
+		S, #( #subsystem_type, )* #( #baggage_generic_ty, )*
 	};
 
 	let placeholder_type =
@@ -97,8 +97,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	// For each setter we need to leave the remaining fields untouched and
 	// remove the field that we are fixing in this setter
 	// For subsystems we also need _with and replace_ setters
-	let subsystem_specific_setters =
-		info.subsystems().iter().filter(|ssf| !ssf.wip).enumerate().map(|(idx, ssf)| {
+	let subsystem_specific_setters = info
+		.subsystems()
+		.iter()
+		.filter(|ssf| !ssf.wip)
+		.enumerate()
+		.map(|(idx, ssf)| {
 			let fname = &ssf.name;
 			let ftype = &ssf.generic;
 			let subsystem_consumes = &ssf.consumes;
@@ -203,7 +207,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		});
 	// Produce setters for all baggage fields as well
-	let baggage_specific_setters = info.baggage().iter().enumerate().map(|(idx, bag_field)| {
+	let baggage_specific_setters = info
+		.baggage()
+		.iter()
+		.enumerate()
+		.map(|(idx, bag_field)| {
 		// Baggage fields follow subsystems
 		let baggage_idx = idx + subsystem_name.len();
 		let fname = &bag_field.field_name;
@@ -282,7 +290,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		impl<S> #overseer_name <S> {
+		impl<S, #( #baggage_generic_ty, )*> #overseer_name <S, #( #baggage_generic_ty, )*> {
 			/// Create a new overseer utilizing the builder.
 			pub fn builder() ->
 				#builder<S, #( OverseerFieldUninit::<#field_type>, )* >
@@ -363,7 +371,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		impl<S, #( #placeholder_type, )*> #builder<S, #( #placeholder_type, )*>
+		impl<S, #( #placeholder_type, )*>
+			#builder<S, #( #placeholder_type, )*>
 			#builder_where_clause
 		{
 			/// The spawner to use for spawning tasks.
@@ -378,14 +387,14 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			#builder_where_clause {
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
-				-> ::std::result::Result<(#overseer_name<S>, #handle), #error_ty> {
+				-> ::std::result::Result<(#overseer_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty> {
 				let connector = #connector ::default();
 				self.build_with_connector(connector)
 			}
 
 			/// Complete the construction and create the overseer type based on an existing `connector`.
 			pub fn build_with_connector(self, connector: #connector)
-				-> ::std::result::Result<(#overseer_name<S>, #handle), #error_ty>
+				-> ::std::result::Result<(#overseer_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty>
 			{
 				let #connector {
 					handle: events_tx,
