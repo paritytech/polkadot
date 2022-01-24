@@ -1,5 +1,5 @@
 error[E0599]: no method named `i_like_pie` found for struct `OverseerBuilder<_, OverseerFieldInit<AwesomeSubSys>, OverseerFieldInit<f64>>` in the current scope
-  --> tests/ui/err-07-duplicate-field.rs:58:10
+  --> tests/ui/err-07-duplicate-field.rs:58:4
    |
 22 | #[overlord(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
    | -------------------------------------------------------------------------------- method `i_like_pie` not found for this

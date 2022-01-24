@@ -1,5 +1,5 @@
 error[E0599]: no method named `build` found for struct `OverseerBuilder<DummySpawner, OverseerFieldUninit<AwesomeSubSys>, OverseerFieldInit<f64>>` in the current scope
-  --> tests/ui/err-06-missing-subsystem.rs:59:10
+  --> tests/ui/err-06-missing-subsystem.rs:59:4
    |
 22 | #[overlord(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
    | -------------------------------------------------------------------------------- method `build` not found for this

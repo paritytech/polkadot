@@ -1,5 +1,5 @@
 error[E0599]: no method named `sub0` found for struct `OverseerBuilder<_, OverseerFieldInit<AwesomeSubSys>, OverseerFieldUninit<f64>>` in the current scope
-  --> tests/ui/err-08-duplicate-subsystem.rs:57:10
+  --> tests/ui/err-08-duplicate-subsystem.rs:57:4
    |
 22 | #[overlord(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
    | -------------------------------------------------------------------------------- method `sub0` not found for this
