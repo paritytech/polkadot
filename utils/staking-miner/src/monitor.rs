@@ -97,7 +97,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						Some(Ok(r)) => r,
 						// Custom `jsonrpsee` message; should not occur.
 						Some(Err(RpcError::SubscriptionClosed(reason))) => {
-							log::warn!(target: LOG_TARGET, "subscription to {} terminated: {:?}. Retrying..", reason, sub);
+							log::warn!(target: LOG_TARGET, "subscription to {} terminated: {:?}. Retrying..", sub, reason);
 							subscription = client.subscribe(&sub, None, &unsub).await?;
 							continue;
 						}
