@@ -696,7 +696,7 @@ impl Initialized {
 		Ok(Box::new(|| Ok(())))
 	}
 
-	// Helper function for checking subsystem errors in mesasge processing.
+	// Helper function for checking subsystem errors in message processing.
 	fn ensure_no_errors(&self) -> Result<()> {
 		if let Some(subsystem_error) = self.error.clone() {
 			return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
