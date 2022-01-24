@@ -264,6 +264,14 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
+	pub(crate) fn subsystem_generic_types(&self) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|sff| sff.generic.clone())
+			.collect::<Vec<_>>()
+	}
+
 	pub(crate) fn baggage(&self) -> &[BaggageField] {
 		self.baggage.as_slice()
 	}
