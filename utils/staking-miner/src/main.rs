@@ -43,8 +43,8 @@ use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
-use structopt::StructOpt;
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
+use structopt::{clap::arg_enum, StructOpt};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -240,6 +240,7 @@ enum Error<T: EPM::Config> {
 	IncorrectPhase,
 	AlreadySubmitted,
 	VersionMismatch,
+	AlreadyExistSolutionWithBetterScore,
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
@@ -294,6 +295,21 @@ enum Solvers {
 	},
 }
 
+arg_enum! {
+	#[derive(Debug, Copy, Clone, StructOpt)]
+	enum SubmissionStrategy {
+		// Only submit if at the time, we are the best.
+		OnlySubmitIfLeading,
+		// Always submit.
+		AlwaysSubmit
+		// TODO(niklasad1): fix Perbill with type in some other way
+		//
+		// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
+		// better than us. This helps detect obviously fake solutions and still combat them.
+		//SubmitIfClaimBetterThan(Perbill)*/
+	}
+}
+
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
@@ -314,6 +330,10 @@ struct MonitorConfig {
 	/// The solver algorithm to use.
 	#[structopt(subcommand)]
 	solver: Solvers,
+
+	/// Submission strategy to use.
+	#[structopt(possible_values = &SubmissionStrategy::variants(), case_insensitive = true)]
+	submission_strategy: SubmissionStrategy,
 }
 
 #[derive(Debug, Clone, StructOpt)]

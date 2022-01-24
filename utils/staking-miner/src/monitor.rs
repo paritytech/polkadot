@@ -16,7 +16,10 @@
 
 //! The monitor command.
 
-use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig};
+use crate::{
+	prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig,
+	SubmissionStrategy,
+};
 use codec::Encode;
 use jsonrpsee::{
 	core::{
@@ -28,6 +31,7 @@ use jsonrpsee::{
 };
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
+use sp_runtime::Perbill;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -37,6 +41,7 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 	at: B::Hash,
 ) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
+
 	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, rpc_params! {key, at})
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
@@ -65,6 +70,33 @@ async fn ensure_no_previous_solution<
 			Ok(())
 		}
 	})
+}
+
+/// Queries the chain for the best solution and checks whether the computed score
+/// is better than best known.
+async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
+	client: &WsClient,
+	at: B::Hash,
+	score: sp_npos_elections::ElectionScore,
+	strategy: SubmissionStrategy,
+) -> Result<(), Error<T>> {
+	match strategy {
+		SubmissionStrategy::AlwaysSubmit => Ok(()),
+		SubmissionStrategy::OnlySubmitIfLeading => {
+			let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());
+			let best_score =
+				get_storage::<EPM::ReadySolution<AccountId>>(client, rpc_params! {key, at})
+					.await
+					.map_err::<Error<T>, _>(Into::into)?
+					.map(|s| s.score)
+					.unwrap_or_default();
+			if sp_npos_elections::is_score_better(score, best_score, Perbill::zero()) {
+				Ok(())
+			} else {
+				Err(Error::AlreadyExistSolutionWithBetterScore)
+			}
+		},
+	}
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
@@ -184,7 +216,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				}
 			};
 
-			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+			let score = raw_solution.score;
+			log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
 
 			let nonce = match crate::get_account_info::<Runtime>(&*client, &signer.account, Some(hash)).await {
 				Ok(maybe_account) => {
@@ -210,6 +243,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
+
+			if ensure_no_better_solution::<Runtime, Block>(&*client, hash, score, config.submission_strategy).await.is_err() {
+				return;
+			}
 
 			let mut tx_subscription: Subscription<
 					TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
