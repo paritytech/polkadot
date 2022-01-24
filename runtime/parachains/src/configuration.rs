@@ -319,6 +319,10 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
+	/// Maximum number of HRMP outbound channels exceeded.
+	MaxHrmpOutboundChannelsExceeded,
+	/// Maximum number of HRMP inbound channels exceeded.
+	MaxHrmpInboundChannelsExceeded,
 }
 
 impl<BlockNumber> HostConfiguration<BlockNumber>
@@ -379,6 +383,15 @@ where
 			return Err(ValidationUpgradeDelayIsTooLow {
 				validation_upgrade_delay: self.validation_upgrade_delay.clone(),
 			})
+		}
+
+		if self.hrmp_max_parachain_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND
+		{
+			return Err(MaxHrmpOutboundChannelsExceeded)
+		}
+
+		if self.hrmp_max_parachain_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
+			return Err(MaxHrmpInboundChannelsExceeded)
 		}
 
 		Ok(())
@@ -1608,11 +1621,11 @@ mod tests {
 				hrmp_recipient_deposit: 4905,
 				hrmp_channel_max_capacity: 3921,
 				hrmp_channel_max_total_size: 7687,
-				hrmp_max_parachain_inbound_channels: 3722,
-				hrmp_max_parathread_inbound_channels: 1967,
+				hrmp_max_parachain_inbound_channels: 37,
+				hrmp_max_parathread_inbound_channels: 19,
 				hrmp_channel_max_message_size: 8192,
-				hrmp_max_parachain_outbound_channels: 100,
-				hrmp_max_parathread_outbound_channels: 200,
+				hrmp_max_parachain_outbound_channels: 10,
+				hrmp_max_parathread_outbound_channels: 20,
 				hrmp_max_message_num_per_candidate: 20,
 				ump_max_individual_weight: 909,
 				pvf_checking_enabled: true,
