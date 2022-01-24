@@ -40,7 +40,7 @@ pub(crate) use signer::get_account_info;
 
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
-use jsonrpsee::{core::client::Client as WsClient, ws_client::WsClientBuilder};
+use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};

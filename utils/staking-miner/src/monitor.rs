@@ -20,10 +20,11 @@ use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, Sh
 use codec::Encode;
 use jsonrpsee::{
 	core::{
-		client::{Client as WsClient, Subscription, SubscriptionClientT},
+		client::{Subscription, SubscriptionClientT},
 		Error as RpcError,
 	},
 	rpc_params,
+	ws_client::WsClient,
 };
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
@@ -78,64 +79,47 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		type StakingMinerError = Error<$crate::[<$runtime _runtime_exports>]::Runtime>;
 
-		let client = Arc::new(client);
 		let (sub, unsub) = if config.listen == "head" {
 			("chain_subscribeNewHeads", "chain_unsubscribeNewHeads")
 		} else {
 			("chain_subscribeFinalizedHeads", "chain_unsubscribeFinalizedHeads")
 		};
 
-		/// Create a new header subscription
-		///
-		/// Fails if the connection is closed or fails after 10 attempts.
-		async fn create_header_subscription(
-			client: &WsClient,
-			sub: &str,
-			unsub: &str
-		) -> Result<Subscription<Header>, StakingMinerError> {
-			let mut last_err = None;
-			for _ in 0..10 {
-				match client.subscribe(&sub, None, &unsub).await {
-					Ok(sub) => return Ok(sub),
-					Err(RpcError::RestartNeeded(e)) => {
-						log::error!("[rpc] connection closed: {:?}", e);
-						return Err(RpcError::RestartNeeded(e).into());
-					}
-					Err(e) => {
-						log::warn!("[rpc] subscription: `{}` failed {:?}; retrying", sub, e);
-						last_err = Some(e.into());
-						continue;
-					}
-				};
-			};
+		let mut subscription: Subscription<Header> = client.subscribe(&sub, None, &unsub).await?;
 
-			Err(last_err.expect("looped 10 times must be Some; qed"))
-		}
-
-		let (tx, mut rx) = mpsc::unbounded_channel::<Error<_>>();
-		let mut subscription = create_header_subscription(&*client, sub, unsub).await?;
+		let client = Arc::new(client);
+		let (tx, mut rx) = mpsc::unbounded_channel::<StakingMinerError>();
 
 		loop {
 			let at = tokio::select! {
-				Some(rp) = subscription.next() => {
-					match rp {
-						Ok(r) => r,
-						Err(RpcError::SubscriptionClosed(reason)) => {
+				maybe_rp = subscription.next() => {
+					match maybe_rp {
+						Some(Ok(r)) => r,
+						// Custom `jsonrpsee` message; should not occur.
+						Some(Err(RpcError::SubscriptionClosed(reason))) => {
 							log::debug!("[rpc]: subscription closed by the server: {:?}, starting a new one", reason);
 							continue;
 						}
-						Err(e) => {
+						Some(Err(e)) => {
 							log::error!("[rpc]: subscription failed to decode Header {:?}, this is bug please file an issue", e);
 							return Err(e.into());
 						}
+						// The subscription was dropped, should only happen if:
+						//	- the connection was closed.
+						//	- the subscription could not need keep up with the server.
+						None => {
+							log::warn!("[rpc]: restarting header subscription");
+							subscription = client.subscribe(&sub, None, &unsub).await?;
+							log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
+							continue
+						}
 					}
 				},
-				Some(err) = rx.recv() => return Err(err),
-				else => {
-					log::warn!("[rpc]: restarting header subscription");
-					subscription = create_header_subscription(&*client, sub, unsub).await?;
-					log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
-					continue
+				maybe_err = rx.recv() => {
+					match maybe_err {
+						Some(err) => return Err(err),
+						None => unreachable!("at least one sender kept in the main loop should always return Some; qed"),
+					}
 				}
 			};
 
@@ -143,7 +127,9 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// Spawn task and non-recoverable errors are sent back to the main task
 			// such as if the connection has been closed.
-			tokio::spawn(send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), shared.clone(), config.clone()));
+			tokio::spawn(
+				send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), shared.clone(), config.clone())
+			);
 		}
 
 		/// Construct extrinsic at given block and watch it.
@@ -234,7 +220,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			).await {
 				Ok(sub) => sub,
 				Err(RpcError::RestartNeeded(e)) => {
-					log::error!("{:?}", e);
 					let _ = tx.send(RpcError::RestartNeeded(e).into());
 					return
 				},
@@ -258,6 +243,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			while let Some(rp) = tx_subscription.next().await {
 				let status_update = match rp {
 					Ok(r) => r,
+					// Custom `jsonrpsee` message; should not occur.
 					Err(RpcError::SubscriptionClosed(reason)) => {
 						log::warn!(
 							"[rpc]: subscription closed by the server: {:?}; continuing...",
@@ -282,14 +268,25 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						let key = StorageKey(
 							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
 						);
+						let key2 = key.clone();
 
-						// TODO(niklasad1): what to do if this fails; the task will die here now
-						let events = get_storage::<
+						let events = match get_storage::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
 						>(&*client, rpc_params! { key, hash })
-						.await
-						.unwrap()
-						.unwrap_or_default();
+						.await {
+							Ok(rp) => rp.unwrap_or_default(),
+							Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {
+								let _ = tx.send(RpcError::RestartNeeded(e).into());
+								return;
+							}
+							// Decoding or other RPC error => just terminate the task.
+							Err(e) => {
+								log::warn!(target: LOG_TARGET, "get_storage [key: {:?}, hash: {:?}] failed: {:?}",
+									key2, hash, e
+								);
+								return;
+							}
+						};
 
 						log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
 					},
