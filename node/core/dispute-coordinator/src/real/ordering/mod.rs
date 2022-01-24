@@ -184,26 +184,43 @@ impl OrderingProvider {
 		update: &ActiveLeavesUpdate,
 	) -> Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
-			// Fetch ancestors of the activated leaf.
-			let finalized_block_number = get_finalized_block_number(sender).await?;
+			// Fetch last finalized block.
+			let ancestors = match get_finalized_block_number(sender).await {
+				Ok(block_number) => {
+					// Fetch ancestry up to last finalized block.
+					Self::get_block_ancestors(
+						sender,
+						activated.hash,
+						activated.number,
+						block_number,
+						&mut self.last_observed_blocks,
+					)
+					.await
+					.unwrap_or_else(|err| {
+						tracing::debug!(
+							target: LOG_TARGET,
+							activated_leaf = ?activated,
+							"Skipping leaf ancestors due to an error: {}",
+							err
+						);
+						// We assume this is a spurious error so we'll move forward with an
+						// empty ancestry.
+						Vec::new()
+					})
+				},
+				Err(err) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						activated_leaf = ?activated,
+						"Failed to retrieve last finalized block number: {}",
+						err
+					);
+					// We assume this is a spurious error so we'll move forward with an
+					// empty ancestry.
+					Vec::new()
+				},
+			};
 
-			let ancestors = Self::get_block_ancestors(
-				sender,
-				activated.hash,
-				activated.number,
-				finalized_block_number,
-				&mut self.last_observed_blocks,
-			)
-			.await
-			.unwrap_or_else(|err| {
-				tracing::debug!(
-					target: LOG_TARGET,
-					activated_leaf = ?activated,
-					"Skipping leaf ancestors due to an error: {}",
-					err
-				);
-				Vec::new()
-			});
 			// Ancestors block numbers are consecutive in the descending order.
 			let earliest_block_number = activated.number - ancestors.len() as u32;
 			let block_numbers = (earliest_block_number..=activated.number).rev();
