@@ -145,8 +145,6 @@ impl DisputeCoordinatorSubsystem {
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
 	) -> Self {
-		println!("*** |-------------------------|");
-
 		Self { store, config, keystore, metrics }
 	}
 
