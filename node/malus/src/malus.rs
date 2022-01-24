@@ -29,7 +29,7 @@ use variants::*;
 
 /// Define the different variants of behavior.
 #[derive(Debug, Parser)]
-#[clap(about = "Malus - the nemesis of polkadot.")]
+#[clap(about = "Malus - the nemesis of polkadot.", version)]
 #[clap(rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
@@ -99,7 +99,7 @@ impl MalusCli {
 
 fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
-	let cli = MalusCli::from_args();
+	let cli = MalusCli::parse();
 	cli.launch()?;
 	Ok(())
 }
@@ -110,7 +110,7 @@ mod tests {
 
 	#[test]
 	fn subcommand_works() {
-		let cli = MalusCli::from_iter_safe(IntoIterator::into_iter([
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"dispute-ancestor",
 			"--bob",
