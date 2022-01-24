@@ -623,7 +623,7 @@ async fn request_votes(
 	}
 }
 
-/// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and  additions of recent.
+/// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and additions of recent.
 fn extend_by_random_subset_without_repetition(
 	acc: &mut Vec<(SessionIndex, CandidateHash)>,
 	extension: Vec<(SessionIndex, CandidateHash)>,

@@ -17,6 +17,7 @@
 //! A mock runtime for XCM benchmarking.
 
 use crate::{generic, mock::*, *};
+use codec::Decode;
 use frame_support::{
 	parameter_types,
 	traits::{Everything, OriginTrait},
@@ -24,7 +25,7 @@ use frame_support::{
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
 	BuildStorage,
 };
 use xcm_builder::{
@@ -161,12 +162,15 @@ pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
 impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
 where
 	Origin: OriginTrait,
-	<Origin as OriginTrait>::AccountId: Default,
+	<Origin as OriginTrait>::AccountId: Decode,
 {
 	fn convert_origin(
 		_origin: impl Into<MultiLocation>,
 		_kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
-		Ok(Origin::signed(Default::default()))
+		Ok(Origin::signed(
+			<Origin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
+				.expect("infinite length input; no invalid inputs for type; qed"),
+		))
 	}
 }
