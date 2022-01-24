@@ -182,7 +182,6 @@ test-deterministic-wasm:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
@@ -191,7 +190,6 @@ test-build-linux-stable:
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *collect-artifacts
-  <<:                              *vault-secrets
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -228,7 +226,6 @@ check-runtime-benchmarks:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that everything compiles with `runtime-benchmarks` feature flag.
     - cargo check --features runtime-benchmarks --all
@@ -239,7 +236,6 @@ check-try-runtime:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that everything compiles with `try-runtime` feature flag.
     - cargo check --features try-runtime --all
@@ -250,7 +246,6 @@ check-no-default-features:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that polkadot-cli will compile no default features.
     - pushd node/service && cargo check --no-default-features && popd
