@@ -257,4 +257,8 @@ disable-runtime-api = []
 on-chain-release-build = [
 	"sp-api/disable-logging",
 ]
+
+# Set timing constants (e.g. session period) to faster versions to speed up testing.
+fast-runtime = []
+
 runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]

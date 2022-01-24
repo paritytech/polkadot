@@ -247,8 +247,9 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		}))
 	}
 
-	/// Validate the payload given the context and public key.
-	fn check_signature<H: Encode>(
+	/// Validate the payload given the context and public key
+	/// without creating a `Signed` type.
+	pub fn check_signature<H: Encode>(
 		&self,
 		context: &SigningContext<H>,
 		key: &ValidatorId,
