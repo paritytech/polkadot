@@ -495,6 +495,11 @@ where
 		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
+	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
+
 	let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -695,6 +700,7 @@ where
 		signed_commitment_sender,
 		min_block_delta: 2,
 		prometheus_registry: prometheus_registry.clone(),
+		protocol_name: beefy_protocol_name,
 	};
 
 	// Start the BEEFY bridge gadget.

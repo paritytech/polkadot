@@ -299,6 +299,11 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		})
 	};
 
+	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
+
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		network: network.clone(),
 		client: client.clone(),
@@ -378,6 +383,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		signed_commitment_sender,
 		min_block_delta: 4,
 		prometheus_registry: prometheus_registry.clone(),
+		protocol_name: beefy_protocol_name,
 	};
 
 	// Start the BEEFY bridge gadget.
