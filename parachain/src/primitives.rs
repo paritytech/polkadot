@@ -72,7 +72,7 @@ impl ValidationCode {
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
-pub struct ValidationCodeHash(Hash);
+pub struct ValidationCodeHash(pub Hash);
 
 impl sp_std::fmt::Display for ValidationCodeHash {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {

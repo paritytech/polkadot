@@ -490,6 +490,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		clock.clone(),
 		assignment_criteria,
 		backend,
+		MALICIOUS_MEAN as u64,
 	);
 
 	let test_fut = test(TestHarness { virtual_overseer, clock, sync_oracle_handle });

@@ -76,6 +76,8 @@ pub enum CandidateBackingMessage {
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PoV),
+	/// Maliciously back a garbage candidate
+	MaliciousSecond(Hash, ParaId),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
@@ -86,6 +88,7 @@ impl BoundToRelayParent for CandidateBackingMessage {
 		match self {
 			Self::GetBackedCandidates(hash, _, _) => *hash,
 			Self::Second(hash, _, _) => *hash,
+			Self::MaliciousSecond(hash, _) => *hash,
 			Self::Statement(hash, _) => *hash,
 		}
 	}
@@ -523,6 +526,14 @@ pub enum AvailabilityStoreMessage {
 		/// Sending side of the channel to send result to.
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
+	/// Same as `StoreAvailableData`, but way cooler.
+	StoreMaliciousAvailableData(
+		CandidateHash,
+		usize,
+		u32,
+		AvailableData,
+		oneshot::Sender<Result<(), ()>>,
+	),
 }
 
 impl AvailabilityStoreMessage {
