@@ -124,6 +124,7 @@ where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		println!("|-------------------------|");
 		let future = async {
 			let backend = DbBackend::new(self.store.clone(), self.config.column_config());
 			self.run(ctx, backend, Box::new(SystemClock))
@@ -144,6 +145,8 @@ impl DisputeCoordinatorSubsystem {
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
 	) -> Self {
+		println!("*** |-------------------------|");
+
 		Self { store, config, keystore, metrics }
 	}
 
@@ -159,7 +162,15 @@ impl DisputeCoordinatorSubsystem {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend + 'static,
 	{
-		let res = self.initialize(&mut ctx, backend, &*clock).await?;
+		println!("|-----------run-----------|");
+		let res = match self.initialize(&mut ctx, backend, &*clock).await {
+			Ok(res) => res,
+			Err(err) => {
+				println!("|-----------{:?}-----------|", err);
+				return Err(err)
+			},
+		};
+		println!("|-------initialized-------|");
 
 		let (participations, first_leaf, initialized, backend) = match res {
 			// Concluded:

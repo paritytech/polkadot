@@ -16,7 +16,10 @@
 
 //! Dispute coordinator subsystem in initialized state (after first active leaf is received).
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+	collections::{BTreeMap, HashSet},
+	sync::Arc,
+};
 
 use futures::{
 	channel::{mpsc, oneshot},
@@ -611,24 +614,24 @@ impl Initialized {
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
 				// Return error if session information is missing.
-				self.ensure_no_errors()?;
+				self.ensure_available_session_info()?;
 
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
-					std::collections::BTreeMap::new()
+					BTreeMap::new()
 				};
 
 				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
 				// Return error if session information is missing.
-				self.ensure_no_errors()?;
+				self.ensure_available_session_info()?;
 
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
-					std::collections::BTreeMap::new()
+					BTreeMap::new()
 				};
 
 				let _ = tx.send(
@@ -639,7 +642,7 @@ impl Initialized {
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
 				// Return error if session information is missing.
-				self.ensure_no_errors()?;
+				self.ensure_available_session_info()?;
 
 				let mut query_output = Vec::new();
 				for (session_index, candidate_hash) in query {
@@ -680,7 +683,7 @@ impl Initialized {
 				tx,
 			} => {
 				// Return error if session information is missing.
-				self.ensure_no_errors()?;
+				self.ensure_available_session_info()?;
 
 				let undisputed_chain = determine_undisputed_chain(
 					overlay_db,
@@ -697,7 +700,7 @@ impl Initialized {
 	}
 
 	// Helper function for checking subsystem errors in message processing.
-	fn ensure_no_errors(&self) -> Result<()> {
+	fn ensure_available_session_info(&self) -> Result<()> {
 		if let Some(subsystem_error) = self.error.clone() {
 			return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
 		}
