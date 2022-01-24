@@ -110,12 +110,6 @@ default:
     AWS_SECRET_ACCESS_KEY:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
       file:                        false
-    DOCKER_HUB_USER:
-      vault:                       cicd/gitlab/parity/DOCKER_HUB_USER@kv
-      file:                        false
-    DOCKER_HUB_PASS:
-      vault:                       cicd/gitlab/parity/DOCKER_HUB_PASS@kv
-      file:                        false
     GITHUB_PR_TOKEN:
       vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
       file:                        false
@@ -160,7 +154,6 @@ check-runtime:
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   <<:                              *test-refs
-  <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -330,7 +323,6 @@ check-transaction-versions:
   stage:                           build
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *vault-secrets
   image:                           node:15
   needs:
     - job:                         test-build-linux-stable
