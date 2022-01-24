@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use inflector::Inflector;
 use quote::{format_ident, quote};
 use syn::Ident;
 
@@ -141,6 +140,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				.collect::<Vec<_>>();
 
 			quote! {
+				#[allow(non_camel_case_types)]
 				impl <S, #ftype, #( #impl_generics, )*>
 				#builder <S, #( #uninit_generics, )*> #builder_where_clause {
 					/// Specify the subsystem in the builder directly
@@ -175,6 +175,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					}
 				}
 
+				#[allow(non_camel_case_types)]
 				impl <S, #ftype, #( #impl_generics, )*>
 				#builder <S, #( #return_type_generics, )*> #builder_where_clause {
 					/// Replace a subsystem by another implementation for the
@@ -241,6 +242,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		};
 
 		quote! {
+			#[allow(non_camel_case_types)]
 			impl <S, #additional_baggage_generic #( #impl_generics, )*>
 			#builder <S, #( #uninit_generics, )*> #builder_where_clause {
 				/// Specify the baggage in the builder
@@ -343,7 +345,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		#[allow(missing_docs)]
+		#[allow(missing_docs,non_camel_case_types)]
 		pub struct #builder <S, #( #placeholder_type, )*> {
 			#(
 				#field_name: #placeholder_type,
@@ -351,6 +353,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			spawner: ::std::option::Option< S >,
 		}
 
+		#[allow(non_camel_case_types)]
 		impl<#builder_generics> #builder<S, #( OverseerFieldUninit::<#field_type>, )*>
 			#builder_where_clause
 		{
@@ -371,6 +374,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
+		#[allow(non_camel_case_types)]
 		impl<S, #( #placeholder_type, )*>
 			#builder<S, #( #placeholder_type, )*>
 			#builder_where_clause
@@ -611,12 +615,12 @@ fn create_all_placeholder_idents(
 	result.extend(
 		subsystems_names
 			.iter()
-			.map(|field_name| format_ident!("__{}", field_name.to_string().to_class_case())),
+			.map(|field_name| format_ident!("__{}", field_name)),
 	);
 	result.extend(
 		baggage_names
 			.iter()
-			.map(|field_name| format_ident!("__{}", field_name.to_string().to_class_case())),
+			.map(|field_name| format_ident!("__{}", field_name)),
 	);
 	result
 }
