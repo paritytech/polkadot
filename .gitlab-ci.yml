@@ -110,12 +110,6 @@ default:
     AWS_SECRET_ACCESS_KEY:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
       file:                        false
-    DOCKER_HUB_USER:
-      vault:                       cicd/gitlab/parity/DOCKER_HUB_USER@kv
-      file:                        false
-    DOCKER_HUB_PASS:
-      vault:                       cicd/gitlab/parity/DOCKER_HUB_PASS@kv
-      file:                        false
     GITHUB_PR_TOKEN:
       vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
       file:                        false
@@ -149,9 +143,7 @@ default:
     REL_MAN_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/REL_MAN_ROOM_ID@kv
       file:                        false
-    SSH_PRIVATE_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/SSH_PRIVATE_KEY@kv
-      file:                        false
+
 
 #### stage:                        test
 
@@ -160,7 +152,6 @@ check-runtime:
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   <<:                              *test-refs
-  <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -182,7 +173,6 @@ test-deterministic-wasm:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
@@ -191,7 +181,6 @@ test-build-linux-stable:
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *collect-artifacts
-  <<:                              *vault-secrets
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -228,7 +217,6 @@ check-runtime-benchmarks:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that everything compiles with `runtime-benchmarks` feature flag.
     - cargo check --features runtime-benchmarks --all
@@ -239,7 +227,6 @@ check-try-runtime:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that everything compiles with `try-runtime` feature flag.
     - cargo check --features try-runtime --all
@@ -250,7 +237,6 @@ check-no-default-features:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that polkadot-cli will compile no default features.
     - pushd node/service && cargo check --no-default-features && popd
@@ -311,7 +297,6 @@ build-malus:
   stage:                           build
   <<:                              *docker-env
   <<:                              *test-pr-refs
-  <<:                              *vault-secrets
   script:
     - git clone
         --depth=1
@@ -335,7 +320,6 @@ check-transaction-versions:
   stage:                           build
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *vault-secrets
   image:                           node:15
   needs:
     - job:                         test-build-linux-stable
