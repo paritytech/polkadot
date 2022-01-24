@@ -608,6 +608,7 @@ pub mod pallet_test_notifier {
 			let qid = pallet_xcm::Pallet::<T>::new_query(
 				Junction::AccountId32 { network: Any, id }.into(),
 				100u32.into(),
+				Here,
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
 			Ok(())
@@ -625,6 +626,7 @@ pub mod pallet_test_notifier {
 				Junction::AccountId32 { network: Any, id }.into(),
 				<T as Config>::Call::from(call),
 				100u32.into(),
+				Here,
 			);
 			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
 			Ok(())

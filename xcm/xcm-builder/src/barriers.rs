@@ -138,8 +138,8 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 			origin, message, _max_weight, _weight_credit,
 		);
 		match message.0.first() {
-			Some(QueryResponse { query_id, .. })
-				if ResponseHandler::expecting_response(origin, *query_id) =>
+			Some(QueryResponse { query_id, querier, .. })
+				if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>
 				Ok(()),
 			_ => Err(()),
 		}

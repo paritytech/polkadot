@@ -274,8 +274,15 @@ pub enum Instruction<Call> {
 	/// - `query_id`: The identifier of the query that resulted in this message being sent.
 	/// - `response`: The message content.
 	/// - `max_weight`: The maximum weight that handling this response should take.
+	/// - `querier`: The location responsible for the initiation of the response, if there is one.
+	///   In general this will tend to be the same location as the receiver of this message.
+	///   NOTE: As usual, this is interpreted from the perspective of the receiving consensus
+	///   system.
 	///
-	/// Safety: No concerns.
+	/// Safety: Since this is information only, there are no immediate concerns. However, it should
+	/// be remembered that even if the Origin behaves reasonably, it can always be asked to make
+	/// a response to a third-party chain who may or may not be expecting the response. Therefore
+	/// the `querier` should be checked to match the expected value.
 	///
 	/// Kind: *Information*.
 	///
@@ -286,6 +293,7 @@ pub enum Instruction<Call> {
 		response: Response,
 		#[codec(compact)]
 		max_weight: Weight,
+		querier: Option<MultiLocation>,
 	},
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets
@@ -756,8 +764,8 @@ impl<Call> Instruction<Call> {
 			WithdrawAsset(assets) => WithdrawAsset(assets),
 			ReserveAssetDeposited(assets) => ReserveAssetDeposited(assets),
 			ReceiveTeleportedAsset(assets) => ReceiveTeleportedAsset(assets),
-			QueryResponse { query_id, response, max_weight } =>
-				QueryResponse { query_id, response, max_weight },
+			QueryResponse { query_id, response, max_weight, querier } =>
+				QueryResponse { query_id, response, max_weight, querier },
 			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, xcm } =>
 				TransferReserveAsset { assets, dest, xcm },
@@ -812,8 +820,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			WithdrawAsset(assets) => W::withdraw_asset(assets),
 			ReserveAssetDeposited(assets) => W::reserve_asset_deposited(assets),
 			ReceiveTeleportedAsset(assets) => W::receive_teleported_asset(assets),
-			QueryResponse { query_id, response, max_weight } =>
-				W::query_response(query_id, response, max_weight),
+			QueryResponse { query_id, response, max_weight, querier } =>
+				W::query_response(query_id, response, max_weight, querier),
 			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
 			TransferReserveAsset { assets, dest, xcm } =>
 				W::transfer_reserve_asset(&assets, dest, xcm),
@@ -904,8 +912,12 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets),
 			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets),
 			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets),
-			QueryResponse { query_id, response, max_weight } =>
-				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
+			QueryResponse { query_id, response, max_weight } => Self::QueryResponse {
+				query_id,
+				response: response.try_into()?,
+				max_weight,
+				querier: None,
+			},
 			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, xcm } =>
 				Self::TransferReserveAsset { assets, dest, xcm: xcm.try_into()? },

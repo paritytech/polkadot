@@ -119,7 +119,8 @@ fn query_response_fires() {
 
 	let response = Response::ExecutionResult(None);
 	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let querier = Some(Here.into());
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 	let msg = Box::new(VersionedXcm::from(msg));
 
 	let execute = construct_extrinsic(
@@ -208,7 +209,8 @@ fn query_response_elicits_handler() {
 
 	let response = Response::ExecutionResult(None);
 	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let querier = Some(Here.into());
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 
 	let execute = construct_extrinsic(
 		&client,
