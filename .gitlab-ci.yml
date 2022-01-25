@@ -310,7 +310,7 @@ check-dependent-cumulus:
     DEPENDENT_REPO: cumulus
     CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
-check-transaction-versions:
+.check-transaction-versions:
   stage:                           build
   <<:                              *test-refs
   <<:                              *docker-env
@@ -394,7 +394,7 @@ build-rustdoc:
   after_script:
     - buildah logout --all
 
-publish-polkadot-image:
+.publish-polkadot-image:
   stage:                           build
   <<:                              *build-push-image
   variables:
@@ -558,7 +558,7 @@ deploy-parity-testnet:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-zombienet-tests-parachains-smoke-test:
+.zombienet-tests-parachains-smoke-test:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
@@ -588,7 +588,7 @@ zombienet-tests-parachains-smoke-test:
   tags:
     - zombienet-polkadot-integration-test
 
-zombienet-test-parachains-upgrade-smoke-test:
+.zombienet-test-parachains-upgrade-smoke-test:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
@@ -624,7 +624,7 @@ zombienet-test-parachains-upgrade-smoke-test:
   tags:
     - zombienet-polkadot-integration-test
 
-zombienet-tests-malus-dispute-valid:
+.zombienet-tests-malus-dispute-valid:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
