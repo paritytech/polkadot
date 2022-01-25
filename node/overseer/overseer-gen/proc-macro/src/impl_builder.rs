@@ -120,13 +120,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				ftype,
 				idx,
 				subsystem_placeholder_ty.as_slice(),
-				&Ident::new("OverseerFieldUninit", Span::call_site()),
+				&Ident::new("FieldMissing", Span::call_site()),
 			);
 			let return_type_generics = produce_setter_generic_permutation(
 				ftype,
 				idx,
 				subsystem_placeholder_ty.as_slice(),
-				&Ident::new("OverseerFieldInit", Span::call_site()),
+				&Ident::new("FieldInit", Span::call_site()),
 			);
 			// All fields except one
 			let other_subsystem_name =
@@ -152,7 +152,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						#builder <S, #( #return_type_generics, )* #( #baggage_placeholder_ty, )*>
 					{
 						#builder {
-							#fname: OverseerFieldInit::<#ftype>::Value(var),
+							#fname: FieldInit::<#ftype>::Value(var),
 							#(
 								#other_subsystem_name: self. #other_subsystem_name,
 							)*
@@ -169,7 +169,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						F: 'static + FnOnce(#handle) ->
 							::std::result::Result<#ftype, #error_ty>,
 					{
-						let boxed_func = OverseerFieldInit::<#ftype>::Fn(
+						let boxed_func = FieldInit::<#ftype>::Fn(
 							Box::new(subsystem_init_fn) as SubsystemInitFn<#ftype>
 						);
 						#builder {
@@ -197,14 +197,14 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						F: 'static + FnOnce(#ftype) -> NEW,
 						NEW: #support_crate ::Subsystem<#subsystem_ctx_name< #subsystem_consumes >, #error_ty>,
 					{
-						let replacement: OverseerFieldInit<NEW> = match self.#fname {
-							OverseerFieldInit::Fn(fx) =>
-								OverseerFieldInit::Fn(Box::new(move |handle: #handle| {
+						let replacement: FieldInit<NEW> = match self.#fname {
+							FieldInit::Fn(fx) =>
+								FieldInit::Fn(Box::new(move |handle: #handle| {
 								let orig = fx(handle)?;
 								Ok(gen_replacement_fn(orig))
 							})),
-							OverseerFieldInit::Value(val) =>
-								OverseerFieldInit::Value(gen_replacement_fn(val)),
+							FieldInit::Value(val) =>
+								FieldInit::Value(gen_replacement_fn(val)),
 						};
 						#builder {
 							#fname: replacement,
@@ -239,13 +239,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			ftype,
 			idx,
 			baggage_placeholder_ty.as_slice(),
-			&Ident::new("OverseerFieldUninit", Span::call_site()),
+			&Ident::new("FieldMissing", Span::call_site()),
 		);
 		let return_type_generics = produce_setter_generic_permutation(
 			ftype,
 			idx,
 			baggage_placeholder_ty.as_slice(),
-			&Ident::new("OverseerFieldInit", Span::call_site()),
+			&Ident::new("FieldInit", Span::call_site()),
 		);
 		// Baggage can also be generic, so we need to include that to a signature
 		let additional_baggage_generic = if bag_field.generic {
@@ -263,7 +263,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					#builder <S, #( #subsystem_placeholder_ty, )* #( #return_type_generics, )* >
 				{
 					#builder {
-						#fname: OverseerFieldInit::<#ftype>::Value(var),
+						#fname: FieldInit::<#ftype>::Value(var),
 						#(
 							#subsystem_name: self. #subsystem_name,
 						)*
@@ -283,7 +283,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		/// Convenience alias.
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
 		/// Type for the initialised field of the overseer builder
-		pub enum OverseerFieldInit<T> {
+		pub enum FieldInit<T> {
 			/// Defer initialization to a point where the `handle` is available.
 			Fn(SubsystemInitFn<T>),
 			/// Directly initialize the subsystem with the given subsystem type `T`.
@@ -294,24 +294,24 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		/// Phantom data is used for type hinting when creating uninitialized
 		/// builder.
 		#[derive(Debug)]
-		pub struct OverseerFieldUninit<T>(::core::marker::PhantomData<T>);
+		pub struct FieldMissing<T>(::core::marker::PhantomData<T>);
 
 		/// Trait used to mark fields status in a builder
 		trait OverseerFieldSt<T> {}
 
-		impl<T> OverseerFieldSt<T> for OverseerFieldInit<T> {}
-		impl<T> OverseerFieldSt<T> for OverseerFieldUninit<T> {}
+		impl<T> OverseerFieldSt<T> for FieldInit<T> {}
+		impl<T> OverseerFieldSt<T> for FieldMissing<T> {}
 
-		impl<T> std::default::Default for OverseerFieldUninit<T> {
+		impl<T> std::default::Default for FieldMissing<T> {
 			fn default() -> Self {
-				OverseerFieldUninit::<T>(::core::marker::PhantomData::<T>::default())
+				FieldMissing::<T>(::core::marker::PhantomData::<T>::default())
 			}
 		}
 
 		impl<S, #( #baggage_generic_ty, )*> #overseer_name <S, #( #baggage_generic_ty, )*> {
 			/// Create a new overseer utilizing the builder.
 			pub fn builder() ->
-				#builder<S, #( OverseerFieldUninit::<#field_type>, )* >
+				#builder<S, #( FieldMissing::<#field_type>, )* >
 				#builder_where_clause
 			{
 				#builder :: new()
@@ -372,7 +372,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			spawner: ::std::option::Option< S >,
 		}
 
-		impl<#builder_generics> #builder<S, #( OverseerFieldUninit::<#field_type>, )*>
+		impl<#builder_generics> #builder<S, #( FieldMissing::<#field_type>, )*>
 			#builder_where_clause
 		{
 			fn new() -> Self {
@@ -385,7 +385,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				trait_from_must_be_implemented::< #error_ty >();
 				Self {
 					#(
-						#field_name: OverseerFieldUninit::<#field_type>::default(),
+						#field_name: FieldMissing::<#field_type>::default(),
 					)*
 					spawner: None,
 				}
@@ -404,7 +404,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		impl<#builder_generics> #builder<S, #( OverseerFieldInit::<#field_type>, )*>
+		impl<#builder_generics> #builder<S, #( FieldInit::<#field_type>, )*>
 			#builder_where_clause {
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
@@ -461,8 +461,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 				#(
 					let #subsystem_name = match self. #subsystem_name {
-						OverseerFieldInit::Fn(func) => func(handle.clone())?,
-						OverseerFieldInit::Value(val) => val,
+						FieldInit::Fn(func) => func(handle.clone())?,
+						FieldInit::Value(val) => val,
 					};
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
@@ -508,7 +508,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 					#(
 						#baggage_name: match self. #baggage_name {
-							OverseerFieldInit::Value(val) => val,
+							FieldInit::Value(val) => val,
 							_ => panic!("unexpected baggage initialization, must be value"),
 						},
 					)*
