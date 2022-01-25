@@ -22,5 +22,5 @@ alice: parachain 100 block height is at least 1 within 150 seconds
 # Buckets are cummulative, higher level buckets also count all lower ones, so we
 # need to inspect two buckets. 
 # FEATURE: handling these with 1 line of code
-alice: reports polkadot_pvf_preparation_time_bucket{le="1"} is at least 1
-alice: reports polkadot_pvf_preparation_time_bucket{le="10"} is at least 1
+alice: reports pvf_preparation_time_bucket{le="1"} is 1
+alice: reports pvf_preparation_time_bucket{le="10"} is 1
