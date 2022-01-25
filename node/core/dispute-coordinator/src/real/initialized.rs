@@ -71,9 +71,9 @@ use super::{
 	OverlayedBackend,
 };
 
-// The capacity here should be max unfinalized depth x active heads.
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500 * 5;
-const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 20;
+// The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500;
+const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 500;
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
@@ -334,16 +334,16 @@ impl Initialized {
 				Vec::new()
 			});
 
-			// We could do this in parallel, but we don't want to overindex on the wasm instances
-			// usage.
+			// The `runtime-api` subsystem has an internal queue which serializes the execution,
+			// so there is no point in running these in parallel.
 			for ancestor in ancestors {
 				let _ = self.scrape_on_chain_votes(ctx, overlay_db, ancestor, now).await.map_err(
 					|err| {
 						tracing::warn!(
 							target: LOG_TARGET,
-							"Skipping scraping block {} due to error: {}",
-							ancestor,
-							err
+							hash = ?ancestor,
+							error = ?err,
+							"Skipping scraping block due to error",
 						);
 					},
 				);

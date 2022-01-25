@@ -200,8 +200,8 @@ impl OrderingProvider {
 						tracing::debug!(
 							target: LOG_TARGET,
 							activated_leaf = ?activated,
-							"Skipping leaf ancestors due to an error: {}",
-							err
+							error = ?err,
+							"Skipping leaf ancestors due to an error",
 						);
 						// We assume this is a spurious error so we'll move forward with an
 						// empty ancestry.
@@ -212,8 +212,8 @@ impl OrderingProvider {
 					tracing::debug!(
 						target: LOG_TARGET,
 						activated_leaf = ?activated,
-						"Failed to retrieve last finalized block number: {}",
-						err
+						error = ?err,
+						"Failed to retrieve last finalized block number",
 					);
 					// We assume this is a spurious error so we'll move forward with an
 					// empty ancestry.
