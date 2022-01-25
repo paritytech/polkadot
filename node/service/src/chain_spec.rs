@@ -165,7 +165,7 @@ pub fn versi_config() -> Result<VersiChainSpec, String> {
 		ChainType::Live,
 		move || RococoGenesisExt {
 			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
-			// Use 1 minute session length.
+			// Use 10 minute session length.
 			session_length_in_blocks: Some(100),
 		},
 		vec![],
