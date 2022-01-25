@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::{format_ident, quote};
-use syn::Ident;
+use syn::parse_quote;
 
 use super::*;
 
@@ -116,33 +116,25 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			let fname_with = format_ident!("{}_with", fname);
 			let fname_replace = format_ident!("replace_{}", fname);
 
-			let uninit_generics = produce_setter_generic_permutation(
-				ftype,
-				idx,
-				subsystem_placeholder_ty.as_slice(),
-				&Ident::new("FieldMissing", Span::call_site()),
-			);
-			let return_type_generics = produce_setter_generic_permutation(
-				ftype,
-				idx,
-				subsystem_placeholder_ty.as_slice(),
-				&Ident::new("FieldInit", Span::call_site()),
-			);
+			// In a setter we replace Uninit<T> with Init<T> leaving all other
+			// types as placeholders
+			let mut uninit_generics = subsystem_placeholder_ty
+				.iter()
+				.map(|gen_ty| {
+					let ret : syn::GenericArgument = parse_quote!(#gen_ty);
+					ret
+				})
+				.collect::<Vec<_>>();
+			uninit_generics[idx] = parse_quote!{ FieldMissing<#ftype> };
+			let mut return_type_generics = uninit_generics.clone();
+			return_type_generics[idx] = parse_quote!{ FieldInit<#ftype> };
+			let mut replace_modified_generics = uninit_generics.clone();
+			replace_modified_generics[idx] = parse_quote!{ FieldInit<NEW> };
+
 			// All fields except one
 			let other_subsystem_name =
 				subsystem_name[..idx].iter().chain(subsystem_name[idx + 1..].iter())
 					.collect::<Vec<_>>();
-			let replace_modified_generics = return_type_generics
-				.iter()
-				.enumerate()
-				.map(|(other_idx, generic)| {
-					if other_idx == idx {
-						quote!(OverseerFieldInit<NEW>)
-					} else {
-						generic.clone()
-					}
-				})
-				.collect::<Vec<_>>();
 
 			quote! {
 				impl <S, #ftype, #( #impl_generics, )* #( #baggage_placeholder_ty, )*>
@@ -235,23 +227,21 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		let other_baggage_name =
 			baggage_name[..idx].iter().chain(baggage_name[idx + 1..].iter());
 
-		let uninit_generics = produce_setter_generic_permutation(
-			ftype,
-			idx,
-			baggage_placeholder_ty.as_slice(),
-			&Ident::new("FieldMissing", Span::call_site()),
-		);
-		let return_type_generics = produce_setter_generic_permutation(
-			ftype,
-			idx,
-			baggage_placeholder_ty.as_slice(),
-			&Ident::new("FieldInit", Span::call_site()),
-		);
+		let mut uninit_generics = baggage_placeholder_ty
+			.iter()
+			.map(|gen_ty| {
+				let ret : syn::GenericArgument = parse_quote!(#gen_ty);
+				ret
+			})
+			.collect::<Vec<_>>();
+		uninit_generics[idx] = parse_quote!{ FieldMissing<#ftype> };
+		let mut return_type_generics = uninit_generics.clone();
+		return_type_generics[idx] = parse_quote!{ FieldInit<#ftype> };
 		// Baggage can also be generic, so we need to include that to a signature
 		let additional_baggage_generic = if bag_field.generic {
 			quote! {#ftype,}
 		} else {
-			quote!()
+			TokenStream::new()
 		};
 
 		quote! {
@@ -619,31 +609,4 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	};
 
 	ts
-}
-
-/// This helper function is used to create a replacement for a placeholder types
-/// replacing a field matches specific index with a replacement ident
-/// For example, we have `<A, B, C>` and we want to produce `<A, Init<T>, C>`,
-/// so we call this function for `idx=1` and replacement ident as `Init<T>`
-fn produce_setter_generic_permutation<T>(
-	field_type: T,
-	field_idx: usize,
-	placeholder_types: &[Ident],
-	replacement_type: &Ident,
-) -> Vec<TokenStream>
-where
-	T: ToTokens,
-{
-	let replaced_type = quote! {#replacement_type<#field_type>};
-	placeholder_types
-		.iter()
-		.enumerate()
-		.map(|(other_idx, placeholder_ty)| {
-			if other_idx == field_idx {
-				replaced_type.clone()
-			} else {
-				quote! {#placeholder_ty}
-			}
-		})
-		.collect::<Vec<_>>()
 }
