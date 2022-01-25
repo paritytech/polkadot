@@ -538,8 +538,8 @@ where
 					Err(e) => {
 						tracing::error!(
 							target: LOG_TARGET,
-							"Call to `DetermineUndisputedChain` failed: {}",
-							e
+							error = ?e,
+							"Call to `DetermineUndisputedChain` failed",
 						);
 						// We need to return a sane finality target. But, we are unable to ensure we are not
 						// finalizing something that is being disputed or has been concluded as invalid. We will be
