@@ -492,9 +492,10 @@ impl<T: Config> Pallet<T> {
 			Vec::with_capacity(candidates.len());
 
 		// Do all checks before writing storage.
-		let core_indices_and_backers = {
+		// This is an `Vec` of (candidate, core index, backers bits, group index).
+		let candidates_with_cores_and_backers = {
 			let mut skip = 0;
-			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
+			let mut candidates_with_cores_and_backers = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
 
 			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
@@ -521,13 +522,13 @@ impl<T: Config> Pallet<T> {
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
-				candidates.iter().enumerate()
+				candidates.into_iter().enumerate()
 			{
 				if let FullCheck::Yes = full_check {
 					check_ctx.verify_backed_candidate(
 						parent_hash,
 						candidate_idx,
-						backed_candidate,
+						&backed_candidate,
 					)?;
 				}
 
@@ -598,13 +599,19 @@ impl<T: Config> Pallet<T> {
 							);
 
 							match maybe_amount_validated {
-								Ok(amount_validated) => ensure!(
-									amount_validated >= minimum_backing_votes(group_vals.len()),
-									Error::<T>::InsufficientBacking,
-								),
-								Err(()) => {
-									Err(Error::<T>::InvalidBacking)?;
+								Ok(amount_validated) => {
+									if amount_validated < minimum_backing_votes(group_vals.len()) {
+										// If the candidate doesn't have a sufficient number
+										// of backing validators, we filter it out instead of returning
+										// an error.
+										//
+										// This is justified by the node behavior in future -- it won't
+										// perform this check.
+										// See https://github.com/paritytech/polkadot/issues/4576.
+										continue 'next_backed_candidate
+									}
 								},
+								Err(()) => return Err(Error::<T>::InvalidBacking.into()),
 							}
 
 							let mut backer_idx_and_attestation =
@@ -631,7 +638,8 @@ impl<T: Config> Pallet<T> {
 								.push((candidate_receipt, backer_idx_and_attestation));
 						}
 
-						core_indices_and_backers.push((
+						candidates_with_cores_and_backers.push((
+							backed_candidate,
 							assignment.core,
 							backers,
 							assignment.group_idx,
@@ -651,15 +659,15 @@ impl<T: Config> Pallet<T> {
 				check_assignment_in_order(assignment)?;
 			}
 
-			core_indices_and_backers
+			candidates_with_cores_and_backers
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices =
-			core_indices_and_backers.iter().map(|&(ref c, _, _)| c.clone()).collect();
-		for (candidate, (core, backers, group)) in
-			candidates.into_iter().zip(core_indices_and_backers)
-		{
+		let core_indices = candidates_with_cores_and_backers
+			.iter()
+			.map(|(_, core_index, ..)| *core_index)
+			.collect();
+		for (candidate, core, backers, group) in candidates_with_cores_and_backers {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.

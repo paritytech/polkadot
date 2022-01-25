@@ -1050,7 +1050,7 @@ fn candidate_checks() {
 			);
 		}
 
-		// candidate not backed.
+		// candidate not backed - should be filtered out.
 		{
 			let mut candidate = TestCandidateBuilder {
 				para_id: chain_a,
@@ -1072,15 +1072,19 @@ fn candidate_checks() {
 				BackingKind::Lacking,
 			));
 
-			assert_noop!(
+			let ProcessedCandidates { candidate_receipt_with_backing_validator_indices, .. } =
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
 					FullCheck::Yes,
-				),
-				Error::<Test>::InsufficientBacking
+				)
+				.expect("non-backed candidate should be filtered out and cause no error");
+
+			assert!(
+				candidate_receipt_with_backing_validator_indices.is_empty(),
+				"Candidate is not backed but was processed still"
 			);
 		}
 
