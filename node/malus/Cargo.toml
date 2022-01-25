@@ -13,7 +13,7 @@ name = "malus"
 path = "src/malus.rs"
 
 [dependencies]
-polkadot-cli = { path = "../../cli", default-features = false, features = [ "cli", "malus" ]  }
+polkadot-cli = { path = "../../cli", default-features = false, features = ["cli", "malus"] }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
@@ -26,9 +26,9 @@ polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
-structopt = "0.3.25"
 async-trait = "0.1.52"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+clap = { version = "3.0", features = ["derive"] }
 futures = "0.3.19"
 futures-timer = "3.0.2"
 tracing = "0.1.26"
