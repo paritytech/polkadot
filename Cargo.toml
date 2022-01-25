@@ -129,7 +129,7 @@ panic = "unwind"
 [profile.production]
 inherits = "release"
 lto = true
-opt-level = "3"
+opt-level = 3
 codegen-units = 1
 
 [profile.testnet]
