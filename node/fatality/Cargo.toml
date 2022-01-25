@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Fatality extension to crate thiserror"
+readme = "README.md"
 
 [dependencies]
 fatality-proc-macro = { path = "./proc-macro" }
@@ -12,3 +13,4 @@ thiserror = "1.0"
 [dev-dependencies]
 trybuild = "1.0"
 thiserror = "1.0"
+log = "0.4"

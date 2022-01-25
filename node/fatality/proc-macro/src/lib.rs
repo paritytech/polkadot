@@ -574,6 +574,8 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 	Ok(ts)
 }
 
+/// The declaration of `#[fatality(splitable)]` or `#[fatality]`
+/// outside the `enum YourError`.
 #[derive(Clone, Copy)]
 enum Attr {
 	Splitable(kw::splitable),

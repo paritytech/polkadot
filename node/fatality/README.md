@@ -10,7 +10,7 @@ and any unknown annotations will be passed to that.
 
 `#[fatality]` currently provides a `trait Fatality` with a single `fn is_fatal(&self) -> bool` by default.
 
-Annotating with `#[fatality(splitabl)]` (which disallows usage of `forward` variant annotations), allows to split the type into two sub-types, a `Jfyi*` and a `Fatal*` one via `fn split(self) -> Result<Self::Jfyi, Self::Fatal>`.
+Annotating with `#[fatality(splitable)]` (which disallows usage of `forward` variant annotations), allows to split the type into two sub-types, a `Jfyi*` and a `Fatal*` one via `fn split(self) -> Result<Self::Jfyi, Self::Fatal>`.
 
 
 The derive macro implements them, and can defer calls, based on `thiserror` annotations, specifically
@@ -56,19 +56,20 @@ enum Yikes {
     Dead,
 }
 
-fn foo() -> Result<(), Yikes> {
+fn foo() -> Result<[u8;32], Yikes> {
     Err(Yikes::Dead)
 }
 
 fn i_call_foo() -> Result<(), FatalYikes> {
-    // TODO: not yet implemented
-    let x = foo().fatal_or_log(|jfyi| { log::warn!(..) })?;
+    // availble via a convenience trait `Nested` that is implemented
+    // for any `Result` whose error type implements `Split`.
+    let x: Result<[u8;32], Jfyi> = foo().into_nested()?;
 }
 
 fn i_call_foo_too() -> Result<(), FatalYikes> {
-    // implemented
-    if let Err(e) = foo() {
-        log::warn!("Jfyi: {:?}", e.split()?);
+    if let Err(jfyi_and_fatal_ones) = foo() {
+        // bail if bad, otherwise just log it
+        log::warn!("Jfyi: {:?}", jfyi_and_fatal_ones.split()?);
     }
 }
 ```
