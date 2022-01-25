@@ -170,7 +170,7 @@ test-deterministic-wasm:
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
-test-build-linux-stable:
+.test-build-linux-stable:
   stage:                           test
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -251,7 +251,7 @@ spellcheck:
         $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
-build-adder-collator:
+.build-adder-collator:
   stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
@@ -268,7 +268,7 @@ build-adder-collator:
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/* ./artifacts
 
-build-malus:
+.build-malus:
   stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
@@ -425,7 +425,7 @@ publish-polkadot-image:
       # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/parachains.env
 
-publish-adder-collator-image:
+.publish-adder-collator-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
@@ -448,7 +448,7 @@ publish-adder-collator-image:
       # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/collator.env
 
-publish-malus-image:
+.publish-malus-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
