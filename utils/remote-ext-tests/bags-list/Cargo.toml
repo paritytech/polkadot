@@ -12,13 +12,11 @@ polkadot-runtime-constants = { version = "0.9.13", path = "../../../runtime/polk
 kusama-runtime-constants = { version = "0.9.13", path = "../../../runtime/kusama/constants" }
 westend-runtime-constants = { version = "0.9.13", path = "../../../runtime/westend/constants" }
 
-
 pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
+clap = { version = "3.0", features = ["derive"] }
+log = "0.4.14"
 tokio = { version = "1", features = ["macros"] }
-log = { version = "0.4.14" }
-structopt = {version = "0.3.25" }
-clap = { version = "2.34.0" }
