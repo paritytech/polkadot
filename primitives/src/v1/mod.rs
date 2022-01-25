@@ -1285,8 +1285,47 @@ pub struct DisputeStatementSet {
 	pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
 
+impl From<CheckedDisputeStatementSet> for DisputeStatementSet {
+	fn from(other: CheckedDisputeStatementSet) -> Self {
+		other.0
+	}
+}
+
+impl AsRef<DisputeStatementSet> for DisputeStatementSet {
+	fn as_ref(&self) -> &DisputeStatementSet {
+		&self
+	}
+}
+
 /// A set of dispute statements.
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
+
+/// A _checked_ set of dispute statements.
+#[derive(Clone, PartialEq, RuntimeDebug)]
+pub struct CheckedDisputeStatementSet(DisputeStatementSet);
+
+impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {
+	fn as_ref(&self) -> &DisputeStatementSet {
+		&self.0
+	}
+}
+
+impl core::cmp::PartialEq<DisputeStatementSet> for CheckedDisputeStatementSet {
+	fn eq(&self, other: &DisputeStatementSet) -> bool {
+		self.0.eq(other)
+	}
+}
+
+impl CheckedDisputeStatementSet {
+	/// Convert from an unchecked, the verification of correctness of the `unchecked` statement set
+	/// _must_ be done before calling this function!
+	pub fn unchecked_from_unchecked(unchecked: DisputeStatementSet) -> Self {
+		Self(unchecked)
+	}
+}
+
+/// A set of _checked_ dispute statements.
+pub type CheckedMultiDisputeStatementSet = Vec<CheckedDisputeStatementSet>;
 
 /// The entire state of a dispute.
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, TypeInfo)]
