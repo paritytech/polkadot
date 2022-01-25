@@ -71,7 +71,8 @@ use super::{
 	OverlayedBackend,
 };
 
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 100;
+// The capacity here should be max unfinalized depth x active heads.
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500 * 5;
 const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 20;
 
 /// After the first active leaves update we transition to `Initialized` state.
