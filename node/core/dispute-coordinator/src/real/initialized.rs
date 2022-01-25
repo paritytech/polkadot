@@ -55,7 +55,7 @@ use polkadot_primitives::{
 use crate::{
 	error::{log_error, Error, Fatal, FatalResult, NonFatal, NonFatalResult, Result},
 	metrics::Metrics,
-	real::DisputeCoordinatorSubsystem,
+	real::{ordering::get_finalized_block_number, DisputeCoordinatorSubsystem},
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
 	LOG_TARGET,
 };
@@ -73,7 +73,6 @@ use super::{
 
 // The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
 const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500;
-const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 500;
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
@@ -316,25 +315,43 @@ impl Initialized {
 
 			// Try to scrape any blocks for which we could not get the current session or did not receive an
 			// active leaves update.
-			// `get_block_ancestors()` doesn't include the target block in the ancestry, so we'll need to
-			// pass in the parent number.
-			let target_block = new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS + 1);
-			let ancestors = OrderingProvider::get_block_ancestors(
-				ctx.sender(),
-				new_leaf.hash,
-				new_leaf.number,
-				target_block,
-				&mut self.last_scraped_blocks,
-			)
-			.await
-			.unwrap_or_else(|err| {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Skipping leaf ancestors scraping due to error: {}",
-					err
-				);
-				Vec::new()
-			});
+			let ancestors = match get_finalized_block_number(ctx.sender()).await {
+				Ok(block_number) => {
+					// Fetch ancestry up to and including the last finalized block.
+					// `get_block_ancestors()` doesn't include the target block in the ancestry, so we'll need to
+					// pass in it's parent.
+					OrderingProvider::get_block_ancestors(
+						ctx.sender(),
+						new_leaf.hash,
+						new_leaf.number,
+						block_number.saturating_sub(1),
+						&mut self.last_scraped_blocks,
+					)
+					.await
+					.unwrap_or_else(|err| {
+						tracing::debug!(
+							target: LOG_TARGET,
+							activated_leaf = ?new_leaf,
+							error = ?err,
+							"Skipping leaf ancestors due to an error",
+						);
+						// We assume this is a spurious error so we'll move forward with an
+						// empty ancestry.
+						Vec::new()
+					})
+				},
+				Err(err) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						activated_leaf = ?new_leaf,
+						error = ?err,
+						"Skipping leaf ancestors scraping",
+					);
+					// We assume this is a spurious error so we'll move forward with an
+					// empty ancestry.
+					Vec::new()
+				},
+			};
 
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.

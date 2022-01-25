@@ -368,7 +368,9 @@ async fn get_block_number(
 	send_message_fatal(sender, ChainApiMessage::BlockNumber(relay_parent, tx), rx).await
 }
 
-async fn get_finalized_block_number(sender: &mut impl SubsystemSender) -> FatalResult<BlockNumber> {
+pub async fn get_finalized_block_number(
+	sender: &mut impl SubsystemSender,
+) -> FatalResult<BlockNumber> {
 	let (number_tx, number_rx) = oneshot::channel();
 	send_message_fatal(sender, ChainApiMessage::FinalizedBlockNumber(number_tx), number_rx).await
 }
