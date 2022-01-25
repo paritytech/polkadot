@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use assert_matches::assert_matches;
 
 fn run_test(attr: TokenStream, input: TokenStream, expected: TokenStream) {
 	let output = fatality2(attr, input);
@@ -26,6 +27,31 @@ fn run_test(attr: TokenStream, input: TokenStream, expected: TokenStream) {
 		output.as_str()
 	);
 	assert_eq!(output, expected.to_string(),);
+}
+
+mod component {
+	use super::*;
+
+	#[test]
+	fn parse_attr_blank() {
+		let input = TokenStream::new();
+		let result = syn::parse2::<Attr>(input);
+		assert_matches!(result, Ok(_));
+	}
+
+	#[test]
+	fn parse_attr_splitable() {
+		let input = quote! { splitable }.into();
+		let result = syn::parse2::<Attr>(input);
+		assert_matches!(result, Ok(_));
+	}
+
+	#[test]
+	fn parse_attr_err() {
+		let input = quote! { xyz }.into();
+		let result = syn::parse2::<Attr>(input);
+		assert_matches!(result, Err(_));
+	}
 }
 
 mod basic {
@@ -52,7 +78,7 @@ mod basic {
 				impl crate::Fatality for Q {
 					fn is_fatal(&self) -> bool {
 						match self {
-							Self::V(..) => true
+							Self::V(..) => true,
 						}
 					}
 				}
@@ -83,7 +109,7 @@ mod basic {
 				impl crate::Fatality for Q {
 					fn is_fatal(&self) -> bool {
 						match self {
-							Self::V(ref inner, ..) => inner.is_fatal()
+							Self::V(ref inner, ..) => inner.is_fatal(),
 						}
 					}
 				}
@@ -113,7 +139,7 @@ mod basic {
 				impl crate::Fatality for Q {
 					fn is_fatal(&self) -> bool {
 						match self {
-							Self::V(..) => true
+							Self::V(..) => true,
 						}
 					}
 				}
@@ -144,7 +170,7 @@ mod basic {
 				impl crate::Fatality for Q {
 					fn is_fatal(&self) -> bool {
 						match self {
-							Self::V(_, ref inner, ..) => inner.is_fatal()
+							Self::V(_, ref inner, ..) => inner.is_fatal(),
 						}
 					}
 				}
@@ -201,7 +227,7 @@ mod basic {
 							Self::B(ref inner, ..) => inner.is_fatal(),
 							Self::C{ref z, ..} => z.is_fatal(),
 							Self::What => false,
-							Self::O(..) => true
+							Self::O(..) => true,
 						}
 					}
 				}
@@ -217,7 +243,7 @@ mod splitable {
 	fn simple() {
 		run_test(
 			quote! {
-				(splitable)
+				splitable
 			},
 			quote! {
 				enum Kaboom {

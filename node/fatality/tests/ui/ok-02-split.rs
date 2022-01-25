@@ -24,7 +24,7 @@ struct Fatal;
 #[error("Get a dinosaur bandaid")]
 struct Bobo;
 
-#[fatality(splittable)]
+#[fatality(splitable)]
 enum Kaboom {
 	#[fatal(transparent)]
 	Iffy(Fatal),

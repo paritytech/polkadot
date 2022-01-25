@@ -1901,6 +1901,7 @@ name = "fatality"
 version = "0.1.0"
 dependencies = [
  "fatality-proc-macro",
+ "log",
  "thiserror",
  "trybuild",
 ]
@@ -1909,6 +1910,7 @@ dependencies = [
 name = "fatality-proc-macro"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "indexmap",
  "proc-macro-crate 1.1.0",
  "proc-macro2",

@@ -419,7 +419,7 @@ fn trait_split_impl(
 
 	let original_ident = original.ident.clone();
 
-	// Generate the splittable types:
+	// Generate the splitable types:
 	//   Fatal
 	let fatal_ident = Ident::new(format!("Fatal{}", original_ident).as_str(), span);
 	let mut fatal = original.clone();
@@ -576,17 +576,14 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 
 /// The declaration of `#[fatality(splitable)]` or `#[fatality]`
 /// outside the `enum YourError`.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Attr {
 	Splitable(kw::splitable),
 	Empty,
 }
 
 impl Parse for Attr {
-	fn parse(input: ParseStream) -> syn::Result<Self> {
-		let content;
-		let _ = syn::parenthesized!(content in input);
-
+	fn parse(content: ParseStream) -> syn::Result<Self> {
 		let lookahead = content.lookahead1();
 
 		if lookahead.peek(kw::splitable) {

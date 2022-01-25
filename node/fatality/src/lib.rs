@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Add annotations of `fatality` to error `enum` types.
+
 pub use fatality_proc_macro::fatality;
 pub use thiserror;
 
@@ -27,8 +29,8 @@ pub trait Fatality: std::error::Error + std::fmt::Debug {
 /// Allows to split an error into two types - a fatal
 /// and a informational enum error type, that can be further consumed.
 pub trait Split: std::error::Error + std::fmt::Debug {
-	type Jfyi: ::std::error::Error + Send + Sync + 'static;
-	type Fatal: ::std::error::Error + Send + Sync + 'static;
+	type Jfyi: std::error::Error + Send + Sync + 'static;
+	type Fatal: std::error::Error + Send + Sync + 'static;
 
 	/// Split the error into it's fatal and non-fatal variants.
 	///
@@ -36,16 +38,18 @@ pub trait Split: std::error::Error + std::fmt::Debug {
 	/// contains all fatal variants.
 	///
 	/// Attention: If the type is splitable, it must _not_ use any `forward`ed finality
-	/// evalutions, or it must be splittable up the point where no more `forward` annotations
+	/// evalutions, or it must be splitable up the point where no more `forward` annotations
 	/// were used.
-	fn split(&self) -> Result<Self::Jfyi, Self::Fatal>;
+	fn split(&self) -> std::result::Result<Self::Jfyi, Self::Fatal>;
 }
 
 /// Converts a flat, yet `splitable` error into a nested `Result<Result<_,Jfyi>, Fatal>`
 /// error type.
 pub trait Nested<T, E: Split> {
 	/// Convert into a nested error rather than a flat one, commonly for direct handling.
-	fn into_nested(self) -> Result<Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal> {
+	fn into_nested(
+		self,
+	) -> std::result::Result<std::result::Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal> {
 		match self {
 			Ok(t) => Ok(t),
 			Err(e) => match e.split() {
