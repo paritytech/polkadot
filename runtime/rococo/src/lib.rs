@@ -707,7 +707,7 @@ parameter_types! {
 pub struct ParasProvider;
 impl BeefyDataProvider for ParasProvider {
 	fn extra_data() -> Vec<u8> {
-		let mut para_heads = Paras::parachains()
+		let mut para_heads: Vec<(u32, Vec<u8>)> = Paras::parachains()
 			.into_iter()
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
