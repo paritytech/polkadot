@@ -15,7 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::weights::Weight;
-use xcm::latest::{Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult};
+use xcm::latest::{
+	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, XcmContext,
+};
 
 /// Define what needs to be done upon receiving a query response.
 pub trait OnResponse {
@@ -25,6 +27,7 @@ pub trait OnResponse {
 		origin: &MultiLocation,
 		query_id: u64,
 		querier: Option<&MultiLocation>,
+		context: XcmContext,
 	) -> bool;
 	/// Handler for receiving a `response` from `origin` relating to `query_id` initiated by
 	/// `querier`.
@@ -34,6 +37,7 @@ pub trait OnResponse {
 		querier: Option<&MultiLocation>,
 		response: Response,
 		max_weight: Weight,
+		context: XcmContext,
 	) -> Weight;
 }
 impl OnResponse for () {
@@ -41,6 +45,7 @@ impl OnResponse for () {
 		_origin: &MultiLocation,
 		_query_id: u64,
 		_querier: Option<&MultiLocation>,
+		_context: XcmContext,
 	) -> bool {
 		false
 	}
@@ -50,6 +55,7 @@ impl OnResponse for () {
 		_querier: Option<&MultiLocation>,
 		_response: Response,
 		_max_weight: Weight,
+		_context: XcmContext,
 	) -> Weight {
 		0
 	}
@@ -65,21 +71,26 @@ pub trait VersionChangeNotifier {
 	///
 	/// If the `location` has an ongoing notification and when this function is called, then an
 	/// error should be returned.
-	fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult;
+	fn start(
+		location: &MultiLocation,
+		query_id: QueryId,
+		max_weight: u64,
+		context: XcmContext,
+	) -> XcmResult;
 
 	/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
 	/// notification set up.
-	fn stop(location: &MultiLocation) -> XcmResult;
+	fn stop(location: &MultiLocation, context: XcmContext) -> XcmResult;
 
 	/// Return true if a location is subscribed to XCM version changes.
 	fn is_subscribed(location: &MultiLocation) -> bool;
 }
 
 impl VersionChangeNotifier for () {
-	fn start(_: &MultiLocation, _: QueryId, _: u64) -> XcmResult {
+	fn start(_: &MultiLocation, _: QueryId, _: u64, _: XcmContext) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
-	fn stop(_: &MultiLocation) -> XcmResult {
+	fn stop(_: &MultiLocation, _: XcmContext) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
 	fn is_subscribed(_: &MultiLocation) -> bool {
