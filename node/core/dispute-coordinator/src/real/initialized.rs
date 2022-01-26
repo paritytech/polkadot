@@ -823,10 +823,22 @@ impl Initialized {
 			}
 
 			if !was_concluded_valid && concluded_valid {
+				tracing::info!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					session,
+					"Dispute on candidate concluded with 'valid' result",
+				);
 				self.metrics.on_concluded_valid();
 			}
 
 			if !was_concluded_invalid && concluded_invalid {
+				tracing::info!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					session,
+					"Dispute on candidate concluded with 'invalid' result",
+				);
 				self.metrics.on_concluded_invalid();
 			}
 
