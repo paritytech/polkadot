@@ -15,8 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::{format_ident, quote};
-use syn::{Path, PathSegment, PathArguments, parse_quote};
-use syn::punctuated::Punctuated;
+use syn::{parse_quote, punctuated::Punctuated, Path, PathArguments, PathSegment};
 
 use super::*;
 
@@ -36,9 +35,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let subsystem_placeholder_ty = subsystem_name
 		.iter()
 		.enumerate()
-		.map(|(idx, _)| {
-			format_ident!("__Subsystem{}", idx)
-		})
+		.map(|(idx, _)| format_ident!("__Subsystem{}", idx))
 		.collect::<Vec<_>>();
 
 	let consumes = &info.consumes_without_wip();
@@ -56,9 +53,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let baggage_placeholder_ty = baggage_name
 		.iter()
 		.enumerate()
-		.map(|(idx, _)| {
-			format_ident!("__Baggage{}", idx)
-		})
+		.map(|(idx, _)| format_ident!("__Baggage{}", idx))
 		.collect::<Vec<_>>();
 
 	let error_ty = &info.extern_error_ty;
@@ -78,7 +73,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.collect::<Vec<_>>();
 
 	// Helpers to use within quote! macros
-	let spawner_where_clause : syn::TypeParam = parse_quote! {
+	let spawner_where_clause: syn::TypeParam = parse_quote! {
 			S: #support_crate ::SpawnNamed + Send
 	};
 	let builder_generics = quote! {
@@ -90,14 +85,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.iter()
 		.map(|ident| {
 			let mut inner_type = Punctuated::new();
-			inner_type.push(PathSegment {
-				ident: ident.clone(),
-				arguments: PathArguments::None,
-			});
-			Path {
-				leading_colon: None,
-				segments: inner_type
-			}
+			inner_type.push(PathSegment { ident: ident.clone(), arguments: PathArguments::None });
+			Path { leading_colon: None, segments: inner_type }
 		})
 		.chain(info.baggage().iter().map(|bag| bag.field_ty.clone()))
 		.collect::<Vec<_>>();
@@ -107,12 +96,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	// For each setter we need to leave the remaining fields untouched and
 	// remove the field that we are fixing in this setter
 	// For subsystems we also need _with and replace_ setters
-	let subsystem_specific_setters = info
-		.subsystems()
-		.iter()
-		.filter(|ssf| !ssf.wip)
-		.enumerate()
-		.map(|(idx, ssf)| {
+	let subsystem_specific_setters =
+		info.subsystems().iter().filter(|ssf| !ssf.wip).enumerate().map(|(idx, ssf)| {
 			let fname = &ssf.name;
 			let ftype = &ssf.generic;
 			let subsystem_consumes = &ssf.consumes;
@@ -129,20 +114,21 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			let mut uninit_generics = subsystem_placeholder_ty
 				.iter()
 				.map(|gen_ty| {
-					let ret : syn::GenericArgument = parse_quote!(#gen_ty);
+					let ret: syn::GenericArgument = parse_quote!(#gen_ty);
 					ret
 				})
 				.collect::<Vec<_>>();
-			uninit_generics[idx] = parse_quote!{ FieldMissing<#ftype> };
+			uninit_generics[idx] = parse_quote! { FieldMissing<#ftype> };
 			let mut return_type_generics = uninit_generics.clone();
-			return_type_generics[idx] = parse_quote!{ FieldInit<#ftype> };
+			return_type_generics[idx] = parse_quote! { FieldInit<#ftype> };
 			let mut replace_modified_generics = uninit_generics.clone();
-			replace_modified_generics[idx] = parse_quote!{ FieldInit<NEW> };
+			replace_modified_generics[idx] = parse_quote! { FieldInit<NEW> };
 
 			// All fields except one
-			let other_subsystem_name =
-				subsystem_name[..idx].iter().chain(subsystem_name[idx + 1..].iter())
-					.collect::<Vec<_>>();
+			let other_subsystem_name = subsystem_name[..idx]
+				.iter()
+				.chain(subsystem_name[idx + 1..].iter())
+				.collect::<Vec<_>>();
 
 			quote! {
 				impl <S, #ftype, #( #impl_generics, )* #( #baggage_placeholder_ty, )*>
@@ -165,7 +151,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							spawner: self.spawner,
 						}
 					}
-					/// Specify the the init function for a subsystem
+					/// Specify the the initialization function for a subsystem
 					pub fn #fname_with<'a, F>(self, subsystem_init_fn: F ) ->
 						#builder <S, #( #return_type_generics, )* #( #baggage_placeholder_ty, )*>
 						where
@@ -226,29 +212,22 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		});
 	// Produce setters for all baggage fields as well
-	let baggage_specific_setters = info
-		.baggage()
-		.iter()
-		.enumerate()
-		.map(|(idx, bag_field)| {
+	let baggage_specific_setters = info.baggage().iter().enumerate().map(|(idx, bag_field)| {
 		// Baggage fields follow subsystems
 		let fname = &bag_field.field_name;
 		let ftype = &bag_field.field_ty;
 		let impl_generics = baggage_placeholder_ty[..idx]
 			.iter()
 			.chain(baggage_placeholder_ty[idx + 1..].iter());
-		let other_baggage_name =
-			baggage_name[..idx].iter().chain(baggage_name[idx + 1..].iter());
+		let other_baggage_name = baggage_name[..idx].iter().chain(baggage_name[idx + 1..].iter());
 
 		let mut uninit_generics = baggage_placeholder_ty
 			.iter()
-			.map(|gen_ty| -> syn::GenericArgument {
-				parse_quote!(#gen_ty)
-			})
+			.map(|gen_ty| -> syn::GenericArgument { parse_quote!(#gen_ty) })
 			.collect::<Vec<_>>();
-		uninit_generics[idx] = parse_quote!{ FieldMissing<#ftype> };
+		uninit_generics[idx] = parse_quote! { FieldMissing<#ftype> };
 		let mut return_type_generics = uninit_generics.clone();
-		return_type_generics[idx] = parse_quote!{ FieldInit<#ftype> };
+		return_type_generics[idx] = parse_quote! { FieldInit<#ftype> };
 		// Baggage can also be generic, so we need to include that to a signature
 		let additional_baggage_generic = if bag_field.generic {
 			quote! {#ftype,}
@@ -285,7 +264,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let mut ts = quote! {
 		/// Convenience alias.
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
-		/// Type for the initialised field of the overseer builder
+		/// Type for the initialized field of the overseer builder
 		pub enum FieldInit<T> {
 			/// Defer initialization to a point where the `handle` is available.
 			Fn(SubsystemInitFn<T>),
@@ -293,19 +272,20 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			/// Also used for baggage fields
 			Value(T),
 		}
-		/// Type marker for the uninitialised field of the overseer builder
-		/// Phantom data is used for type hinting when creating uninitialized
-		/// builder.
+		/// Type marker for the uninitialized field of the overseer builder.
+		/// `PhantomData` is used for type hinting when creating uninitialized
+		/// builder, e.g. to avoid specifying the generics when instantiating
+		/// the `FooBuilder` when calling `Foo::builder()`
 		#[derive(Debug)]
 		pub struct FieldMissing<T>(::core::marker::PhantomData<T>);
 
 		/// Trait used to mark fields status in a builder
-		trait OverseerFieldSt<T> {}
+		trait OverseerFieldState<T> {}
 
-		impl<T> OverseerFieldSt<T> for FieldInit<T> {}
-		impl<T> OverseerFieldSt<T> for FieldMissing<T> {}
+		impl<T> OverseerFieldState<T> for FieldInit<T> {}
+		impl<T> OverseerFieldState<T> for FieldMissing<T> {}
 
-		impl<T> std::default::Default for FieldMissing<T> {
+		impl<T> ::std::default::Default for FieldMissing<T> {
 			fn default() -> Self {
 				FieldMissing::<T>(::core::marker::PhantomData::<T>::default())
 			}
@@ -404,7 +384,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		where
 			#spawner_where_clause
 		{
-			/// The spawner to use for spawning tasks.
+			/// The `spawner` to use for spawning tasks.
 			pub fn spawner(mut self, spawner: S) -> Self
 			{
 				self.spawner = Some(spawner);

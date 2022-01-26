@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, AllMessages, HeadSupportsParachains, MetricsTrait, Overseer,
-	InitializedOverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	prometheus::Registry, AllMessages, HeadSupportsParachains, InitializedOverseerBuilder,
+	MetricsTrait, Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;

@@ -98,7 +98,7 @@ struct Xxx<T> {
 
 	i_like_pi: f64,
 	i_like_generic: T,
-	i_like_hash: HashMap<f64, f64>
+	i_like_hash: HashMap<f64, f64>,
 }
 
 #[derive(Debug, Clone)]
