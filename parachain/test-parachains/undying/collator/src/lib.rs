@@ -44,14 +44,14 @@ fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (H
 	let mut head =
 		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(0) };
 
-	let mut index = 0u64;
-	let mut graveyard = vec![0u64; graveyard_size * 2];
-	let mut tombstones = 1000;
+	let index = 0u64;
+	let graveyard = vec![0u64; graveyard_size * 2];
+	let tombstones = 1000;
 
-	let mut state = GraveyardState { index, graveyard };
+	let state = GraveyardState { index, graveyard };
 
 	while head.number < number {
-		let mut block_data = BlockData { state, tombstones };
+		let block_data = BlockData { state: state.clone(), tombstones };
 		head = execute(head.hash(), head.clone(), &block_data).expect("Produces valid block");
 
 		let mut state = block_data.state.clone();
