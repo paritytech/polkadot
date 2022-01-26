@@ -82,13 +82,8 @@ pub trait Chain: Send + Sync + 'static {
 		+ MaybeSerializeDeserialize;
 
 	/// The user account identifier type for the runtime.
-	type AccountId: Parameter
-		+ Member
-		+ MaybeSerializeDeserialize
-		+ Debug
-		+ MaybeDisplay
-		+ Ord
-		+ Default;
+	type AccountId: Parameter + Member + MaybeSerializeDeserialize + Debug + MaybeDisplay + Ord;
+
 	/// Balance of an account in native tokens.
 	///
 	/// The chain may support multiple tokens, but this particular type is for token that is used

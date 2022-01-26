@@ -13,37 +13,30 @@ name = "malus"
 path = "src/malus.rs"
 
 [dependencies]
-polkadot-cli = { path = "../../cli", default-features = false, features = [ "cli", "malus" ]  }
+polkadot-cli = { path = "../../cli", default-features = false, features = ["cli", "malus"] }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator" }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
 polkadot-node-core-backing = { path = "../core/backing" }
-polkadot-node-core-av-store = { path = "../core/av-store" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
-kvdb = "0.10.0"
-bitvec = "0.20.1"
-parity-scale-codec = { version = "2.3.1", features = ["derive"] }
-erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
-structopt = "0.3.25"
 async-trait = "0.1.52"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.16"
+clap = { version = "3.0", features = ["derive"] }
+futures = "0.3.19"
 futures-timer = "3.0.2"
 tracing = "0.1.26"
 
 [features]
-default = [] # we do not enable disputes by default to avoid feature leak
-disputes = ["polkadot-cli/disputes"]
+default = []
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.17", features = ["thread-pool"] }
+futures = { version = "0.3.19", features = ["thread-pool"] }

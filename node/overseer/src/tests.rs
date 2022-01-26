@@ -920,9 +920,9 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
-	const NUM_SUBSYSTEMS: usize = 20;
-	// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
-	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
+	const NUM_SUBSYSTEMS: usize = 21;
+	// -4 for BitfieldSigning, GossipSupport, AvailabilityDistribution and PvfCheckerSubsystem.
+	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 4;
 
 	let spawner = sp_core::testing::TaskExecutor::new();
 	executor::block_on(async move {
@@ -1005,6 +1005,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 		handle
 			.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg()))
 			.await;
+		// handle.send_msg_anon(AllMessages::PvfChecker(test_pvf_checker_msg())).await;
 
 		// Wait until all subsystems have received. Otherwise the messages might race against
 		// the conclude signal.
@@ -1058,6 +1059,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (dispute_coordinator_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (dispute_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (chain_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (pvf_checker_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 
 	let (candidate_validation_unbounded_tx, _) = metered::unbounded();
 	let (candidate_backing_unbounded_tx, _) = metered::unbounded();
@@ -1079,6 +1081,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (dispute_coordinator_unbounded_tx, _) = metered::unbounded();
 	let (dispute_distribution_unbounded_tx, _) = metered::unbounded();
 	let (chain_selection_unbounded_tx, _) = metered::unbounded();
+	let (pvf_checker_unbounded_tx, _) = metered::unbounded();
 
 	let channels_out = ChannelsOut {
 		candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -1101,6 +1104,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		dispute_coordinator: dispute_coordinator_bounded_tx.clone(),
 		dispute_distribution: dispute_distribution_bounded_tx.clone(),
 		chain_selection: chain_selection_bounded_tx.clone(),
+		pvf_checker: pvf_checker_bounded_tx.clone(),
 
 		candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
 		candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
@@ -1122,6 +1126,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		dispute_coordinator_unbounded: dispute_coordinator_unbounded_tx.clone(),
 		dispute_distribution_unbounded: dispute_distribution_unbounded_tx.clone(),
 		chain_selection_unbounded: chain_selection_unbounded_tx.clone(),
+		pvf_checker_unbounded: pvf_checker_unbounded_tx.clone(),
 	};
 
 	let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);

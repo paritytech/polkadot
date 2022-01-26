@@ -45,3 +45,9 @@ polkadot = ["polkadot-runtime"]
 kusama = ["kusama-runtime"]
 rococo = ["rococo-runtime"]
 westend = ["westend-runtime"]
+runtime-metrics = [
+    "rococo-runtime/runtime-metrics",
+    "kusama-runtime/runtime-metrics",
+    "westend-runtime/runtime-metrics",
+    "polkadot-runtime/runtime-metrics",
+]

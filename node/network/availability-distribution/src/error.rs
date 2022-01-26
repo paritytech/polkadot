@@ -18,12 +18,13 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::request_response::outgoing::RequestError;
+use polkadot_primitives::v1::SessionIndex;
 use thiserror::Error;
 
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::runtime;
-use polkadot_subsystem::SubsystemError;
+use polkadot_subsystem::{ChainApiError, SubsystemError};
 
 use crate::LOG_TARGET;
 
@@ -62,6 +63,12 @@ pub enum Fatal {
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::Fatal),
+
+	#[error("Oneshot for receiving response from Chain API got cancelled")]
+	ChainApiSenderDropped(#[source] oneshot::Canceled),
+
+	#[error("Retrieving response from Chain API unexpectedly failed with error: {0}")]
+	ChainApi(#[from] ChainApiError),
 }
 
 /// Non-fatal errors of this subsystem.
@@ -76,8 +83,8 @@ pub enum NonFatal {
 	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
 
 	/// We tried accessing a session that was not cached.
-	#[error("Session is not cached.")]
-	NoSuchCachedSession,
+	#[error("Session {missing_session} is not cached, cached sessions: {available_sessions:?}.")]
+	NoSuchCachedSession { available_sessions: Vec<SessionIndex>, missing_session: SessionIndex },
 
 	/// Sending request response failed (Can happen on timeouts for example).
 	#[error("Sending a request's response failed.")]
@@ -120,7 +127,7 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 			match error {
 				NonFatal::UnexpectedPoV |
 				NonFatal::InvalidValidatorIndex |
-				NonFatal::NoSuchCachedSession |
+				NonFatal::NoSuchCachedSession { .. } |
 				NonFatal::QueryAvailableDataResponseChannel(_) |
 				NonFatal::QueryChunkResponseChannel(_) =>
 					tracing::warn!(target: LOG_TARGET, error = %error, ctx),

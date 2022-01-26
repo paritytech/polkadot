@@ -38,7 +38,8 @@ use sp_core::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	KeyTypeId,
+	transaction_validity::TransactionPriority,
+	KeyTypeId, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -69,6 +70,14 @@ frame_support::construct_runtime!(
 		Babe: pallet_babe,
 	}
 );
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
@@ -181,9 +190,33 @@ impl crate::shared::Config for Test {}
 
 impl origin::Config for Test {}
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
+/// A very dumb implementation of `EstimateNextSessionRotation`. At the moment of writing, this
+/// is more to satisfy type requirements rather than to test anything.
+pub struct TestNextSessionRotation;
+
+impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSessionRotation {
+	fn average_session_length() -> u32 {
+		10
+	}
+
+	fn estimate_current_session_progress(_now: u32) -> (Option<Permill>, Weight) {
+		(None, 0)
+	}
+
+	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
+		(None, 0)
+	}
+}
+
 impl crate::paras::Config for Test {
 	type Event = Event;
 	type WeightInfo = crate::paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = TestNextSessionRotation;
 }
 
 impl crate::dmp::Config for Test {}
@@ -203,6 +236,7 @@ impl crate::hrmp::Config for Test {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = pallet_balances::Pallet<Test>;
+	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
 
 impl crate::disputes::Config for Test {
@@ -330,6 +364,7 @@ impl UmpSink for TestUmpSink {
 			let id = sp_io::hashing::blake2_256(actual_msg);
 			return Err((id, weight))
 		}
+
 		PROCESSED.with(|opt_hook| {
 			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
 		});
@@ -362,6 +397,9 @@ impl inclusion::RewardValidators for TestRewardValidators {
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
 	use sp_std::sync::Arc;
+
+	sp_tracing::try_init_simple();
+
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 

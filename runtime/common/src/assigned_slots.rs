@@ -79,7 +79,6 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
-	#[pallet::generate_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -555,6 +554,7 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
+		transaction_validity::TransactionPriority,
 		DispatchError::BadOrigin,
 	};
 
@@ -576,6 +576,14 @@ mod tests {
 			AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
 		}
 	);
+
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+	where
+		Call: From<C>,
+	{
+		type Extrinsic = UncheckedExtrinsic;
+		type OverarchingCall = Call;
+	}
 
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
@@ -627,9 +635,15 @@ mod tests {
 		type WeightInfo = parachains_configuration::TestWeightInfo;
 	}
 
+	parameter_types! {
+		pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	}
+
 	impl parachains_paras::Config for Test {
 		type Event = Event;
 		type WeightInfo = parachains_paras::TestWeightInfo;
+		type UnsignedPriority = ParasUnsignedPriority;
+		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 
 	impl parachains_shared::Config for Test {}
