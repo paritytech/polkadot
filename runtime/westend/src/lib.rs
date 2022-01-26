@@ -442,6 +442,7 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -450,8 +451,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;

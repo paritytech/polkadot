@@ -545,6 +545,8 @@ parameter_types! {
 	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	// 24
+	pub const MaxNominations: u32 = <NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -558,8 +560,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
