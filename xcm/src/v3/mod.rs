@@ -219,11 +219,11 @@ pub struct XcmContext {
 	pub topic: Option<[u8; 32]>,
 }
 
-#[cfg(test)]
 impl XcmContext {
 	/// Helper function to create a bogus empty context for testing purposes.
 	///
 	/// This function should only be used in cases where the context is sure to be unused.
+	#[cfg(test)]
 	pub fn empty() -> Self {
 		XcmContext { origin: None, message_hash: [0; 32], topic: None }
 	}
