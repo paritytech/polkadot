@@ -824,8 +824,8 @@ impl<T: Config> Pallet<T> {
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
 				backed_candidates,
 				move |candidate_idx: usize,
-					  backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
-					  -> bool {
+				      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
+				      -> bool {
 					let para_id = backed_candidate.descriptor().para_id;
 					let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
 					let check_ctx = CandidateCheckContext::<T>::new(prev_context);
@@ -848,9 +848,9 @@ impl<T: Config> Pallet<T> {
 									Ok(Ok(_)) => false,
 								}
 							}
-					},
-					&scheduled[..],
-				);
+				},
+				&scheduled[..],
+			);
 
 			frame_support::storage::TransactionOutcome::Rollback((
 				// filtered backed candidates
