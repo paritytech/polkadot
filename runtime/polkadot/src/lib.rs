@@ -1708,7 +1708,7 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
 	define_benchmarks!(
-		// Polkadot 
+		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
 		[runtime_common::claims, Claims]
