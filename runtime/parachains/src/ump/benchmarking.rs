@@ -38,7 +38,7 @@ fn queue_upward_msg<T: Config>(
 	assert_last_event_type::<T>(Event::UpwardMessagesReceived(para, 1, len).into());
 }
 
-fn create_message<T: Config>(weight: u64, size: u32) -> Vec<u8> {
+fn create_message_size<T: Config>(size: u32) -> Vec<u8> {
 	// fill the remark but leave some bytes for the encoding of the message
 	let size = size.saturating_sub(20) as usize;
 	let mut remark = Vec::new();
@@ -46,24 +46,34 @@ fn create_message<T: Config>(weight: u64, size: u32) -> Vec<u8> {
 	let call = frame_system::Call::<T>::remark_with_event { remark };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_type: OriginKind::SovereignAccount,
-		require_weight_at_most: weight,
+		require_weight_at_most: Weight::MAX,
+		call: call.encode().into(),
+	}]))
+	.encode()
+}
+
+fn create_message_overweight<T: Config>() -> Vec<u8> {
+	let max_block_weight = T::BlockWeights::get().max_block;
+	// We use a `set_code` Call because it
+    let call = frame_system::Call::<T>::set_code { code: vec![] };
+	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
+		origin_type: OriginKind::Superuser,
+		require_weight_at_most: max_block_weight,
 		call: call.encode().into(),
 	}]))
 	.encode()
 }
 
 frame_benchmarking::benchmarks! {
-
 	// NOTE: We are overestimating slightly here.
 	// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
-	// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
+	// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked function we
 	// are taking call and control-flow overhead into account twice.
 	process_upward_message {
 		let s in 0..MAX_UPWARD_MESSAGE_SIZE_BOUND;
 		let para = ParaId::from(1978);
 		let host_conf = configuration::ActiveConfig::<T>::get();
-		let weight = host_conf.ump_max_individual_weight + 1;
-		let data = create_message::<T>(weight, s);
+		let data = create_message_size::<T>(s);
 	}: {
 		assert!(T::UmpSink::process_upward_message(para, &data[..], Weight::MAX).is_ok());
 	}
@@ -73,7 +83,7 @@ frame_benchmarking::benchmarks! {
 		let count = configuration::ActiveConfig::<T>::get().max_upward_queue_count;
 		let paras: Vec<_> = (0..count).map(ParaId::from).collect();
 		let host_conf = configuration::ActiveConfig::<T>::get();
-		let msg = create_message::<T>(1000, 0);
+		let msg = create_message_size::<T>(0);
 		// Start with the block number 1. This is needed because should an event be
 		// emitted during the genesis block they will be implicitly wiped.
 		frame_system::Pallet::<T>::set_block_number(1u32.into());
@@ -87,14 +97,14 @@ frame_benchmarking::benchmarks! {
 
 	service_overweight {
 		let host_conf = configuration::ActiveConfig::<T>::get();
-		let weight = host_conf.ump_max_individual_weight + 1;
+		let weight = host_conf.ump_max_individual_weight + host_conf.ump_max_individual_weight + 1000000;
 		let para = ParaId::from(1978);
 		// The message's weight does not really matter here, as we add service_overweight's
 		// max_weight parameter to the extrinsic's weight in the weight calculation.
 		// The size of the message influences decoding time, so we create a min-sized message here
 		// and take the decoding weight into account by adding it to the extrinsic execution weight
 		// in the process_upward_message function.
-		let msg = create_message::<T>(weight.into(), 0);
+		let msg = create_message_overweight::<T>();
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.
 		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, 1000);
