@@ -1,11 +1,11 @@
-error[E0599]: no method named `build` found for struct `OverseerBuilder<DummySpawner, FieldMissing<AwesomeSubSys>, FieldInit<f64>>` in the current scope
+error[E0599]: no method named `build` found for struct `OverseerBuilder<DummySpawner, FieldMissing<_>, FieldInit<f64>>` in the current scope
   --> tests/ui/err-06-missing-subsystem.rs:59:4
    |
 22 | #[overlord(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
    | -------------------------------------------------------------------------------- method `build` not found for this
 ...
 59 |         .build()
-   |          ^^^^^ method not found in `OverseerBuilder<DummySpawner, FieldMissing<AwesomeSubSys>, FieldInit<f64>>`
+   |          ^^^^^ method not found in `OverseerBuilder<DummySpawner, FieldMissing<_>, FieldInit<f64>>`
    |
    = note: the method was found for
            - `OverseerBuilder<S, FieldInit<AwesomeSubSys>, FieldInit<f64>>`

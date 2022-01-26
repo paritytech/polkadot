@@ -218,8 +218,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		let ftype = &bag_field.field_ty;
 		let impl_generics = baggage_placeholder_ty[..idx]
 			.iter()
-			.chain(baggage_placeholder_ty[idx + 1..].iter());
-		let other_baggage_name = baggage_name[..idx].iter().chain(baggage_name[idx + 1..].iter());
+			.chain(baggage_placeholder_ty[idx + 1..].iter())
+			.collect::<Vec<_>>();
+		let other_baggage_name = baggage_name[..idx].iter()
+			.chain(baggage_name[idx + 1..].iter())
+			.collect::<Vec<_>>();
 
 		let mut uninit_generics = baggage_placeholder_ty
 			.iter()
@@ -239,7 +242,26 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			impl <S, #additional_baggage_generic #( #subsystem_placeholder_ty, )* #( #impl_generics, )* >
 			#builder <S, #( #subsystem_placeholder_ty, )* #( #uninit_generics, )* >
 			where #spawner_where_clause {
-				/// Specify the baggage in the builder
+				/// Specify the baggage in the builder when it was not initialized before
+				pub fn #fname (self, var: #ftype ) ->
+					#builder <S, #( #subsystem_placeholder_ty, )* #( #return_type_generics, )* >
+				{
+					#builder {
+						#fname: FieldInit::<#ftype>::Value(var),
+						#(
+							#subsystem_name: self. #subsystem_name,
+						)*
+						#(
+							#other_baggage_name: self. #other_baggage_name,
+						)*
+						spawner: self.spawner,
+					}
+				}
+			}
+			impl <S, #additional_baggage_generic #( #subsystem_placeholder_ty, )* #( #impl_generics, )* >
+			#builder <S, #( #subsystem_placeholder_ty, )* #( #return_type_generics, )* >
+			where #spawner_where_clause {
+				/// Specify the baggage in the builder when it has been previously initialized
 				pub fn #fname (self, var: #ftype ) ->
 					#builder <S, #( #subsystem_placeholder_ty, )* #( #return_type_generics, )* >
 				{
