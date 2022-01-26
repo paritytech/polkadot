@@ -30,7 +30,7 @@ pub use polkadot_overseer::{
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, OverseerBuilder,
+	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, InitializedOverseerBuilder,
 	OverseerConnector, OverseerHandle,
 };
 
@@ -142,7 +142,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		pvf_checker_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,

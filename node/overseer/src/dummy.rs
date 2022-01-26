@@ -16,7 +16,7 @@
 
 use crate::{
 	prometheus::Registry, AllMessages, HeadSupportsParachains, MetricsTrait, Overseer,
-	OverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	InitializedOverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
@@ -66,7 +66,7 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 	supports_parachains: SupportsParachains,
 	registry: Option<&'a Registry>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		SupportsParachains,
 		DummySubsystem,
@@ -107,7 +107,7 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	subsystem: Sub,
 	registry: Option<&'a Registry>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		SupportsParachains,
 		Sub,
