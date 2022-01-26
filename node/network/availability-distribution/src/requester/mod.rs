@@ -209,7 +209,16 @@ impl Requester {
 					// We need to run the fetching task in the context of the leaf session,
 					// so we need to pass in the parent of the leaf to `with_session_info()`.
 					let leaf_parent =
-						get_block_ancestors(ctx, leaf, 1).await?.into_iter().next().unwrap_or(leaf);
+						get_block_ancestors(ctx, leaf, 1).await?.into_iter().next().unwrap_or_else(
+							|| {
+								tracing::warn!(
+									target: LOG_TARGET,
+									leaf = ?leaf,
+									"Failed to fetch ancestors for leaf"
+								);
+								leaf
+							},
+						);
 					let task_cfg = self
 						.session_cache
 						.with_session_info(
