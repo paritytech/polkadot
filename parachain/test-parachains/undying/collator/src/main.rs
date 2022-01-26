@@ -35,13 +35,13 @@ fn main() -> Result<()> {
 
 	match cli.subcommand {
 		Some(cli::Subcommand::ExportGenesisState(_params)) => {
-			let collator = Collator::new();
+			let collator = Collator::new(1000);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
 		},
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
-			let collator = Collator::new();
+			let collator = Collator::new(1000);
 			println!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
 			Ok(())
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 				match role {
 					Role::Light => Err("Light client not supported".into()),
 					_ => {
-						let collator = Collator::new();
+						let collator = Collator::new(1000);
 
 						let full_node = polkadot_service::build_full(
 							config,

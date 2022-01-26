@@ -23,8 +23,8 @@
 )]
 
 use parity_scale_codec::{Decode, Encode};
-use tiny_keccak::{Hasher as _, Keccak};
 use sp_std::vec::Vec;
+use tiny_keccak::{Hasher as _, Keccak};
 
 #[cfg(not(feature = "std"))]
 mod wasm_validation;
@@ -71,7 +71,6 @@ impl HeadData {
 	}
 }
 
-
 /// Block data for this parachain.
 #[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct GraveyardState {
@@ -113,11 +112,14 @@ pub fn execute(
 
 	let mut new_state = block_data.state.clone();
 	for i in 0..block_data.tombstones {
-		new_state.graveyard[(block_data.state.index + i) as usize] = 
+		new_state.graveyard[(block_data.state.index + i) as usize] =
 			block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
-		new_state.index = 
-			block_data.state.index.wrapping_add(1);
+		new_state.index = block_data.state.index.wrapping_add(1);
 	}
 
-	Ok(HeadData { number: parent_head.number + 1, parent_hash, post_state: keccak256(new_state.encode().as_slice()) })
+	Ok(HeadData {
+		number: parent_head.number + 1,
+		parent_hash,
+		post_state: keccak256(new_state.encode().as_slice()),
+	})
 }

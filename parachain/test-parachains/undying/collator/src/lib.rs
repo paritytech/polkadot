@@ -32,7 +32,7 @@ use std::{
 	},
 	time::Duration,
 };
-use test_parachain_undying::{execute, hash_state, BlockData, HeadData, GraveyardState};
+use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
 
 /// The amount we add when producing a new block.
 ///
@@ -40,24 +40,25 @@ use test_parachain_undying::{execute, hash_state, BlockData, HeadData, Graveyard
 const ADD: u64 = 2;
 
 /// Calculates the head and state for the block with the given `number`.
-fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (HeadData, u64) {
+fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (HeadData, GraveyardState) {
 	let mut head =
 		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(0) };
 
 	let mut index = 0u64;
-	let mut graveyard = vec![graveyard_size * 2];
+	let mut graveyard = vec![0u64; graveyard_size * 2];
 	let mut tombstones = 1000;
 
+	let mut state = GraveyardState { index, graveyard };
+
 	while head.number < number {
-		let mut block_data = BlockData { state: GraveyardState { index, graveyard}, tombstones };
+		let mut block_data = BlockData { state, tombstones };
 		head = execute(head.hash(), head.clone(), &block_data).expect("Produces valid block");
-		
+
 		let mut state = block_data.state.clone();
 		for i in 0..block_data.tombstones {
-			state.graveyard[(block_data.state.index + i) as usize] = 
+			state.graveyard[(block_data.state.index + i) as usize] =
 				block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
-			state.index = 
-				block_data.state.index.wrapping_add(1);
+			state.index = block_data.state.index.wrapping_add(1);
 		}
 	}
 
@@ -66,7 +67,7 @@ fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (H
 
 /// The state of the undying parachain.
 struct State {
-	head_to_state: HashMap<Arc<HeadData>, u64>,
+	head_to_state: HashMap<Arc<HeadData>, GraveyardState>,
 	number_to_head: HashMap<u64, Arc<HeadData>>,
 	/// Block number of the best block.
 	best_block: u64,
@@ -74,11 +75,15 @@ struct State {
 
 impl State {
 	/// Init the genesis state.
-	fn genesis() -> Self {
-		let genesis_state = Arc::new(calculate_head_and_state_for_number(0).0);
+	fn genesis(graveyard_size: usize) -> Self {
+		let genesis_state = Arc::new(calculate_head_and_state_for_number(0, 1000).0);
 
+		let graveyard = vec![0u64; graveyard_size * 2];
+		let index = 0;
+		let state = GraveyardState { index, graveyard };
+	
 		Self {
-			head_to_state: vec![(genesis_state.clone(), 0)].into_iter().collect(),
+			head_to_state: vec![(genesis_state.clone(), state)].into_iter().collect(),
 			number_to_head: vec![(0, genesis_state)].into_iter().collect(),
 			best_block: 0,
 		}
@@ -94,23 +99,31 @@ impl State {
 			state: self
 				.head_to_state
 				.get(&parent_head)
-				.copied()
-				.unwrap_or_else(|| calculate_head_and_state_for_number(parent_head.number).1),
-			add: ADD,
+				.cloned()
+				.unwrap_or_else(|| calculate_head_and_state_for_number(parent_head.number, 1000).1),
+			tombstones: 1000,
 		};
 
 		let new_head =
 			execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
 
 		let new_head_arc = Arc::new(new_head.clone());
-		self.head_to_state.insert(new_head_arc.clone(), block.state.wrapping_add(ADD));
+
+		let mut new_state = block.state.clone();
+		for i in 0..block.tombstones {
+			new_state.graveyard[(block.state.index + i) as usize] =
+				block.state.graveyard[(block.state.index + i) as usize].wrapping_add(1);
+			new_state.index = block.state.index.wrapping_add(1);
+		}
+
+		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
 		(block, new_head)
 	}
 }
 
-/// The collator of the adder parachain.
+/// The collator of the undying parachain.
 pub struct Collator {
 	state: Arc<Mutex<State>>,
 	key: CollatorPair,
@@ -119,9 +132,9 @@ pub struct Collator {
 
 impl Collator {
 	/// Create a new collator instance with the state initialized as genesis.
-	pub fn new() -> Self {
+	pub fn new(graveyard_size: usize) -> Self {
 		Self {
-			state: Arc::new(Mutex::new(State::genesis())),
+			state: Arc::new(Mutex::new(State::genesis(graveyard_size))),
 			key: CollatorPair::generate().0,
 			seconded_collations: Arc::new(AtomicU32::new(0)),
 		}
@@ -191,9 +204,9 @@ impl Collator {
 
 			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
 
-
 			log::info!(
-				"Compressed PoV size for collation: {} bytes", compressed_pov.block_data.0.len(),
+				"Compressed PoV size for collation: {} bytes",
+				compressed_pov.block_data.0.len(),
 			);
 
 			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
@@ -317,7 +330,7 @@ mod tests {
 	fn advance_to_state_when_parent_head_is_missing() {
 		let collator = Collator::new();
 
-		let mut head = calculate_head_and_state_for_number(10).0;
+		let mut head = calculate_head_and_state_for_number(10, 1000).0;
 
 		for i in 1..10 {
 			head = collator.state.lock().unwrap().advance(head).1;
