@@ -78,15 +78,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.collect::<Vec<_>>();
 
 	// Helpers to use within quote! macros
-	let builder_where_clause = quote! {
-		where
-			#(
-				#subsystem_type : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
-			)*
+	let spawner_where_clause : syn::TypeParam = parse_quote! {
 			S: #support_crate ::SpawnNamed + Send
 	};
 	let builder_generics = quote! {
-		S, #( #subsystem_type, )* #( #baggage_generic_ty, )*
+		S, #( #baggage_generic_ty, )* #( #subsystem_type, )*
 	};
 
 	let field_name = subsystem_name.iter().chain(baggage_name.iter()).collect::<Vec<_>>();
@@ -150,7 +146,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 			quote! {
 				impl <S, #ftype, #( #impl_generics, )* #( #baggage_placeholder_ty, )*>
-				#builder <S, #( #uninit_generics, )* #( #baggage_placeholder_ty, )*> #builder_where_clause {
+				#builder <S, #( #uninit_generics, )* #( #baggage_placeholder_ty, )*>
+				where #spawner_where_clause,
+					#ftype : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>
+				{
 					/// Specify the subsystem in the builder directly
 					pub fn #fname (self, var: #ftype ) ->
 						#builder <S, #( #return_type_generics, )* #( #baggage_placeholder_ty, )*>
@@ -191,7 +190,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 				impl <S, #ftype, #( #impl_generics, )* #( #baggage_placeholder_ty, )*>
 				#builder <S, #( #return_type_generics, )* #( #baggage_placeholder_ty, )*>
-				#builder_where_clause {
+				where #spawner_where_clause,
+					#ftype : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>
+				{
 					/// Replace a subsystem by another implementation for the
 					/// consumable message type.
 					pub fn #fname_replace<NEW, F>(self, gen_replacement_fn: F)
@@ -203,7 +204,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					{
 						let replacement: FieldInit<NEW> = match self.#fname {
 							FieldInit::Fn(fx) =>
-								FieldInit::Fn(Box::new(move |handle: #handle| {
+								FieldInit::<NEW>::Fn(Box::new(move |handle: #handle| {
 								let orig = fx(handle)?;
 								Ok(gen_replacement_fn(orig))
 							})),
@@ -241,9 +242,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		let mut uninit_generics = baggage_placeholder_ty
 			.iter()
-			.map(|gen_ty| {
-				let ret : syn::GenericArgument = parse_quote!(#gen_ty);
-				ret
+			.map(|gen_ty| -> syn::GenericArgument {
+				parse_quote!(#gen_ty)
 			})
 			.collect::<Vec<_>>();
 		uninit_generics[idx] = parse_quote!{ FieldMissing<#ftype> };
@@ -259,7 +259,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		quote! {
 			impl <S, #additional_baggage_generic #( #subsystem_placeholder_ty, )* #( #impl_generics, )* >
 			#builder <S, #( #subsystem_placeholder_ty, )* #( #uninit_generics, )* >
-			#builder_where_clause {
+			where #spawner_where_clause {
 				/// Specify the baggage in the builder
 				pub fn #fname (self, var: #ftype ) ->
 					#builder <S, #( #subsystem_placeholder_ty, )* #( #return_type_generics, )* >
@@ -313,9 +313,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		impl<S, #( #baggage_generic_ty, )*> #overseer_name <S, #( #baggage_generic_ty, )*> {
 			/// Create a new overseer utilizing the builder.
-			pub fn builder() ->
+			pub fn builder< #( #subsystem_type),* >() ->
 				#builder<S, #( FieldMissing::<#field_type>, )* >
-				#builder_where_clause
+			where
+				#spawner_where_clause,
+				#(
+					#subsystem_type : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
+				)*
 			{
 				#builder :: new()
 			}
@@ -376,7 +380,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		}
 
 		impl<#builder_generics> #builder<S, #( FieldMissing::<#field_type>, )*>
-			#builder_where_clause
 		{
 			fn new() -> Self {
 				// explicitly assure the required traits are implemented
@@ -386,6 +389,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				{}
 
 				trait_from_must_be_implemented::< #error_ty >();
+
 				Self {
 					#(
 						#field_name: FieldMissing::<#field_type>::default(),
@@ -397,7 +401,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		impl<S, #( #subsystem_placeholder_ty, )* #( #baggage_placeholder_ty, )*>
 			#builder<S, #( #subsystem_placeholder_ty, )* #( #baggage_placeholder_ty, )*>
-			#builder_where_clause
+		where
+			#spawner_where_clause
 		{
 			/// The spawner to use for spawning tasks.
 			pub fn spawner(mut self, spawner: S) -> Self
@@ -406,10 +411,16 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				self
 			}
 		}
-
+		/// Type used to represent a builder where all fields are set
 		pub type #initialized_builder<#builder_generics> = #builder<S, #( FieldInit::<#field_type>, )*>;
+
+
 		impl<#builder_generics> #initialized_builder<#builder_generics>
-			#builder_where_clause {
+		where #spawner_where_clause,
+			#(
+				#subsystem_type : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
+			)*
+		{
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
 				-> ::std::result::Result<(#overseer_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty> {
@@ -477,7 +488,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 
 					// Generate subsystem name based on overseer field name.
-					let mut subsystem_string = String::from(stringify!(#subsystem_name));
+					let subsystem_string = String::from(stringify!(#subsystem_name));
 					// Convert owned `snake case` string to a `kebab case` static str.
 					let subsystem_static_str = Box::leak(subsystem_string.replace("_", "-").into_boxed_str());
 
