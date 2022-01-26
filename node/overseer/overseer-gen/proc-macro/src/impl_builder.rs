@@ -220,7 +220,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			.iter()
 			.chain(baggage_placeholder_ty[idx + 1..].iter())
 			.collect::<Vec<_>>();
-		let other_baggage_name = baggage_name[..idx].iter()
+		let other_baggage_name = baggage_name[..idx]
+			.iter()
 			.chain(baggage_name[idx + 1..].iter())
 			.collect::<Vec<_>>();
 
