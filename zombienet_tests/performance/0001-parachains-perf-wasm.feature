@@ -24,3 +24,9 @@ alice: parachain 100 block height is at least 1 within 150 seconds
 # FEATURE: handling these with 1 line of code
 alice: reports pvf_preparation_time_bucket{le="1"} is 1
 alice: reports pvf_preparation_time_bucket{le="10"} is 1
+#bob: reports pvf_preparation_time_bucket{le="1"} is 1
+#bob: reports pvf_preparation_time_bucket{le="10"} is 1
+#charlie: reports pvf_preparation_time_bucket{le="1"} is 1
+#charlie: reports pvf_preparation_time_bucket{le="10"} is 1
+#dave: reports pvf_preparation_time_bucket{le="1"} is 1
+#dave: reports pvf_preparation_time_bucket{le="10"} is 1

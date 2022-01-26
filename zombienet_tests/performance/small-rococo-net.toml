@@ -16,6 +16,14 @@ default_command = "../polkadot/target/release/polkadot"
   [[relaychain.nodes]]
   name = "bob"
   extra_args = [ "--bob", "-lparachain=debug"]
+  
+  # [[relaychain.nodes]]
+  # name = "charlie"
+  # extra_args = [ "--charlie", "-lparachain=debug" ]
+
+  # [[relaychain.nodes]]
+  # name = "dave"
+  # extra_args = [ "--dave", "-lparachain=debug"]
 
 # TODO: Add bulk parachain registration option. Register 20 parachains with a specified collator, or even groups
 # of parachains each with different collator settings. We will want to change `adder-collator` to control PoV size 
@@ -27,7 +35,7 @@ addToGenesis = false
 
   [parachains.collator]
   name = "collator01"
-  command = "../polkadot/target/release/adder-collator"
+  command = "../polkadot/target/release/undying-collator"
   args = ["-lparachain=debug"]
 
 # TODO: This should not be in here, maybe have a separate file that is included by default ?
