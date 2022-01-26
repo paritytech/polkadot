@@ -10646,6 +10646,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-parachain-undying"
+version = "0.9.13"
+dependencies = [
+ "dlmalloc",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "sp-io",
+ "sp-std",
+ "substrate-wasm-builder",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "test-parachain-undying-collator"
+version = "0.9.13"
+dependencies = [
+ "futures 0.3.19",
+ "futures-timer",
+ "log",
+ "parity-scale-codec",
+ "polkadot-cli",
+ "polkadot-node-core-pvf",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "polkadot-service",
+ "polkadot-test-service",
+ "sc-cli",
+ "sc-service",
+ "sp-core",
+ "sp-keyring",
+ "structopt",
+ "substrate-test-utils",
+ "test-parachain-undying",
+ "tokio",
+]
+
+[[package]]
 name = "test-parachains"
 version = "0.9.13"
 dependencies = [
