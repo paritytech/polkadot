@@ -49,19 +49,23 @@ pub trait Nested<T, E: Split> {
 	/// Convert into a nested error rather than a flat one, commonly for direct handling.
 	fn into_nested(
 		self,
-	) -> std::result::Result<std::result::Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal> {
+	) -> std::result::Result<std::result::Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal>;
+}
+
+impl<T, E: Split> Nested<T, E> for std::result::Result<T, E> {
+	// uses the default impl
+	fn into_nested(
+		self,
+	) -> std::result::Result<std::result::Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal>
+	{
 		match self {
-			Ok(t) => Ok(t),
+			Ok(t) => Ok(Ok(t)),
 			Err(e) => match e.split() {
 				Ok(jfyi) => Ok(Err(jfyi)),
 				Err(fatal) => Err(fatal),
 			},
 		}
 	}
-}
-
-impl<T, E: Split> Nested<T, E> for std::result::Result<T, E> {
-	// uses the default impl
 }
 
 #[cfg(test)]

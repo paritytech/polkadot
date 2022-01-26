@@ -28,8 +28,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
-use crate::{
-	error::{Fatal, FatalResult, Result},
+use super::{
+	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
 

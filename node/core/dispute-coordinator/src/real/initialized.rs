@@ -63,6 +63,7 @@ use crate::{
 use super::{
 	backend::Backend,
 	db,
+	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	ordering::{CandidateComparator, OrderingProvider},
 	participation::{
 		self, Participation, ParticipationRequest, ParticipationStatement, WorkerMessageReceiver,
@@ -610,7 +611,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
-	) -> Result<Box<dyn FnOnce() -> NonFatalResult<()>>> {
+	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -633,7 +634,7 @@ impl Initialized {
 				let report = move || {
 					pending_confirmation
 						.send(outcome)
-						.map_err(|_| NonFatal::DisputeImportOneshotSend)
+						.map_err(|_| JfyiError::DisputeImportOneshotSend)
 				};
 				match outcome {
 					ImportStatementsResult::InvalidImport => {
@@ -1174,8 +1175,8 @@ impl MuxedMessage {
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
-			msg = from_overseer => Ok(Self::Subsystem(msg.map_err(Fatal::SubsystemReceive)?)),
-			msg = from_sender.next() => Ok(Self::Participation(msg.ok_or(Fatal::ParticipationWorkerReceiverExhausted)?)),
+			msg = from_overseer => Ok(Self::Subsystem(msg.map_err(FatalError::SubsystemReceive)?)),
+			msg = from_sender.next() => Ok(Self::Participation(msg.ok_or(FatalError::ParticipationWorkerReceiverExhausted)?)),
 		)
 	}
 }

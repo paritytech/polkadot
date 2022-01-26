@@ -16,8 +16,6 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use thiserror::Error;
-
 use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, SessionIndex};
 
 use crate::real::ordering::CandidateComparator;
@@ -83,8 +81,8 @@ struct BestEffortEntry {
 }
 
 /// What can go wrong when queuing a request.
-#[derive(Debug, Error)]
-pub enum Error {
+#[derive(Debug, thiserror::Error)]
+pub enum QueueError {
 	#[error("Request could not be queued, because best effort queue was already full.")]
 	BestEffortFull,
 	#[error("Request could not be queued, because priority queue was already full.")]
@@ -137,7 +135,7 @@ impl Queues {
 		&mut self,
 		comparator: Option<CandidateComparator>,
 		req: ParticipationRequest,
-	) -> Result<(), Error> {
+	) -> Result<(), QueueError> {
 		debug_assert!(comparator
 			.map(|c| c.matches_candidate(req.candidate_hash()))
 			.unwrap_or(true));

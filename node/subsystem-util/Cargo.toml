@@ -25,6 +25,7 @@ polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered-channel = { path = "../metered-channel" }
+fatality = { path = "../fatality" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -38,4 +39,3 @@ log = "0.4.13"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 lazy_static = "1.4.0"
 polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
-

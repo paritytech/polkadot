@@ -16,8 +16,10 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+fatality = { path = "../../fatality"}
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 
 [dev-dependencies]
 kvdb-memorydb = "0.11.0"

@@ -29,9 +29,11 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
-use crate::{
-	error::{Fatal, FatalResult, NonFatal, Result},
-	LOG_TARGET,
+use crate::real::LOG_TARGET;
+
+use super::{
+	error::{FatalError, FatalResult, JfyiError, Result},
+	ordering::CandidateComparator,
 };
 
 use super::ordering::CandidateComparator;
@@ -161,7 +163,7 @@ impl Participation {
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		Ok(self.queue.queue(comparator, req).map_err(NonFatal::QueueError)?)
+		Ok(self.queue.queue(comparator, req).map_err(JfyiError::QueueError)?)
 	}
 
 	/// Message from a worker task was received - get the outcome.

@@ -15,6 +15,7 @@ syn = { version = "1.0.82", features = ["full"], default-features = false }
 thiserror = "1.0.30"
 proc-macro-crate = "1.1.0"
 indexmap = "1.7.0"
+expander = "=0.0.3"
 
 [dev-dependencies]
 assert_matches = "1.5"

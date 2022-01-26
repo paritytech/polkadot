@@ -27,8 +27,9 @@ use std::sync::Arc;
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
-use crate::{
-	error::{Fatal, FatalResult},
+use crate::real::{
+	backend::{Backend, BackendWriteOp, OverlayedBackend},
+	error::{FatalError, FatalResult},
 	status::DisputeStatus,
 };
 
@@ -100,7 +101,7 @@ impl Backend for DbBackend {
 			}
 		}
 
-		self.inner.write(tx).map_err(Fatal::DbWriteFailed)
+		self.inner.write(tx).map_err(FatalError::DbWriteFailed)
 	}
 }
 

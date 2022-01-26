@@ -39,9 +39,16 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
-use crate::{
-	error::{Error, FatalResult, NonFatal, Result},
-	metrics::Metrics,
+use crate::metrics::Metrics;
+use backend::{Backend, OverlayedBackend};
+use db::v1::DbBackend;
+use error::{FatalResult, Result};
+
+use self::{
+	error::{Error, JfyiError},
+	ordering::CandidateComparator,
+	participation::ParticipationRequest,
+	spam_slots::{SpamSlots, UnconfirmedDisputes},
 	status::{get_active_with_status, SystemClock},
 };
 
@@ -190,18 +197,18 @@ impl DisputeCoordinatorSubsystem {
 		B: Backend + 'static,
 	{
 		loop {
-			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
-				Ok(Some(update)) => update,
-				Ok(None) => {
-					tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-					return Ok(None)
-				},
-				Err(Error::Fatal(f)) => return Err(f),
-				Err(Error::NonFatal(e)) => {
-					e.log();
-					continue
-				},
-			};
+			let (first_leaf, rolling_session_window) =
+				match get_rolling_session_window(ctx).await.into_nested() {
+					Ok(Some(update)) => update,
+					Ok(None) => {
+						tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+						return Ok(None)
+					},
+					Err(e) => {
+						e.split()?.log();
+						continue
+					},
+				};
 
 			// Before we move to the initialized state we need to check if we got at
 			// least on finality notification to prevent large ancestry block scraping,
@@ -219,9 +226,8 @@ impl DisputeCoordinatorSubsystem {
 				.await
 			{
 				Ok(v) => v,
-				Err(Error::Fatal(f)) => return Err(f),
-				Err(Error::NonFatal(e)) => {
-					e.log();
+				Err(e) => {
+					e.split()?.log();
 					continue
 				},
 			};
@@ -371,7 +377,7 @@ where
 			leaf.clone(),
 			RollingSessionWindow::new(ctx, DISPUTE_WINDOW, leaf.hash)
 				.await
-				.map_err(NonFatal::RollingSessionWindow)?,
+				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
 	} else {
 		Ok(None)
