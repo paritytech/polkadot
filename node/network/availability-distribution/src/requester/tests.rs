@@ -26,8 +26,6 @@ use polkadot_primitives::{
 	v2::SessionInfo,
 };
 
-use polkadot_primitives::v2::SessionInfo;
-
 use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
