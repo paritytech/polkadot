@@ -1215,6 +1215,47 @@ fn pvf_check_upgrade_reject() {
 }
 
 #[test]
+fn pvf_check_submit_vote_while_disabled() {
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: HostConfiguration { pvf_checking_enabled: false, ..Default::default() },
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	new_test_ext(genesis_config).execute_with(|| {
+		// This will set the session index to 1 and seed the validators.
+		run_to_block(1, Some(vec![1]));
+
+		let stmt = PvfCheckStatement {
+			accept: false,
+			subject: ValidationCode(vec![1, 2, 3]).hash(),
+			session_index: 1,
+			validator_index: 1.into(),
+		};
+
+		let signature: ValidatorSignature =
+			Sr25519Keyring::Alice.sign(&stmt.signing_payload()).into();
+
+		let call =
+			Call::include_pvf_check_statement { stmt: stmt.clone(), signature: signature.clone() };
+
+		let validate_unsigned =
+			<Paras as ValidateUnsigned>::validate_unsigned(TransactionSource::InBlock, &call);
+		assert_eq!(
+			validate_unsigned,
+			InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
+		);
+
+		assert_err!(
+			Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone()),
+			Error::<Test>::PvfCheckDisabled
+		);
+	});
+}
+
+#[test]
 fn pvf_check_submit_vote() {
 	let code_a: ValidationCode = vec![3, 2, 1].into();
 	let code_b: ValidationCode = vec![1, 2, 3].into();

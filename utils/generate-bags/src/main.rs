@@ -20,20 +20,19 @@
 //! touched again. It can be reused to regenerate a wholly different
 //! quantity of bags, or if the existential deposit changes, etc.
 
+use clap::{ArgEnum, Parser};
 use generate_bags::generate_thresholds;
 use kusama_runtime::Runtime as KusamaRuntime;
 use polkadot_runtime::Runtime as PolkadotRuntime;
 use std::path::{Path, PathBuf};
-use structopt::{clap::arg_enum, StructOpt};
 use westend_runtime::Runtime as WestendRuntime;
 
-arg_enum! {
-	#[derive(Debug)]
-	enum Runtime {
-		Westend,
-		Kusama,
-		Polkadot,
-	}
+#[derive(Clone, Debug, ArgEnum)]
+#[clap(rename_all = "PascalCase")]
+enum Runtime {
+	Westend,
+	Kusama,
+	Polkadot,
 }
 
 impl Runtime {
@@ -48,35 +47,30 @@ impl Runtime {
 	}
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Opt {
 	/// How many bags to generate.
-	#[structopt(long, default_value = "200")]
+	#[clap(long, default_value = "200")]
 	n_bags: usize,
 
 	/// Which runtime to generate.
-	#[structopt(
-		long,
-		case_insensitive = true,
-		default_value = "Polkadot",
-		possible_values = &Runtime::variants(),
-	)]
+	#[clap(long, ignore_case = true, arg_enum, default_value = "Polkadot")]
 	runtime: Runtime,
 
 	/// Where to write the output.
 	output: PathBuf,
 
 	/// The total issuance of the native currency.
-	#[structopt(short, long)]
+	#[clap(short, long)]
 	total_issuance: u128,
 
 	/// The minimum account balance (i.e. existential deposit) for the native currency.
-	#[structopt(short, long)]
+	#[clap(short, long)]
 	minimum_balance: u128,
 }
 
 fn main() -> Result<(), std::io::Error> {
-	let Opt { n_bags, output, runtime, total_issuance, minimum_balance } = Opt::from_args();
+	let Opt { n_bags, output, runtime, total_issuance, minimum_balance } = Opt::parse();
 
 	runtime.generate_thresholds_fn()(n_bags, &output, total_issuance, minimum_balance)
 }

@@ -448,6 +448,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -516,6 +517,9 @@ pub mod pallet {
 		PvfCheckDoubleVote,
 		/// The given PVF does not exist at the moment of process a vote.
 		PvfCheckSubjectInvalid,
+		/// The PVF pre-checking statement cannot be included since the PVF pre-checking mechanism
+		/// is disabled.
+		PvfCheckDisabled,
 	}
 
 	/// All currently active PVF pre-checking votes.
@@ -897,6 +901,13 @@ pub mod pallet {
 			signature: ValidatorSignature,
 		) -> DispatchResult {
 			ensure_none(origin)?;
+
+			// Make sure that PVF pre-checking is enabled.
+			ensure!(
+				configuration::Pallet::<T>::config().pvf_checking_enabled,
+				Error::<T>::PvfCheckDisabled,
+			);
+
 			let validators = shared::Pallet::<T>::active_validator_keys();
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
@@ -979,6 +990,10 @@ pub mod pallet {
 				_ => return InvalidTransaction::Call.into(),
 			};
 
+			if !configuration::Pallet::<T>::config().pvf_checking_enabled {
+				return InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
+			}
+
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
 				return InvalidTransaction::Stale.into()
@@ -1039,6 +1054,7 @@ pub mod pallet {
 const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
 const INVALID_TX_BAD_SUBJECT: u8 = 2;
 const INVALID_TX_DOUBLE_VOTE: u8 = 3;
+const INVALID_TX_PVF_CHECK_DISABLED: u8 = 4;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the paras pallet.
@@ -2004,5 +2020,21 @@ impl<T: Config> Pallet<T> {
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub fn heads_insert(para_id: &ParaId, head_data: HeadData) {
 		Heads::<T>::insert(para_id, head_data);
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn initialize_para_now(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
+		// first queue this para actions..
+		let _ = Self::schedule_para_initialize(id, genesis)?;
+
+		// .. and immediately apply them.
+		Self::apply_actions_queue(Self::scheduled_session());
+
+		// ensure it has become a para.
+		ensure!(
+			ParaLifecycles::<T>::get(id) == Some(ParaLifecycle::Parachain),
+			"Parachain not created properly"
+		);
+		Ok(())
 	}
 }

@@ -305,11 +305,11 @@ impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
 
 /// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
 /// zeroes to fill [`AccountId`].
-impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
+impl<T: Encode + Decode> AccountIdConversion<T> for Id {
 	fn into_account(&self) -> T {
 		(b"para", self)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput(b)))
-			.unwrap_or_default()
+			.expect("infinite length input; no invalid inputs for type; qed")
 	}
 
 	fn try_from_account(x: &T) -> Option<Self> {
