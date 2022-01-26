@@ -2,6 +2,7 @@
 
 use polkadot_node_network_protocol::WrongVariant;
 use polkadot_overseer_gen::*;
+use std::collections::HashMap;
 
 /// Concrete subsystem implementation for `MsgStrukt` msg type.
 #[derive(Default)]
@@ -96,7 +97,8 @@ struct Xxx<T> {
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,
-	i_like_generic: T
+	i_like_generic: T,
+	i_like_hash: HashMap<f64, f64>
 }
 
 #[derive(Debug, Clone)]
@@ -131,9 +133,11 @@ fn main() {
 		.plinkos(GoblinTower::default())
 		.i_like_pi(::std::f64::consts::PI)
 		.i_like_generic(42.0)
+		.i_like_hash(HashMap::new())
 		.spawner(DummySpawner)
 		.build()
 		.unwrap();
 	assert_eq!(overseer.i_like_pi.floor() as i8, 3);
 	assert_eq!(overseer.i_like_generic.floor() as i8, 42);
+	assert_eq!(overseer.i_like_hash.len() as i8, 0);
 }

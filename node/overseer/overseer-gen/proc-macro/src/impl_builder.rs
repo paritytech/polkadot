@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::{format_ident, quote};
-use syn::parse_quote;
+use syn::{Path, PathSegment, PathArguments, parse_quote};
+use syn::punctuated::Punctuated;
 
 use super::*;
 
@@ -91,7 +92,18 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let field_name = subsystem_name.iter().chain(baggage_name.iter()).collect::<Vec<_>>();
 	let field_type = subsystem_type
 		.iter()
-		.chain(info.baggage().iter().filter_map(|bag| bag.field_ty.get_ident()))
+		.map(|ident| {
+			let mut inner_type = Punctuated::new();
+			inner_type.push(PathSegment {
+				ident: ident.clone(),
+				arguments: PathArguments::None,
+			});
+			Path {
+				leading_colon: None,
+				segments: inner_type
+			}
+		})
+		.chain(info.baggage().iter().map(|bag| bag.field_ty.clone()))
 		.collect::<Vec<_>>();
 
 	// Setters logic
@@ -268,6 +280,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	});
 
 	let event = &info.extern_event_ty;
+	let initialized_builder = format_ident!("Initialized{}", builder);
 
 	let mut ts = quote! {
 		/// Convenience alias.
@@ -394,7 +407,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		impl<#builder_generics> #builder<S, #( FieldInit::<#field_type>, )*>
+		pub type #initialized_builder<#builder_generics> = #builder<S, #( FieldInit::<#field_type>, )*>;
+		impl<#builder_generics> #initialized_builder<#builder_generics>
 			#builder_where_clause {
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
