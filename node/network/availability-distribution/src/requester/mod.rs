@@ -206,17 +206,21 @@ impl Requester {
 					let tx = self.tx.clone();
 					let metrics = self.metrics.clone();
 
+					// We need to run the fetching task in the context of the leaf session,
+					// so we need to pass in the parent of the leaf to `with_session_info()`.
+					let leaf_parent =
+						get_block_ancestors(ctx, leaf, 1).await?.into_iter().next().unwrap_or(leaf);
 					let task_cfg = self
 						.session_cache
 						.with_session_info(
 							ctx,
 							runtime,
-							// We use leaf here, as relay_parent must be in the same session as the
-							// leaf. This is guaranteed by runtime which ensures that cores are cleared
-							// at session boundaries. At the same time, only leaves are guaranteed to
-							// be fetchable by the state trie.
-							leaf,
-							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
+							// We need to use the leaf parent here, such that we fetch the correct backing group
+							// when the candidate was backed at the session boudnary.
+							// The state trie still contains the block as the chances of this parent to be
+							// already finalized are negligible.
+							leaf_parent,
+							|info| FetchTaskConfig::new(leaf_parent, &core, tx, metrics, info),
 						)
 						.await?;
 
@@ -274,7 +278,7 @@ where
 
 	// `head` is the child of the first block in `ancestors`, request its session index.
 	let head_session_index = match ancestors_iter.next() {
-		Some(parent) => runtime.get_session_index(ctx.sender(), *parent).await?,
+		Some(parent) => runtime.get_session_index_for_child(ctx.sender(), *parent).await?,
 		None => {
 			// No first element, i.e. empty.
 			return Ok(ancestors)
@@ -285,7 +289,7 @@ where
 	// The first parent is skipped.
 	for parent in ancestors_iter {
 		// Parent is the i-th ancestor, request session index for its child -- (i-1)th element.
-		let session_index = runtime.get_session_index(ctx.sender(), *parent).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), *parent).await?;
 		if session_index == head_session_index {
 			session_ancestry_len += 1;
 		} else {
