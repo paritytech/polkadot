@@ -250,9 +250,6 @@ mod tests {
 	use parity_scale_codec::Encode;
 	use primitives::v1::BlockNumber;
 
-	// TODO [now]: adjust check_processed_downwards_messages tests to test for
-	// the new advancement rule.
-
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
@@ -354,21 +351,43 @@ mod tests {
 		let a = ParaId::from(1312);
 
 		new_test_ext(default_genesis_config()).execute_with(|| {
+			let block_number = System::block_number();
+
 			// processed_downward_messages=0 is allowed when the DMQ is empty.
-			assert!(Dmp::check_processed_downward_messages(a, 0).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 0).is_ok());
 
 			queue_downward_message(a, vec![1, 2, 3]).unwrap();
 			queue_downward_message(a, vec![4, 5, 6]).unwrap();
 			queue_downward_message(a, vec![7, 8, 9]).unwrap();
 
 			// 0 doesn't pass if the DMQ has msgs.
-			assert!(!Dmp::check_processed_downward_messages(a, 0).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 0).is_err());
 			// a candidate can consume up to 3 messages
-			assert!(Dmp::check_processed_downward_messages(a, 1).is_ok());
-			assert!(Dmp::check_processed_downward_messages(a, 2).is_ok());
-			assert!(Dmp::check_processed_downward_messages(a, 3).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 1).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 2).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 3).is_ok());
 			// there is no 4 messages in the queue
-			assert!(!Dmp::check_processed_downward_messages(a, 4).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 4).is_err());
+		});
+	}
+
+	#[test]
+	fn check_processed_downward_messages_advancement_rule() {
+		let a = ParaId::from(1312);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			let block_number = System::block_number();
+
+			run_to_block(block_number + 1, None);
+			let advanced_block_number = System::block_number();
+
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+			queue_downward_message(a, vec![4, 5, 6]).unwrap();
+
+			// The queue was empty at genesis, 0 is OK despite it being non-empty in the further block.
+			assert!(Dmp::check_processed_downward_messages(a, block_number, 0).is_ok());
+			// For the advanced block number, however, the rule is broken in case of 0.
+			assert!(Dmp::check_processed_downward_messages(a, advanced_block_number, 0).is_err());
 		});
 	}
 
