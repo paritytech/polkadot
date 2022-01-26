@@ -206,34 +206,29 @@ impl Requester {
 					let tx = self.tx.clone();
 					let metrics = self.metrics.clone();
 
-					// We need to run the fetching task in the context of the leaf session,
-					// so we need to pass in the parent of the leaf to `with_session_info()`.
-					let leaf_parent =
-						get_block_ancestors(ctx, leaf, 1).await?.into_iter().next().unwrap_or_else(
-							|| {
-								tracing::warn!(
-									target: LOG_TARGET,
-									leaf = ?leaf,
-									"Failed to fetch ancestors for leaf"
-								);
-								leaf
-							},
-						);
 					let task_cfg = self
 						.session_cache
 						.with_session_info(
 							ctx,
 							runtime,
-							// We need to use the leaf parent here, such that we fetch the correct backing group
-							// when the candidate was backed at the session boudnary.
-							// The state trie still contains the block as the chances of this parent to be
-							// already finalized are negligible.
-							leaf_parent,
-							|info| FetchTaskConfig::new(leaf_parent, &core, tx, metrics, info),
+							// We use leaf here, the relay_parent must be in the same session as the
+							// leaf. This is guaranteed by runtime which ensures that cores are cleared
+							// at session boundaries. At the same time, only leaves are guaranteed to
+							// be fetchable by the state trie.
+							leaf,
+							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)
-						.await?;
+						.await
+						.map_err(|err| {
+							tracing::warn!(
+								target: LOG_TARGET,
+								error = ?err,
+								"Failed to spawn a fetch task"
+							);
+							err
+						});
 
-					if let Some(task_cfg) = task_cfg {
+					if let Ok(Some(task_cfg)) = task_cfg {
 						e.insert(FetchTask::start(task_cfg, ctx).await?);
 					}
 					// Not a validator, nothing to do.
