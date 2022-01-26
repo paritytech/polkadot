@@ -73,6 +73,8 @@ use super::{
 
 // The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
 const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500;
+// This is in sync with `MAX_FINALITY_LAG` in relay chain selection.
+const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 500;
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
@@ -317,6 +319,11 @@ impl Initialized {
 			// active leaves update.
 			let ancestors = match get_finalized_block_number(ctx.sender()).await {
 				Ok(block_number) => {
+					// Limit our search to last finalized block, or up to max finality lag.
+					let block_number = std::cmp::max(
+						block_number,
+						new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS),
+					);
 					// Fetch ancestry up to and including the last finalized block.
 					// `get_block_ancestors()` doesn't include the target block in the ancestry, so we'll need to
 					// pass in it's parent.
