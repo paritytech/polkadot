@@ -55,7 +55,7 @@ fn create_message_size<T: Config>(size: u32) -> Vec<u8> {
 fn create_message_overweight<T: Config>() -> Vec<u8> {
 	let max_block_weight = T::BlockWeights::get().max_block;
 	// We use a `set_code` Call because it
-    let call = frame_system::Call::<T>::set_code { code: vec![] };
+	let call = frame_system::Call::<T>::set_code { code: vec![] };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_type: OriginKind::Superuser,
 		require_weight_at_most: max_block_weight,

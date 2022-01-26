@@ -41,7 +41,7 @@ use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
-use service::{
+use sc_service::{
 	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager, TransactionStorageMode,
 };

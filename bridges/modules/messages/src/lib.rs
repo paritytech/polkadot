@@ -2199,6 +2199,7 @@ mod tests {
 
 	#[test]
 	#[should_panic]
+	#[cfg(debug_assertions)]
 	fn receive_messages_panics_in_debug_mode_if_callback_is_wrong() {
 		run_test(|| {
 			TestOnDeliveryConfirmed1::set_consumed_weight_per_message(
@@ -2331,6 +2332,7 @@ mod tests {
 
 	#[test]
 	#[should_panic]
+	#[cfg(debug_assertions)]
 	fn message_accepted_panics_in_debug_mode_if_callback_is_wrong() {
 		run_test(|| {
 			TestOnMessageAccepted::set_consumed_weight_per_message(

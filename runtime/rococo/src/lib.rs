@@ -596,7 +596,7 @@ impl pallet_authorship::Config for Runtime {
 impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
-	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
+	type WeightInfo = parachains_configuration::TestWeightInfo;
 }
 
 impl parachains_shared::Config for Runtime {}
@@ -646,6 +646,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
+	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Self>;
 }
 
 impl parachains_paras_inherent::Config for Runtime {
@@ -1093,6 +1094,21 @@ impl pallet_multisig::Config for Runtime {
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
 	type WeightInfo = ();
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benches {
+	define_benchmarks!(
+		[runtime_parachains::configuration, Configuration]
+		[runtime_parachains::disputes, ParasDisputes]
+		[runtime_parachains::paras_inherent, ParaInherent]
+		[runtime_parachains::paras, Paras]
+		[runtime_parachains::ump, Ump]
+	);
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
@@ -1552,19 +1568,13 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
 		) {
-			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
 			let mut list = Vec::<BenchmarkList>::new();
-
-			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
-			list_benchmark!(list, extra, runtime_parachains::disputes, ParasDisputes);
-			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
-			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
-			list_benchmark!(list, extra, runtime_parachains::ump, Ump);
+			list_benchmarks!(list, extra);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
-
 			return (list, storage_info)
 		}
 
@@ -1574,7 +1584,7 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let whitelist: Vec<TrackedStorageKey> = vec![
@@ -1590,12 +1600,7 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
 			];
 			let params = (&config, &whitelist);
-
-			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
-			add_benchmark!(params, batches, runtime_parachains::disputes, ParasDisputes);
-			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
-			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
-			add_benchmark!(params, batches, runtime_parachains::ump, Ump);
+			add_benchmarks!(params, batches);
 
 			Ok(batches)
 		}
