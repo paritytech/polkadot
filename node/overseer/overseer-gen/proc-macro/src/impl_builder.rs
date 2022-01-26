@@ -521,7 +521,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				let to_overseer_rx = to_overseer_rx.fuse();
 				let overseer = #overseer_name {
 					#(
-						#subsystem_name: #subsystem_name,
+						#subsystem_name,
 					)*
 
 					#(
