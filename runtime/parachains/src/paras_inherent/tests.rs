@@ -19,15 +19,30 @@ use super::*;
 // In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
 // that uses 0 for all the weights. Because all the weights are 0, the tests that rely on
 // weights for limiting data will fail, so we don't run them when using the benchmark feature.
-#[cfg(not(feature = "runtime-benchmarks"))]
+//#[cfg(not(feature = "runtime-benchmarks"))]
 mod enter {
 	use super::*;
-	use crate::{
-		builder::{Bench, BenchBuilder},
-		mock::{new_test_ext, MockGenesisConfig, Test},
-	};
+	use crate::{builder::{Bench, BenchBuilder}, mock::{new_test_ext, MockGenesisConfig, Test}, paras, paras_inherent, session_info};
 	use frame_support::assert_ok;
-	use sp_std::collections::btree_map::BTreeMap;
+	use crate::configuration::HostConfiguration;
+	use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+	use frame_support::pallet_prelude::*;
+	use primitives::v1::{
+		collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+		CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
+		CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
+		HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+		PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+		ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
+	};
+	use sp_core::{sr25519, H256};
+	use sp_runtime::{
+		generic::Digest,
+		traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
+		RuntimeAppPublic,
+	};
+	use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+	use crate::runner::PalletRunner;
 
 	struct TestConfig {
 		dispute_statements: BTreeMap<u32, u32>,
@@ -37,6 +52,7 @@ mod enter {
 		code_upgrade: Option<u32>,
 	}
 
+	// TODO: extend this function
 	fn make_inherent_data(
 		TestConfig {
 			dispute_statements,
@@ -46,6 +62,7 @@ mod enter {
 			code_upgrade,
 		}: TestConfig,
 	) -> Bench<Test> {
+		// Set distpute statements inside the bench builds
 		let builder = BenchBuilder::<Test>::new()
 			.set_max_validators(
 				(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
@@ -381,7 +398,121 @@ mod enter {
 
 	#[test]
 	// Ensure that we abort if we encounter an over weight block for disputes + bitfields
-	fn limit_dispute_data_ignore_backed_candidates_overweight() {
+	fn reverts_if_block_is_concluded_invalid() {
+		// Creating a config for the pallet mock with short timeout period
+		let mock_genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					dispute_conclusion_by_time_out_period: 2,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(mock_genesis_config).execute_with(|| {
+			// Create the inherent data for this block
+			let dispute_statements = BTreeMap::new();
+			let mut backed_and_concluding = BTreeMap::new();
+			// 2 backed candidates shall be scheduled
+			backed_and_concluding.insert(0, 2);
+			backed_and_concluding.insert(1, 2);
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements,
+				dispute_sessions: vec![2], // 3 cores with disputes
+				backed_and_concluding,
+				num_validators_per_core: 4,
+				code_upgrade: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 3 disputes => 4*5 = 20)
+			// TODO
+			// assert_eq!(expected_para_inherent_data.bitfields.len(), 20);
+			// // * 2 backed candidates
+			// assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+			// // * 3 disputes.
+			// assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			// !Make sure nothing scheduled
+			// The current schedule is empty prior to calling `create_inherent_enter`.
+			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+			// Enter function executes the block
+			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
+			// NOTE: enter is an extrinsic function that can be called from the outside.
+			// For hooks, for example for block finalization, there's Hooks trait in the
+			// FRAME
+			// Enter is not actually a hook, but just a method to call a method otherwise
+			// called by a hook
+			assert_ok!(Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				expected_para_inherent_data.clone(),
+			));
+
+			println!("enter is executed");
+
+			// Testing the result of voting against the block
+			let on_chain_votes = Pallet::<Test>::on_chain_votes().unwrap();
+			println!("current block: {}", PalletRunner::<Test>::current_block_number());
+
+			PalletRunner::<Test>::run_to_next_block(false);
+			// Running to the next block processes inherent data made by enter. To
+			// actually revert the chain, enter needs to be called again, since it
+			// contains the code that actually deposits the revert log and event.
+			// Create the inherent data for this block
+
+			// let dispute_statements = BTreeMap::new();
+			let mut backed_and_concluding = BTreeMap::new();
+			// 2 backed candidates shall be scheduled
+			backed_and_concluding.insert(0, 2);
+			backed_and_concluding.insert(1, 2);
+
+			// let inherent_data_2 = make_inherent_data(TestConfig {
+			// 	dispute_statements,
+			// 	dispute_sessions: vec![2], // 3 cores with disputes
+			// 	backed_and_concluding,
+			// 	num_validators_per_core: 4,
+			// 	code_upgrade: None,
+			// });
+
+			let some_other_data = ParachainsInherentData {
+				bitfields: Vec::new(),
+				backed_candidates: Vec::new(),
+				disputes: Vec::new(),
+				parent_header: expected_para_inherent_data.parent_header,
+			};
+
+			assert_ok!(Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				some_other_data,
+			));
+
+			let events = PalletRunner::<Test>::last_event();
+
+			// We created 1 dispute at the beginning, it should be visible here
+			assert_eq!(on_chain_votes.disputes.len(), 1);
+
+			assert_eq!(
+				// The length of this vec is equal to the number of candidates, so we know
+				// all of our candidates got filtered out
+				on_chain_votes.backing_validators_per_candidate.len(),
+				2,
+			);
+		});
+	}
+
+	#[test]
+	fn can_finalize_block_with_timed_out_dispute() {
+		// Mark
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();
@@ -391,6 +522,7 @@ mod enter {
 			backed_and_concluding.insert(0, 2);
 			backed_and_concluding.insert(1, 2);
 
+			println!("Generating test data");
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
@@ -409,19 +541,24 @@ mod enter {
 			// * 3 disputes.
 			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
 			let mut inherent_data = InherentData::new();
+			println!("Putting data");
 			inherent_data
 				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
 				.unwrap();
 
+			// !Make sure nothing scheduled
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
+			println!("Enter block execution");
+			// Enter function executes the block
 			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
 			));
 
+			println!("Checking on chain votes");
 			assert_eq!(
 				// The length of this vec is equal to the number of candidates, so we know
 				// all of our candidates got filtered out

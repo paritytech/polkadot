@@ -104,9 +104,11 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	/// Load the recent disputes, if any.
 	pub fn load_recent_disputes(&self) -> SubsystemResult<Option<RecentDisputes>> {
 		if let Some(val) = &self.recent_disputes {
+			println!("load disputes from self");
 			return Ok(Some(val.clone()))
 		}
 
+		println!("load disputes from inner");
 		self.inner.load_recent_disputes()
 	}
 

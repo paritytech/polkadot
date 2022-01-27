@@ -386,6 +386,7 @@ where
 		best_leaf: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
+		println!("finality_target_with_longest_chain");
 		let mut overseer = self.overseer.clone();
 		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
@@ -520,6 +521,7 @@ where
 					std::any::type_name::<Self>(),
 				)
 				.await;
+			// This returns that the chain is undisputed or disputes are resolved
 			let (subchain_number, subchain_head) = rx
 				.await
 				.map_err(Error::DetermineUndisputedChainCanceled)

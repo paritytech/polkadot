@@ -36,6 +36,7 @@ use sp_runtime::{
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+use crate::runner::PalletRunner;
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -276,7 +277,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// NOTE: the default `CandidateCommitments` used does not include any data that would lead to
 	/// heavy code paths in `enact_candidate`. But enact_candidates does return a weight which will
 	/// get taken into account.
-	fn add_availability(
+	pub(crate) fn add_availability(
 		para_id: ParaId,
 		core_idx: CoreIndex,
 		group_idx: GroupIndex,
@@ -376,51 +377,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
 		// every validator confirms availability.
 		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; validators as usize]
-	}
-
-	/// Setup session 1 and create `self.validators_map` and `self.validators`.
-	fn setup_session(
-		mut self,
-		target_session: SessionIndex,
-		validators: Vec<(T::AccountId, ValidatorId)>,
-		total_cores: u32,
-	) -> Self {
-		let mut block = 1;
-		for session in 0..=target_session {
-			initializer::Pallet::<T>::test_trigger_on_new_session(
-				false,
-				session,
-				validators.iter().map(|(a, v)| (a, v.clone())),
-				None,
-			);
-			block += 1;
-			Self::run_to_block(block);
-		}
-
-		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
-		let header = Self::header(block_number.clone());
-
-		frame_system::Pallet::<T>::initialize(
-			&header.number(),
-			&header.hash(),
-			&Digest { logs: Vec::new() },
-			Default::default(),
-		);
-
-		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
-
-		// We need to refetch validators since they have been shuffled.
-		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
-			.unwrap()
-			.validators
-			.clone();
-
-		self.validators = Some(validators_shuffled);
-		self.block_number = block_number;
-		self.session = target_session;
-		assert_eq!(paras::Pallet::<T>::parachains().len(), total_cores as usize);
-
-		self
 	}
 
 	/// Create a `UncheckedSigned<AvailabilityBitfield> for each validator where each core in
@@ -579,6 +535,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		last: u32,
 		dispute_sessions: impl AsRef<[u32]>,
 	) -> Vec<DisputeStatementSet> {
+		// start is equal to backed_and_concluding len
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 
@@ -598,24 +555,32 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					para_id,
 					core_idx,
 					group_idx,
+					// That's where we set the vote, (all votes yes). This is related to availability
 					Self::validator_availability_votes_yes(validators.len()),
 					candidate_hash,
 				);
 
+				println!("Voting for {}", candidate_hash);
+
 				let statements_len =
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
+				// For every statement we generate dispute statement set
 				let statements = (0..statements_len)
 					.map(|validator_index| {
 						let validator_public = &validators.get(validator_index as usize).unwrap();
 
+						// TODO: modify that we don't have supermajority to be 1 for and 1 against.
+						// TODO: calling entry. if the dispute is concluded as valid, that is the
+						// TODO: result I'm looking for.
 						// We need dispute statements on each side. And we don't want a revert log
 						// so we make sure that we have a super majority with valid statements.
 						let dispute_statement = if validator_index % 4 == 0 {
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						} else {
 							// Note that in the future we could use some availability votes as an
 							// implicit valid kind.
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+							// DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
 						let data = dispute_statement.payload_data(candidate_hash.clone(), session);
 						let statement_sig = validator_public.sign(&data).unwrap();
@@ -629,19 +594,18 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
+	// TODO: this function builds the test
 	/// Build a scenario for testing or benchmarks.
 	///
 	/// Note that this API only allows building scenarios where the `backed_and_concluding_cores`
 	/// are mutually exclusive with the cores for disputes. So
 	/// `backed_and_concluding_cores.len() + dispute_sessions.len()` must be less than the max
 	/// number of cores.
-	pub(crate) fn build(self) -> Bench<T> {
-		// Make sure relevant storage is cleared. This is just to get the asserts to work when
-		// running tests because it seems the storage is not cleared in between.
-		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
-		inclusion::PendingAvailability::<T>::remove_all(None);
+	pub(crate) fn build(mut self) -> Bench<T> {
+		PalletRunner::<T>::init();
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
+		// We determine how many validators can be per core
 		let cores = self.max_cores();
 		let used_cores =
 			(self.dispute_sessions.len() + self.backed_and_concluding_cores.len()) as u32;
@@ -653,17 +617,24 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let validator_ids = Self::generate_validator_pairs(self.max_validators());
 		let target_session = SessionIndex::from(self.target_session);
-		let builder = self.setup_session(target_session, validator_ids, used_cores);
+
+		// This is former self.setup_session();
+		// Setup session 1 and create `self.validators_map` and `self.validators`.
+		let res = PalletRunner::<T>::run_to_session(target_session, validator_ids, used_cores, true);
+		self.validators = Some(res.0);
+		self.block_number = res.1;
+		self.session = res.2;
 
 		let bitfields =
-			builder.create_availability_bitfields(&builder.backed_and_concluding_cores, used_cores);
-		let backed_candidates = builder
-			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
+			self.create_availability_bitfields(&self.backed_and_concluding_cores, used_cores);
+		let backed_candidates = self
+			.create_backed_candidates(&self.backed_and_concluding_cores, self.code_upgrade);
 
-		let disputes = builder.create_disputes_with_no_spam(
-			builder.backed_and_concluding_cores.len() as u32,
+		// That's where we create disputes
+		let disputes = self.create_disputes_with_no_spam(
+			self.backed_and_concluding_cores.len() as u32,
 			used_cores,
-			builder.dispute_sessions.as_slice(),
+			self.dispute_sessions.as_slice(),
 		);
 
 		assert_eq!(
@@ -685,10 +656,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				bitfields,
 				backed_candidates,
 				disputes,
-				parent_header: Self::header(builder.block_number.clone()),
+				parent_header: Self::header(self.block_number.clone()),
 			},
 			_session: target_session,
-			_block_number: builder.block_number,
+			_block_number: self.block_number,
 		}
 	}
 }

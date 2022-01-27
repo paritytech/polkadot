@@ -883,7 +883,244 @@ fn supermajority_valid_dispute_may_be_finalized() {
 }
 
 #[test]
+fn dispute_with_not_enough_votes_may_be_finalized() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			println!("1");
+			test_state.activate_leaf_at_session(&mut virtual_overseer, 1, 1).await;
+			println!("2");
+			test_state.activate_leaf_at_session(&mut virtual_overseer, 1, 1).await;
+			println!("3");
+			println!("4");
+			println!("5");
+			println!("6");
+
+			println!("{}", test_state.validators.len());
+
+			let valid_vote =
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
+
+			let invalid_vote =
+				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
+
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(2)),
+							(invalid_vote, ValidatorIndex(1)),
+						],
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+
+			// Issue dispute statements for candidate hash, supermajority votes "yes"
+			// let supermajority_threshold =
+			// 	polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+			let supermajority_threshold = 2; // 2 out of 7 is below 30% participation
+			let mut statements = Vec::new();
+			for i in (0..supermajority_threshold).map(|i| i + 3) {
+				let vote =
+					test_state.issue_statement_with_index(i, candidate_hash, session, true).await;
+
+				statements.push((vote, ValidatorIndex(i as _)));
+			}
+
+			println!("Test: Importing dispute statements");
+			// Import previously issued statements via sending a message through the overseer
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements,
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+
+				let base_hash = Hash::repeat_byte(0x0f);
+				let block_hash_a = Hash::repeat_byte(0x0a);
+				let block_hash_b = Hash::repeat_byte(0x0b);
+
+				println!("Test: Requesting undisputed chain");
+				// Sending a message to dispute coordinator system to determine the
+				// undisputed chain
+				virtual_overseer
+					.send(FromOverseer::Communication {
+						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
+							base: (10, base_hash),
+							block_descriptions: vec![BlockDescription {
+								block_hash: block_hash_a,
+								session,
+								candidates: vec![candidate_hash],
+							}],
+							tx,
+						},
+					})
+					.await;
+
+				// virtual_overseer.send(FromOverseer::Communication {
+				// 	msg: D
+				// });
+
+				// Receiving a message with a response from the dispute coordinator
+				// This fails because block 11 is currently being disputed with not enough votes
+
+				println!("kek");
+				test_state.activate_leaf_at_session(&mut virtual_overseer, 1, 1).await;
+
+				println!("Test: receiving the answer");
+				assert_eq!(rx.await.unwrap(), (11, block_hash_a));
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOverseer::Communication {
+						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
+							base: (10, base_hash),
+							block_descriptions: vec![
+								BlockDescription {
+									block_hash: block_hash_a,
+									session,
+									candidates: vec![],
+								},
+								BlockDescription {
+									block_hash: block_hash_b,
+									session,
+									candidates: vec![candidate_hash],
+								},
+							],
+							tx,
+						},
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap(), (12, block_hash_b));
+			}
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
 fn concluded_supermajority_for_non_active_after_time() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			let supermajority_threshold =
+				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+
+			let valid_vote =
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
+
+			let invalid_vote =
+				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
+
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(2)),
+							(invalid_vote, ValidatorIndex(1)),
+						],
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+
+			let mut statements = Vec::new();
+			// -2: 1 for already imported vote and one for local vote (which is valid).
+			for i in (0..supermajority_threshold - 2).map(|i| i + 3) {
+				let vote =
+					test_state.issue_statement_with_index(i, candidate_hash, session, true).await;
+
+				statements.push((vote, ValidatorIndex(i as _)));
+			}
+
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements,
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			test_state.clock.set(ACTIVE_DURATION_SECS + 1);
+
+			{
+				let (tx, rx) = oneshot::channel();
+
+				virtual_overseer
+					.send(FromOverseer::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert!(rx.await.unwrap().is_empty());
+
+				let (tx, rx) = oneshot::channel();
+
+				virtual_overseer
+					.send(FromOverseer::Communication {
+						msg: DisputeCoordinatorMessage::RecentDisputes(tx),
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap().len(), 1);
+			}
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn concluded_supermajority_for_non_active_after_time_what() {
 	test_harness(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
 			let session = 1;

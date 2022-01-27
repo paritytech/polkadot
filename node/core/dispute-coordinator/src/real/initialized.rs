@@ -160,6 +160,7 @@ impl Initialized {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
+		println!("Starting coordinator loop");
 		for (comparator, request) in participations.drain(..) {
 			self.participation.queue_participation(ctx, comparator, request).await?;
 		}
@@ -240,6 +241,7 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
+		println!("process_active_leaves_update");
 		self.ordering_provider
 			.process_active_leaves_update(ctx.sender(), &update)
 			.await?;
@@ -293,6 +295,7 @@ impl Initialized {
 		new_leaf: Hash,
 		now: u64,
 	) -> Result<()> {
+		println!("scrape_on_chain_votes");
 		// obtain the concluded disputes as well as the candidate backing votes
 		// from the new leaf
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = {
@@ -500,6 +503,7 @@ impl Initialized {
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
 	) -> Result<Box<dyn FnOnce() -> NonFatalResult<()>>> {
+		println!("handle_incoming");
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -605,6 +609,7 @@ impl Initialized {
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
+		println!("handle_import_statements");
 		if session + DISPUTE_WINDOW.get() < self.highest_session {
 			// It is not valid to participate in an ancient dispute (spam?).
 			return Ok(ImportStatementsResult::InvalidImport)
@@ -819,14 +824,17 @@ impl Initialized {
 
 		if status != prev_status {
 			if prev_status.is_none() {
+				println!("Dispute opened");
 				self.metrics.on_open();
 			}
 
 			if !was_concluded_valid && concluded_valid {
+				println!("Dispute concluded as valid");
 				self.metrics.on_concluded_valid();
 			}
 
 			if !was_concluded_invalid && concluded_invalid {
+				println!("Dispute concluded as invalid");
 				self.metrics.on_concluded_invalid();
 			}
 
@@ -849,6 +857,7 @@ impl Initialized {
 		valid: bool,
 		now: Timestamp,
 	) -> Result<()> {
+		println!("issue_local_statement");
 		// Load session info.
 		let info = match self.rolling_session_window.session_info(session) {
 			None => {
@@ -1086,11 +1095,13 @@ fn determine_undisputed_chain(
 	base_hash: Hash,
 	block_descriptions: Vec<BlockDescription>,
 ) -> Result<(BlockNumber, Hash)> {
+	println!("determine_undisputed_chain");
 	let last = block_descriptions
 		.last()
 		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash))
 		.unwrap_or((base_number, base_hash));
 
+	println!("recent_disputes");
 	// Fast path for no disputes.
 	let recent_disputes = match overlay_db.load_recent_disputes()? {
 		None => return Ok(last),
@@ -1099,14 +1110,18 @@ fn determine_undisputed_chain(
 	};
 
 	let is_possibly_invalid = |session, candidate_hash| {
+		println!("is_possibly_invalid {}", candidate_hash);
 		recent_disputes
 			.get(&(session, candidate_hash))
 			.map_or(false, |status| status.is_possibly_invalid())
 	};
 
 	for (i, BlockDescription { session, candidates, .. }) in block_descriptions.iter().enumerate() {
+		println!("iter outer");
 		if candidates.iter().any(|c| is_possibly_invalid(*session, *c)) {
+			println!("iter inner {}", i);
 			if i == 0 {
+				println!("inner ok {}", base_hash);
 				return Ok((base_number, base_hash))
 			} else {
 				return Ok((base_number + i as BlockNumber, block_descriptions[i - 1].block_hash))
@@ -1114,6 +1129,7 @@ fn determine_undisputed_chain(
 		}
 	}
 
+	println!("last {}", last.1);
 	Ok(last)
 }
 
