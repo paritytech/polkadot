@@ -23,7 +23,7 @@ use crate::{
 		Test,
 	},
 	paras::ParaGenesisArgs,
-	paras_inherent::{DisputedBitfield, AllowedRelayParentsTracker},
+	paras_inherent::{AllowedRelayParentsTracker, DisputedBitfield},
 	scheduler::AssignmentKind,
 };
 use assert_matches::assert_matches;

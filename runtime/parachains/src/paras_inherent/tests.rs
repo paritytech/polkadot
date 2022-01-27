@@ -1080,7 +1080,6 @@ mod sanitizers {
 		// happy path
 		assert_eq!(
 			sanitize_backed_candidates::<Test, _>(
-				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
 				scheduled
@@ -1092,19 +1091,6 @@ mod sanitizers {
 		{
 			let scheduled = &[][..];
 			assert!(sanitize_backed_candidates::<Test, _>(
-				relay_parent,
-				backed_candidates.clone(),
-				has_concluded_invalid,
-				scheduled
-			)
-			.is_empty());
-		}
-
-		// relay parent mismatch
-		{
-			let relay_parent = Hash::repeat_byte(0xFA);
-			assert!(sanitize_backed_candidates::<Test, _>(
-				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
 				scheduled
@@ -1128,7 +1114,6 @@ mod sanitizers {
 				|_idx: usize, candidate: &BackedCandidate| set.contains(&candidate.hash());
 			assert_eq!(
 				sanitize_backed_candidates::<Test, _>(
-					relay_parent,
 					backed_candidates.clone(),
 					has_concluded_invalid,
 					scheduled
