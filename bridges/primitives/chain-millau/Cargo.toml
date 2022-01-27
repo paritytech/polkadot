@@ -22,14 +22,14 @@ serde = { version = "1.0", optional = true, features = ["derive"] }
 
 # Substrate Based Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
 
 [features]
 default = ["std"]
