@@ -3573,6 +3573,84 @@ mod tests {
 	}
 
 	#[test]
+	fn assure_detects_duplicate_statements_sets() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(3, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
+
+			let payload = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+			}
+			.signing_payload();
+
+			let payload_against = ExplicitDisputeStatement {
+				valid: false,
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+			}
+			.signing_payload();
+
+			let sig_a = v0.sign(&payload);
+			let sig_a_against = v1.sign(&payload_against);
+
+			let statements = vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					sig_a.clone(),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					sig_a_against.clone(),
+				),
+			];
+
+			let mut sets = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: statements.clone(),
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: statements.clone(),
+				},
+			];
+
+			// `Err(())` indicates presence of duplicates
+			assert!(<Pallet::<Test> as DisputesHandler<
+				<Test as frame_system::Config>::BlockNumber,
+			>>::assure_deduplicated_and_sorted(&mut sets)
+			.is_err());
+
+			assert_eq!(
+				sets,
+				vec![DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements,
+				}]
+			);
+		})
+	}
+
+	#[test]
 	fn filter_ignores_single_sided() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
