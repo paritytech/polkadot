@@ -304,7 +304,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Create an `AvailabilityBitfield` where `concluding` is a map where each key is a core index
 	/// that is concluding and `cores` is the total number of cores in the system.
-	fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
+	pub(crate) fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
 		let mut bitfields = bitvec::bitvec![bitvec::order::Lsb0, u8; 0; 0];
 		for i in 0..cores {
 			if concluding.get(&(i as u32)).is_some() {
@@ -374,53 +374,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Create a bitvec of `validators` length with all yes votes.
-	fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
+	pub(crate) fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
 		// every validator confirms availability.
 		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; validators as usize]
-	}
-
-	/// Create a `UncheckedSigned<AvailabilityBitfield> for each validator where each core in
-	/// `concluding_cores` is fully available. Additionally set up storage such that each
-	/// `concluding_cores`is pending becoming fully available so the generated bitfields will be
-	///  to the cores successfully being freed from the candidates being marked as available.
-	fn create_availability_bitfields(
-		&self,
-		concluding_cores: &BTreeMap<u32, u32>,
-		total_cores: u32,
-	) -> Vec<UncheckedSigned<AvailabilityBitfield>> {
-		let validators =
-			self.validators.as_ref().expect("must have some validators prior to calling");
-
-		let availability_bitvec = Self::availability_bitvec(concluding_cores, total_cores);
-
-		let bitfields: Vec<UncheckedSigned<AvailabilityBitfield>> = validators
-			.iter()
-			.enumerate()
-			.map(|(i, public)| {
-				let unchecked_signed = UncheckedSigned::<AvailabilityBitfield>::benchmark_sign(
-					public,
-					availability_bitvec.clone(),
-					&self.signing_context(),
-					ValidatorIndex(i as u32),
-				);
-
-				unchecked_signed
-			})
-			.collect();
-
-		for (seed, _) in concluding_cores.iter() {
-			// make sure the candidates that will be concluding are marked as pending availability.
-			let (para_id, core_idx, group_idx) = self.create_indexes(seed.clone());
-			Self::add_availability(
-				para_id,
-				core_idx,
-				group_idx,
-				Self::validator_availability_votes_yes(validators.len()),
-				CandidateHash(H256::from(byte32_slice_from(seed.clone()))),
-			);
-		}
-
-		bitfields
 	}
 
 	/// Create backed candidates for `cores_with_backed_candidates`. You need these cores to be
@@ -625,8 +581,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.block_number = res.1;
 		self.session = res.2;
 
+		// let bitfields =
+		// self.create_availability_bitfields(&self.backed_and_concluding_cores, used_cores);
 		let bitfields =
-			self.create_availability_bitfields(&self.backed_and_concluding_cores, used_cores);
+			PalletRunner::<T>::create_availability_bitfields_for_session(
+				PalletRunner::<T>::current_session_index(),
+				&self.backed_and_concluding_cores,
+				used_cores
+			);
 		let backed_candidates = self
 			.create_backed_candidates(&self.backed_and_concluding_cores, self.code_upgrade);
 

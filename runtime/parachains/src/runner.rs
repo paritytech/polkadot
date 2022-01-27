@@ -20,6 +20,17 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
 
+/// Create a 32 byte slice based on the given number.
+fn byte32_slice_from(n: u32) -> [u8; 32] {
+    let mut slice = [0u8; 32];
+    slice[31] = (n % (1 << 8)) as u8;
+    slice[30] = ((n >> 8) % (1 << 8)) as u8;
+    slice[29] = ((n >> 16) % (1 << 8)) as u8;
+    slice[28] = ((n >> 24) % (1 << 8)) as u8;
+
+    slice
+}
+
 pub struct PalletRunner<T> {
     pallet_config: PhantomData<T>
 }
@@ -128,22 +139,37 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
         }
     }
 
-    pub fn inherent_data_for_current_block() -> ParachainsInherentData {
+    pub fn inherent_data_for_current_block() {
+        // -> ParachainsInherentData
+    }
+
+    pub fn add_backed_candidate() {
 
     }
 
-    pub fn add_backed_candidate() -> {
+    pub fn dispute_block() {
 
     }
 
-    pub fn dispute_block() -> {
-
+    fn signing_context() -> SigningContext<C::Hash> {
+        SigningContext {
+            parent_hash: BenchBuilder::<C>::header(Self::current_block_number()).hash(),
+            session_index: Self::current_session_index(),
+        }
     }
 
-    pub fn create_availability_bitfields_for_session(session_index: SessionIndex) -> Vec<UncheckedSigned<AvailabilityBitfield>> {
+    /// Create a `UncheckedSigned<AvailabilityBitfield> for each validator where each core in
+    /// `concluding_cores` is fully available. Additionally set up storage such that each
+    /// `concluding_cores`is pending becoming fully available so the generated bitfields will be
+    ///  to the cores successfully being freed from the candidates being marked as available.
+    pub fn create_availability_bitfields_for_session(
+        session_index: SessionIndex,
+        concluding_cores: &BTreeMap<u32, u32>,
+        total_cores: u32,
+    ) -> Vec<UncheckedSigned<AvailabilityBitfield>> {
         let validators = Self::active_validators_for_session(session_index);
 
-        let availability_bitvec = Self::availability_bitvec(concluding_cores, total_cores);
+        let availability_bitvec = BenchBuilder::<C>::availability_bitvec(concluding_cores, total_cores);
 
         let bitfields: Vec<UncheckedSigned<AvailabilityBitfield>> = validators
             .iter()
@@ -152,7 +178,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
                 let unchecked_signed = UncheckedSigned::<AvailabilityBitfield>::benchmark_sign(
                     public,
                     availability_bitvec.clone(),
-                    &self.signing_context(),
+                    &Self::signing_context(),
                     ValidatorIndex(i as u32),
                 );
 
@@ -167,7 +193,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
                 para_id,
                 core_idx,
                 group_idx,
-                Self::validator_availability_votes_yes(validators.len()),
+                BenchBuilder::<C>::validator_availability_votes_yes(validators.len()),
                 CandidateHash(H256::from(byte32_slice_from(seed.clone()))),
             );
         }
