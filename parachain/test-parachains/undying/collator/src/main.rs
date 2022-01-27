@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Collator for the adder test parachain.
+//! Collator for the `Undying` test parachain.
 
 use polkadot_cli::{Error, Result};
 use polkadot_node_primitives::CollationGenerationConfig;
@@ -83,7 +83,7 @@ fn main() -> Result<()> {
 						let para_id =
 							cli.run.parachain_id.map(ParaId::from).unwrap_or(DEFAULT_PARA_ID);
 
-						log::info!("Running adder collator for parachain id: {}", para_id);
+						log::info!("Running `Undying` collator for parachain id: {}", para_id);
 						log::info!("Genesis state: {}", genesis_head_hex);
 						log::info!("Validation code: {}", validation_code_hex);
 

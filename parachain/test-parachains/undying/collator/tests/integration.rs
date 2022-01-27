@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Integration test that ensures that we can build and include parachain
-//! blocks of the adder parachain.
+//! blocks of the `Undying` parachain.
 
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
 

@@ -206,7 +206,7 @@ impl Collator {
 			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
 			let seconded_collations = seconded_collations.clone();
 			spawner.spawn(
-				"adder-collator-seconded",
+				"undying-collator-seconded",
 				None,
 				async move {
 					if let Ok(res) = recv.await {
