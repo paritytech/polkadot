@@ -8,13 +8,11 @@ struct AwesomeSubSysA;
 
 impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgA>, OverseerError> for AwesomeSubSysA {
 	fn start(self, _ctx: OverseerSubsystemContext<MsgA>) -> SpawnedSubsystem<OverseerError> {
-		println!("starting A yay!");
 		SpawnedSubsystem { name: "sub A", future: Box::pin(async move { Ok(()) }) }
 	}
 }
 impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgB>, OverseerError> for AwesomeSubSysB {
 	fn start(self, _ctx: OverseerSubsystemContext<MsgB>) -> SpawnedSubsystem<OverseerError> {
-		println!("starting B yay!");
 		SpawnedSubsystem { name: "sub B", future: Box::pin(async move { Ok(()) }) }
 	}
 }
