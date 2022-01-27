@@ -14,13 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! WASM validation for adder parachain.
+//! WASM validation for the `Undying` parachain.
 
 use crate::{BlockData, HeadData};
-use core::panic;
 use parachain::primitives::{HeadData as GenericHeadData, ValidationResult};
 use parity_scale_codec::{Decode, Encode};
-use sp_std::vec::Vec;
 
 #[no_mangle]
 pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
@@ -28,12 +26,12 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 	let parent_head =
 		HeadData::decode(&mut &params.parent_head.0[..]).expect("invalid parent head format.");
 
-	let block_data =
+	let mut block_data =
 		BlockData::decode(&mut &params.block_data.0[..]).expect("invalid block data format.");
 
 	let parent_hash = crate::keccak256(&params.parent_head.0[..]);
 
-	let new_head = crate::execute(parent_hash, parent_head, &block_data).expect("Executes block");
+	let (new_head, _) = crate::execute(parent_hash, parent_head, block_data).expect("Executes block");
 	parachain::write_result(&ValidationResult {
 		head_data: GenericHeadData(new_head.encode()),
 		new_validation_code: None,

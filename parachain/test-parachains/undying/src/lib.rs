@@ -93,34 +93,44 @@ pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
 	keccak256(state.encode().as_slice())
 }
 
+/// Executes a graveyard transaction.
+pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
+	for i in 0..block_data.tombstones {
+		block_data.state.graveyard[(block_data.state.index + i) as usize] =
+			block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
+	}
+	block_data.state.index =
+		((block_data.state.index.saturating_add(block_data.tombstones)) as usize % block_data.state.graveyard.len()) as u64;
+	block_data.state
+}
+
 /// Start state mismatched with parent header's state hash.
 #[derive(Debug)]
 pub struct StateMismatch;
 
 /// Execute a block body on top of given parent head, producing new parent head
-/// if valid.
+/// and new state if valid.
 pub fn execute(
 	parent_hash: [u8; 32],
 	parent_head: HeadData,
-	block_data: &BlockData,
-) -> Result<HeadData, StateMismatch> {
+	block_data: BlockData,
+) -> Result<(HeadData, GraveyardState), StateMismatch> {
 	assert_eq!(parent_hash, parent_head.hash());
 
-	if keccak256(block_data.state.encode().as_slice()) != parent_head.post_state {
+	if hash_state(&block_data.state) != parent_head.post_state {
+		log::error!(
+			"state has diff vs head: {:?} vs {:?}",
+			hash_state(&block_data.state),
+			parent_head.post_state,
+		);
 		return Err(StateMismatch)
 	}
 
-	let mut new_state = block_data.state.clone();
-	for i in 0..block_data.tombstones {
-		new_state.graveyard[(block_data.state.index + i) as usize] =
-			block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
-	}
-	new_state.index =
-		((block_data.state.index + 1) as usize % block_data.state.graveyard.len()) as u64;
+	let new_state = execute_transaction(block_data.clone());
 
-	Ok(HeadData {
+	Ok((HeadData {
 		number: parent_head.number + 1,
 		parent_hash,
-		post_state: keccak256(new_state.encode().as_slice()),
-	})
+		post_state: hash_state(&new_state)
+	}, new_state))
 }

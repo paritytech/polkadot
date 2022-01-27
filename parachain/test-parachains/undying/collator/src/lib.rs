@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Collator for the adder test parachain.
+//! Collator for the `Undying` test parachain.
 
 use futures::channel::oneshot;
 use futures_timer::Delay;
@@ -34,41 +34,12 @@ use std::{
 };
 use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
 
-/// Calculates the head and state for the block with the given `number`.
-fn calculate_head_and_state_for_number(
-	number: u64,
-	graveyard_size: usize,
-) -> (HeadData, GraveyardState) {
-	let index = 0u64;
-	let mut graveyard = vec![0u64; graveyard_size * graveyard_size];
-	let tombstones = 1000;
-
-	graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
-		*grave = i as u64;
-	});
-
-	let state = GraveyardState { index, graveyard };
-
-	let mut head =
-		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
-
-	while head.number < number {
-		let block_data = BlockData { state: state.clone(), tombstones };
-		head = execute(head.hash(), head.clone(), &block_data).expect("Produces valid block");
-
-		let mut state = block_data.state.clone();
-		for i in 0..block_data.tombstones {
-			state.graveyard[(block_data.state.index + i) as usize] =
-				block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
-		}
-		state.index = block_data.state.index.wrapping_add(block_data.tombstones);
-	}
-
-	(head, state)
-}
 
 /// The state of the undying parachain.
 struct State {
+	// We need to keep these around until the including relay chain blocks are finalized.
+	// This is because disputes can trigger reverts up to last finalized block, so we
+	// want that state to collate on older relay chain heads.
 	head_to_state: HashMap<Arc<HeadData>, GraveyardState>,
 	number_to_head: HashMap<u64, Arc<HeadData>>,
 	/// Block number of the best block.
@@ -79,9 +50,19 @@ struct State {
 impl State {
 	/// Init the genesis state.
 	fn genesis(graveyard_size: usize) -> Self {
-		let (head_data, state) = calculate_head_and_state_for_number(0, graveyard_size);
+		let index = 0u64;
+		let mut graveyard = vec![0u64; graveyard_size * graveyard_size];
+	
+		graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
+			*grave = i as u64;
+		});
+	
+		let state = GraveyardState { index, graveyard };
+	
+		let head_data =
+			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
 		let head_data = Arc::new(head_data);
-
+	
 		Self {
 			head_to_state: vec![(head_data.clone(), state.clone())].into_iter().collect(),
 			number_to_head: vec![(0, head_data)].into_iter().collect(),
@@ -96,32 +77,32 @@ impl State {
 	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
 		self.best_block = parent_head.number;
 
-		let block = BlockData {
+		let head_data = self
+			.number_to_head
+			.get(&self.best_block)
+			.expect("Parent head number is present in hashmap");
+
+		// Start with prev state and transaction to execute (place 1000 tombstones).
+		let mut block = BlockData {
 			state: self
 				.head_to_state
-				.get(&parent_head)
+				.get(head_data)
 				.cloned()
 				.expect("Parent head is present in hashmap"),
-			// .unwrap_or_else(|| calculate_head_and_state_for_number(parent_head.number, self.graveyard_size).1),
 			tombstones: 1000,
 		};
 
-		let new_head =
-			execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
+		let (new_head, new_state) =
+			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
+
+		// Update with the resulting state.
+		block.state = new_state.clone();
 
 		let new_head_arc = Arc::new(new_head.clone());
-
-		let mut new_state = block.state.clone();
-		for i in 0..block.tombstones {
-			new_state.graveyard[(block.state.index + i) as usize] =
-				block.state.graveyard[(block.state.index + i) as usize].wrapping_add(1);
-		}
-		new_state.index = block.state.index.wrapping_add(block.tombstones);
 
 		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
-		// TODO: Keep only last 10 heads/states in cache.
 		(block, new_head)
 	}
 }
@@ -152,7 +133,7 @@ impl Collator {
 		}
 	}
 
-	/// Get the SCALE encoded genesis head of the adder parachain.
+	/// Get the SCALE encoded genesis head of the parachain.
 	pub fn genesis_head(&self) -> Vec<u8> {
 		self.state
 			.lock()

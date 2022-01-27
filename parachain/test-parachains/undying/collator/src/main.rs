@@ -35,13 +35,13 @@ fn main() -> Result<()> {
 
 	match cli.subcommand {
 		Some(cli::Subcommand::ExportGenesisState(_params)) => {
-			let collator = Collator::new(1000);
+			let collator = Collator::new(cli.run.pov_size);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
 		},
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
-			let collator = Collator::new(1000);
+			let collator = Collator::new(cli.run.pov_size);
 			println!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
 			Ok(())

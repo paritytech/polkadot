@@ -10650,6 +10650,7 @@ name = "test-parachain-undying"
 version = "0.9.13"
 dependencies = [
  "dlmalloc",
+ "log",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
