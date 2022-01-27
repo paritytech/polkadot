@@ -1060,7 +1060,7 @@ impl<T: Config> Pallet<T> {
 
 						// Removing individual statments can cause the dispute to become onesided.
 						// Checking that (again) is done after the loop. Remove the bit indices.
-						summary.new_flags.set(validator_index.0 as _, false);
+						summary.new_participants.set(validator_index.0 as _, false);
 					}
 
 					// It's also worth noting that the `DisputeStateImporter`
@@ -1103,11 +1103,11 @@ impl<T: Config> Pallet<T> {
 						// is a good thing.
 						// Overflow is no concern, disputes are limited by weight.
 						DisputeStatement::Valid(_) =>
-							if Some(true) == summary.new_flags.get(v_i) {
+							if Some(true) == summary.new_participants.get(v_i) {
 								vote_for_count += 1;
 							},
 						DisputeStatement::Invalid(_) => {
-							if Some(true) == summary.new_flags.get(v_i) {
+							if Some(true) == summary.new_participants.get(v_i) {
 								vote_against_count += 1;
 							}
 						},
