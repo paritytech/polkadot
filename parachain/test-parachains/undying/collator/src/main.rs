@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 				match role {
 					Role::Light => Err("Light client not supported".into()),
 					_ => {
-						let collator = Collator::new(1000);
+						let collator = Collator::new(cli.run.pov_size);
 
 						let full_node = polkadot_service::build_full(
 							config,

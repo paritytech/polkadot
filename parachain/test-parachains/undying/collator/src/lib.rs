@@ -34,14 +34,11 @@ use std::{
 };
 use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
 
-/// The amount we add when producing a new block.
-///
-/// This is a constant to make tests easily reproducible.
-const ADD: u64 = 2;
-
 /// Calculates the head and state for the block with the given `number`.
-fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (HeadData, GraveyardState) {
-
+fn calculate_head_and_state_for_number(
+	number: u64,
+	graveyard_size: usize,
+) -> (HeadData, GraveyardState) {
 	let index = 0u64;
 	let mut graveyard = vec![0u64; graveyard_size * graveyard_size];
 	let tombstones = 1000;
@@ -49,9 +46,9 @@ fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (H
 	graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
 		*grave = i as u64;
 	});
-	
+
 	let state = GraveyardState { index, graveyard };
-	
+
 	let mut head =
 		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
 
@@ -76,6 +73,7 @@ struct State {
 	number_to_head: HashMap<u64, Arc<HeadData>>,
 	/// Block number of the best block.
 	best_block: u64,
+	graveyard_size: usize,
 }
 
 impl State {
@@ -88,6 +86,7 @@ impl State {
 			head_to_state: vec![(head_data.clone(), state.clone())].into_iter().collect(),
 			number_to_head: vec![(0, head_data)].into_iter().collect(),
 			best_block: 0,
+			graveyard_size,
 		}
 	}
 
@@ -102,7 +101,8 @@ impl State {
 				.head_to_state
 				.get(&parent_head)
 				.cloned()
-				.unwrap_or_else(|| calculate_head_and_state_for_number(parent_head.number, 1000).1),
+				.expect("Parent head is present in hashmap"),
+			// .unwrap_or_else(|| calculate_head_and_state_for_number(parent_head.number, self.graveyard_size).1),
 			tombstones: 1000,
 		};
 
@@ -135,7 +135,16 @@ pub struct Collator {
 
 impl Collator {
 	/// Create a new collator instance with the state initialized as genesis.
-	pub fn new(graveyard_size: usize) -> Self {
+	pub fn new(pov_size: usize) -> Self {
+		let graveyard_size = ((pov_size - 20) as f64).sqrt() as usize;
+
+		log::info!(
+			"PoV target size: {} bytes. Graveyard size: ({} x {})",
+			pov_size,
+			graveyard_size,
+			graveyard_size
+		);
+
 		Self {
 			state: Arc::new(Mutex::new(State::genesis(graveyard_size))),
 			key: CollatorPair::generate().0,
@@ -205,10 +214,7 @@ impl Collator {
 				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
-			log::info!(
-				"Raw PoV size for collation: {} bytes",
-				pov.block_data.0.len(),
-			);
+			log::info!("Raw PoV size for collation: {} bytes", pov.block_data.0.len(),);
 			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
 
 			log::info!(

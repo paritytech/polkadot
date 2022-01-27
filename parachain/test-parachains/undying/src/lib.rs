@@ -115,7 +115,8 @@ pub fn execute(
 		new_state.graveyard[(block_data.state.index + i) as usize] =
 			block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
 	}
-	new_state.index = block_data.state.index.wrapping_add(block_data.tombstones);
+	new_state.index =
+		((block_data.state.index + 1) as usize % block_data.state.graveyard.len()) as u64;
 
 	Ok(HeadData {
 		number: parent_head.number + 1,
