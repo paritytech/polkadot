@@ -170,15 +170,19 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		) {
 			return Err(())
 		}
-        let compare_statement_sets_window_same_dispute = |sub: &[DisputeStatementSet]| {
-            match (sub.get(0), sub.get(1)) {
-                // should not be possible:
-                (None, None) | (None, Some(_)) | (Some(_), None) => false,
-                (Some(set1), Some(set2)) => 
-                    set1.session == set2.session && set1.candidate_hash == set2.candidate_hash
-            }
-        };
-		if statement_sets.as_slice().windows(2).any(compare_statement_sets_window_same_dispute) {
+		let compare_statement_sets_window_same_dispute = |sub: &[DisputeStatementSet]| {
+			match (sub.get(0), sub.get(1)) {
+				// should not be possible:
+				(None, None) | (None, Some(_)) | (Some(_), None) => false,
+				(Some(set1), Some(set2)) =>
+					set1.session == set2.session && set1.candidate_hash == set2.candidate_hash,
+			}
+		};
+		if statement_sets
+			.as_slice()
+			.windows(2)
+			.any(compare_statement_sets_window_same_dispute)
+		{
 			return Err(())
 		}
 		Ok(())
