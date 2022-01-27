@@ -698,7 +698,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 					.collect()
 			},
 			(true, false) => {
-				log::error!("Dispute statments are never removed. qed");
+				log::error!("Dispute statements are never removed. This is a bug");
 				Vec::new()
 			},
 			(true, true) => {
