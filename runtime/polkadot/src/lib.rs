@@ -1371,25 +1371,25 @@ impl pallet_bridge_grandpa::Config for Runtime {
 	type MaxRequests = MaxBridgeGrandpaRequests;
 	type HeadersToKeep = BridgeGrandpaHeadersToKeep;
 
-	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>; // TODO
+	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>; // TODO
 }
 
 parameter_types! {
 	pub const MaxMessagesToPruneAtOnce: bp_messages::MessageNonce = 8;
 	pub const MaxUnrewardedRelayerEntriesAtInboundLane: bp_messages::MessageNonce =
-		bp_polkadot::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE;
+		bp_kusama::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX;
 	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
-		bp_polkadot::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+		bp_kusama::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX;
 	pub const RootAccountForPayments: Option<AccountId> = None;
 	pub const KusamaChainId: bp_runtime::ChainId = bp_runtime::KUSAMA_CHAIN_ID;
 }
 
 /// Instance of the messages pallet used to relay messages to/from Kusama chain.
-pub type KusamaMessagesInstance = ();
+pub type WithKusamaMessagesInstance = ();
 
-impl pallet_bridge_messages::Config<KusamaMessagesInstance> for Runtime {
+impl pallet_bridge_messages::Config<WithKusamaMessagesInstance> for Runtime {
 	type Event = Event;
-	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>; // TODO
+	type WeightInfo = pallet_bridge_messages::weights::MillauWeight<Runtime>; // TODO
 	type Parameter = kusama_messages::WithKusamaMessageBridgeParameter;
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
@@ -1408,10 +1408,11 @@ impl pallet_bridge_messages::Config<KusamaMessagesInstance> for Runtime {
 	type LaneMessageVerifier = kusama_messages::ToKusamaMessageVerifier;
 	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
 		Runtime,
+		WithKusamaMessagesInstance,
 		pallet_balances::Pallet<Runtime>,
 		kusama_messages::GetDeliveryConfirmationTransactionFee,
-		RootAccountForPayments,
 	>;
+	type OnMessageAccepted = ();
 	type OnDeliveryConfirmed = ();
 
 	type SourceHeaderChain = kusama_messages::Kusama;
@@ -1424,7 +1425,7 @@ pub type KusamaMessagesDispatchInstance = ();
 
 impl pallet_bridge_dispatch::Config<KusamaMessagesDispatchInstance> for Runtime {
 	type Event = Event;
-	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
+	type BridgeMessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
 	type CallFilter = kusama_messages::FromKusamaCallFilter;
 	type EncodedCall = kusama_messages::FromKusamaEncodedCall;
@@ -2028,10 +2029,6 @@ sp_api::impl_runtime_apis! {
 			let header = BridgeKusamaGrandpa::best_finalized();
 			(header.number, header.hash())
 		}
-
-		fn is_known_header(hash: bp_kusama::Hash) -> bool {
-			BridgeKusamaGrandpa::is_known_header(hash)
-		}
 	}
 
 	impl bp_kusama::ToKusamaOutboundLaneApi<Block, Balance, kusama_messages::ToKusamaMessagePayload> for Runtime {
@@ -2052,29 +2049,13 @@ sp_api::impl_runtime_apis! {
 		) -> Vec<bp_messages::MessageDetails<Balance>> {
 			bridge_runtime_common::messages_api::outbound_message_details::<
 				Runtime,
-				KusamaMessagesInstance,
+				WithKusamaMessagesInstance,
 				kusama_messages::WithKusamaMessageBridge,
 			>(lane, begin, end)
-		}
-
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeKusamaMessages::outbound_latest_received_nonce(lane)
-		}
-
-		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeKusamaMessages::outbound_latest_generated_nonce(lane)
 		}
 	}
 
 	impl bp_kusama::FromKusamaInboundLaneApi<Block> for Runtime {
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeKusamaMessages::inbound_latest_received_nonce(lane)
-		}
-
-		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeKusamaMessages::inbound_latest_confirmed_nonce(lane)
-		}
-
 		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
 			BridgeKusamaMessages::inbound_unrewarded_relayers_state(lane)
 		}

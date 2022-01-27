@@ -16,14 +16,14 @@
 
 //! Over-bridge messaging support for Polkadot <> Kusama bridge.
 
-use crate::{Call, Runtime};
+use crate::{AccountId, Call, Origin, OriginCaller, RootAccountForPayments, Runtime};
 
 use bp_messages::{
-	source_chain::{LaneMessageVerifier, TargetHeaderChain},
+	source_chain::{LaneMessageVerifier, SenderOrigin, TargetHeaderChain},
 	target_chain::{ProvedMessages, SourceHeaderChain},
 	InboundLaneData, LaneId, Message, MessageNonce, OutboundLaneData, Parameter as MessagesParameter,
 };
-use bp_runtime::{ChainId, POLKADOT_CHAIN_ID, KUSAMA_CHAIN_ID};
+use bp_runtime::{Chain, ChainId, POLKADOT_CHAIN_ID, KUSAMA_CHAIN_ID};
 use bridge_runtime_common::messages::{self, MessageBridge, MessageTransaction, ThisChainWithMessages};
 use parity_scale_codec::{Decode, Encode};
 use frame_support::{
@@ -32,7 +32,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight, WeightToFeePolynomial},
 	RuntimeDebug,
 };
-use frame_system::RawOrigin;
+use scale_info::TypeInfo;
 use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_std::{convert::TryFrom, ops::RangeInclusive};
 
@@ -47,7 +47,7 @@ parameter_types! {
 	/// Fee multiplier at Kusama.
 	pub storage KusamaFeeMultiplier: FixedU128 = INITIAL_KUSAMA_FEE_MULTIPLIER;
 	/// The only Polkadot account that is allowed to send messages to Kusama.
-	pub storage AllowedMessageSender: bp_polkadot::AccountId = Default::default();
+	pub storage AllowedMessageSender: Option<bp_polkadot::AccountId> = None;
 }
 
 /// Message payload for Polkadot -> Kusama messages.
@@ -77,6 +77,7 @@ const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disaled.";
 pub struct ToKusamaMessageVerifier;
 
 impl LaneMessageVerifier<
+	Origin,
 	bp_polkadot::AccountId,
 	ToKusamaMessagePayload,
 	bp_polkadot::Balance,
@@ -84,7 +85,7 @@ impl LaneMessageVerifier<
 	type Error = &'static str;
 
 	fn verify_message(
-		submitter: &RawOrigin<bp_polkadot::AccountId>,
+		submitter: &Origin,
 		delivery_and_dispatch_fee: &bp_polkadot::Balance,
 		lane: &LaneId,
 		lane_outbound_data: &OutboundLaneData,
@@ -92,8 +93,9 @@ impl LaneMessageVerifier<
 	) -> Result<(), Self::Error> {
 		// we only allow messages to be sent by given account
 		let allowed_sender = AllowedMessageSender::get();
-		if *submitter != RawOrigin::Signed(allowed_sender) {
-			return Err(NOT_ALLOWED_MESSAGE_SENDER);
+		match allowed_sender {
+			Some(ref allowed_sender) if submitter.linked_account().as_ref() == Some(allowed_sender) => (),
+			_ => return Err(NOT_ALLOWED_MESSAGE_SENDER),
 		}
 
 		// perform other checks
@@ -115,7 +117,7 @@ impl MessageBridge for WithKusamaMessageBridge {
 	const RELAYER_FEE_PERCENT: u32 = 10;
 	const THIS_CHAIN_ID: ChainId = POLKADOT_CHAIN_ID;
 	const BRIDGED_CHAIN_ID: ChainId = KUSAMA_CHAIN_ID;
-	const BRIDGED_MESSAGES_PALLET_NAME: &'static str = bp_kusama::WITH_POLKADOT_MESSAGES_PALLET_NAME;
+	const BRIDGED_MESSAGES_PALLET_NAME: &'static str = bp_polkadot::WITH_POLKADOT_MESSAGES_PALLET_NAME;
 
 	type ThisChain = Polkadot;
 	type BridgedChain = Kusama;
@@ -141,13 +143,14 @@ impl messages::ChainWithMessages for Polkadot {
 
 impl ThisChainWithMessages for Polkadot {
 	type Call = crate::Call;
+	type Origin = crate::Origin;
 
-	fn is_outbound_lane_enabled(lane: &LaneId) -> bool {
+	fn is_message_accepted(_submitter: &crate::Origin, lane: &LaneId) -> bool {
 		*lane == [0, 0, 0, 0]
 	}
 
 	fn maximal_pending_messages_at_outbound_lane() -> MessageNonce {
-		bp_kusama::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE
+		bp_kusama::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX
 	}
 
 	fn estimate_delivery_confirmation_transaction() -> MessageTransaction<Weight> {
@@ -197,13 +200,13 @@ impl messages::ChainWithMessages for Kusama {
 
 impl messages::BridgedChainWithMessages for Kusama {
 	fn maximal_extrinsic_size() -> u32 {
-		bp_kusama::max_extrinsic_size()
+		bp_kusama::Kusama::max_extrinsic_size()
 	}
 
 	fn message_weight_limits(_message_payload: &[u8]) -> RangeInclusive<Weight> {
 		// we don't want to relay too large messages + keep reserve for future upgrades
 		let upper_limit = messages::target::maximal_incoming_message_dispatch_weight(
-			bp_kusama::max_extrinsic_weight(),
+			bp_kusama::Kusama::max_extrinsic_weight(),
 		);
 
 		// this bridge may be used to deliver all kind of messages, so we're not making any assumptions about
@@ -298,15 +301,28 @@ fn verify_inbound_messages_lane(
 	Ok(messages)
 }
 
+impl SenderOrigin<AccountId> for Origin {
+	fn linked_account(&self) -> Option<AccountId> {
+		match self.caller {
+			OriginCaller::system(frame_system::RawOrigin::Signed(ref submitter)) =>
+				Some(submitter.clone()),
+			OriginCaller::system(frame_system::RawOrigin::Root) |
+			OriginCaller::system(frame_system::RawOrigin::None) =>
+				RootAccountForPayments::get(),
+			_ => None,
+		}
+	}
+}
+
 /// Polkadot <> Kusama messages pallet parameters.
-#[derive(RuntimeDebug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(RuntimeDebug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum WithKusamaMessageBridgeParameter {
 	/// The conversion formula we use is: `PolkadotTokens = KusamaTokens * conversion_rate`.
 	KusamaToPolkadotConversionRate(FixedU128),
 	/// Fee multiplier at the Kusama chain.
 	KusamaFeeMultiplier(FixedU128),
 	/// The only Polkadot account that is allowed to send messages to Kusama.
-	AllowedMessageSender(bp_polkadot::AccountId),
+	AllowedMessageSender(Option<bp_polkadot::AccountId>),
 }
 
 impl MessagesParameter for WithKusamaMessageBridgeParameter {
@@ -341,7 +357,7 @@ pub struct FromKusamaCallFilter;
 
 impl Contains<Call> for FromKusamaCallFilter {
 	fn contains(call: &Call) -> bool {
-		matches!(call, Call::Balances(pallet_balances::Call::transfer(..)))
+		matches!(call, Call::Balances(pallet_balances::Call::transfer { .. }))
 	}
 }
 
@@ -354,7 +370,7 @@ mod tests {
 
 	#[test]
 	fn ensure_polkadot_message_lane_weights_are_correct() {
-		type Weights = pallet_bridge_messages::weights::RialtoWeight<Runtime>; // TODO: use Polkadot weights
+		type Weights = pallet_bridge_messages::weights::MillauWeight<Runtime>; // TODO: use Polkadot weights
 
 		pallet_bridge_messages::ensure_weights_are_correct::<Weights>(
 			bp_polkadot::DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT,
@@ -365,27 +381,27 @@ mod tests {
 		);
 
 		let max_incoming_message_proof_size = bp_kusama::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
-			messages::target::maximal_incoming_message_size(bp_polkadot::max_extrinsic_size()),
+			messages::target::maximal_incoming_message_size(bp_polkadot::Polkadot::max_extrinsic_size()),
 		);
 		pallet_bridge_messages::ensure_able_to_receive_message::<Weights>(
-			bp_polkadot::max_extrinsic_size(),
-			bp_polkadot::max_extrinsic_weight(),
+			bp_polkadot::Polkadot::max_extrinsic_size(),
+			bp_polkadot::Polkadot::max_extrinsic_weight(),
 			max_incoming_message_proof_size,
-			messages::target::maximal_incoming_message_dispatch_weight(bp_polkadot::max_extrinsic_weight()),
+			messages::target::maximal_incoming_message_dispatch_weight(bp_polkadot::Polkadot::max_extrinsic_weight()),
 		);
 
 		let max_incoming_inbound_lane_data_proof_size = bp_messages::InboundLaneData::<()>::encoded_size_hint(
 			bp_polkadot::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
-			bp_kusama::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE as _,
-			bp_kusama::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE as _,
+			bp_polkadot::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX as _,
+			bp_polkadot::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX as _,
 		)
 		.unwrap_or(u32::MAX);
 		pallet_bridge_messages::ensure_able_to_receive_confirmation::<Weights>(
-			bp_polkadot::max_extrinsic_size(),
-			bp_polkadot::max_extrinsic_weight(),
+			bp_polkadot::Polkadot::max_extrinsic_size(),
+			bp_polkadot::Polkadot::max_extrinsic_weight(),
 			max_incoming_inbound_lane_data_proof_size,
-			bp_kusama::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE,
-			bp_kusama::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE,
+			bp_polkadot::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX,
+			bp_polkadot::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX,
 			RocksDbWeight::get(),
 		);
 	}
@@ -404,10 +420,12 @@ mod tests {
 			}
 
 			let invalid_sender = bp_polkadot::AccountId::from([1u8; 32]);
-			let valid_sender = AllowedMessageSender::get();
+			let valid_sender = bp_polkadot::AccountId::from([2u8; 32]);
+			AllowedMessageSender::set(&Some(valid_sender.clone()));
+
 			assert_eq!(
 				ToKusamaMessageVerifier::verify_message(
-					&RawOrigin::Signed(invalid_sender.clone()),
+					&frame_system::RawOrigin::Signed(invalid_sender.clone()).into(),
 					&bp_polkadot::Balance::MAX,
 					&Default::default(),
 					&Default::default(),
@@ -417,7 +435,7 @@ mod tests {
 			);
 			assert_eq!(
 				ToKusamaMessageVerifier::verify_message(
-					&RawOrigin::Signed(valid_sender.clone()),
+					&frame_system::RawOrigin::Signed(valid_sender.clone()).into(),
 					&bp_polkadot::Balance::MAX,
 					&Default::default(),
 					&Default::default(),

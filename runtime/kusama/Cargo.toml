@@ -19,7 +19,6 @@ smallvec = "1.8.0"
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-bp-polkadot = { path = "../../bridges/primitives/chain-polkadot", default-features = false }
 bp-kusama = { path = "../../bridges/primitives/chain-kusama", default-features = false }
 bp-messages = { path = "../../bridges/primitives/messages", default-features = false }
 bp-polkadot = { path = "../../bridges/primitives/chain-polkadot", default-features = false }

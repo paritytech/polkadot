@@ -305,7 +305,7 @@ mod at_rococo {
 		const BRIDGED_CHAIN_ID: ChainId = WOCOCO_CHAIN_ID;
 		const RELAYER_FEE_PERCENT: u32 = 10;
 		const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
-			bp_wococo::WITH_WOCOCO_MESSAGES_PALLET_NAME;
+			bp_rococo::WITH_ROCOCO_MESSAGES_PALLET_NAME;
 
 		type ThisChain = RococoAtRococo;
 		type BridgedChain = WococoAtRococo;
@@ -356,7 +356,7 @@ mod at_wococo {
 		const BRIDGED_CHAIN_ID: ChainId = ROCOCO_CHAIN_ID;
 		const RELAYER_FEE_PERCENT: u32 = 10;
 		const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
-			bp_rococo::WITH_ROCOCO_MESSAGES_PALLET_NAME;
+			bp_wococo::WITH_WOCOCO_MESSAGES_PALLET_NAME;
 
 		type ThisChain = WococoAtWococo;
 		type BridgedChain = RococoAtWococo;

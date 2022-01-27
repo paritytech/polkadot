@@ -1447,7 +1447,7 @@ pub fn kusama_testnet_genesis(
 			config: default_parachains_host_configuration(),
 		},
 		gilt: Default::default(),
-		paras: Default::default()
+		paras: Default::default(),
 		xcm_pallet: Default::default(),
 		bridge_polkadot_grandpa: kusama_runtime::BridgePolkadotGrandpaConfig {
 			owner: Some(endowed_accounts[0].clone()),
