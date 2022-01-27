@@ -26,6 +26,7 @@ mod tests;
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use scale_info::TypeInfo;
+use sp_io::hashing::blake2_256;
 use sp_runtime::{
 	traits::{BadOrigin, Saturating},
 	RuntimeDebug,
@@ -1046,7 +1047,9 @@ pub mod pallet {
 					let response = Response::Version(xcm_version);
 					let message =
 						Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
-					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
+					let message_hash = message.using_encoded(blake2_256);
+					let context = XcmContext::with_message_hash(message_hash);
+					let event = match T::XcmRouter::send_xcm(new_key.clone(), message, context) {
 						Ok(_) => {
 							let value = (query_id, max_weight, xcm_version);
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
@@ -1097,17 +1100,21 @@ pub mod pallet {
 								max_weight,
 								querier: None,
 							}]);
-							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
-								Ok(_) => {
-									VersionNotifyTargets::<T>::insert(
-										XCM_VERSION,
-										versioned_key,
-										(query_id, max_weight, xcm_version),
-									);
-									Event::VersionChangeNotified(new_key, xcm_version)
-								},
-								Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
-							};
+							let message_hash = message.using_encoded(blake2_256);
+							let context = XcmContext::with_message_hash(message_hash);
+							let event =
+								match T::XcmRouter::send_xcm(new_key.clone(), message, context) {
+									Ok(_) => {
+										VersionNotifyTargets::<T>::insert(
+											XCM_VERSION,
+											versioned_key,
+											(query_id, max_weight, xcm_version),
+										);
+										Event::VersionChangeNotified(new_key, xcm_version)
+									},
+									Err(e) =>
+										Event::NotifyTargetSendFail(new_key, query_id, e.into()),
+								};
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
 						}
@@ -1133,7 +1140,10 @@ pub mod pallet {
 			});
 			// TODO #3735: Correct weight.
 			let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
-			T::XcmRouter::send_xcm(dest, Xcm(vec![instruction]))?;
+			let message = Xcm(vec![instruction]);
+			let message_hash = message.using_encoded(blake2_256);
+			let context = XcmContext::with_message_hash(message_hash);
+			T::XcmRouter::send_xcm(dest, message, context)?;
 			VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
 			let query_status =
 				QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
@@ -1147,7 +1157,10 @@ pub mod pallet {
 			let versioned_dest = LatestVersionedMultiLocation(&dest);
 			let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
 				.ok_or(XcmError::InvalidLocation)?;
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
+			let message = Xcm(vec![UnsubscribeVersion]);
+			let message_hash = message.using_encoded(blake2_256);
+			let context = XcmContext::with_message_hash(message_hash);
+			T::XcmRouter::send_xcm(dest.clone(), message, context)?;
 			Queries::<T>::remove(query_id);
 			Ok(())
 		}
@@ -1165,7 +1178,9 @@ pub mod pallet {
 				message.0.insert(0, DescendOrigin(interior))
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
-			T::XcmRouter::send_xcm(dest, message)
+			let message_hash = message.using_encoded(blake2_256);
+			let context = XcmContext::with_message_hash(message_hash);
+			T::XcmRouter::send_xcm(dest, message, context)
 		}
 
 		pub fn check_account() -> T::AccountId {
@@ -1354,7 +1369,12 @@ pub mod pallet {
 		///
 		/// If the `location` has an ongoing notification and when this function is called, then an
 		/// error should be returned.
-		fn start(dest: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
+		fn start(
+			dest: &MultiLocation,
+			query_id: QueryId,
+			max_weight: u64,
+			_context: XcmContext,
+		) -> XcmResult {
 			let versioned_dest = LatestVersionedMultiLocation(dest);
 			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
 			ensure!(!already, XcmError::InvalidLocation);
@@ -1362,7 +1382,10 @@ pub mod pallet {
 			let xcm_version = T::AdvertisedXcmVersion::get();
 			let response = Response::Version(xcm_version);
 			let instruction = QueryResponse { query_id, response, max_weight, querier: None };
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
+			let message = Xcm(vec![instruction]);
+			let message_hash = message.using_encoded(blake2_256);
+			let context = XcmContext::with_message_hash(message_hash);
+			T::XcmRouter::send_xcm(dest.clone(), message, context)?;
 
 			let value = (query_id, max_weight, xcm_version);
 			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);
@@ -1371,7 +1394,7 @@ pub mod pallet {
 
 		/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
 		/// subscription.
-		fn stop(dest: &MultiLocation) -> XcmResult {
+		fn stop(dest: &MultiLocation, _context: XcmContext) -> XcmResult {
 			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 			Ok(())
 		}
@@ -1384,7 +1407,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> DropAssets for Pallet<T> {
-		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		fn drop_assets(origin: &MultiLocation, assets: Assets, _context: XcmContext) -> Weight {
 			if assets.is_empty() {
 				return 0
 			}
@@ -1402,6 +1425,7 @@ pub mod pallet {
 			origin: &MultiLocation,
 			ticket: &MultiLocation,
 			assets: &MultiAssets,
+			_context: XcmContext,
 		) -> bool {
 			let mut versioned = VersionedMultiAssets::from(assets.clone());
 			match (ticket.parents, &ticket.interior) {
@@ -1449,6 +1473,7 @@ pub mod pallet {
 			querier: Option<&MultiLocation>,
 			response: Response,
 			max_weight: Weight,
+			_context: XcmContext,
 		) -> Weight {
 			match (response, Queries::<T>::get(query_id)) {
 				(
@@ -1704,6 +1729,7 @@ impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origi
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		match kind {

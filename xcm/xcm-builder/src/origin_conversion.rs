@@ -20,7 +20,9 @@ use frame_support::traits::{EnsureOrigin, Get, GetBacking, OriginTrait};
 use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{convert::TryInto, marker::PhantomData};
-use xcm::latest::{BodyId, BodyPart, Junction, Junctions::*, MultiLocation, NetworkId, OriginKind};
+use xcm::latest::{
+	BodyId, BodyPart, Junction, Junctions::*, MultiLocation, NetworkId, OriginKind, XcmContext,
+};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
@@ -35,6 +37,7 @@ where
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
@@ -56,6 +59,7 @@ impl<Origin: OriginTrait> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ParentAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
@@ -74,6 +78,7 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ChildSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
@@ -94,6 +99,7 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
@@ -118,6 +124,7 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ChildParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
@@ -140,6 +147,7 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
@@ -165,6 +173,7 @@ impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "RelayChainAsNative origin: {:?}, kind: {:?}", origin, kind);
@@ -185,6 +194,7 @@ where
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
@@ -212,6 +222,7 @@ where
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
+		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(

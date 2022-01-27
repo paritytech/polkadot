@@ -51,7 +51,11 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+	fn send_xcm(
+		dest: impl Into<MultiLocation>,
+		msg: opaque::Xcm,
+		_context: XcmContext,
+	) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg.clone())));
 		Ok(VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256))
 	}

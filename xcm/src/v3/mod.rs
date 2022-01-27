@@ -220,6 +220,12 @@ pub struct XcmContext {
 }
 
 impl XcmContext {
+	/// Constructor which sets the message hash to the supplied parameter and leaves the origin and
+	/// topic unset.
+	pub fn with_message_hash(message_hash: XcmHash) -> XcmContext {
+		XcmContext { origin: None, message_hash, topic: None }
+	}
+
 	/// Helper function to create a bogus empty context for testing purposes.
 	///
 	/// This function should only be used in cases where the context is sure to be unused.

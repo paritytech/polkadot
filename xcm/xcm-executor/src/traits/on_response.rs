@@ -27,7 +27,6 @@ pub trait OnResponse {
 		origin: &MultiLocation,
 		query_id: u64,
 		querier: Option<&MultiLocation>,
-		context: XcmContext,
 	) -> bool;
 	/// Handler for receiving a `response` from `origin` relating to `query_id` initiated by
 	/// `querier`.
@@ -45,7 +44,6 @@ impl OnResponse for () {
 		_origin: &MultiLocation,
 		_query_id: u64,
 		_querier: Option<&MultiLocation>,
-		_context: XcmContext,
 	) -> bool {
 		false
 	}

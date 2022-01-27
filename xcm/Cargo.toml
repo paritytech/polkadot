@@ -13,6 +13,9 @@ derivative = {version = "2.2.0", default-features = false, features = [ "use_cor
 log = { version = "0.4.14", default-features = false }
 xcm-procedural = { path = "procedural" }
 
+[dev-dependencies]
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [features]
 default = ["std"]
 wasm-api = []

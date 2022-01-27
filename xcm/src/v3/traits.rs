@@ -302,7 +302,7 @@ pub type SendResult = result::Result<XcmHash, SendError>;
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>, _: XcmContext) -> SendResult {
 ///         return Err(SendError::CannotReachDestination(destination.into(), message))
 ///     }
 /// }
@@ -310,7 +310,7 @@ pub type SendResult = result::Result<XcmHash, SendError>;
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>, _: XcmContext) -> SendResult {
 ///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = destination.into() {
 ///             Ok(VersionedXcm::from(message).using_encoded(blake2_256))
 ///         } else {
@@ -322,7 +322,7 @@ pub type SendResult = result::Result<XcmHash, SendError>;
 /// /// A sender that accepts a message from a parent, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>, _: XcmContext) -> SendResult {
 ///         let destination = destination.into();
 ///         match destination {
 ///             MultiLocation { parents: 1, interior: Here }
@@ -340,17 +340,22 @@ pub type SendResult = result::Result<XcmHash, SendError>;
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);
+/// let message_hash = message.using_encoded(blake2_256);
 ///
 /// assert!(
 ///     // Sender2 will block this.
-///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
-///         .is_err()
+///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(
+///         Parent, message.clone(), XcmContext::with_message_hash(message_hash),
+///     )
+///     .is_err()
 /// );
 ///
 /// assert!(
 ///     // Sender3 will catch this.
-///     <(Sender1, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
-///         .is_ok()
+///     <(Sender1, Sender3) as SendXcm>::send_xcm(
+///         Parent, message.clone(), XcmContext::with_message_hash(message_hash),
+///     )
+///     .is_ok()
 /// );
 /// # }
 /// ```
