@@ -86,6 +86,8 @@ pub mod reexports {
 pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+/// Contexts for interpreting (probable) validity of prospective chains.
+pub mod candidate_context;
 
 mod determine_new_blocks;
 
