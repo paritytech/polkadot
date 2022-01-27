@@ -8,7 +8,6 @@ fn ui_compile_fail() {
 	t.compile_fail("tests/ui/err-*.rs");
 }
 
-
 #[test]
 fn ui_pass() {
 	let t = trybuild::TestCases::new();
