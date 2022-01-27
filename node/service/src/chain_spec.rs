@@ -156,27 +156,6 @@ pub fn rococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
 }
 
-pub fn versi_config() -> Result<VersiChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
-
-	Ok(RococoChainSpec::from_genesis(
-		"Versi",
-		"versi_v1_3",
-		ChainType::Live,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
-			// Use 10 minute session length.
-			session_length_in_blocks: Some(100),
-		},
-		vec![],
-		None,
-		Some("versi"),
-		None,
-		None,
-		Default::default(),
-	))
-}
-
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
