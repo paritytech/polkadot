@@ -22,8 +22,8 @@ assert_cmd = "2.0.2"
 nix = "0.23.1"
 tempfile = "3.2.0"
 tokio = "1.15.0"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-node-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "l-sync-all-forks" }
+node-primitives = { git = "https://github.com/paritytech/substrate", branch = "l-sync-all-forks" }
 
 [workspace]
 members = [

@@ -9,14 +9,14 @@ version = "0.9.16"
 impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.16" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "l-sync-all-forks" }
 log = { version = "0.4.14", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.16" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "l-sync-all-forks" }
 
 [features]
 default = ["std"]
