@@ -23,7 +23,7 @@ use crate::{
 		Test,
 	},
 	paras::ParaGenesisArgs,
-	paras_inherent::DisputedBitfield,
+	paras_inherent::{DisputedBitfield, AllowedRelayParentsTracker},
 	scheduler::AssignmentKind,
 };
 use assert_matches::assert_matches;
@@ -77,6 +77,16 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
 		},
 		..Default::default()
 	}
+}
+
+fn default_allowed_relay_parent_tracker() -> AllowedRelayParentsTracker<Hash, BlockNumber> {
+	let mut allowed = AllowedRelayParentsTracker::default();
+
+	let relay_parent = System::parent_hash();
+	let parent_number = System::block_number().saturating_sub(1);
+
+	allowed.update(relay_parent, Hash::zero(), parent_number, 1);
+	allowed
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -960,6 +970,8 @@ fn candidate_checks() {
 			group_idx: GroupIndex::from(2),
 		};
 
+		let allowed_relay_parents = default_allowed_relay_parent_tracker();
+
 		// unscheduled candidate.
 		{
 			let mut candidate = TestCandidateBuilder {
@@ -984,7 +996,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_b_assignment.clone()],
 					&group_validators,
@@ -1040,7 +1052,7 @@ fn candidate_checks() {
 			// out-of-order manifests as unscheduled.
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed_b, backed_a],
 					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 					&group_validators,
@@ -1074,7 +1086,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1084,7 +1096,7 @@ fn candidate_checks() {
 			);
 		}
 
-		// candidate not in parent context.
+		// candidate is not based on allowed relay parent.
 		{
 			let wrong_parent_hash = Hash::repeat_byte(222);
 			assert!(System::parent_hash() != wrong_parent_hash);
@@ -1110,13 +1122,13 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
 					FullCheck::Yes,
 				),
-				Error::<Test>::CandidateNotInParentContext
+				Error::<Test>::DisallowedRelayParent
 			);
 		}
 
@@ -1146,7 +1158,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![
 						chain_a_assignment.clone(),
@@ -1189,7 +1201,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![thread_a_assignment.clone()],
 					&group_validators,
@@ -1240,7 +1252,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1281,7 +1293,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1326,7 +1338,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1361,7 +1373,7 @@ fn candidate_checks() {
 
 			assert_eq!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1397,7 +1409,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1433,7 +1445,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1491,6 +1503,8 @@ fn backing_works() {
 			}
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
+
+		let allowed_relay_parents = default_allowed_relay_parent_tracker();
 
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
@@ -1599,7 +1613,7 @@ fn backing_works() {
 			core_indices: occupied_cores,
 			candidate_receipt_with_backing_validator_indices,
 		} = ParaInclusion::process_candidates(
-			Default::default(),
+			&allowed_relay_parents,
 			backed_candidates.clone(),
 			vec![
 				chain_a_assignment.clone(),
@@ -1771,6 +1785,8 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		let allowed_relay_parents = default_allowed_relay_parent_tracker();
+
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
@@ -1801,7 +1817,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 
 		let ProcessedCandidates { core_indices: occupied_cores, .. } =
 			ParaInclusion::process_candidates(
-				Default::default(),
+				&allowed_relay_parents,
 				vec![backed_a],
 				vec![chain_a_assignment.clone()],
 				&group_validators,
