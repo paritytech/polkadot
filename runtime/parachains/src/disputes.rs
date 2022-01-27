@@ -131,12 +131,7 @@ where
 		(Some(_), None) => Ordering::Less,
 		// For local disputes, prioritize those that occur at an earlier height.
 		(Some(a_height), Some(b_height)) => {
-			let height_ord = a_height.cmp(&b_height);
-			if height_ord == Ordering::Equal {
-				a.candidate_hash.cmp(&b.candidate_hash)
-			} else {
-				height_ord
-			}
+			a_height.cmp(&b_height).then_with(|| a.candidate_hash.cmp(&b.candidate_hash))
 		},
 		// Prioritize earlier remote disputes using session as rough proxy.
 		(None, None) => {
