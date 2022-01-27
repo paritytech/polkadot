@@ -34,7 +34,6 @@ use std::{
 };
 use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
 
-
 /// The state of the undying parachain.
 struct State {
 	// We need to keep these around until the including relay chain blocks are finalized.
@@ -44,7 +43,6 @@ struct State {
 	number_to_head: HashMap<u64, Arc<HeadData>>,
 	/// Block number of the best block.
 	best_block: u64,
-	graveyard_size: usize,
 }
 
 impl State {
@@ -52,22 +50,22 @@ impl State {
 	fn genesis(graveyard_size: usize) -> Self {
 		let index = 0u64;
 		let mut graveyard = vec![0u64; graveyard_size * graveyard_size];
-	
+
+		// Ensure a larger compressed PoV.
 		graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
-			*grave = i as u64;
+			*grave = i % 255 as u64;
 		});
-	
+
 		let state = GraveyardState { index, graveyard };
-	
+
 		let head_data =
 			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
 		let head_data = Arc::new(head_data);
-	
+
 		Self {
 			head_to_state: vec![(head_data.clone(), state.clone())].into_iter().collect(),
 			number_to_head: vec![(0, head_data)].into_iter().collect(),
 			best_block: 0,
-			graveyard_size,
 		}
 	}
 
@@ -115,9 +113,10 @@ pub struct Collator {
 }
 
 impl Collator {
-	/// Create a new collator instance with the state initialized as genesis.
+	/// Create a new collator instance with the state initialized from genesis and `pov_size`
+	/// parameter. The same parameter needs to be passed when exporting the genesis state.
 	pub fn new(pov_size: usize) -> Self {
-		let graveyard_size = ((pov_size - 20) as f64).sqrt() as usize;
+		let graveyard_size = ((pov_size / std::mem::size_of::<usize>()) as f64).sqrt() as usize - 20;
 
 		log::info!(
 			"PoV target size: {} bytes. Graveyard size: ({} x {})",
