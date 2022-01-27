@@ -33,7 +33,11 @@ pub enum Subcommand {
 
 /// Command for exporting the genesis state of the parachain
 #[derive(Debug, StructOpt)]
-pub struct ExportGenesisStateCommand {}
+pub struct ExportGenesisStateCommand {
+	/// The target raw PoV size in bytes. Minimum value is 64.
+	#[structopt(long, default_value = "1024000")]
+	pub pov_size: usize,
+}
 
 /// Command for exporting the genesis wasm file.
 #[derive(Debug, StructOpt)]

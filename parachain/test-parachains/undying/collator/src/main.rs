@@ -34,14 +34,14 @@ fn main() -> Result<()> {
 	let cli = Cli::from_args();
 
 	match cli.subcommand {
-		Some(cli::Subcommand::ExportGenesisState(_params)) => {
-			let collator = Collator::new(cli.run.pov_size);
+		Some(cli::Subcommand::ExportGenesisState(params)) => {
+			let collator = Collator::new(params.pov_size);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
 		},
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
-			let collator = Collator::new(cli.run.pov_size);
+			let collator = Collator::new(1000);
 			println!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
 			Ok(())
