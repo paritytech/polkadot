@@ -43,9 +43,13 @@ const ADD: u64 = 2;
 fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (HeadData, GraveyardState) {
 
 	let index = 0u64;
-	let graveyard = vec![0u64; graveyard_size * 2];
+	let mut graveyard = vec![0u64; graveyard_size * graveyard_size];
 	let tombstones = 1000;
 
+	graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
+		*grave = i as u64;
+	});
+	
 	let state = GraveyardState { index, graveyard };
 	
 	let mut head =
@@ -77,15 +81,12 @@ struct State {
 impl State {
 	/// Init the genesis state.
 	fn genesis(graveyard_size: usize) -> Self {
-		let genesis_state = Arc::new(calculate_head_and_state_for_number(0, 1000).0);
+		let (head_data, state) = calculate_head_and_state_for_number(0, graveyard_size);
+		let head_data = Arc::new(head_data);
 
-		let graveyard = vec![0u64; graveyard_size * 2];
-		let index = 0;
-		let state = GraveyardState { index, graveyard };
-	
 		Self {
-			head_to_state: vec![(genesis_state.clone(), state)].into_iter().collect(),
-			number_to_head: vec![(0, genesis_state)].into_iter().collect(),
+			head_to_state: vec![(head_data.clone(), state.clone())].into_iter().collect(),
+			number_to_head: vec![(0, head_data)].into_iter().collect(),
 			best_block: 0,
 		}
 	}
@@ -120,6 +121,7 @@ impl State {
 		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
+		// TODO: Keep only last 10 heads/states in cache.
 		(block, new_head)
 	}
 }
@@ -188,7 +190,7 @@ impl Collator {
 			log::info!(
 				"created a new collation on relay-parent({}): {:?}",
 				relay_parent,
-				block_data,
+				head_data,
 			);
 
 			let pov = PoV { block_data: block_data.encode().into() };
@@ -203,6 +205,10 @@ impl Collator {
 				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
+			log::info!(
+				"Raw PoV size for collation: {} bytes",
+				pov.block_data.0.len(),
+			);
 			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
 
 			log::info!(
