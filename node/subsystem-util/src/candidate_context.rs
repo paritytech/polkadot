@@ -12,8 +12,8 @@
 // GNU General Public License for more details.
 
 // TODO [now]: document everything and make members public.
-use std::collections::HashMap;
 use polkadot_primitives::v1::Id as ParaId;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InboundHrmpChannelContext {
@@ -63,17 +63,13 @@ pub struct Context {
 
 impl Context {
 	pub fn from_base(base: ContextLimitations) -> Self {
-		Context {
-			base: base.clone(),
-			updates: Vec::new(),
-			cumulative: base,
-		}
+		Context { base: base.clone(), updates: Vec::new(), cumulative: base }
 	}
 
 	// TODO [now]: add error type
 	pub fn from_base_and_updates(
 		base: ContextLimitations,
-		updates: impl IntoIterator<Item=ContextUpdate>,
+		updates: impl IntoIterator<Item = ContextUpdate>,
 	) -> Result<Self, Error> {
 		let mut context = Self::from_base(base);
 		for update in updates {
