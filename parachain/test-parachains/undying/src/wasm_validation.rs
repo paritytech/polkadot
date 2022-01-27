@@ -31,7 +31,8 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 
 	let parent_hash = crate::keccak256(&params.parent_head.0[..]);
 
-	let (new_head, _) = crate::execute(parent_hash, parent_head, block_data).expect("Executes block");
+	let (new_head, _) =
+		crate::execute(parent_hash, parent_head, block_data).expect("Executes block");
 	parachain::write_result(&ValidationResult {
 		head_data: GenericHeadData(new_head.encode()),
 		new_validation_code: None,

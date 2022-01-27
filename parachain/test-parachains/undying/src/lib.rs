@@ -76,8 +76,14 @@ impl HeadData {
 pub struct GraveyardState {
 	/// The grave index of the last tombstone.
 	pub index: u64,
-	/// A graveyard represented by a matrix where each element is a grave.
+	/// We use a matrix where each element represents a grave.
+	/// The unsigned integer tracks the number of tombstones errected on 
+	/// each trave.
 	pub graveyard: Vec<u64>,
+	// TODO: Add zombies. All of the graves produce zombies at a regular interval
+	// defined in blocks. The number of zombies produced scales with the tombstones.
+	// This would allow us to have a configurable and reproducible PVF execution time. 
+	// However, PVF preparation time will likely rely on prebuild wasm binaries.
 }
 
 /// Block data for this parachain.
@@ -99,8 +105,8 @@ pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 		block_data.state.graveyard[(block_data.state.index + i) as usize] =
 			block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
 	}
-	block_data.state.index =
-		((block_data.state.index.saturating_add(block_data.tombstones)) as usize % block_data.state.graveyard.len()) as u64;
+	block_data.state.index = ((block_data.state.index.saturating_add(block_data.tombstones))
+		as usize % block_data.state.graveyard.len()) as u64;
 	block_data.state
 }
 
@@ -128,9 +134,12 @@ pub fn execute(
 
 	let new_state = execute_transaction(block_data.clone());
 
-	Ok((HeadData {
-		number: parent_head.number + 1,
-		parent_hash,
-		post_state: hash_state(&new_state)
-	}, new_state))
+	Ok((
+		HeadData {
+			number: parent_head.number + 1,
+			parent_hash,
+			post_state: hash_state(&new_state),
+		},
+		new_state,
+	))
 }
