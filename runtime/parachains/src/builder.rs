@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::runner::PalletRunner;
 use crate::{
 	configuration, inclusion, initializer, paras,
 	paras_inherent::{self},
@@ -36,7 +37,6 @@ use sp_runtime::{
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
-use crate::runner::PalletRunner;
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -234,7 +234,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		(para_id, core_idx, group_idx)
 	}
 
-	fn mock_head_data() -> HeadData {
+	pub(crate) fn mock_head_data() -> HeadData {
 		let max_head_size = configuration::Pallet::<T>::config().max_head_data_size;
 		HeadData(vec![0xFF; max_head_size as usize])
 	}
@@ -304,7 +304,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Create an `AvailabilityBitfield` where `concluding` is a map where each key is a core index
 	/// that is concluding and `cores` is the total number of cores in the system.
-	pub(crate) fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
+	pub(crate) fn availability_bitvec(
+		concluding: &BTreeMap<u32, u32>,
+		cores: u32,
+	) -> AvailabilityBitfield {
 		let mut bitfields = bitvec::bitvec![bitvec::order::Lsb0, u8; 0; 0];
 		for i in 0..cores {
 			if concluding.get(&(i as u32)).is_some() {
@@ -374,7 +377,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Create a bitvec of `validators` length with all yes votes.
-	pub(crate) fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
+	pub(crate) fn validator_availability_votes_yes(
+		validators: usize,
+	) -> BitVec<bitvec::order::Lsb0, u8> {
 		// every validator confirms availability.
 		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; validators as usize]
 	}
@@ -389,96 +394,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		cores_with_backed_candidates: &BTreeMap<u32, u32>,
 		includes_code_upgrade: Option<u32>,
 	) -> Vec<BackedCandidate<T::Hash>> {
-		let validators =
-			self.validators.as_ref().expect("must have some validators prior to calling");
-		let config = configuration::Pallet::<T>::config();
-
 		cores_with_backed_candidates
 			.iter()
 			.map(|(seed, num_votes)| {
-				assert!(*num_votes <= validators.len() as u32);
-				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
-
-				// This generates a pair and adds it to the keystore, returning just the public.
-				let collator_public = CollatorId::generate_pair(None);
-				let header = Self::header(self.block_number.clone());
-				let relay_parent = header.hash();
-				let head_data = Self::mock_head_data();
-				let persisted_validation_data_hash = PersistedValidationData::<H256> {
-					parent_head: head_data.clone(),
-					relay_parent_number: self.relay_parent_number(),
-					relay_parent_storage_root: Default::default(),
-					max_pov_size: config.max_pov_size,
-				}
-				.hash();
-
-				let pov_hash = Default::default();
-				let validation_code_hash = mock_validation_code().hash();
-				let payload = collator_signature_payload(
-					&relay_parent,
-					&para_id,
-					&persisted_validation_data_hash,
-					&pov_hash,
-					&validation_code_hash,
-				);
-				let signature = collator_public.sign(&payload).unwrap();
-
-				// Set the head data so it can be used while validating the signatures on the
-				// candidate receipt.
-				paras::Pallet::<T>::heads_insert(&para_id, head_data.clone());
-
-				let mut past_code_meta = paras::ParaPastCodeMeta::<T::BlockNumber>::default();
-				past_code_meta.note_replacement(0u32.into(), 0u32.into());
-
-				let group_validators = scheduler::Pallet::<T>::group_validators(group_idx).unwrap();
-
-				let candidate = CommittedCandidateReceipt::<T::Hash> {
-					descriptor: CandidateDescriptor::<T::Hash> {
-						para_id,
-						relay_parent,
-						collator: collator_public,
-						persisted_validation_data_hash,
-						pov_hash,
-						erasure_root: Default::default(),
-						signature,
-						para_head: head_data.hash(),
-						validation_code_hash,
-					},
-					commitments: CandidateCommitments::<u32> {
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
-						new_validation_code: includes_code_upgrade
-							.map(|v| ValidationCode(vec![42u8; v as usize])),
-						head_data,
-						processed_downward_messages: 0,
-						hrmp_watermark: self.relay_parent_number(),
-					},
-				};
-
-				let candidate_hash = candidate.hash();
-
-				let validity_votes: Vec<_> = group_validators
-					.iter()
-					.take(*num_votes as usize)
-					.map(|val_idx| {
-						let public = validators.get(val_idx.0 as usize).unwrap();
-						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
-							public,
-							CompactStatement::Valid(candidate_hash.clone()),
-							&self.signing_context(),
-							*val_idx,
-						)
-						.benchmark_signature();
-
-						ValidityAttestation::Explicit(sig.clone())
-					})
-					.collect();
-
-				BackedCandidate::<T::Hash> {
-					candidate,
-					validity_votes,
-					validator_indices: bitvec::bitvec![bitvec::order::Lsb0, u8; 1; group_validators.len()],
-				}
+				PalletRunner::<T>::create_backed_candidate(seed, num_votes, includes_code_upgrade)
 			})
 			.collect()
 	}
@@ -576,21 +495,20 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// This is former self.setup_session();
 		// Setup session 1 and create `self.validators_map` and `self.validators`.
-		let res = PalletRunner::<T>::run_to_session(target_session, validator_ids, used_cores, true);
+		let res =
+			PalletRunner::<T>::run_to_session(target_session, validator_ids, used_cores, true);
 		self.validators = Some(res.0);
 		self.block_number = res.1;
 		self.session = res.2;
 
-		// let bitfields =
-		// self.create_availability_bitfields(&self.backed_and_concluding_cores, used_cores);
-		let bitfields =
-			PalletRunner::<T>::create_availability_bitfields_for_session(
-				PalletRunner::<T>::current_session_index(),
-				&self.backed_and_concluding_cores,
-				used_cores
-			);
-		let backed_candidates = self
-			.create_backed_candidates(&self.backed_and_concluding_cores, self.code_upgrade);
+		let bitfields = PalletRunner::<T>::create_availability_bitfields_for_session(
+			PalletRunner::<T>::current_session_index(),
+			&self.backed_and_concluding_cores,
+			used_cores,
+		);
+
+		let backed_candidates =
+			self.create_backed_candidates(&self.backed_and_concluding_cores, self.code_upgrade);
 
 		// That's where we create disputes
 		let disputes = self.create_disputes_with_no_spam(

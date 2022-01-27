@@ -31,6 +31,10 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
     slice
 }
 
+fn mock_validation_code() -> ValidationCode {
+    ValidationCode(vec![1, 2, 3])
+}
+
 pub struct PalletRunner<T> {
     pallet_config: PhantomData<T>
 }
@@ -145,6 +149,102 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 
     pub fn add_backed_candidate() {
 
+    }
+
+    /// Number of the relay parent block.
+    fn relay_parent_number() -> u32 {
+        (Self::current_block_number() - One::one())
+            .try_into()
+            .map_err(|_| ())
+            .expect("self.block_number is u32")
+    }
+
+    pub fn create_backed_candidate(seed: &u32, num_votes: &u32, includes_code_upgrade: Option<u32>) -> BackedCandidate::<C::Hash> {
+        let validators = Self::active_validators_for_session(Self::current_session_index());
+        let config = configuration::Pallet::<C>::config();
+        assert!(*num_votes <= validators.len() as u32);
+        let (para_id, _core_idx, group_idx) = Self::create_indexes(seed.clone());
+
+        // This generates a pair and adds it to the keystore, returning just the public.
+        let collator_public = CollatorId::generate_pair(None);
+        let header = BenchBuilder::<C>::header(Self::current_block_number());
+        let relay_parent = header.hash();
+        let head_data = BenchBuilder::<C>::mock_head_data();
+        let persisted_validation_data_hash = PersistedValidationData::<H256> {
+            parent_head: head_data.clone(),
+            relay_parent_number: Self::relay_parent_number(),
+            relay_parent_storage_root: Default::default(),
+            max_pov_size: config.max_pov_size,
+        }
+            .hash();
+
+        let pov_hash = Default::default();
+        let validation_code_hash = mock_validation_code().hash();
+        let payload = collator_signature_payload(
+            &relay_parent,
+            &para_id,
+            &persisted_validation_data_hash,
+            &pov_hash,
+            &validation_code_hash,
+        );
+        let signature = collator_public.sign(&payload).unwrap();
+
+        // Set the head data so it can be used while validating the signatures on the
+        // candidate receipt.
+        paras::Pallet::<C>::heads_insert(&para_id, head_data.clone());
+
+        let mut past_code_meta = paras::ParaPastCodeMeta::<C::BlockNumber>::default();
+        past_code_meta.note_replacement(0u32.into(), 0u32.into());
+
+        let group_validators = scheduler::Pallet::<C>::group_validators(group_idx).unwrap();
+
+        let candidate = CommittedCandidateReceipt::<C::Hash> {
+            descriptor: CandidateDescriptor::<C::Hash> {
+                para_id,
+                relay_parent,
+                collator: collator_public,
+                persisted_validation_data_hash,
+                pov_hash,
+                erasure_root: Default::default(),
+                signature,
+                para_head: head_data.hash(),
+                validation_code_hash,
+            },
+            commitments: CandidateCommitments::<u32> {
+                upward_messages: Vec::new(),
+                horizontal_messages: Vec::new(),
+                new_validation_code: includes_code_upgrade
+                    .map(|v| ValidationCode(vec![42u8; v as usize])),
+                head_data,
+                processed_downward_messages: 0,
+                hrmp_watermark: Self::relay_parent_number(),
+            },
+        };
+
+        let candidate_hash = candidate.hash();
+
+        let validity_votes: Vec<_> = group_validators
+            .iter()
+            .take(*num_votes as usize)
+            .map(|val_idx| {
+                let public = validators.get(val_idx.0 as usize).unwrap();
+                let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
+                    public,
+                    CompactStatement::Valid(candidate_hash.clone()),
+                    &Self::signing_context(),
+                    *val_idx,
+                )
+                    .benchmark_signature();
+
+                ValidityAttestation::Explicit(sig.clone())
+            })
+            .collect();
+
+        BackedCandidate::<C::Hash> {
+            candidate,
+            validity_votes,
+            validator_indices: bitvec::bitvec![bitvec::order::Lsb0, u8; 1; group_validators.len()],
+        }
     }
 
     pub fn dispute_block() {
