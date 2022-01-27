@@ -5,9 +5,10 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
+clap = { version = "3.0", features = ["derive"] }
+
 generate-bags = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-structopt = "0.3.25"
 
 westend-runtime = { path = "../../runtime/westend" }
 kusama-runtime = { path = "../../runtime/kusama" }
