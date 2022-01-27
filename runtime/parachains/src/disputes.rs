@@ -147,6 +147,31 @@ where
 
 use super::paras_inherent::IsSortedBy;
 
+/// Returns `true` if duplicate items were found, otherwise `false`.
+///
+/// Attention: Requires the input `iter` to be sorted, such that _equals_
+/// would be adjacent in respect to `check_equal`!
+fn check_for_duplicates_in_sorted_iter<
+	'a,
+	T: 'a,
+	I: 'a + IntoIterator<Item = &'a T>,
+	C: 'static + FnMut(&T, &T) -> bool,
+>(
+	iter: I,
+	mut check_equal: C,
+) -> bool {
+	let mut iter = iter.into_iter();
+	if let Some(mut previous) = iter.next() {
+		while let Some(current) = iter.next() {
+			if check_equal(previous, current) {
+				return true
+			}
+			previous = current;
+		}
+	}
+	return false
+}
+
 /// Hook into disputes handling.
 ///
 /// Allows decoupling parachains handling from disputes so that it can
@@ -164,19 +189,10 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		) {
 			return Err(())
 		}
-		let compare_statement_sets_window_same_dispute = |sub: &[DisputeStatementSet]| {
-			match (sub.get(0), sub.get(1)) {
-				// should not be possible:
-				(None, None) | (None, Some(_)) | (Some(_), None) => false,
-				(Some(set1), Some(set2)) =>
-					set1.session == set2.session && set1.candidate_hash == set2.candidate_hash,
-			}
-		};
-		if statement_sets
-			.as_slice()
-			.windows(2)
-			.any(compare_statement_sets_window_same_dispute)
-		{
+		// Sorted, so according to session and candidate hash, this will detect duplicates.
+		if check_for_duplicates_in_sorted_iter(statement_sets, |previous, current| {
+			current.session == previous.session && current.candidate_hash == previous.candidate_hash
+		}) {
 			return Err(())
 		}
 		Ok(())
@@ -1371,6 +1387,16 @@ mod tests {
 				);
 			}
 		}
+	}
+
+	#[test]
+	fn test_check_for_duplicates_in_sorted_iter() {
+		// We here use the implicit ascending sorting and builtin equality of integers
+		let v = vec![1, 2, 3, 5, 5, 8];
+		assert_eq!(true, check_for_duplicates_in_sorted_iter(&v, |a, b| a == b));
+
+		let v = vec![1, 2, 3, 4];
+		assert_eq!(false, check_for_duplicates_in_sorted_iter(&v, |a, b| a == b));
 	}
 
 	#[test]
