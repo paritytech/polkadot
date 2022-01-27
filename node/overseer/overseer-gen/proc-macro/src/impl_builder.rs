@@ -282,7 +282,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let initialized_builder = format_ident!("Initialized{}", builder);
 	// The direct generics as expected by the `Overseer<_,_,..>`, without states
 	let initialized_builder_generics = quote! {
-		S, #( #subsystem_generics, )* #( #baggage_generic_ty, )*
+		S, #( #baggage_generic_ty, )* #( #subsystem_generics, )*
 	};
 
 	let mut ts = quote! {
