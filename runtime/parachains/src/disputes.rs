@@ -130,7 +130,14 @@ where
 		(None, Some(_)) => Ordering::Greater,
 		(Some(_), None) => Ordering::Less,
 		// For local disputes, prioritize those that occur at an earlier height.
-		(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
+		(Some(a_height), Some(b_height)) => {
+			let height_ord = a_height.cmp(&b_height);
+			if height_ord == Ordering::Equal {
+				a.candidate_hash.cmp(&b.candidate_hash)
+			} else {
+				height_ord
+			}
+		},
 		// Prioritize earlier remote disputes using session as rough proxy.
 		(None, None) => {
 			let session_ord = a.session.cmp(&b.session);
@@ -163,7 +170,15 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		) {
 			return Err(())
 		}
-		if statement_sets.as_slice().windows(2).any(|sub| sub.get(0) == sub.get(1)) {
+        let compare_statement_sets_window_same_dispute = |sub: &[DisputeStatementSet]| {
+            match (sub.get(0), sub.get(1)) {
+                // should not be possible:
+                (None, None) | (None, Some(_)) | (Some(_), None) => false,
+                (Some(set1), Some(set2)) => 
+                    set1.session == set2.session && set1.candidate_hash == set2.candidate_hash
+            }
+        };
+		if statement_sets.as_slice().windows(2).any(compare_statement_sets_window_same_dispute) {
 			return Err(())
 		}
 		Ok(())
