@@ -48,4 +48,31 @@ into the overseer, without participating in the subsystem pattern.
 In the shown `main`, the overseer is created by means of a generated, compile time erroring
 builder pattern.
 
+The builder requires all subsystems, baggage fields (additional struct data) and spawner to be
+set via the according setter method before `build` method could even be called. Failure to do
+such an initialization will lead to a compile error. This is implemented by encoding each
+builder field in a set of so called `state generics`, meaning that each field can be either
+`Init<T>` or `Missing<T>`, so each setter translates a state from `Missing` to `Init` state
+for the specific struct field. Therefore, if you see a compile time error that blames about
+`Missing` where `Init` is expected it usually means that some subsystems or baggage fields were
+not set prior to the `build` call.
+
+To exclude subsystems from such a check, one can set `wip` attribute on some subsystem that
+is not ready to be included in the Overseer:
+
+```rust
+    #[overlord(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
+    pub struct Overseer {
+        #[subsystem(MsgA)]
+        sub_a: AwesomeSubSysA,
+
+        #[subsystem(MsgB), wip]
+        sub_b: AwesomeSubSysB, // This subsystem will not be required nor allowed to be set
+    }
+```
+
+Baggage fields can be initialized more than one time, however, it is not true for subsystems:
+subsystems must be initialized only once (another compile time check) or be _replaced_ by
+a special setter like method `replace_<subsystem>`.
+
 A task spawner and subsystem context are required to be defined with `SpawnNamed` and respectively `SubsystemContext` implemented.
