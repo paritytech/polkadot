@@ -39,11 +39,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let subsystem_generics = &info.subsystem_generic_types();
-	let subsystem_passthrough_generics = subsystem_name
-		.iter()
-		.enumerate()
-		.map(|(idx, _)| format_ident!("InitStateSubsystem{}", idx))
-		.collect::<Vec<_>>();
 
 	let consumes = &info.consumes_without_wip();
 	let channel_name = &info.channel_names_without_wip("");
@@ -57,10 +52,17 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	let baggage_name = &info.baggage_names();
 	let baggage_generic_ty = &info.baggage_generic_types();
-	let baggage_passthrough_generics = baggage_name
+
+	// State generics that are used to encode each field's status (Init/Missing)
+	let baggage_state_generics = baggage_name
 		.iter()
 		.enumerate()
 		.map(|(idx, _)| format_ident!("InitStateBaggage{}", idx))
+		.collect::<Vec<_>>();
+	let subsystem_state_generics = subsystem_name
+		.iter()
+		.enumerate()
+		.map(|(idx, _)| format_ident!("InitStateSubsystem{}", idx))
 		.collect::<Vec<_>>();
 
 	let error_ty = &info.extern_error_ty;
@@ -84,6 +86,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			S: #support_crate ::SpawnNamed + Send
 	};
 
+	// Field names and real types
 	let field_name = subsystem_name.iter().chain(baggage_name.iter()).collect::<Vec<_>>();
 	let field_type = subsystem_generics
 		.iter()
@@ -103,14 +106,14 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			let subsystem_consumes = &ssf.consumes;
 			// Remove state generic for the item to be replaced. It sufficient to know `field_type` for
 			// that since we always move from `Init<#field_type>` to `Init<NEW>`.
-			let impl_generics = recollect_without_idx(&subsystem_passthrough_generics[..], idx);
+			let impl_generics = recollect_without_idx(&subsystem_state_generics[..], idx);
 
 			let field_name_with = format_ident!("{}_with", field_name);
 			let field_name_replace = format_ident!("replace_{}", field_name);
 
 			// In a setter we replace `Uninit<T>` with `Init<T>` leaving all other
 			// types as they are, as such they will be free generics.
-			let mut current_state_generics = subsystem_passthrough_generics
+			let mut current_state_generics = subsystem_state_generics
 				.iter()
 				.map(|subsystem_state_generic_ty| parse_quote!(#subsystem_state_generic_ty))
 				.collect::<Vec<syn::GenericArgument>>();
@@ -129,14 +132,14 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 			// Create the field init `fn`
 			quote! {
-				impl <InitStateSpawner, #field_type, #( #impl_generics, )* #( #baggage_passthrough_generics, )*>
-				#builder <InitStateSpawner, #( #current_state_generics, )* #( #baggage_passthrough_generics, )*>
+				impl <InitStateSpawner, #field_type, #( #impl_generics, )* #( #baggage_state_generics, )*>
+				#builder <InitStateSpawner, #( #current_state_generics, )* #( #baggage_state_generics, )*>
 				where
 					#field_type : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>,
 				{
 					/// Specify the subsystem in the builder directly
 					pub fn #field_name (self, var: #field_type ) ->
-						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_generics, )*>
+						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_state_generics, )*>
 					{
 						#builder {
 							#field_name: Init::<#field_type>::Value(var),
@@ -151,7 +154,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					}
 					/// Specify the the initialization function for a subsystem
 					pub fn #field_name_with<'a, F>(self, subsystem_init_fn: F ) ->
-						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_generics, )*>
+						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_state_generics, )*>
 						where
 						F: 'static + FnOnce(#handle) ->
 							::std::result::Result<#field_type, #error_ty>,
@@ -172,15 +175,15 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					}
 				}
 
-				impl <InitStateSpawner, #field_type, #( #impl_generics, )* #( #baggage_passthrough_generics, )*>
-				#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_generics, )*>
+				impl <InitStateSpawner, #field_type, #( #impl_generics, )* #( #baggage_state_generics, )*>
+				#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_state_generics, )*>
 				where
 					#field_type : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>,
 				{
 					/// Replace a subsystem by another implementation for the
 					/// consumable message type.
 					pub fn #field_name_replace<NEW, F>(self, gen_replacement_fn: F)
-						-> #builder <InitStateSpawner, #( #post_replace_state_generics, )* #( #baggage_passthrough_generics, )*>
+						-> #builder <InitStateSpawner, #( #post_replace_state_generics, )* #( #baggage_state_generics, )*>
 					where
 						#field_type: 'static,
 						F: 'static + FnOnce(#field_type) -> NEW,
@@ -215,10 +218,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		// Baggage fields follow subsystems
 		let fname = &bag_field.field_name;
 		let field_type = &bag_field.field_ty;
-		let impl_generics = recollect_without_idx(&baggage_passthrough_generics[..], idx);
+		let impl_generics = recollect_without_idx(&baggage_state_generics[..], idx);
 		let to_keep_baggage_name = recollect_without_idx(&baggage_name[..], idx);
 
-		let mut pre_setter_generics = baggage_passthrough_generics
+		let mut pre_setter_generics = baggage_state_generics
 			.iter()
 			.map(|gen_ty| parse_quote!(#gen_ty))
 			.collect::<Vec<syn::GenericArgument>>();
@@ -235,12 +238,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		};
 
 		quote! {
-			impl <InitStateSpawner, #additional_baggage_generic #( #subsystem_passthrough_generics, )* #( #impl_generics, )* >
-			#builder <InitStateSpawner, #( #subsystem_passthrough_generics, )* #( #pre_setter_generics, )* >
+			impl <InitStateSpawner, #additional_baggage_generic #( #subsystem_state_generics, )* #( #impl_generics, )* >
+			#builder <InitStateSpawner, #( #subsystem_state_generics, )* #( #pre_setter_generics, )* >
 			{
 				/// Specify the baggage in the builder when it was not initialized before
 				pub fn #fname (self, var: #field_type ) ->
-					#builder <InitStateSpawner, #( #subsystem_passthrough_generics, )* #( #post_setter_generics, )* >
+					#builder <InitStateSpawner, #( #subsystem_state_generics, )* #( #post_setter_generics, )* >
 				{
 					#builder {
 						#fname: Init::<#field_type>::Value(var),
@@ -254,11 +257,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					}
 				}
 			}
-			impl <InitStateSpawner, #additional_baggage_generic #( #subsystem_passthrough_generics, )* #( #impl_generics, )* >
-			#builder <InitStateSpawner, #( #subsystem_passthrough_generics, )* #( #post_setter_generics, )* > {
+			impl <InitStateSpawner, #additional_baggage_generic #( #subsystem_state_generics, )* #( #impl_generics, )* >
+			#builder <InitStateSpawner, #( #subsystem_state_generics, )* #( #post_setter_generics, )* > {
 				/// Specify the baggage in the builder when it has been previously initialized
 				pub fn #fname (self, var: #field_type ) ->
-					#builder <InitStateSpawner, #( #subsystem_passthrough_generics, )* #( #post_setter_generics, )* >
+					#builder <InitStateSpawner, #( #subsystem_state_generics, )* #( #post_setter_generics, )* >
 				{
 					#builder {
 						#fname: Init::<#field_type>::Value(var),
@@ -374,12 +377,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	ts.extend(quote!{
 		/// Builder pattern to create compile time safe construction path.
-		pub struct #builder <InitStateSpawner, #( #subsystem_passthrough_generics, )* #( #baggage_passthrough_generics, )*> {
+		pub struct #builder <InitStateSpawner, #( #subsystem_state_generics, )* #( #baggage_state_generics, )*> {
 			#(
-				#subsystem_name: #subsystem_passthrough_generics,
+				#subsystem_name: #subsystem_state_generics,
 			)*
 			#(
-				#baggage_name: #baggage_passthrough_generics,
+				#baggage_name: #baggage_state_generics,
 			)*
 			spawner: InitStateSpawner,
 		}
@@ -408,14 +411,15 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		}
 	});
 
+	// Spawner setter
 	ts.extend(quote!{
-		impl<S, #( #subsystem_passthrough_generics, )* #( #baggage_passthrough_generics, )*>
-			#builder<Missing<S>, #( #subsystem_passthrough_generics, )* #( #baggage_passthrough_generics, )*>
+		impl<S, #( #subsystem_state_generics, )* #( #baggage_state_generics, )*>
+			#builder<Missing<S>, #( #subsystem_state_generics, )* #( #baggage_state_generics, )*>
 		where
 			#spawner_where_clause
 		{
 			/// The `spawner` to use for spawning tasks.
-			pub fn spawner(self, spawner: S) -> #builder<Init<S>, #( #subsystem_passthrough_generics, )* #( #baggage_passthrough_generics, )*>
+			pub fn spawner(self, spawner: S) -> #builder<Init<S>, #( #subsystem_state_generics, )* #( #baggage_state_generics, )*>
 			{
 				#builder {
 					#(
@@ -425,11 +429,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				}
 			}
 		}
-		/// Type used to represent a builder where all fields are initialized and the overseer could be constructed.
-		pub type #initialized_builder<#initialized_builder_generics> = #builder<Init<S>, #( Init<#field_type>, )*>;
 	});
 
 	ts.extend(quote! {
+		/// Type used to represent a builder where all fields are initialized and the overseer could be constructed.
+		pub type #initialized_builder<#initialized_builder_generics> = #builder<Init<S>, #( Init<#field_type>, )*>;
+
+		// A builder specialization where all fields are set
 		impl<#initialized_builder_generics> #initialized_builder<#initialized_builder_generics>
 		where
 			#spawner_where_clause,
