@@ -41,14 +41,15 @@ const ADD: u64 = 2;
 
 /// Calculates the head and state for the block with the given `number`.
 fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (HeadData, GraveyardState) {
-	let mut head =
-		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(0) };
 
 	let index = 0u64;
 	let graveyard = vec![0u64; graveyard_size * 2];
 	let tombstones = 1000;
 
 	let state = GraveyardState { index, graveyard };
+	
+	let mut head =
+		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
 
 	while head.number < number {
 		let block_data = BlockData { state: state.clone(), tombstones };
@@ -58,8 +59,8 @@ fn calculate_head_and_state_for_number(number: u64, graveyard_size: usize) -> (H
 		for i in 0..block_data.tombstones {
 			state.graveyard[(block_data.state.index + i) as usize] =
 				block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
-			state.index = block_data.state.index.wrapping_add(1);
 		}
+		state.index = block_data.state.index.wrapping_add(block_data.tombstones);
 	}
 
 	(head, state)
@@ -113,8 +114,8 @@ impl State {
 		for i in 0..block.tombstones {
 			new_state.graveyard[(block.state.index + i) as usize] =
 				block.state.graveyard[(block.state.index + i) as usize].wrapping_add(1);
-			new_state.index = block.state.index.wrapping_add(1);
 		}
+		new_state.index = block.state.index.wrapping_add(block.tombstones);
 
 		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
