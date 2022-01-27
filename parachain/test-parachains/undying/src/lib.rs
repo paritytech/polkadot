@@ -89,7 +89,7 @@ pub struct BlockData {
 	pub tombstones: u64,
 }
 
-pub fn hash_state(state: u64) -> [u8; 32] {
+pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
 	keccak256(state.encode().as_slice())
 }
 
@@ -114,8 +114,8 @@ pub fn execute(
 	for i in 0..block_data.tombstones {
 		new_state.graveyard[(block_data.state.index + i) as usize] =
 			block_data.state.graveyard[(block_data.state.index + i) as usize].wrapping_add(1);
-		new_state.index = block_data.state.index.wrapping_add(1);
 	}
+	new_state.index = block_data.state.index.wrapping_add(block_data.tombstones);
 
 	Ok(HeadData {
 		number: parent_head.number + 1,
