@@ -106,14 +106,13 @@ impl Requester {
 	{
 		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
-		// Order important! We need to handle activated, prior to deactivated, otherwise we might
-		// cancel still needed jobs.
-		if let Some(activated) = activated {
-			// Stale leaves happen after a reversion - we don't want to re-run availability there.
-			if let LeafStatus::Fresh = activated.status {
-				self.start_requesting_chunks(ctx, runtime, activated).await?;
-			}
+		// Stale leaves happen after a reversion - we don't want to re-run availability there.
+		if let Some(leaf) = activated.filter(|leaf| leaf.status == LeafStatus::Fresh) {
+			// Order important! We need to handle activated, prior to deactivated, otherwise we might
+			// cancel still needed jobs.
+			self.start_requesting_chunks(ctx, runtime, leaf).await?;
 		}
+
 		self.stop_requesting_chunks(deactivated.into_iter());
 		Ok(())
 	}
@@ -212,15 +211,24 @@ impl Requester {
 						.with_session_info(
 							ctx,
 							runtime,
-							// We use leaf here, as relay_parent must be in the same session as the
-							// leaf. (Cores are dropped at session boundaries.) At the same time,
-							// only leaves are guaranteed to be fetchable by the state trie.
+							// We use leaf here, the relay_parent must be in the same session as the
+							// leaf. This is guaranteed by runtime which ensures that cores are cleared
+							// at session boundaries. At the same time, only leaves are guaranteed to
+							// be fetchable by the state trie.
 							leaf,
 							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)
-						.await?;
+						.await
+						.map_err(|err| {
+							tracing::warn!(
+								target: LOG_TARGET,
+								error = ?err,
+								"Failed to spawn a fetch task"
+							);
+							err
+						});
 
-					if let Some(task_cfg) = task_cfg {
+					if let Ok(Some(task_cfg)) = task_cfg {
 						e.insert(FetchTask::start(task_cfg, ctx).await?);
 					}
 					// Not a validator, nothing to do.
@@ -274,7 +282,7 @@ where
 
 	// `head` is the child of the first block in `ancestors`, request its session index.
 	let head_session_index = match ancestors_iter.next() {
-		Some(parent) => runtime.get_session_index(ctx.sender(), *parent).await?,
+		Some(parent) => runtime.get_session_index_for_child(ctx.sender(), *parent).await?,
 		None => {
 			// No first element, i.e. empty.
 			return Ok(ancestors)
@@ -285,7 +293,7 @@ where
 	// The first parent is skipped.
 	for parent in ancestors_iter {
 		// Parent is the i-th ancestor, request session index for its child -- (i-1)th element.
-		let session_index = runtime.get_session_index(ctx.sender(), *parent).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), *parent).await?;
 		if session_index == head_session_index {
 			session_ancestry_len += 1;
 		} else {
