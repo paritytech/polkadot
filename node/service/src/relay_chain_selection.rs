@@ -54,7 +54,7 @@ use std::sync::Arc;
 ///
 /// This is a safety net that should be removed at some point in the future.
 // Until it's not, make sure to also update `MAX_HEADS_LOOK_BACK` in `approval-voting`
-// when changing its value.
+// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator` when changing its value.
 const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 500;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
@@ -522,15 +522,32 @@ where
 					std::any::type_name::<Self>(),
 				)
 				.await;
-			let (subchain_number, subchain_head) = rx
-				.await
-				.map_err(Error::DetermineUndisputedChainCanceled)
-				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
-			// The the total lag accounting for disputes.
-			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
-			self.metrics.note_disputes_finality_lag(lag_disputes);
-			(lag_disputes, subchain_head)
+			// Try to fetch response from `dispute-coordinator`. If an error occurs we just log it
+			// and return `target_hash` as maximal vote. It is safer to contain this error here
+			// and not push it up the stack to cause additional issues in GRANDPA/BABE.
+			let (lag, subchain_head) =
+				match rx.await.map_err(Error::DetermineUndisputedChainCanceled) {
+					// If request succeded we will receive (block number, block hash).
+					Ok((subchain_number, subchain_head)) => {
+						// The the total lag accounting for disputes.
+						let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+						self.metrics.note_disputes_finality_lag(lag_disputes);
+						(lag_disputes, subchain_head)
+					},
+					Err(e) => {
+						tracing::error!(
+							target: LOG_TARGET,
+							error = ?e,
+							"Call to `DetermineUndisputedChain` failed",
+						);
+						// We need to return a sane finality target. But, we are unable to ensure we are not
+						// finalizing something that is being disputed or has been concluded as invalid. We will be
+						// conservative here and not vote for finality above the ancestor passed in.
+						return Ok(target_hash)
+					},
+				};
+			(lag, subchain_head)
 		} else {
 			(lag, subchain_head)
 		};
