@@ -3509,67 +3509,44 @@ mod tests {
 			let sig_a = v0.sign(&payload);
 			let sig_a_against = v1.sign(&payload_against);
 
-			let sig_b = v0.sign(&payload);
-			let sig_b_against = v1.sign(&payload_against);
+			let statements = vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					sig_a.clone(),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					sig_a_against.clone(),
+				),
+			];
 
-			let mut statements = vec![
+			let mut sets = vec![
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_a.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(1),
-							sig_a_against.clone(),
-						),
-					],
+					statements: statements.clone(),
 				},
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_b.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(1),
-							sig_b_against.clone(),
-						),
-					],
+					statements: statements.clone(),
 				},
 			];
 
 			// `Err(())` indicates presence of duplicates
 			assert!(<Pallet::<Test> as DisputesHandler<
 				<Test as frame_system::Config>::BlockNumber,
-			>>::deduplicate_and_sort_dispute_data(&mut statements)
+			>>::deduplicate_and_sort_dispute_data(&mut sets)
 			.is_err());
 
 			assert_eq!(
-				statements,
+				sets,
 				vec![DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_a.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(1),
-							sig_a_against.clone(),
-						),
-					],
+					statements,
 				}]
 			);
 		})
