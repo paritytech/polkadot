@@ -34,7 +34,10 @@ mod tests;
 
 #[cfg(feature = "full-node")]
 use {
-	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
+	beefy_gadget::notification::{
+		BeefyBestBlockSender, BeefyJustificationStream, BeefySignedCommitmentSender,
+	},
+	beefy_primitives::crypto::Signature as BeefySignature,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -398,6 +401,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 		ExecutorDispatch,
 	>,
 	select_chain: ChainSelection,
+	enable_beefy: bool,
 ) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, ExecutorDispatch>,
@@ -415,7 +419,11 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
+				(
+					BeefySignedCommitmentSender<Block>,
+					BeefyBestBlockSender<Block>,
+					Option<BeefyJustificationStream<NumberFor<Block>, BeefySignature>>,
+				),
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -456,11 +464,23 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let justification_import = grandpa_block_import.clone();
+	let (wrapped_block_import, beefy_justification_stream) = if enable_beefy &&
+		(config.chain_spec.is_rococo() ||
+			config.chain_spec.is_wococo() ||
+			config.chain_spec.is_versi())
+	{
+		let (beefy_block_import, justification_stream) =
+			beefy_gadget::block_import(grandpa_block_import, client.clone());
+		(beefy_block_import, Some(justification_stream))
+	} else {
+		(grandpa_block_import, None)
+	};
+
+	let justification_import = wrapped_block_import.clone();
 
 	let babe_config = babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
-		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+		babe::block_import(babe_config.clone(), wrapped_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
@@ -490,7 +510,7 @@ where
 		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
 	let (beefy_best_block_link, beefy_best_block_stream) =
 		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
-	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
+	let beefy_links = (beefy_commitment_link, beefy_best_block_link, beefy_justification_stream);
 
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -761,6 +781,7 @@ where
 		&mut config,
 		basics,
 		select_chain,
+		enable_beefy,
 	)?;
 
 	let shared_voter_state = rpc_setup;
@@ -1101,6 +1122,7 @@ where
 			network: network.clone(),
 			signed_commitment_sender: beefy_links.0,
 			beefy_best_block_sender: beefy_links.1,
+			justification_stream: beefy_links.2,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
 			protocol_name: beefy_protocol_name,
@@ -1203,6 +1225,7 @@ macro_rules! chain_ops {
 				&mut config,
 				basics,
 				chain_selection,
+				false,
 			)?;
 		Ok((Arc::new(Client::$variant(client)), backend, import_queue, task_manager))
 	}};

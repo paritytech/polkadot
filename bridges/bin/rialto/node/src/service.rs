@@ -205,11 +205,15 @@ where
 			Vec::new(),
 			telemetry.as_ref().map(|x| x.handle()),
 		)?;
-	let justification_import = grandpa_block_import.clone();
+	
+
+	let (beefy_block_import, justification_stream) =
+			beefy_gadget::block_import(grandpa_block_import, client.clone());
+	let justification_import = beefy_block_import.clone();
 
 	let babe_config = sc_consensus_babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
-		sc_consensus_babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+		sc_consensus_babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = sc_consensus_babe::import_queue(
@@ -692,6 +696,7 @@ where
 		key_store: keystore_opt.clone(),
 		network: network.clone(),
 		signed_commitment_sender,
+		justification_stream: None,
 		min_block_delta: 2,
 		prometheus_registry: prometheus_registry.clone(),
 	};

@@ -375,6 +375,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		key_store: keystore.clone(),
 		network: network.clone(),
 		signed_commitment_sender,
+		justification_stream: None,
 		min_block_delta: 4,
 		prometheus_registry: prometheus_registry.clone(),
 	};
