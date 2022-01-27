@@ -531,6 +531,12 @@ impl<T: Config> Pallet<T> {
 						backed_candidate,
 					)? {
 						Err(FailedToCreatePVD) => {
+							log::debug!(
+								target: LOG_TARGET,
+								"Failed to create PVD for candidate {} on relay parent {:?}",
+								candidate_idx,
+								parent_hash,
+							);
 							// We don't want to error out here because it will
 							// brick the relay-chain. So we return early without
 							// doing anything.
@@ -938,6 +944,7 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 /// An error indicating that creating Persisted Validation Data failed
 /// while checking a candidate's validity.
 pub(crate) struct FailedToCreatePVD;
+
 impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
