@@ -467,7 +467,6 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
-		full_check: FullCheck,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -523,13 +522,11 @@ impl<T: Config> Pallet<T> {
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
 				candidates.iter().enumerate()
 			{
-				if let FullCheck::Yes = full_check {
-					check_ctx.verify_backed_candidate(
-						parent_hash,
-						candidate_idx,
-						backed_candidate,
-					)?;
-				}
+				check_ctx.verify_backed_candidate(
+					parent_hash,
+					candidate_idx,
+					backed_candidate,
+				)?;
 
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
