@@ -22,7 +22,8 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{
 	Collation, CollationResult, CollationSecondedSignal, CollatorFn, PoV, Statement,
 };
-use polkadot_primitives::v1::{CollatorId, CollatorPair};
+use polkadot_primitives::v1::{CollatorId, CollatorPair, Hash};
+
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
@@ -81,7 +82,7 @@ impl State {
 			.expect("Parent head number is present in hashmap");
 
 		// Start with prev state and transaction to execute (place 1000 tombstones).
-		let mut block = BlockData {
+		let block = BlockData {
 			state: self
 				.head_to_state
 				.get(head_data)
@@ -179,6 +180,7 @@ impl Collator {
 				head_data,
 			);
 
+			// The pov is the actually the initial state and the transactions.
 			let pov = PoV { block_data: block_data.encode().into() };
 
 			let collation = Collation {
@@ -296,7 +298,7 @@ mod tests {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
 				relay_parent_number: 1,
-				relay_parent_storage_root: Default::default(),
+				relay_parent_storage_root: Hash::zero(),
 			}
 			.encode(),
 		)
