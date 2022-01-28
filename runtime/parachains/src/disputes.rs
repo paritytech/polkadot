@@ -130,7 +130,8 @@ where
 		(None, Some(_)) => Ordering::Greater,
 		(Some(_), None) => Ordering::Less,
 		// For local disputes, prioritize those that occur at an earlier height.
-		(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
+		(Some(a_height), Some(b_height)) =>
+			a_height.cmp(&b_height).then_with(|| a.candidate_hash.cmp(&b.candidate_hash)),
 		// Prioritize earlier remote disputes using session as rough proxy.
 		(None, None) => {
 			let session_ord = a.session.cmp(&b.session);
@@ -163,7 +164,19 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 		) {
 			return Err(())
 		}
-		if statement_sets.as_slice().windows(2).any(|sub| sub.get(0) == sub.get(1)) {
+		let compare_statement_sets_window_same_dispute = |sub: &[DisputeStatementSet]| {
+			match (sub.get(0), sub.get(1)) {
+				// should not be possible:
+				(None, None) | (None, Some(_)) | (Some(_), None) => false,
+				(Some(set1), Some(set2)) =>
+					set1.session == set2.session && set1.candidate_hash == set2.candidate_hash,
+			}
+		};
+		if statement_sets
+			.as_slice()
+			.windows(2)
+			.any(compare_statement_sets_window_same_dispute)
+		{
 			return Err(())
 		}
 		Ok(())
@@ -3490,67 +3503,44 @@ mod tests {
 			let sig_a = v0.sign(&payload);
 			let sig_a_against = v1.sign(&payload_against);
 
-			let sig_b = v0.sign(&payload);
-			let sig_b_against = v1.sign(&payload_against);
+			let statements = vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					sig_a.clone(),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					sig_a_against.clone(),
+				),
+			];
 
-			let mut statements = vec![
+			let mut sets = vec![
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_a.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(1),
-							sig_a_against.clone(),
-						),
-					],
+					statements: statements.clone(),
 				},
 				DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_b.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(1),
-							sig_b_against.clone(),
-						),
-					],
+					statements: statements.clone(),
 				},
 			];
 
 			// `Err(())` indicates presence of duplicates
 			assert!(<Pallet::<Test> as DisputesHandler<
 				<Test as frame_system::Config>::BlockNumber,
-			>>::deduplicate_and_sort_dispute_data(&mut statements)
+			>>::deduplicate_and_sort_dispute_data(&mut sets)
 			.is_err());
 
 			assert_eq!(
-				statements,
+				sets,
 				vec![DisputeStatementSet {
 					candidate_hash: candidate_hash_a.clone(),
 					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_a.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(1),
-							sig_a_against.clone(),
-						),
-					],
+					statements,
 				}]
 			);
 		})
