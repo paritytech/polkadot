@@ -710,6 +710,7 @@ impl<T: Config> Pallet<T> {
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
 			let relay_parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
 
 			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
@@ -725,7 +726,7 @@ impl<T: Config> Pallet<T> {
 							// That way we avoid possible duplicate checks while assuring all
 							// backed candidates fine to pass on.
 							check_ctx
-								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
+								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
 								.is_err()
 				},
 				&scheduled[..],
