@@ -150,10 +150,6 @@ mod universal_exports {
 
 	// TODO: `SendXcm` should include a price/weight calculator for calling prior to `send_xcm`.
 
-	// TODO: Payment Barrier should ignore prefix of `UniversalOrigin`, `DescendOrigin`.
-	// TODO: Create `BridgedOrigin` Barrier which understands prefix of `UniversalOrigin`, `DescendOrigin`.
-	// TODO: Check and add/alter other barriers.
-
 	pub trait ExporterFor {
 		/// Return the locally-routable bridge (if any) capable of forwarding `message` to the
 		/// `remote_location` on the remote `network`, together with the payment which is required.
