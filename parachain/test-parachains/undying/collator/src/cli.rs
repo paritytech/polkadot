@@ -37,6 +37,10 @@ pub struct ExportGenesisStateCommand {
 	/// The target raw PoV size in bytes. Minimum value is 64.
 	#[structopt(long, default_value = "1024")]
 	pub pov_size: usize,
+
+	/// Id of the parachain this collator collates for.
+	#[structopt(long)]
+	pub parachain_id: u32,
 }
 
 /// Command for exporting the genesis wasm file.
@@ -52,7 +56,7 @@ pub struct RunCmd {
 
 	/// Id of the parachain this collator collates for.
 	#[structopt(long)]
-	pub parachain_id: Option<u32>,
+	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
 	#[structopt(long, default_value = "1024")]
