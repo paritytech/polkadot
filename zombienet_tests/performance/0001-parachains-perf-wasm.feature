@@ -30,3 +30,6 @@ alice: reports pvf_preparation_time_bucket{le="10"} is 1
 #charlie: reports pvf_preparation_time_bucket{le="10"} is 1
 #dave: reports pvf_preparation_time_bucket{le="1"} is 1
 #dave: reports pvf_preparation_time_bucket{le="10"} is 1
+
+
+sleep 10000 seconds

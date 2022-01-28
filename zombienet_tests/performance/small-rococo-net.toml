@@ -1,8 +1,6 @@
 [settings]
 timeout = 1000
 
-# TODO: Add ability to set relaychain validator count here and not write an entry for each of them.
-# This is mandatory for scale tests when we also need to generate key pairs.
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
@@ -17,27 +15,75 @@ default_command = "../polkadot/target/release/polkadot"
   name = "bob"
   extra_args = [ "--bob", "-lparachain=debug,runtime=debug"]
   
-  # [[relaychain.nodes]]
-  # name = "charlie"
-  # extra_args = [ "--charlie", "-lparachain=debug" ]
+  [[relaychain.nodes]]
+  name = "charlie"
+  extra_args = [ "--charlie", "-lparachain=debug" ]
 
-  # [[relaychain.nodes]]
-  # name = "dave"
-  # extra_args = [ "--dave", "-lparachain=debug"]
+  [[relaychain.nodes]]
+  name = "dave"
+  extra_args = [ "--dave", "-lparachain=debug"]
+
+  [[relaychain.nodes]]
+  name = "ferdie"
+  extra_args = [ "--ferdie", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "eve"
+  extra_args = [ "--eve", "-lparachain=debug"]
 
 # TODO: Add bulk parachain registration option. Register 20 parachains with a specified collator, or even groups
 # of parachains each with different collator settings. We will want to change `adder-collator` to control PoV size 
 # and PVF preparation time, by scaling it to output a larger merkle tree and mutate it across many transactions - 
 # bigger PoV size as well as larger code size.
 [[parachains]]
-id = 100
-addToGenesis = false
-genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=200000"
+id = 2000
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2000 --pov-size=200000"
 
   [parachains.collator]
-  name = "collator01"
+  name = "collator02"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug", "--pov-size=200000"]
+  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2000"]
+
+[[parachains]]
+id = 2001
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2001 --pov-size=200000"
+
+  [parachains.collator]
+  name = "collator02"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2001"]
+
+[[parachains]]
+id = 2002
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2002 --pov-size=200000"
+
+  [parachains.collator]
+  name = "collator02"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2002"]
+
+[[parachains]]
+id = 2003
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2003 --pov-size=200000"
+
+  [parachains.collator]
+  name = "collator02"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2003"]
+
+[[parachains]]
+id = 2004
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2004 --pov-size=200000"
+
+  [parachains.collator]
+  name = "collator02"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2004"]
 
 # TODO: This should not be in here, maybe have a separate file that is included by default ?
 [types.Header]
