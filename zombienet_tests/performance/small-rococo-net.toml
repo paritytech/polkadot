@@ -5,17 +5,17 @@ timeout = 1000
 # This is mandatory for scale tests when we also need to generate key pairs.
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
-chain = "versi-local"
-chain_spec_command = "../polkadot/target/release/polkadot build-spec --chain versi-local --disable-default-bootnode"
+chain = "rococo-local"
+chain_spec_command = "../polkadot/target/release/polkadot build-spec --chain rococo-local --disable-default-bootnode"
 default_command = "../polkadot/target/release/polkadot"
 
   [[relaychain.nodes]]
   name = "alice"
-  extra_args = [ "--alice", "-lparachain=debug" ]
+  extra_args = [ "--alice", "-lparachain=debug,runtime=debug" ]
 
   [[relaychain.nodes]]
   name = "bob"
-  extra_args = [ "--bob", "-lparachain=debug"]
+  extra_args = [ "--bob", "-lparachain=debug,runtime=debug"]
   
   # [[relaychain.nodes]]
   # name = "charlie"
@@ -32,11 +32,12 @@ default_command = "../polkadot/target/release/polkadot"
 [[parachains]]
 id = 100
 addToGenesis = false
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=200000"
 
   [parachains.collator]
   name = "collator01"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug"]
+  args = ["-lparachain=debug", "--pov-size=200000"]
 
 # TODO: This should not be in here, maybe have a separate file that is included by default ?
 [types.Header]

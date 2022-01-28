@@ -17,7 +17,7 @@ collator01-1: reports peers count is at least 1 within 150 seconds
 
 # Ensure parachain has made progress.
 alice: parachain 100 is registered within 120 seconds
-alice: parachain 100 block height is at least 1 within 150 seconds
+alice: parachain 100 block height is at least 10 within 350 seconds
 
 # Buckets are cummulative, higher level buckets also count all lower ones, so we
 # need to inspect two buckets. 
