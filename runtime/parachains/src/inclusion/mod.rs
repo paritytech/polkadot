@@ -693,14 +693,9 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
+		relay_parent_number: T::BlockNumber,
 		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {
-		// This function is meant to be called from the runtime APIs against the relay-parent, hence
-		// `relay_parent_number` is equal to `now`.
-		// TODO [now]: unwind this very deep assumption which is now wrong. probably
-		// by changing runtime API to choose a relay-parent.
-		let now = <frame_system::Pallet<T>>::block_number();
-		let relay_parent_number = now;
 		let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
 		let check_ctx = CandidateCheckContext::<T>::new(prev_context);
 
