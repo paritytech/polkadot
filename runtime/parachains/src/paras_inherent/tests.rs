@@ -416,12 +416,16 @@ mod enter {
 			let dispute_statements = BTreeMap::new();
 			let mut backed_and_concluding = BTreeMap::new();
 			// 2 backed candidates shall be scheduled
+
+			// seed and num_votes. seed is used to create block hash, num_votes seems to be
+			// the amount of backers
 			backed_and_concluding.insert(0, 2);
 			backed_and_concluding.insert(1, 2);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
-				dispute_sessions: vec![2], // 3 cores with disputes
+				// This value is used as a "seed" to create candidate hash
+				dispute_sessions: vec![1], // 3 cores with disputes
 				backed_and_concluding,
 				num_validators_per_core: 4,
 				code_upgrade: None,
@@ -464,17 +468,17 @@ mod enter {
 			let on_chain_votes = Pallet::<Test>::on_chain_votes().unwrap();
 			println!("current block: {}", PalletRunner::<Test>::current_block_number());
 
-			PalletRunner::<Test>::run_to_next_block(false);
+			// PalletRunner::<Test>::run_to_next_block(false);
 			// Running to the next block processes inherent data made by enter. To
 			// actually revert the chain, enter needs to be called again, since it
 			// contains the code that actually deposits the revert log and event.
 			// Create the inherent data for this block
 
 			// let dispute_statements = BTreeMap::new();
-			let mut backed_and_concluding = BTreeMap::new();
-			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 2);
-			backed_and_concluding.insert(1, 2);
+			// let mut backed_and_concluding = BTreeMap::new();
+			// // 2 backed candidates shall be scheduled
+			// backed_and_concluding.insert(0, 2);
+			// backed_and_concluding.insert(1, 2);
 
 			// let inherent_data_2 = make_inherent_data(TestConfig {
 			// 	dispute_statements,
@@ -484,19 +488,19 @@ mod enter {
 			// 	code_upgrade: None,
 			// });
 
-			let some_other_data = ParachainsInherentData {
-				bitfields: Vec::new(),
-				backed_candidates: Vec::new(),
-				disputes: Vec::new(),
-				parent_header: expected_para_inherent_data.parent_header,
-			};
+			// let some_other_data = ParachainsInherentData {
+			// 	bitfields: Vec::new(),
+			// 	backed_candidates: Vec::new(),
+			// 	disputes: Vec::new(),
+			// 	parent_header: expected_para_inherent_data.parent_header,
+			// };
 
-			assert_ok!(Pallet::<Test>::enter(
-				frame_system::RawOrigin::None.into(),
-				some_other_data,
-			));
+			// assert_ok!(Pallet::<Test>::enter(
+			// 	frame_system::RawOrigin::None.into(),
+			// 	some_other_data,
+			// ));
 
-			let events = PalletRunner::<Test>::last_event();
+			// let events = PalletRunner::<Test>::last_event();
 
 			// We created 1 dispute at the beginning, it should be visible here
 			assert_eq!(on_chain_votes.disputes.len(), 1);

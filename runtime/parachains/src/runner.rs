@@ -19,6 +19,7 @@ use sp_runtime::{
     RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+use primitives::v0::ValidatorSignature;
 
 /// Create a 32 byte slice based on the given number.
 fn byte32_slice_from(n: u32) -> [u8; 32] {
@@ -143,13 +144,18 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
         }
     }
 
-    pub fn inherent_data_for_current_block() {
-        // -> ParachainsInherentData
-    }
-
-    pub fn add_backed_candidate() {
-
-    }
+    // pub fn inherent_data_for_current_block(
+    //     bitfields: Vec<UncheckedSigned<AvailabilityBitfield>>,
+    //     backed_candidates: Vec<BackedCandidate<HDR::Hash>>,
+    //     disputes: Vec<DisputeStatementSet>,
+    // ) -> ParachainsInherentData {
+    //     ParachainsInherentData {
+    //         bitfields,
+    //         backed_candidates,
+    //         disputes,
+    //         parent_header: BenchBuilder::<C>::header(Self::current_block_number()),
+    //     }
+    // }
 
     /// Number of the relay parent block.
     fn relay_parent_number() -> u32 {
@@ -247,8 +253,30 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
         }
     }
 
-    pub fn dispute_block() {
+    /// Creates and signs disputes statements for the given candidate hash
+    pub fn create_dispute_statements(candidate_hash: CandidateHash, validators_for: u32, validators_against: u32, dispute_session: u32) -> Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)> {
+        let statements_for = (0..validators_for)
+            .map(|validator_index| {
+                Self::sign_dispute_statement(validator_index, candidate_hash, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit), dispute_session)
+            });
 
+        let statements_against = (validators_for..validators_for+validators_against)
+            .map(|validator_index| {
+                Self::sign_dispute_statement(validator_index, candidate_hash, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit), dispute_session)
+            });
+
+        statements_for.chain(statements_against).collect()
+    }
+
+    /// Signs the validator dispute statement for the validator_index in the active validators
+    /// set for the current session
+    fn sign_dispute_statement(validator_index: u32, candidate_hash: CandidateHash, dispute_statement: DisputeStatement, dispute_session: u32) -> (DisputeStatement, ValidatorIndex, ValidatorSignature) {
+        let validators = Self::active_validators_for_session(Self::current_session_index());
+        let validator_public = &validators.get(validator_index as usize).unwrap();
+        let data = dispute_statement.payload_data(candidate_hash.clone(), dispute_session);
+        let statement_sig = validator_public.sign(&data).unwrap();
+
+        (dispute_statement, ValidatorIndex(validator_index), statement_sig)
     }
 
     fn signing_context() -> SigningContext<C::Hash> {

@@ -22,14 +22,7 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v1::{
-	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
-	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
-	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
-};
+use primitives::v1::{collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation, supermajority_threshold};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
 	generic::Digest,
@@ -418,11 +411,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		(start..last)
 			.map(|seed| {
 				let dispute_session_idx = (seed - start) as usize;
-				let session = dispute_sessions
+				let dispute_session = dispute_sessions
 					.get(dispute_session_idx)
 					.cloned()
 					.unwrap_or(self.target_session);
 
+				println!("{}", seed);
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
 
@@ -440,31 +434,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				let statements_len =
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
 				// For every statement we generate dispute statement set
-				let statements = (0..statements_len)
-					.map(|validator_index| {
-						let validator_public = &validators.get(validator_index as usize).unwrap();
+				// TODO: investigate if changing 0 % 4 to supermajority_threshold affects anything
+				let validators_for = supermajority_threshold(statements_len as usize) as u32;
+				let validators_against = statements_len - validators_for;
+				let statements = PalletRunner::<T>::create_dispute_statements(candidate_hash, validators_for, validators_against, dispute_session);
 
-						// TODO: modify that we don't have supermajority to be 1 for and 1 against.
-						// TODO: calling entry. if the dispute is concluded as valid, that is the
-						// TODO: result I'm looking for.
-						// We need dispute statements on each side. And we don't want a revert log
-						// so we make sure that we have a super majority with valid statements.
-						let dispute_statement = if validator_index % 4 == 0 {
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
-						} else {
-							// Note that in the future we could use some availability votes as an
-							// implicit valid kind.
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
-							// DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
-						};
-						let data = dispute_statement.payload_data(candidate_hash.clone(), session);
-						let statement_sig = validator_public.sign(&data).unwrap();
-
-						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
-					})
-					.collect();
-
-				DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
+				DisputeStatementSet { candidate_hash: candidate_hash.clone(), session: dispute_session, statements }
 			})
 			.collect()
 	}
