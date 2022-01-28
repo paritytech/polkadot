@@ -80,8 +80,7 @@ fn main() -> Result<()> {
 						let validation_code_hex =
 							format!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
-						let para_id =
-							cli.run.parachain_id.map(ParaId::from).unwrap_or(DEFAULT_PARA_ID);
+						let para_id = cli.run.parachain_id.map(ParaId::from);
 
 						log::info!("Running `Undying` collator for parachain id: {}", para_id);
 						log::info!("Genesis state: {}", genesis_head_hex);

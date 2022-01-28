@@ -93,9 +93,6 @@ impl State {
 		let (new_head, new_state) =
 			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
 
-		// Update with the resulting state.
-		// block.state = new_state.clone();
-
 		let new_head_arc = Arc::new(new_head.clone());
 
 		self.head_to_state.insert(new_head_arc.clone(), new_state);

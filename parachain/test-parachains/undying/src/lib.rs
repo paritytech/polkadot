@@ -78,12 +78,12 @@ pub struct GraveyardState {
 	/// The grave index of the last tombstone.
 	pub index: u64,
 	/// We use a matrix where each element represents a grave.
-	/// The unsigned integer tracks the number of tombstones errected on 
+	/// The unsigned integer tracks the number of tombstones errected on
 	/// each trave.
 	pub graveyard: Vec<u8>,
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
 	// defined in blocks. The number of zombies produced scales with the tombstones.
-	// This would allow us to have a configurable and reproducible PVF execution time. 
+	// This would allow us to have a configurable and reproducible PVF execution time.
 	// However, PVF preparation time will likely rely on prebuild wasm binaries.
 }
 
@@ -106,11 +106,11 @@ pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 	for _ in 0..block_data.tombstones {
 		block_data.state.graveyard[block_data.state.index as usize] =
 			block_data.state.graveyard[block_data.state.index as usize].wrapping_add(1);
-		
-		block_data.state.index = ((block_data.state.index.saturating_add(1))
-			as usize % graveyard_size) as u64;
+
+		block_data.state.index =
+			((block_data.state.index.saturating_add(1)) as usize % graveyard_size) as u64;
 	}
-	
+
 	block_data.state
 }
 
