@@ -44,20 +44,24 @@ struct State {
 	number_to_head: HashMap<u64, Arc<HeadData>>,
 	/// Block number of the best block.
 	best_block: u64,
+	/// PVF complexity.
+	pvf_complexity: u32,
 }
 
 impl State {
 	/// Init the genesis state.
-	fn genesis(graveyard_size: usize) -> Self {
+	fn genesis(graveyard_size: usize, pvf_complexity: u32) -> Self {
 		let index = 0u64;
 		let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
+		let zombies = 0;
+		let seal = [0u8; 32];
 
 		// Ensure a larger compressed PoV.
 		graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
 			*grave = i as u8;
 		});
 
-		let state = GraveyardState { index, graveyard };
+		let state = GraveyardState { index, graveyard, zombies, seal };
 
 		let head_data =
 			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
@@ -67,6 +71,7 @@ impl State {
 			head_to_state: vec![(head_data.clone(), state.clone())].into_iter().collect(),
 			number_to_head: vec![(0, head_data)].into_iter().collect(),
 			best_block: 0,
+			pvf_complexity,
 		}
 	}
 
@@ -89,6 +94,7 @@ impl State {
 				.cloned()
 				.expect("Parent head is present in hashmap"),
 			tombstones: 1000,
+			iterations: self.pvf_complexity,
 		};
 
 		let (new_head, new_state) =
@@ -113,7 +119,7 @@ pub struct Collator {
 impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
-	pub fn new(pov_size: usize) -> Self {
+	pub fn new(pov_size: usize, pvf_complexity: u32) -> Self {
 		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize - 20;
 
 		log::info!(
@@ -124,7 +130,7 @@ impl Collator {
 		);
 
 		Self {
-			state: Arc::new(Mutex::new(State::genesis(graveyard_size))),
+			state: Arc::new(Mutex::new(State::genesis(graveyard_size, pvf_complexity))),
 			key: CollatorPair::generate().0,
 			seconded_collations: Arc::new(AtomicU32::new(0)),
 		}

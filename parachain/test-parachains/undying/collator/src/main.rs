@@ -32,13 +32,17 @@ fn main() -> Result<()> {
 
 	match cli.subcommand {
 		Some(cli::Subcommand::ExportGenesisState(params)) => {
-			let collator = Collator::new(params.pov_size);
+			// `pov_size` and `pvf_complexity` need to match the ones that we start the collator
+			// with.
+			let collator = Collator::new(params.pov_size, params.pvf_complexity);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
 		},
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
-			let collator = Collator::new(1000);
+			// We pass some dummy values for `pov_size` and `pvf_complexity` as these don't
+			// matter for `wasm` export.
+			let collator = Collator::new(1000, 1);
 			println!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
 			Ok(())
@@ -56,7 +60,7 @@ fn main() -> Result<()> {
 				match role {
 					Role::Light => Err("Light client not supported".into()),
 					_ => {
-						let collator = Collator::new(cli.run.pov_size);
+						let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
 
 						let full_node = polkadot_service::build_full(
 							config,

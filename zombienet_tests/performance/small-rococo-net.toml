@@ -38,52 +38,62 @@ default_command = "../polkadot/target/release/polkadot"
 [[parachains]]
 id = 2000
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2000 --pov-size=200000"
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2000 --pov-size=20000 --pvf-complexity=2"
 
   [parachains.collator]
-  name = "collator02"
+  name = "collator01"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2000"]
+  args = ["-lparachain=debug", "--pov-size=20000", "--pvf-complexity=2", "--parachain-id=2000"]
 
 [[parachains]]
 id = 2001
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2001 --pov-size=200000"
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2001 --pov-size=20000 --pvf-complexity=2"
 
   [parachains.collator]
   name = "collator02"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2001"]
+  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2001", "--pvf-complexity=2"]
 
 [[parachains]]
 id = 2002
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2002 --pov-size=200000"
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2002 --pov-size=20000 --pvf-complexity=2"
 
   [parachains.collator]
-  name = "collator02"
+  name = "collator03"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2002"]
+  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2002", "--pvf-complexity=2"]
 
 [[parachains]]
 id = 2003
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2003 --pov-size=200000"
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2003 --pov-size=20000 --pvf-complexity=2"
 
   [parachains.collator]
-  name = "collator02"
+  name = "collator04"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2003"]
+  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2003", "--pvf-complexity=2"]
 
 [[parachains]]
 id = 2004
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2004 --pov-size=200000"
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2004 --pov-size=20000 --pvf-complexity=2"
 
   [parachains.collator]
-  name = "collator02"
+  name = "collator05"
   command = "../polkadot/target/release/undying-collator"
-  args = ["-lparachain=debug", "--pov-size=200000", "--parachain-id=2004"]
+  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2004", "--pvf-complexity=2"]
+
+[[parachains]]
+id = 2005
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --parachain-id=2004 --pov-size=20000 --pvf-complexity=2"
+
+  [parachains.collator]
+  name = "collator06"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2005", "--pvf-complexity=2"]
 
 # TODO: This should not be in here, maybe have a separate file that is included by default ?
 [types.Header]

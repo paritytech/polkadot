@@ -85,6 +85,9 @@ pub struct GraveyardState {
 	// defined in blocks. The number of zombies produced scales with the tombstones.
 	// This would allow us to have a configurable and reproducible PVF execution time.
 	// However, PVF preparation time will likely rely on prebuild wasm binaries.
+	pub zombies: u64,
+	// Grave seal.
+	pub seal: [u8; 32],
 }
 
 /// Block data for this parachain.
@@ -92,23 +95,32 @@ pub struct GraveyardState {
 pub struct BlockData {
 	/// The state
 	pub state: GraveyardState,
-	/// The number of tombstones to errect.
+	/// The number of tombstones to errect per iteration. For each tombstone placed
+	/// a hash operation is performed as CPU burn.
 	pub tombstones: u64,
+	/// The number of iterations to perform.
+	pub iterations: u32,
 }
 
 pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
 	keccak256(state.encode().as_slice())
 }
 
-/// Executes a graveyard transaction.
+/// Executes all graveyard transactions in the block.
 pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 	let graveyard_size = block_data.state.graveyard.len();
-	for _ in 0..block_data.tombstones {
-		block_data.state.graveyard[block_data.state.index as usize] =
-			block_data.state.graveyard[block_data.state.index as usize].wrapping_add(1);
 
-		block_data.state.index =
-			((block_data.state.index.saturating_add(1)) as usize % graveyard_size) as u64;
+	for _ in 0..block_data.iterations {
+		for _ in 0..block_data.tombstones {
+			block_data.state.graveyard[block_data.state.index as usize] =
+				block_data.state.graveyard[block_data.state.index as usize].wrapping_add(1);
+
+			block_data.state.index =
+				((block_data.state.index.saturating_add(1)) as usize % graveyard_size) as u64;
+
+			// Chain hash the seals and urn CPU proportionally with the size of the graveyard.
+			block_data.state.seal = hash_state(&block_data.state);
+		}
 	}
 
 	block_data.state
