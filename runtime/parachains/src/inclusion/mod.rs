@@ -467,7 +467,6 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
-		full_check: FullCheck,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -523,27 +522,25 @@ impl<T: Config> Pallet<T> {
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
 				candidates.iter().enumerate()
 			{
-				if let FullCheck::Yes = full_check {
-					match check_ctx.verify_backed_candidate(
-						parent_hash,
-						parent_storage_root,
-						candidate_idx,
-						backed_candidate,
-					)? {
-						Err(FailedToCreatePVD) => {
-							log::debug!(
-								target: LOG_TARGET,
-								"Failed to create PVD for candidate {} on relay parent {:?}",
-								candidate_idx,
-								parent_hash,
-							);
-							// We don't want to error out here because it will
-							// brick the relay-chain. So we return early without
-							// doing anything.
-							return Ok(ProcessedCandidates::default())
-						},
-						Ok(rpn) => rpn,
-					}
+				match check_ctx.verify_backed_candidate(
+					parent_hash,
+					parent_storage_root,
+					candidate_idx,
+					backed_candidate,
+				)? {
+					Err(FailedToCreatePVD) => {
+						log::debug!(
+							target: LOG_TARGET,
+							"Failed to create PVD for candidate {} on relay parent {:?}",
+							candidate_idx,
+							parent_hash,
+						);
+						// We don't want to error out here because it will
+						// brick the relay-chain. So we return early without
+						// doing anything.
+						return Ok(ProcessedCandidates::default())
+					},
+					Ok(rpn) => rpn,
 				}
 
 				let para_id = backed_candidate.descriptor().para_id;
