@@ -23,7 +23,9 @@ polkadot-node-core-backing = { path = "../core/backing" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-core-pvf = { path = "../core/pvf" }
+polkadot-node-core-av-store = { path = "../core/av-store" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
+parity-scale-codec = { version = "2.3.1", features = ["derive"] }
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 async-trait = "0.1.52"
@@ -32,11 +34,14 @@ clap = { version = "3.0", features = ["derive"] }
 futures = "0.3.19"
 futures-timer = "3.0.2"
 tracing = "0.1.26"
+bitvec = "0.20.1"
+kvdb = "0.10.0"
+erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = []
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.19", features = ["thread-pool"] }
