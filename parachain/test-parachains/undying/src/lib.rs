@@ -103,7 +103,7 @@ pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
 /// Executes a graveyard transaction.
 pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 	let graveyard_size = block_data.state.graveyard.len();
-	for i in 0..block_data.tombstones {
+	for _ in 0..block_data.tombstones {
 		block_data.state.graveyard[block_data.state.index as usize] =
 			block_data.state.graveyard[block_data.state.index as usize].wrapping_add(1);
 		
