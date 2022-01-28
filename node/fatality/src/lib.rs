@@ -45,7 +45,10 @@ pub trait Split: std::error::Error + std::fmt::Debug {
 
 /// Converts a flat, yet `splitable` error into a nested `Result<Result<_,Jfyi>, Fatal>`
 /// error type.
-pub trait Nested<T, E: Split> {
+pub trait Nested<T, E: Split>
+where
+	Self: Sized,
+{
 	/// Convert into a nested error rather than a flat one, commonly for direct handling.
 	fn into_nested(
 		self,
@@ -53,11 +56,9 @@ pub trait Nested<T, E: Split> {
 }
 
 impl<T, E: Split> Nested<T, E> for std::result::Result<T, E> {
-	// uses the default impl
 	fn into_nested(
 		self,
-	) -> std::result::Result<std::result::Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal>
-	{
+	) -> std::result::Result<std::result::Result<T, <E as Split>::Jfyi>, <E as Split>::Fatal> {
 		match self {
 			Ok(t) => Ok(Ok(t)),
 			Err(e) => match e.split() {

@@ -40,9 +40,13 @@ mod kw {
 
 #[derive(Clone, Debug)]
 enum ResolutionMode {
+	/// Not relevant for fatality determination, always non-fatal.
 	None,
+	/// Fatal by default.
 	Fatal,
+	/// Specified via a `bool` argument `#[fatal(true)]` or `#[fatal(false)]`.
 	WithExplicitBool(LitBool),
+	/// Specified via a keyword argument `#[fatal(forward)]`.
 	Forward(kw::forward, Option<Ident>),
 }
 
@@ -94,7 +98,7 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 	let found_crate = if cfg!(test) {
 		FoundCrate::Itself
 	} else {
-		crate_name("fatality").expect("`fatality` is present in `Cargo.toml`")
+		crate_name("fatality").expect("`fatality` must be present in `Cargo.toml` for use. q.e.d")
 	};
 	let ts = match found_crate {
 		FoundCrate::Itself => quote!( crate::#what ),
@@ -229,10 +233,9 @@ fn variant_to_pattern(
 			)
 		},
 		Fields::Unnamed(ref fields) => {
-			let fwd_idx = if is_transparent {
-				// take the first one, TODO error if there is more than one
-				0_usize
-			} else {
+			let mut field_pats = if let ResolutionMode::Forward(..) =
+				dbg!(&requested_resolution_mode)
+			{
 				fields
 					.unnamed
 					.iter()
@@ -242,32 +245,57 @@ fn variant_to_pattern(
 					})
 					.ok_or_else(|| {
 						syn::Error::new(
-							span,
+							fields.span(),
 							"Must have a `#[source]` annotated field for `forward` with `fatality`",
 						)
-					})?
-			};
+					})?;
 
-			let maybe_member_ref = if let ResolutionMode::Forward(..) = requested_resolution_mode {
-				Some(Pat::Ident(PatIdent {
+				// obtain the i of the i-th unnamed field.
+				let fwd_idx = if is_transparent {
+					// take the first one, TODO error if there is more than one
+					0_usize
+				} else {
+					fields
+						.unnamed
+						.iter()
+						.enumerate()
+						.find_map(|(idx, field)| {
+							field
+								.attrs
+								.iter()
+								.find(|attr| attr.path.is_ident(&source))
+								.map(|_attr| idx)
+						})
+						.ok_or_else(|| {
+							syn::Error::new(
+										span,
+										"Must have a `#[source]` annotated field for `forward` with `fatality`",
+								)
+						})?
+				};
+
+				// create a pattern like this: `_, _, _, inner, ..`
+				let mut field_pats = std::iter::repeat(Pat::Wild(PatWild {
+					attrs: vec![],
+					underscore_token: Token![_](span),
+				}))
+				.take(fwd_idx)
+				.collect::<Vec<_>>();
+
+				field_pats.push(Pat::Ident(PatIdent {
 					attrs: vec![],
 					by_ref: Some(Token![ref](span)),
 					mutability: None,
 					ident: pat_capture_ident.clone(),
 					subpat: None,
-				}))
+				}));
+
+				field_pats
 			} else {
-				None
+				vec![]
 			};
-
-			let field_pats = std::iter::repeat(Pat::Wild(PatWild {
-				attrs: vec![],
-				underscore_token: Token![_](span),
-			}))
-			.take(fwd_idx)
-			.chain(maybe_member_ref)
-			.chain([Pat::Rest(PatRest { attrs: vec![], dot2_token: Token![..](span) })]);
-
+			field_pats.push(Pat::Rest(PatRest { attrs: vec![], dot2_token: Token![..](span) }));
+			dbg!(&field_pats);
 			(
 				Pat::TupleStruct(PatTupleStruct {
 					attrs: vec![],
@@ -308,7 +336,6 @@ impl ToTokens for VariantPattern {
 	fn to_tokens(&self, ts: &mut TokenStream) {
 		let variant_name = &self.0.ident;
 		let variant_fields = &self.0.fields;
-		let span = variant_fields.span();
 		let path = Path {
 			leading_colon: None,
 			segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![PathSegment::from(
@@ -316,25 +343,29 @@ impl ToTokens for VariantPattern {
 			)]),
 		};
 
-		let pattern = match variant_fields {
-			Fields::Unit => Some(Pat::Path(PatPath { attrs: vec![], qself: None, path }))
-				.into_iter()
-				.collect::<Punctuated<Pat, Token![,]>>(),
-			Fields::Unnamed(unnamed) => unnamed
-				.unnamed
-				.iter()
-				.enumerate()
-				.map(|(ith, _field)| {
-					Pat::Ident(PatIdent {
-						attrs: vec![],
-						by_ref: None,
-						mutability: None,
-						ident: unnamed_fields_variant_pattern_constructor_binding_name(ith),
-						subpat: None,
+		match variant_fields {
+			Fields::Unit => {
+				ts.extend(quote! { #variant_name });
+			},
+			Fields::Unnamed(unnamed) => {
+				let pattern = unnamed
+					.unnamed
+					.iter()
+					.enumerate()
+					.map(|(ith, _field)| {
+						Pat::Ident(PatIdent {
+							attrs: vec![],
+							by_ref: None,
+							mutability: None,
+							ident: unnamed_fields_variant_pattern_constructor_binding_name(ith),
+							subpat: None,
+						})
 					})
-				})
-				.collect::<Punctuated<Pat, Token![,]>>(),
-			Fields::Named(named) => named
+					.collect::<Punctuated<Pat, Token![,]>>();
+				ts.extend(quote! { #variant_name(#pattern) });
+			},
+			Fields::Named(named) => {
+				let pattern = named
 				.named
 				.iter()
 				.map(|field| {
@@ -345,10 +376,10 @@ impl ToTokens for VariantPattern {
 						ident: field.ident.clone().expect("Named field has a name. qed"),
 						subpat: None,
 					})
-				})
-				.collect::<Punctuated<Pat, Token![,]>>(),
+					.collect::<Punctuated<Pat, Token![,]>>();
+				ts.extend(quote! { #variant_name{ #pattern } });
+			},
 		};
-		ts.extend(pattern.into_token_stream());
 	}
 }
 
@@ -360,44 +391,32 @@ impl ToTokens for VariantConstructor {
 	fn to_tokens(&self, ts: &mut TokenStream) {
 		let variant_name = &self.0.ident;
 		let variant_fields = &self.0.fields;
-		let args = match variant_fields {
-			Fields::Named(named) => named
+		ts.extend(match variant_fields {
+			Fields::Unit => quote! { #variant_name },
+			Fields::Unnamed(unnamed) => {
+				let constructor = unnamed
+					.unnamed
+					.iter()
+					.enumerate()
+					.map(|(ith, _field)| {
+						unnamed_fields_variant_pattern_constructor_binding_name(ith)
+					})
+					.collect::<Punctuated<Ident, Token![,]>>();
+				quote! { #variant_name (#constructor) }
+			},
+			Fields::Named(named) => {
+				let constructor = named
 				.named
 				.iter()
 				.map(|field| field.ident.clone().expect("Named must have named fields. qed"))
-				.collect::<Punctuated<Ident, Token![,]>>()
-				.into_token_stream(),
-			Fields::Unit => TokenStream::new(),
-			Fields::Unnamed(unnamed) => unnamed
-				.unnamed
-				.iter()
-				.enumerate()
-				.map(|(ith, _field)| unnamed_fields_variant_pattern_constructor_binding_name(ith))
-				.collect::<Punctuated<Ident, Token![,]>>()
-				.into_token_stream(),
-		};
-		ts.extend(quote! {
-			#variant_name #args
-		});
+				.collect::<Punctuated<Ident, Token![,]>>();
+				quote!{ #variant_name { #constructor } }
+			}
+		}
+		);
 	}
 }
 
-fn variant_to_pattern_and_constructor(
-	variants: impl AsRef<[Variant]>,
-) -> Result<IndexMap<Pat, VariantConstructor>, syn::Error> {
-	let variants = variants.as_ref();
-
-	Ok(variants
-		.iter()
-		.map(|variant| {
-			variant_to_pattern(
-				variant,
-				ResolutionMode::None, // dummy
-			)
-			.map(|(pat, _)| (pat, VariantConstructor(variant.clone())))
-		})
-		.collect::<Result<IndexMap<Pat, VariantConstructor>, syn::Error>>()?)
-}
 
 // Generate the Jfyi and Fatal sub enums.
 fn trait_split_impl(
@@ -482,9 +501,9 @@ fn trait_split_impl(
 			fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
 				match self {
 					// Fatal
-					#( Self:: #fatal_patterns => Err(#fatal_ident :: #fatal_constructors), )*
+					#( Self :: #fatal_patterns => Err(#fatal_ident :: #fatal_constructors), )*
 					// JFYI
-					#( Self:: #jfyi_patterns => Ok(#jfyi_ident :: #jfyi_constructors), )*
+					#( Self :: #jfyi_patterns => Ok(#jfyi_ident :: #jfyi_constructors), )*
 				}
 			}
 		}
@@ -546,10 +565,10 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 		.variants
 		.iter()
 		.map(move |variant| {
-			variant_to_pattern(
-				variant,
-				has_fatal_annotation.get(&*variant).cloned().unwrap_or_default(),
-			)
+			dbg!(variant_to_pattern(
+				dbg!(variant),
+				dbg!(has_fatal_annotation.get(&*variant).cloned()).unwrap_or_default(),
+			))
 			.and_then(|x| {
 				// currently we don't support, `forward` in combination with `splitable`
 				if let Attr::Splitable(keyword_splitable) = attr {

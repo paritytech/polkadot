@@ -56,6 +56,37 @@ mod component {
 
 mod basic {
 	use super::*;
+
+	#[test]
+	fn visibility_pub_crate_is_retained() {
+		run_test(
+			TokenStream::new(),
+			quote! {
+				pub(crate) enum Q {
+					#[fatal]
+					#[error(transparent)]
+					V(I),
+				}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
+				pub(crate) enum Q {
+					#[error(transparent)]
+					V(I),
+				}
+
+
+				impl crate::Fatality for Q {
+					fn is_fatal(&self) -> bool {
+						match self {
+							Self::V(..) => true,
+						}
+					}
+				}
+			},
+		);
+	}
+
 	#[test]
 	fn transparent_fatal_implicit() {
 		run_test(
@@ -186,6 +217,7 @@ mod basic {
 				enum Kaboom {
 					#[fatal(forward)]
 					#[error(transparent)]
+					// only one arg, that's ok, the first will be used
 					A(X),
 
 					#[fatal(forward)]
@@ -315,6 +347,69 @@ mod splitable {
 						}
 					}
 				}
+			},
+		);
+	}
+
+	#[test]
+	fn regression() {
+		run_test(
+			quote! {
+				splitable
+			},
+			quote! {
+				pub enum X {
+					#[fatal]
+					#[error("Cancelled")]
+					Inner(Foo),
+				}
+			},
+			quote! {
+				#[derive(crate::thiserror::Error, Debug)]
+				pub enum X {
+					#[error("Cancelled")]
+					Inner(Foo),
+				}
+
+				impl crate :: Fatality for X {
+					fn is_fatal (& self) -> bool {
+						match self {
+							Self :: Inner (..) => true ,
+						}
+					}
+				}
+
+				impl :: std :: convert :: From < FatalX > for X {
+					fn from (fatal : FatalX) -> Self {
+						match fatal {
+							FatalX :: Inner(arg_0) => Self :: Inner(arg_0),
+						}
+					}
+				}
+
+				impl :: std :: convert :: From < JfyiX > for X {
+					fn from (jfyi : JfyiX) -> Self {
+						match jfyi {
+
+						}
+					}
+				}
+
+				# [derive (crate :: thiserror :: Error , Debug)]
+				pub enum FatalX {
+					#[error("Cancelled")]
+					Inner (Foo) }
+					#[derive (crate :: thiserror :: Error , Debug)]
+					pub enum JfyiX { }
+					impl crate :: Split for X {
+						type Fatal = FatalX ;
+						type Jfyi = JfyiX ;
+						fn split (self) -> :: std :: result :: Result < Self :: Jfyi , Self :: Fatal > {
+							match self {
+								Self::Inner(arg_0) => Err (FatalX :: Inner(arg_0)) ,
+							}
+						}
+					}
 			},
 		);
 	}

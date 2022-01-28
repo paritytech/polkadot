@@ -12,5 +12,5 @@ fn ui_compile_fail() {
 #[ignore]
 fn ui_compile_pass() {
 	let t = trybuild::TestCases::new();
-	t.compile_fail("tests/ui/ok-*.rs");
+	t.compile("tests/ui/ok-*.rs");
 }
