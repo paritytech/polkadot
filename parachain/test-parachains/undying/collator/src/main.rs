@@ -24,9 +24,6 @@ use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_undying_collator::Collator;
 
-/// The parachain ID to collate for in case it wasn't set explicitly through CLI.
-const DEFAULT_PARA_ID: ParaId = ParaId::new(100);
-
 mod cli;
 use cli::Cli;
 

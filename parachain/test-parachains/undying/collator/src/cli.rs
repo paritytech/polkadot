@@ -39,7 +39,7 @@ pub struct ExportGenesisStateCommand {
 	pub pov_size: usize,
 
 	/// Id of the parachain this collator collates for.
-	#[structopt(long)]
+	#[structopt(long, default_value = "100")]
 	pub parachain_id: u32,
 }
 
@@ -54,13 +54,14 @@ pub struct RunCmd {
 	#[structopt(flatten)]
 	pub base: sc_cli::RunCmd,
 
-	/// Id of the parachain this collator collates for.
-	#[structopt(long)]
-	pub parachain_id: u32,
-
 	/// The target raw PoV size in bytes. Minimum value is 64.
 	#[structopt(long, default_value = "1024")]
 	pub pov_size: usize,
+
+	/// Id of the parachain this collator collates for.
+	#[structopt(long, default_value = "100")]
+	pub parachain_id: u32,
+	
 }
 
 #[allow(missing_docs)]
