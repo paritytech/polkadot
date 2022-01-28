@@ -35,7 +35,7 @@ pub enum Subcommand {
 #[derive(Debug, StructOpt)]
 pub struct ExportGenesisStateCommand {
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[structopt(long, default_value = "1024000")]
+	#[structopt(long, default_value = "1024")]
 	pub pov_size: usize,
 }
 
@@ -55,7 +55,7 @@ pub struct RunCmd {
 	pub parachain_id: Option<u32>,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[structopt(long, default_value = "1024000")]
+	#[structopt(long, default_value = "1024")]
 	pub pov_size: usize,
 }
 

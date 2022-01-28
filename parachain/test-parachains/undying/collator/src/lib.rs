@@ -49,11 +49,11 @@ impl State {
 	/// Init the genesis state.
 	fn genesis(graveyard_size: usize) -> Self {
 		let index = 0u64;
-		let mut graveyard = vec![0u64; graveyard_size * graveyard_size];
+		let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
 
 		// Ensure a larger compressed PoV.
 		graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
-			*grave = i % 255 as u64;
+			*grave = i as u8;
 		});
 
 		let state = GraveyardState { index, graveyard };
@@ -94,7 +94,7 @@ impl State {
 			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
 
 		// Update with the resulting state.
-		block.state = new_state.clone();
+		// block.state = new_state.clone();
 
 		let new_head_arc = Arc::new(new_head.clone());
 
@@ -116,7 +116,7 @@ impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
 	pub fn new(pov_size: usize) -> Self {
-		let graveyard_size = ((pov_size / std::mem::size_of::<usize>()) as f64).sqrt() as usize - 20;
+		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize - 20;
 
 		log::info!(
 			"PoV target size: {} bytes. Graveyard size: ({} x {})",

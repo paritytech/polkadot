@@ -32,6 +32,7 @@ mod wasm_validation;
 #[cfg(not(feature = "std"))]
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
+const LOG_TARGET: &str = "runtime::undying";
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -79,7 +80,7 @@ pub struct GraveyardState {
 	/// We use a matrix where each element represents a grave.
 	/// The unsigned integer tracks the number of tombstones errected on 
 	/// each trave.
-	pub graveyard: Vec<u64>,
+	pub graveyard: Vec<u8>,
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
 	// defined in blocks. The number of zombies produced scales with the tombstones.
 	// This would allow us to have a configurable and reproducible PVF execution time. 
@@ -124,7 +125,8 @@ pub fn execute(
 	assert_eq!(parent_hash, parent_head.hash());
 
 	if hash_state(&block_data.state) != parent_head.post_state {
-		log::error!(
+		log::debug!(
+			target: LOG_TARGET,
 			"state has diff vs head: {:?} vs {:?}",
 			hash_state(&block_data.state),
 			parent_head.post_state,
@@ -132,6 +134,7 @@ pub fn execute(
 		return Err(StateMismatch)
 	}
 
+	// We need to clone the block data as the fn will mutate it's state.
 	let new_state = execute_transaction(block_data.clone());
 
 	Ok((
