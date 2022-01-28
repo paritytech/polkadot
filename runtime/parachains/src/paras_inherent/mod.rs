@@ -709,6 +709,7 @@ impl<T: Config> Pallet<T> {
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
 			let relay_parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
 
 			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
@@ -719,13 +720,21 @@ impl<T: Config> Pallet<T> {
 				      -> bool {
 					// never include a concluded-invalid candidate
 					concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
-							// Instead of checking the candidates with code upgrades twice
-							// move the checking up here and skip it in the training wheels fallback.
-							// That way we avoid possible duplicate checks while assuring all
-							// backed candidates fine to pass on.
-							check_ctx
-								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
-								.is_err()
+						// Instead of checking the candidates with code upgrades twice
+						// move the checking up here and skip it in the training wheels fallback.
+						// That way we avoid possible duplicate checks while assuring all
+						// backed candidates fine to pass on.
+						{
+							match check_ctx.verify_backed_candidate(
+								parent_hash,
+								parent_storage_root,
+								candidate_idx,
+								backed_candidate,
+							) {
+								Err(_) | Ok(Err(_)) => true,
+								Ok(Ok(_)) => false,
+							}
+						}
 				},
 				&scheduled[..],
 			);
