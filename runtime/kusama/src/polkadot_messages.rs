@@ -145,8 +145,8 @@ impl ThisChainWithMessages for Kusama {
 	type Call = crate::Call;
 	type Origin = crate::Origin;
 
-	fn is_message_accepted(_submitter: &crate::Origin, lane: &LaneId) -> bool {
-		*lane == [0, 0, 0, 0]
+	fn is_message_accepted(submitter: &crate::Origin, lane: &LaneId) -> bool {
+		*lane == [0, 0, 0, 0] && submitter.linked_account().is_some()
 	}
 
 	fn maximal_pending_messages_at_outbound_lane() -> MessageNonce {
@@ -309,7 +309,7 @@ impl SenderOrigin<AccountId> for Origin {
 			OriginCaller::system(frame_system::RawOrigin::Root) |
 			OriginCaller::system(frame_system::RawOrigin::None) =>
 				RootAccountForPayments::get(),
-			OriginCaller::council(_) => AllowedMessageSender::get(), // TODO: rename to council account,
+			OriginCaller::Council(_) => AllowedMessageSender::get(), // TODO: rename to council account,
 			_ => None,
 		}
 	}
