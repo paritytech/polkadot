@@ -522,7 +522,6 @@ impl<T: Config> Pallet<T> {
 			backed_candidates,
 			scheduled,
 			<scheduler::Pallet<T>>::group_validators,
-			full_check,
 		)?;
 
 		METRICS.on_disputes_included(checked_disputes.len() as u64);
