@@ -1332,7 +1332,13 @@ pub fn polkadot_testnet_genesis(
 		},
 		phragmen_election: Default::default(),
 		democracy: polkadot::DemocracyConfig::default(),
-		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
+		council: polkadot::CouncilConfig {
+			members: initial_authorities
+				.iter()
+				.map(|x| x.0.clone())
+				.collect::<Vec<_>>(),
+			phantom: Default::default()
+		},
 		technical_committee: polkadot::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
@@ -1426,7 +1432,13 @@ pub fn kusama_testnet_genesis(
 		},
 		phragmen_election: Default::default(),
 		democracy: kusama::DemocracyConfig::default(),
-		council: kusama::CouncilConfig { members: vec![], phantom: Default::default() },
+		council: kusama::CouncilConfig {
+			members: initial_authorities
+				.iter()
+				.map(|x| x.0.clone())
+				.collect::<Vec<_>>(),
+			phantom: Default::default(),
+		},
 		technical_committee: kusama::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),

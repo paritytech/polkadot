@@ -309,6 +309,7 @@ impl SenderOrigin<AccountId> for Origin {
 			OriginCaller::system(frame_system::RawOrigin::Root) |
 			OriginCaller::system(frame_system::RawOrigin::None) =>
 				RootAccountForPayments::get(),
+			OriginCaller::council(_) => AllowedMessageSender::get(), // TODO: rename to council account,
 			_ => None,
 		}
 	}
