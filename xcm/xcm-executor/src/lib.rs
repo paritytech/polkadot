@@ -129,7 +129,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let message_hash = message.using_encoded(sp_io::hashing::blake2_256);
 
 		while !message.0.is_empty() {
-			let result = vm.execute(message, message_hash);
+			let result = vm.execute_with_hash(message, message_hash);
 			log::trace!(target: "xcm::execute_xcm_in_credit", "result: {:?}", result);
 			message = if let Err(error) = result {
 				vm.total_surplus.saturating_accrue(error.weight);
@@ -189,7 +189,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
-	pub fn execute(
+	pub fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
+		self.execute_with_hash(xcm, xcm.using_encoded(sp_io::hashing::blake2_256))
+	}
+
+	fn execute_with_hash(
 		&mut self,
 		xcm: Xcm<Config::Call>,
 		message_hash: [u8; 32],
