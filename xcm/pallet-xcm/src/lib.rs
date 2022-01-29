@@ -1713,7 +1713,6 @@ impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origi
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-		_context: XcmContext,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		match kind {

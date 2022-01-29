@@ -16,7 +16,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
-use xcm::latest::{MultiLocation, OriginKind, XcmContext};
+use xcm::latest::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
 /// implementations of `From` and `Into` for the types you wish to convert between.
@@ -178,7 +178,6 @@ pub trait ConvertOrigin<Origin> {
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-		context: XcmContext,
 	) -> Result<Origin, MultiLocation>;
 }
 
@@ -187,10 +186,9 @@ impl<O> ConvertOrigin<O> for Tuple {
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-		context: XcmContext,
 	) -> Result<O, MultiLocation> {
 		for_tuples!( #(
-			let origin = match Tuple::convert_origin(origin, kind, context.clone()) {
+			let origin = match Tuple::convert_origin(origin, kind) {
 				Err(o) => o,
 				r => return r
 			};
@@ -198,10 +196,9 @@ impl<O> ConvertOrigin<O> for Tuple {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::convert_origin",
-			"could not convert: origin: {:?}, kind: {:?}, context: {:?}",
+			"could not convert: origin: {:?}, kind: {:?}",
 			origin,
 			kind,
-			context,
 		);
 		Err(origin)
 	}
