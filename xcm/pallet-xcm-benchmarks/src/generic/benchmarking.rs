@@ -234,6 +234,11 @@ benchmarks! {
 		<T::XcmConfig as xcm_executor::Config>::AssetTrap::drop_assets(
 			&origin,
 			assets.clone().into(),
+			XcmContext {
+				origin: Some(origin.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
 		);
 
 		// Assets should be in the trap now.
@@ -285,7 +290,12 @@ benchmarks! {
 		<T::XcmConfig as xcm_executor::Config>::SubscriptionService::start(
 			&origin,
 			query_id,
-			max_response_weight
+			max_response_weight,
+			XcmContext {
+				origin: Some(origin.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
 		).map_err(|_| "Could not start subscription")?;
 		assert!(<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
 
