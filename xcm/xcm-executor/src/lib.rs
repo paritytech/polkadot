@@ -361,8 +361,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets.inner() {
-					let context =
-						XcmContext { origin: Some(origin.clone()), message_hash, topic: self.topic };
+					let context = XcmContext {
+						origin: Some(origin.clone()),
+						message_hash,
+						topic: self.topic,
+					};
 					Config::AssetTransactor::beam_asset(asset, origin, &dest, context)?;
 				}
 				let ancestry = Config::LocationInverter::ancestry();
@@ -405,9 +408,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
-				let dispatch_origin =
-					Config::OriginConverter::convert_origin(origin, origin_kind)
-						.map_err(|_| XcmError::BadOrigin)?;
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
+					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
 				let maybe_actual_weight = match message_call.dispatch(dispatch_origin) {
@@ -460,7 +462,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				Self::respond(self.origin.clone(), Response::ExecutionResult(self.error), response_info)?;
+				Self::respond(
+					self.origin.clone(),
+					Response::ExecutionResult(self.error),
+					response_info,
+				)?;
 				Ok(())
 			},
 			DepositAsset { assets, beneficiary } => {

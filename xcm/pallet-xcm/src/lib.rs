@@ -1097,19 +1097,17 @@ pub mod pallet {
 								max_weight,
 								querier: None,
 							}]);
-							let event =
-								match T::XcmRouter::send_xcm(new_key.clone(), message) {
-									Ok(_) => {
-										VersionNotifyTargets::<T>::insert(
-											XCM_VERSION,
-											versioned_key,
-											(query_id, max_weight, xcm_version),
-										);
-										Event::VersionChangeNotified(new_key, xcm_version)
-									},
-									Err(e) =>
-										Event::NotifyTargetSendFail(new_key, query_id, e.into()),
-								};
+							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
+								Ok(_) => {
+									VersionNotifyTargets::<T>::insert(
+										XCM_VERSION,
+										versioned_key,
+										(query_id, max_weight, xcm_version),
+									);
+									Event::VersionChangeNotified(new_key, xcm_version)
+								},
+								Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
+							};
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
 						}
