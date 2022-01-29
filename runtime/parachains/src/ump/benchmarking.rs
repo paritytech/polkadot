@@ -72,7 +72,6 @@ frame_benchmarking::benchmarks! {
 	process_upward_message {
 		let s in 0..MAX_UPWARD_MESSAGE_SIZE_BOUND;
 		let para = ParaId::from(1978);
-		let host_conf = configuration::ActiveConfig::<T>::get();
 		let data = create_message_size::<T>(s);
 	}: {
 		assert!(T::UmpSink::process_upward_message(para, &data[..], Weight::MAX).is_ok());
