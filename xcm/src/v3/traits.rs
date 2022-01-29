@@ -365,23 +365,15 @@ pub trait SendXcm {
 	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
 	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
 	/// trying other type fields.
-	fn send_xcm(
-		destination: impl Into<MultiLocation>,
-		message: Xcm<()>,
-		context: XcmContext,
-	) -> SendResult;
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_xcm(
-		destination: impl Into<MultiLocation>,
-		message: Xcm<()>,
-		context: XcmContext,
-	) -> SendResult {
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
 		for_tuples!( #(
 			// we shadow `destination` and `message` in each expansion for the next one.
-			let (destination, message) = match Tuple::send_xcm(destination, message, context.clone()) {
+			let (destination, message) = match Tuple::send_xcm(destination, message) {
 				Err(SendError::CannotReachDestination(d, m)) => (d, m),
 				o @ _ => return o,
 			};

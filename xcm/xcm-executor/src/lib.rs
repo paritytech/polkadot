@@ -359,17 +359,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			TransferReserveAsset { mut assets, dest, xcm } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				let context =
-					XcmContext { origin: Some(origin.clone()), message_hash, topic: self.topic };
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(asset, origin, &dest, context.clone())?;
+					let context =
+						XcmContext { origin: Some(origin.clone()), message_hash, topic: self.topic };
+					Config::AssetTransactor::beam_asset(asset, origin, &dest, context)?;
 				}
 				let ancestry = Config::LocationInverter::ancestry();
 				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message), context)?;
+				Config::XcmSender::send_xcm(dest, Xcm(message))?;
 				Ok(())
 			},
 			ReceiveTeleportedAsset(assets) => {
@@ -460,11 +460,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ReportError(response_info) => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				Self::respond(context, Response::ExecutionResult(self.error), response_info)?;
+				Self::respond(self.origin.clone(), Response::ExecutionResult(self.error), response_info)?;
 				Ok(())
 			},
 			DepositAsset { assets, beneficiary } => {
@@ -477,23 +475,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			DepositReserveAsset { assets, dest, xcm } => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.assets_iter() {
-					Config::AssetTransactor::deposit_asset(&asset, &dest, context.clone())?;
+					let context =
+						XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
+					Config::AssetTransactor::deposit_asset(&asset, &dest, context)?;
 				}
 				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
 				// be reanchored  because we have already called `deposit_asset` on all assets.
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message), context)?;
+				Config::XcmSender::send_xcm(dest, Xcm(message))?;
 				Ok(())
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				// Note that here we are able to place any assets which could not be reanchored
 				// back into Holding.
 				let assets = Self::reanchored(
@@ -503,33 +499,31 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(reserve, Xcm(message), context)?;
+				Config::XcmSender::send_xcm(reserve, Xcm(message))?;
 				Ok(())
 			},
 			InitiateTeleport { assets, dest, xcm } => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				// We must do this first in order to resolve wildcards.
 				let assets = self.holding.saturating_take(assets);
 				for asset in assets.assets_iter() {
-					Config::AssetTransactor::check_out(&dest, &asset, context.clone());
+					let context =
+						XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
+					Config::AssetTransactor::check_out(&dest, &asset, context);
 				}
 				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
 				// be reanchored  because we have already checked all assets out.
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message), context)?;
+				Config::XcmSender::send_xcm(dest, Xcm(message))?;
 				Ok(())
 			},
 			ReportHolding { response_info, assets } => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
 				// from Holding.
 				let assets =
 					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
-				Self::respond(context, Response::Assets(assets), response_info)?;
+				Self::respond(self.origin.clone(), Response::Assets(assets), response_info)?;
 				Ok(())
 			},
 			BuyExecution { fees, weight_limit } => {
@@ -610,8 +604,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			QueryPallet { module_name, response_info } => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				let pallets = Config::PalletInstancesInfo::infos()
 					.into_iter()
 					.filter(|x| x.module_name.as_bytes() == &module_name[..])
@@ -629,7 +621,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let querier = Self::to_querier(self.origin.clone(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);
-				Config::XcmSender::send_xcm(destination, message, context)?;
+				Config::XcmSender::send_xcm(destination, message)?;
 				Ok(())
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
@@ -646,10 +638,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ReportTransactStatus(response_info) => {
-				let context =
-					XcmContext { origin: self.origin.clone(), message_hash, topic: self.topic };
 				Self::respond(
-					context,
+					self.origin.clone(),
 					Response::DispatchResult(self.transact_status.clone()),
 					response_info,
 				)?;
@@ -692,16 +682,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	///
 	/// The `local_querier` argument is the querier (if any) specified from the *local* perspective.
 	fn respond(
-		context: XcmContext,
+		local_querier: Option<MultiLocation>,
 		response: Response,
 		info: QueryResponseInfo,
 	) -> Result<XcmHash, XcmError> {
-		let local_querier = context.origin.clone();
 		let querier = Self::to_querier(local_querier, &info.destination)?;
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		Config::XcmSender::send_xcm(destination, message, context).map_err(Into::into)
+		Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.
