@@ -22,7 +22,7 @@ use super::{
 };
 use frame_support::{
 	match_type, parameter_types,
-	traits::{Everything, Nothing},
+	traits::Everything,
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
