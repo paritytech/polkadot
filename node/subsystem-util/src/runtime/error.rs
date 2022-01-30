@@ -23,6 +23,7 @@ use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;
 
 #[fatality::fatality(splitable)]
+#[allow(missing_docs)]
 pub enum Error {
 	/// Runtime API subsystem is down, which means we're shutting down.
 	#[fatal]

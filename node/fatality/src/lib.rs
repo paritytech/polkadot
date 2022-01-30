@@ -40,7 +40,7 @@ pub trait Split: std::error::Error + std::fmt::Debug {
 	/// Attention: If the type is splitable, it must _not_ use any `forward`ed finality
 	/// evalutions, or it must be splitable up the point where no more `forward` annotations
 	/// were used.
-	fn split(&self) -> std::result::Result<Self::Jfyi, Self::Fatal>;
+	fn split(self) -> std::result::Result<Self::Jfyi, Self::Fatal>;
 }
 
 /// Converts a flat, yet `splitable` error into a nested `Result<Result<_,Jfyi>, Fatal>`

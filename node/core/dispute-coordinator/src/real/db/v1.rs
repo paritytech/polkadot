@@ -27,13 +27,13 @@ use std::sync::Arc;
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
-use crate::real::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
-	DISPUTE_WINDOW,
-};
 use crate::{
-error::{FatalError, FatalResult},
-status::DisputeStatus,
+	error::{FatalError, FatalResult},
+	real::{
+		backend::{Backend, BackendWriteOp, OverlayedBackend},
+		DISPUTE_WINDOW,
+	},
+	status::DisputeStatus,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";

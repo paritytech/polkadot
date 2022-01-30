@@ -31,9 +31,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Result with only fatal errors.
 pub type FatalResult<T> = std::result::Result<T, Fatal>;
 
+use fatality::Split;
+
 /// Errors for statement distribution.
 #[derive(Debug, Error, derive_more::From)]
 #[error(transparent)]
+
 pub enum Error {
 	/// All fatal errors.
 	Fatal(Fatal),
@@ -42,10 +45,10 @@ pub enum Error {
 }
 
 impl From<runtime::Error> for Error {
-	fn from(o: runtime::Error) -> Self {
-		match o {
-			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
-			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
+	fn from(src: runtime::Error) -> Self {
+		match src.split() {
+			Ok(jfyi) => Self::NonFatal(NonFatal::Runtime(jfyi)),
+			Err(fatal) => Self::Fatal(Fatal::Runtime(fatal)),
 		}
 	}
 }
@@ -68,7 +71,7 @@ pub enum Fatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::Fatal),
+	Runtime(#[from] runtime::FatalError),
 
 	/// Errors coming from receiving incoming requests.
 	#[error("Retrieving next incoming request failed")]
@@ -84,7 +87,7 @@ pub enum NonFatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::NonFatal),
+	Runtime(#[from] runtime::JfyiError),
 
 	/// Errors coming from receiving incoming requests.
 	#[error("Retrieving next incoming request failed")]

@@ -53,11 +53,11 @@ use polkadot_primitives::{
 };
 
 use crate::{
+	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	metrics::Metrics,
 	real::{ordering::get_finalized_block_number, DisputeCoordinatorSubsystem},
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
 	LOG_TARGET,
-	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 };
 
 use super::{

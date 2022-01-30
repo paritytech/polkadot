@@ -17,14 +17,14 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use thiserror::Error;
+use fatality::Split;
 
 use polkadot_node_network_protocol::{request_response::incoming, PeerId};
 use polkadot_node_subsystem_util::runtime;
 
 use crate::LOG_TARGET;
 
-#[derive(Debug, Error, derive_more::From)]
+#[derive(Debug, thiserror::Error, derive_more::From)]
 #[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
@@ -34,10 +34,10 @@ pub enum Error {
 }
 
 impl From<runtime::Error> for Error {
-	fn from(o: runtime::Error) -> Self {
-		match o {
-			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
-			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
+	fn from(src: runtime::Error) -> Self {
+		match src.split() {
+			Ok(jfyi) => Self::NonFatal(NonFatal::Runtime(jfyi)),
+			Err(fatal) => Self::Fatal(Fatal::Runtime(fatal)),
 		}
 	}
 }
@@ -52,11 +52,11 @@ impl From<incoming::Error> for Error {
 }
 
 /// Fatal errors of this subsystem.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Fatal {
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::Fatal),
+	Runtime(#[from] runtime::FatalError),
 
 	/// Errors coming from receiving incoming requests.
 	#[error("Retrieving next incoming request failed.")]
@@ -64,7 +64,7 @@ pub enum Fatal {
 }
 
 /// Non-fatal errors of this subsystem.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum NonFatal {
 	/// Answering request failed.
 	#[error("Sending back response to peer {0} failed.")]
@@ -88,7 +88,7 @@ pub enum NonFatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::NonFatal),
+	Runtime(#[from] runtime::JfyiError),
 
 	/// Errors coming from receiving incoming requests.
 	#[error("Retrieving next incoming request failed.")]

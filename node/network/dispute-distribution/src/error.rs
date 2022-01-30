@@ -59,7 +59,7 @@ pub enum Fatal {
 
 	/// Errors coming from `runtime::Runtime`.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::Fatal),
+	Runtime(#[from] runtime::FatalError),
 
 	/// Errors coming from `DisputeSender`
 	#[error("Error while accessing runtime information")]

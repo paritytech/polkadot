@@ -17,13 +17,13 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use thiserror::Error;
-
 use polkadot_node_primitives::disputes::DisputeMessageCheckError;
 use polkadot_node_subsystem_util::runtime;
 use polkadot_subsystem::SubsystemError;
 
-#[derive(Debug, Error, derive_more::From)]
+use fatality::Split;
+
+#[derive(Debug, thiserror::Error, derive_more::From)]
 #[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
@@ -33,16 +33,16 @@ pub enum Error {
 }
 
 impl From<runtime::Error> for Error {
-	fn from(o: runtime::Error) -> Self {
-		match o {
-			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
-			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
+	fn from(src: runtime::Error) -> Self {
+		match src.split() {
+			Err(fatal) => Self::Fatal(Fatal::Runtime(fatal)),
+			Ok(jfyi) => Self::NonFatal(NonFatal::Runtime(jfyi)),
 		}
 	}
 }
 
 /// Fatal errors of this subsystem.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub enum Fatal {
 	/// Spawning a running task failed.
@@ -51,11 +51,11 @@ pub enum Fatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::Fatal),
+	Runtime(#[from] runtime::FatalError),
 }
 
 /// Non-fatal errors of this subsystem.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum NonFatal {
 	/// We need available active heads for finding relevant authorities.
 	#[error("No active heads available - needed for finding relevant authorities.")]
@@ -95,7 +95,7 @@ pub enum NonFatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] runtime::NonFatal),
+	Runtime(#[from] runtime::JfyiError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

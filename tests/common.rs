@@ -56,7 +56,7 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 	let mut interval = tokio::time::interval(Duration::from_secs(6));
 
 	loop {
-		if let Ok(block) = get_finalized_head::<Block, _>(url.to_string()).await {
+		if let Ok(block) = get_finalized_head::<Block, _>(url).await {
 			built_blocks.insert(block);
 			if built_blocks.len() > n {
 				break

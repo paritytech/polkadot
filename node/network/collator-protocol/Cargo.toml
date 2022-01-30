@@ -21,6 +21,7 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+fatality = { path = "../../fatality"}
 
 [dev-dependencies]
 log = "0.4.13"

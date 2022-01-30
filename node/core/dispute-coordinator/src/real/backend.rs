@@ -40,7 +40,7 @@ pub enum BackendWriteOp {
 /// An abstraction over backend storage for the logic of this subsystem.
 pub trait Backend {
 	/// Load the earliest session, if any.
-	fn load_earliest_session(&self) -> FatalResult<Option<SessionIndex>>;
+	fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>>;
 
 	/// Load the recent disputes, if any.
 	fn load_recent_disputes(&self) -> SubsystemResult<Option<RecentDisputes>>;

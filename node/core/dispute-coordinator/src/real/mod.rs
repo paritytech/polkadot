@@ -39,13 +39,14 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
+use crate::{
+	error::{FatalResult, JfyiError, Result},
+	metrics::Metrics,
+	status::{get_active_with_status, SystemClock},
+};
 use backend::{Backend, OverlayedBackend};
 use db::v1::DbBackend;
-use crate::error::{Error, JfyiError, FatalResult, Result};
-use crate::status::SystemClock;
-use crate::metrics::Metrics;
-use crate::status::get_active_with_status;
-use fatality::Fatality;
+use fatality::Split;
 
 use self::{
 	ordering::CandidateComparator,
@@ -189,18 +190,17 @@ impl DisputeCoordinatorSubsystem {
 		B: Backend + 'static,
 	{
 		loop {
-			let (first_leaf, rolling_session_window) =
-				match get_rolling_session_window(ctx).await.into_nested() {
-					Ok(Some(update)) => update,
-					Ok(None) => {
-						tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-						return Ok(None)
-					},
-					Err(e) => {
-						e.split()?.log();
-						continue
-					},
-				};
+			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
+				Ok(Some(update)) => update,
+				Ok(None) => {
+					tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+					return Ok(None)
+				},
+				Err(e) => {
+					e.split()?.log();
+					continue
+				},
+			};
 
 			// Before we move to the initialized state we need to check if we got at
 			// least on finality notification to prevent large ancestry block scraping,
@@ -399,11 +399,13 @@ where
 			// available). So instead of telling subsystems, everything is fine, because of an
 			// hour old database state, we should rather cancel contained oneshots and delay
 			// finality until we are fully functional.
+			{
 				tracing::warn!(
 					target: LOG_TARGET,
 					?msg,
 					"Received msg before first active leaves update. This is not expected - message will be dropped."
-				),
+				)
+			},
 		}
 	}
 }

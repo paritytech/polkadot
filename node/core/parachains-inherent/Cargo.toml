@@ -12,7 +12,6 @@ thiserror = "1.0.30"
 async-trait = "0.1.52"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-primitives = { path = "../../../primitives" }
-fatality = { path = "../../fatality" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

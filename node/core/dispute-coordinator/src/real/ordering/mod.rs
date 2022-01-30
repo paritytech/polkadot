@@ -32,6 +32,7 @@ use crate::{
 	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
+use fatality::Split;
 
 #[cfg(test)]
 mod tests;
@@ -182,7 +183,7 @@ impl OrderingProvider {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<()> {
+	) -> crate::error::Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
 			// Fetch last finalized block.
 			let ancestors = match get_finalized_block_number(sender).await {
@@ -229,7 +230,14 @@ impl OrderingProvider {
 			for (block_num, block_hash) in block_numbers.zip(block_hashes) {
 				// Get included events:
 				let included = get_candidate_events(sender, block_hash)
-					.await?
+					.await
+					.map_err(|err| -> crate::error::Error {
+						match err.split() {
+							// will be remedied as soon as `split` is comatibe with `defer` in `fatality`.
+							Ok(jfyi) => crate::error::JfyiError::Runtime2(jfyi).into(),
+							Err(fatal) => crate::error::FatalError::RuntimeApi(fatal).into(),
+						}
+					})?
 					.into_iter()
 					.filter_map(|ev| match ev {
 						CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
@@ -299,7 +307,9 @@ impl OrderingProvider {
 					)
 					.await;
 
-				rx.await.or(Err(FatalError::ChainApiSenderDropped))?.map_err(FatalError::ChainApi)?
+				rx.await
+					.or(Err(FatalError::ChainApiSenderDropped))?
+					.map_err(FatalError::ChainApiAncestors)?
 			};
 
 			let earliest_block_number = match head_number.checked_sub(hashes.len() as u32) {
@@ -357,7 +367,7 @@ where
 	receiver
 		.await
 		.map_err(|_| FatalError::ChainApiSenderDropped)?
-		.map_err(FatalError::ChainApi)
+		.map_err(FatalError::ChainApiAncestors)
 }
 
 async fn get_block_number(

@@ -3,7 +3,7 @@ name = "fatality"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-description = "Fatality extension to crate thiserror"
+description = "Fatality extension to crate `thiserror`"
 readme = "README.md"
 
 [dependencies]
@@ -14,3 +14,4 @@ thiserror = "1.0"
 trybuild = "1.0"
 thiserror = "1.0"
 log = "0.4"
+assert_matches = "1"

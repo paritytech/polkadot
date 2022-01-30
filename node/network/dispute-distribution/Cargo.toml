@@ -19,6 +19,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
+fatality = { path = "../../fatality"}
 lru = "0.7.2"
 
 [dev-dependencies]

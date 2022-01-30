@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::channel::oneshot;
 use fatality::Nested;
+use futures::channel::oneshot;
 
-use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	SubsystemError,
-};
+use polkadot_node_subsystem::{errors::ChainApiError, SubsystemError};
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
 use crate::{real::participation, LOG_TARGET};
@@ -30,12 +27,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub type FatalResult<T> = std::result::Result<T, FatalError>;
 pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
 
+#[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
 	/// Errors coming from runtime::Runtime.
 	#[fatal]
 	#[error("Error while accessing runtime information {0}")]
-	RuntimeApi(runtime::FatalError),
+	RuntimeApi(#[from] runtime::FatalError),
 
 	/// We received a legacy `SubystemError::Context` error which is considered fatal.
 	#[fatal]
@@ -45,7 +43,7 @@ pub enum Error {
 	/// `ctx.spawn` failed with an error.
 	#[fatal]
 	#[error("Spawning a task failed: {0}")]
-	SpawnFailed(SubsystemError),
+	SpawnFailed(#[source] SubsystemError),
 
 	#[fatal]
 	#[error("Participation worker receiver exhausted.")]
@@ -68,6 +66,14 @@ pub enum Error {
 	#[error("Retrieving block number from chain API failed with error: {0}")]
 	ChainApiBlockNumber(ChainApiError),
 
+	#[fatal]
+	#[error(transparent)]
+	ChainApiAncestors(ChainApiError),
+
+	#[fatal]
+	#[error("Chain API dropped response channel sender")]
+	ChainApiSenderDropped,
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
@@ -81,7 +87,7 @@ pub enum Error {
 	DisputeImportOneshotSend,
 
 	#[error(transparent)]
-	Subsystem(SubsystemError),
+	Subsystem(#[from] SubsystemError),
 
 	#[error(transparent)]
 	Codec(#[from] CodecError),
@@ -117,8 +123,9 @@ impl JfyiError {
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) | Self::Oneshot(_) =>
-				tracing::debug!(target: LOG_TARGET, error = ?self),
+			Self::Runtime2(_) | Self::Oneshot(_) => {
+				tracing::debug!(target: LOG_TARGET, error = ?self)
+			},
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, error = ?self),
 		}

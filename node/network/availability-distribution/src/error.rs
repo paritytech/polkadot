@@ -26,6 +26,8 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem_util::runtime;
 use polkadot_subsystem::{ChainApiError, SubsystemError};
 
+use fatality::Split;
+
 use crate::LOG_TARGET;
 
 #[derive(Debug, Error, derive_more::From)]
@@ -38,10 +40,10 @@ pub enum Error {
 }
 
 impl From<runtime::Error> for Error {
-	fn from(o: runtime::Error) -> Self {
-		match o {
-			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
-			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
+	fn from(src: runtime::Error) -> Self {
+		match src.split() {
+			Err(fatal) => Self::Fatal(Fatal::Runtime(fatal)),
+			Ok(jfyi) => Self::NonFatal(NonFatal::Runtime(jfyi)),
 		}
 	}
 }
@@ -62,7 +64,7 @@ pub enum Fatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
-	Runtime(#[from] runtime::Fatal),
+	Runtime(#[from] runtime::FatalError),
 
 	#[error("Oneshot for receiving response from Chain API got cancelled")]
 	ChainApiSenderDropped(#[source] oneshot::Canceled),
@@ -107,7 +109,7 @@ pub enum NonFatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
-	Runtime(#[from] runtime::NonFatal),
+	Runtime(#[from] runtime::JfyiError),
 }
 
 /// General result type for fatal/nonfatal errors.
