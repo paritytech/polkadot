@@ -39,21 +39,13 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
+use backend::{Backend, OverlayedBackend};
+use db::v1::DbBackend;
+use crate::error::{Error, JfyiError, FatalResult, Result};
+use crate::status::SystemClock;
 use crate::metrics::Metrics;
-use backend::{Backend, OverlayedBackend};
-use db::v1::DbBackend;
-use error::{FatalResult, Result};
-
-use self::{
-	error::{Error, JfyiError},
-	ordering::CandidateComparator,
-	participation::ParticipationRequest,
-	spam_slots::{SpamSlots, UnconfirmedDisputes},
-	status::{get_active_with_status, SystemClock},
-};
-
-use backend::{Backend, OverlayedBackend};
-use db::v1::DbBackend;
+use crate::status::get_active_with_status;
+use fatality::Fatality;
 
 use self::{
 	ordering::CandidateComparator,

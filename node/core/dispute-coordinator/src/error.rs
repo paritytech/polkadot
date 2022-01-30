@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::channel::oneshot;
-use thiserror::Error;
+use fatality::Nested;
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
@@ -26,12 +26,16 @@ use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, 
 use crate::{real::participation, LOG_TARGET};
 use parity_scale_codec::Error as CodecError;
 
+pub type Result<T> = std::result::Result<T, Error>;
+pub type FatalResult<T> = std::result::Result<T, FatalError>;
+pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
+
 #[fatality::fatality(splitable)]
 pub enum Error {
 	/// Errors coming from runtime::Runtime.
 	#[fatal]
 	#[error("Error while accessing runtime information {0}")]
-	Runtime(#[from] runtime::Fatal),
+	RuntimeApi(runtime::FatalError),
 
 	/// We received a legacy `SubystemError::Context` error which is considered fatal.
 	#[fatal]
@@ -65,9 +69,6 @@ pub enum Error {
 	ChainApiBlockNumber(ChainApiError),
 
 	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-
-	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
 	#[error(transparent)]
@@ -91,7 +92,7 @@ pub enum Error {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
-	Runtime(#[from] runtime::NonFatal),
+	Runtime2(#[from] runtime::JfyiError),
 
 	#[error(transparent)]
 	QueueError(#[from] participation::QueueError),

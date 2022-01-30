@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
-use super::{
+use crate::{
 	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
@@ -299,7 +299,7 @@ impl OrderingProvider {
 					)
 					.await;
 
-				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
+				rx.await.or(Err(FatalError::ChainApiSenderDropped))?.map_err(FatalError::ChainApi)?
 			};
 
 			let earliest_block_number = match head_number.checked_sub(hashes.len() as u32) {
@@ -356,8 +356,8 @@ where
 
 	receiver
 		.await
-		.map_err(|_| Fatal::ChainApiSenderDropped)?
-		.map_err(Fatal::ChainApi)
+		.map_err(|_| FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApi)
 }
 
 async fn get_block_number(

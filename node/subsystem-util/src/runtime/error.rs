@@ -18,7 +18,6 @@
 //! Error handling related code and Error/Result definitions.
 
 use futures::channel::oneshot;
-use thiserror::Error;
 
 use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;

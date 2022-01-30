@@ -31,11 +31,9 @@ use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash
 
 use crate::real::LOG_TARGET;
 
-use super::{
+use crate::{
 	error::{FatalError, FatalResult, JfyiError, Result},
-	ordering::CandidateComparator,
 };
-
 use super::ordering::CandidateComparator;
 
 #[cfg(test)]
@@ -45,7 +43,7 @@ pub use tests::{participation_full_happy_path, participation_missing_availabilit
 
 mod queues;
 use queues::Queues;
-pub use queues::{Error as QueueError, ParticipationRequest};
+pub use queues::{QueueError, ParticipationRequest};
 
 /// How many participation processes do we want to run in parallel the most.
 ///

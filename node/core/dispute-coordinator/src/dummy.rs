@@ -63,14 +63,16 @@ where
 	loop {
 		let res = run_until_error(&mut ctx, &subsystem).await;
 		match res {
-			Err(e) =>
-				if let Error::Fatal(_) = e {
-					break
-				},
+			Err(e) if e.is_fatal() => {
+				break
+			}
+			Err(e) => {
+				tracing::debug!(target: LOG_TARGET, "x");
+			}
 			Ok(()) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break
-			},
+			}
 		}
 	}
 }

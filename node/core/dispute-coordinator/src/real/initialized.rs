@@ -53,17 +53,16 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	error::{log_error, Error, Fatal, FatalResult, NonFatal, NonFatalResult, Result},
 	metrics::Metrics,
 	real::{ordering::get_finalized_block_number, DisputeCoordinatorSubsystem},
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
 	LOG_TARGET,
+	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 };
 
 use super::{
 	backend::Backend,
 	db,
-	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	ordering::{CandidateComparator, OrderingProvider},
 	participation::{
 		self, Participation, ParticipationRequest, ParticipationStatement, WorkerMessageReceiver,
@@ -734,7 +733,7 @@ impl Initialized {
 	// Helper function for checking subsystem errors in message processing.
 	fn ensure_available_session_info(&self) -> Result<()> {
 		if let Some(subsystem_error) = self.error.clone() {
-			return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+			return Err(Error::RollingSessionWindow(subsystem_error))
 		}
 
 		Ok(())
