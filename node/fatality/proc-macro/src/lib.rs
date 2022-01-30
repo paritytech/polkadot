@@ -366,15 +366,16 @@ impl ToTokens for VariantPattern {
 			},
 			Fields::Named(named) => {
 				let pattern = named
-				.named
-				.iter()
-				.map(|field| {
-					Pat::Ident(PatIdent {
-						attrs: vec![],
-						by_ref: None,
-						mutability: None,
-						ident: field.ident.clone().expect("Named field has a name. qed"),
-						subpat: None,
+					.named
+					.iter()
+					.map(|field| {
+						Pat::Ident(PatIdent {
+							attrs: vec![],
+							by_ref: None,
+							mutability: None,
+							ident: field.ident.clone().expect("Named field has a name. qed"),
+							subpat: None,
+						})
 					})
 					.collect::<Punctuated<Pat, Token![,]>>();
 				ts.extend(quote! { #variant_name{ #pattern } });
@@ -406,17 +407,15 @@ impl ToTokens for VariantConstructor {
 			},
 			Fields::Named(named) => {
 				let constructor = named
-				.named
-				.iter()
-				.map(|field| field.ident.clone().expect("Named must have named fields. qed"))
-				.collect::<Punctuated<Ident, Token![,]>>();
-				quote!{ #variant_name { #constructor } }
-			}
-		}
-		);
+					.named
+					.iter()
+					.map(|field| field.ident.clone().expect("Named must have named fields. qed"))
+					.collect::<Punctuated<Ident, Token![,]>>();
+				quote! { #variant_name { #constructor } }
+			},
+		});
 	}
 }
-
 
 // Generate the Jfyi and Fatal sub enums.
 fn trait_split_impl(

@@ -26,7 +26,7 @@ use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, 
 use crate::{real::participation, LOG_TARGET};
 use parity_scale_codec::Error as CodecError;
 
-#[fatality(splitable)]
+#[fatality::fatality(splitable)]
 pub enum Error {
 	/// Errors coming from runtime::Runtime.
 	#[fatal]

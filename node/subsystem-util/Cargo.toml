@@ -24,6 +24,7 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
+fatality = { path = "../fatality" }
 metered-channel = { path = "../metered-channel" }
 fatality = { path = "../fatality" }
 
