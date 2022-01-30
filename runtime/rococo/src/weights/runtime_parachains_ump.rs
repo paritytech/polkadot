@@ -52,7 +52,7 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	// Storage: Ump NextDispatchRoundStartWith (r:1 w:1)
 	// Storage: Ump RelayDispatchQueues (r:0 w:1)
 	// Storage: Ump RelayDispatchQueueSize (r:0 w:1)
-	fn perform_outgoing_para_cleanup() -> Weight {
+	fn clean_ump_after_outgoing() -> Weight {
 		(6_640_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))

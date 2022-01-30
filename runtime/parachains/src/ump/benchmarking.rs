@@ -77,19 +77,18 @@ frame_benchmarking::benchmarks! {
 		assert!(T::UmpSink::process_upward_message(para, &data[..], Weight::MAX).is_ok());
 	}
 
-	perform_outgoing_para_cleanup {
+	clean_ump_after_outgoing {
 		// max number of queued messages.
 		let count = configuration::ActiveConfig::<T>::get().max_upward_queue_count;
-		let paras: Vec<_> = (0..count).map(ParaId::from).collect();
 		let host_conf = configuration::ActiveConfig::<T>::get();
 		let msg = create_message_size::<T>(0);
 		// Start with the block number 1. This is needed because should an event be
 		// emitted during the genesis block they will be implicitly wiped.
 		frame_system::Pallet::<T>::set_block_number(1u32.into());
 		// fill the queue, each message has it's own para-id.
-		(0..count).for_each(|p| {
-			queue_upward_msg::<T>(&host_conf, ParaId::from(p), msg.clone());
-		});
+		for id in 0..count {
+			queue_upward_msg::<T>(&host_conf, ParaId::from(id), msg.clone());
+		}
 	}: {
 		Ump::<T>::clean_ump_after_outgoing(&ParaId::from(0));
 	}

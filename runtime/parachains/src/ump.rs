@@ -184,7 +184,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 pub trait WeightInfo {
 	fn service_overweight() -> Weight;
 	fn process_upward_message(s: u32) -> Weight;
-	fn perform_outgoing_para_cleanup() -> Weight;
+	fn clean_ump_after_outgoing() -> Weight;
 }
 
 /// fallback implementation
@@ -198,7 +198,7 @@ impl WeightInfo for TestWeightInfo {
 		BlockWeights::default().max_block
 	}
 
-	fn perform_outgoing_para_cleanup() -> Weight {
+	fn clean_ump_after_outgoing() -> Weight {
 		BlockWeights::default().max_block
 	}
 }
@@ -410,7 +410,7 @@ impl<T: Config> Pallet<T> {
 			*v = v.filter(|p| p == outgoing_para)
 		});
 
-		<T as Config>::WeightInfo::perform_outgoing_para_cleanup()
+		<T as Config>::WeightInfo::clean_ump_after_outgoing()
 	}
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
