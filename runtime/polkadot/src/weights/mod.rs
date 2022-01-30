@@ -15,6 +15,7 @@
 
 //! A list of the different weight modules for our runtime.
 
+pub mod frame_benchmarking_baseline;
 pub mod frame_system;
 pub mod pallet_bags_list;
 pub mod pallet_balances;
