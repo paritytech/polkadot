@@ -22,7 +22,7 @@ use super::{
 };
 use frame_support::{
 	match_type, parameter_types,
-	traits::{Everything, Nothing, AllowAll},
+	traits::{AllowAll, Everything, Nothing},
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
@@ -174,15 +174,15 @@ pub type LocalOriginToLocation = (
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	// Not much use in sending XCM at this point.
-	type SendXcmOrigin = ();						// == Deny All
+	type SendXcmOrigin = (); // == Deny All
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = Nothing;				// == Deny All
+	type XcmExecuteFilter = Nothing; // == Deny All
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;			// == Allow All
-	type XcmReserveTransferFilter = Everything;		// == Allow All
+	type XcmTeleportFilter = Everything; // == Allow All
+	type XcmReserveTransferFilter = Everything; // == Allow All
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
