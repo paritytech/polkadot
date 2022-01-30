@@ -20,7 +20,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 1024
 
 // Executed Command:
-// target/release/polkadot
+// target/production/polkadot
 // benchmark
 // --chain=kusama-dev
 // --steps=50
@@ -31,7 +31,6 @@
 // --wasm-execution=compiled
 // --heap-pages=4096
 // --header=./file_header.txt
-// --raw
 // --output=./runtime/kusama/src/weights/runtime_parachains_ump.rs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
@@ -45,7 +44,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo<T> {
 	fn process_upward_message(s: u32, ) -> Weight {
-		(10_145_000 as Weight)
+		(3_715_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_000 as Weight).saturating_mul(s as Weight))
 	}
@@ -54,13 +53,13 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	// Storage: Ump RelayDispatchQueues (r:0 w:1)
 	// Storage: Ump RelayDispatchQueueSize (r:0 w:1)
 	fn clean_ump_after_outgoing() -> Weight {
-		(10_228_000 as Weight)
+		(6_711_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: Ump Overweight (r:1 w:1)
 	fn service_overweight() -> Weight {
-		(24_521_000 as Weight)
+		(16_427_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
