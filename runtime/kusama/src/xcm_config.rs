@@ -173,7 +173,7 @@ impl pallet_xcm::Config for Runtime {
 	// enable, (safe the possibility of someone spamming the parachain if they're willing to pay
 	// the DOT to send from the Relay-chain). But it's useless until we bring in XCM v3 which will
 	// make `DescendOrigin` a bit more useful.
-	type SendXcmOrigin = ();
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
