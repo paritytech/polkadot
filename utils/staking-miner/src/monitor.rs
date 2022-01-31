@@ -89,7 +89,7 @@ async fn ensure_no_previous_solution<
 		{
 			log::info!("submission: {:?}", submission);
 			if &submission.who == us {
-				return Err(Error::AlreadySubmitted);
+				return Err(Error::AlreadySubmitted)
 			}
 		}
 	}
@@ -214,6 +214,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				return;
 			}
 
+			if ensure_no_previous_solution::<Runtime, Block>(&*client, hash, &signer.account).await.is_err() {
+				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+				return;
+			}
+
 			// grab an externalities without staking, just the election snapshot.
 			let mut ext = match crate::create_election_ext::<Runtime, Block>(
 				shared.uri.clone(),
@@ -226,11 +231,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					return;
 				}
 			};
-
-			if ensure_no_previous_solution::<Runtime, Block>(&*client, hash, &signer.account).await.is_err() {
-				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
-				return;
-			}
 
 			// mine a solution, and run feasibility check on it as well.
 			let (raw_solution, witness) = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
