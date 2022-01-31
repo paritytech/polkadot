@@ -272,12 +272,44 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
-	use polkadot_primitives::v1::PersistedValidationData;
+	use polkadot_primitives::v1::{Hash, PersistedValidationData};
+
+	/// Calculates the head and state for the block with the given `number`.
+	fn calculate_head_and_state_for_number(
+		pov_size: usize,
+		pvf_complexity: u32,
+	) -> (HeadData, GraveyardState) {
+		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize - 20;
+		let index = 0u64;
+		let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
+		let zombies = 0;
+		let seal = [0u8; 32];
+
+		// Ensure a larger compressed PoV.
+		graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
+			*grave = i as u8;
+		});
+
+		let mut state = GraveyardState { index, graveyard, zombies, seal };
+		let mut head =
+			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
+
+		while head.number < pov_size as u64 {
+			let block =
+				BlockData { state, tombstones: pov_size as u64, iterations: pvf_complexity };
+			let (new_head, new_state) =
+				execute(head.hash(), head.clone(), block).expect("Produces valid block");
+			head = new_head;
+			state = new_state;
+		}
+
+		(head, state)
+	}
 
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
-		let collator = Collator::new();
+		let collator = Collator::new(1_000, 1);
 		let collation_function = collator.create_collation_function(spawner);
 
 		for i in 0..5 {
@@ -326,16 +358,16 @@ mod tests {
 
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
-		let collator = Collator::new();
+		let collator = Collator::new(1_000, 1);
 
-		let mut head = calculate_head_and_state_for_number(10, 1000).0;
+		let mut head = calculate_head_and_state_for_number(1_000, 1).0;
 
 		for i in 1..10 {
 			head = collator.state.lock().unwrap().advance(head).1;
 			assert_eq!(10 + i, head.number);
 		}
 
-		let collator = Collator::new();
+		let collator = Collator::new(1_000, 1);
 		let mut second_head = collator
 			.state
 			.lock()
