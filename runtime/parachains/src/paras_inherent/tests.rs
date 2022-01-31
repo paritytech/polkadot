@@ -127,6 +127,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				2
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -194,6 +200,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -258,6 +270,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -300,6 +318,9 @@ mod enter {
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
 			), Err(e) => { dbg!(e) });
+
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -377,6 +398,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0,
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -425,12 +452,8 @@ mod enter {
 				dbg!(e)
 			});
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know
-				// all of our candidates got filtered out
-				Pallet::<Test>::on_chain_votes(),
-				None,
-			);
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -513,6 +536,12 @@ mod enter {
 				// all of our candidates got filtered out
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0,
+			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
 			);
 		});
 	}
@@ -674,6 +703,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				1
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -717,6 +752,7 @@ mod enter {
 				expected_para_inherent_data,
 			), Err(e) => { dbg!(e) });
 
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
 			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
 	}
