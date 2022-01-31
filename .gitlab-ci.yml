@@ -104,18 +104,6 @@ default:
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
   secrets:
-    AWS_ACCESS_KEY_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_ACCESS_KEY_ID@kv
-      file:                        false
-    AWS_SECRET_ACCESS_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
-      file:                        false
-    DOCKER_HUB_USER:
-      vault:                       cicd/gitlab/parity/DOCKER_HUB_USER@kv
-      file:                        false
-    DOCKER_HUB_PASS:
-      vault:                       cicd/gitlab/parity/DOCKER_HUB_PASS@kv
-      file:                        false
     GITHUB_PR_TOKEN:
       vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
       file:                        false
@@ -149,9 +137,7 @@ default:
     REL_MAN_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/REL_MAN_ROOM_ID@kv
       file:                        false
-    SSH_PRIVATE_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/SSH_PRIVATE_KEY@kv
-      file:                        false
+
 
 #### stage:                        test
 
@@ -160,7 +146,6 @@ check-runtime:
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   <<:                              *test-refs
-  <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -182,7 +167,6 @@ test-deterministic-wasm:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
@@ -191,7 +175,6 @@ test-build-linux-stable:
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *collect-artifacts
-  <<:                              *vault-secrets
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -228,7 +211,6 @@ check-runtime-benchmarks:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that everything compiles with `runtime-benchmarks` feature flag.
     - cargo check --features runtime-benchmarks --all
@@ -239,7 +221,6 @@ check-try-runtime:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that everything compiles with `try-runtime` feature flag.
     - cargo check --features try-runtime --all
@@ -250,7 +231,6 @@ check-no-default-features:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *vault-secrets
   script:
     # Check that polkadot-cli will compile no default features.
     - pushd node/service && cargo check --no-default-features && popd
@@ -311,7 +291,6 @@ build-malus:
   stage:                           build
   <<:                              *docker-env
   <<:                              *test-pr-refs
-  <<:                              *vault-secrets
   script:
     - git clone
         --depth=1
@@ -335,7 +314,6 @@ check-transaction-versions:
   stage:                           build
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *vault-secrets
   image:                           node:15
   needs:
     - job:                         test-build-linux-stable
@@ -519,47 +497,6 @@ update_westend_weights:
     RUNTIME:                       westend
 
 #### stage:                        publish
-
-publish-s3-release:                &publish-s3
-  stage:                           publish
-  needs:
-    - job:                         test-build-linux-stable
-      artifacts:                   true
-  <<:                              *kubernetes-env
-  <<:                              *vault-secrets
-  image:                           paritytech/awscli:latest
-  variables:
-    GIT_STRATEGY:                  none
-    PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "pipeline"
-      when: never
-    # publishing binaries nightly
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-  before_script:
-    - *check-versions
-  script:
-    - echo "uploading objects to https://releases.parity.io/${PREFIX}/${VERSION}"
-    - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
-    - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
-    - find ./artifacts -type f | while read file; do
-        name="${file#./artifacts/}";
-        aws s3api copy-object
-          --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
-          --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
-      done
-    - |
-      cat <<-EOM
-      |
-      |  polkadot binary paths:
-      |
-      |  - https://releases.parity.io/${PREFIX}/${EXTRATAG}/polkadot
-      |  - https://releases.parity.io/${PREFIX}/${VERSION}/polkadot
-      |
-      EOM
-  after_script:
-    - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
-        --recursive --human-readable --summarize
 
 publish-rustdoc:
   stage:                           publish

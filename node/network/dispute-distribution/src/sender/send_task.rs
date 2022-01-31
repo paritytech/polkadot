@@ -204,7 +204,8 @@ impl SendTask {
 		active_sessions: &HashMap<SessionIndex, Hash>,
 	) -> Result<HashSet<AuthorityDiscoveryId>> {
 		let ref_head = self.request.0.candidate_receipt.descriptor.relay_parent;
-		// Parachain validators:
+		// Retrieve all authorities which participated in the parachain consensus of the session
+		// in which the candidate was backed.
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), ref_head, self.request.0.session_index)
 			.await?;
@@ -219,7 +220,8 @@ impl SendTask {
 			.map(|(_, v)| v.clone())
 			.collect();
 
-		// Current authorities:
+		// Retrieve all authorities for the current session as indicated by the active
+		// heads we are tracking.
 		for (session_index, head) in active_sessions.iter() {
 			let info =
 				runtime.get_session_info_by_index(ctx.sender(), *head, *session_index).await?;

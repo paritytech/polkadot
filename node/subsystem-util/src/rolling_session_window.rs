@@ -34,8 +34,8 @@ use polkadot_node_subsystem::{
 use thiserror::Error;
 
 /// Sessions unavailable in state to cache.
-#[derive(Debug)]
-pub enum SessionsUnavailableKind {
+#[derive(Debug, Clone)]
+pub enum SessionsUnavailableReason {
 	/// Runtime API subsystem was unavailable.
 	RuntimeApiUnavailable(oneshot::Canceled),
 	/// The runtime API itself returned an error.
@@ -45,7 +45,7 @@ pub enum SessionsUnavailableKind {
 }
 
 /// Information about the sessions being fetched.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SessionsUnavailableInfo {
 	/// The desired window start.
 	pub window_start: SessionIndex,
@@ -56,10 +56,10 @@ pub struct SessionsUnavailableInfo {
 }
 
 /// Sessions were unavailable to fetch from the state for some reason.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub struct SessionsUnavailable {
 	/// The error kind.
-	kind: SessionsUnavailableKind,
+	kind: SessionsUnavailableReason,
 	/// The info about the session window, if any.
 	info: Option<SessionsUnavailableInfo>,
 }
@@ -102,7 +102,7 @@ impl RollingSessionWindow {
 		window_size: SessionWindowSize,
 		block_hash: Hash,
 	) -> Result<Self, SessionsUnavailable> {
-		let session_index = get_session_index_for_head(ctx, block_hash).await?;
+		let session_index = get_session_index_for_child(ctx, block_hash).await?;
 
 		let window_start = session_index.saturating_sub(window_size.get() - 1);
 
@@ -160,7 +160,7 @@ impl RollingSessionWindow {
 		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 		block_hash: Hash,
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
-		let session_index = get_session_index_for_head(ctx, block_hash).await?;
+		let session_index = get_session_index_for_child(ctx, block_hash).await?;
 
 		let old_window_start = self.earliest_session;
 
@@ -212,7 +212,12 @@ impl RollingSessionWindow {
 	}
 }
 
-async fn get_session_index_for_head(
+// Returns the session index expected at any child of the `parent` block.
+//
+// Note: We could use `RuntimeInfo::get_session_index_for_child` here but it's
+// cleaner to just call the runtime API directly without needing to create an instance
+// of `RuntimeInfo`.
+async fn get_session_index_for_child(
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	block_hash: Hash,
 ) -> Result<SessionIndex, SessionsUnavailable> {
@@ -229,12 +234,12 @@ async fn get_session_index_for_head(
 		Ok(Ok(s)) => Ok(s),
 		Ok(Err(e)) =>
 			return Err(SessionsUnavailable {
-				kind: SessionsUnavailableKind::RuntimeApi(e),
+				kind: SessionsUnavailableReason::RuntimeApi(e),
 				info: None,
 			}),
 		Err(e) =>
 			return Err(SessionsUnavailable {
-				kind: SessionsUnavailableKind::RuntimeApiUnavailable(e),
+				kind: SessionsUnavailableReason::RuntimeApiUnavailable(e),
 				info: None,
 			}),
 	}
@@ -245,7 +250,7 @@ async fn load_all_sessions(
 	block_hash: Hash,
 	start: SessionIndex,
 	end_inclusive: SessionIndex,
-) -> Result<Vec<SessionInfo>, SessionsUnavailableKind> {
+) -> Result<Vec<SessionInfo>, SessionsUnavailableReason> {
 	let mut v = Vec::new();
 	for i in start..=end_inclusive {
 		let (tx, rx) = oneshot::channel();
@@ -257,9 +262,9 @@ async fn load_all_sessions(
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing(i)),
-			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
-			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
+			Ok(Ok(None)) => return Err(SessionsUnavailableReason::Missing(i)),
+			Ok(Err(e)) => return Err(SessionsUnavailableReason::RuntimeApi(e)),
+			Err(canceled) => return Err(SessionsUnavailableReason::RuntimeApiUnavailable(canceled)),
 		};
 
 		v.push(session_info);

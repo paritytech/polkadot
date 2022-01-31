@@ -117,18 +117,20 @@ exclude = ["bridges/relays/bin-substrate", "bridges/bin/rialto/runtime", "bridge
 [badges]
 maintenance = { status = "actively-developed" }
 
-# make sure dev builds with backtrace do
-# not slow us down
-[profile.dev.package.backtrace]
-opt-level = 3
-
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+opt-level = 3
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+inherits = "release"
 
 [profile.production]
 inherits = "release"
 lto = true
+codegen-units = 1
 
 [profile.testnet]
 inherits = "release"

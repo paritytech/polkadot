@@ -434,7 +434,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
+	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 	let info = &runtime
 		.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 		.await?

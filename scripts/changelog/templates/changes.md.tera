@@ -1,0 +1,13 @@
+{# This include generates the section showing the changes #}
+## Changes
+
+### Legend
+
+- {{ DOT }} Polkadot
+- {{ SUB }} Substrate
+
+{% include "changes_client.md.tera" %}
+
+{% include "changes_runtime.md.tera" %}
+
+{% include "changes_misc.md.tera" %}
