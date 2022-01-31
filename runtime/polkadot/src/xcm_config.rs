@@ -110,7 +110,7 @@ parameter_types! {
 	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
 }
 
-/// Polkadot Relay recognises/respects the Statemint chain as a teleporter.
+/// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
 
 match_type! {
