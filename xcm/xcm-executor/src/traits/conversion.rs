@@ -209,7 +209,7 @@ pub trait InvertLocation {
 	/// Return the location of the local consensus system from the point of view of the location
 	/// `l`.
 	///
-	/// Given a target `location`, the result provides a the location which represents the local
+	/// Given a target `location`, the result provides the location which represents the local
 	/// consensus system from the targets perspective.
 	fn invert_location(location: &MultiLocation) -> Result<MultiLocation, ()> {
 		let mut ancestry = Self::universal_location();

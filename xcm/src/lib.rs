@@ -146,6 +146,60 @@ impl TryFrom<VersionedMultiLocation> for v3::MultiLocation {
 	}
 }
 
+/// A single `InteriorMultiLocation` value, together with its version code.
+#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedInteriorMultiLocation {
+	V1(v1::InteriorMultiLocation),
+	V3(v3::InteriorMultiLocation),
+}
+
+impl IntoVersion for VersionedInteriorMultiLocation {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
+}
+
+impl From<v1::InteriorMultiLocation> for VersionedInteriorMultiLocation {
+	fn from(x: v1::InteriorMultiLocation) -> Self {
+		VersionedInteriorMultiLocation::V1(x)
+	}
+}
+
+impl<T: Into<v3::InteriorMultiLocation>> From<T> for VersionedInteriorMultiLocation {
+	fn from(x: T) -> Self {
+		VersionedInteriorMultiLocation::V3(x.into())
+	}
+}
+
+impl TryFrom<VersionedInteriorMultiLocation> for v1::InteriorMultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedInteriorMultiLocation) -> Result<Self, ()> {
+		use VersionedInteriorMultiLocation::*;
+		match x {
+			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedInteriorMultiLocation> for v3::InteriorMultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedInteriorMultiLocation) -> Result<Self, ()> {
+		use VersionedInteriorMultiLocation::*;
+		match x {
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
+		}
+	}
+}
+
 /// A single `Response` value, together with its version code.
 #[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
@@ -548,8 +602,8 @@ pub type AlwaysRelease = AlwaysV2;
 pub mod prelude {
 	pub use super::{
 		latest::prelude::*, AlwaysLatest, AlwaysRelease, AlwaysV2, AlwaysV3, IntoVersion,
-		Unsupported, Version as XcmVersion, VersionedMultiAsset, VersionedMultiAssets,
-		VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
+		Unsupported, Version as XcmVersion, VersionedInteriorMultiLocation, VersionedMultiAsset,
+		VersionedMultiAssets, VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
 	};
 }
 

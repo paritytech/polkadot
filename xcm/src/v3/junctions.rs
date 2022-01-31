@@ -16,7 +16,7 @@
 
 //! XCM `Junctions`/`InteriorMultiLocation` datatype.
 
-use super::{Junction, MultiLocation};
+use super::{Junction, MultiLocation, NetworkId};
 use core::{convert::TryFrom, mem, result};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -127,6 +127,32 @@ impl Junctions {
 	/// Similar to `Self::into`, with the added ability to specify the number of parent junctions.
 	pub const fn into_exterior(self, n: u8) -> MultiLocation {
 		MultiLocation { parents: n, interior: self }
+	}
+
+	/// Extract the network ID treating this value as a universal location.
+	///
+	/// This will return an `Err` if the first item is not a `GlobalConsensus`, which would indicate
+	/// that this value is not a universal location.
+	pub fn global_consensus(&self) -> Result<NetworkId, ()> {
+		if let Some(Junction::GlobalConsensus(ref network)) = self.first() {
+			Ok(network.clone())
+		} else {
+			Err(())
+		}
+	}
+
+	/// Consumes `self` and returns how `viewer` would address it locally.
+	pub fn relative_to(mut self, viewer: &Junctions) -> MultiLocation {
+		let mut i = 0;
+		while match (self.first(), viewer.at(i)) { (Some(x), Some(y)) => x == y, _ => false } {
+			self = self.split_first().0;
+			// NOTE: Cannot overflow as loop can only iterate at most `MAX_JUNCTIONS` times.
+			i += 1;
+		}
+		// AUDIT NOTES:
+		// - above loop ensures that `i <= viewer.len()`.
+		// - `viewer.len()` is at most `MAX_JUNCTIONS`, so won't overflow a `u8`.
+		MultiLocation { parents: (viewer.len() - i) as u8, interior: self }
 	}
 
 	/// Returns first junction, or `None` if the location is empty.
@@ -479,13 +505,93 @@ impl From<()> for Junctions {
 
 xcm_procedural::impl_conversion_functions_for_junctions_v3!();
 
-#[test]
-fn test_conversion() {
-	use super::{Junction::*, Junctions::*, NetworkId::*};
-	let x: Junctions = GlobalConsensus(Polkadot).into();
-	assert_eq!(x, X1(GlobalConsensus(Polkadot)));
-	let x: Junctions = Polkadot.into();
-	assert_eq!(x, X1(GlobalConsensus(Polkadot)));
-	let x: Junctions = (Polkadot, Kusama).into();
-	assert_eq!(x, X2(GlobalConsensus(Polkadot), GlobalConsensus(Kusama)));
+#[cfg(test)]
+mod tests {
+	use alloc::vec;
+	use super::*;
+	use super::super::prelude::*;
+
+	#[test]
+	fn relative_to_works() {
+		use Junctions::*;
+		use NetworkId::*;
+		assert_eq!(X1(Polkadot.into()).relative_to(&X1(Kusama.into())), (Parent, Polkadot).into());
+		let base = X3(Kusama.into(), Parachain(1), PalletInstance(1));
+
+		// Ancestors.
+		assert_eq!(
+			Here.relative_to(&base),
+			(Parent, Parent, Parent).into()
+		);
+		assert_eq!(
+			X1(Kusama.into()).relative_to(&base),
+			(Parent, Parent).into()
+		);
+		assert_eq!(
+			X2(Kusama.into(), Parachain(1)).relative_to(&base),
+			(Parent,).into()
+		);
+		assert_eq!(
+			X3(Kusama.into(), Parachain(1), PalletInstance(1)).relative_to(&base),
+			Here.into()
+		);
+
+		// Ancestors with one child.
+		assert_eq!(
+			X1(Polkadot.into()).relative_to(&base),
+			(Parent, Parent, Parent, Polkadot).into()
+		);
+		assert_eq!(
+			X2(Kusama.into(), Parachain(2)).relative_to(&base),
+			(Parent, Parent, Parachain(2)).into()
+		);
+		assert_eq!(
+			X3(Kusama.into(), Parachain(1), PalletInstance(2)).relative_to(&base),
+			(Parent, PalletInstance(2)).into()
+		);
+		assert_eq!(
+			X4(Kusama.into(), Parachain(1), PalletInstance(1), [1u8; 32].into()).relative_to(&base),
+			([1u8; 32],).into()
+		);
+
+		// Ancestors with grandchildren.
+		assert_eq!(
+			X2(Polkadot.into(), Parachain(1)).relative_to(&base),
+			(Parent, Parent, Parent, Polkadot, Parachain(1)).into()
+		);
+		assert_eq!(
+			X3(Kusama.into(), Parachain(2), PalletInstance(1)).relative_to(&base),
+			(Parent, Parent, Parachain(2), PalletInstance(1)).into()
+		);
+		assert_eq!(
+			X4(Kusama.into(), Parachain(1), PalletInstance(2), [1u8; 32].into()).relative_to(&base),
+			(Parent, PalletInstance(2), [1u8; 32]).into()
+		);
+		assert_eq!(
+			X5(Kusama.into(), Parachain(1), PalletInstance(1), [1u8; 32].into(), vec![1].into()).relative_to(&base),
+			([1u8; 32], vec![1]).into()
+		);
+	}
+
+	#[test]
+	fn global_consensus_works() {
+		use Junctions::*;
+		use NetworkId::*;
+		assert_eq!(X1(Polkadot.into()).global_consensus(), Ok(Polkadot));
+		assert_eq!(X2(Kusama.into(), 1u64.into()).global_consensus(), Ok(Kusama));
+		assert_eq!(Here.global_consensus(), Err(()));
+		assert_eq!(X1(1u64.into()).global_consensus(), Err(()));
+		assert_eq!(X2(1u64.into(), Kusama.into()).global_consensus(), Err(()));
+	}
+
+	#[test]
+	fn test_conversion() {
+		use super::{Junction::*, Junctions::*, NetworkId::*};
+		let x: Junctions = GlobalConsensus(Polkadot).into();
+		assert_eq!(x, X1(GlobalConsensus(Polkadot)));
+		let x: Junctions = Polkadot.into();
+		assert_eq!(x, X1(GlobalConsensus(Polkadot)));
+		let x: Junctions = (Polkadot, Kusama).into();
+		assert_eq!(x, X2(GlobalConsensus(Polkadot), GlobalConsensus(Kusama)));
+	}
 }

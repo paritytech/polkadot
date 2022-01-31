@@ -19,7 +19,7 @@
 use frame_support::{ensure, traits::{Contains, Get}, weights::Weight};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{Instruction::{self, *}, Junction, Junctions, MultiLocation, WeightLimit::*, Xcm};
+use xcm::latest::{Instruction::{self, *}, Junction, Junctions, MultiLocation, WeightLimit::*};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
