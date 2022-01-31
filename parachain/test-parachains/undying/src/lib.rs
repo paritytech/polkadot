@@ -117,10 +117,9 @@ pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 
 			block_data.state.index =
 				((block_data.state.index.saturating_add(1)) as usize % graveyard_size) as u64;
-
-			// Chain hash the seals and urn CPU proportionally with the size of the graveyard.
-			block_data.state.seal = hash_state(&block_data.state);
 		}
+		// Chain hash the seals and burn CPU.
+		block_data.state.seal = hash_state(&block_data.state);
 	}
 
 	block_data.state
