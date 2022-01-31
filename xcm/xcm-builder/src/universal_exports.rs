@@ -344,6 +344,7 @@ mod tests {
 		fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
 			let destination = destination.into();
 			REMOTE_INCOMING_XCM.with(|r| r.borrow_mut().push((destination, message)));
+			Ok(())
 		}
 	}
 
