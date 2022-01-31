@@ -730,14 +730,13 @@ mod enter {
 			PalletRunner::<Test>::run_to_next_block(true);
 
 			// Checking that the time out event was indeed deposited
-			let expected_event: disputes::pallet::Event<Test> = disputes::Event::DisputeTimedOut(
-				disputed_hash.clone()
-			);
+			let expected_event = crate::mock::Event::Disputes(disputes::pallet::Event::DisputeTimedOut(
+               disputed_hash.clone()
+            ));
 
-			let events = frame_system::Pallet::<Test>::events();
-			println!("{}", events.len());
-
-			//PalletRunner::<Test>::assert_last_event(expected_event.into());
+			let last_event = PalletRunner::<Test>::last_event();
+			// Check that the last event is the timed out dispute with the block we've disputed
+			assert_eq!(last_event, expected_event);
 		});
 	}
 

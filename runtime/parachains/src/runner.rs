@@ -392,7 +392,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		let validators = Self::active_validators_for_session(Self::current_session_index());
 		let statements_len = validators.len() as u32;
 
-        // Supermajority votes against the block
+		// Supermajority votes against the block
 		let validators_against = supermajority_threshold(statements_len as usize) as u32;
 		let validators_for = statements_len - validators_against;
 
@@ -400,7 +400,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 			block_hash.clone(),
 			validators_for,
 			validators_against,
-            Self::current_session_index(),
+			Self::current_session_index(),
 		);
 
 		DisputeStatementSet {
@@ -410,27 +410,27 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		}
 	}
 
-    pub fn create_unresolved_dispute(block_hash: CandidateHash) -> DisputeStatementSet {
-        let validators = Self::active_validators_for_session(Self::current_session_index());
-        let statements_len = validators.len() as u32;
+	pub fn create_unresolved_dispute(block_hash: CandidateHash) -> DisputeStatementSet {
+		let validators = Self::active_validators_for_session(Self::current_session_index());
+		let statements_len = validators.len() as u32;
 
-        // Supermajority votes against the block
-        let validators_against = 1;
-        let validators_for = 1;
+		// Supermajority votes against the block
+		let validators_against = 1;
+		let validators_for = 1;
 
-        let statements = Self::create_dispute_statements(
-            block_hash.clone(),
-            validators_for,
-            validators_against,
-            Self::current_session_index(),
-        );
+		let statements = Self::create_dispute_statements(
+			block_hash.clone(),
+			validators_for,
+			validators_against,
+			Self::current_session_index(),
+		);
 
-        DisputeStatementSet {
-            candidate_hash: block_hash.clone(),
-            session: Self::current_session_index(),
-            statements,
-        }
-    }
+		DisputeStatementSet {
+			candidate_hash: block_hash.clone(),
+			session: Self::current_session_index(),
+			statements,
+		}
+	}
 
 	/// Returns the current block number
 	pub fn current_block_number() -> C::BlockNumber {
@@ -440,11 +440,6 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	pub fn current_session_index() -> SessionIndex {
 		<shared::Pallet<C>>::session_index()
 	}
-
-	// fn run_to_session(n: u32) {
-	// 	let block_number = BLOCKS_PER_SESSION * n;
-	// 	Self::run_to_block(block_number);
-	// }
 
 	/// Returns the last deposited event
 	pub fn last_event() -> <C as frame_system::Config>::Event {
