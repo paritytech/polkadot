@@ -20,11 +20,7 @@ use super::{
 	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
-use frame_support::{
-	match_type, parameter_types,
-	traits::Everything,
-	weights::Weight,
-};
+use frame_support::{match_type, parameter_types, traits::Everything, weights::Weight};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
