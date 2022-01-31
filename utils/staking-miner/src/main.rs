@@ -38,13 +38,13 @@ mod signer;
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
+use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
-use structopt::{clap::arg_enum, StructOpt};
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -273,7 +273,7 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 	}
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 enum Command {
 	/// Monitor for the phase being signed, then compute.
 	Monitor(MonitorConfig),
@@ -283,31 +283,29 @@ enum Command {
 	EmergencySolution(EmergencySolutionConfig),
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 enum Solvers {
 	SeqPhragmen {
-		#[structopt(long, default_value = "10")]
+		#[clap(long, default_value = "10")]
 		iterations: usize,
 	},
 	PhragMMS {
-		#[structopt(long, default_value = "10")]
+		#[clap(long, default_value = "10")]
 		iterations: usize,
 	},
 }
 
-arg_enum! {
-	#[derive(Debug, Copy, Clone, StructOpt)]
-	enum SubmissionStrategy {
-		// Only submit if at the time, we are the best.
-		OnlySubmitIfLeading,
-		// Always submit.
-		AlwaysSubmit
-		// TODO(niklasad1): fix Perbill with type in some other way
-		//
-		// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
-		// better than us. This helps detect obviously fake solutions and still combat them.
-		//SubmitIfClaimBetterThan(Perbill)*/
-	}
+#[derive(Debug, Copy, Clone, clap::ArgEnum)]
+enum SubmissionStrategy {
+	// Only submit if at the time, we are the best.
+	OnlySubmitIfLeading,
+	// Always submit.
+	AlwaysSubmit
+	// TODO(niklasad1): fix Perbill with type in some other way
+	//
+	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
+	// better than us. This helps detect obviously fake solutions and still combat them.
+	// SubmitIfClaimBetterThan(sp_runtime::Perbill)
 }
 
 frame_support::parameter_types! {
@@ -317,73 +315,71 @@ frame_support::parameter_types! {
 	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct MonitorConfig {
 	/// They type of event to listen to.
 	///
 	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
 	/// slower. It is recommended to use finalized, if the duration of the signed phase is longer
 	/// than the the finality delay.
-	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
+	#[clap(long, default_value = "head", possible_values = &["head", "finalized"])]
 	listen: String,
 
 	/// The solver algorithm to use.
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 
 	/// Submission strategy to use.
-	#[structopt(possible_values = &SubmissionStrategy::variants(), case_insensitive = true)]
+	#[clap(arg_enum)]
 	submission_strategy: SubmissionStrategy,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[allow(dead_code)]
-	#[structopt(long)]
+	#[clap(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
-	#[allow(dead_code)]
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 
 	/// The number of top backed winners to take. All are taken, if not provided.
 	take: Option<usize>,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct DryRunConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[structopt(long)]
+	#[clap(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct SharedConfig {
 	/// The `ws` node to connect to.
-	#[structopt(long, short, default_value = DEFAULT_URI, env = "URI")]
+	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
 
 	/// The seed of a funded account in hex.
 	///
 	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
-	#[structopt(long, short, env = "SEED")]
+	#[clap(long, short, env = "SEED")]
 	seed: String,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct Opt {
 	/// The `ws` node to connect to.
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	shared: SharedConfig,
 
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	command: Command,
 }
 
@@ -543,7 +539,7 @@ async fn main() {
 		.format_module_path(true)
 		.format_level(true)
 		.init();
-	let Opt { shared, command } = Opt::from_args();
+	let Opt { shared, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
 	let client = loop {
