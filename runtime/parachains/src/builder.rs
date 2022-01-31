@@ -143,13 +143,17 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Mock header.
 	pub(crate) fn header(block_number: T::BlockNumber) -> T::Header {
-		T::Header::new(
+		let header = T::Header::new(
 			block_number,       // `block_number`,
 			Default::default(), // `extrinsics_root`,
 			Default::default(), // `storage_root`,
 			Default::default(), // `parent_hash`,
 			Default::default(), // digest,
-		)
+		);
+
+		println!("creating header for height {}, hash {}, parent {}", block_number, header.hash(), header.parent_hash());
+
+		header
 	}
 
 	/// Number of the relay parent block.
@@ -395,7 +399,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	/// Fill cores `start..last` with dispute statement sets. The statement sets will have 3/4th of
+	/// Fill cores `start..last` with dikspute statement sets. The statement sets will have 3/4th of
 	/// votes be valid, and 1/4th of votes be invalid.
 	fn create_disputes_with_no_spam(
 		&self,
@@ -416,7 +420,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					.cloned()
 					.unwrap_or(self.target_session);
 
-				println!("{}", seed);
+				println!("seed: {}", seed);
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
 
@@ -444,7 +448,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	// TODO: this function builds the test
 	/// Build a scenario for testing or benchmarks.
 	///
 	/// Note that this API only allows building scenarios where the `backed_and_concluding_cores`

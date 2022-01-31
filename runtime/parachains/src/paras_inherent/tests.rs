@@ -22,26 +22,14 @@ use super::*;
 //#[cfg(not(feature = "runtime-benchmarks"))]
 mod enter {
 	use super::*;
-	use crate::{builder::{Bench, BenchBuilder}, mock::{new_test_ext, MockGenesisConfig, Test}, paras, paras_inherent, session_info};
+	use crate::{builder::{Bench, BenchBuilder}, disputes, mock::{new_test_ext, MockGenesisConfig, Test}};
 	use frame_support::assert_ok;
 	use crate::configuration::HostConfiguration;
-	use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-	use frame_support::pallet_prelude::*;
-	use primitives::v1::{
-		collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-		CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
-		CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-		HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
-		PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-		ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
-	};
-	use sp_core::{sr25519, H256};
 	use sp_runtime::{
-		generic::Digest,
-		traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
+		traits::{Header as HeaderT},
 		RuntimeAppPublic,
 	};
-	use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+	use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
 	use crate::runner::PalletRunner;
 
 	struct TestConfig {
@@ -511,6 +499,245 @@ mod enter {
 				on_chain_votes.backing_validators_per_candidate.len(),
 				2,
 			);
+
+			// Finalize paras_inherent pallet and initialize new session
+			PalletRunner::<Test>::run_to_next_block(false);
+			// PalletRunner::<Test>::run_to_next_session();
+			// TODO: do i need also initialize new session manually here?
+
+			//assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+			println!("Candidate from seed hashes");
+			let new_block_seed = 2;
+			let backers_number = 2;
+			let new_block_hash = PalletRunner::<Test>::candidate_hash_from_seed(new_block_seed);
+			println!("New candidate hash is {}", new_block_hash);
+
+			let mut backed_and_concluding = BTreeMap::new();
+			backed_and_concluding.insert(new_block_seed, backers_number);
+
+			println!("Availability bits");
+			let bitfields = PalletRunner::<Test>::create_availability_bitfields_for_session(
+				PalletRunner::<Test>::current_session_index(),
+				&backed_and_concluding,
+				2,
+			);
+
+			println!("Backed candidates");
+			let backed_candidates = vec![
+				PalletRunner::<Test>::create_backed_candidate(
+					&new_block_seed, &backers_number, None
+				)
+			];
+
+			println!("Header");
+			let parent_header = PalletRunner::<Test>::create_parent_header();
+
+			println!("Dispute");
+			let disputes = vec![
+				PalletRunner::<Test>::create_dispute_against_block(CandidateHash(parent_header.hash()))
+			];
+
+			println!("Inherent");
+			let new_inherent = ParachainsInherentData {
+				bitfields,
+				backed_candidates,
+				disputes,
+				parent_header
+			};
+
+			println!("------------- new enter -----------------------");
+			assert_ok!(Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				new_inherent.clone(),
+			));
+
+			PalletRunner::<Test>::run_to_next_block(false);
+		});
+	}
+
+	#[test]
+	// Ensure that we abort if we encounter an over weight block for disputes + bitfields
+	fn reverts_when_unfinished_dispute_times_out() {
+		// Creating a config for the pallet mock with short timeout period
+		let mock_genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					dispute_conclusion_by_time_out_period: 1,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(mock_genesis_config).execute_with(|| {
+			// Create the inherent data for this block
+			let dispute_statements = BTreeMap::new();
+			let mut backed_and_concluding = BTreeMap::new();
+			// 2 backed candidates shall be scheduled
+
+			// seed and num_votes. seed is used to create block hash, num_votes seems to be
+			// the amount of backers
+			backed_and_concluding.insert(0, 2);
+			backed_and_concluding.insert(1, 2);
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements,
+				// This value is used as a "seed" to create candidate hash
+				dispute_sessions: vec![1], // 3 cores with disputes
+				backed_and_concluding,
+				num_validators_per_core: 4,
+				code_upgrade: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 3 disputes => 4*5 = 20)
+			// TODO
+			// assert_eq!(expected_para_inherent_data.bitfields.len(), 20);
+			// // * 2 backed candidates
+			// assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+			// // * 3 disputes.
+			// assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			// !Make sure nothing scheduled
+			// The current schedule is empty prior to calling `create_inherent_enter`.
+			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+			// Enter function executes the block
+			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
+			// NOTE: enter is an extrinsic function that can be called from the outside.
+			// For hooks, for example for block finalization, there's Hooks trait in the
+			// FRAME
+			// Enter is not actually a hook, but just a method to call a method otherwise
+			// called by a hook
+			assert_ok!(Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				expected_para_inherent_data.clone(),
+			));
+
+			println!("enter is executed");
+
+			// Testing the result of voting against the block
+			let on_chain_votes = Pallet::<Test>::on_chain_votes().unwrap();
+			println!("current block: {}", PalletRunner::<Test>::current_block_number());
+
+			// PalletRunner::<Test>::run_to_next_block(false);
+			// Running to the next block processes inherent data made by enter. To
+			// actually revert the chain, enter needs to be called again, since it
+			// contains the code that actually deposits the revert log and event.
+			// Create the inherent data for this block
+
+			// let dispute_statements = BTreeMap::new();
+			// let mut backed_and_concluding = BTreeMap::new();
+			// // 2 backed candidates shall be scheduled
+			// backed_and_concluding.insert(0, 2);
+			// backed_and_concluding.insert(1, 2);
+
+			// let inherent_data_2 = make_inherent_data(TestConfig {
+			// 	dispute_statements,
+			// 	dispute_sessions: vec![2], // 3 cores with disputes
+			// 	backed_and_concluding,
+			// 	num_validators_per_core: 4,
+			// 	code_upgrade: None,
+			// });
+
+			// let some_other_data = ParachainsInherentData {
+			// 	bitfields: Vec::new(),
+			// 	backed_candidates: Vec::new(),
+			// 	disputes: Vec::new(),
+			// 	parent_header: expected_para_inherent_data.parent_header,
+			// };
+
+			// assert_ok!(Pallet::<Test>::enter(
+			// 	frame_system::RawOrigin::None.into(),
+			// 	some_other_data,
+			// ));
+
+			// let events = PalletRunner::<Test>::last_event();
+
+			// We created 1 dispute at the beginning, it should be visible here
+			assert_eq!(on_chain_votes.disputes.len(), 1);
+
+			assert_eq!(
+				// The length of this vec is equal to the number of candidates, so we know
+				// all of our candidates got filtered out
+				on_chain_votes.backing_validators_per_candidate.len(),
+				2,
+			);
+
+			// Finalize paras_inherent pallet and initialize new session
+			PalletRunner::<Test>::run_to_next_block(false);
+			// PalletRunner::<Test>::run_to_next_session();
+
+			//assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+			println!("Candidate from seed hashes");
+			let new_block_seed = 2;
+			let backers_number = 2;
+			let candidate_hash = PalletRunner::<Test>::candidate_hash_from_seed(new_block_seed);
+			println!("New candidate hash is {}", candidate_hash);
+
+			let mut backed_and_concluding = BTreeMap::new();
+			backed_and_concluding.insert(new_block_seed, backers_number);
+
+			println!("Availability bits");
+			let bitfields = PalletRunner::<Test>::create_availability_bitfields_for_session(
+				PalletRunner::<Test>::current_session_index(),
+				&backed_and_concluding,
+				2,
+			);
+
+			println!("Backed candidates");
+			let backed_candidates = vec![
+				PalletRunner::<Test>::create_backed_candidate(
+					&new_block_seed, &backers_number, None
+				)
+			];
+
+			println!("Header");
+			let parent_header = PalletRunner::<Test>::create_parent_header();
+
+			println!("Dispute");
+			let disputed_hash = CandidateHash(parent_header.hash());
+			let disputes = vec![
+				PalletRunner::<Test>::create_unresolved_dispute(disputed_hash.clone())
+			];
+
+			println!("Inherent");
+			let new_inherent = ParachainsInherentData {
+				bitfields,
+				backed_candidates,
+				disputes,
+				parent_header
+			};
+
+			println!("------------- new enter -----------------------");
+			// This runs the disputes logic
+			assert_ok!(Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				new_inherent.clone(),
+			));
+
+			// After a few run unresolved disputes should time out
+			PalletRunner::<Test>::run_to_next_block(false);
+			PalletRunner::<Test>::run_to_next_block(true);
+
+			// Checking that the time out event was indeed deposited
+			let expected_event: disputes::pallet::Event<Test> = disputes::Event::DisputeTimedOut(
+				disputed_hash.clone()
+			);
+
+			let events = frame_system::Pallet::<Test>::events();
+			println!("{}", events.len());
+
+			//PalletRunner::<Test>::assert_last_event(expected_event.into());
 		});
 	}
 

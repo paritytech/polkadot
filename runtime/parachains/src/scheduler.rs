@@ -593,12 +593,14 @@ impl<T: Config> Pallet<T> {
 		let session_start_block = <SessionStartBlock<T>>::get();
 
 		if at < session_start_block {
+			println!("1");
 			return None
 		}
 
 		let validator_groups = ValidatorGroups::<T>::get();
 
 		if core.0 as usize >= validator_groups.len() {
+			println!("core: {}, vals: {}", core.0 as usize, validator_groups.len());
 			return None
 		}
 

@@ -622,7 +622,7 @@ impl StatementSetFilter {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		println!("initializer_initialize, now: {}", now);
+		println!("initializing disputes pallet, now: {}", now);
 		let config = <configuration::Pallet<T>>::config();
 		//println!("{}", dispute.start + config.dispute_conclusion_by_time_out_period);
 		//println!("dipute.start: {}", dispute.start);
@@ -637,6 +637,8 @@ impl<T: Config> Pallet<T> {
 				println!("Dispute over {} has concluded at block {}.", candidate_hash, concluded_at);
 			} else {
 				println!("Dispute over {} has not been concluded", candidate_hash);
+				// let time_to_conclude = dispute.start + config.dispute_conclusion_by_time_out_period - now;
+				// println!("Dispute will time out in {} blocks", time_to_conclude);
 			}
 
 			if dispute.concluded_at.is_none() &&

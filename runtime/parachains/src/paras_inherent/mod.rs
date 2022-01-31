@@ -271,6 +271,9 @@ impl<T: Config> Pallet<T> {
 
 		// Check that the submitted parent header indeed corresponds to the previous block hash.
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+
+		println!("parent: {}, parent hash: {}",parent_header.hash(), parent_hash);
+
 		ensure!(
 			parent_header.hash().as_ref() == parent_hash.as_ref(),
 			Error::<T>::InvalidParentHeader,
