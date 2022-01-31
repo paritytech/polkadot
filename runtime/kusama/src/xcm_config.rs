@@ -169,7 +169,9 @@ pub type LocalOriginToLocation = (
 );
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// We don't allow any messages to be sent via the transaction yet. But it's useless until we
+	// bring in XCM v3 which will make `DescendOrigin` a bit more useful.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
