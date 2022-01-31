@@ -21,6 +21,7 @@ use crate::{
 	SubmissionStrategy,
 };
 use codec::Encode;
+use frame_support::{StorageHasher, Twox64Concat};
 use jsonrpsee::{
 	core::{
 		client::{Subscription, SubscriptionClientT},
@@ -59,17 +60,41 @@ async fn ensure_no_previous_solution<
 	T: EPM::Config + frame_system::Config<AccountId = AccountId>,
 	B: BlockT,
 >(
-	ext: &mut Ext,
+	client: &WsClient,
+	at: B::Hash,
 	us: &AccountId,
 ) -> Result<(), Error<T>> {
-	use EPM::signed::SignedSubmissions;
-	ext.execute_with(|| {
-		if <SignedSubmissions<T>>::get().iter().any(|ss| &ss.who == us) {
-			Err(Error::AlreadySubmitted)
-		} else {
-			Ok(())
+	use EPM::signed::{SignedSubmissionOf, SubmissionIndicesOf};
+	const MODULE_PREFIX: &[u8] = b"ElectionProviderMultiPhase";
+
+	let indices_key = storage_value(MODULE_PREFIX, b"SignedSubmissionIndices");
+
+	let indices: SubmissionIndicesOf<T> = get_storage(client, rpc_params! {indices_key, at})
+		.await
+		.map_err::<Error<T>, _>(Into::into)?
+		.unwrap_or_default();
+
+	// TODO(niklasad1): we could fetch the best previous score here if we want.
+	for (_score, id) in indices {
+		let key = storage_value_by_key::<Twox64Concat>(
+			MODULE_PREFIX,
+			b"SignedSubmissionsMap",
+			&id.encode(),
+		);
+
+		if let Some(submission) =
+			get_storage::<SignedSubmissionOf<T>>(client, rpc_params! {key, at})
+				.await
+				.map_err::<Error<T>, _>(Into::into)?
+		{
+			log::info!("submission: {:?}", submission);
+			if &submission.who == us {
+				return Err(Error::AlreadySubmitted);
+			}
 		}
-	})
+	}
+
+	Ok(())
 }
 
 /// Queries the chain for the best solution and checks whether the computed score
@@ -202,7 +227,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				}
 			};
 
-			if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
+			if ensure_no_previous_solution::<Runtime, Block>(&*client, hash, &signer.account).await.is_err() {
 				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
 				return;
 			}
@@ -351,3 +376,27 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 monitor_cmd_for!(polkadot);
 monitor_cmd_for!(kusama);
 monitor_cmd_for!(westend);
+
+fn storage_prefix(m: &[u8], s: &[u8]) -> Vec<u8> {
+	let k1 = sp_core::hashing::twox_128(m);
+	let k2 = sp_core::hashing::twox_128(s);
+	let mut key = Vec::with_capacity(k1.len() + k2.len());
+	key.extend_from_slice(&k1);
+	key.extend_from_slice(&k2);
+	key
+}
+
+/// Get storage value.
+fn storage_value(m: &[u8], s: &[u8]) -> StorageKey {
+	StorageKey(storage_prefix(m, s))
+}
+
+/// Get storage value at given key.
+fn storage_value_by_key<H: StorageHasher>(m: &[u8], s: &[u8], encoded_key: &[u8]) -> StorageKey {
+	let k1 = storage_prefix(m, s);
+	let k2 = H::hash(encoded_key);
+	let mut key = Vec::with_capacity(k1.len() + k2.as_ref().len());
+	key.extend_from_slice(&k1);
+	key.extend_from_slice(k2.as_ref());
+	StorageKey(key)
+}

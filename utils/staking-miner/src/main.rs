@@ -300,7 +300,7 @@ enum SubmissionStrategy {
 	// Only submit if at the time, we are the best.
 	OnlySubmitIfLeading,
 	// Always submit.
-	AlwaysSubmit
+	AlwaysSubmit,
 	// TODO(niklasad1): fix Perbill with type in some other way
 	//
 	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
@@ -330,7 +330,7 @@ struct MonitorConfig {
 	solver: Solvers,
 
 	/// Submission strategy to use.
-	#[clap(arg_enum)]
+	#[clap(arg_enum, default_value = "only-submit-if-leading")]
 	submission_strategy: SubmissionStrategy,
 }
 
@@ -483,7 +483,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -603,7 +603,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
