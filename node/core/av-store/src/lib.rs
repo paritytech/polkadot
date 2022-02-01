@@ -28,8 +28,8 @@ use std::{
 
 use futures::{channel::oneshot, future, select, FutureExt};
 use futures_timer::Delay;
-use polkadot_node_subsystem_util::database::{Database, DBTransaction};
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};

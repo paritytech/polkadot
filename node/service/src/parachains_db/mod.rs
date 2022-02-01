@@ -14,7 +14,9 @@
 //! A `RocksDB` instance for storing parachain data; availability data, and approvals.
 
 #[cfg(feature = "full-node")]
-use {polkadot_node_subsystem_util::database::Database, std::io, std::path::PathBuf, std::sync::Arc};
+use {
+	polkadot_node_subsystem_util::database::Database, std::io, std::path::PathBuf, std::sync::Arc,
+};
 
 #[cfg(feature = "full-node")]
 mod upgrade;
@@ -84,7 +86,10 @@ pub(crate) fn other_io_error(err: String) -> io::Error {
 
 /// Open the database on disk, creating it if it doesn't exist.
 #[cfg(feature = "full-node")]
-pub fn open_creating_rocksdb(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
+pub fn open_creating_rocksdb(
+	root: PathBuf,
+	cache_sizes: CacheSizes,
+) -> io::Result<Arc<dyn Database>> {
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
 	let path = root.join("parachains").join("db");
@@ -108,7 +113,8 @@ pub fn open_creating_rocksdb(root: PathBuf, cache_sizes: CacheSizes) -> io::Resu
 	std::fs::create_dir_all(&path_str)?;
 	upgrade::try_upgrade_db(&path)?;
 	let db = Database::open(&db_config, &path_str)?;
-	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
+	let db =
+		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
 
 	Ok(Arc::new(db))
 }
@@ -140,6 +146,9 @@ pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
 
-	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(db, columns::ORDERED_COL);
+	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
+		db,
+		columns::ORDERED_COL,
+	);
 	Ok(Arc::new(db))
 }

@@ -25,8 +25,7 @@ use ::test_helpers::TestCandidateBuilder;
 use parking_lot::Mutex;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_node_subsystem_util::database::Database;
+use polkadot_node_subsystem_util::{database::Database, TimeoutExt};
 use polkadot_primitives::v1::{
 	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
 	PersistedValidationData, ValidatorId,
@@ -199,7 +198,8 @@ fn candidate_included(receipt: CandidateReceipt) -> CandidateEvent {
 #[cfg(test)]
 fn test_store() -> Arc<dyn Database> {
 	let db = kvdb_memorydb::create(columns::NUM_COLUMNS);
-	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[columns::META]);
+	let db =
+		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[columns::META]);
 	Arc::new(db)
 }
 

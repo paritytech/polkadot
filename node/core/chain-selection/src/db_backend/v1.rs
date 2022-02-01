@@ -40,8 +40,8 @@ use crate::{
 use polkadot_node_primitives::BlockWeight;
 use polkadot_primitives::v1::{BlockNumber, Hash};
 
-use polkadot_node_subsystem_util::database::{Database, DBTransaction};
 use parity_scale_codec::{Decode, Encode};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use std::sync::Arc;
 

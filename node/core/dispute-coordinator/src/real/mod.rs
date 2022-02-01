@@ -35,8 +35,9 @@ use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_node_subsystem_util::database::Database;
+use polkadot_node_subsystem_util::{
+	database::Database, rolling_session_window::RollingSessionWindow,
+};
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
 use crate::{

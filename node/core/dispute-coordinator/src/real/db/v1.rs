@@ -17,7 +17,7 @@
 //! `V1` database for the dispute coordinator.
 
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
-use polkadot_node_subsystem_util::database::{Database, DBTransaction};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::v1::{
 	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,

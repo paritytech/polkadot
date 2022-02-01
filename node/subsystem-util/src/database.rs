@@ -16,7 +16,7 @@
 
 //! Database trait for polkadot db.
 
-pub use kvdb::{KeyValueDB, DBTransaction, DBValue};
+pub use kvdb::{DBTransaction, DBValue, KeyValueDB};
 
 /// Database trait with ordered key capacity.
 pub trait Database: KeyValueDB {
@@ -27,11 +27,10 @@ pub trait Database: KeyValueDB {
 
 /// Implementation for database supporting `KeyValueDB` already.
 pub mod kvdb_impl {
-	use super::{Database, KeyValueDB, DBTransaction, DBValue};
-	use kvdb::{IoStats, IoStatsKind, DBOp};
-	use std::collections::BTreeSet;
+	use super::{DBTransaction, DBValue, Database, KeyValueDB};
+	use kvdb::{DBOp, IoStats, IoStatsKind};
 	use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
-	use std::io::Result;
+	use std::{collections::BTreeSet, io::Result};
 
 	/// Adapter implementing subsystem database
 	/// for `KeyValueDB`.
@@ -45,14 +44,15 @@ pub mod kvdb_impl {
 		/// Instantiate new subsystem database, with
 		/// definition of collections allowing iteration.
 		pub fn new(db: D, allowed_iter: &[u32]) -> Self {
-			DbAdapter {
-				db,
-				allowed_iter: allowed_iter.iter().cloned().collect(),
-			}
+			DbAdapter { db, allowed_iter: allowed_iter.iter().cloned().collect() }
 		}
 
 		fn filter_iter(&self, col: u32) {
-			debug_assert!(self.is_indexed_column(col), "Invalid configuration of database, column {} is not ordered.", col);
+			debug_assert!(
+				self.is_indexed_column(col),
+				"Invalid configuration of database, column {} is not ordered.",
+				col
+			);
 		}
 
 		fn filter_tx(&self, transaction: &DBTransaction) {
@@ -134,11 +134,10 @@ pub mod kvdb_impl {
 
 /// Utils to use parity-db base database.
 pub mod paritydb_impl {
-	use super::{Database, KeyValueDB, DBTransaction, DBValue};
-	use kvdb::{IoStats, IoStatsKind, DBOp};
+	use super::{DBTransaction, DBValue, Database, KeyValueDB};
+	use kvdb::{DBOp, IoStats, IoStatsKind};
 	use parity_db::Db;
-	use std::collections::BTreeSet;
-	use std::io::Result;
+	use std::{collections::BTreeSet, io::Result};
 
 	fn handle_err<T>(result: parity_db::Result<T>) -> T {
 		match result {
@@ -150,10 +149,7 @@ pub mod paritydb_impl {
 	}
 
 	fn map_err<T>(result: parity_db::Result<T>) -> Result<T> {
-		result.map_err(|e| std::io::Error::new(
-			std::io::ErrorKind::Other,
-			format!("{:?}", e),
-		))
+		result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))
 	}
 
 	/// Implementation of of `Database` for parity-db adapter.
@@ -198,13 +194,14 @@ pub mod paritydb_impl {
 			prefix: &'a [u8],
 		) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
 			if prefix.len() == 0 {
-				return self.iter(col);
+				return self.iter(col)
 			}
 			let mut iter = handle_err(self.db.iter(col as u8));
 			handle_err(iter.seek(prefix));
 			Box::new(std::iter::from_fn(move || {
 				if let Some((key, value)) = handle_err(iter.next()) {
-					key.starts_with(prefix).then(|| (key.into_boxed_slice(), value.into_boxed_slice()))
+					key.starts_with(prefix)
+						.then(|| (key.into_boxed_slice(), value.into_boxed_slice()))
 				} else {
 					None
 				}
@@ -236,21 +233,22 @@ pub mod paritydb_impl {
 				if let Some((prefix_iter, col, prefix)) = current_prefix_iter {
 					if let Some((key, _value)) = handle_err(prefix_iter.next()) {
 						if key.starts_with(prefix) {
-							return Some((*col, key.to_vec(), None));
+							return Some((*col, key.to_vec(), None))
 						}
 					}
 					*current_prefix_iter = None;
 				}
 				return match ops.next() {
 					None => None,
-					Some(DBOp::Insert{ col, key, value }) => Some((col as u8, key.to_vec(), Some(value))),
-					Some(DBOp::Delete{ col, key }) => Some((col as u8, key.to_vec(), None)),
-					Some(DBOp::DeletePrefix{ col, prefix }) => {
+					Some(DBOp::Insert { col, key, value }) =>
+						Some((col as u8, key.to_vec(), Some(value))),
+					Some(DBOp::Delete { col, key }) => Some((col as u8, key.to_vec(), None)),
+					Some(DBOp::DeletePrefix { col, prefix }) => {
 						let col = col as u8;
 						let mut iter = handle_err(self.db.iter(col));
 						handle_err(iter.seek(&prefix[..]));
 						*current_prefix_iter = Some((iter, col, prefix.to_vec()));
-						continue;
+						continue
 					},
 				}
 			});
@@ -268,10 +266,7 @@ pub mod paritydb_impl {
 	impl DbAdapter {
 		/// Implementation of of `Database` for parity-db adapter.
 		pub fn new(db: Db, allowed_iter: &[u32]) -> Self {
-			DbAdapter {
-				db,
-				allowed_iter: allowed_iter.iter().cloned().collect(),
-			}
+			DbAdapter { db, allowed_iter: allowed_iter.iter().cloned().collect() }
 		}
 	}
 

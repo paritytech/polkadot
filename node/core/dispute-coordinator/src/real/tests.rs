@@ -29,8 +29,8 @@ use futures::{
 	future::{self, BoxFuture},
 };
 
-use polkadot_node_subsystem_util::database::Database;
 use parity_scale_codec::Encode;
+use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::SignedDisputeStatement;
 use polkadot_node_subsystem::{
