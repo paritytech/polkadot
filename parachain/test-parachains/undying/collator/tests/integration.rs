@@ -53,7 +53,7 @@ async fn collating_using_adder_collator() {
 	// start bob
 	let bob = polkadot_test_service::run_validator_node(bob_config, Some(PUPPET_EXE.into()));
 
-	let collator = test_parachain_adder_collator::Collator::new();
+	let collator = test_parachain_undying_collator::Collator::new(1_000, 1);
 
 	// register parachain
 	alice

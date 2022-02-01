@@ -42,7 +42,7 @@ pub struct ExportGenesisStateCommand {
 	#[structopt(long, default_value = "1024")]
 	pub pov_size: usize,
 
-	/// The pvf execution complexity. Actually specifies how many tombstone placement
+	/// The PVF execution complexity. Actually specifies how many tombstone placement
 	/// iterations will `Undying` perform.
 	#[structopt(long, default_value = "1")]
 	pub pvf_complexity: u32,
@@ -67,7 +67,7 @@ pub struct RunCmd {
 	#[structopt(long, default_value = "1024")]
 	pub pov_size: usize,
 
-	/// The pvf execution complexity. Actually specifies how many tombstone placement
+	/// The PVF execution complexity. Actually specifies how many tombstone placement
 	/// iterations will `Undying` perform.
 	#[structopt(long, default_value = "1")]
 	pub pvf_complexity: u32,
