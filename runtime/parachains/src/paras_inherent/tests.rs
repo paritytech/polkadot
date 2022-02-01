@@ -137,6 +137,121 @@ mod enter {
 	}
 
 	#[test]
+	fn test_session_is_tracked_in_on_chain_scraping() {
+		use crate::{
+			configuration::HostConfiguration,
+			disputes::{run_to_block, DisputesHandler},
+			mock::{
+				new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
+				Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
+				REWARD_VALIDATORS,
+			},
+		};
+		use frame_support::{
+			assert_err, assert_noop, assert_ok,
+			traits::{OnFinalize, OnInitialize},
+		};
+		use primitives::v1::{ExplicitDisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind, BlockNumber, DisputeStatement, DisputeStatementSet};
+		use sp_core::{crypto::CryptoType, Pair};
+
+		new_test_ext(Default::default())
+		.execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(6, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let generate_votes = |session: u32, candidate_hash: CandidateHash| {
+				// v0 votes for 3
+				vec![
+					DisputeStatementSet {
+						candidate_hash: candidate_hash.clone(),
+						session,
+						statements: vec![
+							(
+								DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+								ValidatorIndex(0),
+								v0.sign(
+									&ExplicitDisputeStatement {
+										valid: false,
+										candidate_hash: candidate_hash.clone(),
+										session,
+									}
+									.signing_payload(),
+								),
+							),
+							(
+								DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+								ValidatorIndex(1),
+								v1.sign(
+									&ExplicitDisputeStatement {
+										valid: false,
+										candidate_hash: candidate_hash.clone(),
+										session,
+									}
+									.signing_payload(),
+								),
+							),
+							(
+								DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+								ValidatorIndex(1),
+								v1.sign(
+									&ExplicitDisputeStatement {
+										valid: true,
+										candidate_hash: candidate_hash.clone(),
+										session,
+									}
+									.signing_payload(),
+								),
+							),
+						],
+					}
+				]
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect::<Vec<CheckedDisputeStatementSet>>()
+			};
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+			let statements = generate_votes(3, candidate_hash.clone());
+			set_scrapable_on_chain_disputes::<Test>(3, statements);
+			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
+				session,
+				..
+			} ) => {
+				assert_eq!(session, 3);
+			});
+			run_to_block(7, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(2));
+			let statements = generate_votes(7, candidate_hash.clone());
+			set_scrapable_on_chain_disputes::<Test>(7, statements);
+			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
+				session,
+				..
+			} ) => {
+				assert_eq!(session, 7);
+			});
+		});
+	}
+
+	#[test]
 	// Ensure that disputes are filtered out if the session is in the future.
 	fn filter_multi_dispute_data() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
