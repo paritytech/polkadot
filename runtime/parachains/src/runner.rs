@@ -1,31 +1,22 @@
 use super::*;
-use crate::configuration::HostConfiguration;
-use crate::{
-	builder::{Bench, BenchBuilder},
-	mock::{new_test_ext, MockGenesisConfig, Test},
-	paras, paras_inherent, session_info,
-};
-use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::assert_ok;
+use crate::{builder::BenchBuilder, paras, paras_inherent, session_info};
 use frame_support::pallet_prelude::*;
 use primitives::v0::ValidatorSignature;
 use primitives::v1::{
 	collator_signature_payload, supermajority_threshold, AvailabilityBitfield, BackedCandidate,
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature,
-	CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement,
-	DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
-	InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData,
-	SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode,
-	ValidatorId, ValidatorIndex, ValidityAttestation,
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId,
+	CommittedCandidateReceipt, CompactStatement, CoreIndex, DisputeStatement, DisputeStatementSet,
+	GroupIndex, Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex,
+	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId,
+	ValidatorIndex, ValidityAttestation,
 };
-use sp_core::{sr25519, H256};
+use sp_core::H256;
 use sp_runtime::{
 	generic::Digest,
-	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
+	traits::{Header as HeaderT, One},
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
-use std::thread::Builder;
 
 /// Create a 32 byte slice based on the given number.
 fn byte32_slice_from(n: u32) -> [u8; 32] {
@@ -411,22 +402,18 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	}
 
 	pub fn create_unresolved_dispute(block_hash: CandidateHash) -> DisputeStatementSet {
-		let validators = Self::active_validators_for_session(Self::current_session_index());
-		let statements_len = validators.len() as u32;
-
-		// Supermajority votes against the block
 		let validators_against = 1;
 		let validators_for = 1;
 
 		let statements = Self::create_dispute_statements(
-			block_hash.clone(),
+			block_hash,
 			validators_for,
 			validators_against,
 			Self::current_session_index(),
 		);
 
 		DisputeStatementSet {
-			candidate_hash: block_hash.clone(),
+			candidate_hash: block_hash,
 			session: Self::current_session_index(),
 			statements,
 		}
@@ -446,18 +433,9 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		frame_system::Pallet::<C>::events().pop().expect("Event expected").event
 	}
 
-	/// Checks whether the event was deposited or not
-	pub fn contains_event(generic_event: frame_system::Event<C>) -> bool {
-		let event: <C as frame_system::Config>::Event = generic_event.into();
-		frame_system::Pallet::<C>::events().iter().any(|x| x.event == event)
-	}
-
-	pub fn assert_last_event(generic_event: frame_system::Event<C>) {
-		let events = frame_system::Pallet::<C>::events();
-		let system_event: <C as frame_system::Config>::Event = generic_event.into();
-		// compare to the last event record
-		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-		assert_eq!(event, &system_event);
+	pub fn assert_last_event(event: <C as frame_system::Config>::Event) {
+		let last_event = Self::last_event();
+		assert_eq!(event, last_event);
 	}
 
 	pub fn candidate_hash_from_seed(seed: u32) -> CandidateHash {

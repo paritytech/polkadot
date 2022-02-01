@@ -697,6 +697,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
+		println!("disputes::initializer_on_new_session");
 		let config = <configuration::Pallet<T>>::config();
 
 		if notification.session_index <= config.dispute_period + 1 {
@@ -713,6 +714,7 @@ impl<T: Config> Pallet<T> {
 			};
 
 			for to_prune in to_prune {
+				println!("Pruning {}", to_prune);
 				// This should be small, as disputes are rare, so `None` is fine.
 				<Disputes<T>>::remove_prefix(to_prune, None);
 
@@ -1111,7 +1113,7 @@ impl<T: Config> Pallet<T> {
 			T::PunishValidators::punish_for_invalid(set.session, summary.slash_for);
 		}
 
-		println!("Inserting dispute {}", set.candidate_hash);
+		println!("Inserting dispute {}, session {}", set.candidate_hash, set.session);
 		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
 
 		// Freeze if just concluded against some local candidate

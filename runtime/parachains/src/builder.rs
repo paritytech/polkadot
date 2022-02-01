@@ -16,20 +16,19 @@
 
 use crate::runner::PalletRunner;
 use crate::{
-	configuration, inclusion, initializer, paras,
+	configuration, inclusion, paras,
 	paras_inherent::{self},
-	scheduler, session_info, shared,
+	scheduler,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v1::{collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation, supermajority_threshold};
+use primitives::v1::{AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CoreIndex, CoreOccupied, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId, InherentData as ParachainsInherentData, SessionIndex, ValidationCode, ValidatorId, supermajority_threshold};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
-	generic::Digest,
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -151,17 +150,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Default::default(), // digest,
 		);
 
-		println!("creating header for height {}, hash {}, parent {}", block_number, header.hash(), header.parent_hash());
-
 		header
-	}
-
-	/// Number of the relay parent block.
-	fn relay_parent_number(&self) -> u32 {
-		(self.block_number - One::one())
-			.try_into()
-			.map_err(|_| ())
-			.expect("self.block_number is u32")
 	}
 
 	/// Maximum number of validators that may be part of a validator group.
@@ -317,20 +306,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		bitfields.into()
 	}
 
-	/// Run to block number `to`, calling `initializer` `on_initialize` and `on_finalize` along the
-	/// way.
-	fn run_to_block(to: u32) {
-		let to = to.into();
-		while frame_system::Pallet::<T>::block_number() < to {
-			let b = frame_system::Pallet::<T>::block_number();
-			initializer::Pallet::<T>::on_finalize(b);
-
-			let b = b + One::one();
-			frame_system::Pallet::<T>::set_block_number(b);
-			initializer::Pallet::<T>::on_initialize(b);
-		}
-	}
-
 	/// Register `cores` count of parachains.
 	///
 	/// Note that this must be called at least 2 sessions before the target session as there is a
@@ -364,13 +339,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				(account, public)
 			})
 			.collect()
-	}
-
-	fn signing_context(&self) -> SigningContext<T::Hash> {
-		SigningContext {
-			parent_hash: Self::header(self.block_number.clone()).hash(),
-			session_index: self.session.clone(),
-		}
 	}
 
 	/// Create a bitvec of `validators` length with all yes votes.
@@ -420,7 +388,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					.cloned()
 					.unwrap_or(self.target_session);
 
-				println!("seed: {}", seed);
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
 
@@ -432,8 +399,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					Self::validator_availability_votes_yes(validators.len()),
 					candidate_hash,
 				);
-
-				println!("Voting for {}", candidate_hash);
 
 				let statements_len =
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);

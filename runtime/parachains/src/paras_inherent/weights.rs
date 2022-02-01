@@ -100,12 +100,8 @@ pub fn backed_candidate_weight<T: frame_system::Config + Config>(
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
 	if candidate.candidate.commitments.new_validation_code.is_some() {
-		println!("backed: {}",<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade());
 		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
 	} else {
-		println!("backed else: {}", <<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
-			candidate.validity_votes.len() as u32,
-		));
 		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
 			candidate.validity_votes.len() as u32,
 		)

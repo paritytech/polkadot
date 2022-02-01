@@ -232,12 +232,9 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
-			println!("e1");
 			ensure_none(origin)?;
 
-			println!("e2");
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
-			println!("e3");
 			Included::<T>::set(Some(()));
 
 			Self::enter_inner(data, FullCheck::Yes)
@@ -284,19 +281,11 @@ impl<T: Config> Pallet<T> {
 
 		println!("enter, now: {}", now);
 
-		println!("signed_bitfields.len(): {}", signed_bitfields.len());
-
 		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
-		println!("candidate_weight: {}", candidate_weight);
-		println!("bitfields_weight: {}", bitfields_weight);
-		println!("disputes_weight: {}", disputes_weight);
-
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-
-		println!("max_block_weight: {}", max_block_weight);
 
 		METRICS.on_before_filter(candidate_weight + bitfields_weight + disputes_weight);
 
@@ -307,7 +296,6 @@ impl<T: Config> Pallet<T> {
 				.saturating_add(disputes_weight) >
 				max_block_weight
 			{
-				println!("candidate is overweight");
 				// if the total weight is over the max block weight, first try clearing backed
 				// candidates and bitfields.
 				backed_candidates.clear();
@@ -337,7 +325,7 @@ impl<T: Config> Pallet<T> {
 
 		// Handle disputes logic.
 		let current_session = <shared::Pallet<T>>::session_index();
-		println!("Handling the disputes logic");
+		println!("handling the disputes logic");
 		let disputed_bitfield = {
 			let new_current_dispute_sets: Vec<_> = disputes
 				.iter()
@@ -361,7 +349,6 @@ impl<T: Config> Pallet<T> {
 			// Process the dispute sets of the current session.
 			METRICS.on_current_session_disputes_processed(new_current_dispute_sets.len() as u64);
 
-			println!("enter_inner: 1");
 			let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
 				let concluded_invalid_disputes = new_current_dispute_sets
 					.iter()
@@ -387,7 +374,6 @@ impl<T: Config> Pallet<T> {
 				Vec::new()
 			};
 
-			println!("enter_inner: 2");
 			// Create a bit index from the set of core indices where each index corresponds to
 			// a core index that was freed due to a dispute.
 			let disputed_bitfield = create_disputed_bitfield(
@@ -395,7 +381,6 @@ impl<T: Config> Pallet<T> {
 				freed_disputed.iter().map(|(core_index, _)| core_index),
 			);
 
-			println!("enter_inner: 3");
 			if !freed_disputed.is_empty() {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
@@ -408,7 +393,6 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_bitfields_processed(signed_bitfields.len() as u64);
 
-		println!("enter_inner: 4");
 		// Process new availability bitfields, yielding any availability cores whose
 		// work has now concluded.
 		let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
@@ -480,7 +464,6 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_after_filter(total_weight);
 
-		println!("dispatching: {}", total_weight);
 		Ok(Some(total_weight).into())
 	}
 }
