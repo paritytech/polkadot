@@ -32,8 +32,8 @@ pub mod slots;
 pub mod traits;
 pub mod xcm_sender;
 
-// #[cfg(test)]
-// mod integration_tests;
+#[cfg(test)]
+mod integration_tests;
 #[cfg(test)]
 mod mock;
 
