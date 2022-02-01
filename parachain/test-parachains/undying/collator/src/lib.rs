@@ -35,6 +35,37 @@ use std::{
 };
 use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
 
+/// Calculates the head and state for the block with the given `number`.
+fn calculate_head_and_state_for_number(
+	number: u64,
+	graveyard_size: usize,
+	pvf_complexity: u32,
+) -> (HeadData, GraveyardState) {
+	let index = 0u64;
+	let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
+	let zombies = 0;
+	let seal = [0u8; 32];
+
+	// Ensure a larger compressed PoV.
+	graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
+		*grave = i as u8;
+	});
+
+	let mut state = GraveyardState { index, graveyard, zombies, seal };
+	let mut head =
+		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
+
+	while head.number < number {
+		let block = BlockData { state, tombstones: 1_000, iterations: pvf_complexity };
+		let (new_head, new_state) =
+			execute(head.hash(), head.clone(), block).expect("Produces valid block");
+		head = new_head;
+		state = new_state;
+	}
+
+	(head, state)
+}
+
 /// The state of the undying parachain.
 struct State {
 	// We need to keep these around until the including relay chain blocks are finalized.
@@ -46,6 +77,8 @@ struct State {
 	best_block: u64,
 	/// PVF complexity.
 	pvf_complexity: u32,
+	/// Size of the graveyard.
+	graveyard_size: usize,
 }
 
 impl State {
@@ -72,6 +105,7 @@ impl State {
 			number_to_head: vec![(0, head_data)].into_iter().collect(),
 			best_block: 0,
 			pvf_complexity,
+			graveyard_size,
 		}
 	}
 
@@ -81,21 +115,26 @@ impl State {
 	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
 		self.best_block = parent_head.number;
 
-		let head_data = self
-			.number_to_head
-			.get(&self.best_block)
-			.expect("Parent head number is present in hashmap");
+		let state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
+			self.head_to_state.get(head_data).cloned().unwrap_or_else(|| {
+				calculate_head_and_state_for_number(
+					parent_head.number,
+					self.graveyard_size,
+					self.pvf_complexity,
+				)
+				.1
+			})
+		} else {
+			let (_, state) = calculate_head_and_state_for_number(
+				parent_head.number,
+				self.graveyard_size,
+				self.pvf_complexity,
+			);
+			state
+		};
 
 		// Start with prev state and transaction to execute (place 1000 tombstones).
-		let block = BlockData {
-			state: self
-				.head_to_state
-				.get(head_data)
-				.cloned()
-				.expect("Parent head is present in hashmap"),
-			tombstones: 1000,
-			iterations: self.pvf_complexity,
-		};
+		let block = BlockData { state, tombstones: 1000, iterations: self.pvf_complexity };
 
 		let (new_head, new_state) =
 			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
@@ -274,38 +313,6 @@ mod tests {
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
 	use polkadot_primitives::v1::{Hash, PersistedValidationData};
 
-	/// Calculates the head and state for the block with the given `number`.
-	fn calculate_head_and_state_for_number(
-		pov_size: usize,
-		pvf_complexity: u32,
-	) -> (HeadData, GraveyardState) {
-		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize - 20;
-		let index = 0u64;
-		let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
-		let zombies = 0;
-		let seal = [0u8; 32];
-
-		// Ensure a larger compressed PoV.
-		graveyard.iter_mut().enumerate().for_each(|(i, grave)| {
-			*grave = i as u8;
-		});
-
-		let mut state = GraveyardState { index, graveyard, zombies, seal };
-		let mut head =
-			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
-
-		while head.number < pov_size as u64 {
-			let block =
-				BlockData { state, tombstones: pov_size as u64, iterations: pvf_complexity };
-			let (new_head, new_state) =
-				execute(head.hash(), head.clone(), block).expect("Produces valid block");
-			head = new_head;
-			state = new_state;
-		}
-
-		(head, state)
-	}
-
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
@@ -359,8 +366,9 @@ mod tests {
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
 		let collator = Collator::new(1_000, 1);
+		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
-		let mut head = calculate_head_and_state_for_number(1_000, 1).0;
+		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1).0;
 
 		for i in 1..10 {
 			head = collator.state.lock().unwrap().advance(head).1;
