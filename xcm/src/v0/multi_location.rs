@@ -367,6 +367,31 @@ impl MultiLocation {
 		return self.at(prefix.len())
 	}
 
+	/// Returns whether `self` begins with or is equal to `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{Junction::*, MultiLocation::*};
+	/// # fn main() {
+	/// let m = X4(Parent, PalletInstance(3), OnlyChild, OnlyChild);
+	/// assert!(m.matches_prefix(&X2(Parent, PalletInstance(3))));
+	/// assert!(m.matches_prefix(&m));
+	/// assert!(!m.matches_prefix(&X2(Parent, GeneralIndex(99))));
+	/// assert!(!m.matches_prefix(&X1(PalletInstance(3))));
+	/// # }
+	/// ```
+	pub fn matches_prefix(&self, prefix: &MultiLocation) -> bool {
+		if self.len() < prefix.len() {
+			return false
+		}
+		for i in 0..prefix.len() {
+			if prefix.at(i) != self.at(i) {
+				return false
+			}
+		}
+		true
+	}
+
 	/// Mutates `self`, suffixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;

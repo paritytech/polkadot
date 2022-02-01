@@ -253,6 +253,26 @@ impl MultiLocation {
 		self.interior.match_and_split(&prefix.interior)
 	}
 
+	/// Returns whether `self` has the same number of parents as `prefix` and its junctions begins
+	/// with the junctions of `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
+	/// # fn main() {
+	/// let m = MultiLocation::new(1, X3(PalletInstance(3), OnlyChild, OnlyChild));
+	/// assert!(m.matches_prefix(&MultiLocation::new(1, X1(PalletInstance(3)))));
+	/// assert!(!m.matches_prefix(&MultiLocation::new(1, X1(GeneralIndex(99)))));
+	/// assert!(!m.matches_prefix(&MultiLocation::new(0, X1(PalletInstance(3)))));
+	/// # }
+	/// ```
+	pub fn matches_prefix(&self, prefix: &MultiLocation) -> bool {
+		if self.parents != prefix.parents {
+			return false
+		}
+		self.interior.matches_prefix(&prefix.interior)
+	}
+
 	/// Mutate `self` so that it is suffixed with `suffix`.
 	///
 	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
@@ -809,7 +829,33 @@ impl Junctions {
 				return None
 			}
 		}
-		return self.at(prefix.len())
+		self.at(prefix.len())
+	}
+
+	/// Returns whether `self` begins with or is equal to `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v1::{Junctions::*, Junction::*};
+	/// # fn main() {
+	/// let mut j = X3(Parachain(2), PalletInstance(3), OnlyChild);
+	/// assert!(j.matches_prefix(&X2(Parachain(2), PalletInstance(3))));
+	/// assert!(j.matches_prefix(&j));
+	/// assert!(j.matches_prefix(&X1(Parachain(2))));
+	/// assert!(!j.matches_prefix(&X1(Parachain(999))));
+	/// assert!(!j.matches_prefix(&X4(Parachain(2), PalletInstance(3), OnlyChild, OnlyChild)));
+	/// # }
+	/// ```
+	pub fn matches_prefix(&self, prefix: &Junctions) -> bool {
+		if self.len() < prefix.len() {
+			return false
+		}
+		for i in 0..prefix.len() {
+			if prefix.at(i) != self.at(i) {
+				return false
+			}
+		}
+		true
 	}
 }
 
