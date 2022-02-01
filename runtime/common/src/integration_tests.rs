@@ -999,8 +999,16 @@ fn parachain_swap_works() {
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2000)).len(), 6);
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2001)).len(), 8);
 
-		let fund_1 = Crowdloan::funds(ParaId::from(2000)).unwrap();
-		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_1.fund_index)), fund_1.raised);
+		let fund_2000 = Crowdloan::funds(ParaId::from(2000)).unwrap();
+		assert_eq!(fund_2000.fund_index, 0);
+		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2000.fund_index)), fund_2000.raised);
+
+		let fund_2001 = Crowdloan::funds(ParaId::from(2001)).unwrap();
+		assert_eq!(fund_2001.fund_index, 1);
+		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2001.fund_index)), fund_2001.raised);
+
+		assert_eq!(Slots::lease(ParaId::from(2000)).len(), 6);
+		assert_eq!(Slots::lease(ParaId::from(2001)).len(), 8);
 
 		// Now we swap them.
 		assert_ok!(Registrar::swap(
@@ -1014,54 +1022,18 @@ fn parachain_swap_works() {
 			ParaId::from(2000)
 		));
 
-		// assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::DowngradingParachain));
-		// assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::UpgradingParathread));
+		// Crowdloan Swapped
+		let fund_2000 = Crowdloan::funds(ParaId::from(2000)).unwrap();
+		assert_eq!(fund_2000.fund_index, 1);
+		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2000.fund_index)), fund_2000.raised);
 
-		// // 2 session later they have swapped
-		// run_to_block(lease_start_block + 40);
-		// assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		// assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parachain));
+		let fund_2001 = Crowdloan::funds(ParaId::from(2001)).unwrap();
+		assert_eq!(fund_2001.fund_index, 0);
+		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2001.fund_index)), fund_2001.raised);
 
-		// // Deregister parathread
-		// assert_ok!(Registrar::deregister(para_origin(2000).into(), ParaId::from(2000)));
-		// // Correct deposit is unreserved
-		// assert_eq!(Balances::reserved_balance(&account_id(1)), 100); // crowdloan deposit left over
-		// assert_eq!(Balances::reserved_balance(&account_id(2)), 500 + 20 * 2 * 1);
-		// // Crowdloan ownership is swapped
-		// assert!(Crowdloan::funds(ParaId::from(2000)).is_none());
-		// assert!(Crowdloan::funds(ParaId::from(2001)).is_some());
-		// // Slot is swapped
-		// assert!(Slots::lease(ParaId::from(2000)).is_empty());
-		// assert!(!Slots::lease(ParaId::from(2001)).is_empty());
-
-		// // Cant dissolve
-		// assert_noop!(
-		// 	Crowdloan::dissolve(signed(1), ParaId::from(2000)),
-		// 	CrowdloanError::<Test>::InvalidParaId
-		// );
-		// assert_noop!(
-		// 	Crowdloan::dissolve(signed(2), ParaId::from(2001)),
-		// 	CrowdloanError::<Test>::NotReadyToDissolve
-		// );
-
-		// // Go way in the future when the para is offboarded
-		// run_to_block(lease_start_block + 1000);
-
-		// // Withdraw of contributions works
-		// assert_eq!(Balances::free_balance(&crowdloan_account), total);
-		// for i in 10..20 {
-		// 	assert_ok!(Crowdloan::withdraw(signed(i), account_id(i), ParaId::from(2001)));
-		// }
-		// assert_eq!(Balances::free_balance(&crowdloan_account), 0);
-
-		// // Dissolve returns the balance of the person who put a deposit for crowdloan
-		// assert_ok!(Crowdloan::dissolve(signed(1), ParaId::from(2001)));
-		// assert_eq!(Balances::reserved_balance(&account_id(1)), 0);
-		// assert_eq!(Balances::reserved_balance(&account_id(2)), 500 + 20 * 2 * 1);
-
-		// // Final deregister sets everything back to the start
-		// assert_ok!(Registrar::deregister(para_origin(2001).into(), ParaId::from(2001)));
-		// assert_eq!(Balances::reserved_balance(&account_id(2)), 0);
+		// Slots Swapped
+		assert_eq!(Slots::lease(ParaId::from(2000)).len(), 8);
+		assert_eq!(Slots::lease(ParaId::from(2001)).len(), 6);
 	})
 }
 
