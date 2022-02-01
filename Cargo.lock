@@ -1051,6 +1051,21 @@ dependencies = [
 
 [[package]]
 name = "clap"
+version = "2.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
+dependencies = [
+ "ansi_term",
+ "atty",
+ "bitflags",
+ "strsim 0.8.0",
+ "textwrap 0.11.0",
+ "unicode-width",
+ "vec_map",
+]
+
+[[package]]
+name = "clap"
 version = "3.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12e8611f9ae4e068fa3e56931fded356ff745e70987ff76924a6e0ab1c8ef2e3"
@@ -1061,9 +1076,9 @@ dependencies = [
  "indexmap",
  "lazy_static",
  "os_str_bytes",
- "strsim",
+ "strsim 0.10.0",
  "termcolor",
- "textwrap",
+ "textwrap 0.14.2",
 ]
 
 [[package]]
@@ -1950,7 +1965,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#da534d7f945c
 dependencies = [
  "Inflector",
  "chrono",
- "clap",
+ "clap 3.0.7",
  "frame-benchmarking",
  "frame-support",
  "handlebars",
@@ -6029,7 +6044,7 @@ dependencies = [
 name = "polkadot-cli"
 version = "0.9.13"
 dependencies = [
- "clap",
+ "clap 3.0.7",
  "frame-benchmarking-cli",
  "futures 0.3.19",
  "log",
@@ -7241,7 +7256,7 @@ version = "0.9.13"
 dependencies = [
  "assert_matches",
  "async-trait",
- "clap",
+ "clap 3.0.7",
  "color-eyre",
  "futures 0.3.19",
  "futures-timer",
@@ -7387,7 +7402,7 @@ dependencies = [
 name = "polkadot-voter-bags"
 version = "0.9.0"
 dependencies = [
- "clap",
+ "clap 3.0.7",
  "generate-bags",
  "kusama-runtime",
  "polkadot-runtime",
@@ -7904,7 +7919,7 @@ dependencies = [
 name = "remote-ext-tests-bags-list"
 version = "0.9.13"
 dependencies = [
- "clap",
+ "clap 3.0.7",
  "frame-system",
  "kusama-runtime",
  "kusama-runtime-constants",
@@ -8353,7 +8368,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#da534d7f945c72b373f157826a95786543a6ec9c"
 dependencies = [
  "chrono",
- "clap",
+ "clap 3.0.7",
  "fdlimit",
  "futures 0.3.19",
  "hex",
@@ -10275,7 +10290,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 name = "staking-miner"
 version = "0.9.13"
 dependencies = [
- "clap",
+ "clap 3.0.7",
  "env_logger 0.9.0",
  "frame-election-provider-support",
  "frame-support",
@@ -10353,9 +10368,39 @@ dependencies = [
 
 [[package]]
 name = "strsim"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
+
+[[package]]
+name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "structopt"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c6b5c64445ba8094a6ab0c3cd2ad323e07171012d9c98b0b15651daf1787a10"
+dependencies = [
+ "clap 2.34.0",
+ "lazy_static",
+ "structopt-derive",
+]
+
+[[package]]
+name = "structopt-derive"
+version = "0.4.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcb5ae327f9cc13b68763b5749770cb9e048a99bd9dfdfa58d0cf05d5f64afe0"
+dependencies = [
+ "heck 0.3.3",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "strum"
@@ -10614,7 +10659,7 @@ dependencies = [
 name = "test-parachain-adder-collator"
 version = "0.9.13"
 dependencies = [
- "clap",
+ "clap 3.0.7",
  "futures 0.3.19",
  "futures-timer",
  "log",
@@ -10703,6 +10748,15 @@ dependencies = [
  "polkadot-runtime-common",
  "smallvec",
  "sp-runtime",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
+dependencies = [
+ "unicode-width",
 ]
 
 [[package]]
@@ -11120,7 +11174,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#da534d7f945c72b373f157826a95786543a6ec9c"
 dependencies = [
- "clap",
+ "clap 3.0.7",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
@@ -11245,6 +11299,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8895849a949e7845e06bd6dc1aa51731a103c42707010a5b591c0038fb73385b"
 
 [[package]]
+name = "unicode-width"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ed742d4ea2bd1176e236172c8429aaf54486e7ac098db29ffe6529e0ce50973"
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11340,6 +11400,12 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "vec_map"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "version_check"
