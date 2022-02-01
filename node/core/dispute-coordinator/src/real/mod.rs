@@ -27,7 +27,6 @@
 use std::{collections::HashSet, sync::Arc};
 
 use futures::FutureExt;
-use kvdb::KeyValueDB;
 
 use sc_keystore::LocalKeystore;
 
@@ -37,6 +36,7 @@ use polkadot_node_subsystem::{
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
+use polkadot_node_subsystem_util::database::Database;
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
 use crate::{
@@ -100,7 +100,7 @@ mod tests;
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
 	config: Config,
-	store: Arc<dyn KeyValueDB>,
+	store: Arc<dyn Database>,
 	keystore: Arc<LocalKeystore>,
 	metrics: Metrics,
 }
@@ -139,7 +139,7 @@ where
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(
-		store: Arc<dyn KeyValueDB>,
+		store: Arc<dyn Database>,
 		config: Config,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,

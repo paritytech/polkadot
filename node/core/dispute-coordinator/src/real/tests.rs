@@ -29,7 +29,7 @@ use futures::{
 	future::{self, BoxFuture},
 };
 
-use kvdb::KeyValueDB;
+use polkadot_node_subsystem_util::database::Database;
 use parity_scale_codec::Encode;
 
 use polkadot_node_primitives::SignedDisputeStatement;
@@ -125,7 +125,7 @@ struct TestState {
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	master_keystore: Arc<sc_keystore::LocalKeystore>,
 	subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	config: Config,
 	clock: MockClock,
 	headers: HashMap<Hash, Header>,
@@ -154,7 +154,9 @@ impl Default for TestState {
 		let master_keystore = make_keystore(&validators).into();
 		let subsystem_keystore = make_keystore(&[Sr25519Keyring::Alice]).into();
 
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = kvdb_memorydb::create(1);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db = Arc::new(db);
 		let config = Config { col_data: 0 };
 
 		TestState {

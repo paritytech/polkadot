@@ -579,7 +579,7 @@ pub(crate) mod tests {
 	use crate::approval_db::v1::DbBackend;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use kvdb::KeyValueDB;
+	use polkadot_node_subsystem_util::database::Database;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_node_subsystem::messages::AllMessages;
@@ -1125,7 +1125,9 @@ pub(crate) mod tests {
 
 	#[test]
 	fn insta_approval_works() {
-		let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db_writer: Arc<dyn Database> = Arc::new(db);
 		let mut db = DbBackend::new(db_writer.clone(), TEST_CONFIG);
 		let mut overlay_db = OverlayedBackend::new(&db);
 

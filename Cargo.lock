@@ -3322,6 +3322,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kvdb-shared-tests"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "575fe4b59231cae0dcf57b29b2f57ce471689ac963c3de14bb8242feafb2586c"
+dependencies = [
+ "kvdb",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5591,8 +5600,7 @@ dependencies = [
 [[package]]
 name = "parity-db"
 version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78a95abf24f1097c6e3181abbbbfc3630b3b5e681470940f719b69acb4911c7f"
+source = "git+https://github.com/paritytech/parity-db?branch=master#3b9e57772c3f94353c2f3806bab25e9dfe3e70cf"
 dependencies = [
  "blake2-rfc",
  "crc32fast",
@@ -6675,11 +6683,15 @@ dependencies = [
  "env_logger 0.9.0",
  "futures 0.3.19",
  "itertools",
+ "kvdb",
+ "kvdb-shared-tests",
  "lazy_static",
  "log",
  "lru 0.7.2",
  "metered-channel",
+ "parity-db",
  "parity-scale-codec",
+ "parity-util-mem",
  "pin-project 1.0.10",
  "polkadot-node-jaeger",
  "polkadot-node-metrics",
@@ -6694,6 +6706,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
+ "tempfile",
  "thiserror",
  "tracing",
 ]
@@ -7086,6 +7099,7 @@ dependencies = [
  "pallet-mmr-primitives",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
+ "parity-db",
  "polkadot-approval-distribution",
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",

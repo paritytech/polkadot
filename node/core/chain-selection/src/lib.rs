@@ -22,10 +22,10 @@ use polkadot_node_subsystem::{
 	messages::{ChainApiMessage, ChainSelectionMessage},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
+use polkadot_node_subsystem_util::database::Database;
 use polkadot_primitives::v1::{BlockNumber, ConsensusLog, Hash, Header};
 
 use futures::{channel::oneshot, future::Either, prelude::*};
-use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 
 use std::{
@@ -306,13 +306,13 @@ pub struct Config {
 /// The chain selection subsystem.
 pub struct ChainSelectionSubsystem {
 	config: Config,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 }
 
 impl ChainSelectionSubsystem {
 	/// Create a new instance of the subsystem with the given config
 	/// and key-value store.
-	pub fn new(config: Config, db: Arc<dyn KeyValueDB>) -> Self {
+	pub fn new(config: Config, db: Arc<dyn Database>) -> Self {
 		ChainSelectionSubsystem { config, db }
 	}
 }

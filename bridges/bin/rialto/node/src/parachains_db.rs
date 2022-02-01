@@ -18,6 +18,7 @@
 //! The only exception is that we don't support db upgrades => no `upgrade.rs` module.
 
 use kvdb::KeyValueDB;
+use polkadot_node_subsystem_util::database::Database;
 use std::{io, path::PathBuf, sync::Arc};
 
 mod columns {
@@ -76,7 +77,7 @@ fn other_io_error(err: String) -> io::Error {
 }
 
 /// Open the database on disk, creating it if it doesn't exist.
-pub fn open_creating(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<dyn KeyValueDB>> {
+pub fn open_creating(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
 	let path = root.join("parachains").join("db");
@@ -99,6 +100,7 @@ pub fn open_creating(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<d
 
 	std::fs::create_dir_all(&path_str)?;
 	let db = Database::open(&db_config, path_str)?;
+	let db = polkadot_node_subsystem_util::database::kvdb_impl::new(db, columns::ORDERED_COL);
 
 	Ok(Arc::new(db))
 }

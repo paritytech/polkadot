@@ -475,6 +475,9 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	);
 
 	let clock = Box::new(clock);
+	let db = kvdb_memorydb::create(test_constants::NUM_COLUMNS);
+	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+
 	let subsystem = run(
 		context,
 		ApprovalVotingSubsystem::with_config(
@@ -482,7 +485,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 				col_data: test_constants::TEST_CONFIG.col_data,
 				slot_duration_millis: SLOT_DURATION_MILLIS,
 			},
-			Arc::new(kvdb_memorydb::create(test_constants::NUM_COLUMNS)),
+			Arc::new(db),
 			Arc::new(keystore),
 			sync_oracle,
 			Metrics::default(),
