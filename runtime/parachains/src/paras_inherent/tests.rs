@@ -142,20 +142,22 @@ mod enter {
 			configuration::HostConfiguration,
 			disputes::{run_to_block, DisputesHandler},
 			mock::{
-				new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
-				Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
-				REWARD_VALIDATORS,
+				new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig,
+				System, Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR,
+				PUNISH_VALIDATORS_INCONCLUSIVE, REWARD_VALIDATORS,
 			},
 		};
 		use frame_support::{
 			assert_err, assert_noop, assert_ok,
 			traits::{OnFinalize, OnInitialize},
 		};
-		use primitives::v1::{ExplicitDisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind, BlockNumber, DisputeStatement, DisputeStatementSet};
+		use primitives::v1::{
+			BlockNumber, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+			InvalidDisputeStatementKind, ValidDisputeStatementKind,
+		};
 		use sp_core::{crypto::CryptoType, Pair};
 
-		new_test_ext(Default::default())
-		.execute_with(|| {
+		new_test_ext(Default::default()).execute_with(|| {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
 
@@ -171,50 +173,48 @@ mod enter {
 
 			let generate_votes = |session: u32, candidate_hash: CandidateHash| {
 				// v0 votes for 3
-				vec![
-					DisputeStatementSet {
-						candidate_hash: candidate_hash.clone(),
-						session,
-						statements: vec![
-							(
-								DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-								ValidatorIndex(0),
-								v0.sign(
-									&ExplicitDisputeStatement {
-										valid: false,
-										candidate_hash: candidate_hash.clone(),
-										session,
-									}
-									.signing_payload(),
-								),
+				vec![DisputeStatementSet {
+					candidate_hash: candidate_hash.clone(),
+					session,
+					statements: vec![
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							v0.sign(
+								&ExplicitDisputeStatement {
+									valid: false,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
 							),
-							(
-								DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-								ValidatorIndex(1),
-								v1.sign(
-									&ExplicitDisputeStatement {
-										valid: false,
-										candidate_hash: candidate_hash.clone(),
-										session,
-									}
-									.signing_payload(),
-								),
+						),
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(1),
+							v1.sign(
+								&ExplicitDisputeStatement {
+									valid: false,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
 							),
-							(
-								DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-								ValidatorIndex(1),
-								v1.sign(
-									&ExplicitDisputeStatement {
-										valid: true,
-										candidate_hash: candidate_hash.clone(),
-										session,
-									}
-									.signing_payload(),
-								),
+						),
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(1),
+							v1.sign(
+								&ExplicitDisputeStatement {
+									valid: true,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
 							),
-						],
-					}
-				]
+						),
+					],
+				}]
 				.into_iter()
 				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
 				.collect::<Vec<CheckedDisputeStatementSet>>()
