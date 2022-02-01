@@ -163,17 +163,17 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct CrowdloanIndexMigration;
 impl OnRuntimeUpgrade for CrowdloanIndexMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		crowdloan::migration::crowdloan_index_migration::migrate()
+		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::pre_migration()
+		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::post_migration()
+		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
 	}
 }
 

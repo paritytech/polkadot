@@ -26,33 +26,42 @@ pub mod crowdloan_index_migration {
 		T::PalletId::get().into_sub_account(index)
 	}
 
-	pub fn pre_migration<T: Config>() {
+	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should have a value.
 		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
 		let next_index = NextTrieIndex::take().unwrap_or_default();
-		assert!(next_index > 0);
+		ensure!(next_index > 0, "Next index is zero, which implies no migration is needed.");
 
 		// Each fund should have some non-zero balance.
-		Funds::<T>::iter().for_each(|(para_id, fund)| {
+		for (para_id, fund) in Funds::<T>::iter() {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 			let total_balance = CurrencyOf::<T>::total_balance(&old_fund_account);
 
-			assert_eq!(total_balance, fund.raised);
-			assert!(total_balance > Zero::zero());
-		});
+			ensure!(
+				total_balance == fund.raised,
+				"Total balance is not equal to the funds raised."
+			);
+			ensure!(total_balance > Zero::zero(), "Total balance is equal to zero.");
+		}
+
+		Ok(())
 	}
 
 	/// This migration converts crowdloans to use a crowdloan index rather than the parachain id as a
 	/// unique identifier. This makes it easier to swap two crowdloans between parachains.
-	pub fn migrate<T: Config>() {
+	pub fn migrate<T: Config>() -> frame_support::weights::Weight {
+		let mut weight = 0;
+
 		// First migrate `NextTrieIndex` counter to `NextFundIndex`.
 		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
 
 		let next_index = NextTrieIndex::take().unwrap_or_default();
 		NextFundIndex::<T>::set(next_index);
 
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
+
 		// Migrate all accounts from `old_fund_account` to `fund_account` using `fund_index`.
-		Funds::<T>::iter().for_each(|(para_id, fund)| {
+		for (para_id, fund) in Funds::<T>::iter() {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 			let new_fund_account = Pallet::<T>::fund_account_id(fund.fund_index);
 
@@ -60,27 +69,42 @@ pub mod crowdloan_index_migration {
 			// `Account` storage item, so we just swap them.
 			let account_info = frame_system::Account::<T>::take(old_fund_account);
 			frame_system::Account::<T>::insert(new_fund_account, account_info);
-		});
+
+			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
+		}
+
+		weight
 	}
 
-	pub fn post_migrate<T: Config>() {
+	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should not have a value, and `NextFundIndex` should.
 		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
-		assert!(NextTrieIndex::take().is_none());
-		assert!(NextFundIndex::<T>::get() > 0);
+		ensure!(NextTrieIndex::take().is_none(), "NextTrieIndex still has a value.");
+		ensure!(
+			NextFundIndex::<T>::get() > 0,
+			"NextFundIndex was not migrated or is zero. We assume it cannot be zero else no migration is needed."
+		);
 
 		// Each fund should have balance migrated correctly.
-		Funds::<T>::iter().for_each(|(para_id, fund)| {
+		for (para_id, fund) in Funds::<T>::iter() {
 			// Old fund account is deleted.
 			let old_fund_account = old_fund_account_id::<T>(para_id);
-			assert_eq!(frame_system::Account::<T>::get(&old_fund_account), Default::default());
+			ensure!(
+				frame_system::Account::<T>::get(&old_fund_account) == Default::default(),
+				"Old account wasn't reset to default value."
+			);
 
 			// New fund account has the correct balance.
 			let new_fund_account = Pallet::<T>::fund_account_id(fund.fund_index);
 			let total_balance = CurrencyOf::<T>::total_balance(&new_fund_account);
 
-			assert_eq!(total_balance, fund.raised);
-			assert!(total_balance > Zero::zero());
-		});
+			ensure!(
+				total_balance == fund.raised,
+				"Total balance in new account is different than the funds raised."
+			);
+			ensure!(total_balance > Zero::zero(), "Total balance in the account is zero.");
+		}
+
+		Ok(())
 	}
 }
