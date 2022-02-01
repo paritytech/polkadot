@@ -16,70 +16,70 @@
 
 //! Polkadot CLI library.
 
+use clap::Parser;
 use sc_cli::{RuntimeVersion, SubstrateCli};
-use structopt::StructOpt;
 
 /// Sub-commands supported by the collator.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Export the genesis state of the parachain.
-	#[structopt(name = "export-genesis-state")]
+	#[clap(name = "export-genesis-state")]
 	ExportGenesisState(ExportGenesisStateCommand),
 
 	/// Export the genesis wasm of the parachain.
-	#[structopt(name = "export-genesis-wasm")]
+	#[clap(name = "export-genesis-wasm")]
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
 /// Command for exporting the genesis state of the parachain
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct ExportGenesisStateCommand {
 	/// Id of the parachain this collator collates for.
-	#[structopt(long, default_value = "100")]
+	#[clap(long, default_value = "100")]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[structopt(long, default_value = "1024")]
+	#[clap(long, default_value = "1024")]
 	pub pov_size: usize,
 
 	/// The PVF execution complexity. Actually specifies how many tombstone placement
 	/// iterations will `Undying` perform.
-	#[structopt(long, default_value = "1")]
+	#[clap(long, default_value = "1")]
 	pub pvf_complexity: u32,
 }
 
 /// Command for exporting the genesis wasm file.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct ExportGenesisWasmCommand {}
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[structopt(long, default_value = "100")]
+	#[clap(long, default_value = "100")]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[structopt(long, default_value = "1024")]
+	#[clap(long, default_value = "1024")]
 	pub pov_size: usize,
 
 	/// The PVF execution complexity. Actually specifies how many tombstone placement
 	/// iterations will `Undying` perform.
-	#[structopt(long, default_value = "1")]
+	#[clap(long, default_value = "1")]
 	pub pvf_complexity: u32,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Cli {
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub run: RunCmd,
 }
 

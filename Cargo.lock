@@ -10706,6 +10706,7 @@ dependencies = [
 name = "test-parachain-undying-collator"
 version = "0.9.13"
 dependencies = [
+ "clap 3.0.7",
  "futures 0.3.19",
  "futures-timer",
  "log",
