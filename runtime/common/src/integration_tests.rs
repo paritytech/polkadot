@@ -760,7 +760,7 @@ fn basic_swap_works() {
 	// This test will test a swap between a parachain and parathread works successfully.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
-										  // User 1 and 2 will own paras
+		// User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 parathreads with different data
@@ -909,7 +909,7 @@ fn parachain_swap_works() {
 	// This test will test a swap between two parachains works successfully.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
-										  // User 1 and 2 will own paras
+		// User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 parathreads with different data
@@ -1067,7 +1067,7 @@ fn parachain_swap_works() {
 fn crowdloan_ending_period_bid() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
-										  // User 1 and 2 will own paras
+		// User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 parathreads
