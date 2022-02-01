@@ -131,7 +131,7 @@ pub fn exists_rocksdb_db(root: PathBuf) -> bool {
 /// Open a parity db database.
 #[cfg(feature = "full-node")]
 pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
-	let path = root.join("parachains").join("db");
+	let path = root.join("parachains");
 	let path_str = path
 		.to_str()
 		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;

@@ -868,7 +868,7 @@ where
 				)?
 			} else {
 				crate::parachains_db::open_creating(
-					paritydb_path.clone(),
+					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 					crate::parachains_db::CacheSizes::default(),
 				)?
 			},
