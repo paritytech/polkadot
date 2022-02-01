@@ -1000,7 +1000,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_b_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::UnscheduledCandidate
 			);
@@ -1056,7 +1055,6 @@ fn candidate_checks() {
 					vec![backed_b, backed_a],
 					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::UnscheduledCandidate
 			);
@@ -1090,7 +1088,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::InsufficientBacking
 			);
@@ -1126,7 +1123,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::DisallowedRelayParent
 			);
@@ -1166,7 +1162,6 @@ fn candidate_checks() {
 						thread_a_assignment.clone(),
 					],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::WrongCollator,
 			);
@@ -1205,7 +1200,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![thread_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::NotCollatorSigned
 			);
@@ -1256,7 +1250,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::CandidateScheduledBeforeParaFree
 			);
@@ -1297,7 +1290,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::CandidateScheduledBeforeParaFree
 			);
@@ -1342,7 +1334,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::PrematureCodeUpgrade
 			);
@@ -1377,7 +1368,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Err(Error::<Test>::ValidationDataHashMismatch.into()),
 			);
@@ -1413,7 +1403,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::InvalidValidationCodeHash
 			);
@@ -1449,7 +1438,6 @@ fn candidate_checks() {
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
-					FullCheck::Yes,
 				),
 				Error::<Test>::ParaHeadMismatch
 			);
@@ -1621,7 +1609,6 @@ fn backing_works() {
 				thread_a_assignment.clone(),
 			],
 			&group_validators,
-			FullCheck::Yes,
 		)
 		.expect("candidates scheduled, in order, and backed");
 
@@ -1821,7 +1808,6 @@ fn can_include_candidate_with_ok_code_upgrade() {
 				vec![backed_a],
 				vec![chain_a_assignment.clone()],
 				&group_validators,
-				FullCheck::Yes,
 			)
 			.expect("candidates scheduled, in order, and backed");
 

@@ -470,7 +470,6 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
-		full_check: FullCheck,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -529,22 +528,23 @@ impl<T: Config> Pallet<T> {
 					session_index: shared::Pallet::<T>::session_index(),
 				};
 
-				let relay_parent_number = if let FullCheck::Yes = full_check {
-					match check_ctx.verify_backed_candidate(
-						&allowed_relay_parents,
-						candidate_idx,
-						backed_candidate,
-					)? {
-						Err(FailedToCreatePVD) => {
-							// We don't want to error out here because it will
-							// brick the relay-chain. So we return early without
-							// doing anything.
-							return Ok(ProcessedCandidates::default())
-						},
-						Ok(rpn) => rpn,
-					}
-				} else {
-					check_ctx.verify_relay_parent(&allowed_relay_parents, relay_parent_hash)?
+				let relay_parent_number = match check_ctx.verify_backed_candidate(
+					&allowed_relay_parents,
+					candidate_idx,
+					backed_candidate,
+				)? {
+					Err(FailedToCreatePVD) => {
+						log::debug!(
+							target: LOG_TARGET,
+							"Failed to create PVD for candidate {}",
+							candidate_idx,
+						);
+						// We don't want to error out here because it will
+						// brick the relay-chain. So we return early without
+						// doing anything.
+						return Ok(ProcessedCandidates::default())
+					},
+					Ok(rpn) => rpn,
 				};
 
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
@@ -940,24 +940,13 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 	prev_context: Option<T::BlockNumber>,
 }
 
-/// The checking context failed to create the Persisted Validation Data.
+/// An error indicating that creating Persisted Validation Data failed
+/// while checking a candidate's validity.
 pub(crate) struct FailedToCreatePVD;
+
 impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn new(prev_context: Option<T::BlockNumber>) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), prev_context }
-	}
-
-	/// Verify the relay-parent of the candidate, extracting the number.
-	pub(crate) fn verify_relay_parent(
-		&self,
-		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
-		relay_parent: T::Hash,
-	) -> Result<T::BlockNumber, Error<T>> {
-		// Check that the relay-parent is one of the allowed relay-parents.
-		match allowed_relay_parents.acquire_info(relay_parent, self.prev_context) {
-			None => Err(Error::<T>::DisallowedRelayParent),
-			Some((_state_root, rpn)) => Ok(rpn),
-		}
 	}
 
 	/// Execute verification of the candidate.
