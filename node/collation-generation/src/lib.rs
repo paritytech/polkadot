@@ -309,9 +309,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 					// Apply compression to the block data.
 					let pov = {
-						let pov = polkadot_node_primitives::maybe_compress_pov(
-							collation.proof_of_validity,
-						);
+						let pov = collation.proof_of_validity.into_compressed();
 						let encoded_size = pov.encoded_size();
 
 						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures

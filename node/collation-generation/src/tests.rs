@@ -22,7 +22,9 @@ mod handle_new_activations {
 		task::{Context as FuturesContext, Poll},
 		Future,
 	};
-	use polkadot_node_primitives::{BlockData, Collation, CollationResult, PoV, POV_BOMB_LIMIT};
+	use polkadot_node_primitives::{
+		BlockData, Collation, CollationResult, MaybeCompressedPoV, PoV,
+	};
 	use polkadot_node_subsystem::{
 		errors::RuntimeApiError,
 		messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -41,7 +43,7 @@ mod handle_new_activations {
 			horizontal_messages: vec![],
 			new_validation_code: None,
 			head_data: dummy_head_data(),
-			proof_of_validity: PoV { block_data: BlockData(Vec::new()) },
+			proof_of_validity: MaybeCompressedPoV::Raw(PoV { block_data: BlockData(Vec::new()) }),
 			processed_downward_messages: 0_u32,
 			hrmp_watermark: 0_u32.into(),
 		}
@@ -49,16 +51,8 @@ mod handle_new_activations {
 
 	fn test_collation_compressed() -> Collation {
 		let mut collation = test_collation();
-		let compressed = PoV {
-			block_data: BlockData(
-				sp_maybe_compressed_blob::compress(
-					&collation.proof_of_validity.block_data.0,
-					POV_BOMB_LIMIT,
-				)
-				.unwrap(),
-			),
-		};
-		collation.proof_of_validity = compressed;
+		let compressed = collation.proof_of_validity.clone().into_compressed();
+		collation.proof_of_validity = MaybeCompressedPoV::Compressed(compressed);
 		collation
 	}
 
@@ -309,7 +303,8 @@ mod handle_new_activations {
 		// we expect a single message to be sent, containing a candidate receipt.
 		// we don't care too much about the `commitments_hash` right now, but let's ensure that we've calculated the
 		// correct descriptor
-		let expect_pov_hash = test_collation_compressed().proof_of_validity.hash();
+		let expect_pov_hash =
+			test_collation_compressed().proof_of_validity.into_compressed().hash();
 		let expect_validation_data_hash = test_validation_data().hash();
 		let expect_relay_parent = Hash::repeat_byte(4);
 		let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
