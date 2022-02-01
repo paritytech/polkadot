@@ -822,6 +822,15 @@ impl Initialized {
 			.find(|(_, index)| controlled_indices.contains(index))
 			.is_some();
 
+		// Whether or not the import is coming from approval checking/backing.
+		// NOTE: Those imports should provide a completely separate API from importing untrusted
+		// dispute votes, not treating them the same would do away with much of the complexity here
+		// and would also improve performance.
+		//
+		// See https://github.com/paritytech/polkadot/issues/4793
+		let mut is_backing_import = true;
+		let mut is_approval_import = true;
+
 		// Update candidate votes.
 		for (statement, val_index) in &statements {
 			if validators
@@ -842,6 +851,17 @@ impl Initialized {
 			match statement.statement().clone() {
 				DisputeStatement::Valid(valid_kind) => {
 					self.metrics.on_valid_vote();
+
+					match valid_kind {
+						ValidDisputeStatementKind::BackingSeconded(_) => is_approval_import = false,
+						ValidDisputeStatementKind::BackingValid(_) => is_approval_import = false,
+						ValidDisputeStatementKind::ApprovalChecking => is_backing_import = false,
+						ValidDisputeStatementKind::Explicit => {
+							is_approval_import = false;
+							is_backing_import = false;
+						}
+					}
+
 					insert_into_statement_vec(
 						&mut votes.valid,
 						valid_kind,
@@ -851,6 +871,10 @@ impl Initialized {
 				},
 				DisputeStatement::Invalid(invalid_kind) => {
 					self.metrics.on_invalid_vote();
+
+					is_approval_import = false;
+					is_backing_import = false;
+
 					insert_into_statement_vec(
 						&mut votes.invalid,
 						invalid_kind,
@@ -870,11 +894,10 @@ impl Initialized {
 			byzantine_threshold(n_validators);
 
 		// Potential spam:
-		if !is_confirmed {
+		if !is_confirmed && !is_backing_import && !is_approval_import {
 			let mut free_spam_slots = false;
-			for (statement, index) in statements.iter() {
-				free_spam_slots |= statement.statement().is_backing() ||
-					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+			for (_, index) in statements.iter() {
+				free_spam_slots |= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
 			}
 			// No reporting validator had a free spam slot:
 			if !free_spam_slots {
