@@ -401,7 +401,8 @@ fn basic_end_to_end_works() {
 				200 + offset,                 // Block End
 				None,
 			));
-			let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(para_2));
+			let fund_2 = Crowdloan::funds(ParaId::from(para_2)).unwrap();
+			let crowdloan_account = Crowdloan::fund_account_id(fund_2.fund_index);
 
 			// Auction ending begins on block 100 + offset, so we make a bid before then.
 			run_to_block(90 + offset);
@@ -723,7 +724,8 @@ fn competing_bids() {
 		run_to_block(starting_block + 110);
 
 		// Appropriate Paras should have won slots
-		let crowdloan_1 = Crowdloan::fund_account_id(ParaId::from(2000));
+		let fund_1 = Crowdloan::funds(ParaId::from(2000)).unwrap();
+		let crowdloan_1 = Crowdloan::fund_account_id(fund_1.fund_index);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ------------- 6 ------------------------ 7 -------------
@@ -793,7 +795,8 @@ fn basic_swap_works() {
 			200,                          // Block End
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+		let fund = Crowdloan::funds(ParaId::from(2000)).unwrap();
+		let crowdloan_account = Crowdloan::fund_account_id(fund.fund_index);
 
 		// Bunch of contributions
 		let mut total = 0;
@@ -921,8 +924,7 @@ fn parachain_swap_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
 		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Onboarding));
 
-		assert_eq!(Balances::total_balance(&Crowdloan::fund_account_id(ParaId::from(2000))), 0);
-
+		assert_eq!(Balances::total_balance(&Crowdloan::fund_account_id(Crowdloan::next_fund_index())), 0);
 
 		// Start a new auction in the future
 		let start_auction = |lease_period_index_start, winner, end| {
@@ -945,7 +947,8 @@ fn parachain_swap_works() {
 				end,                          // Block End
 				None,
 			));
-			let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(winner));
+			let winner_fund = Crowdloan::funds(ParaId::from(winner)).unwrap();
+			let crowdloan_account = Crowdloan::fund_account_id(winner_fund.fund_index);
 
 			// Bunch of contributions
 			let mut total = 0;
@@ -997,7 +1000,7 @@ fn parachain_swap_works() {
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2001)).len(), 8);
 
 		let fund_1 = Crowdloan::funds(ParaId::from(2000)).unwrap();
-		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(ParaId::from(2000))), fund_1.raised);
+		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_1.fund_index)), fund_1.raised);
 
 		// Now we swap them.
 		assert_ok!(Registrar::swap(
@@ -1109,7 +1112,8 @@ fn crowdloan_ending_period_bid() {
 			200,                          // Block End
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+		let fund = Crowdloan::funds(ParaId::from(2000)).unwrap();
+		let crowdloan_account = Crowdloan::fund_account_id(fund.fund_index);
 
 		// Bunch of contributions
 		let mut total = 0;
@@ -1412,7 +1416,8 @@ fn cant_bid_on_existing_lease_periods() {
 			400,                          // Long block end
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+		let fund = Crowdloan::funds(ParaId::from(2000)).unwrap();
+		let crowdloan_account = Crowdloan::fund_account_id(fund.fund_index);
 
 		// Bunch of contributions
 		let mut total = 0;
