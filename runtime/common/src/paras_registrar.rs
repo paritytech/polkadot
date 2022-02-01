@@ -1112,9 +1112,6 @@ mod tests {
 			assert!(!Parachains::is_parathread(para_1));
 			assert!(!Parachains::is_parathread(para_2));
 
-			println!("{:?}", paras::Pallet::<Test>::lifecycle(para_1));
-			println!("{:?}", paras::Pallet::<Test>::lifecycle(para_2));
-
 			// Cannot even start a swap
 			assert_noop!(
 				Registrar::swap(Origin::root(), para_1, para_2),
