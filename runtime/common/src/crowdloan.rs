@@ -170,7 +170,7 @@ pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
 	/// as `BlockNumber`.
 	pub last_period: LeasePeriod,
-	/// Index used for the child trie of this fund
+	/// Unique index used to represent this fund.
 	pub fund_index: FundIndex,
 }
 
