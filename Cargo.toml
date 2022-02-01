@@ -128,9 +128,12 @@ maintenance = { status = "actively-developed" }
 #
 # This list is ordered alphabetically.
 [profile.dev.package]
+aesni = { opt-level = 3 }
+aes-soft = { opt-level = 3 }
+backtrace = { opt-level = 3 }
+blake2b_simd = { opt-level = 3 }
 blake2 = { opt-level = 3 }
 blake2-rfc = { opt-level = 3 }
-blake2b_simd = { opt-level = 3 }
 chacha20poly1305 = { opt-level = 3 }
 cranelift-codegen = { opt-level = 3 }
 cranelift-wasm = { opt-level = 3 }
@@ -154,10 +157,11 @@ libz-sys = { opt-level = 3 }
 mio = { opt-level = 3 }
 nalgebra = { opt-level = 3 }
 num-bigint = { opt-level = 3 }
-parking_lot = { opt-level = 3 }
 parking_lot_core = { opt-level = 3 }
+parking_lot = { opt-level = 3 }
 percent-encoding = { opt-level = 3 }
 primitive-types = { opt-level = 3 }
+reed-solomon-novelpoly = { opt-level = 3 }
 ring = { opt-level = 3 }
 rustls = { opt-level = 3 }
 sha2 = { opt-level = 3 }
