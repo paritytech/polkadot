@@ -234,7 +234,7 @@ impl OrderingProvider {
 					.map_err(|err| -> crate::error::Error {
 						match err.split() {
 							// will be remedied as soon as `split` is comatibe with `defer` in `fatality`.
-							Ok(jfyi) => crate::error::JfyiError::Runtime2(jfyi).into(),
+							Ok(jfyi) => crate::error::JfyiError::Runtime(jfyi).into(),
 							Err(fatal) => crate::error::FatalError::RuntimeApi(fatal).into(),
 						}
 					})?

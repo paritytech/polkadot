@@ -98,7 +98,7 @@ pub enum Error {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
-	Runtime2(#[from] runtime::JfyiError),
+	Runtime(#[from] runtime::JfyiError),
 
 	#[error(transparent)]
 	QueueError(#[from] participation::QueueError),
@@ -123,7 +123,7 @@ impl JfyiError {
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::Runtime2(_) | Self::Oneshot(_) => {
+			Self::Runtime(_) | Self::Oneshot(_) => {
 				tracing::debug!(target: LOG_TARGET, error = ?self)
 			},
 			// it's worth reporting otherwise
