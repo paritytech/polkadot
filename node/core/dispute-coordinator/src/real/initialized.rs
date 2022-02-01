@@ -895,9 +895,10 @@ impl Initialized {
 
 		// Potential spam:
 		if !is_confirmed && !is_backing_import && !is_approval_import {
-			let mut free_spam_slots = false;
+			let mut free_spam_slots = true;
+			// Only allow import if all validators of import have not exceeded their spam slots:
 			for (_, index) in statements.iter() {
-				free_spam_slots |= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+				free_spam_slots &= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
 			}
 			// No reporting validator had a free spam slot:
 			if !free_spam_slots {

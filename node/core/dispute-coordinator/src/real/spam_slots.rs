@@ -35,7 +35,10 @@ type SpamCount = u32;
 /// disputes _should_ have been seen as included my enough validators. (Otherwise the candidate
 /// would not have been available in the first place and could not have been included.) So this is
 /// really just a fallback mechanism if things go terribly wrong.
+#[cfg(not(test))]
 const MAX_SPAM_VOTES: SpamCount = 50;
+#[cfg(test)]
+const MAX_SPAM_VOTES: SpamCount = 1;
 
 /// Spam slots for raised disputes concerning unknown candidates.
 pub struct SpamSlots {
@@ -91,10 +94,15 @@ impl SpamSlots {
 
 		if validators.insert(validator) {
 			*c += 1;
-			true
-		} else {
-			false
 		}
+		// Always true even if validator already voted for that candidate. This is necessary, because
+		// when providing a dispute vote, a validator has to provide an opposing vote: We don't
+		// want to increase spam count on the validator of that vote for each message where its
+		// vote is used.
+		//
+		// Limiting the kind of spam that is possible due to this should be taken care of by
+		// networking (dispute-distribution).
+		true
 	}
 
 	/// Clear out spam slots for a given candiate in a session.
