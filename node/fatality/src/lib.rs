@@ -34,11 +34,11 @@ pub trait Split: std::error::Error + std::fmt::Debug {
 
 	/// Split the error into it's fatal and non-fatal variants.
 	///
-	/// `Ok(jfyi)` contains a enum representing all non-fatal varians, `Err(fatal)`
+	/// `Ok(jfyi)` contains a enum representing all non-fatal variants, `Err(fatal)`
 	/// contains all fatal variants.
 	///
 	/// Attention: If the type is splitable, it must _not_ use any `forward`ed finality
-	/// evalutions, or it must be splitable up the point where no more `forward` annotations
+	/// evaluations, or it must be splitable up the point where no more `forward` annotations
 	/// were used.
 	fn split(self) -> std::result::Result<Self::Jfyi, Self::Fatal>;
 }
