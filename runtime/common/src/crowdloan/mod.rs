@@ -246,7 +246,7 @@ pub mod pallet {
 	#[pallet::getter(fn endings_count)]
 	pub(super) type EndingsCount<T> = StorageValue<_, u32, ValueQuery>;
 
-	/// Tracker for the next available trie index
+	/// Tracker for the next available fund index
 	#[pallet::storage]
 	#[pallet::getter(fn next_fund_index)]
 	pub(super) type NextFundIndex<T> = StorageValue<_, u32, ValueQuery>;
