@@ -115,7 +115,7 @@ where
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
 	use beefy_gadget_rpc::{BeefyApiServer, BeefyRpcHandler};
-	use frame_rpc_system::{SystemApiServer, SystemRpc, SystemRpcBackendFull};
+	use frame_rpc_system::{SystemApiServer, SystemRpc};
 	use pallet_mmr_rpc::{MmrApiServer, MmrRpc};
 	use pallet_transaction_payment_rpc::{TransactionPaymentApiServer, TransactionPaymentRpc};
 	use sc_consensus_babe_rpc::{BabeApiServer, BabeRpc};
@@ -134,8 +134,7 @@ where
 		finality_provider,
 	} = grandpa;
 
-	let system_backend = SystemRpcBackendFull::new(client.clone(), pool, deny_unsafe);
-	io.merge(SystemRpc::new(Box::new(system_backend)).into_rpc())?;
+	io.merge(SystemRpc::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	io.merge(TransactionPaymentRpc::new(client.clone()).into_rpc())?;
 	io.merge(MmrRpc::new(client.clone()).into_rpc())?;
 	io.merge(
@@ -170,11 +169,14 @@ where
 		.into_rpc(),
 	)?;
 
-	io.merge(beefy_gadget_rpc::BeefyRpcHandler<Block>::new(
-		beefy.beefy_commitment_stream,
-		beefy.beefy_best_block_stream,
-		beefy.subscription_executor,
-	)?.into_rpc())?;
+	io.merge(
+		BeefyRpcHandler::<Block>::new(
+			beefy.beefy_commitment_stream,
+			beefy.beefy_best_block_stream,
+			beefy.subscription_executor,
+		)?
+		.into_rpc(),
+	)?;
 
 	Ok(io)
 }

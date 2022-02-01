@@ -13,10 +13,10 @@ kusama-runtime-constants = { version = "0.9.16", path = "../../../runtime/kusama
 westend-runtime-constants = { version = "0.9.16", path = "../../../runtime/westend/constants" }
 
 
-pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
 
 tokio = { version = "1", features = ["macros"] }
 log = { version = "0.4.14" }

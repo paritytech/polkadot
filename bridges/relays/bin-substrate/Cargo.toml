@@ -57,12 +57,12 @@ substrate-relay-helper = { path = "../lib-substrate-relay" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
 
 # Polkadot Dependencies
 
@@ -74,6 +74,6 @@ polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", 
 [dev-dependencies]
 hex-literal = "0.3"
 pallet-bridge-grandpa = { path = "../../modules/grandpa" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.16" }
 tempfile = "3.2"
 finality-grandpa = { version = "0.14.0" }
