@@ -759,7 +759,7 @@ fn competing_bids() {
 fn basic_swap_works() {
 	// This test will test a swap between a parachain and parathread works successfully.
 	new_test_ext().execute_with(|| {
-		assert!(System::block_number().is_one()); // So events are emitted
+		assert!(System::block_number().is_one()); /* So events are emitted */
 		// User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
@@ -908,7 +908,7 @@ fn basic_swap_works() {
 fn parachain_swap_works() {
 	// This test will test a swap between two parachains works successfully.
 	new_test_ext().execute_with(|| {
-		assert!(System::block_number().is_one()); // So events are emitted
+		assert!(System::block_number().is_one()); /* So events are emitted */
 		// User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
@@ -1066,7 +1066,7 @@ fn parachain_swap_works() {
 #[test]
 fn crowdloan_ending_period_bid() {
 	new_test_ext().execute_with(|| {
-		assert!(System::block_number().is_one()); // So events are emitted
+		assert!(System::block_number().is_one()); /* So events are emitted */
 		// User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
@@ -1164,7 +1164,7 @@ fn crowdloan_ending_period_bid() {
 #[test]
 fn auction_bid_requires_registered_para() {
 	new_test_ext().execute_with(|| {
-		assert!(System::block_number().is_one()); // So events are emitted
+		assert!(System::block_number().is_one()); /* So events are emitted */
 
 		// Start a new auction in the future
 		let duration = 99u32;
@@ -1226,7 +1226,7 @@ fn auction_bid_requires_registered_para() {
 #[test]
 fn gap_bids_work() {
 	new_test_ext().execute_with(|| {
-		assert!(System::block_number().is_one()); // So events are emitted
+		assert!(System::block_number().is_one()); /* So events are emitted */
 
 		// Start a new auction in the future
 		let duration = 99u32;
@@ -1393,7 +1393,7 @@ fn gap_bids_work() {
 #[test]
 fn cant_bid_on_existing_lease_periods() {
 	new_test_ext().execute_with(|| {
-		assert!(System::block_number().is_one()); // So events are emitted
+		assert!(System::block_number().is_one()); /* So events are emitted */
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		// First register a parathread
 		assert_ok!(Registrar::reserve(signed(1)));
