@@ -20,7 +20,7 @@ use crate::{
 	auctions, crowdloan, paras_registrar,
 	slot_range::SlotRange,
 	slots,
-	traits::{AuctionStatus, Auctioneer, Registrar as RegistrarT, Leaser},
+	traits::{AuctionStatus, Auctioneer, Leaser, Registrar as RegistrarT},
 };
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
@@ -29,6 +29,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
+use parity_scale_codec::Encode;
 use primitives::v1::{
 	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
 };
@@ -39,12 +40,11 @@ use sp_core::{crypto::KeyTypeId, H256};
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
 use sp_runtime::{
-	AccountId32,
 	traits::{BlakeTwo256, IdentityLookup, One},
 	transaction_validity::TransactionPriority,
+	AccountId32,
 };
-use sp_std::{sync::Arc, convert::TryInto};
-use parity_scale_codec::Encode;
+use sp_std::{convert::TryInto, sync::Arc};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -643,7 +643,15 @@ fn competing_slots() {
 		assert_eq!(
 			slots::Leases::<Test>::get(para_id + 8),
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------- 6 --------------- 7 -------
-			vec![None, None, None, None, None, Some((account_id(90), 8100)), Some((account_id(90), 8100))],
+			vec![
+				None,
+				None,
+				None,
+				None,
+				None,
+				Some((account_id(90), 8100)),
+				Some((account_id(90), 8100))
+			],
 		);
 	});
 }
@@ -752,7 +760,7 @@ fn basic_swap_works() {
 	// This test will test a swap between a parachain and parathread works successfully.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
-		// User 1 and 2 will own paras
+										  // User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 parathreads with different data
@@ -901,7 +909,7 @@ fn parachain_swap_works() {
 	// This test will test a swap between two parachains works successfully.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
-		// User 1 and 2 will own paras
+										  // User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 parathreads with different data
@@ -924,7 +932,10 @@ fn parachain_swap_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
 		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Onboarding));
 
-		assert_eq!(Balances::total_balance(&Crowdloan::fund_account_id(Crowdloan::next_fund_index())), 0);
+		assert_eq!(
+			Balances::total_balance(&Crowdloan::fund_account_id(Crowdloan::next_fund_index())),
+			0
+		);
 
 		// Start a new auction in the future
 		let start_auction = |lease_period_index_start, winner, end| {
@@ -952,7 +963,7 @@ fn parachain_swap_works() {
 
 			// Bunch of contributions
 			let mut total = 0;
-			for i in (unique_id * 10) .. (unique_id + 1) * 10 {
+			for i in (unique_id * 10)..(unique_id + 1) * 10 {
 				Balances::make_free_balance_be(&account_id(i), 1_000_000_000);
 				assert_ok!(Crowdloan::contribute(signed(i), ParaId::from(winner), 900 - i, None));
 				total += 900 - i;
@@ -993,7 +1004,10 @@ fn parachain_swap_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parachain));
 
 		// Currently we are on lease 6
-		assert_eq!(<Slots as Leaser<_>>::lease_period_index(System::block_number()), Some((6u32, false)));
+		assert_eq!(
+			<Slots as Leaser<_>>::lease_period_index(System::block_number()),
+			Some((6u32, false))
+		);
 
 		// This means that parachain 1 should only have 6 slots left, and parachain 2 has all 8.
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2000)).len(), 6);
@@ -1001,11 +1015,17 @@ fn parachain_swap_works() {
 
 		let fund_2000 = Crowdloan::funds(ParaId::from(2000)).unwrap();
 		assert_eq!(fund_2000.fund_index, 0);
-		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2000.fund_index)), fund_2000.raised);
+		assert_eq!(
+			Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2000.fund_index)),
+			fund_2000.raised
+		);
 
 		let fund_2001 = Crowdloan::funds(ParaId::from(2001)).unwrap();
 		assert_eq!(fund_2001.fund_index, 1);
-		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2001.fund_index)), fund_2001.raised);
+		assert_eq!(
+			Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2001.fund_index)),
+			fund_2001.raised
+		);
 
 		assert_eq!(Slots::lease(ParaId::from(2000)).len(), 6);
 		assert_eq!(Slots::lease(ParaId::from(2001)).len(), 8);
@@ -1025,11 +1045,17 @@ fn parachain_swap_works() {
 		// Crowdloan Swapped
 		let fund_2000 = Crowdloan::funds(ParaId::from(2000)).unwrap();
 		assert_eq!(fund_2000.fund_index, 1);
-		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2000.fund_index)), fund_2000.raised);
+		assert_eq!(
+			Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2000.fund_index)),
+			fund_2000.raised
+		);
 
 		let fund_2001 = Crowdloan::funds(ParaId::from(2001)).unwrap();
 		assert_eq!(fund_2001.fund_index, 0);
-		assert_eq!(Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2001.fund_index)), fund_2001.raised);
+		assert_eq!(
+			Balances::reserved_balance(&Crowdloan::fund_account_id(fund_2001.fund_index)),
+			fund_2001.raised
+		);
 
 		// Slots Swapped
 		assert_eq!(Slots::lease(ParaId::from(2000)).len(), 8);
@@ -1041,7 +1067,7 @@ fn parachain_swap_works() {
 fn crowdloan_ending_period_bid() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
-		// User 1 and 2 will own paras
+										  // User 1 and 2 will own paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 parathreads
@@ -1308,7 +1334,12 @@ fn gap_bids_work() {
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// --------- 4 -------------- 5 -------------- 6 -------------- 7 -------
-			vec![Some((account_id(10), 100)), Some((account_id(20), 800)), Some((account_id(20), 200)), Some((account_id(10), 400))],
+			vec![
+				Some((account_id(10), 100)),
+				Some((account_id(20), 800)),
+				Some((account_id(20), 200)),
+				Some((account_id(10), 400))
+			],
 		);
 		// Nothing changed.
 		assert_eq!(Balances::reserved_balance(&account_id(10)), 400);
@@ -1319,7 +1350,11 @@ fn gap_bids_work() {
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// --------- 5 -------------- 6 -------------- 7 -------
-			vec![Some((account_id(20), 800)), Some((account_id(20), 200)), Some((account_id(10), 400))],
+			vec![
+				Some((account_id(20), 800)),
+				Some((account_id(20), 200)),
+				Some((account_id(10), 400))
+			],
 		);
 		// Nothing changed.
 		assert_eq!(Balances::reserved_balance(&account_id(10)), 400);
