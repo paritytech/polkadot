@@ -19,6 +19,8 @@ use frame_support::generate_storage_alias;
 
 /// Migrations for using fund index to create fund accounts instead of para ID.
 pub mod crowdloan_index_migration {
+	use super::*;
+
 	// The old way we generated fund accounts.
 	fn old_fund_account_id<T: Config>(index: ParaId) -> T::AccountId {
 		T::PalletId::get().into_sub_account(index)
@@ -33,7 +35,7 @@ pub mod crowdloan_index_migration {
 		// Each fund should have some non-zero balance.
 		Funds::<T>::iter().for_each(|(para_id, fund)| {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
-			let total_balance = T::Currency::total_balance(old_fund_account);
+			let total_balance = CurrencyOf::<T>::total_balance(&old_fund_account);
 
 			assert_eq!(total_balance, fund.raised);
 			assert!(total_balance > Zero::zero());
@@ -65,17 +67,17 @@ pub mod crowdloan_index_migration {
 		// `NextTrieIndex` should not have a value, and `NextFundIndex` should.
 		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
 		assert!(NextTrieIndex::take().is_none());
-		assert!(NextFundIndex::get() > 0);
+		assert!(NextFundIndex::<T>::get() > 0);
 
 		// Each fund should have balance migrated correctly.
 		Funds::<T>::iter().for_each(|(para_id, fund)| {
 			// Old fund account is deleted.
 			let old_fund_account = old_fund_account_id::<T>(para_id);
-			assert_eq!(frame_system::Account::<T>::get(old_fund_account_id), Default::default());
+			assert_eq!(frame_system::Account::<T>::get(&old_fund_account), Default::default());
 
 			// New fund account has the correct balance.
 			let new_fund_account = Pallet::<T>::fund_account_id(fund.fund_index);
-			let total_balance = T::Currency::total_balance(new_fund_account);
+			let total_balance = CurrencyOf::<T>::total_balance(&new_fund_account);
 
 			assert_eq!(total_balance, fund.raised);
 			assert!(total_balance > Zero::zero());

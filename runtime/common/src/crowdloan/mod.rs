@@ -49,6 +49,8 @@
 //! the parachain remains active. Users can withdraw their funds once the slot is completed and funds are
 //! returned to the crowdloan account.
 
+pub mod migration;
+
 use crate::{
 	slot_range::SlotRange,
 	traits::{Auctioneer, Registrar},
