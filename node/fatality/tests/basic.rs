@@ -10,23 +10,25 @@ enum Yikes {
 	Dead,
 }
 
-fn foo() -> Result<[u8; 32], Yikes> {
+fn so_dead() -> Result<[u8; 32], Yikes> {
 	Err(Yikes::Dead)
 }
 
 fn i_call_foo() -> Result<(), FatalYikes> {
-	// availble via a convenience trait `Nested` that is implemented
+	// availble via a convenience `trait Nested` that is implemented
 	// for any `Result` whose error type implements `Split`.
-	let _x: Result<[u8; 32], JfyiYikes> = foo().into_nested()?;
+	let _x: Result<[u8; 32], JfyiYikes> = so_dead().into_nested()?;
 	unreachable!()
 }
 
 fn i_call_foo_too() -> Result<(), FatalYikes> {
-	if let Err(should_be_fatal) = foo() {
+	if let Err(should_be_fatal) = so_dead() {
 		// bail if bad, otherwise just log it
-		log::warn!("Jfyi: {:?}", should_be_fatal.split()?);
+		println!("You won't get here: {:?}", should_be_fatal.split()?);
+	} else {
+		unreachable!("`fn foo()` returns an error. qed");
 	}
-	unreachable!()
+	unreachable!("Variant `Dead` is a `fatal` error. qed");
 }
 
 use assert_matches::assert_matches;
