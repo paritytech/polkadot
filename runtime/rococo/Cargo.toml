@@ -71,6 +71,7 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
 # Bridge Dependencies
+bp-message-dispatch = { path = "../../bridges/primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../bridges/primitives/messages", default-features = false }
 bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features = false }
 bp-runtime = { path = "../../bridges/primitives/runtime", default-features = false }
@@ -93,6 +94,7 @@ no_std = []
 std = [
 	"authority-discovery-primitives/std",
 	"babe-primitives/std",
+	"bp-message-dispatch/std",
 	"bp-messages/std",
 	"bp-rococo/std",
 	"bp-runtime/std",

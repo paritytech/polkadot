@@ -18,28 +18,96 @@
 
 pub use self::{at_rococo::*, at_wococo::*};
 
+use bp_message_dispatch::MessageDispatch as _;
 use bp_messages::{
-	source_chain::TargetHeaderChain,
-	target_chain::{ProvedMessages, SourceHeaderChain},
-	InboundLaneData, LaneId, Message, MessageNonce,
+	source_chain::{LaneMessageVerifier, SendMessageArtifacts, Sender, TargetHeaderChain},
+	target_chain::{DispatchMessage, MessageDispatch, ProvedMessages, SourceHeaderChain},
+	InboundLaneData, LaneId, Message, MessageNonce, OutboundLaneData, Parameter as MessagesParameter,
 };
 use bp_rococo::{
 	max_extrinsic_size, max_extrinsic_weight, EXTRA_STORAGE_PROOF_SIZE,
 	MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
 };
-use bp_runtime::{ChainId, ROCOCO_CHAIN_ID, WOCOCO_CHAIN_ID};
+use bp_runtime::{messages::MessageDispatchResult, ChainId, ROCOCO_CHAIN_ID, WOCOCO_CHAIN_ID};
 use bridge_runtime_common::messages::{
 	source as messages_source, target as messages_target, BridgedChainWithMessages,
 	ChainWithMessages, MessageBridge, MessageTransaction, ThisChainWithMessages,
 };
 use frame_support::{
-	traits::Get,
-	weights::{Weight, WeightToFeePolynomial},
+	traits::{Currency, Get},
+	weights::{PostDispatchInfo, Weight, WeightToFeePolynomial},
 	RuntimeDebug,
 };
-use sp_std::{convert::TryFrom, marker::PhantomData, ops::RangeInclusive};
+use scale_info::TypeInfo;
+use sp_runtime::{codec::{Decode, Encode}, traits::Zero, FixedPointNumber, DispatchErrorWithPostInfo};
+use sp_std::{convert::TryFrom, marker::PhantomData, ops::RangeInclusive, vec::Vec};
 
 use rococo_runtime_constants::fee::WeightToFee;
+
+/// Lane for regular encoded calls.
+const REGULAR_LANE: LaneId = [0, 0, 0, 0];
+/// Lane for XCM calls.
+const XCM_LANE: LaneId = [0, 0, 0, 1];
+
+/// Send XCM message from Rococo to Wococo.
+pub fn send_xcm_from_rococo_to_wococo(opaque_xcm: Vec<u8>) -> Result<SendMessageArtifacts, DispatchErrorWithPostInfo<PostDispatchInfo>> {
+	send_xcm::<AtRococoWithWococoMessageBridge, crate::AtRococoWithWococoMessagesInstance>(opaque_xcm)
+}
+
+/// Send XCM message from Wococo to Rococo.
+pub fn send_xcm_from_wococo_to_rococo(opaque_xcm: Vec<u8>) -> Result<SendMessageArtifacts, DispatchErrorWithPostInfo<PostDispatchInfo>> {
+	send_xcm::<AtWococoWithRococoMessageBridge, crate::AtWococoWithRococoMessagesInstance>(opaque_xcm)
+}
+
+/// Process message from Rococo to Wococo (at Wococo).
+pub fn process_xcm_from_rococo_to_wococo(opaque_xcm: Vec<u8>) {
+	// @gavofyork: you may call whatever required here with `opaque_xcm`, but the weight shall be
+	// no more than weight returned by `RococoLikeMessageDispatch::dispatch_weight` method.
+	log::trace!(target: "runtime::bridge-xcm", "Delivered XCM from Rococo to Wococo: {:?}", opaque_xcm);
+}
+
+/// Process message from Wococo to Rococo (at Rococo).
+pub fn process_xcm_from_wococo_to_rococo(opaque_xcm: Vec<u8>) {
+	// @gavofyork: you may call whatever required here with `opaque_xcm`, but the weight shall be
+	// no more than weight returned by `RococoLikeMessageDispatch::dispatch_weight` method.
+	log::trace!(target: "runtime::bridge-xcm", "Delivered XCM from Wococo to Rococo: {:?}", opaque_xcm);
+}
+
+/// XCM processor at the target chain.
+pub trait ProcessXcm {
+	/// Process XCM received from the bridge chain.
+	fn process_xcm(opaque_xcm: Vec<u8>);
+}
+
+/// Send XCM message between chains.
+fn send_xcm<B: MessageBridge, MessagesInstance: 'static>(
+	opaque_xcm: Vec<u8>,
+) -> Result<SendMessageArtifacts, DispatchErrorWithPostInfo<PostDispatchInfo>> where
+	pallet_bridge_messages::Pallet<crate::Runtime, MessagesInstance>: bp_messages::source_chain::MessagesBridge<
+		crate::AccountId,
+		crate::Balance,
+		messages_source::FromThisChainMessagePayload<B>,
+		Error = DispatchErrorWithPostInfo<PostDispatchInfo>,
+	>,
+{
+	// @gavofyork: this shall be set to the weight of the message dispatch. Normally we dispatch encoded calls
+	// as they're delivered. But if you're just queueing your XCMs somewhere, set it to the weight of db write.
+	let delivery_weight = 0;
+
+	// @gavofyork: all other fields below are irrelevant for your case
+	<pallet_bridge_messages::Pallet::<crate::Runtime, MessagesInstance> as bp_messages::source_chain::MessagesBridge<_, _, _>>::send_message(
+		frame_system::RawOrigin::Root.into(),
+		XCM_LANE,
+		bp_message_dispatch::MessagePayload {
+			spec_version: 0,
+			weight: delivery_weight,
+			origin: bp_message_dispatch::CallOrigin::SourceRoot,
+			dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain,
+			call: opaque_xcm,
+		},
+		0,
+	)
+}
 
 /// Maximal number of pending outbound messages.
 const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
@@ -109,7 +177,7 @@ impl<B, GI> ThisChainWithMessages for RococoLikeChain<B, GI> {
 	type Call = crate::Call;
 
 	fn is_outbound_lane_enabled(lane: &LaneId) -> bool {
-		*lane == [0, 0, 0, 0]
+		*lane == REGULAR_LANE || *lane == XCM_LANE
 	}
 
 	fn maximal_pending_messages_at_outbound_lane() -> MessageNonce {
@@ -246,6 +314,153 @@ where
 	}
 }
 
+/// Verification of Rococo/Wococo messages at the source chain.
+#[derive(RuntimeDebug, Clone, Copy)]
+pub struct RococoLikeMessageVerifier<B> {
+	_marker: PhantomData<B>,
+}
+
+impl<B>
+	LaneMessageVerifier<
+		crate::AccountId,
+		messages_source::FromThisChainMessagePayload<B>,
+		crate::Balance,
+	> for RococoLikeMessageVerifier<B>
+where
+	B: MessageBridge,
+	bridge_runtime_common::messages::ThisChain<B>: bridge_runtime_common::messages::ChainWithMessages<
+		AccountId = crate::AccountId,
+		Balance = crate::Balance,
+	>,
+{
+	type Error = &'static str;
+
+	fn verify_message(
+		submitter: &Sender<crate::AccountId>,
+		delivery_and_dispatch_fee: &crate::Balance,
+		lane: &LaneId,
+		lane_outbound_data: &OutboundLaneData,
+		payload: &messages_source::FromThisChainMessagePayload<B>,
+	) -> Result<(), Self::Error> {
+		match *lane {
+			REGULAR_LANE => messages_source::FromThisChainMessageVerifier::<B>::verify_message(
+				submitter,
+				delivery_and_dispatch_fee,
+				lane,
+				lane_outbound_data,
+				payload,
+			),
+			XCM_LANE => {
+				// @gavofyork: apart from fee checks (that we now ignore for XCM messages), this function
+				// checks that: there aren't many queued (undelivered) messages at the lane. Otherwise the
+				// storage may grow too large. I you need it, please add check here e.g. with:
+				//
+				// let max_pending_messages = ThisChain::<B>::maximal_pending_messages_at_outbound_lane();
+				// let pending_messages = lane_outbound_data
+				//     .latest_generated_nonce
+				//     .saturating_sub(lane_outbound_data.latest_received_nonce);
+				// if pending_messages > max_pending_messages {
+				//     return Err(TOO_MANY_PENDING_MESSAGES)
+				// }
+				Ok(())
+			}
+			_ => Err(messages_source::OUTBOUND_LANE_DISABLED),
+		}
+	}
+}
+
+/// Dispatch of Rococo/Wococo messages at the target chain.
+#[derive(RuntimeDebug, Clone, Copy)]
+pub struct RococoLikeMessageDispatch<B, ThisDispatchInstance> {
+	_marker: PhantomData<(B, ThisDispatchInstance)>,
+}
+
+impl<B: MessageBridge + ProcessXcm, ThisDispatchInstance>
+	MessageDispatch<crate::AccountId, crate::Balance>
+for RococoLikeMessageDispatch<B, ThisDispatchInstance> where
+	ThisDispatchInstance: 'static,
+	crate::Runtime: pallet_bridge_dispatch::Config<
+		ThisDispatchInstance,
+		BridgeMessageId = (LaneId, MessageNonce),
+		SourceChainAccountId = crate::AccountId,
+	>,
+	pallet_bridge_dispatch::Pallet<crate::Runtime, ThisDispatchInstance>:
+		bp_message_dispatch::MessageDispatch<
+			crate::AccountId,
+			(LaneId, MessageNonce),
+			Message = messages_target::FromBridgedChainMessagePayload<B>,
+		>,
+{
+	type DispatchPayload = bridge_runtime_common::messages::target::FromBridgedChainMessagePayload<B>;
+
+	fn dispatch_weight(
+		message: &DispatchMessage<Self::DispatchPayload, crate::Balance>,
+	) -> frame_support::weights::Weight {
+		message.data.payload.as_ref().map(|payload| payload.weight).unwrap_or(0)
+	}
+
+	fn dispatch(
+		relayer_account: &crate::AccountId,
+		message: DispatchMessage<Self::DispatchPayload, crate::Balance>,
+	) -> MessageDispatchResult {
+		match message.key.lane_id {
+			REGULAR_LANE => {
+				let message_id = (message.key.lane_id, message.key.nonce);
+				pallet_bridge_dispatch::Pallet::<crate::Runtime, ThisDispatchInstance>::dispatch(
+					B::BRIDGED_CHAIN_ID,
+					B::THIS_CHAIN_ID,
+					message_id,
+					message.data.payload.map_err(drop),
+					|dispatch_origin, dispatch_weight| {
+						let unadjusted_weight_fee = <crate::Runtime as pallet_transaction_payment::Config>::WeightToFee::calc(&dispatch_weight);
+						let fee_multiplier =
+							pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier();
+						let adjusted_weight_fee =
+							fee_multiplier.saturating_mul_int(unadjusted_weight_fee);
+						if !adjusted_weight_fee.is_zero() {
+							<pallet_balances::Pallet::<crate::Runtime> as Currency<crate::AccountId>>::transfer(
+								dispatch_origin,
+								relayer_account,
+								adjusted_weight_fee,
+								frame_support::traits::ExistenceRequirement::AllowDeath,
+							)
+							.map_err(drop)
+						} else {
+							Ok(())
+						}
+					},
+				)
+			},
+			XCM_LANE => {
+				if let Ok(opaque_xcm) = message.data.payload {
+					B::process_xcm(opaque_xcm.call.into_encoded_call());
+				} else {
+					// this means that something is misconfigured in the bridge or chain runtimes are incompatible
+					// don't bother now about that.
+					log::trace!(target: "runtime::bridge-xcm", "Failed to decode payload with XCM :/");
+				}
+
+				// @gavofyork: don't bother abouth these fields now. The only field that may be important to you
+				// is `dispatch_result`, which is then delivered back to the source chain.
+				MessageDispatchResult {
+					dispatch_result: true,
+					unspent_weight: 0,
+					dispatch_fee_paid_during_dispatch: false,
+				}
+			},
+			_ => {
+				// we shall never reach this line, because messages from forbidden lanes are
+				// rejected earlier (see `verify_inbound_messages_lane`)
+				MessageDispatchResult {
+					dispatch_result: false,
+					unspent_weight: 0,
+					dispatch_fee_paid_during_dispatch: false,
+				}
+			},
+		}
+	}
+}
+
 /// Error that happens when we are receiving incoming message via unexpected lane.
 const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disabled.";
 
@@ -253,7 +468,7 @@ const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disabled.";
 fn verify_inbound_messages_lane(
 	messages: ProvedMessages<Message<crate::Balance>>,
 ) -> Result<ProvedMessages<Message<crate::Balance>>, &'static str> {
-	let allowed_incoming_lanes = [[0, 0, 0, 0]];
+	let allowed_incoming_lanes = [REGULAR_LANE, XCM_LANE];
 	if messages.keys().any(|lane_id| !allowed_incoming_lanes.contains(lane_id)) {
 		return Err(INBOUND_LANE_DISABLED)
 	}
@@ -296,13 +511,18 @@ mod at_rococo {
 		}
 	}
 
+	impl ProcessXcm for AtRococoWithWococoMessageBridge {
+		fn process_xcm(opaque_xcm: Vec<u8>) {
+			process_xcm_from_wococo_to_rococo(opaque_xcm)
+		}
+	}
+
 	/// Message payload for Rococo -> Wococo messages as it is seen at the Rococo.
 	pub type ToWococoMessagePayload =
 		messages_source::FromThisChainMessagePayload<AtRococoWithWococoMessageBridge>;
 
 	/// Message verifier for Rococo -> Wococo messages at Rococo.
-	pub type ToWococoMessageVerifier =
-		messages_source::FromThisChainMessageVerifier<AtRococoWithWococoMessageBridge>;
+	pub type ToWococoMessageVerifier = RococoLikeMessageVerifier<AtRococoWithWococoMessageBridge>;
 
 	/// Message payload for Wococo -> Rococo messages as it is seen at Rococo.
 	pub type FromWococoMessagePayload =
@@ -313,10 +533,8 @@ mod at_rococo {
 		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
 
 	/// Call-dispatch based message dispatch for Wococo -> Rococo messages.
-	pub type FromWococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
+	pub type FromWococoMessageDispatch = RococoLikeMessageDispatch<
 		AtRococoWithWococoMessageBridge,
-		crate::Runtime,
-		pallet_balances::Pallet<crate::Runtime>,
 		crate::AtRococoFromWococoMessagesDispatch,
 	>;
 }
@@ -346,13 +564,18 @@ mod at_wococo {
 		}
 	}
 
+	impl ProcessXcm for AtWococoWithRococoMessageBridge {
+		fn process_xcm(opaque_xcm: Vec<u8>) {
+			process_xcm_from_rococo_to_wococo(opaque_xcm)
+		}
+	}
+
 	/// Message payload for Wococo -> Rococo messages as it is seen at the Wococo.
 	pub type ToRococoMessagePayload =
 		messages_source::FromThisChainMessagePayload<AtWococoWithRococoMessageBridge>;
 
 	/// Message verifier for Wococo -> Rococo messages at Wococo.
-	pub type ToRococoMessageVerifier =
-		messages_source::FromThisChainMessageVerifier<AtWococoWithRococoMessageBridge>;
+	pub type ToRococoMessageVerifier = RococoLikeMessageVerifier<AtRococoWithWococoMessageBridge>;
 
 	/// Message payload for Rococo -> Wococo messages as it is seen at Wococo.
 	pub type FromRococoMessagePayload =
@@ -363,12 +586,46 @@ mod at_wococo {
 		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
 
 	/// Call-dispatch based message dispatch for Rococo -> Wococo messages.
-	pub type FromRococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
+	pub type FromRococoMessageDispatch = RococoLikeMessageDispatch<
 		AtWococoWithRococoMessageBridge,
-		crate::Runtime,
-		pallet_balances::Pallet<crate::Runtime>,
 		crate::AtWococoFromRococoMessagesDispatch,
 	>;
+}
+
+/// Just a trigger for sending XCM from Rococo to Wococo - remove it.
+#[derive(RuntimeDebug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
+pub enum FromRococoToWococoXcmTrigger {
+	/// Send XCM from Rococo to Wococo.
+	SendXcm(Vec<u8>),
+}
+
+impl MessagesParameter for FromRococoToWococoXcmTrigger {
+	fn save(&self) {
+		match *self {
+			FromRococoToWococoXcmTrigger::SendXcm(ref xcm) => {
+				let result = send_xcm_from_rococo_to_wococo(xcm.clone());
+				log::trace!(target: "runtime::bridge-xcm", "Send XCM result: {:?}", result);
+			},
+		}
+	}
+}
+
+/// Just a trigger for sending XCM from Wococo to Rococo - remove it.
+#[derive(RuntimeDebug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
+pub enum FromWococoToRococoXcmTrigger {
+	/// Send XCM from Wococo to Rococo.
+	SendXcm(Vec<u8>),
+}
+
+impl MessagesParameter for FromWococoToRococoXcmTrigger {
+	fn save(&self) {
+		match *self {
+			FromWococoToRococoXcmTrigger::SendXcm(ref xcm) => {
+				let result = send_xcm_from_wococo_to_rococo(xcm.clone());
+				log::trace!(target: "runtime::bridge-xcm", "Send XCM result: {:?}", result);
+			},
+		}
+	}
 }
 
 #[cfg(test)]
@@ -483,8 +740,8 @@ mod tests {
 	#[test]
 	fn verify_inbound_messages_lane_succeeds() {
 		assert_eq!(
-			verify_inbound_messages_lane(proved_messages([0, 0, 0, 0])),
-			Ok(proved_messages([0, 0, 0, 0])),
+			verify_inbound_messages_lane(proved_messages(REGULAR_LANE)),
+			Ok(proved_messages(REGULAR_LANE)),
 		);
 	}
 
@@ -495,7 +752,7 @@ mod tests {
 			Err(INBOUND_LANE_DISABLED),
 		);
 
-		let proved_messages = proved_messages([0, 0, 0, 0])
+		let proved_messages = proved_messages(REGULAR_LANE)
 			.into_iter()
 			.chain(proved_messages([0, 0, 0, 1]))
 			.collect();

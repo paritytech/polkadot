@@ -825,7 +825,7 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 	type Event = Event;
 	type BridgedChainId = RococoChainId;
 	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
-	type Parameter = ();
+	type Parameter = bridge_messages::FromWococoToRococoXcmTrigger;
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
 	type MaxUnconfirmedMessagesAtInboundLane = MaxUnconfirmedMessagesAtInboundLane;
@@ -863,7 +863,7 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 	type Event = Event;
 	type BridgedChainId = WococoChainId;
 	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
-	type Parameter = ();
+	type Parameter = bridge_messages::FromRococoToWococoXcmTrigger;
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
 	type MaxUnconfirmedMessagesAtInboundLane = MaxUnconfirmedMessagesAtInboundLane;

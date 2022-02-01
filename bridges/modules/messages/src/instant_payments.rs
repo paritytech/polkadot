@@ -66,6 +66,10 @@ where
 		fee: &Currency::Balance,
 		relayer_fund_account: &T::AccountId,
 	) -> Result<(), Self::Error> {
+		if fee.is_zero() {
+			return Ok(());
+		}
+		
 		if !frame_system::Pallet::<T>::account_exists(relayer_fund_account) {
 			return Err("The relayer fund account must exist for the message lanes pallet to work correctly.");
 		}

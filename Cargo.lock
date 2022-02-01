@@ -8036,6 +8036,7 @@ name = "rococo-runtime"
 version = "0.9.13"
 dependencies = [
  "beefy-primitives",
+ "bp-message-dispatch",
  "bp-messages",
  "bp-rococo",
  "bp-runtime",
