@@ -141,7 +141,7 @@ pub fn native_version() -> NativeVersion {
 /// We currently allow all calls.
 pub struct BaseFilter;
 impl Contains<Call> for BaseFilter {
-	fn contains(c: &Call) -> bool {
+	fn contains(_c: &Call) -> bool {
 		true
 	}
 }
