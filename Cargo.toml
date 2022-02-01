@@ -128,9 +128,6 @@ maintenance = { status = "actively-developed" }
 #
 # This list is ordered alphabetically.
 [profile.dev.package]
-aesni = { opt-level = 3 }
-aes-soft = { opt-level = 3 }
-backtrace = { opt-level = 3 }
 blake2b_simd = { opt-level = 3 }
 blake2 = { opt-level = 3 }
 blake2-rfc = { opt-level = 3 }
