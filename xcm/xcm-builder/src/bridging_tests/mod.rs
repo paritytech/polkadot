@@ -17,16 +17,23 @@
 //! Tests specific to the bridging primitives
 
 use std::{cell::RefCell, marker::PhantomData};
-use frame_support::parameter_types;
+use frame_support::{parameter_types, traits::Get};
 use assert_matches::assert_matches;
 use xcm::prelude::*;
+use xcm_executor::XcmExecutor;
 use crate::universal_exports::*;
+use crate::mock::*;
 
 mod local_relay_relay;
 mod local_para_para;
 mod remote_relay_relay;
 mod remote_para_para;
 mod remote_para_para_via_relay;
+
+parameter_types! {
+	pub Local: NetworkId = ByUri(b"local".to_vec());
+	pub Remote: NetworkId = ByUri(b"remote".to_vec());
+}
 
 std::thread_local! {
 	static BRIDGE_TRAFFIC: RefCell<Vec<Vec<u8>>> = RefCell::new(Vec::new());
@@ -59,4 +66,27 @@ impl SendXcm for TestRemoteIncomingRouter {
 
 fn take_received_remote_messages() -> Vec<(MultiLocation, Xcm<()>)> {
 	REMOTE_INCOMING_XCM.with(|r| r.replace(vec![]))
+}
+
+/// This is a dummy router which accepts messages destined for `Remote` from `Local`
+/// them in a context simulated to be like that of our `Parent`.
+struct ExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote, RemoteExporter)>);
+impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm for ExecutingRouter<Local, Remote, RemoteExporter> {
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+		let destination = destination.into();
+		if destination == Remote::get().relative_to(&Local::get()) {
+			// We now pretend that the message was delivered from the local chain
+			// Parachain(1000) to the relay-chain and is getting executed there. We need to
+			// configure the TestExecutor appropriately:
+			ExecutorUniversalLocation::set(Remote::get());
+			let origin = Local::get().relative_to(&Remote::get());
+			AllowUnpaidFrom::set(vec![origin.clone()]);
+			set_exporter_override(RemoteExporter::export_xcm);
+			// The we execute it:
+			let outcome = XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+			assert_matches!(outcome, Outcome::Complete(_));
+			return Ok(())
+		}
+		Err(SendError::CannotReachDestination(destination, message))
+	}
 }

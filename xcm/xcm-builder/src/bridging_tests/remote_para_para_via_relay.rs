@@ -18,15 +18,12 @@
 //! bridge to a parachain from another global consensus. The destination of the XCM is within
 //! the global consensus of the remote side of the bridge.
 
-use xcm_executor::XcmExecutor;
 use crate::mock::*;
 use super::*;
 
 parameter_types! {
-	pub Local: NetworkId = ByUri(b"local".to_vec());
 	pub UniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
 	pub ParaBridgeUniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1));
-	pub Remote: NetworkId = ByUri(b"remote".to_vec());
 	pub RemoteParaBridgeUniversalLocation: Junctions = X2(GlobalConsensus(Remote::get()), Parachain(1));
 	pub BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
 		= vec![(Remote::get(), Parachain(1).into(), None)];
@@ -34,30 +31,7 @@ parameter_types! {
 type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteParaBridgeUniversalLocation>>;
 type RelayExporter = HaulBlobExporter<TheBridge, Remote>;
-type TestExecutor = XcmExecutor<TestConfig>;
-
-/// This is a dummy router which accepts messages destined for our `Parent` and executes
-/// them in a context simulated to be like that of our `Parent`.
-struct LocalInnerRouter;
-impl SendXcm for LocalInnerRouter {
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-		let destination = destination.into();
-		if ParaBridgeUniversalLocation::get().relative_to(&UniversalLocation::get()) == destination {
-			// We now pretend that the message was delivered from the local chain
-			// Parachain(1000) to the bridging parachain and is getting executed there. We
-			// need to configure the TestExecutor appropriately:
-			ExecutorUniversalLocation::set(ParaBridgeUniversalLocation::get());
-			let origin = UniversalLocation::get().relative_to(&ParaBridgeUniversalLocation::get());
-			AllowUnpaidFrom::set(vec![origin.clone()]);
-			set_exporter_override(RelayExporter::export_xcm);
-			// The we execute it:
-			let outcome = TestExecutor::execute_xcm(origin, message.into(), 1_000_000);
-			assert_matches!(outcome, Outcome::Complete(_));
-			return Ok(())
-		}
-		Err(SendError::CannotReachDestination(destination, message))
-	}
-}
+type LocalInnerRouter = ExecutingRouter<UniversalLocation, ParaBridgeUniversalLocation, RelayExporter>;
 type LocalBridgingRouter = UnpaidRemoteExporter<
 	NetworkExportTable<BridgeTable>,
 	LocalInnerRouter,

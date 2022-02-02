@@ -21,9 +21,7 @@
 use super::*;
 
 parameter_types! {
-	pub Local: NetworkId = ByUri(b"local".to_vec());
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1));
-	pub Remote: NetworkId = ByUri(b"remote".to_vec());
 	pub RemoteUniversalLocation: Junctions = X2(GlobalConsensus(Remote::get()), Parachain(1));
 }
 type TheBridge =
@@ -41,7 +39,7 @@ type Router = LocalUnpaidExporter<HaulBlobExporter<TheBridge, Remote>, Universal
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(Router::send_xcm((Parent, Parent, ByUri(b"remote".to_vec()), Parachain(1)), msg), Ok(()));
+	assert_eq!(Router::send_xcm((Parent, Parent, Remote::get(), Parachain(1)), msg), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -63,7 +61,7 @@ fn sending_to_bridged_chain_works() {
 ///                          Parachain(1)  ===>  Parachain(1)  ==>  Parachain(1000)
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
-	let dest = (Parent, Parent, ByUri(b"remote".to_vec()), Parachain(1000));
+	let dest = (Parent, Parent, Remote::get(), Parachain(1000));
 	assert_eq!(Router::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
@@ -83,7 +81,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 ///                          Parachain(1)  ===>  Parachain(1)
 #[test]
 fn sending_to_relay_chain_of_bridged_chain_works() {
-	let dest = (Parent, Parent, ByUri(b"remote".to_vec()));
+	let dest = (Parent, Parent, Remote::get());
 	assert_eq!(Router::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
