@@ -175,8 +175,8 @@ impl TransactAsset for TestAssetTransactor {
 	}
 }
 
-pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
-	Ok(match l {
+pub fn to_account(l: impl Into<MultiLocation>) -> Result<u64, MultiLocation> {
+	Ok(match l.into() {
 		// Siblings at 2000+id
 		MultiLocation { parents: 1, interior: X1(Parachain(id)) } => 2000 + id as u64,
 		// Accounts are their number
@@ -187,7 +187,7 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 		MultiLocation { parents: 0, interior: Here } => 3000,
 		// Parent at 3001
 		MultiLocation { parents: 1, interior: Here } => 3001,
-		_ => return Err(l),
+		l => return Err(l),
 	})
 }
 

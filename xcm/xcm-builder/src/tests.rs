@@ -26,10 +26,10 @@ fn basic_setup_works() {
 		&Parent.into(),
 	));
 
-	assert_eq!(to_account(X1(Parachain(1)).into()), Ok(1001));
-	assert_eq!(to_account(X1(Parachain(50)).into()), Ok(1050));
-	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(1)))), Ok(2001));
-	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(50)))), Ok(2050));
+	assert_eq!(to_account(Parachain(1)), Ok(1001));
+	assert_eq!(to_account(Parachain(50)), Ok(1050));
+	assert_eq!(to_account((Parent, Parachain(1))), Ok(2001));
+	assert_eq!(to_account((Parent, Parachain(50))), Ok(2050));
 	assert_eq!(
 		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: None }))),
 		Ok(1),
@@ -38,7 +38,7 @@ fn basic_setup_works() {
 		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: None }))),
 		Ok(42),
 	);
-	assert_eq!(to_account(Here.into()), Ok(3000));
+	assert_eq!(to_account(Here), Ok(3000));
 }
 
 #[test]
