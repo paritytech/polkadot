@@ -390,7 +390,7 @@ mod tests {
 	#[cfg(test)]
 	fn test_db() -> Arc<dyn Database> {
 		let db = kvdb_memorydb::create(1);
-		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[1]);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		Arc::new(db)
 	}
 
