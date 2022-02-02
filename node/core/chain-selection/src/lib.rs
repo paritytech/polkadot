@@ -299,9 +299,6 @@ impl StagnantCheckInterval {
 pub struct Config {
 	/// The column in the database that the storage should use.
 	pub col_data: u32,
-	/// The column in the database that the storage should use,
-	/// ordered.
-	pub col_data_ordered: u32,
 	/// How often to check for stagnant blocks.
 	pub stagnant_check_interval: StagnantCheckInterval,
 }
@@ -328,10 +325,7 @@ where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = crate::db_backend::v1::DbBackend::new(
 			self.db,
-			crate::db_backend::v1::Config {
-				col_data: self.config.col_data,
-				col_data_ordered: self.config.col_data_ordered,
-			},
+			crate::db_backend::v1::Config { col_data: self.config.col_data },
 		);
 
 		SpawnedSubsystem {

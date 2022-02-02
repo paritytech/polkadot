@@ -41,15 +41,10 @@ use sp_keyring::Sr25519Keyring;
 mod columns {
 	pub const DATA: u32 = 0;
 	pub const META: u32 = 1;
-	pub const META_ORDERED: u32 = 2;
-	pub const NUM_COLUMNS: u32 = 3;
+	pub const NUM_COLUMNS: u32 = 2;
 }
 
-const TEST_CONFIG: Config = Config {
-	col_data: columns::DATA,
-	col_meta: columns::META,
-	col_meta_ordered: columns::META_ORDERED,
-};
+const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns::META };
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
 
@@ -203,10 +198,8 @@ fn candidate_included(receipt: CandidateReceipt) -> CandidateEvent {
 #[cfg(test)]
 fn test_store() -> Arc<dyn Database> {
 	let db = kvdb_memorydb::create(columns::NUM_COLUMNS);
-	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(
-		db,
-		&[columns::META_ORDERED],
-	);
+	let db =
+		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[columns::META]);
 	Arc::new(db)
 }
 

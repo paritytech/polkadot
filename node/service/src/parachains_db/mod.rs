@@ -26,19 +26,14 @@ pub(crate) mod columns {
 	pub mod v0 {
 		pub const NUM_COLUMNS: u32 = 3;
 	}
-	pub const NUM_COLUMNS: u32 = 7;
-	pub const NUM_COLUMNS_ROCKSDB: u32 = 5;
+	pub const NUM_COLUMNS: u32 = 5;
 
 	pub const COL_AVAILABILITY_DATA: u32 = 0;
 	pub const COL_AVAILABILITY_META: u32 = 1;
 	pub const COL_APPROVAL_DATA: u32 = 2;
 	pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
 	pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
-	pub const COL_AVAILABILITY_META_ORDERED: u32 = 5;
-	pub const COL_CHAIN_SELECTION_DATA_ORDERED: u32 = 6;
-	pub const ORDERED_COL_ROCKSDB: &[u32] = &[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA];
-	pub const ORDERED_COL_PARITY_DB: &[u32] =
-		&[COL_AVAILABILITY_META_ORDERED, COL_CHAIN_SELECTION_DATA_ORDERED];
+	pub const ORDERED_COL: &[u32] = &[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA];
 }
 
 /// Columns used by different subsystems.
@@ -49,16 +44,10 @@ pub struct ColumnsConfig {
 	pub col_availability_data: u32,
 	/// The column used by the av-store for meta information.
 	pub col_availability_meta: u32,
-	/// Second column used by the av-store for meta information,
-	/// ordered.
-	pub col_availability_meta_ordered: u32,
 	/// The column used by approval voting for data.
 	pub col_approval_data: u32,
 	/// The column used by chain selection for data.
 	pub col_chain_selection_data: u32,
-	/// Second column used by chain selection for data,
-	/// ordered.
-	pub col_chain_selection_data_ordered: u32,
 	/// The column used by dispute coordinator for data.
 	pub col_dispute_coordinator_data: u32,
 }
@@ -68,10 +57,8 @@ pub struct ColumnsConfig {
 pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_availability_data: columns::COL_AVAILABILITY_DATA,
 	col_availability_meta: columns::COL_AVAILABILITY_META,
-	col_availability_meta_ordered: columns::COL_AVAILABILITY_META_ORDERED,
 	col_approval_data: columns::COL_APPROVAL_DATA,
 	col_chain_selection_data: columns::COL_CHAIN_SELECTION_DATA,
-	col_chain_selection_data_ordered: columns::COL_CHAIN_SELECTION_DATA_ORDERED,
 	col_dispute_coordinator_data: columns::COL_DISPUTE_COORDINATOR_DATA,
 };
 
@@ -107,7 +94,7 @@ pub fn open_creating_rocksdb(
 
 	let path = root.join("parachains").join("db");
 
-	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS_ROCKSDB);
+	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
 
 	let _ = db_config
 		.memory_budget
@@ -126,10 +113,8 @@ pub fn open_creating_rocksdb(
 	std::fs::create_dir_all(&path_str)?;
 	upgrade::try_upgrade_db(&path)?;
 	let db = Database::open(&db_config, &path_str)?;
-	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(
-		db,
-		columns::ORDERED_COL_ROCKSDB,
-	);
+	let db =
+		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
 
 	Ok(Arc::new(db))
 }
@@ -154,7 +139,7 @@ pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<
 	std::fs::create_dir_all(&path_str)?;
 
 	let mut options = parity_db::Options::with_columns(&path, columns::NUM_COLUMNS as u8);
-	for i in columns::ORDERED_COL_PARITY_DB {
+	for i in columns::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
 
@@ -163,7 +148,7 @@ pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<
 
 	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
 		db,
-		columns::ORDERED_COL_PARITY_DB,
+		columns::ORDERED_COL,
 	);
 	Ok(Arc::new(db))
 }
