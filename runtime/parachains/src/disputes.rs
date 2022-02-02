@@ -1313,9 +1313,8 @@ fn check_signature(
 	}
 }
 
-
 #[cfg(test)]
-#[allow(unused_import)]
+#[allow(unused_imports)]
 pub(crate) use self::tests::run_to_block;
 
 #[cfg(test)]
