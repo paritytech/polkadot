@@ -166,11 +166,7 @@ fn custom_querier_works() {
 		let r = TestNotifier::prepare_new_query(Origin::signed(ALICE), querier.clone());
 		assert_eq!(r, Ok(()));
 		let status = QueryStatus::Pending {
-			responder: MultiLocation::from(AccountId32 {
-				network: None,
-				id: ALICE.into(),
-			})
-			.into(),
+			responder: MultiLocation::from(AccountId32 { network: None, id: ALICE.into() }).into(),
 			maybe_notify: None,
 			timeout: 100,
 			maybe_match_querier: Some(querier.clone().into()),

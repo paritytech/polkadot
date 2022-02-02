@@ -398,7 +398,11 @@ impl MultiLocation {
 	/// of `target`. The context of `self` is provided as `context`.
 	///
 	/// Returns the original `self` in case of overflow.
-	pub fn reanchored(mut self, target: &MultiLocation, context: &MultiLocation) -> Result<Self, Self> {
+	pub fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		context: &MultiLocation,
+	) -> Result<Self, Self> {
 		match self.reanchor(target, context) {
 			Ok(()) => Ok(self),
 			Err(()) => Err(self),
@@ -493,10 +497,10 @@ mod tests {
 	fn conversion_works() {
 		let x: MultiLocation = Parent.into();
 		assert_eq!(x, MultiLocation { parents: 1, interior: Here });
-//		let x: MultiLocation = (Parent,).into();
-//		assert_eq!(x, MultiLocation { parents: 1, interior: Here });
-//		let x: MultiLocation = (Parent, Parent).into();
-//		assert_eq!(x, MultiLocation { parents: 2, interior: Here });
+		//		let x: MultiLocation = (Parent,).into();
+		//		assert_eq!(x, MultiLocation { parents: 1, interior: Here });
+		//		let x: MultiLocation = (Parent, Parent).into();
+		//		assert_eq!(x, MultiLocation { parents: 2, interior: Here });
 		let x: MultiLocation = (Parent, Parent, OnlyChild).into();
 		assert_eq!(x, MultiLocation { parents: 2, interior: OnlyChild.into() });
 		let x: MultiLocation = OnlyChild.into();
@@ -705,11 +709,11 @@ mod tests {
 		takes_multilocation(ParentThen(X1(Parachain(75))));
 		takes_multilocation([Parachain(100), PalletInstance(3)]);
 
-		assert_eq!(v1::MultiLocation::from(v1::Junctions::Here).try_into(), Ok(MultiLocation::here()));
 		assert_eq!(
-			v1::MultiLocation::from(v1::Parent).try_into(),
-			Ok(MultiLocation::parent())
+			v1::MultiLocation::from(v1::Junctions::Here).try_into(),
+			Ok(MultiLocation::here())
 		);
+		assert_eq!(v1::MultiLocation::from(v1::Parent).try_into(), Ok(MultiLocation::parent()));
 		assert_eq!(
 			v1::MultiLocation::from((
 				v1::Parent,

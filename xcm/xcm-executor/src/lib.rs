@@ -30,8 +30,9 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, UniversalLocation,
-	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
+	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
+	WeightTrader,
 };
 
 mod assets;
@@ -72,9 +73,7 @@ impl<C> PreparedMessage for WeighedMessage<C> {
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	type Prepared = WeighedMessage<Config::Call>;
-	fn prepare(
-		mut message: Xcm<Config::Call>,
-	) -> Result<Self::Prepared, Xcm<Config::Call>> {
+	fn prepare(mut message: Xcm<Config::Call>) -> Result<Self::Prepared, Xcm<Config::Call>> {
 		match Config::Weigher::weight(&mut message) {
 			Ok(weight) => Ok(WeighedMessage(weight, message)),
 			Err(_) => Err(message),
@@ -93,9 +92,12 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			message,
 			weight_credit,
 		);
-		if let Err(e) =
-			Config::Barrier::should_execute(&origin, message.inner_mut(), xcm_weight, &mut weight_credit)
-		{
+		if let Err(e) = Config::Barrier::should_execute(
+			&origin,
+			message.inner_mut(),
+			xcm_weight,
+			&mut weight_credit,
+		) {
 			log::debug!(
 				target: "xcm::execute_xcm_in_credit",
 				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",

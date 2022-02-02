@@ -16,7 +16,7 @@
 
 use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::{MultiLocation, Instruction};
+use xcm::latest::{Instruction, MultiLocation};
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///

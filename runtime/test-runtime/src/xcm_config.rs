@@ -22,7 +22,7 @@ use frame_support::{
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
-	traits::{UniversalLocation, TransactAsset, WeightTrader},
+	traits::{TransactAsset, UniversalLocation, WeightTrader},
 	Assets,
 };
 

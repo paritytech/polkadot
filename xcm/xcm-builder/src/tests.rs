@@ -56,11 +56,21 @@ fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
-	let r = TakeWeightCredit::should_execute(&Parent.into(), message.inner_mut(), 10, &mut weight_credit);
+	let r = TakeWeightCredit::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		10,
+		&mut weight_credit,
+	);
 	assert_eq!(r, Ok(()));
 	assert_eq!(weight_credit, 0);
 
-	let r = TakeWeightCredit::should_execute(&Parent.into(), message.inner_mut(), 10, &mut weight_credit);
+	let r = TakeWeightCredit::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		10,
+		&mut weight_credit,
+	);
 	assert_eq!(r, Err(()));
 	assert_eq!(weight_credit, 0);
 }

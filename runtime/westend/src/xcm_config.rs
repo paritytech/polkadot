@@ -82,10 +82,8 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
-pub type TrustedTeleporters = (
-	xcm_builder::Case<WndForWestmint>,
-	xcm_builder::Case<WndForEncointer>,
-);
+pub type TrustedTeleporters =
+	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForEncointer>);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (

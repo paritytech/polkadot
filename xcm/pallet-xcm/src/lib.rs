@@ -57,7 +57,7 @@ pub mod pallet {
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 	use xcm_executor::{
 		traits::{
-			ClaimAssets, DropAssets, UniversalLocation, OnResponse, VersionChangeNotifier,
+			ClaimAssets, DropAssets, OnResponse, UniversalLocation, VersionChangeNotifier,
 			WeightBounds,
 		},
 		Assets,

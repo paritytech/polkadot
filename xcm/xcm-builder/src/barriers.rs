@@ -16,10 +16,18 @@
 
 //! Various implementations for `ShouldExecute`.
 
-use frame_support::{ensure, traits::{Contains, Get}, weights::Weight};
+use frame_support::{
+	ensure,
+	traits::{Contains, Get},
+	weights::Weight,
+};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{Instruction::{self, *}, Junction, Junctions, MultiLocation, WeightLimit::*};
+use xcm::latest::{
+	Instruction::{self, *},
+	Junction, Junctions, MultiLocation,
+	WeightLimit::*,
+};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
@@ -138,10 +146,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 /// would ignore this rule if it began with origin mutators and they changed the origin to something
 /// which was not on the list.
 pub struct WithComputedOrigin<InnerBarrier, MaxPrefixes>(PhantomData<(InnerBarrier, MaxPrefixes)>);
-impl<
-	InnerBarrier: ShouldExecute,
-	MaxPrefixes: Get<u32>,
-> ShouldExecute for WithComputedOrigin<InnerBarrier, MaxPrefixes> {
+impl<InnerBarrier: ShouldExecute, MaxPrefixes: Get<u32>> ShouldExecute
+	for WithComputedOrigin<InnerBarrier, MaxPrefixes>
+{
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
@@ -162,13 +169,22 @@ impl<
 		// invalid UniversalOrigin.
 		while skipped < MaxPrefixes::get() as usize {
 			match instructions.get(skipped) {
-				Some(UniversalOrigin(j)) => { actual_origin = j.clone().into(); },
-				Some(DescendOrigin(j)) => { actual_origin.append_with(j.clone()).map_err(|_| ())?; },
+				Some(UniversalOrigin(j)) => {
+					actual_origin = j.clone().into();
+				},
+				Some(DescendOrigin(j)) => {
+					actual_origin.append_with(j.clone()).map_err(|_| ())?;
+				},
 				_ => break,
 			}
 			skipped += 1;
 		}
-		InnerBarrier::should_execute(&actual_origin, &mut instructions[skipped..], max_weight, weight_credit)
+		InnerBarrier::should_execute(
+			&actual_origin,
+			&mut instructions[skipped..],
+			max_weight,
+			weight_credit,
+		)
 	}
 }
 

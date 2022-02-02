@@ -15,8 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, UniversalLocation,
-	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
+	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
+	WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},

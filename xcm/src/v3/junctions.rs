@@ -144,7 +144,10 @@ impl Junctions {
 	/// Consumes `self` and returns how `viewer` would address it locally.
 	pub fn relative_to(mut self, viewer: &Junctions) -> MultiLocation {
 		let mut i = 0;
-		while match (self.first(), viewer.at(i)) { (Some(x), Some(y)) => x == y, _ => false } {
+		while match (self.first(), viewer.at(i)) {
+			(Some(x), Some(y)) => x == y,
+			_ => false,
+		} {
 			self = self.split_first().0;
 			// NOTE: Cannot overflow as loop can only iterate at most `MAX_JUNCTIONS` times.
 			i += 1;
@@ -507,9 +510,8 @@ xcm_procedural::impl_conversion_functions_for_junctions_v3!();
 
 #[cfg(test)]
 mod tests {
+	use super::{super::prelude::*, *};
 	use alloc::vec;
-	use super::*;
-	use super::super::prelude::*;
 
 	#[test]
 	fn relative_to_works() {
@@ -519,18 +521,9 @@ mod tests {
 		let base = X3(Kusama.into(), Parachain(1), PalletInstance(1));
 
 		// Ancestors.
-		assert_eq!(
-			Here.relative_to(&base),
-			(Parent, Parent, Parent).into()
-		);
-		assert_eq!(
-			X1(Kusama.into()).relative_to(&base),
-			(Parent, Parent).into()
-		);
-		assert_eq!(
-			X2(Kusama.into(), Parachain(1)).relative_to(&base),
-			(Parent,).into()
-		);
+		assert_eq!(Here.relative_to(&base), (Parent, Parent, Parent).into());
+		assert_eq!(X1(Kusama.into()).relative_to(&base), (Parent, Parent).into());
+		assert_eq!(X2(Kusama.into(), Parachain(1)).relative_to(&base), (Parent,).into());
 		assert_eq!(
 			X3(Kusama.into(), Parachain(1), PalletInstance(1)).relative_to(&base),
 			Here.into()
@@ -568,7 +561,8 @@ mod tests {
 			(Parent, PalletInstance(2), [1u8; 32]).into()
 		);
 		assert_eq!(
-			X5(Kusama.into(), Parachain(1), PalletInstance(1), [1u8; 32].into(), vec![1].into()).relative_to(&base),
+			X5(Kusama.into(), Parachain(1), PalletInstance(1), [1u8; 32].into(), vec![1].into())
+				.relative_to(&base),
 			([1u8; 32], vec![1]).into()
 		);
 	}

@@ -67,17 +67,18 @@ pub mod multilocation {
 				};
 
 				let from_parent_tuples = (0..=max_parents).map(|cur_parents| {
-					let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
+					let parents =
+						(0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 					let underscores =
 						(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
 
 					quote! {
-						impl< #(#types : Into<Junction>,)* > From<( #( #parents , )* #( #types , )* )> for MultiLocation {
-							fn from( ( #(#underscores,)* #(#idents,)* ): ( #(#parents,)* #(#types,)* ) ) -> Self {
-								Self { parents: #cur_parents as u8, interior: #interior }
+							impl< #(#types : Into<Junction>,)* > From<( #( #parents , )* #( #types , )* )> for MultiLocation {
+								fn from( ( #(#underscores,)* #(#idents,)* ): ( #(#parents,)* #(#types,)* ) ) -> Self {
+									Self { parents: #cur_parents as u8, interior: #interior }
+								}
 							}
-						}
-				}
+					}
 				});
 
 				from_tuple.extend(from_parent_tuples);

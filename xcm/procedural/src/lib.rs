@@ -20,8 +20,8 @@ use proc_macro::TokenStream;
 
 mod v0;
 mod v1;
-mod weight_info;
 mod v3;
+mod weight_info;
 
 #[proc_macro]
 pub fn impl_conversion_functions_for_multilocation_v0(input: TokenStream) -> TokenStream {

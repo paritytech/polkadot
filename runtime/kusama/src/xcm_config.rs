@@ -27,7 +27,6 @@ use frame_support::{
 };
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
-use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
@@ -36,6 +35,7 @@ use xcm_builder::{
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit, UsingComponents,
 };
+use xcm_executor::XcmExecutor;
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
@@ -111,10 +111,8 @@ parameter_types! {
 	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Parachain(1001).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
-pub type TrustedTeleporters = (
-	xcm_builder::Case<KsmForStatemine>,
-	xcm_builder::Case<KsmForEncointer>,
-);
+pub type TrustedTeleporters =
+	(xcm_builder::Case<KsmForStatemine>, xcm_builder::Case<KsmForEncointer>);
 
 match_type! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
