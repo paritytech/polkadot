@@ -203,10 +203,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 	);
 	assert_eq!(
 		summary.spam_slot_changes,
-		vec![
-			(ValidatorIndex(0), SpamSlotChange::Dec),
-			(ValidatorIndex(1), SpamSlotChange::Dec),
-		],
+		vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
 	);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
@@ -245,10 +242,7 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 	);
 	assert_eq!(
 		summary.spam_slot_changes,
-		vec![
-			(ValidatorIndex(0), SpamSlotChange::Dec),
-			(ValidatorIndex(1), SpamSlotChange::Dec),
-		],
+		vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
 	);
 	assert_eq!(summary.slash_for, vec![ValidatorIndex(0), ValidatorIndex(2)]);
 	assert!(summary.slash_against.is_empty());
@@ -1191,10 +1185,7 @@ fn test_decrement_spam() {
 		start: 0,
 		concluded_at: None,
 	};
-	assert_eq!(
-		DisputeStateFlags::from_state(&dispute_state_confirm),
-		DisputeStateFlags::CONFIRMED
-	);
+	assert_eq!(DisputeStateFlags::from_state(&dispute_state_confirm), DisputeStateFlags::CONFIRMED);
 	assert_eq!(
 		decrement_spam(spam_slots.as_mut(), &dispute_state_confirm),
 		bitvec![BitOrderLsb0, u8; 1, 1, 1, 0, 0, 0, 0, 0],
@@ -1236,12 +1227,11 @@ fn test_check_signature() {
 	let statement_2 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
 		inclusion_parent.clone(),
 	));
-	let wrong_statement_2 = DisputeStatement::Valid(
-		ValidDisputeStatementKind::BackingSeconded(wrong_inclusion_parent.clone()),
-	);
-	let statement_3 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
-		inclusion_parent.clone(),
+	let wrong_statement_2 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
+		wrong_inclusion_parent.clone(),
 	));
+	let statement_3 =
+		DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent.clone()));
 	let wrong_statement_3 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
 		wrong_inclusion_parent.clone(),
 	));
@@ -1249,12 +1239,8 @@ fn test_check_signature() {
 	let statement_5 = DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit);
 
 	let signed_1 = validator_id.sign(
-		&ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash.clone(),
-			session,
-		}
-		.signing_payload(),
+		&ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash.clone(), session }
+			.signing_payload(),
 	);
 	let signed_2 =
 		validator_id.sign(&CompactStatement::Seconded(candidate_hash.clone()).signing_payload(
@@ -1267,12 +1253,8 @@ fn test_check_signature() {
 	let signed_4 =
 		validator_id.sign(&ApprovalVote(candidate_hash.clone()).signing_payload(session));
 	let signed_5 = validator_id.sign(
-		&ExplicitDisputeStatement {
-			valid: false,
-			candidate_hash: candidate_hash.clone(),
-			session,
-		}
-		.signing_payload(),
+		&ExplicitDisputeStatement { valid: false, candidate_hash: candidate_hash.clone(), session }
+			.signing_payload(),
 	);
 
 	assert!(check_signature(
@@ -1630,12 +1612,7 @@ fn deduplication_and_sorting_works() {
 			Some((
 				true,
 				b,
-				vec![
-					(&0, v0.public()),
-					(&1, v1.public()),
-					(&2, v2.public()),
-					(&3, v3.public()),
-				],
+				vec![(&0, v0.public()), (&1, v1.public()), (&2, v2.public()), (&3, v3.public())],
 				Some(vec![
 					(&0, v0.public()),
 					(&1, v1.public()),
@@ -1650,10 +1627,10 @@ fn deduplication_and_sorting_works() {
 		let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(3));
 
 		let create_explicit_statement = |vidx: ValidatorIndex,
-											validator: &<ValidatorId as CryptoType>::Pair,
-											c_hash: &CandidateHash,
-											valid,
-											session| {
+		                                 validator: &<ValidatorId as CryptoType>::Pair,
+		                                 c_hash: &CandidateHash,
+		                                 valid,
+		                                 session| {
 			let payload =
 				ExplicitDisputeStatement { valid, candidate_hash: c_hash.clone(), session }
 					.signing_payload();
@@ -1733,13 +1710,12 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
-		if let Some(checked) =
-			<Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
-				dispute_statement,
-				max_spam_slots,
-				post_conclusion_acceptance_period,
-				VerifyDisputeSignatures::Yes,
-			) {
+		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
+			dispute_statement,
+			max_spam_slots,
+			post_conclusion_acceptance_period,
+			VerifyDisputeSignatures::Yes,
+		) {
 			acc.push(checked);
 		}
 	}
@@ -1856,12 +1832,7 @@ fn filter_bad_signatures_correctly_detects_single_sided() {
 			Some((
 				true,
 				b,
-				vec![
-					(&0, v0.public()),
-					(&1, v1.public()),
-					(&2, v2.public()),
-					(&3, v3.public()),
-				],
+				vec![(&0, v0.public()), (&1, v1.public()), (&2, v2.public()), (&3, v3.public())],
 				Some(vec![
 					(&0, v0.public()),
 					(&1, v1.public()),

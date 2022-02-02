@@ -35,7 +35,6 @@ use sp_runtime::{
 };
 use sp_std::{cmp::Ordering, prelude::*};
 
-
 #[cfg(test)]
 #[allow(unused_imports)]
 pub(crate) use self::tests::run_to_block;

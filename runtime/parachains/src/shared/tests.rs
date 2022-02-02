@@ -14,90 +14,86 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 use super::*;
 use crate::{
-    configuration::HostConfiguration,
-    mock::{new_test_ext, MockGenesisConfig, ParasShared},
+	configuration::HostConfiguration,
+	mock::{new_test_ext, MockGenesisConfig, ParasShared},
 };
 use keyring::Sr25519Keyring;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
-    val_ids.iter().map(|v| v.public().into()).collect()
+	val_ids.iter().map(|v| v.public().into()).collect()
 }
 
 #[test]
 fn sets_and_shuffles_validators() {
-    let validators = vec![
-        Sr25519Keyring::Alice,
-        Sr25519Keyring::Bob,
-        Sr25519Keyring::Charlie,
-        Sr25519Keyring::Dave,
-        Sr25519Keyring::Ferdie,
-    ];
+	let validators = vec![
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
 
-    let mut config = HostConfiguration::default();
-    config.max_validators = None;
+	let mut config = HostConfiguration::default();
+	config.max_validators = None;
 
-    let pubkeys = validator_pubkeys(&validators);
+	let pubkeys = validator_pubkeys(&validators);
 
-    new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-        let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
-        assert_eq!(
-            validators,
-            validator_pubkeys(&[
-                Sr25519Keyring::Ferdie,
-                Sr25519Keyring::Bob,
-                Sr25519Keyring::Charlie,
-                Sr25519Keyring::Dave,
-                Sr25519Keyring::Alice,
-            ])
-        );
+		assert_eq!(
+			validators,
+			validator_pubkeys(&[
+				Sr25519Keyring::Ferdie,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+				Sr25519Keyring::Alice,
+			])
+		);
 
-        assert_eq!(ParasShared::active_validator_keys(), validators);
+		assert_eq!(ParasShared::active_validator_keys(), validators);
 
-        assert_eq!(
-            ParasShared::active_validator_indices(),
-            vec![
-                ValidatorIndex(4),
-                ValidatorIndex(1),
-                ValidatorIndex(2),
-                ValidatorIndex(3),
-                ValidatorIndex(0),
-            ]
-        );
-    });
+		assert_eq!(
+			ParasShared::active_validator_indices(),
+			vec![
+				ValidatorIndex(4),
+				ValidatorIndex(1),
+				ValidatorIndex(2),
+				ValidatorIndex(3),
+				ValidatorIndex(0),
+			]
+		);
+	});
 }
 
 #[test]
 fn sets_truncates_and_shuffles_validators() {
-    let validators = vec![
-        Sr25519Keyring::Alice,
-        Sr25519Keyring::Bob,
-        Sr25519Keyring::Charlie,
-        Sr25519Keyring::Dave,
-        Sr25519Keyring::Ferdie,
-    ];
+	let validators = vec![
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
 
-    let mut config = HostConfiguration::default();
-    config.max_validators = Some(2);
+	let mut config = HostConfiguration::default();
+	config.max_validators = Some(2);
 
-    let pubkeys = validator_pubkeys(&validators);
+	let pubkeys = validator_pubkeys(&validators);
 
-    new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-        let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
-        assert_eq!(
-            validators,
-            validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])
-        );
+		assert_eq!(validators, validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,]));
 
-        assert_eq!(ParasShared::active_validator_keys(), validators);
+		assert_eq!(ParasShared::active_validator_keys(), validators);
 
-        assert_eq!(
-            ParasShared::active_validator_indices(),
-            vec![ValidatorIndex(4), ValidatorIndex(1),]
-        );
-    });
+		assert_eq!(
+			ParasShared::active_validator_indices(),
+			vec![ValidatorIndex(4), ValidatorIndex(1),]
+		);
+	});
 }
