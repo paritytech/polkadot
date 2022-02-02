@@ -261,16 +261,16 @@ impl MultiLocation {
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
 	/// let m = MultiLocation::new(1, X3(PalletInstance(3), OnlyChild, OnlyChild));
-	/// assert!(m.matches_prefix(&MultiLocation::new(1, X1(PalletInstance(3)))));
-	/// assert!(!m.matches_prefix(&MultiLocation::new(1, X1(GeneralIndex(99)))));
-	/// assert!(!m.matches_prefix(&MultiLocation::new(0, X1(PalletInstance(3)))));
+	/// assert!(m.starts_with(&MultiLocation::new(1, X1(PalletInstance(3)))));
+	/// assert!(!m.starts_with(&MultiLocation::new(1, X1(GeneralIndex(99)))));
+	/// assert!(!m.starts_with(&MultiLocation::new(0, X1(PalletInstance(3)))));
 	/// # }
 	/// ```
-	pub fn matches_prefix(&self, prefix: &MultiLocation) -> bool {
+	pub fn starts_with(&self, prefix: &MultiLocation) -> bool {
 		if self.parents != prefix.parents {
 			return false
 		}
-		self.interior.matches_prefix(&prefix.interior)
+		self.interior.starts_with(&prefix.interior)
 	}
 
 	/// Mutate `self` so that it is suffixed with `suffix`.
@@ -852,25 +852,18 @@ impl Junctions {
 	/// # Example
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*};
-	/// # fn main() {
 	/// let mut j = X3(Parachain(2), PalletInstance(3), OnlyChild);
-	/// assert!(j.matches_prefix(&X2(Parachain(2), PalletInstance(3))));
-	/// assert!(j.matches_prefix(&j));
-	/// assert!(j.matches_prefix(&X1(Parachain(2))));
-	/// assert!(!j.matches_prefix(&X1(Parachain(999))));
-	/// assert!(!j.matches_prefix(&X4(Parachain(2), PalletInstance(3), OnlyChild, OnlyChild)));
-	/// # }
+	/// assert!(j.starts_with(&X2(Parachain(2), PalletInstance(3))));
+	/// assert!(j.starts_with(&j));
+	/// assert!(j.starts_with(&X1(Parachain(2))));
+	/// assert!(!j.starts_with(&X1(Parachain(999))));
+	/// assert!(!j.starts_with(&X4(Parachain(2), PalletInstance(3), OnlyChild, OnlyChild)));
 	/// ```
-	pub fn matches_prefix(&self, prefix: &Junctions) -> bool {
+	pub fn starts_with(&self, prefix: &Junctions) -> bool {
 		if self.len() < prefix.len() {
 			return false
 		}
-		for i in 0..prefix.len() {
-			if prefix.at(i) != self.at(i) {
-				return false
-			}
-		}
-		true
+		prefix.iter().zip(self.iter()).all(|(l, r)| l == r)
 	}
 }
 
