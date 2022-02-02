@@ -446,45 +446,8 @@ mod enter {
 				expected_para_inherent_data.clone(),
 			));
 
-			println!("enter is executed");
-
 			// Testing the result of voting against the block
 			let on_chain_votes = Pallet::<Test>::on_chain_votes().unwrap();
-			println!("current block: {}", PalletRunner::<Test>::current_block_number());
-
-			// PalletRunner::<Test>::run_to_next_block(false);
-			// Running to the next block processes inherent data made by enter. To
-			// actually revert the chain, enter needs to be called again, since it
-			// contains the code that actually deposits the revert log and event.
-			// Create the inherent data for this block
-
-			// let dispute_statements = BTreeMap::new();
-			// let mut backed_and_concluding = BTreeMap::new();
-			// // 2 backed candidates shall be scheduled
-			// backed_and_concluding.insert(0, 2);
-			// backed_and_concluding.insert(1, 2);
-
-			// let inherent_data_2 = make_inherent_data(TestConfig {
-			// 	dispute_statements,
-			// 	dispute_sessions: vec![2], // 3 cores with disputes
-			// 	backed_and_concluding,
-			// 	num_validators_per_core: 4,
-			// 	code_upgrade: None,
-			// });
-
-			// let some_other_data = ParachainsInherentData {
-			// 	bitfields: Vec::new(),
-			// 	backed_candidates: Vec::new(),
-			// 	disputes: Vec::new(),
-			// 	parent_header: expected_para_inherent_data.parent_header,
-			// };
-
-			// assert_ok!(Pallet::<Test>::enter(
-			// 	frame_system::RawOrigin::None.into(),
-			// 	some_other_data,
-			// ));
-
-			// let events = PalletRunner::<Test>::last_event();
 
 			// We created 1 dispute at the beginning, it should be visible here
 			assert_eq!(on_chain_votes.disputes.len(), 1);
@@ -503,38 +466,31 @@ mod enter {
 
 			//assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			println!("Candidate from seed hashes");
 			let new_block_seed = 2;
 			let backers_number = 2;
 			let new_block_hash = PalletRunner::<Test>::candidate_hash_from_seed(new_block_seed);
-			println!("New candidate hash is {}", new_block_hash);
 
 			let mut backed_and_concluding = BTreeMap::new();
 			backed_and_concluding.insert(new_block_seed, backers_number);
 
-			println!("Availability bits");
 			let bitfields = PalletRunner::<Test>::create_availability_bitfields_for_session(
 				PalletRunner::<Test>::current_session_index(),
 				&backed_and_concluding,
 				2,
 			);
 
-			println!("Backed candidates");
 			let backed_candidates = vec![
 				PalletRunner::<Test>::create_backed_candidate(
 					&new_block_seed, &backers_number, None
 				)
 			];
 
-			println!("Header");
 			let parent_header = PalletRunner::<Test>::create_parent_header();
 
-			println!("Dispute");
 			let disputes = vec![
 				PalletRunner::<Test>::create_dispute_against_block(CandidateHash(parent_header.hash()))
 			];
 
-			println!("Inherent");
 			let new_inherent = ParachainsInherentData {
 				bitfields,
 				backed_candidates,
@@ -542,7 +498,6 @@ mod enter {
 				parent_header
 			};
 
-			println!("------------- new enter -----------------------");
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				new_inherent.clone(),
@@ -656,6 +611,7 @@ mod enter {
 			let parent_header = PalletRunner::<Test>::create_parent_header();
 
 			let disputed_hash = CandidateHash(parent_header.hash());
+			let disputed_hash = PalletRunner::<Test>::candidate_hash_from_seed(1);
 			let disputes = vec![
 				PalletRunner::<Test>::create_unresolved_dispute(disputed_hash.clone())
 			];
@@ -680,11 +636,15 @@ mod enter {
 			PalletRunner::<Test>::run_to_next_block(true);
 
 			// Checking that the time out event was indeed deposited
-			let expected_event = crate::mock::Event::Disputes(disputes::pallet::Event::DisputeTimedOut(
+			let dispute_timed_out_event = crate::mock::Event::Disputes(disputes::pallet::Event::DisputeTimedOut(
                disputed_hash.clone()
             ));
+			let revert_event = crate::mock::Event::Disputes(disputes::pallet::Event::Revert(3));
 			// Check that the last event is the timed out dispute with the block we've disputed
-			PalletRunner::<Test>::assert_last_event(expected_event);
+			PalletRunner::<Test>::assert_last_events(vec![
+				dispute_timed_out_event,
+				revert_event,
+			]);
 		});
 	}
 
@@ -719,7 +679,6 @@ mod enter {
 			// * 3 disputes.
 			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
 			let mut inherent_data = InherentData::new();
-			println!("Putting data");
 			inherent_data
 				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
 				.unwrap();
@@ -728,7 +687,6 @@ mod enter {
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			println!("Enter block execution");
 			// Enter function executes the block
 			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
 			assert_ok!(Pallet::<Test>::enter(
@@ -736,7 +694,6 @@ mod enter {
 				expected_para_inherent_data,
 			));
 
-			println!("Checking on chain votes");
 			assert_eq!(
 				// The length of this vec is equal to the number of candidates, so we know
 				// all of our candidates got filtered out

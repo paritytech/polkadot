@@ -150,19 +150,6 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		}
 	}
 
-	// pub fn inherent_data_for_current_block(
-	//     bitfields: Vec<UncheckedSigned<AvailabilityBitfield>>,
-	//     backed_candidates: Vec<BackedCandidate<HDR::Hash>>,
-	//     disputes: Vec<DisputeStatementSet>,
-	// ) -> ParachainsInherentData {
-	//     ParachainsInherentData {
-	//         bitfields,
-	//         backed_candidates,
-	//         disputes,
-	//         parent_header: BenchBuilder::<C>::header(Self::current_block_number()),
-	//     }
-	// }
-
 	/// Number of the relay parent block.
 	fn relay_parent_number() -> u32 {
 		(Self::current_block_number() - One::one())
@@ -364,7 +351,6 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		let para_id = ParaId::from(seed);
 		let core_idx = CoreIndex(seed);
 
-		println!("core_idx: {}", core_idx.0);
 		let group_idx =
 			scheduler::Pallet::<C>::group_assigned_to_core(core_idx, Self::current_block_number())
 				.unwrap();
@@ -436,6 +422,15 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	pub fn assert_last_event(event: <C as frame_system::Config>::Event) {
 		let last_event = Self::last_event();
 		assert_eq!(event, last_event);
+	}
+
+	pub fn assert_last_events(events: Vec<<C as frame_system::Config>::Event>) {
+		let has_enough_events = frame_system::Pallet::<C>::events().len() >= events.len();
+		assert!(has_enough_events);
+		let all_events: Vec<<C as frame_system::Config>::Event> =
+			frame_system::Pallet::<C>::events().iter().map(|e| e.event.clone()).collect();
+		let last_events = &all_events[all_events.len() - events.len()..];
+		assert_eq!(last_events, events.as_slice());
 	}
 
 	pub fn candidate_hash_from_seed(seed: u32) -> CandidateHash {

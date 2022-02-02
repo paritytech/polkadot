@@ -247,7 +247,6 @@ impl<T: Config> Pallet<T> {
 		data: ParachainsInherentData<T::Header>,
 		full_check: FullCheck,
 	) -> DispatchResultWithPostInfo {
-		println!("enter_inner");
 		let ParachainsInherentData {
 			bitfields: mut signed_bitfields,
 			mut backed_candidates,
@@ -269,8 +268,6 @@ impl<T: Config> Pallet<T> {
 		// Check that the submitted parent header indeed corresponds to the previous block hash.
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
-		println!("parent: {}, parent hash: {}",parent_header.hash(), parent_hash);
-
 		ensure!(
 			parent_header.hash().as_ref() == parent_hash.as_ref(),
 			Error::<T>::InvalidParentHeader,
@@ -278,8 +275,6 @@ impl<T: Config> Pallet<T> {
 
 		// Current block number
 		let now = <frame_system::Pallet<T>>::block_number();
-
-		println!("enter, now: {}", now);
 
 		let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
@@ -325,7 +320,7 @@ impl<T: Config> Pallet<T> {
 
 		// Handle disputes logic.
 		let current_session = <shared::Pallet<T>>::session_index();
-		println!("handling the disputes logic");
+
 		let disputed_bitfield = {
 			let new_current_dispute_sets: Vec<_> = disputes
 				.iter()
@@ -357,8 +352,6 @@ impl<T: Config> Pallet<T> {
 					})
 					.map(|(_, candidate)| *candidate)
 					.collect::<BTreeSet<CandidateHash>>();
-
-				println!("concluded invalid amount: {}", concluded_invalid_disputes.len());
 
 				// Count invalid dispute sets.
 				METRICS.on_disputes_concluded_invalid(concluded_invalid_disputes.len() as u64);
@@ -404,7 +397,7 @@ impl<T: Config> Pallet<T> {
 
 		// Inform the disputes module of all included candidates.
 		for (_, candidate_hash) in &freed_concluded {
-			println!("Inform included {}", candidate_hash);
+			println!("T::DisputesHandler::note_included {}", candidate_hash);
 			T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 		}
 
@@ -416,7 +409,6 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
-		println!("enter_inner: 5");
 		let scheduled = <scheduler::Pallet<T>>::scheduled();
 		let backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
@@ -430,7 +422,6 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
-		println!("enter_inner: 6");
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
@@ -446,7 +437,6 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_disputes_included(disputes.len() as u64);
 
-		println!("enter_inner: 7");
 		// The number of disputes included in a block is
 		// limited by the weight as well as the number of candidate blocks.
 		OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {

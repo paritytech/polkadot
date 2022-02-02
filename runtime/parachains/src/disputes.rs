@@ -622,38 +622,28 @@ impl StatementSetFilter {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		println!("initializing disputes pallet, now: {}", now);
+		println!("disputes::initializer_initialize {}", now);
 		let config = <configuration::Pallet<T>>::config();
-		//println!("{}", dispute.start + config.dispute_conclusion_by_time_out_period);
-		//println!("dipute.start: {}", dispute.start);
-		println!("dispute conclusion timeout period: {}", config.dispute_conclusion_by_time_out_period);
-
 		let mut weight = 0;
 		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
-			println!("iterating over disputes");
 			weight += T::DbWeight::get().reads_writes(1, 0);
-
-			if let Some(concluded_at) = dispute.concluded_at {
-				println!("Dispute over {} has concluded at block {}.", candidate_hash, concluded_at);
-			} else {
-				println!("Dispute over {} has not been concluded", candidate_hash);
-				// let time_to_conclude = dispute.start + config.dispute_conclusion_by_time_out_period - now;
-				// println!("Dispute will time out in {} blocks", time_to_conclude);
-			}
 
 			if dispute.concluded_at.is_none() &&
 				dispute.start + config.dispute_conclusion_by_time_out_period < now
 			{
-				println!("deposit_event(Event::DisputeTimedOut()");
 				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
 
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
-				if <Included<T>>::contains_key(&session_index, &candidate_hash) {
+				if let Some(revert_to) = <Included<T>>::get(session_index, candidate_hash) {
 					// Local disputes don't count towards spam.
 
 					weight += T::DbWeight::get().reads_writes(1, 1);
+					// If it is local dispute that didn't get resolved in time, we should
+					// revert, as it is a possible attack vector. For more details, please
+					// read security issue 126
+					Self::revert_and_freeze(revert_to);
 					continue
 				}
 
@@ -686,7 +676,6 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		println!("weight: {}", weight);
 		weight
 	}
 
@@ -966,8 +955,6 @@ impl<T: Config> Pallet<T> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let oldest_accepted = now.saturating_sub(config.dispute_post_conclusion_acceptance_period);
 
-		println!("oldest accepted: {}", oldest_accepted);
-
 		// Load session info to access validators
 		let session_info = match <session_info::Pallet<T>>::session_info(set.session) {
 			Some(s) => s,
@@ -1026,7 +1013,6 @@ impl<T: Config> Pallet<T> {
 
 			importer.finish()
 		};
-		println!("summary");
 
 		// Reject disputes which don't have at least one vote on each side.
 		ensure!(
@@ -1037,7 +1023,7 @@ impl<T: Config> Pallet<T> {
 
 		// Apply spam slot changes. Bail early if too many occupied.
 		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
-		println!("is local {}", is_local);
+		println!("is_local {}", is_local);
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
@@ -1078,7 +1064,6 @@ impl<T: Config> Pallet<T> {
 		// deposit event DisputeConcluded with a respecting result
 		{
 			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				println!("deposit concluded for");
 				Self::deposit_event(Event::DisputeConcluded(
 					set.candidate_hash,
 					DisputeResult::Valid,
@@ -1090,7 +1075,6 @@ impl<T: Config> Pallet<T> {
 			// A dispute cannot conclude more than once in each direction.
 
 			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-				println!("deposit concluded against");
 				Self::deposit_event(Event::DisputeConcluded(
 					set.candidate_hash,
 					DisputeResult::Invalid,
@@ -1113,19 +1097,16 @@ impl<T: Config> Pallet<T> {
 			T::PunishValidators::punish_for_invalid(set.session, summary.slash_for);
 		}
 
-		println!("Inserting dispute {}, session {}", set.candidate_hash, set.session);
+		println!("Inserting dispute for {}, session {}", set.candidate_hash, set.session);
 		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
 
 		// Freeze if just concluded against some local candidate
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-			println!("Checking if the block we need to revert to is included");
-
-			if <Included<T>>::get(&set.session, &set.candidate_hash).is_none() {
-				println!("Candidate was not included, can't revert");
-			}
-
+			// Revert if local
 			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
 				Self::revert_and_freeze(revert_to);
+			} else {
+				println!("Block {}, session {} is not local, can't revert", set.candidate_hash, set.session);
 			}
 		}
 
@@ -1143,16 +1124,14 @@ impl<T: Config> Pallet<T> {
 		candidate_hash: CandidateHash,
 		included_in: T::BlockNumber,
 	) {
-		println!("note_included {} ", candidate_hash);
 		if included_in.is_zero() {
 			println!("included in zero");
 			return
 		}
 
-		println!("handling the revert logic");
 		let revert_to = included_in - One::one();
 
-		println!("Insert {}, {}, {}", session, candidate_hash, revert_to);
+		println!("<Included<T>>::insert({}, {}, {})", session, candidate_hash, revert_to);
 		<Included<T>>::insert(&session, &candidate_hash, revert_to);
 
 		// If we just included a block locally which has a live dispute, decrement spam slots
@@ -1169,9 +1148,7 @@ impl<T: Config> Pallet<T> {
 				}
 			});
 
-			println!("supermajority against: {}", has_supermajority_against(&state));
 			if has_supermajority_against(&state) {
-				println!("reverting");
 				Self::revert_and_freeze(revert_to);
 			}
 		}
@@ -1181,7 +1158,6 @@ impl<T: Config> Pallet<T> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 	) -> Option<T::BlockNumber> {
-		println!("included_state");
 		<Included<T>>::get(session, candidate_hash)
 	}
 
