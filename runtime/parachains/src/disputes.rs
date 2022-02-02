@@ -1314,6 +1314,10 @@ fn check_signature(
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
+pub(crate) use self::tests::run_to_block;
+
+#[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{
@@ -1363,7 +1367,7 @@ mod tests {
 
 	// Run to specific block, while calling disputes pallet hooks manually, because disputes is not
 	// integrated in initializer yet.
-	fn run_to_block<'a>(
+	pub(crate) fn run_to_block<'a>(
 		to: BlockNumber,
 		new_session: impl Fn(BlockNumber) -> Option<NewSession<'a>>,
 	) {
