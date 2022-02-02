@@ -6692,6 +6692,7 @@ dependencies = [
  "parity-db",
  "parity-scale-codec",
  "parity-util-mem",
+ "parking_lot",
  "pin-project 1.0.10",
  "polkadot-node-jaeger",
  "polkadot-node-metrics",
