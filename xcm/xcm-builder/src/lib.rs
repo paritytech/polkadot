@@ -24,6 +24,8 @@
 mod mock;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod bridging_tests;
 
 #[cfg(feature = "std")]
 pub mod test_utils;
