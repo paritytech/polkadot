@@ -179,6 +179,13 @@ try-runtime = [
 	"westend-runtime/try-runtime",
 	"rococo-runtime/try-runtime",
 ]
+fast-runtime = [
+	"polkadot-runtime/fast-runtime",
+	"kusama-runtime/fast-runtime",
+	"westend-runtime/fast-runtime",
+	"rococo-runtime/fast-runtime",
+]
+
 malus = ["full-node"]
 runtime-metrics = [
 	"polkadot-client/runtime-metrics",
