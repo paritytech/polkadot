@@ -82,8 +82,9 @@ pub mod reexports {
 	pub use polkadot_overseer::gen::{SpawnNamed, SpawnedSubsystem, Subsystem, SubsystemContext};
 }
 
-/// Contexts for interpreting (probable) validity of prospective chains.
-pub mod candidate_context;
+/// An emulator for node-side code to predict the results of on-chain parachain inclusion
+/// and predict future constraints.
+pub mod inclusion_emulator;
 /// A rolling session window cache.
 pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.

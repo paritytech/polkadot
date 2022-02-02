@@ -11,6 +11,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+//! The implementation of the inclusion emulator for the 'staging' runtime version.
+//!
+//! This is currently v1, but will evolve to v3.
+// TODO https://github.com/paritytech/polkadot/issues/4803
+
 // TODO [now]: document everything and make members public.
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateCommitments, Id as ParaId, Hash, PersistedValidationData,
@@ -18,14 +23,14 @@ use polkadot_primitives::v1::{
 };
 use std::collections::HashMap;
 
-/// Limitations on inbound HRMP channels.
+/// Constraints on inbound HRMP channels.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InboundHrmpChannelLimitations {
 	/// The number of messages remaining to be processed.
 	pub messages_remaining: usize,
 }
 
-/// Limitations on outbound HRMP channels.
+/// Constraints on outbound HRMP channels.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutboundHrmpChannelLimitations {
 	/// The maximum bytes that can be written to the channel.
@@ -50,11 +55,11 @@ pub struct OutboundHrmpChannelUpdate {
 	pub messages_submitted: usize,
 }
 
-/// Limitations on the actions that can be taken by a new parachain
+/// Constraints on the actions that can be taken by a new parachain
 /// block. These limitations are implicitly associated with some particular
 /// parachain, which should be apparent from usage.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ContextLimitations {
+pub struct Constraints {
 	/// The amount of UMP messages remaining.
 	pub ump_remaining: usize,
 	/// The amount of UMP bytes remaining.
@@ -91,56 +96,6 @@ pub struct RelayChainBlockInfo {
 	pub storage_root: Hash,
 }
 
-/// A context used for judging parachain candidate validity.
-///
-/// A context is associated with some particular parachain, and this should be
-/// apparent from its usage.
-///
-/// This is a combination of base limitations, which come from a
-/// base relay-chain state and a series of updates to those limitations.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Context {
-	base: RelayChainBlockInfo,
-	base_limitations: ContextLimitations,
-
-	// base + all extensions.
-	extensions: Vec<Extension>,
-	cumulative: ContextLimitations,
-}
-
-impl Context {
-	/// Create a context from a given base and base limitations.
-	pub fn from_base(base: RelayChainBlockInfo, limitations: ContextLimitations) -> Self {
-		Context {
-			base,
-			base_limitations: limitations.clone(),
-			extensions: Vec::new(),
-			cumulative: limitations,
-		}
-	}
-
-	/// Get the limitations associated with this context.
-	pub fn limitations(&self) -> &ContextLimitations {
-		&self.cumulative
-	}
-
-	/// Get all extensions associated with this context.
-	pub fn extensions(&self) -> &[Extension] {
-		&self.extensions[..]
-	}
-
-	/// Rebase this context onto a new base.
-	///
-	/// If the `base` is the current `base`, this is a no-op and is guaranteed to succeed.
-	/// If the `base` is the same as one of the extensions, this succeeds only if the
-	pub fn rebase(&self, base: RelayChainBlockInfo, new_base: ContextLimitations) -> Result<Self, Error> {
-		unimplemented!()
-
-		// TODO [now]. We will want a mode where this just gets as far as it can.
-		// That could be done in the error type, quite reasonably.
-	}
-}
-
 /// An extension to a context, representing another prospective parachain block.
 ///
 /// This has two parts: the first is the new relay-parent and its associated limitations,
@@ -150,16 +105,18 @@ pub struct Extension {
 	/// The new relay-parent.
 	pub relay_parent: RelayChainBlockInfo,
 	/// The limitations associated with this relay-parent.
-	pub limitations: ContextLimitations,
+	pub limitations: Constraints,
 	/// The advancement of the parachain which is part of the extension.
 	pub advancement: Advancement,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Advancement {
-	commitments: CandidateCommitments,
+	/// The commitments to the output of the execution.
+	pub commitments: CandidateCommitments,
 	// We don't want the candidate descriptor, because that commmits to
 	// things like the merkle root.
+	// TODO [now]: finalize this definition.
 }
 
 #[cfg(test)]
