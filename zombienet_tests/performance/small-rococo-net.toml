@@ -118,13 +118,13 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size=1000
 [[parachains]]
 id = 2007
 addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=2500"
+genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1500"
 
   [parachains.collator]
   name = "collator08"
   image = "{{COL_IMAGE}}"
   command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=2500", "--parachain-id=2007"]
+  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=1500", "--parachain-id=2007"]
 
 # TODO: This should not be in here, maybe have a separate file that is included by default ?
 [types.Header]
