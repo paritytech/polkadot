@@ -195,14 +195,14 @@ pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_RESERVE
-			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.contains(asset))))
+			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
 }
 pub struct TestIsTeleporter;
 impl FilterAssetLocation for TestIsTeleporter {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_TELEPORTER
-			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.contains(asset))))
+			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
 }
 
@@ -216,7 +216,11 @@ thread_local! {
 }
 pub struct TestResponseHandler;
 impl OnResponse for TestResponseHandler {
-	fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool {
+	fn expecting_response(
+		origin: &MultiLocation,
+		query_id: u64,
+		_querier: Option<&MultiLocation>,
+	) -> bool {
 		QUERIES.with(|q| match q.borrow().get(&query_id) {
 			Some(ResponseSlot::Expecting(ref l)) => l == origin,
 			_ => false,
@@ -225,6 +229,7 @@ impl OnResponse for TestResponseHandler {
 	fn on_response(
 		_origin: &MultiLocation,
 		query_id: u64,
+		_querier: Option<&MultiLocation>,
 		response: xcm::latest::Response,
 		_max_weight: Weight,
 	) -> Weight {
@@ -288,4 +293,6 @@ impl Config for TestConfig {
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
+	type PalletInstancesInfo = TestPalletsInfo;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }

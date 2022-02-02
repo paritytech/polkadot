@@ -95,6 +95,7 @@ impl xcm_executor::traits::TransactAsset for NoAssetTransactor {
 
 parameter_types! {
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 pub struct XcmConfig;
@@ -113,6 +114,8 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 impl crate::Config for Test {
@@ -124,8 +127,11 @@ impl crate::Config for Test {
 
 		Ok(valid_destination)
 	}
-	fn worst_case_holding() -> MultiAssets {
-		crate::mock_worst_case_holding()
+	fn worst_case_holding(depositable_count: u32) -> MultiAssets {
+		crate::mock_worst_case_holding(
+			depositable_count,
+			<XcmConfig as xcm_executor::Config>::MaxAssetsIntoHolding::get(),
+		)
 	}
 }
 

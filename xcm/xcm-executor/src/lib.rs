@@ -19,14 +19,17 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
+	traits::{Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
+use parity_scale_codec::Encode;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
+	MaybeErrorCode, MultiAsset, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo,
+	Response, SendXcm, Xcm,
 };
 
 pub mod traits;
@@ -43,6 +46,7 @@ pub use config::Config;
 /// The XCM executor.
 pub struct XcmExecutor<Config: config::Config> {
 	pub holding: Assets,
+	pub holding_limit: usize,
 	pub origin: Option<MultiLocation>,
 	pub original_origin: MultiLocation,
 	pub trader: Config::Trader,
@@ -59,11 +63,9 @@ pub struct XcmExecutor<Config: config::Config> {
 	pub error_handler_weight: u64,
 	pub appendix: Xcm<Config::Call>,
 	pub appendix_weight: u64,
+	pub transact_status: MaybeErrorCode,
 	_config: PhantomData<Config>,
 }
-
-/// The maximum recursion limit for `execute_xcm` and `execute_effects`.
-pub const MAX_RECURSION_LIMIT: u32 = 8;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
@@ -168,6 +170,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
+			holding_limit: Config::MaxAssetsIntoHolding::get() as usize,
 			origin: Some(origin.clone()),
 			original_origin: origin,
 			trader: Config::Trader::new(),
@@ -178,6 +181,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			error_handler_weight: 0,
 			appendix: Xcm(vec![]),
 			appendix_weight: 0,
+			transact_status: Default::default(),
 			_config: PhantomData,
 		}
 	}
@@ -212,7 +216,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Execute any final operations after having executed the XCM message.
 	/// This includes refunding surplus weight, trapping extra holding funds, and returning any errors during execution.
 	pub fn post_execute(mut self, xcm_weight: Weight) -> Outcome {
-		self.refund_surplus();
+		// We silently drop any error from our attempt to refund the surplus as it's a charitable
+		// thing so best-effort is all we will do.
+		let _ = self.refund_surplus();
 		drop(self.trader);
 
 		let mut weight_used = xcm_weight.saturating_sub(self.total_surplus);
@@ -257,15 +263,34 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		r
 	}
 
+	fn subsume_asset(&mut self, asset: MultiAsset) -> Result<(), XcmError> {
+		// worst-case, holding.len becomes 2 * holding_limit.
+		ensure!(self.holding.len() + 1 <= self.holding_limit * 2, XcmError::HoldingWouldOverflow);
+		self.holding.subsume(asset);
+		Ok(())
+	}
+
+	fn subsume_assets(&mut self, assets: Assets) -> Result<(), XcmError> {
+		// worst-case, holding.len becomes 2 * holding_limit.
+		// this guarantees that if holding.len() == holding_limit and you have holding_limit more
+		// items (which has a best case outcome of holding.len() == holding_limit), then you'll
+		// be guaranteed of making the operation.
+		let worst_case_holding_len = self.holding.len() + assets.len();
+		ensure!(worst_case_holding_len <= self.holding_limit * 2, XcmError::HoldingWouldOverflow);
+		self.holding.subsume_assets(assets);
+		Ok(())
+	}
+
 	/// Refund any unused weight.
-	fn refund_surplus(&mut self) {
+	fn refund_surplus(&mut self) -> Result<(), XcmError> {
 		let current_surplus = self.total_surplus.saturating_sub(self.total_refunded);
 		if current_surplus > 0 {
 			self.total_refunded.saturating_accrue(current_surplus);
 			if let Some(w) = self.trader.refund_weight(current_surplus) {
-				self.holding.subsume(w);
+				self.subsume_asset(w)?;
 			}
 		}
+		Ok(())
 	}
 
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
@@ -273,23 +298,23 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				for asset in assets.drain().into_iter() {
-					Config::AssetTransactor::withdraw_asset(&asset, origin)?;
-					self.holding.subsume(asset);
+					Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
 			ReserveAssetDeposited(assets) => {
 				// check whether we trust origin to be our reserve location for this asset.
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				for asset in assets.drain().into_iter() {
 					// Must ensure that we recognise the asset as being managed by the origin.
 					ensure!(
-						Config::IsReserve::filter_asset_location(&asset, origin),
+						Config::IsReserve::filter_asset_location(&asset, &origin),
 						XcmError::UntrustedReserveLocation
 					);
-					self.holding.subsume(asset);
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
@@ -314,13 +339,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			ReceiveTeleportedAsset(assets) => {
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				// check whether we trust origin to teleport this asset to us via config trait.
 				for asset in assets.inner() {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(
-						Config::IsTeleporter::filter_asset_location(asset, origin),
+						Config::IsTeleporter::filter_asset_location(asset, &origin),
 						XcmError::UntrustedTeleportLocation
 					);
 					// We should check that the asset can actually be teleported in (for this to be in error, there
@@ -329,30 +354,32 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::can_check_in(&origin, asset)?;
 				}
 				for asset in assets.drain().into_iter() {
-					Config::AssetTransactor::check_in(origin, &asset);
-					self.holding.subsume(asset);
+					Config::AssetTransactor::check_in(&origin, &asset);
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
-			Transact { origin_type, require_weight_at_most, mut call } => {
+			Transact { origin_kind, require_weight_at_most, mut call } => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 				let origin = self.origin.clone().ok_or(XcmError::BadOrigin)?;
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
-				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
-				let actual_weight = match message_call.dispatch(dispatch_origin) {
-					Ok(post_info) => post_info.actual_weight,
+				let maybe_actual_weight = match message_call.dispatch(dispatch_origin) {
+					Ok(post_info) => {
+						self.transact_status = MaybeErrorCode::Success;
+						post_info.actual_weight
+					},
 					Err(error_and_info) => {
-						// Not much to do with the result as it is. It's up to the parachain to ensure that the
-						// message makes sense.
+						self.transact_status = MaybeErrorCode::Error(error_and_info.error.encode());
 						error_and_info.post_info.actual_weight
 					},
-				}
-				.unwrap_or(weight);
+				};
+				let actual_weight = maybe_actual_weight.unwrap_or(weight);
 				let surplus = weight.saturating_sub(actual_weight);
 				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
 				// for the estimate of how much weight this instruction will take. Now that we know
@@ -365,9 +392,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.total_surplus.saturating_accrue(surplus);
 				Ok(())
 			},
-			QueryResponse { query_id, response, max_weight } => {
+			QueryResponse { query_id, response, max_weight, querier } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::ResponseHandler::on_response(origin, query_id, response, max_weight);
+				Config::ResponseHandler::on_response(
+					origin,
+					query_id,
+					querier.as_ref(),
+					response,
+					max_weight,
+				);
 				Ok(())
 			},
 			DescendOrigin(who) => self
@@ -380,23 +413,24 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.origin = None;
 				Ok(())
 			},
-			ReportError { query_id, dest, max_response_weight: max_weight } => {
+			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				let response = Response::ExecutionResult(self.error);
-				let message = QueryResponse { query_id, response, max_weight };
-				Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
-				Ok(())
+				Self::respond(
+					self.origin.clone(),
+					Response::ExecutionResult(self.error),
+					response_info,
+				)
 			},
-			DepositAsset { assets, max_assets, beneficiary } => {
-				let deposited = self.holding.limited_saturating_take(assets, max_assets as usize);
+			DepositAsset { assets, beneficiary } => {
+				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &beneficiary)?;
 				}
 				Ok(())
 			},
-			DepositReserveAsset { assets, max_assets, dest, xcm } => {
-				let deposited = self.holding.limited_saturating_take(assets, max_assets as usize);
+			DepositReserveAsset { assets, dest, xcm } => {
+				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
@@ -432,14 +466,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
-			QueryHolding { query_id, dest, assets, max_response_weight } => {
+			ReportHolding { response_info, assets } => {
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
 				// from Holding.
-				let assets = Self::reanchored(self.holding.min(&assets), &dest, None);
-				let max_weight = max_response_weight;
-				let response = Response::Assets(assets);
-				let instruction = QueryResponse { query_id, response, max_weight };
-				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
+				let assets =
+					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
+				Self::respond(self.origin.clone(), Response::Assets(assets), response_info)
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -451,14 +483,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					let max_fee =
 						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
 					let unspent = self.trader.buy_weight(weight, max_fee)?;
-					self.holding.subsume_assets(unspent);
+					self.subsume_assets(unspent)?;
 				}
 				Ok(())
 			},
-			RefundSurplus => {
-				self.refund_surplus();
-				Ok(())
-			},
+			RefundSurplus => self.refund_surplus(),
 			SetErrorHandler(mut handler) => {
 				let handler_weight = Config::Weigher::weight(&mut handler)
 					.map_err(|()| XcmError::WeightNotComputable)?;
@@ -484,7 +513,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let ok = Config::AssetClaims::claim_assets(origin, &ticket, &assets);
 				ensure!(ok, XcmError::UnknownClaim);
 				for asset in assets.drain().into_iter() {
-					self.holding.subsume(asset);
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
@@ -501,11 +530,96 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
 				Config::SubscriptionService::stop(origin)
 			},
+			BurnAsset(assets) => {
+				self.holding.saturating_take(assets.into());
+				Ok(())
+			},
+			ExpectAsset(assets) =>
+				self.holding.ensure_contains(&assets).map_err(|_| XcmError::ExpectationFalse),
+			ExpectOrigin(origin) => {
+				ensure!(self.origin == origin, XcmError::ExpectationFalse);
+				Ok(())
+			},
+			ExpectError(error) => {
+				ensure!(self.error == error, XcmError::ExpectationFalse);
+				Ok(())
+			},
+			QueryPallet { module_name, response_info } => {
+				let pallets = Config::PalletInstancesInfo::infos()
+					.into_iter()
+					.filter(|x| x.module_name.as_bytes() == &module_name[..])
+					.map(|x| PalletInfo {
+						index: x.index as u32,
+						name: x.name.as_bytes().into(),
+						module_name: x.module_name.as_bytes().into(),
+						major: x.crate_version.major as u32,
+						minor: x.crate_version.minor as u32,
+						patch: x.crate_version.patch as u32,
+					})
+					.collect::<Vec<_>>();
+				let QueryResponseInfo { destination, query_id, max_weight } = response_info;
+				let response = Response::PalletsInfo(pallets);
+				let querier = Self::to_querier(self.origin.clone(), &destination)?;
+				let instruction = QueryResponse { query_id, response, max_weight, querier };
+				let message = Xcm(vec![instruction]);
+				Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+			},
+			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
+				let pallet = Config::PalletInstancesInfo::infos()
+					.into_iter()
+					.find(|x| x.index == index as usize)
+					.ok_or(XcmError::PalletNotFound)?;
+				ensure!(pallet.name.as_bytes() == &name[..], XcmError::NameMismatch);
+				ensure!(pallet.module_name.as_bytes() == &module_name[..], XcmError::NameMismatch);
+				let major = pallet.crate_version.major as u32;
+				ensure!(major == crate_major, XcmError::VersionIncompatible);
+				let minor = pallet.crate_version.minor as u32;
+				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
+				Ok(())
+			},
+			ReportTransactStatus(response_info) => Self::respond(
+				self.origin.clone(),
+				Response::DispatchResult(self.transact_status.clone()),
+				response_info,
+			),
+			ClearTransactStatus => {
+				self.transact_status = Default::default();
+				Ok(())
+			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
 		}
+	}
+
+	/// Calculates what `local_querier` would be from the perspective of `destination`.
+	fn to_querier(
+		local_querier: Option<MultiLocation>,
+		destination: &MultiLocation,
+	) -> Result<Option<MultiLocation>, XcmError> {
+		Ok(match local_querier {
+			None => None,
+			Some(q) => Some(
+				q.reanchored(&destination, &Config::LocationInverter::ancestry())
+					.map_err(|_| XcmError::ReanchorFailed)?,
+			),
+		})
+	}
+
+	/// Send a bare `QueryResponse` message containing `response` informed by the given `info`.
+	///
+	/// The `local_querier` argument is the querier (if any) specified from the *local* perspective.
+	fn respond(
+		local_querier: Option<MultiLocation>,
+		response: Response,
+		info: QueryResponseInfo,
+	) -> Result<(), XcmError> {
+		let querier = Self::to_querier(local_querier, &info.destination)?;
+		let QueryResponseInfo { destination, query_id, max_weight } = info;
+		let instruction = QueryResponse { query_id, response, max_weight, querier };
+		let message = Xcm(vec![instruction]);
+		Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

@@ -17,8 +17,8 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, Balances, Call, Event, Origin, ParaId, Runtime,
-	WeightToFee, XcmPallet,
+	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Call, Event, Origin,
+	ParaId, Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
@@ -80,6 +80,7 @@ parameter_types! {
 	pub const WestendForEncointer: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Encointer::get());
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters =
 	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForEncointer>);
@@ -114,6 +115,8 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location

@@ -35,7 +35,7 @@ fn buy_execution<C>() -> Instruction<C> {
 }
 
 /// Scenario:
-/// A parachain transfers funds on the relaychain to another parachain's account.
+/// A parachain transfers funds on the relay-chain to another parachain's account.
 ///
 /// Asserts that the parachain accounts are updated as expected.
 #[test]
@@ -52,8 +52,7 @@ fn withdraw_and_deposit_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					beneficiary: Parachain(other_para_id).into(),
 				},
 			]),
@@ -75,33 +74,30 @@ fn withdraw_and_deposit_works() {
 ///
 /// Asserts that the balances are updated correctly and the expected XCM is sent.
 #[test]
-fn query_holding_works() {
+fn report_holding_works() {
 	use xcm::opaque::latest::prelude::*;
 	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
-		let query_id = 1234;
 		let weight = 4 * BaseXcmWeight::get();
-		let max_response_weight = 1_000_000_000;
+		let response_info = QueryResponseInfo {
+			destination: Parachain(PARA_ID).into(),
+			query_id: 1234,
+			max_weight: 1_000_000_000,
+		};
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					beneficiary: OnlyChild.into(), // invalid destination
 				},
 				// is not triggered becasue the deposit fails
-				QueryHolding {
-					query_id,
-					dest: Parachain(PARA_ID).into(),
-					assets: All.into(),
-					max_response_weight,
-				},
+				ReportHolding { response_info: response_info.clone(), assets: All.into() },
 			]),
 			weight,
 		);
@@ -123,16 +119,13 @@ fn query_holding_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					beneficiary: Parachain(other_para_id).into(),
 				},
 				// used to get a notification in case of success
-				QueryHolding {
-					query_id,
-					dest: Parachain(PARA_ID).into(),
-					assets: All.into(),
-					max_response_weight: 1_000_000_000,
+				ReportHolding {
+					response_info: response_info.clone(),
+					assets: AllCounted(1).into(),
 				},
 			]),
 			weight,
@@ -146,9 +139,10 @@ fn query_holding_works() {
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm(vec![QueryResponse {
-					query_id,
+					query_id: response_info.query_id,
 					response: Response::Assets(vec![].into()),
-					max_weight: 1_000_000_000,
+					max_weight: response_info.max_weight,
+					querier: Some(Here.into().into()),
 				}]),
 			)]
 		);
@@ -175,8 +169,7 @@ fn teleport_to_statemine_works() {
 		let teleport_effects = vec![
 			buy_execution(), // unchecked mock value
 			DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
+				assets: AllCounted(1).into(),
 				beneficiary: (1, Parachain(PARA_ID)).into(),
 			},
 		];
@@ -264,8 +257,7 @@ fn reserve_based_transfer_works() {
 		let transfer_effects = vec![
 			buy_execution(), // unchecked mock value
 			DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
+				assets: AllCounted(1).into(),
 				beneficiary: (1, Parachain(PARA_ID)).into(),
 			},
 		];
@@ -276,8 +268,7 @@ fn reserve_based_transfer_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositReserveAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					dest: Parachain(other_para_id).into(),
 					xcm: Xcm(transfer_effects.clone()),
 				},

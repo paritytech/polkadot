@@ -17,8 +17,8 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
-	Runtime, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Call, CouncilCollective, Event,
+	Origin, ParaId, Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_type, parameter_types,
@@ -107,6 +107,7 @@ parameter_types! {
 	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
 	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
 	pub const KusamaForEncointer: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1001).into());
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters =
 	(xcm_builder::Case<KusamaForStatemine>, xcm_builder::Case<KusamaForEncointer>);
@@ -148,6 +149,8 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 parameter_types! {

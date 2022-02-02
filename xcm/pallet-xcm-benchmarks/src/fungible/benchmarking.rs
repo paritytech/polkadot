@@ -41,7 +41,7 @@ benchmarks_instance_pallet! {
 
 	withdraw_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let worst_case_holding = T::worst_case_holding();
+		let worst_case_holding = T::worst_case_holding(0);
 		let asset = T::get_multi_asset();
 
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
@@ -140,7 +140,7 @@ benchmarks_instance_pallet! {
 
 	deposit_asset {
 		let asset = T::get_multi_asset();
-		let mut holding = T::worst_case_holding();
+		let mut holding = T::worst_case_holding(1);
 
 		// Add our asset to the holding.
 		holding.push(asset.clone());
@@ -154,7 +154,6 @@ benchmarks_instance_pallet! {
 		executor.holding = holding.into();
 		let instruction = Instruction::<XcmCallOf<T>>::DepositAsset {
 			assets: asset.into(),
-			max_assets: 1,
 			beneficiary: dest_location,
 		};
 		let xcm = Xcm(vec![instruction]);
@@ -167,7 +166,7 @@ benchmarks_instance_pallet! {
 
 	deposit_reserve_asset {
 		let asset = T::get_multi_asset();
-		let mut holding = T::worst_case_holding();
+		let mut holding = T::worst_case_holding(1);
 
 		// Add our asset to the holding.
 		holding.push(asset.clone());
@@ -181,7 +180,6 @@ benchmarks_instance_pallet! {
 		executor.holding = holding.into();
 		let instruction = Instruction::<XcmCallOf<T>>::DepositReserveAsset {
 			assets: asset.into(),
-			max_assets: 1,
 			dest: dest_location,
 			xcm: Xcm::new(),
 		};
@@ -195,7 +193,7 @@ benchmarks_instance_pallet! {
 
 	initiate_teleport {
 		let asset = T::get_multi_asset();
-		let mut holding = T::worst_case_holding();
+		let mut holding = T::worst_case_holding(0);
 
 		// Add our asset to the holding.
 		holding.push(asset.clone());

@@ -106,7 +106,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::latest::prelude::*;
+	use xcm::latest::{prelude::*, QueryResponseInfo};
 	use xcm_simulator::TestExt;
 
 	// Helper function for forming buy execution message
@@ -127,7 +127,7 @@ mod tests {
 				Here,
 				Parachain(1),
 				Xcm(vec![Transact {
-					origin_type: OriginKind::SovereignAccount,
+					origin_kind: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
 				}]),
@@ -154,7 +154,7 @@ mod tests {
 				Here,
 				Parent,
 				Xcm(vec![Transact {
-					origin_type: OriginKind::SovereignAccount,
+					origin_kind: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
 				}]),
@@ -182,7 +182,7 @@ mod tests {
 				Here,
 				(Parent, Parachain(2)),
 				Xcm(vec![Transact {
-					origin_type: OriginKind::SovereignAccount,
+					origin_kind: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
 				}]),
@@ -240,11 +240,7 @@ mod tests {
 			let message = Xcm(vec![
 				WithdrawAsset((Here, send_amount).into()),
 				buy_execution((Here, send_amount)),
-				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
-					beneficiary: Parachain(2).into(),
-				},
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: Parachain(2).into() },
 			]);
 			// Send withdraw and deposit
 			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone()));
@@ -276,16 +272,14 @@ mod tests {
 			let message = Xcm(vec![
 				WithdrawAsset((Here, send_amount).into()),
 				buy_execution((Here, send_amount)),
-				DepositAsset {
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: Parachain(2).into() },
+				ReportHolding {
+					response_info: QueryResponseInfo {
+						destination: Parachain(1).into(),
+						query_id: query_id_set,
+						max_weight: 1_000_000_000,
+					},
 					assets: All.into(),
-					max_assets: 1,
-					beneficiary: Parachain(2).into(),
-				},
-				QueryHolding {
-					query_id: query_id_set,
-					dest: Parachain(1).into(),
-					assets: All.into(),
-					max_response_weight: 1_000_000_000,
 				},
 			]);
 			// Send withdraw and deposit with query holding
@@ -311,6 +305,7 @@ mod tests {
 					query_id: query_id_set,
 					response: Response::Assets(MultiAssets::new()),
 					max_weight: 1_000_000_000,
+					querier: Some(Here.into()),
 				}])],
 			);
 		});

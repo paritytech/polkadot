@@ -262,7 +262,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					self
 				}
 
-				/// Specify the particular subsystem by giving a init function.
+				/// Specify the particular subsystem by giving a initialization function.
 				pub fn #subsystem_name_init_with <'a, F> (mut self, subsystem_init_fn: F ) -> Self
 				where
 					F: 'static + FnOnce(#handle) -> ::std::result::Result<#builder_generic_ty, #error_ty>,

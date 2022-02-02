@@ -1551,7 +1551,7 @@ sp_api::impl_runtime_apis! {
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
 				}
-				fn worst_case_holding() -> MultiAssets {
+				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
 					// Westend only knows about WND.
 					vec![MultiAsset{
 						id: Concrete(WndLocation::get()),

@@ -16,7 +16,11 @@
 
 // Shared test utilities and implementations for the XCM Builder.
 
-use frame_support::{dispatch::Weight, parameter_types};
+use frame_support::{
+	dispatch::Weight,
+	parameter_types,
+	traits::{CrateVersion, PalletInfoData, PalletsInfoAccess},
+};
 use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
@@ -27,6 +31,7 @@ pub use xcm_executor::{
 
 parameter_types! {
 	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
+	pub static MaxAssetsIntoHolding: u32 = 4;
 }
 
 pub struct TestSubscriptionService;
@@ -79,5 +84,26 @@ impl ClaimAssets for TestAssetTrap {
 			}
 		}
 		false
+	}
+}
+
+pub struct TestPalletsInfo;
+impl PalletsInfoAccess for TestPalletsInfo {
+	fn count() -> usize {
+		2
+	}
+	fn accumulate(acc: &mut Vec<PalletInfoData>) {
+		acc.push(PalletInfoData {
+			index: 0,
+			name: "System",
+			module_name: "pallet_system",
+			crate_version: CrateVersion { major: 1, minor: 10, patch: 1 },
+		});
+		acc.push(PalletInfoData {
+			index: 1,
+			name: "Balances",
+			module_name: "pallet_balances",
+			crate_version: CrateVersion { major: 1, minor: 42, patch: 69 },
+		});
 	}
 }

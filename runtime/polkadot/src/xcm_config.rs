@@ -17,8 +17,8 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
-	Runtime, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Call, CouncilCollective, Event,
+	Origin, ParaId, Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_type, parameter_types,
@@ -103,6 +103,7 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
 	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
@@ -142,6 +143,8 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 parameter_types! {

@@ -16,7 +16,7 @@
 
 //! Cross-Consensus Message format data structures.
 
-use crate::v3::Error as NewError;
+use crate::v2::Error as OldError;
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -93,6 +93,24 @@ pub enum Error {
 	/// Used by the `Trap` instruction to force an error intentionally. Its code is included.
 	#[codec(index = 21)]
 	Trap(u64),
+	/// Used by `ExpectAsset`, `ExpectError` and `ExpectOrigin` when the expectation was not true.
+	#[codec(index = 22)]
+	ExpectationFalse,
+	/// The provided pallet index was not found.
+	#[codec(index = 23)]
+	PalletNotFound,
+	/// The given pallet's name is different to that expected.
+	#[codec(index = 24)]
+	NameMismatch,
+	/// The given pallet's version has an incompatible version to that expected.
+	#[codec(index = 25)]
+	VersionIncompatible,
+	/// The given operation would lead to an overflow of the Holding Register.
+	#[codec(index = 26)]
+	HoldingWouldOverflow,
+	/// `MultiLocation` value failed to be reanchored.
+	#[codec(index = 27)]
+	ReanchorFailed,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -111,11 +129,11 @@ pub enum Error {
 	WeightNotComputable,
 }
 
-impl TryFrom<NewError> for Error {
+impl TryFrom<OldError> for Error {
 	type Error = ();
-	fn try_from(new_error: NewError) -> result::Result<Error, ()> {
-		use NewError::*;
-		Ok(match new_error {
+	fn try_from(old_error: OldError) -> result::Result<Error, ()> {
+		use OldError::*;
+		Ok(match old_error {
 			Overflow => Self::Overflow,
 			Unimplemented => Self::Unimplemented,
 			UntrustedReserveLocation => Self::UntrustedReserveLocation,
@@ -155,6 +173,9 @@ impl From<SendError> for Error {
 }
 
 pub type Result = result::Result<(), Error>;
+
+/// Local weight type; execution time in picoseconds.
+pub type Weight = u64;
 
 /// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
@@ -270,7 +291,7 @@ pub type SendResult = result::Result<(), SendError>;
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v2::prelude::*;
+/// # use xcm::v3::prelude::*;
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -309,7 +330,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm(vec![Instruction::Transact {
-///     origin_type: OriginKind::Superuser,
+///     origin_kind: OriginKind::Superuser,
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);

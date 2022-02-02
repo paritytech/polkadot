@@ -17,8 +17,8 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, Event, Origin, ParaId, Runtime, WeightToFee,
-	XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Call, Event, Origin, ParaId,
+	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
@@ -85,6 +85,7 @@ parameter_types! {
 	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
 	pub const RococoForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1003).into());
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -134,6 +135,8 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 parameter_types! {

@@ -16,7 +16,7 @@
 
 use super::{mock::*, test_utils::*, *};
 use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, MaybeErrorCode, PalletInfo, QueryResponseInfo};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -47,7 +47,7 @@ fn weigher_should_work() {
 	let mut message = Xcm(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees: (Parent, 1).into(), weight_limit: Limited(30) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
 }
@@ -109,7 +109,7 @@ fn allow_paid_should_work() {
 	let mut underpaying_message = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(20) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
@@ -124,7 +124,7 @@ fn allow_paid_should_work() {
 	let mut paying_message = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(30) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
@@ -154,7 +154,7 @@ fn paying_reserve_deposit_should_work() {
 	let message = Xcm(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(30) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
@@ -196,8 +196,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			WithdrawAsset((Here, 100).into()),
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 0, //< Whoops!
+				assets: Wild(AllCounted(0)), // <<< 0 is an error.
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -214,8 +213,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -233,8 +231,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -252,8 +249,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -269,8 +265,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -286,8 +281,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -438,8 +432,7 @@ fn reserve_transfer_should_work() {
 			assets: (Here, 100).into(),
 			dest: Parachain(2).into(),
 			xcm: Xcm::<()>(vec![DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
+				assets: AllCounted(1).into(),
 				beneficiary: three.clone(),
 			}]),
 		}]),
@@ -455,7 +448,7 @@ fn reserve_transfer_should_work() {
 			Xcm::<()>(vec![
 				ReserveAssetDeposited((Parent, 100).into()),
 				ClearOrigin,
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: three },
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: three },
 			]),
 		)]
 	);
@@ -578,7 +571,7 @@ fn transacting_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let message = Xcm::<TestCall>(vec![Transact {
-		origin_type: OriginKind::Native,
+		origin_kind: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, None).encode().into(),
 	}]);
@@ -592,7 +585,7 @@ fn transacting_should_respect_max_weight_requirement() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let message = Xcm::<TestCall>(vec![Transact {
-		origin_type: OriginKind::Native,
+		origin_kind: OriginKind::Native,
 		require_weight_at_most: 40,
 		call: TestCall::Any(50, None).encode().into(),
 	}]);
@@ -606,7 +599,7 @@ fn transacting_should_refund_weight() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let message = Xcm::<TestCall>(vec![Transact {
-		origin_type: OriginKind::Native,
+		origin_kind: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, Some(30)).encode().into(),
 	}]);
@@ -628,13 +621,13 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 		WithdrawAsset((Parent, 100).into()), // enough for 100 units of weight.
 		BuyExecution { fees, weight_limit: Limited(100) },
 		Transact {
-			origin_type: OriginKind::Native,
+			origin_kind: OriginKind::Native,
 			require_weight_at_most: 50,
 			// call estimated at 50 but only takes 10.
 			call: TestCall::Any(50, Some(10)).encode().into(),
 		},
 		RefundSurplus,
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: one.clone() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: one.clone() },
 	]);
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
@@ -653,6 +646,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 		query_id,
 		response: the_response.clone(),
 		max_weight: 10,
+		querier: Some(Here.into().into()),
 	}]);
 	let weight_limit = 10;
 
@@ -713,4 +707,465 @@ fn weight_trader_tuple_should_work() {
 	);
 	// and no refund
 	assert_eq!(traders.refund_weight(2), None);
+}
+
+#[test]
+fn pallet_query_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
+	// and let them know to hand it to account #3.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![QueryPallet {
+			module_name: "Error".into(),
+			response_info: QueryResponseInfo {
+				destination: Parachain(1).into(),
+				query_id: 1,
+				max_weight: 50,
+			},
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parachain(1).into(),
+			Xcm::<()>(vec![QueryResponse {
+				query_id: 1,
+				max_weight: 50,
+				response: Response::PalletsInfo(vec![]),
+				querier: Some(Here.into()),
+			}]),
+		)]
+	);
+}
+
+#[test]
+fn pallet_query_with_results_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
+	// and let them know to hand it to account #3.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![QueryPallet {
+			module_name: "pallet_balances".into(),
+			response_info: QueryResponseInfo {
+				destination: Parachain(1).into(),
+				query_id: 1,
+				max_weight: 50,
+			},
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parachain(1).into(),
+			Xcm::<()>(vec![QueryResponse {
+				query_id: 1,
+				max_weight: 50,
+				response: Response::PalletsInfo(vec![PalletInfo {
+					index: 1,
+					name: b"Balances".as_ref().into(),
+					module_name: b"pallet_balances".as_ref().into(),
+					major: 1,
+					minor: 42,
+					patch: 69,
+				},]),
+				querier: Some(Here.into()),
+			}]),
+		)]
+	);
+}
+
+#[test]
+fn report_successful_transact_status_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let message = Xcm::<TestCall>(vec![
+		Transact {
+			origin_kind: OriginKind::Native,
+			require_weight_at_most: 50,
+			call: TestCall::Any(50, None).encode().into(),
+		},
+		ReportTransactStatus(QueryResponseInfo {
+			destination: Parent.into(),
+			query_id: 42,
+			max_weight: 5000,
+		}),
+	]);
+	let weight_limit = 70;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(70));
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
+				response: Response::DispatchResult(MaybeErrorCode::Success),
+				query_id: 42,
+				max_weight: 5000,
+				querier: Some(Here.into()),
+			}])
+		)]
+	);
+}
+
+#[test]
+fn report_failed_transact_status_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let message = Xcm::<TestCall>(vec![
+		Transact {
+			origin_kind: OriginKind::Native,
+			require_weight_at_most: 50,
+			call: TestCall::OnlyRoot(50, None).encode().into(),
+		},
+		ReportTransactStatus(QueryResponseInfo {
+			destination: Parent.into(),
+			query_id: 42,
+			max_weight: 5000,
+		}),
+	]);
+	let weight_limit = 70;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(70));
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
+				response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
+				query_id: 42,
+				max_weight: 5000,
+				querier: Some(Here.into()),
+			}])
+		)]
+	);
+}
+
+#[test]
+fn clear_transact_status_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let message = Xcm::<TestCall>(vec![
+		Transact {
+			origin_kind: OriginKind::Native,
+			require_weight_at_most: 50,
+			call: TestCall::OnlyRoot(50, None).encode().into(),
+		},
+		ClearTransactStatus,
+		ReportTransactStatus(QueryResponseInfo {
+			destination: Parent.into(),
+			query_id: 42,
+			max_weight: 5000,
+		}),
+	]);
+	let weight_limit = 80;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(80));
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
+				response: Response::DispatchResult(MaybeErrorCode::Success),
+				query_id: 42,
+				max_weight: 5000,
+				querier: Some(Here.into()),
+			}])
+		)]
+	);
+}
+
+#[test]
+fn max_assets_limit_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Child parachain #1 owns 1000 tokens held by us in reserve.
+	add_asset(1001, (vec![1], 1000));
+	add_asset(1001, (vec![2], 1000));
+	add_asset(1001, (vec![3], 1000));
+	add_asset(1001, (vec![4], 1000));
+	add_asset(1001, (vec![5], 1000));
+	add_asset(1001, (vec![6], 1000));
+	add_asset(1001, (vec![7], 1000));
+	add_asset(1001, (vec![8], 1000));
+	add_asset(1001, (vec![9], 1000));
+
+	// Attempt to withdraw 8 (=2x4)different assets. This will succeed.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+		]),
+		100,
+	);
+	assert_eq!(r, Outcome::Complete(85));
+
+	// Attempt to withdraw 9 different assets will fail.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+			WithdrawAsset((vec![9], 100).into()),
+		]),
+		100,
+	);
+	assert_eq!(r, Outcome::Incomplete(95, XcmError::HoldingWouldOverflow));
+
+	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will succeed.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+		]),
+		200,
+	);
+	assert_eq!(r, Outcome::Complete(125));
+
+	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+		]),
+		200,
+	);
+	assert_eq!(r, Outcome::Incomplete(95, XcmError::HoldingWouldOverflow));
+
+	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset(MultiAssets::from(vec![
+				(vec![1], 100).into(),
+				(vec![2], 100).into(),
+				(vec![3], 100).into(),
+				(vec![4], 100).into(),
+				(vec![5], 100).into(),
+				(vec![6], 100).into(),
+				(vec![7], 100).into(),
+				(vec![8], 100).into(),
+			])),
+			WithdrawAsset((vec![1], 100).into()),
+		]),
+		200,
+	);
+	assert_eq!(r, Outcome::Incomplete(25, XcmError::HoldingWouldOverflow));
+}
+
+#[test]
+fn burn_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Child parachain #1 owns 1000 tokens held by us in reserve.
+	add_asset(1001, (Here, 1000));
+	// They want to burn 100 of them
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((Here, 1000).into()),
+			BurnAsset((Here, 100).into()),
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(sent_xcm(), vec![]);
+
+	// Now they want to burn 1000 of them, which will actually only burn 900.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((Here, 900).into()),
+			BurnAsset((Here, 1000).into()),
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(assets(1001), vec![]);
+	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn expect_pallet_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
+	// and let them know to hand it to account #3.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 41,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+}
+
+#[test]
+fn expect_pallet_should_fail_correctly() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 60,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"System".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_system".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 0,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 2,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::PalletNotFound));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 2,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 0,
+			min_crate_minor: 42,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 43,
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 }

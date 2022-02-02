@@ -24,6 +24,7 @@
 //!   account.
 
 use super::MultiLocation;
+use crate::v3::{MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset};
 use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,
@@ -439,7 +440,8 @@ impl MultiAssets {
 		self.0.iter_mut().try_for_each(|i| i.prepend_with(prefix))
 	}
 
-	/// Prepend a `MultiLocation` to any concrete asset items, giving it a new root location.
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		self.0.iter_mut().try_for_each(|i| i.reanchor(target, ancestry))
 	}
@@ -509,7 +511,8 @@ impl WildMultiAsset {
 		}
 	}
 
-	/// Prepend a `MultiLocation` to any concrete asset components, giving it a new root location.
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
@@ -571,7 +574,8 @@ impl MultiAssetFilter {
 		}
 	}
 
-	/// Prepend a `MultiLocation` to any concrete asset components, giving it a new root location.
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `ancestry`.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		match self {
 			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, ancestry),
@@ -589,6 +593,26 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssetFilter {
 			Ok(MultiAssetFilter::Wild(old.remove(0).try_into()?))
 		} else {
 			Ok(MultiAssetFilter::Definite(old.try_into()?))
+		}
+	}
+}
+
+impl From<NewWildMultiAsset> for WildMultiAsset {
+	fn from(old: NewWildMultiAsset) -> Self {
+		use NewWildMultiAsset::*;
+		match old {
+			AllOf { id, fun } | AllOfCounted { id, fun, .. } => Self::AllOf { id, fun },
+			All | AllCounted(_) => Self::All,
+		}
+	}
+}
+
+impl From<NewMultiAssetFilter> for MultiAssetFilter {
+	fn from(old: NewMultiAssetFilter) -> Self {
+		use NewMultiAssetFilter::*;
+		match old {
+			Definite(x) => Self::Definite(x),
+			Wild(x) => Self::Wild(x.into()),
 		}
 	}
 }

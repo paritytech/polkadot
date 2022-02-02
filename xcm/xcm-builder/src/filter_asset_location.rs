@@ -36,6 +36,6 @@ impl<T: Get<(MultiAssetFilter, MultiLocation)>> FilterAssetLocation for Case<T> 
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		log::trace!(target: "xcm::filter_asset_location", "Case asset: {:?}, origin: {:?}", asset, origin);
 		let (a, o) = T::get();
-		a.contains(asset) && &o == origin
+		a.matches(asset) && &o == origin
 	}
 }

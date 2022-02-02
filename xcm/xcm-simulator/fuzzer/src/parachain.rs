@@ -123,6 +123,7 @@ parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 pub type LocalAssetTransactor =
@@ -147,6 +148,8 @@ impl Config for XcmConfig {
 	type AssetTrap = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
+	type PalletInstancesInfo = ();
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 #[frame_support::pallet]
