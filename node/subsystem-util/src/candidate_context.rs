@@ -12,7 +12,10 @@
 // GNU General Public License for more details.
 
 // TODO [now]: document everything and make members public.
-use polkadot_primitives::v1::Id as ParaId;
+use polkadot_primitives::v1::{
+	BlockNumber, CandidateCommitments, Id as ParaId, Hash, PersistedValidationData,
+	ValidationCodeHash, HeadData,
+};
 use std::collections::HashMap;
 
 /// Limitations on inbound HRMP channels.
@@ -48,7 +51,8 @@ pub struct OutboundHrmpChannelUpdate {
 }
 
 /// Limitations on the actions that can be taken by a new parachain
-/// block.
+/// block. These limitations are implicitly associated with some particular
+/// parachain, which should be apparent from usage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ContextLimitations {
 	/// The amount of UMP messages remaining.
@@ -61,48 +65,58 @@ pub struct ContextLimitations {
 	pub hrmp_channels_in: HashMap<ParaId, InboundHrmpChannelLimitations>,
 	/// The limitations of all registered outbound HRMP channels.
 	pub hrmp_channels_out: HashMap<ParaId, OutboundHrmpChannelLimitations>,
-	// TODO [now]: some session-wide config members like maximums?
-	// Other expected criteria like the DMP advancement rule?
-	// TODO [now]: validation code hash & allowed code upgrade.
+	/// The maximum Proof-of-Validity size allowed, in bytes.
+	pub max_pov_size: usize,
+	/// The required parent head-data of the parachain.
+	pub required_parent: HeadData,
+	/// The expected validation-code-hash of this parachain.
+	pub validation_code_hash: ValidationCodeHash,
+	/// Whether the go-ahead signal is set as-of this parachain.
+	pub go_ahead: bool, // TODO [now] use nice enums like the runtime.
+	/// Whether a code upgrade is allowed.
+	pub code_upgrade_allowed: bool, // TODO [now] use nice enums like the runtime
 }
 
 // TODO [now]
 pub struct Error;
 
+/// Information about a relay-chain block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RelayChainBlockInfo {
+	/// The hash of the relay-chain block.
+	pub hash: Hash,
+	/// The number of the relay-chain block.
+	pub number: BlockNumber,
+	/// The storage-root of the relay-chain block.
+	pub storage_root: Hash,
+}
+
 /// A context used for judging parachain candidate validity.
+///
+/// A context is associated with some particular parachain, and this should be
+/// apparent from its usage.
 ///
 /// This is a combination of base limitations, which come from a
 /// base relay-chain state and a series of updates to those limitations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
-	base: ContextLimitations,
-	updates: Vec<ContextUpdate>,
+	base: RelayChainBlockInfo,
+	base_limitations: ContextLimitations,
 
-	// base + all updates.
+	// base + all extensions.
+	extensions: Vec<Extension>,
 	cumulative: ContextLimitations,
 }
 
 impl Context {
-	/// Create a context from a given base.
-	pub fn from_base(base: ContextLimitations) -> Self {
-		Context { base: base.clone(), updates: Vec::new(), cumulative: base }
-	}
-
-	// TODO [now]: add error type
-	pub fn from_base_and_updates(
-		base: ContextLimitations,
-		updates: impl IntoIterator<Item = ContextUpdate>,
-	) -> Result<Self, Error> {
-		let mut context = Self::from_base(base);
-		for update in updates {
-			context.push(update)?;
+	/// Create a context from a given base and base limitations.
+	pub fn from_base(base: RelayChainBlockInfo, limitations: ContextLimitations) -> Self {
+		Context {
+			base,
+			base_limitations: limitations.clone(),
+			extensions: Vec::new(),
+			cumulative: limitations,
 		}
-		Ok(context)
-	}
-
-	/// Push an update onto a context.
-	pub fn push(&mut self, update: ContextUpdate) -> Result<(), Error> {
-		unimplemented!()
 	}
 
 	/// Get the limitations associated with this context.
@@ -110,13 +124,16 @@ impl Context {
 		&self.cumulative
 	}
 
-	/// Get all updates associated with this context.
-	pub fn updates(&self) -> &[ContextUpdate] {
-		&self.updates[..]
+	/// Get all extensions associated with this context.
+	pub fn extensions(&self) -> &[Extension] {
+		&self.extensions[..]
 	}
 
 	/// Rebase this context onto a new base.
-	pub fn rebase(&self, new_base: ContextLimitations) -> Result<Self, Error> {
+	///
+	/// If the `base` is the current `base`, this is a no-op and is guaranteed to succeed.
+	/// If the `base` is the same as one of the extensions, this succeeds only if the
+	pub fn rebase(&self, base: RelayChainBlockInfo, new_base: ContextLimitations) -> Result<Self, Error> {
 		unimplemented!()
 
 		// TODO [now]. We will want a mode where this just gets as far as it can.
@@ -124,41 +141,26 @@ impl Context {
 	}
 }
 
-// TODO [now]: this needs 2 parts: what we take away from the limitations,
-// and what we add to the limitations.
-//
-// The first is the change from the previous relay-parent to the current state.
-// And the second is based on the outputs of the candidate.
-/// An update to a context.
+/// An extension to a context, representing another prospective parachain block.
+///
+/// This has two parts: the first is the new relay-parent and its associated limitations,
+/// and the second is information about the advancement of the parachain.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ContextUpdate {
-	// TODO [now] : relay-parent?
-	/// The number of messages submitted to UMP
-	pub ump_messages_submitted: usize,
-	/// The number of message-bytes submitted to UMP
-	pub ump_bytes_submitted: usize,
-	/// The number of DMP messages consumed.
-	pub dmp_messages_consumed: usize,
-	/// Updates to inbound HRMP channels.
-	pub hrmp_in: HashMap<ParaId, InboundHrmpChannelUpdate>,
-	/// Updates to outbound HRMP channels.
-	pub hrmp_out: HashMap<ParaId, OutboundHrmpChannelUpdate>,
+pub struct Extension {
+	/// The new relay-parent.
+	pub relay_parent: RelayChainBlockInfo,
+	/// The limitations associated with this relay-parent.
+	pub limitations: ContextLimitations,
+	/// The advancement of the parachain which is part of the extension.
+	pub advancement: Advancement,
 }
 
-impl ContextUpdate {
-	/// Create a blank context update.
-	pub fn blank() -> Self {
-		ContextUpdate {
-			ump_messages_submitted: 0,
-			ump_bytes_submitted: 0,
-			dmp_messages_consumed: 0,
-			hrmp_in: HashMap::new(),
-			hrmp_out: HashMap::new(),
-		}
-	}
+#[derive(Debug, Clone, PartialEq)]
+pub struct Advancement {
+	commitments: CandidateCommitments,
+	// We don't want the candidate descriptor, because that commmits to
+	// things like the merkle root.
 }
-
-// TODO [now] : function to compare limitations against updates.
 
 #[cfg(test)]
 mod tests {
