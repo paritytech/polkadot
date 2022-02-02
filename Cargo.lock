@@ -11906,6 +11906,7 @@ dependencies = [
 name = "xcm-builder"
 version = "0.9.13"
 dependencies = [
+ "assert_matches",
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",

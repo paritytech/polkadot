@@ -105,12 +105,21 @@ impl GetDispatchInfo for TestCall {
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
 	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+	pub static EXPORTER_OVERRIDE: RefCell<Option<
+		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> SendResult
+	>> = RefCell::new(None);
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
+}
+pub fn set_exporter_override(f: fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> SendResult) {
+	EXPORTER_OVERRIDE.with(|x| x.replace(Some(f)));
+}
+pub fn clear_exporter_override() {
+	EXPORTER_OVERRIDE.with(|x| x.replace(None));
 }
 pub struct TestMessageSender;
 impl SendXcm for TestMessageSender {
@@ -127,8 +136,12 @@ impl ExportXcm for TestMessageExporter {
 		dest: impl Into<InteriorMultiLocation>,
 		msg: opaque::Xcm,
 	) -> SendResult {
-		EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest.into(), msg)));
-		Ok(())
+		EXPORTER_OVERRIDE.with(|e| if let Some(ref f) = &*e.borrow() {
+			f(network, channel, dest.into(), msg)
+		} else {
+			EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest.into(), msg)));
+			Ok(())
+		})
 	}
 }
 
@@ -285,7 +298,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub TestAncestry: InteriorMultiLocation = X1(Parachain(42));
+	pub static ExecutorUniversalLocation: InteriorMultiLocation = X1(Parachain(42));
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {
@@ -314,7 +327,7 @@ impl Config for TestConfig {
 	type OriginConverter = TestOriginConverter;
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
-	type LocationInverter = LocationInverter<TestAncestry>;
+	type LocationInverter = LocationInverter<ExecutorUniversalLocation>;
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
