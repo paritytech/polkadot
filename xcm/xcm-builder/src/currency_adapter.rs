@@ -161,12 +161,12 @@ impl<
 		Ok(what.clone().into())
 	}
 
-	fn transfer_asset(
+	fn internal_transfer_asset(
 		asset: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
 	) -> result::Result<Assets, XcmError> {
-		log::trace!(target: "xcm::currency_adapter", "transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
+		log::trace!(target: "xcm::currency_adapter", "internal_transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
 		let amount = Matcher::matches_fungible(asset).ok_or(Error::AssetNotFound)?;
 		let from =
 			AccountIdConverter::convert_ref(from).map_err(|()| Error::AccountIdConversionFailed)?;
