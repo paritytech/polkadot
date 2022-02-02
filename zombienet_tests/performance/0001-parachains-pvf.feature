@@ -12,7 +12,7 @@ ferdie: is up
 one: is up
 two: is up
 
-# Check authority status and peers.
+# Check authority status.
 alice: reports node_roles is 4
 bob: reports node_roles is 4
 charlie: reports node_roles is 4

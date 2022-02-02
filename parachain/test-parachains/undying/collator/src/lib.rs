@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -159,7 +159,7 @@ impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
 	pub fn new(pov_size: usize, pvf_complexity: u32) -> Self {
-		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize - 20;
+		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize;
 
 		log::info!(
 			"PoV target size: {} bytes. Graveyard size: ({} x {})",

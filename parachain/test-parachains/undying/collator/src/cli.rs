@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -60,7 +60,7 @@ pub struct RunCmd {
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[clap(long, default_value = "100")]
+	#[clap(long, default_value = "2000")]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.

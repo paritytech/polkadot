@@ -10,7 +10,7 @@ name = "undying-collator"
 path = "src/main.rs"
 
 [[bin]]
-name = "adder_collator_puppet_worker"
+name = "undying_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]

@@ -17,7 +17,7 @@
 //! Integration test that ensures that we can build and include parachain
 //! blocks of the `Undying` parachain.
 
-const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
+const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_undying_collator_puppet_worker");
 
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test]
