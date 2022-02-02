@@ -190,6 +190,9 @@ impl From<BlockEntry> for crate::BlockEntry {
 pub struct Config {
 	/// The column where block metadata is stored.
 	pub col_data: u32,
+	/// The column where block metadata is stored,
+	/// ordered.
+	pub col_data_ordered: u32,
 }
 
 /// The database backend.
@@ -220,7 +223,7 @@ impl Backend for DbBackend {
 	fn load_stagnant_at(&self, timestamp: crate::Timestamp) -> Result<Vec<Hash>, Error> {
 		load_decode::<Vec<Hash>>(
 			&*self.inner,
-			self.config.col_data,
+			self.config.col_data_ordered,
 			&stagnant_at_key(timestamp.into()),
 		)
 		.map(|o| o.unwrap_or_default())
@@ -230,8 +233,9 @@ impl Backend for DbBackend {
 		&self,
 		up_to: crate::Timestamp,
 	) -> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error> {
-		let stagnant_at_iter =
-			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
+		let stagnant_at_iter = self
+			.inner
+			.iter_with_prefix(self.config.col_data_ordered, &STAGNANT_AT_PREFIX[..]);
 
 		let val = stagnant_at_iter
 			.filter_map(|(k, v)| {
@@ -247,8 +251,9 @@ impl Backend for DbBackend {
 	}
 
 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
-		let blocks_at_height_iter =
-			self.inner.iter_with_prefix(self.config.col_data, &BLOCK_HEIGHT_PREFIX[..]);
+		let blocks_at_height_iter = self
+			.inner
+			.iter_with_prefix(self.config.col_data_ordered, &BLOCK_HEIGHT_PREFIX[..]);
 
 		let val = blocks_at_height_iter
 			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
@@ -258,8 +263,12 @@ impl Backend for DbBackend {
 	}
 
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
-		load_decode::<Vec<Hash>>(&*self.inner, self.config.col_data, &block_height_key(number))
-			.map(|o| o.unwrap_or_default())
+		load_decode::<Vec<Hash>>(
+			&*self.inner,
+			self.config.col_data_ordered,
+			&block_height_key(number),
+		)
+		.map(|o| o.unwrap_or_default())
 	}
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
@@ -280,10 +289,10 @@ impl Backend for DbBackend {
 				},
 				BackendWriteOp::WriteBlocksByNumber(block_number, v) =>
 					if v.is_empty() {
-						tx.delete(self.config.col_data, &block_height_key(block_number));
+						tx.delete(self.config.col_data_ordered, &block_height_key(block_number));
 					} else {
 						tx.put_vec(
-							self.config.col_data,
+							self.config.col_data_ordered,
 							&block_height_key(block_number),
 							v.encode(),
 						);
@@ -299,24 +308,24 @@ impl Backend for DbBackend {
 				BackendWriteOp::WriteStagnantAt(timestamp, stagnant_at) => {
 					let timestamp: Timestamp = timestamp.into();
 					if stagnant_at.is_empty() {
-						tx.delete(self.config.col_data, &stagnant_at_key(timestamp));
+						tx.delete(self.config.col_data_ordered, &stagnant_at_key(timestamp));
 					} else {
 						tx.put_vec(
-							self.config.col_data,
+							self.config.col_data_ordered,
 							&stagnant_at_key(timestamp),
 							stagnant_at.encode(),
 						);
 					}
 				},
 				BackendWriteOp::DeleteBlocksByNumber(block_number) => {
-					tx.delete(self.config.col_data, &block_height_key(block_number));
+					tx.delete(self.config.col_data_ordered, &block_height_key(block_number));
 				},
 				BackendWriteOp::DeleteBlockEntry(hash) => {
 					tx.delete(self.config.col_data, &block_entry_key(&hash));
 				},
 				BackendWriteOp::DeleteStagnantAt(timestamp) => {
 					let timestamp: Timestamp = timestamp.into();
-					tx.delete(self.config.col_data, &stagnant_at_key(timestamp));
+					tx.delete(self.config.col_data_ordered, &stagnant_at_key(timestamp));
 				},
 			}
 		}
@@ -389,7 +398,7 @@ mod tests {
 
 	#[cfg(test)]
 	fn test_db() -> Arc<dyn Database> {
-		let db = kvdb_memorydb::create(1);
+		let db = kvdb_memorydb::create(2);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[1]);
 		Arc::new(db)
 	}
@@ -433,7 +442,7 @@ mod tests {
 	#[test]
 	fn write_read_block_entry() {
 		let db = test_db();
-		let config = Config { col_data: 0 };
+		let config = Config { col_data: 0, col_data_ordered: 1 };
 
 		let mut backend = DbBackend::new(db, config);
 
@@ -463,7 +472,7 @@ mod tests {
 	#[test]
 	fn delete_block_entry() {
 		let db = test_db();
-		let config = Config { col_data: 0 };
+		let config = Config { col_data: 0, col_data_ordered: 1 };
 
 		let mut backend = DbBackend::new(db, config);
 
@@ -494,7 +503,7 @@ mod tests {
 	#[test]
 	fn earliest_block_number() {
 		let db = test_db();
-		let config = Config { col_data: 0 };
+		let config = Config { col_data: 0, col_data_ordered: 1 };
 
 		let mut backend = DbBackend::new(db, config);
 
@@ -523,7 +532,7 @@ mod tests {
 	#[test]
 	fn stagnant_at_up_to() {
 		let db = test_db();
-		let config = Config { col_data: 0 };
+		let config = Config { col_data: 0, col_data_ordered: 1 };
 
 		let mut backend = DbBackend::new(db, config);
 
@@ -579,7 +588,7 @@ mod tests {
 	#[test]
 	fn write_read_blocks_at_height() {
 		let db = test_db();
-		let config = Config { col_data: 0 };
+		let config = Config { col_data: 0, col_data_ordered: 1 };
 
 		let mut backend = DbBackend::new(db, config);
 

@@ -877,9 +877,17 @@ where
 		},
 	};
 
+	let col_meta_ordered = if parachains_db
+		.is_indexed_column(crate::parachains_db::REAL_COLUMNS.col_availability_meta)
+	{
+		crate::parachains_db::REAL_COLUMNS.col_availability_meta
+	} else {
+		crate::parachains_db::REAL_COLUMNS.col_availability_meta_ordered
+	};
 	let availability_config = AvailabilityConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
 		col_meta: crate::parachains_db::REAL_COLUMNS.col_availability_meta,
+		col_meta_ordered,
 	};
 
 	let approval_voting_config = ApprovalVotingConfig {
@@ -899,8 +907,17 @@ where
 		},
 	};
 
+	let col_data_ordered = if parachains_db
+		.is_indexed_column(crate::parachains_db::REAL_COLUMNS.col_chain_selection_data)
+	{
+		crate::parachains_db::REAL_COLUMNS.col_chain_selection_data
+	} else {
+		crate::parachains_db::REAL_COLUMNS.col_chain_selection_data_ordered
+	};
+
 	let chain_selection_config = ChainSelectionConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		col_data_ordered,
 		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
 	};
 

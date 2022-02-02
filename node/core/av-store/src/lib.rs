@@ -253,7 +253,7 @@ fn delete_meta(tx: &mut DBTransaction, config: &Config, hash: &CandidateHash) {
 
 fn delete_unfinalized_height(tx: &mut DBTransaction, config: &Config, block_number: BlockNumber) {
 	let prefix = (UNFINALIZED_PREFIX, BEBlockNumber(block_number)).encode();
-	tx.delete_prefix(config.col_meta, &prefix);
+	tx.delete_prefix(config.col_meta_ordered, &prefix);
 }
 
 fn delete_unfinalized_inclusion(
@@ -266,7 +266,7 @@ fn delete_unfinalized_inclusion(
 	let key =
 		(UNFINALIZED_PREFIX, BEBlockNumber(block_number), block_hash, candidate_hash).encode();
 
-	tx.delete(config.col_meta, &key[..]);
+	tx.delete(config.col_meta_ordered, &key[..]);
 }
 
 fn delete_pruning_key(
@@ -276,7 +276,7 @@ fn delete_pruning_key(
 	h: &CandidateHash,
 ) {
 	let key = (PRUNE_BY_TIME_PREFIX, t.into(), h).encode();
-	tx.delete(config.col_meta, &key);
+	tx.delete(config.col_meta_ordered, &key);
 }
 
 fn write_pruning_key(
@@ -287,7 +287,7 @@ fn write_pruning_key(
 ) {
 	let t = t.into();
 	let key = (PRUNE_BY_TIME_PREFIX, t, h).encode();
-	tx.put(config.col_meta, &key, TOMBSTONE_VALUE);
+	tx.put(config.col_meta_ordered, &key, TOMBSTONE_VALUE);
 }
 
 fn finalized_block_range(finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
@@ -306,7 +306,7 @@ fn write_unfinalized_block_contains(
 	ch: &CandidateHash,
 ) {
 	let key = (UNFINALIZED_PREFIX, BEBlockNumber(n), h, ch).encode();
-	tx.put(config.col_meta, &key, TOMBSTONE_VALUE);
+	tx.put(config.col_meta_ordered, &key, TOMBSTONE_VALUE);
 }
 
 fn pruning_range(now: impl Into<BETimestamp>) -> (Vec<u8>, Vec<u8>) {
@@ -424,6 +424,9 @@ pub struct Config {
 	pub col_data: u32,
 	/// The column family for availability store meta information.
 	pub col_meta: u32,
+	/// Second column family for availability store meta information,
+	/// content must be ordered.
+	pub col_meta_ordered: u32,
 }
 
 trait Clock: Send + Sync {
@@ -833,7 +836,7 @@ where
 		let batch_num = {
 			let mut iter = subsystem
 				.db
-				.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
+				.iter_with_prefix(subsystem.config.col_meta_ordered, &start_prefix)
 				.take_while(|(k, _)| &k[..] < &end_prefix[..])
 				.peekable();
 
@@ -881,7 +884,7 @@ where
 
 		let iter = subsystem
 			.db
-			.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
+			.iter_with_prefix(subsystem.config.col_meta_ordered, &start_prefix)
 			.take_while(|(k, _)| &k[..] < &end_prefix[..])
 			.peekable();
 
@@ -1228,11 +1231,11 @@ fn prune_all(db: &Arc<dyn Database>, config: &Config, clock: &dyn Clock) -> Resu
 
 	let mut tx = DBTransaction::new();
 	let iter = db
-		.iter_with_prefix(config.col_meta, &range_start[..])
+		.iter_with_prefix(config.col_meta_ordered, &range_start[..])
 		.take_while(|(k, _)| &k[..] < &range_end[..]);
 
 	for (k, _v) in iter {
-		tx.delete(config.col_meta, &k[..]);
+		tx.delete(config.col_meta_ordered, &k[..]);
 
 		let (_, candidate_hash) = match decode_pruning_key(&k[..]) {
 			Ok(m) => m,
