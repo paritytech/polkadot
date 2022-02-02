@@ -458,31 +458,10 @@ where
 		);
 	}
 
-	let parachains_db = match &config.database {
-		DatabaseSource::RocksDb { path, .. } => crate::parachains_db::open_creating_rocksdb(
-			path.clone(),
-			crate::parachains_db::CacheSizes::default(),
-		)?,
-		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating(
-			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
-			crate::parachains_db::CacheSizes::default(),
-		)?,
-		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
-			if crate::parachains_db::exists_rocksdb_db(rocksdb_path.clone()) {
-				crate::parachains_db::open_creating_rocksdb(
-					rocksdb_path.clone(),
-					crate::parachains_db::CacheSizes::default(),
-				)?
-			} else {
-				crate::parachains_db::open_creating(
-					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
-					crate::parachains_db::CacheSizes::default(),
-				)?
-			},
-		DatabaseSource::Custom { .. } => {
-			unimplemented!("No polkadot subsystem db for custom source.");
-		},
-	};
+	let parachains_db = crate::parachains_db::open_creating(
+		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
+		crate::parachains_db::CacheSizes::default(),
+	)?;
 
 	let availability_config = AvailabilityConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,

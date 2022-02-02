@@ -18,7 +18,6 @@
 //! The only exception is that we don't support db upgrades => no `upgrade.rs` module.
 
 use kvdb::KeyValueDB;
-use polkadot_node_subsystem_util::database::Database;
 use std::{io, path::PathBuf, sync::Arc};
 
 mod columns {
@@ -29,7 +28,6 @@ mod columns {
 	pub const COL_APPROVAL_DATA: u32 = 2;
 	pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
 	pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
-	pub const ORDERED_COL: &[u32] = &[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA];
 }
 
 /// Columns used by different subsystems.
@@ -78,10 +76,7 @@ fn other_io_error(err: String) -> io::Error {
 }
 
 /// Open the database on disk, creating it if it doesn't exist.
-pub fn open_creating_rocksdb(
-	root: PathBuf,
-	cache_sizes: CacheSizes,
-) -> io::Result<Arc<dyn Database>> {
+pub fn open_creating(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<dyn KeyValueDB>> {
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
 	let path = root.join("parachains").join("db");
@@ -103,41 +98,7 @@ pub fn open_creating_rocksdb(
 		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
 
 	std::fs::create_dir_all(&path_str)?;
-	upgrade::try_upgrade_db(&path)?;
-	let db = Database::open(&db_config, &path_str)?;
-	let db =
-		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
+	let db = Database::open(&db_config, path_str)?;
 
-	Ok(Arc::new(db))
-}
-
-pub fn exists_rocksdb_db(root: PathBuf) -> bool {
-	let path = root.join("parachains").join("db");
-	match std::fs::metadata(path) {
-		Ok(meta) => meta.is_dir(),
-		Err(_) => false,
-	}
-}
-
-pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
-	let path = root.join("parachains");
-	let path_str = path
-		.to_str()
-		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
-
-	std::fs::create_dir_all(&path_str)?;
-
-	let mut options = parity_db::Options::with_columns(&path, columns::NUM_COLUMNS as u8);
-	for i in columns::ORDERED_COL {
-		options.columns[*i as usize].btree_index = true;
-	}
-
-	let db = parity_db::Db::open_or_create(&options)
-		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
-
-	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
-		db,
-		columns::ORDERED_COL,
-	);
 	Ok(Arc::new(db))
 }
