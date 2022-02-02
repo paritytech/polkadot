@@ -46,24 +46,24 @@ alice: parachain 2007 block height is at least 10 within 300 seconds
 
 # Check preparation time is under 10s.
 # Check all buckets <= 10.
-alice: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-bob: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-charlie: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-dave: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-ferdie: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-eve: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-one: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
-two: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 300 seconds
+alice: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+bob: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+charlie: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+dave: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+ferdie: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+eve: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+one: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
+two: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
 
 # Check all buckets >= 20.             
-alice: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-bob: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-charlie: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-dave: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-ferdie: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-eve: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-one: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
-two: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 300 seconds
+alice: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+bob: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+charlie: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+dave: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+ferdie: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+eve: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+one: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
+two: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "+Inf"] within 10 seconds
 
 # Check execution time.
 # There are two different timeout conditions: BACKING_EXECUTION_TIMEOUT(2s) and
@@ -74,21 +74,21 @@ two: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["
 # 2s timeout. 
 # We do this check by ensuring all executions fall into bucket le="2" or lower.
 # First, check if we have at least 1 sample, but we should have many more.
-alice: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-bob: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-charlie: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-dave: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-ferdie: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-eve: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-one: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
-two: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 300 seconds
+alice: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+bob: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+charlie: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+dave: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+ferdie: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+eve: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+one: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
+two: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
 
 # Check if we have no samples > 2s.
-alice: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-bob: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-charlie: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-dave: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-ferdie: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-eve: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-one: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
-two: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 300 seconds
+alice: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+bob: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+charlie: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+dave: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+ferdie: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+eve: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+one: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
+two: reports histogram polkadot_pvf_execution_time has 0 samples in buckets ["3", "4", "5", "6", "+Inf"] within 10 seconds
