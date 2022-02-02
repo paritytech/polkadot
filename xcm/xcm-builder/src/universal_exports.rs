@@ -62,10 +62,11 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm for Loca
 			Err(dest) => return Err(SendError::CannotReachDestination(dest, xcm)),
 		};
 		let (network, destination, local_network, local_location) = devolved;
-		let mut message: Xcm<()> = vec![
-			UniversalOrigin(GlobalConsensus(local_network)),
-			DescendOrigin(local_location),
-		].into();
+
+		let mut message: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_network))].into();
+		if local_location != Here {
+			message.inner_mut().push(DescendOrigin(local_location));
+		}
 		message.inner_mut().extend(xcm.into_iter());
 		Exporter::export_xcm(network, 0, destination, message)
 	}
@@ -268,8 +269,6 @@ pub enum DispatchBlobError {
 	WrongGlobal,
 }
 
-// TODO:: Rename ancestry -> context
-
 pub struct BridgeBlobDispatcher<Router, OurPlace>(PhantomData<(Router, OurPlace)>);
 impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob for BridgeBlobDispatcher<Router, OurPlace> {
 	fn dispatch_blob(blob: Vec<u8>) -> Result<u64, DispatchBlobError> {
@@ -290,12 +289,12 @@ impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob for Bri
 			.map_err(|_| DispatchBlobError::UnsupportedXcmVersion)?;
 		Router::send_xcm(dest, message).map_err(|_| DispatchBlobError::RoutingError)?;
 		// TODO: Proper weight.
-		Ok(0)
+		Ok(1)
 	}
 }
 
-pub struct HaulBlobExporter<Bridge, Network>(PhantomData<(Bridge, Network)>);
-impl<Bridge: HaulBlob, Network: Get<NetworkId>> ExportXcm for HaulBlobExporter<Bridge, Network> {
+pub struct HaulBlobExporter<Bridge, BridgedNetwork>(PhantomData<(Bridge, BridgedNetwork)>);
+impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>> ExportXcm for HaulBlobExporter<Bridge, BridgedNetwork> {
 	fn export_xcm(
 		network: NetworkId,
 		_channel: u32,
@@ -303,9 +302,10 @@ impl<Bridge: HaulBlob, Network: Get<NetworkId>> ExportXcm for HaulBlobExporter<B
 		message: Xcm<()>,
 	) -> Result<(), SendError> {
 		let destination = destination.into();
-		ensure!(network == Network::get(), SendError::CannotReachNetwork(network, destination, message));
+		let bridged_network = BridgedNetwork::get();
+		ensure!(&network == &bridged_network, SendError::CannotReachNetwork(network, destination, message));
 		// We don't/can't use the `channel` for this adapter.
-		let universal_dest = match destination.pushed_front_with(GlobalConsensus(network.clone())) {
+		let universal_dest = match destination.pushed_front_with(GlobalConsensus(bridged_network)) {
 			Ok(d) => d.into(),
 			Err((destination, _)) => return Err(SendError::CannotReachNetwork(network, destination, message)),
 		};
@@ -354,30 +354,26 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub LocalLocation: Junctions = X1(GlobalConsensus(ByUri(b"local".to_vec())));
-	}
-	parameter_types! {
+		pub Local: NetworkId = ByUri(b"local".to_vec());
+		pub UniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
 		pub Remote1: NetworkId = ByUri(b"remote1".to_vec());
+		pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote1::get()));
 	}
 
-	type Router = LocalUnpaidExporter<
-		HaulBlobExporter<
-			TestBridge<
-				BridgeBlobDispatcher<TestRemoteIncomingRouter, LocalLocation>
-			>,
-			Remote1,
-		>,
-		LocalLocation,
+	type TheBridge = TestBridge<
+		BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>
 	>;
+	type Router = LocalUnpaidExporter< HaulBlobExporter<TheBridge, Remote1>, UniversalLocation >;
 
 	#[test]
 	fn bridge_works() {
-		let msg = Xcm(vec![Instruction::Trap(1)]);
-		assert_eq!(
-			Router::send_xcm(GlobalConsensus(ByUri(b"remote1".to_vec())), msg.clone()),
-			Ok(()),
-		);
-		assert_eq!(take_received_remote_messages(), vec![(Here.into(), msg)]);
+		let msg = Xcm(vec![Trap(1)]);
+		assert_eq!(Router::send_xcm((Parent, ByUri(b"remote1".to_vec())), msg), Ok(()));
+		assert_eq!(TheBridge::service(), 1);
+		assert_eq!(take_received_remote_messages(), vec![(Here.into(), Xcm(vec![
+			UniversalOrigin(Local::get().into()),
+			Trap(1),
+		]))]);
 	}
 
 	#[test]
