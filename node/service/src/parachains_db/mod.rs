@@ -130,7 +130,7 @@ pub fn exists_rocksdb_db(root: PathBuf) -> bool {
 
 /// Open a parity db database.
 #[cfg(feature = "full-node")]
-pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
+pub fn open_creating(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
 	let path = root.join("parachains");
 	let path_str = path
 		.to_str()
@@ -146,9 +146,15 @@ pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
 
+	let cache_sizes = [
+		(columns::COL_AVAILABILITY_DATA, cache_sizes.availability_data),
+		(columns::COL_AVAILABILITY_META, cache_sizes.availability_meta),
+		(columns::COL_APPROVAL_DATA, cache_sizes.approval_data),
+	];
 	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
 		db,
 		columns::ORDERED_COL,
+		&cache_sizes,
 	);
 	Ok(Arc::new(db))
 }
