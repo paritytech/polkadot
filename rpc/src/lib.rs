@@ -112,7 +112,7 @@ where
 	P: TransactionPool + Sync + Send + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
-	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
+	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashingFor<Block>>,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_mmr_rpc::{Mmr, MmrApi};

@@ -108,7 +108,8 @@ pub use sp_api::{ApiRef, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi
 pub use sp_runtime::{
 	generic,
 	traits::{
-		self as runtime_traits, BlakeTwo256, Block as BlockT, HashFor, Header as HeaderT, NumberFor,
+		self as runtime_traits, BlakeTwo256, Block as BlockT, HashingFor, Header as HeaderT,
+		NumberFor,
 	},
 };
 
