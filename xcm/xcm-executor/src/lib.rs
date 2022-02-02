@@ -190,7 +190,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
 	pub fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
-		self.execute_with_hash(xcm, xcm.using_encoded(sp_io::hashing::blake2_256))
+		let message_hash = xcm.using_encoded(sp_io::hashing::blake2_256);
+		self.execute_with_hash(xcm, message_hash)
 	}
 
 	fn execute_with_hash(
