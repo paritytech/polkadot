@@ -138,21 +138,9 @@ mod enter {
 
 	#[test]
 	fn test_session_is_tracked_in_on_chain_scraping() {
-		use crate::{
-			configuration::HostConfiguration,
-			disputes::{run_to_block, DisputesHandler},
-			mock::{
-				new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig,
-				System, Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR,
-				PUNISH_VALIDATORS_INCONCLUSIVE, REWARD_VALIDATORS,
-			},
-		};
-		use frame_support::{
-			assert_err, assert_noop, assert_ok,
-			traits::{OnFinalize, OnInitialize},
-		};
+		use crate::disputes::run_to_block;
 		use primitives::v1::{
-			BlockNumber, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+			DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
 			InvalidDisputeStatementKind, ValidDisputeStatementKind,
 		};
 		use sp_core::{crypto::CryptoType, Pair};
