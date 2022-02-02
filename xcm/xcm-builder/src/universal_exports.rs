@@ -113,10 +113,7 @@ impl<T: Get<Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>>> ExporterFor
 		_: &InteriorMultiLocation,
 		_: &Xcm<()>,
 	) -> Option<(MultiLocation, Option<MultiAsset>)> {
-		T::get()
-			.into_iter()
-			.find(|(ref j, ..)| j == network)
-			.map(|(_, l, p)| (l, p))
+		T::get().into_iter().find(|(ref j, ..)| j == network).map(|(_, l, p)| (l, p))
 	}
 }
 

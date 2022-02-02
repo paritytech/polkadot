@@ -16,19 +16,18 @@
 
 //! Tests specific to the bridging primitives
 
-use std::{cell::RefCell, marker::PhantomData};
+use crate::{mock::*, universal_exports::*};
 use frame_support::{parameter_types, traits::Get};
+use std::{cell::RefCell, marker::PhantomData};
 use xcm::prelude::*;
 use xcm_executor::XcmExecutor;
-use crate::universal_exports::*;
-use crate::mock::*;
 
-mod local_relay_relay;
 mod local_para_para;
-mod remote_relay_relay;
+mod local_relay_relay;
+mod paid_remote_relay_relay;
 mod remote_para_para;
 mod remote_para_para_via_relay;
-mod paid_remote_relay_relay;
+mod remote_relay_relay;
 
 parameter_types! {
 	pub Local: NetworkId = ByUri(b"local".to_vec());
@@ -70,8 +69,12 @@ fn take_received_remote_messages() -> Vec<(MultiLocation, Xcm<()>)> {
 
 /// This is a dummy router which accepts messages destined for `Remote` from `Local`
 /// and then executes them for free in a context simulated to be like that of our `Remote`.
-struct UnpaidExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote, RemoteExporter)>);
-impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm for UnpaidExecutingRouter<Local, Remote, RemoteExporter> {
+struct UnpaidExecutingRouter<Local, Remote, RemoteExporter>(
+	PhantomData<(Local, Remote, RemoteExporter)>,
+);
+impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
+	for UnpaidExecutingRouter<Local, Remote, RemoteExporter>
+{
 	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
 		let destination = destination.into();
 		if destination == Remote::get().relative_to(&Local::get()) {
@@ -83,7 +86,8 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 			AllowUnpaidFrom::set(vec![origin.clone()]);
 			set_exporter_override(RemoteExporter::export_xcm);
 			// The we execute it:
-			let outcome = XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+			let outcome =
+				XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
 			return match outcome {
 				Outcome::Complete(..) => Ok(()),
 				Outcome::Incomplete(..) => Err(SendError::Transport("Error executing")),
@@ -98,7 +102,9 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 /// and then executes them in a context simulated to be like that of our `Remote`. Payment is
 /// needed.
 struct ExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote, RemoteExporter)>);
-impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm for ExecutingRouter<Local, Remote, RemoteExporter> {
+impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
+	for ExecutingRouter<Local, Remote, RemoteExporter>
+{
 	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
 		let destination = destination.into();
 		if destination == Remote::get().relative_to(&Local::get()) {
@@ -110,7 +116,8 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 			AllowPaidFrom::set(vec![origin.clone()]);
 			set_exporter_override(RemoteExporter::export_xcm);
 			// The we execute it:
-			let outcome = XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+			let outcome =
+				XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
 			return match outcome {
 				Outcome::Complete(..) => Ok(()),
 				Outcome::Incomplete(..) => Err(SendError::Transport("Error executing")),

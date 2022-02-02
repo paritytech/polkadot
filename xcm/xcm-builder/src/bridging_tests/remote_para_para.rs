@@ -18,8 +18,8 @@
 //! bridge to a parachain from another global consensus. The destination of the XCM is within
 //! the global consensus of the remote side of the bridge.
 
-use crate::mock::*;
 use super::*;
+use crate::mock::*;
 
 parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1000));
@@ -31,16 +31,11 @@ parameter_types! {
 type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteParaBridgeUniversalLocation>>;
 type RelayExporter = HaulBlobExporter<TheBridge, Remote>;
-type LocalInnerRouter = UnpaidExecutingRouter<UniversalLocation, ParaBridgeUniversalLocation, RelayExporter>;
-type LocalBridgingRouter = UnpaidRemoteExporter<
-	NetworkExportTable<BridgeTable>,
-	LocalInnerRouter,
-	UniversalLocation,
->;
-type LocalRouter = (
-	LocalInnerRouter,
-	LocalBridgingRouter,
-);
+type LocalInnerRouter =
+	UnpaidExecutingRouter<UniversalLocation, ParaBridgeUniversalLocation, RelayExporter>;
+type LocalBridgingRouter =
+	UnpaidRemoteExporter<NetworkExportTable<BridgeTable>, LocalInnerRouter, UniversalLocation>;
+type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
 
 ///  local                                    |                                      remote
 ///                                           |
@@ -53,7 +48,10 @@ type LocalRouter = (
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(<LocalRouter as SendXcm>::send_xcm((Parent, Parent, Remote::get(), Parachain(1)), msg), Ok(()));
+	assert_eq!(
+		<LocalRouter as SendXcm>::send_xcm((Parent, Parent, Remote::get(), Parachain(1)), msg),
+		Ok(())
+	);
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -87,8 +85,8 @@ fn sending_to_sibling_of_bridged_chain_works() {
 		Xcm(vec![
 			UniversalOrigin(Local::get().into()),
 			DescendOrigin(Parachain(1000).into()),
-			Trap(1)
-		])
+			Trap(1),
+		]),
 	)];
 	assert_eq!(take_received_remote_messages(), expected);
 }
@@ -112,8 +110,8 @@ fn sending_to_relay_of_bridged_chain_works() {
 		Xcm(vec![
 			UniversalOrigin(Local::get().into()),
 			DescendOrigin(Parachain(1000).into()),
-			Trap(1)
-		])
+			Trap(1),
+		]),
 	)];
 	assert_eq!(take_received_remote_messages(), expected);
 }

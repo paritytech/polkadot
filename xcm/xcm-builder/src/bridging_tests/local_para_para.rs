@@ -43,11 +43,14 @@ fn sending_to_bridged_chain_works() {
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
-		vec![(Here.into(), Xcm(vec![
-			UniversalOrigin(Local::get().into()),
-			DescendOrigin(Parachain(1).into()),
-			Trap(1),
-		]))]
+		vec![(
+			Here.into(),
+			Xcm(vec![
+				UniversalOrigin(Local::get().into()),
+				DescendOrigin(Parachain(1).into()),
+				Trap(1),
+			])
+		)]
 	);
 }
 
@@ -66,7 +69,11 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		(Parent, Parachain(1000)).into(),
-		Xcm(vec![UniversalOrigin(Local::get().into()), DescendOrigin(Parachain(1).into()),Trap(1)])
+		Xcm(vec![
+			UniversalOrigin(Local::get().into()),
+			DescendOrigin(Parachain(1).into()),
+			Trap(1),
+		]),
 	)];
 	assert_eq!(take_received_remote_messages(), expected);
 }
@@ -86,7 +93,11 @@ fn sending_to_relay_chain_of_bridged_chain_works() {
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parent.into(),
-		Xcm(vec![UniversalOrigin(Local::get().into()), DescendOrigin(Parachain(1).into()),Trap(1)])
+		Xcm(vec![
+			UniversalOrigin(Local::get().into()),
+			DescendOrigin(Parachain(1).into()),
+			Trap(1),
+		]),
 	)];
 	assert_eq!(take_received_remote_messages(), expected);
 }

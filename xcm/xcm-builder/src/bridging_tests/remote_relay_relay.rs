@@ -18,8 +18,8 @@
 //! another relay-chain. The destination of the XCM is within the global consensus of the
 //! remote side of the bridge.
 
-use crate::mock::*;
 use super::*;
+use crate::mock::*;
 
 parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1000));
@@ -31,16 +31,11 @@ parameter_types! {
 type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
 type RelayExporter = HaulBlobExporter<TheBridge, Remote>;
-type LocalInnerRouter = UnpaidExecutingRouter<UniversalLocation, RelayUniversalLocation, RelayExporter>;
-type LocalBridgeRouter = UnpaidRemoteExporter<
-	NetworkExportTable<BridgeTable>,
-	LocalInnerRouter,
-	UniversalLocation,
->;
-type LocalRouter = (
-	LocalInnerRouter,
-	LocalBridgeRouter,
-);
+type LocalInnerRouter =
+	UnpaidExecutingRouter<UniversalLocation, RelayUniversalLocation, RelayExporter>;
+type LocalBridgeRouter =
+	UnpaidRemoteExporter<NetworkExportTable<BridgeTable>, LocalInnerRouter, UniversalLocation>;
+type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 
 ///  local                                  |                                      remote
 ///                                         |
@@ -86,8 +81,8 @@ fn sending_to_parachain_of_bridged_chain_works() {
 		Xcm(vec![
 			UniversalOrigin(Local::get().into()),
 			DescendOrigin(Parachain(1000).into()),
-			Trap(1)
-		])
+			Trap(1),
+		]),
 	)];
 	assert_eq!(take_received_remote_messages(), expected);
 }

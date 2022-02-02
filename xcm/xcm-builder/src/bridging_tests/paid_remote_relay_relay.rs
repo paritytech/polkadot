@@ -21,8 +21,8 @@
 //! The Relay-chain here requires payment by the parachain for use of the bridge. This is expressed
 //! under the standard XCM weight and the weight pricing.
 
-use crate::mock::*;
 use super::*;
+use crate::mock::*;
 
 parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(100));
@@ -40,10 +40,7 @@ type LocalBridgeRouter = SovereignPaidRemoteExporter<
 	LocalInnerRouter,
 	UniversalLocation,
 >;
-type LocalRouter = (
-	LocalInnerRouter,
-	LocalBridgeRouter,
-);
+type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 
 ///  local                                  |                                      remote
 ///                                         |
@@ -112,7 +109,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 			UniversalOrigin(Local::get().into()),
 			DescendOrigin(Parachain(100).into()),
 			Trap(1),
-		])
+		]),
 	)];
 	assert_eq!(take_received_remote_messages(), expected);
 

@@ -56,6 +56,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	let dest = (Parent, Remote::get(), Parachain(1000));
 	assert_eq!(Router::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
-	let expected = vec![(Parachain(1000).into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]))];
+	let expected =
+		vec![(Parachain(1000).into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]))];
 	assert_eq!(take_received_remote_messages(), expected);
 }

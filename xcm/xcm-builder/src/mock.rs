@@ -136,11 +136,13 @@ impl ExportXcm for TestMessageExporter {
 		dest: impl Into<InteriorMultiLocation>,
 		msg: opaque::Xcm,
 	) -> SendResult {
-		EXPORTER_OVERRIDE.with(|e| if let Some(ref f) = &*e.borrow() {
-			f(network, channel, dest.into(), msg)
-		} else {
-			EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest.into(), msg)));
-			Ok(())
+		EXPORTER_OVERRIDE.with(|e| {
+			if let Some(ref f) = &*e.borrow() {
+				f(network, channel, dest.into(), msg)
+			} else {
+				EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest.into(), msg)));
+				Ok(())
+			}
 		})
 	}
 }
