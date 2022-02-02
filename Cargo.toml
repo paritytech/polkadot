@@ -176,6 +176,3 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"
-
-[patch.crates-io]
-parity-db = { git = "https://github.com/paritytech/parity-db", branch = "master" }
