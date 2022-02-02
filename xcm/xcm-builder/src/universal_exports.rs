@@ -359,26 +359,97 @@ mod tests {
 		REMOTE_INCOMING_XCM.with(|r| r.replace(vec![]))
 	}
 
-	parameter_types! {
-		pub Local: NetworkId = ByUri(b"local".to_vec());
-		pub UniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
-		pub Remote1: NetworkId = ByUri(b"remote1".to_vec());
-		pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote1::get()));
+	/// This test is when we're sending an XCM from a relay-chain which hosts a bridge to another
+	/// relay-chain. The destination of the XCM is within the global consensus of the
+	/// remote side of the bridge.
+	mod local_relay_relay {
+		use super::*;
+
+		parameter_types! {
+			pub Local: NetworkId = ByUri(b"local".to_vec());
+			pub UniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
+			pub Remote1: NetworkId = ByUri(b"remote1".to_vec());
+			pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote1::get()));
+		}
+		type TheBridge =
+			TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
+		type Router = LocalUnpaidExporter<HaulBlobExporter<TheBridge, Remote1>, UniversalLocation>;
+
+		#[test]
+		fn sending_to_bridged_chain_works() {
+			let msg = Xcm(vec![Trap(1)]);
+			assert_eq!(Router::send_xcm((Parent, ByUri(b"remote1".to_vec())), msg), Ok(()));
+			assert_eq!(TheBridge::service(), 1);
+			assert_eq!(
+				take_received_remote_messages(),
+				vec![(Here.into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]))]
+			);
+		}
+
+		#[test]
+		fn sending_to_parachain_of_bridged_chain_works() {
+			let dest = (Parent, ByUri(b"remote1".to_vec()), Parachain(1000));
+			assert_eq!(Router::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
+			assert_eq!(TheBridge::service(), 1);
+			let expected = vec![(Parachain(1000).into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]))];
+			assert_eq!(take_received_remote_messages(), expected);
+		}
 	}
 
-	type TheBridge =
-		TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
-	type Router = LocalUnpaidExporter<HaulBlobExporter<TheBridge, Remote1>, UniversalLocation>;
+	/// This test is when we're sending an XCM from a parachain which hosts a bridge to another
+	/// network's bridge parachain. The destination of the XCM is within the global consensus of the
+	/// remote side of the bridge.
+	mod local_para_para {
+		use super::*;
 
-	#[test]
-	fn bridge_works() {
-		let msg = Xcm(vec![Trap(1)]);
-		assert_eq!(Router::send_xcm((Parent, ByUri(b"remote1".to_vec())), msg), Ok(()));
-		assert_eq!(TheBridge::service(), 1);
-		assert_eq!(
-			take_received_remote_messages(),
-			vec![(Here.into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1),]))]
-		);
+		parameter_types! {
+			pub Local: NetworkId = ByUri(b"local".to_vec());
+			pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1));
+			pub Remote1: NetworkId = ByUri(b"remote1".to_vec());
+			pub RemoteUniversalLocation: Junctions = X2(GlobalConsensus(Remote1::get()), Parachain(1));
+		}
+		type TheBridge =
+			TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
+		type Router = LocalUnpaidExporter<HaulBlobExporter<TheBridge, Remote1>, UniversalLocation>;
+
+		#[test]
+		fn sending_to_bridged_chain_works() {
+			let msg = Xcm(vec![Trap(1)]);
+			assert_eq!(Router::send_xcm((Parent, Parent, ByUri(b"remote1".to_vec()), Parachain(1)), msg), Ok(()));
+			assert_eq!(TheBridge::service(), 1);
+			assert_eq!(
+				take_received_remote_messages(),
+				vec![(Here.into(), Xcm(vec![
+					UniversalOrigin(Local::get().into()),
+					DescendOrigin(Parachain(1).into()),
+					Trap(1),
+				]))]
+			);
+		}
+
+		#[test]
+		fn sending_to_parachain_of_bridged_chain_works() {
+			let dest = (Parent, Parent, ByUri(b"remote1".to_vec()), Parachain(1000));
+			assert_eq!(Router::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
+			assert_eq!(TheBridge::service(), 1);
+			let expected = vec![(
+				(Parent, Parachain(1000)).into(),
+				Xcm(vec![UniversalOrigin(Local::get().into()), DescendOrigin(Parachain(1).into()),Trap(1)])
+			)];
+			assert_eq!(take_received_remote_messages(), expected);
+		}
+
+		#[test]
+		fn sending_to_relay_chain_of_bridged_chain_works() {
+			let dest = (Parent, Parent, ByUri(b"remote1".to_vec()));
+			assert_eq!(Router::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
+			assert_eq!(TheBridge::service(), 1);
+			let expected = vec![(
+				Parent.into(),
+				Xcm(vec![UniversalOrigin(Local::get().into()), DescendOrigin(Parachain(1).into()),Trap(1)])
+			)];
+			assert_eq!(take_received_remote_messages(), expected);
+		}
 	}
 
 	#[test]
