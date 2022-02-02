@@ -5600,7 +5600,7 @@ dependencies = [
 [[package]]
 name = "parity-db"
 version = "0.3.5"
-source = "git+https://github.com/cheme/parity-db?branch=eb#f80b78a84c1c5552bf43396a11a087895a7ae85e"
+source = "git+https://github.com/paritytech/parity-db?branch=master#3b9e57772c3f94353c2f3806bab25e9dfe3e70cf"
 dependencies = [
  "blake2-rfc",
  "crc32fast",
@@ -6686,14 +6686,12 @@ dependencies = [
  "kvdb",
  "kvdb-shared-tests",
  "lazy_static",
- "linked-hash-map",
  "log",
  "lru 0.7.2",
  "metered-channel",
  "parity-db",
  "parity-scale-codec",
  "parity-util-mem",
- "parking_lot",
  "pin-project 1.0.10",
  "polkadot-node-jaeger",
  "polkadot-node-metrics",
@@ -11161,8 +11159,8 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 0.1.10",
- "rand 0.7.3",
+ "cfg-if 1.0.0",
+ "rand 0.8.4",
  "static_assertions",
 ]
 
