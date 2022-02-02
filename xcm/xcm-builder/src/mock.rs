@@ -38,7 +38,7 @@ pub use sp_std::{
 pub use xcm::latest::prelude::*;
 pub use xcm_executor::{
 	traits::{
-		ConvertOrigin, ExportXcm, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset,
+		ConvertOrigin, ExportXcm, FilterAssetLocation, UniversalLocation, OnResponse, TransactAsset,
 	},
 	Assets, Config,
 };

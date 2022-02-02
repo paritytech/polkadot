@@ -30,7 +30,7 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, InvertLocation,
+	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, UniversalLocation,
 	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
@@ -313,8 +313,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
-				let ancestry = Config::LocationInverter::universal_location().into();
-				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
+				let context = Config::LocationInverter::universal_location().into();
+				assets.reanchor(&dest, &context).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
@@ -628,8 +628,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		dest: &MultiLocation,
 		maybe_failed_bin: Option<&mut Assets>,
 	) -> MultiAssets {
-		let ancestry = Config::LocationInverter::universal_location().into();
-		assets.reanchor(dest, &ancestry, maybe_failed_bin);
+		let context = Config::LocationInverter::universal_location().into();
+		assets.reanchor(dest, &context, maybe_failed_bin);
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 }

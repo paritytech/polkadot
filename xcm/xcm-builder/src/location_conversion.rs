@@ -20,7 +20,7 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, InvertLocation};
+use xcm_executor::traits::{Convert, UniversalLocation};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
@@ -147,7 +147,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
-/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted
+/// Simple location inverter; give it this location's context and it'll figure out the inverted
 /// location.
 ///
 /// # Example
@@ -162,7 +162,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// # use frame_support::parameter_types;
 /// # use xcm::latest::prelude::*;
 /// # use xcm_builder::LocationInverter;
-/// # use xcm_executor::traits::InvertLocation;
+/// # use xcm_executor::traits::UniversalLocation;
 /// # fn main() {
 /// parameter_types!{
 ///     pub Ancestry: InteriorMultiLocation = X2(
@@ -180,7 +180,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// # }
 /// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
-impl<Ancestry: Get<InteriorMultiLocation>> InvertLocation for LocationInverter<Ancestry> {
+impl<Ancestry: Get<InteriorMultiLocation>> UniversalLocation for LocationInverter<Ancestry> {
 	fn universal_location() -> InteriorMultiLocation {
 		Ancestry::get()
 	}
@@ -210,7 +210,7 @@ mod tests {
 	// Inputs and outputs written as file paths:
 	//
 	// input location (source to target): ../../../para_2/account32_default
-	// ancestry (root to source): para_1/account20_default/account20_default
+	// context (root to source): para_1/account20_default/account20_default
 	// =>
 	// output (target to source): ../../para_1/account20_default/account20_default
 	#[test]
@@ -229,7 +229,7 @@ mod tests {
 	// Relay -> Para 1 -> SmartContract -> Account
 	//          ^ Target
 	#[test]
-	fn inverter_uses_ancestry_as_inverted_location() {
+	fn inverter_uses_context_as_inverted_location() {
 		parameter_types! {
 			pub Ancestry: InteriorMultiLocation = X2(account20(), account20());
 		}
@@ -244,7 +244,7 @@ mod tests {
 	// Relay -> Para 1 -> CollectivePallet -> Plurality
 	//          ^ Target
 	#[test]
-	fn inverter_uses_only_child_on_missing_ancestry() {
+	fn inverter_uses_only_child_on_missing_context() {
 		parameter_types! {
 			pub Ancestry: InteriorMultiLocation = X1(PalletInstance(5));
 		}

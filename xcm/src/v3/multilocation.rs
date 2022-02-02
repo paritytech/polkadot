@@ -374,20 +374,20 @@ impl MultiLocation {
 	}
 
 	/// Mutate `self` so that it represents the same location from the point of view of `target`.
-	/// The context of `self` is provided as `ancestry`.
+	/// The context of `self` is provided as `context`.
 	///
 	/// Does not modify `self` in case of overflow.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
 		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
 
-		// 1. Use our `ancestry` to figure out how the `target` would address us.
-		let inverted_target = ancestry.inverted(target)?;
+		// 1. Use our `context` to figure out how the `target` would address us.
+		let inverted_target = context.inverted(target)?;
 
 		// 2. Prepend `inverted_target` to `self` to get self's location from the perspective of
 		// `target`.
 		self.prepend_with(inverted_target).map_err(|_| ())?;
 
-		// 3. Given that we know some of `target` ancestry, ensure that any parents in `self` are
+		// 3. Given that we know some of `target` context, ensure that any parents in `self` are
 		// strictly needed.
 		self.simplify(target.interior());
 
@@ -395,11 +395,11 @@ impl MultiLocation {
 	}
 
 	/// Consume `self` and return a new value representing the same location from the point of view
-	/// of `target`. The context of `self` is provided as `ancestry`.
+	/// of `target`. The context of `self` is provided as `context`.
 	///
 	/// Returns the original `self` in case of overflow.
-	pub fn reanchored(mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<Self, Self> {
-		match self.reanchor(target, ancestry) {
+	pub fn reanchored(mut self, target: &MultiLocation, context: &MultiLocation) -> Result<Self, Self> {
+		match self.reanchor(target, context) {
 			Ok(()) => Ok(self),
 			Err(()) => Err(self),
 		}
@@ -408,11 +408,11 @@ impl MultiLocation {
 	/// Treating `self` as a context, determine how it would be referenced by a `target` location.
 	pub fn inverted(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
 		use Junction::OnlyChild;
-		let mut ancestry = self.clone();
+		let mut context = self.clone();
 		let mut junctions = Junctions::Here;
 		for _ in 0..target.parent_count() {
 			junctions = junctions
-				.pushed_front_with(ancestry.interior.take_last().unwrap_or(OnlyChild))
+				.pushed_front_with(context.interior.take_last().unwrap_or(OnlyChild))
 				.map_err(|_| ())?;
 		}
 		let parents = target.interior().len() as u8;
@@ -507,16 +507,16 @@ mod tests {
 
 	#[test]
 	fn inverted_works() {
-		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42)).into();
+		let context: MultiLocation = (Parachain(1000), PalletInstance(42)).into();
 		let target = (Parent, PalletInstance(69)).into();
 		let expected = (Parent, PalletInstance(42)).into();
-		let inverted = ancestry.inverted(&target).unwrap();
+		let inverted = context.inverted(&target).unwrap();
 		assert_eq!(inverted, expected);
 
-		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let context: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
 		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
 		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
-		let inverted = ancestry.inverted(&target).unwrap();
+		let inverted = context.inverted(&target).unwrap();
 		assert_eq!(inverted, expected);
 	}
 
@@ -571,10 +571,10 @@ mod tests {
 	#[test]
 	fn reanchor_works() {
 		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
-		let ancestry = Parachain(2000).into();
+		let context = Parachain(2000).into();
 		let target = (Parent, Parachain(1000)).into();
 		let expected = GeneralIndex(42).into();
-		id.reanchor(&target, &ancestry).unwrap();
+		id.reanchor(&target, &context).unwrap();
 		assert_eq!(id, expected);
 	}
 

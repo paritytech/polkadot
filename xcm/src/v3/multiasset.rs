@@ -78,10 +78,10 @@ impl AssetId {
 	}
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
-	/// location. The local chain's location is provided in `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+	/// location. The local chain's location is provided in `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
-			l.reanchor(target, ancestry)?;
+			l.reanchor(target, context)?;
 		}
 		Ok(())
 	}
@@ -143,19 +143,19 @@ impl MultiAsset {
 	}
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
-		self.id.reanchor(target, ancestry)
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+		self.id.reanchor(target, context)
 	}
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `ancestry`.
+	/// relative to a `target` context. The local context is provided as `context`.
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		ancestry: &MultiLocation,
+		context: &MultiLocation,
 	) -> Result<Self, ()> {
-		self.id.reanchor(target, ancestry)?;
+		self.id.reanchor(target, context)?;
 		Ok(self)
 	}
 
@@ -334,9 +334,9 @@ impl MultiAssets {
 	}
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
-		self.0.iter_mut().try_for_each(|i| i.reanchor(target, ancestry))
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context))
 	}
 
 	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
@@ -413,12 +413,12 @@ impl WildMultiAsset {
 	}
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
-	/// location. The local chain's location is provided in `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+	/// location. The local chain's location is provided in `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
-				id.reanchor(target, ancestry),
+				id.reanchor(target, context),
 			All | AllCounted(_) => Ok(()),
 		}
 	}
@@ -498,11 +498,11 @@ impl MultiAssetFilter {
 	}
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
 		match self {
-			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, ancestry),
-			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, ancestry),
+			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, context),
+			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, context),
 		}
 	}
 

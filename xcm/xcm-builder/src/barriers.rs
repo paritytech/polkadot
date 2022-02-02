@@ -108,7 +108,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 /// this.
 ///
 /// E.g.
-/// ```
+/// ```nocompile
 /// type MyBarrier = (
 /// 	TakeWeightCredit,
 /// 	AllowTopLevelPaidExecutionFrom<DirectCustomerLocations>,

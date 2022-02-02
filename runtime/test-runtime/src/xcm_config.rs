@@ -22,7 +22,7 @@ use frame_support::{
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
-	traits::{InvertLocation, TransactAsset, WeightTrader},
+	traits::{UniversalLocation, TransactAsset, WeightTrader},
 	Assets,
 };
 
@@ -72,7 +72,7 @@ impl WeightTrader for DummyWeightTrader {
 }
 
 pub struct InvertNothing;
-impl InvertLocation for InvertNothing {
+impl UniversalLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
 		Ok(Here.into())
 	}

@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Traits and utilities to help with origin mutation and bridging.
+
 use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
 use parity_scale_codec::{Encode, Decode};
 use frame_support::{traits::Get, ensure};
@@ -267,7 +269,6 @@ pub enum DispatchBlobError {
 }
 
 // TODO:: Rename ancestry -> context
-// TODO:: Rename InvertLocation -> UniversalLocation
 
 pub struct BridgeBlobDispatcher<Router, OurPlace>(PhantomData<(Router, OurPlace)>);
 impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob for BridgeBlobDispatcher<Router, OurPlace> {
@@ -327,7 +328,7 @@ mod tests {
 	struct TestBridge<D>(PhantomData<D>);
 	impl<D: DispatchBlob> TestBridge<D> {
 		fn service() -> u64 {
-			BRIDGE_TRAFFIC.with(|t| t.borrow_mut().drain(..).map(D::dispatch_blob).sum())
+			BRIDGE_TRAFFIC.with(|t| t.borrow_mut().drain(..).map(|b| D::dispatch_blob(b).unwrap_or(0)).sum())
 		}
 	}
 	impl<D: DispatchBlob> HaulBlob for TestBridge<D> {
@@ -349,14 +350,14 @@ mod tests {
 	}
 
 	fn take_received_remote_messages() -> Vec<(MultiLocation, Xcm<()>)> {
-		REMOTE_INCOMING_XCM.with(|r| core::mem::replace(r.borrow_mut(), vec![]))
+		REMOTE_INCOMING_XCM.with(|r| r.replace(vec![]))
 	}
 
 	parameter_types! {
-		pub const LocalLocation: Junctions = X1(GlobalConsensus(ByUri(b"local".to_vec())));
+		pub LocalLocation: Junctions = X1(GlobalConsensus(ByUri(b"local".to_vec())));
 	}
 	parameter_types! {
-		pub const Remote1: NetworkId = ByUri(b"remote1".to_vec());
+		pub Remote1: NetworkId = ByUri(b"remote1".to_vec());
 	}
 
 	type Router = LocalUnpaidExporter<
@@ -371,6 +372,12 @@ mod tests {
 
 	#[test]
 	fn bridge_works() {
+		let msg = Xcm(vec![Instruction::Trap(1)]);
+		assert_eq!(
+			Router::send_xcm(GlobalConsensus(ByUri(b"remote1".to_vec())), msg.clone()),
+			Ok(()),
+		);
+		assert_eq!(take_received_remote_messages(), vec![(Here.into(), msg)]);
 	}
 
 	#[test]

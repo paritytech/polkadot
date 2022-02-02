@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, InvertLocation,
+	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, UniversalLocation,
 	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
@@ -46,7 +46,7 @@ pub trait Config {
 	type IsTeleporter: FilterAssetLocation;
 
 	/// Means of inverting a location.
-	type LocationInverter: InvertLocation;
+	type LocationInverter: UniversalLocation;
 
 	/// Whether we should execute the given XCM at all.
 	type Barrier: ShouldExecute;

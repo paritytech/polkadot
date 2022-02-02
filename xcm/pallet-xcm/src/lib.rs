@@ -57,7 +57,7 @@ pub mod pallet {
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 	use xcm_executor::{
 		traits::{
-			ClaimAssets, DropAssets, InvertLocation, OnResponse, VersionChangeNotifier,
+			ClaimAssets, DropAssets, UniversalLocation, OnResponse, VersionChangeNotifier,
 			WeightBounds,
 		},
 		Assets,
@@ -108,7 +108,7 @@ pub mod pallet {
 		type Weigher: WeightBounds<<Self as SysConfig>::Call>;
 
 		/// Means of inverting a location.
-		type LocationInverter: InvertLocation;
+		type LocationInverter: UniversalLocation;
 
 		/// The outer `Origin` type.
 		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;

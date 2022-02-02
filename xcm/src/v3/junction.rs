@@ -125,7 +125,7 @@ pub enum Junction {
 	GeneralKey(Vec<u8>),
 	/// The unambiguous child.
 	///
-	/// Not currently used except as a fallback when deriving ancestry.
+	/// Not currently used except as a fallback when deriving context.
 	OnlyChild,
 	/// A pluralistic body existing within consensus.
 	///
