@@ -2010,58 +2010,6 @@ fn stagnant_makes_childless_parent_leaf() {
 }
 
 #[test]
-fn chain_should_revert_when_less_than_34_of_validators_vote_for_a_block_in_a_dispute() {
-	test_harness(|backend, clock, mut virtual_overseer| async move {
-		let finalized_number = 0;
-		let finalized_hash = Hash::repeat_byte(0);
-
-		// F <- A1 <- A2
-
-		let (a1_hash, chain_a) =
-			construct_chain_on_base(vec![1], finalized_number, finalized_hash, |h| {
-				salt_header(h, b"a");
-			});
-
-		let (a2_hash, chain_a_ext) = construct_chain_on_base(vec![1], 1, a1_hash, |h| {
-			salt_header(h, b"a");
-		});
-
-		import_chains_into_empty(
-			&mut virtual_overseer,
-			&backend,
-			finalized_number,
-			finalized_hash,
-			vec![chain_a.clone()],
-		)
-			.await;
-
-		clock.inc_by(1);
-
-		import_blocks_into(&mut virtual_overseer, &backend, None, chain_a_ext.clone()).await;
-
-		{
-			let (_, write_rx) = backend.await_next_write();
-			clock.inc_by(STAGNANT_TIMEOUT - 1);
-
-			write_rx.await.unwrap();
-		}
-
-		backend.assert_stagnant_at_state(vec![(STAGNANT_TIMEOUT + 1, vec![a2_hash])]);
-
-		approve_block(&mut virtual_overseer, &backend, a1_hash).await;
-
-		assert_matches!(
-			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
-			Approval::Approved
-		);
-
-		assert_leaves(&backend, vec![a2_hash]);
-
-		virtual_overseer
-	})
-}
-
-#[test]
 fn temp_debug_reverts() {
 	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
