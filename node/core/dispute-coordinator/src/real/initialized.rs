@@ -859,7 +859,7 @@ impl Initialized {
 						ValidDisputeStatementKind::Explicit => {
 							is_approval_import = false;
 							is_backing_import = false;
-						}
+						},
 					}
 
 					insert_into_statement_vec(
