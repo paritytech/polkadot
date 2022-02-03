@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -270,4 +270,8 @@ disable-runtime-api = []
 on-chain-release-build = [
 	"sp-api/disable-logging",
 ]
+
+# Set timing constants (e.g. session period) to faster versions to speed up testing.
+fast-runtime = []
+
 runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]

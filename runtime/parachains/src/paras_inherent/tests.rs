@@ -19,10 +19,14 @@ use super::*;
 // In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
 // that uses 0 for all the weights. Because all the weights are 0, the tests that rely on
 // weights for limiting data will fail, so we don't run them when using the benchmark feature.
-//#[cfg(not(feature = "runtime-benchmarks"))]
+#[cfg(not(feature = "runtime-benchmarks"))]
 mod enter {
 	use super::*;
-	use crate::{builder::{Bench, BenchBuilder}, disputes, mock::{new_test_ext, MockGenesisConfig, Test}};
+	use crate::{
+		builder::{Bench, BenchBuilder},
+		mock::{new_test_ext, MockGenesisConfig, Test},
+	};
+	use assert_matches::assert_matches;
 	use frame_support::assert_ok;
 	use crate::configuration::HostConfiguration;
 	use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
@@ -36,7 +40,6 @@ mod enter {
 		code_upgrade: Option<u32>,
 	}
 
-	// TODO: extend this function
 	fn make_inherent_data(
 		TestConfig {
 			dispute_statements,
@@ -46,7 +49,6 @@ mod enter {
 			code_upgrade,
 		}: TestConfig,
 	) -> Bench<Test> {
-		// Set distpute statements inside the bench builds
 		let builder = BenchBuilder::<Test>::new()
 			.set_max_validators(
 				(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
@@ -127,6 +129,115 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				2
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
+		});
+	}
+
+	#[test]
+	fn test_session_is_tracked_in_on_chain_scraping() {
+		use crate::disputes::run_to_block;
+		use primitives::v1::{
+			DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+			InvalidDisputeStatementKind, ValidDisputeStatementKind,
+		};
+		use sp_core::{crypto::CryptoType, Pair};
+
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(6, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let generate_votes = |session: u32, candidate_hash: CandidateHash| {
+				// v0 votes for 3
+				vec![DisputeStatementSet {
+					candidate_hash: candidate_hash.clone(),
+					session,
+					statements: vec![
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							v0.sign(
+								&ExplicitDisputeStatement {
+									valid: false,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
+							),
+						),
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(1),
+							v1.sign(
+								&ExplicitDisputeStatement {
+									valid: false,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
+							),
+						),
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(1),
+							v1.sign(
+								&ExplicitDisputeStatement {
+									valid: true,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
+							),
+						),
+					],
+				}]
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect::<Vec<CheckedDisputeStatementSet>>()
+			};
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+			let statements = generate_votes(3, candidate_hash.clone());
+			set_scrapable_on_chain_disputes::<Test>(3, statements);
+			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
+				session,
+				..
+			} ) => {
+				assert_eq!(session, 3);
+			});
+			run_to_block(7, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(2));
+			let statements = generate_votes(7, candidate_hash.clone());
+			set_scrapable_on_chain_disputes::<Test>(7, statements);
+			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
+				session,
+				..
+			} ) => {
+				assert_eq!(session, 7);
+			});
 		});
 	}
 
@@ -194,6 +305,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -258,6 +375,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -296,10 +419,13 @@ mod enter {
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(e) => { dbg!(e) });
+
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -376,6 +502,12 @@ mod enter {
 				// all of our candidates got filtered out
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0,
+			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
 			);
 		});
 	}
@@ -680,30 +812,26 @@ mod enter {
 				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
 				.unwrap();
 
-			// !Make sure nothing scheduled
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			// Enter function executes the block
 			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(e) => {
+				dbg!(e)
+			});
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know
-				// all of our candidates got filtered out
-				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
-				0,
-			);
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
 	#[test]
-	// Ensure that when a block is over weight due to disputes and bitfields, the bitfields are
+	// Ensure an overweight block with an excess amount of disputes and bitfields, the bitfields are
 	// filtered to accommodate the block size and no backed candidates are included.
-	fn limit_bitfields() {
+	fn limit_bitfields_some() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let mut dispute_statements = BTreeMap::new();
@@ -746,7 +874,12 @@ mod enter {
 			// Nothing is filtered out (including the backed candidates.)
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert_ne!(limit_inherent_data, expected_para_inherent_data);
+			assert!(
+				inherent_data_weight(&limit_inherent_data) <=
+					inherent_data_weight(&expected_para_inherent_data)
+			);
+			assert!(inherent_data_weight(&limit_inherent_data) <= max_block_weight());
 
 			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
@@ -774,6 +907,12 @@ mod enter {
 				// all of our candidates got filtered out
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0,
+			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
 			);
 		});
 	}
@@ -820,18 +959,47 @@ mod enter {
 			// The current schedule is empty prior to calling `create_inherent_enter`.
 			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(_e) => {
+				/* TODO */
+			});
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know
-				// all of our candidates got filtered out
-				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
-				0,
-			);
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
+	}
+
+	fn max_block_weight() -> Weight {
+		<Test as frame_system::Config>::BlockWeights::get().max_block
+	}
+
+	fn inherent_data_weight(inherent_data: &ParachainsInherentData) -> Weight {
+		use thousands::Separable;
+
+		let multi_dispute_statement_sets_weight =
+			multi_dispute_statement_sets_weight::<Test, _, _>(&inherent_data.disputes);
+		let signed_bitfields_weight =
+			signed_bitfields_weight::<Test>(inherent_data.bitfields.len());
+		let backed_candidates_weight =
+			backed_candidates_weight::<Test>(&inherent_data.backed_candidates);
+
+		let sum = multi_dispute_statement_sets_weight +
+			signed_bitfields_weight +
+			backed_candidates_weight;
+
+		println!(
+			"disputes({})={} + bitfields({})={} + candidates({})={} -> {}",
+			inherent_data.disputes.len(),
+			multi_dispute_statement_sets_weight.separate_with_underscores(),
+			inherent_data.bitfields.len(),
+			signed_bitfields_weight.separate_with_underscores(),
+			inherent_data.backed_candidates.len(),
+			backed_candidates_weight.separate_with_underscores(),
+			sum.separate_with_underscores()
+		);
+		sum
 	}
 
 	#[test]
@@ -860,6 +1028,7 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
+			assert!(max_block_weight() < inherent_data_weight(&expected_para_inherent_data));
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
@@ -877,6 +1046,12 @@ mod enter {
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert!(
+				max_block_weight() >= inherent_data_weight(&limit_inherent_data),
+				"Post limiting exceeded block weight: max={} vs. inherent={}",
+				max_block_weight(),
+				inherent_data_weight(&limit_inherent_data)
+			);
 
 			// * 1 bitfields
 			assert_eq!(limit_inherent_data.bitfields.len(), 25);
@@ -898,6 +1073,12 @@ mod enter {
 				// backed candidates did not get filtered out
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				1
+			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
 			);
 		});
 	}
@@ -937,17 +1118,13 @@ mod enter {
 			// * 3 disputes.
 			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
 
-			assert_ok!(Pallet::<Test>::enter(
+			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
-			));
+			), Err(e) => { dbg!(e) });
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know our 2
-				// backed candidates did not get filtered out
-				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
-				0
-			);
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
 	}
 }

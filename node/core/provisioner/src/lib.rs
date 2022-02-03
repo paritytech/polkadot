@@ -623,7 +623,7 @@ async fn request_votes(
 	}
 }
 
-/// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and  additions of recent.
+/// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and additions of recent.
 fn extend_by_random_subset_without_repetition(
 	acc: &mut Vec<(SessionIndex, CandidateHash)>,
 	extension: Vec<(SessionIndex, CandidateHash)>,
@@ -655,7 +655,7 @@ async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
-	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
+	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute

@@ -147,15 +147,21 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Mock header.
 	pub(crate) fn header(block_number: T::BlockNumber) -> T::Header {
-		let header = T::Header::new(
+		T::Header::new(
 			block_number,       // `block_number`,
 			Default::default(), // `extrinsics_root`,
 			Default::default(), // `storage_root`,
 			Default::default(), // `parent_hash`,
 			Default::default(), // digest,
-		);
+		)
+	}
 
-		header
+	/// Number of the relay parent block.
+	fn relay_parent_number(&self) -> u32 {
+		(self.block_number - One::one())
+			.try_into()
+			.map_err(|_| ())
+			.expect("self.block_number is u32")
 	}
 
 	/// Maximum number of validators that may be part of a validator group.
@@ -380,7 +386,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		last: u32,
 		dispute_sessions: impl AsRef<[u32]>,
 	) -> Vec<DisputeStatementSet> {
-		// start is equal to backed_and_concluding len
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 
@@ -400,7 +405,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					para_id,
 					core_idx,
 					group_idx,
-					// That's where we set the vote, (all votes yes). This is related to availability
 					Self::validator_availability_votes_yes(validators.len()),
 					candidate_hash,
 				);

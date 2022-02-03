@@ -147,7 +147,9 @@ where
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
 			SessionInfo(_relay_parent, session_index, info) =>
-				self.requests_cache.cache_session_info(session_index, info),
+				if let Some(info) = info {
+					self.requests_cache.cache_session_info(session_index, info);
+				},
 			DmqContents(relay_parent, para_id, messages) =>
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
 			InboundHrmpChannelsContents(relay_parent, para_id, contents) => self
@@ -235,8 +237,15 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
-			Request::SessionInfo(index, sender) => query!(session_info(index), sender)
-				.map(|sender| Request::SessionInfo(index, sender)),
+			Request::SessionInfo(index, sender) => {
+				if let Some(info) = self.requests_cache.session_info(index) {
+					self.metrics.on_cached_request();
+					let _ = sender.send(Ok(Some(info.clone())));
+					None
+				} else {
+					Some(Request::SessionInfo(index, sender))
+				}
+			},
 			Request::DmqContents(id, sender) =>
 				query!(dmq_contents(id), sender).map(|sender| Request::DmqContents(id, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>

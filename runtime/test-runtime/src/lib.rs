@@ -309,9 +309,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub storage SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub storage BondingDuration: pallet_staking::EraIndex = 28;
+	pub storage BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
-	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub storage SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -324,7 +324,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 = 16;
+	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -549,6 +549,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
+	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
 impl parachains_scheduler::Config for Runtime {}
