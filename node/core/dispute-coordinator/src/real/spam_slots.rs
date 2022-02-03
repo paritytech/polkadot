@@ -97,21 +97,17 @@ impl SpamSlots {
 		}
 		let validators = self.unconfirmed.entry((session, candidate)).or_default();
 
-		// We don't want to increase spam count for multiple votes on the same candidate - see
-		// below.
-		// This kind of spam does not do much harm and should be limited enough already by
-		// networking (dispute-distribution).
 		if validators.insert(validator) {
+			// We only increment spam slots once per candidate, as each validator has to provide an
+			// opposing vote for sending out its own vote. Therefore, receiving multiple votes for
+			// a single candidate is expected and should not get punished here.
 			*c += 1;
 		}
-		// Always true even if validator already voted for that candidate. This is necessary, because
-		// when providing a dispute vote, a validator has to provide an opposing vote - multiple
-		// validators might use the same opposing vote.
 
 		true
 	}
 
-	/// Clear out spam slots for a given candiate in a session.
+	/// Clear out spam slots for a given candidate in a session.
 	///
 	/// This effectively reduces the spam slot count for all validators participating in a dispute
 	/// for that candidate. You should call this function once a dispute became obsolete or got
