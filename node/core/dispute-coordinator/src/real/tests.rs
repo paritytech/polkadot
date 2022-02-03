@@ -78,7 +78,7 @@ use super::db::v1::DbBackend;
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 // sets up a keystore with the given keyring accounts.
-fn make_keystore<'a>(seeds: impl Iterator<Item = String>) -> LocalKeystore {
+fn make_keystore(seeds: impl Iterator<Item = String>) -> LocalKeystore {
 	let store = LocalKeystore::in_memory();
 
 	for s in seeds {
