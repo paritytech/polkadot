@@ -16,27 +16,27 @@ chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default
   
   [[relaychain.nodes]]
   name = "charlie"
-  extra_args = [ "--charlie", "-lparachain=debug" ]
+  extra_args = [ "--charlie", "-lparachain=debug,runtime=debug" ]
 
   [[relaychain.nodes]]
   name = "dave"
-  extra_args = [ "--dave", "-lparachain=debug"]
+  extra_args = [ "--dave", "-lparachain=debug,runtime=debug"]
 
   [[relaychain.nodes]]
   name = "ferdie"
-  extra_args = [ "--ferdie", "-lparachain=debug" ]
+  extra_args = [ "--ferdie", "-lparachain=debug,runtime=debug" ]
 
   [[relaychain.nodes]]
   name = "eve"
-  extra_args = [ "--eve", "-lparachain=debug"]
+  extra_args = [ "--eve", "-lparachain=debug,runtime=debug"]
 
   [[relaychain.nodes]]
   name = "one"
-  extra_args = [ "--one", "-lparachain=debug" ]
+  extra_args = [ "--one", "-lparachain=debug,runtime=debug" ]
 
   [[relaychain.nodes]]
   name = "two"
-  extra_args = [ "--two", "-lparachain=debug"]
+  extra_args = [ "--two", "-lparachain=debug,runtime=debug"]
 
 [[parachains]]
 id = 2000
@@ -118,15 +118,14 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size=1000
 [[parachains]]
 id = 2007
 addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1500"
+genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1100"
 
   [parachains.collator]
   name = "collator08"
   image = "{{COL_IMAGE}}"
   command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=1500", "--parachain-id=2007"]
+  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=1100", "--parachain-id=2007"]
 
-# TODO: This should not be in here, maybe have a separate file that is included by default ?
 [types.Header]
 number = "u64"
 parent_hash = "Hash"
