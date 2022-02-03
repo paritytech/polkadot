@@ -120,8 +120,7 @@ pub fn open_creating_rocksdb(
 }
 
 #[cfg(feature = "full-node")]
-pub fn exists_rocksdb_db(root: PathBuf) -> bool {
-	let path = root.join("parachains").join("db");
+pub fn exists_directory(path: PathBuf) -> bool {
 	match std::fs::metadata(path) {
 		Ok(meta) => meta.is_dir(),
 		Err(_) => false,

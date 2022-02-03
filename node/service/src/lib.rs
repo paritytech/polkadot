@@ -861,14 +861,14 @@ where
 			crate::parachains_db::CacheSizes::default(),
 		)?,
 		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
-			if crate::parachains_db::exists_rocksdb_db(rocksdb_path.clone()) {
-				crate::parachains_db::open_creating_rocksdb(
-					rocksdb_path.clone(),
+			if crate::parachains_db::exists_directory(paritydb_path.clone()) {
+				crate::parachains_db::open_creating(
+					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 					crate::parachains_db::CacheSizes::default(),
 				)?
 			} else {
-				crate::parachains_db::open_creating(
-					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+				crate::parachains_db::open_creating_rocksdb(
+					rocksdb_path.clone(),
 					crate::parachains_db::CacheSizes::default(),
 				)?
 			},
