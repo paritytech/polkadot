@@ -40,7 +40,7 @@ default:
   artifacts:
     name:                          "${CI_JOB_NAME}_${CI_COMMIT_REF_NAME}"
     when:                          on_success
-    expire_in:                     28 days
+    expire_in:                     7 days
     paths:
       - ./artifacts/
 
@@ -361,7 +361,6 @@ build-rustdoc:
 
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
-  <<:                              *vault-secrets
   image:                           quay.io/buildah/stable
   variables:                       &image-variables
     GIT_STRATEGY:                  none
@@ -601,10 +600,8 @@ zombienet-test-parachains-upgrade-smoke-test:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
-
   variables:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains'
-
   before_script:
     - echo "ZombieNet Tests Config"
     - echo "docker.io/parity/polkadot:latest"
@@ -614,7 +611,6 @@ zombienet-test-parachains-upgrade-smoke-test:
     - export DEBUG=zombie,zombie::network-node
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
     - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
-
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"

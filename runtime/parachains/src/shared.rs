@@ -35,6 +35,9 @@ pub use pallet::*;
 // which guarantees that at least one full session has passed before any changes are applied.
 pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
+#[cfg(test)]
+mod tests;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -137,95 +140,5 @@ impl<T: Config> Pallet<T> {
 		assert_eq!(indices.len(), keys.len());
 		ActiveValidatorIndices::<T>::set(indices);
 		ActiveValidatorKeys::<T>::set(keys);
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::{
-		configuration::HostConfiguration,
-		mock::{new_test_ext, MockGenesisConfig, ParasShared},
-	};
-	use keyring::Sr25519Keyring;
-
-	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
-		val_ids.iter().map(|v| v.public().into()).collect()
-	}
-
-	#[test]
-	fn sets_and_shuffles_validators() {
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-		];
-
-		let mut config = HostConfiguration::default();
-		config.max_validators = None;
-
-		let pubkeys = validator_pubkeys(&validators);
-
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
-
-			assert_eq!(
-				validators,
-				validator_pubkeys(&[
-					Sr25519Keyring::Ferdie,
-					Sr25519Keyring::Bob,
-					Sr25519Keyring::Charlie,
-					Sr25519Keyring::Dave,
-					Sr25519Keyring::Alice,
-				])
-			);
-
-			assert_eq!(ParasShared::active_validator_keys(), validators);
-
-			assert_eq!(
-				ParasShared::active_validator_indices(),
-				vec![
-					ValidatorIndex(4),
-					ValidatorIndex(1),
-					ValidatorIndex(2),
-					ValidatorIndex(3),
-					ValidatorIndex(0),
-				]
-			);
-		});
-	}
-
-	#[test]
-	fn sets_truncates_and_shuffles_validators() {
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-		];
-
-		let mut config = HostConfiguration::default();
-		config.max_validators = Some(2);
-
-		let pubkeys = validator_pubkeys(&validators);
-
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
-
-			assert_eq!(
-				validators,
-				validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])
-			);
-
-			assert_eq!(ParasShared::active_validator_keys(), validators);
-
-			assert_eq!(
-				ParasShared::active_validator_indices(),
-				vec![ValidatorIndex(4), ValidatorIndex(1),]
-			);
-		});
 	}
 }
