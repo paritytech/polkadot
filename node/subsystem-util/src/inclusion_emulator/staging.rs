@@ -40,7 +40,7 @@
 
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateCommitments, Id as ParaId, Hash, PersistedValidationData,
-	ValidationCodeHash, HeadData,
+	ValidationCodeHash, HeadData, UpgradeGoAhead, UpgradeRestriction,
 };
 use std::collections::HashMap;
 
@@ -97,14 +97,11 @@ pub struct Constraints {
 	pub required_parent: HeadData,
 	/// The expected validation-code-hash of this parachain.
 	pub validation_code_hash: ValidationCodeHash,
-	/// Whether the go-ahead signal is set as-of this parachain.
-	pub go_ahead: bool, // TODO [now] use nice enums like the runtime.
-	/// Whether a code upgrade is allowed.
-	pub code_upgrade_allowed: bool, // TODO [now] use nice enums like the runtime
+	/// The go-ahead signal as-of this parachain.
+	pub go_ahead: UpgradeGoAhead,
+	/// The code upgrade restriction signal as-of this parachain.
+	pub upgrade_restriction: UpgradeRestriction,
 }
-
-// TODO [now]
-pub struct Error;
 
 /// Information about a relay-chain block.
 #[derive(Debug, Clone, PartialEq)]
