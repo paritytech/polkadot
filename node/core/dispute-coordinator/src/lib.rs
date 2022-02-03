@@ -61,7 +61,6 @@ pub enum DisputeCoordinatorSubsystem {
 impl DisputeCoordinatorSubsystem {
 	/// Create a new dummy instance.
 	pub fn dummy() -> Self {
-		println!("DisputeCoordinatorSubsystem::dummy");
 		DisputeCoordinatorSubsystem::Dummy(dummy::DisputeCoordinatorSubsystem::new())
 	}
 
@@ -72,7 +71,6 @@ impl DisputeCoordinatorSubsystem {
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
 	) -> Self {
-		println!("DisputeCoordinatorSubsystem::new");
 		DisputeCoordinatorSubsystem::Real(real::DisputeCoordinatorSubsystem::new(
 			store, config, keystore, metrics,
 		))

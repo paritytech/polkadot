@@ -47,16 +47,6 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		inclusion::PendingAvailability::<C>::remove_all(None);
 	}
 
-	/// Runs all hooks related to block execution until the target
-	/// block is reached
-	/// Skipping inherent hooks is needed for the bench builder to work.
-	///  TODO: need to explore how not skipping those hooks would affect benchmarks
-	pub fn run_to_block(to: C::BlockNumber, skip_inherent_hooks: bool) {
-		while Self::current_block_number() < to {
-			Self::run_to_next_block(skip_inherent_hooks);
-		}
-	}
-
 	/// Same as BenchBuilder::setup_session, but based off the current block
 	/// to make it possible to trigger multiple sessions during the test
 	/// Skipping inherent hooks is needed for the bench builder to work.
@@ -412,16 +402,6 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 
 	pub fn current_session_index() -> SessionIndex {
 		<shared::Pallet<C>>::session_index()
-	}
-
-	/// Returns the last deposited event
-	pub fn last_event() -> <C as frame_system::Config>::Event {
-		frame_system::Pallet::<C>::events().pop().expect("Event expected").event
-	}
-
-	pub fn assert_last_event(event: <C as frame_system::Config>::Event) {
-		let last_event = Self::last_event();
-		assert_eq!(event, last_event);
 	}
 
 	pub fn assert_last_events(events: Vec<<C as frame_system::Config>::Event>) {

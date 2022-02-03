@@ -468,7 +468,6 @@ mod enter {
 
 			let new_block_seed = 2;
 			let backers_number = 2;
-			let new_block_hash = PalletRunner::<Test>::candidate_hash_from_seed(new_block_seed);
 
 			let mut backed_and_concluding = BTreeMap::new();
 			backed_and_concluding.insert(new_block_seed, backers_number);
@@ -610,7 +609,6 @@ mod enter {
 
 			let parent_header = PalletRunner::<Test>::create_parent_header();
 
-			let disputed_hash = CandidateHash(parent_header.hash());
 			let disputed_hash = PalletRunner::<Test>::candidate_hash_from_seed(1);
 			let disputes = vec![
 				PalletRunner::<Test>::create_unresolved_dispute(disputed_hash.clone())
