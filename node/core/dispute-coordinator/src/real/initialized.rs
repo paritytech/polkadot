@@ -822,15 +822,6 @@ impl Initialized {
 			.find(|(_, index)| controlled_indices.contains(index))
 			.is_some();
 
-		// Whether or not the import is coming from approval checking/backing.
-		// NOTE: Those imports should provide a completely separate API from importing untrusted
-		// dispute votes, not treating them the same would do away with much of the complexity here
-		// and would also improve performance.
-		//
-		// See https://github.com/paritytech/polkadot/issues/4793
-		let mut is_backing_import = true;
-		let mut is_approval_import = true;
-
 		// Update candidate votes.
 		for (statement, val_index) in &statements {
 			if validators
@@ -852,16 +843,6 @@ impl Initialized {
 				DisputeStatement::Valid(valid_kind) => {
 					self.metrics.on_valid_vote();
 
-					match valid_kind {
-						ValidDisputeStatementKind::BackingSeconded(_) => is_approval_import = false,
-						ValidDisputeStatementKind::BackingValid(_) => is_approval_import = false,
-						ValidDisputeStatementKind::ApprovalChecking => is_backing_import = false,
-						ValidDisputeStatementKind::Explicit => {
-							is_approval_import = false;
-							is_backing_import = false;
-						},
-					}
-
 					insert_into_statement_vec(
 						&mut votes.valid,
 						valid_kind,
@@ -871,9 +852,6 @@ impl Initialized {
 				},
 				DisputeStatement::Invalid(invalid_kind) => {
 					self.metrics.on_invalid_vote();
-
-					is_approval_import = false;
-					is_backing_import = false;
 
 					insert_into_statement_vec(
 						&mut votes.invalid,
@@ -894,13 +872,18 @@ impl Initialized {
 			byzantine_threshold(n_validators);
 
 		// Potential spam:
-		if !is_confirmed && !is_backing_import && !is_approval_import {
+		if !is_confirmed {
 			let mut free_spam_slots = true;
-			// Only allow import if all validators of import have not exceeded their spam slots:
-			for (_, index) in statements.iter() {
-				free_spam_slots &= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+			// Only allow import if all validators voting invalid have not exceeded their spam slots:
+			for (statement, index) in statements.iter() {
+				// Disputes can only be triggered via an invalidity stating vote, thus we only
+				// need to increase spam slots on invalid votes. (If we did not, we would also
+				// increase spam slots for backing valdiators for example - as validators have to
+				// provide some opposing vote for dispute-distribution).
+				free_spam_slots &= statement.statement().indicates_validity() ||
+					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
 			}
-			// No reporting validator had a free spam slot:
+			// Only validity stating votes or validator had free spam slot?
 			if !free_spam_slots {
 				tracing::debug!(
 					target: LOG_TARGET,

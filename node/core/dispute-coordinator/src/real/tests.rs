@@ -457,7 +457,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				test_state.issue_backing_statement_with_index(3, candidate_hash1, session).await;
 
 			let invalid_vote2 = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
 				.await;
 
 			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
@@ -513,7 +513,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 						session,
 						statements: vec![
 							(valid_vote2, ValidatorIndex(3)),
-							(invalid_vote2, ValidatorIndex(2)),
+							(invalid_vote2, ValidatorIndex(1)),
 						],
 						pending_confirmation,
 					},
@@ -575,7 +575,7 @@ fn dispute_gets_confirmed_via_participation() {
 				.await;
 
 			let invalid_vote2 = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
 				.await;
 
 			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
@@ -630,7 +630,7 @@ fn dispute_gets_confirmed_via_participation() {
 						session,
 						statements: vec![
 							(valid_vote2, ValidatorIndex(3)),
-							(invalid_vote2, ValidatorIndex(2)),
+							(invalid_vote2, ValidatorIndex(1)),
 						],
 						pending_confirmation,
 					},
@@ -704,7 +704,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 				.await;
 
 			let invalid_vote2 = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
 				.await;
 
 			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
@@ -761,7 +761,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 						session,
 						statements: vec![
 							(valid_vote2, ValidatorIndex(3)),
-							(invalid_vote2, ValidatorIndex(2)),
+							(invalid_vote2, ValidatorIndex(1)),
 						],
 						pending_confirmation,
 					},
