@@ -15,8 +15,29 @@
 //!
 //! This is currently v1, but will evolve to v3.
 // TODO https://github.com/paritytech/polkadot/issues/4803
+//!
+//! A set of utilities for node-side code to emulate the logic the runtime uses for checking
+//! parachain blocks in order to build prospective parachains that are produced ahead of the
+//! relay chain. These utilities allow the node-side to predict, with high accuracy, what
+//! the relay-chain will accept in the near future.
+//!
+//! This module has 2 key data types: [`Constraints`] and [`Fragment`]s. [`Constraints`] exhaustively
+//! define the set of valid inputs and outputs to parachain execution. A [`Fragment`] indicates
+//! a parachain block, anchored to the relay-chain at a particular relay-chain block, known as the
+//! relay-parent.
+//!
+//! Every relay-parent is implicitly associated with a unique set of [`Constraints`] that describe
+//! the properties that must be true for a block to be included in a direct child of that block,
+//! assuming there is no intermediate parachain block pending availability.
+//!
+//! However, the key factor that makes asynchronously-grown prospective chains
+//! possible is the fact that the relay-chain accepts candidate blocks based on whether they
+//! are valid under the constraints of the present moment, not based on whether they were
+//! valid at the time of construction.
+//!
+//! As such, [`Fragment`]s are often, but not always constructed in such a way that they are
+//! invalid at first and become valid later on, as the relay chain grows.
 
-// TODO [now]: document everything and make members public.
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateCommitments, Id as ParaId, Hash, PersistedValidationData,
 	ValidationCodeHash, HeadData,
@@ -96,16 +117,16 @@ pub struct RelayChainBlockInfo {
 	pub storage_root: Hash,
 }
 
-/// An extension to a context, representing another prospective parachain block.
+/// A parachain fragment, representing another prospective parachain block.
 ///
 /// This has two parts: the first is the new relay-parent and its associated limitations,
 /// and the second is information about the advancement of the parachain.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Extension {
+pub struct Fragment {
 	/// The new relay-parent.
 	pub relay_parent: RelayChainBlockInfo,
 	/// The limitations associated with this relay-parent.
-	pub limitations: Constraints,
+	pub relay_parent_constraints: Constraints,
 	/// The advancement of the parachain which is part of the extension.
 	pub advancement: Advancement,
 }
