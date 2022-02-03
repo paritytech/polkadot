@@ -259,12 +259,10 @@ impl MultiLocation {
 	/// # Example
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
-	/// # fn main() {
 	/// let m = MultiLocation::new(1, X3(PalletInstance(3), OnlyChild, OnlyChild));
 	/// assert!(m.starts_with(&MultiLocation::new(1, X1(PalletInstance(3)))));
 	/// assert!(!m.starts_with(&MultiLocation::new(1, X1(GeneralIndex(99)))));
 	/// assert!(!m.starts_with(&MultiLocation::new(0, X1(PalletInstance(3)))));
-	/// # }
 	/// ```
 	pub fn starts_with(&self, prefix: &MultiLocation) -> bool {
 		if self.parents != prefix.parents {
