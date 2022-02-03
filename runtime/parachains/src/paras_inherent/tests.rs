@@ -779,8 +779,8 @@ mod enter {
 	}
 
 	#[test]
-	fn can_finalize_block_with_timed_out_dispute() {
-		// Mark
+	// Ensure that we abort if we encounter an over weight block for disputes + bitfields
+	fn limit_dispute_data_ignore_backed_candidates_overweight() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();

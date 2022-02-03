@@ -46,7 +46,6 @@ use std::{cell::RefCell, collections::HashMap};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-// This is the test runtime
 frame_support::construct_runtime!(
 	pub enum Test where
 		Block = Block,
