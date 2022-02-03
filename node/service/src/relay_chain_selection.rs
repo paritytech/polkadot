@@ -522,11 +522,6 @@ where
 					std::any::type_name::<Self>(),
 				)
 				.await;
-			// This returns that the chain is undisputed or disputes are resolved
-			let (subchain_number, subchain_head) = rx
-				.await
-				.map_err(Error::DetermineUndisputedChainCanceled)
-				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 			// Try to fetch response from `dispute-coordinator`. If an error occurs we just log it
 			// and return `target_hash` as maximal vote. It is safer to contain this error here
