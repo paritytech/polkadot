@@ -47,6 +47,7 @@ mod util;
 mod builder;
 #[cfg(test)]
 mod mock;
+#[cfg(any(feature = "runtime-benchmarks", test))]
 mod runner;
 
 pub use origin::{ensure_parachain, Origin};

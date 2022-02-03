@@ -1,5 +1,5 @@
 use super::*;
-use crate::{builder::BenchBuilder, paras, paras_inherent, session_info};
+use crate::{builder::BenchBuilder, paras, paras_inherent, session_info, initializer};
 use frame_support::pallet_prelude::*;
 use primitives::v0::ValidatorSignature;
 use primitives::v1::{
@@ -33,12 +33,14 @@ fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
 }
 
+/// To use in tests only
+#[cfg(any(feature = "runtime-benchmarks", test))]
 pub struct PalletRunner<T> {
 	pallet_config: PhantomData<T>,
 }
 
-// Note: initializer config aggregates a lot of different pallets configs, as well
-// as frame_system::Config
+/// Note: initializer config aggregates a lot of different pallets configs, as well
+/// as frame_system::Config
 impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunner<C> {
 	pub fn init() {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
