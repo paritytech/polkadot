@@ -22,7 +22,12 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v1::{AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CoreIndex, CoreOccupied, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId, InherentData as ParachainsInherentData, SessionIndex, ValidationCode, ValidatorId, supermajority_threshold};
+use primitives::v1::{
+	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
+	CollatorId, CollatorSignature, CoreIndex, CoreOccupied, DisputeStatementSet, GroupIndex,
+	HeadData, Id as ParaId, InherentData as ParachainsInherentData, SessionIndex, ValidationCode,
+	ValidatorId, supermajority_threshold
+};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
@@ -406,7 +411,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				// TODO: investigate if changing 0 % 4 to supermajority_threshold affects anything
 				let validators_for = supermajority_threshold(statements_len as usize) as u32;
 				let validators_against = statements_len - validators_for;
-				let statements = PalletRunner::<T>::create_dispute_statements(candidate_hash, validators_for, validators_against, dispute_session);
+				let statements = PalletRunner::<T>::create_dispute_statements(
+					candidate_hash, validators_for, validators_against, dispute_session
+				);
 
 				DisputeStatementSet { candidate_hash: candidate_hash.clone(), session: dispute_session, statements }
 			})

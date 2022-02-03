@@ -701,7 +701,6 @@ impl<T: Config> Pallet<T> {
 			};
 
 			for to_prune in to_prune {
-				println!("pruning {}", to_prune);
 				// This should be small, as disputes are rare, so `None` is fine.
 				<Disputes<T>>::remove_prefix(to_prune, None);
 
