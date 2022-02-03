@@ -227,16 +227,6 @@ impl XcmContext {
 	}
 }
 
-#[cfg(test)]
-impl XcmContext {
-	/// Helper function to create a bogus empty context for testing purposes.
-	///
-	/// This function should only be used in cases where the context is sure to be unused.
-	pub fn empty() -> Self {
-		XcmContext { origin: None, message_hash: [0; 32], topic: None }
-	}
-}
-
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.

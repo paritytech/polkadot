@@ -331,7 +331,11 @@ mod tests {
 			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into(), XcmContext::empty()),
+			MultiTransactor::deposit_asset(
+				&(Here, 1).into(),
+				&Here.into(),
+				XcmContext::with_message_hash([0; 32]),
+			),
 			Err(XcmError::AssetNotFound)
 		);
 	}
@@ -341,7 +345,11 @@ mod tests {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into(), XcmContext::empty()),
+			MultiTransactor::deposit_asset(
+				&(Here, 1).into(),
+				&Here.into(),
+				XcmContext::with_message_hash([0; 32]),
+			),
 			Ok(())
 		);
 	}
@@ -351,7 +359,11 @@ mod tests {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into(), XcmContext::empty()),
+			MultiTransactor::deposit_asset(
+				&(Here, 1).into(),
+				&Here.into(),
+				XcmContext::with_message_hash([0; 32]),
+			),
 			Err(XcmError::Overflow)
 		);
 	}
@@ -361,7 +373,11 @@ mod tests {
 		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into(), XcmContext::empty()),
+			MultiTransactor::deposit_asset(
+				&(Here, 1).into(),
+				&Here.into(),
+				XcmContext::with_message_hash([0; 32]),
+			),
 			Ok(()),
 		);
 	}
