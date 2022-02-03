@@ -308,6 +308,13 @@ impl TestCandidateBuilder {
 
 pub(crate) fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
 	let relay_parent_number = <frame_system::Pallet<Test>>::block_number() - 1;
+	make_vdata_hash_with_block_number(para_id, relay_parent_number)
+}
+
+fn make_vdata_hash_with_block_number(
+	para_id: ParaId,
+	relay_parent_number: BlockNumber,
+) -> Option<Hash> {
 	let persisted_validation_data = crate::util::make_persisted_validation_data::<Test>(
 		para_id,
 		relay_parent_number,
@@ -1093,12 +1100,12 @@ fn candidate_checks() {
 			);
 		}
 
-		// candidate is not based on allowed relay parent.
+		// one of candidates is not based on allowed relay parent.
 		{
 			let wrong_parent_hash = Hash::repeat_byte(222);
 			assert!(System::parent_hash() != wrong_parent_hash);
 
-			let mut candidate = TestCandidateBuilder {
+			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				relay_parent: wrong_parent_hash,
 				pov_hash: Hash::repeat_byte(1),
@@ -1106,12 +1113,34 @@ fn candidate_checks() {
 				..Default::default()
 			}
 			.build();
-			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
-				candidate,
+			let mut candidate_b = TestCandidateBuilder {
+				para_id: chain_b,
+				relay_parent: System::parent_hash(),
+				pov_hash: Hash::repeat_byte(2),
+				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
+				..Default::default()
+			}
+			.build();
+
+			collator_sign_candidate(Sr25519Keyring::One, &mut candidate_a);
+
+			collator_sign_candidate(Sr25519Keyring::Two, &mut candidate_b);
+
+			let backed_a = block_on(back_candidate(
+				candidate_a,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+				&keystore,
+				&signing_context,
+				BackingKind::Threshold,
+			));
+
+			let backed_b = block_on(back_candidate(
+				candidate_b,
+				&validators,
+				group_validators(GroupIndex::from(1)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1120,8 +1149,8 @@ fn candidate_checks() {
 			assert_noop!(
 				ParaInclusion::process_candidates(
 					&allowed_relay_parents,
-					vec![backed],
-					vec![chain_a_assignment.clone()],
+					vec![backed_b, backed_a],
+					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 					&group_validators,
 				),
 				Error::<Test>::DisallowedRelayParent
@@ -1834,6 +1863,176 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			<PendingAvailabilityCommitments<Test>>::get(&chain_a),
 			Some(candidate_a.commitments),
 		);
+	});
+}
+
+#[test]
+fn check_allowed_relay_parents() {
+	let chain_a = ParaId::from(1);
+	let chain_b = ParaId::from(2);
+	let thread_a = ParaId::from(3);
+
+	// The block number of the relay-parent for testing.
+	const RELAY_PARENT_NUM: BlockNumber = 4;
+
+	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let validators = vec![
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	for validator in validators.iter() {
+		SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			PARACHAIN_KEY_TYPE_ID,
+			Some(&validator.to_seed()),
+		)
+		.unwrap();
+	}
+	let validator_public = validator_pubkeys(&validators);
+
+	new_test_ext(genesis_config(paras)).execute_with(|| {
+		shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+		shared::Pallet::<Test>::set_session_index(5);
+
+		run_to_block(5, |_| None);
+
+		let group_validators = |group_index: GroupIndex| {
+			match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
+				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+			}
+			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
+		};
+
+		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+
+		// Base each candidate on one of allowed relay parents.
+
+		let relay_parent_a = (1, Hash::repeat_byte(0x1));
+		let relay_parent_b = (2, Hash::repeat_byte(0x2));
+		let relay_parent_c = (3, Hash::repeat_byte(0x3));
+
+		let mut allowed_relay_parents = AllowedRelayParentsTracker::default();
+		let max_len = RELAY_PARENT_NUM as usize;
+		allowed_relay_parents.update(relay_parent_a.1, Hash::zero(), relay_parent_a.0, max_len);
+		allowed_relay_parents.update(relay_parent_b.1, Hash::zero(), relay_parent_b.0, max_len);
+		allowed_relay_parents.update(relay_parent_c.1, Hash::zero(), relay_parent_c.0, max_len);
+
+		let chain_a_assignment = CoreAssignment {
+			core: CoreIndex::from(0),
+			para_id: chain_a,
+			kind: AssignmentKind::Parachain,
+			group_idx: GroupIndex::from(0),
+		};
+
+		let chain_b_assignment = CoreAssignment {
+			core: CoreIndex::from(1),
+			para_id: chain_b,
+			kind: AssignmentKind::Parachain,
+			group_idx: GroupIndex::from(1),
+		};
+
+		let thread_a_assignment = CoreAssignment {
+			core: CoreIndex::from(2),
+			para_id: thread_a,
+			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+			group_idx: GroupIndex::from(2),
+		};
+
+		let mut candidate_a = TestCandidateBuilder {
+			para_id: chain_a,
+			relay_parent: relay_parent_a.1,
+			pov_hash: Hash::repeat_byte(1),
+			persisted_validation_data_hash: make_vdata_hash_with_block_number(
+				chain_a,
+				relay_parent_a.0,
+			)
+			.unwrap(),
+			hrmp_watermark: relay_parent_a.0,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::One, &mut candidate_a);
+		let signing_context_a = SigningContext { parent_hash: relay_parent_a.1, session_index: 5 };
+
+		let mut candidate_b = TestCandidateBuilder {
+			para_id: chain_b,
+			relay_parent: relay_parent_b.1,
+			pov_hash: Hash::repeat_byte(2),
+			persisted_validation_data_hash: make_vdata_hash_with_block_number(
+				chain_b,
+				relay_parent_b.0,
+			)
+			.unwrap(),
+			hrmp_watermark: relay_parent_b.0,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::One, &mut candidate_b);
+		let signing_context_b = SigningContext { parent_hash: relay_parent_b.1, session_index: 5 };
+
+		let mut candidate_c = TestCandidateBuilder {
+			para_id: thread_a,
+			relay_parent: relay_parent_c.1,
+			pov_hash: Hash::repeat_byte(3),
+			persisted_validation_data_hash: make_vdata_hash_with_block_number(
+				thread_a,
+				relay_parent_c.0,
+			)
+			.unwrap(),
+			hrmp_watermark: relay_parent_c.0,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::Two, &mut candidate_c);
+		let signing_context_c = SigningContext { parent_hash: relay_parent_c.1, session_index: 5 };
+
+		let backed_a = block_on(back_candidate(
+			candidate_a.clone(),
+			&validators,
+			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+			&keystore,
+			&signing_context_a,
+			BackingKind::Threshold,
+		));
+
+		let backed_b = block_on(back_candidate(
+			candidate_b.clone(),
+			&validators,
+			group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+			&keystore,
+			&signing_context_b,
+			BackingKind::Threshold,
+		));
+
+		let backed_c = block_on(back_candidate(
+			candidate_c.clone(),
+			&validators,
+			group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+			&keystore,
+			&signing_context_c,
+			BackingKind::Threshold,
+		));
+
+		let backed_candidates = vec![backed_a, backed_b, backed_c];
+
+		ParaInclusion::process_candidates(
+			&allowed_relay_parents,
+			backed_candidates.clone(),
+			vec![
+				chain_a_assignment.clone(),
+				chain_b_assignment.clone(),
+				thread_a_assignment.clone(),
+			],
+			&group_validators,
+		)
+		.expect("candidates scheduled, in order, and backed");
 	});
 }
 
