@@ -119,14 +119,6 @@ pub fn open_creating_rocksdb(
 	Ok(Arc::new(db))
 }
 
-#[cfg(feature = "full-node")]
-pub fn exists_directory(path: PathBuf) -> bool {
-	match std::fs::metadata(path) {
-		Ok(meta) => meta.is_dir(),
-		Err(_) => false,
-	}
-}
-
 /// Open a parity db database.
 #[cfg(feature = "full-node")]
 pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
