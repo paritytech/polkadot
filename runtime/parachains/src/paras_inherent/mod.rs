@@ -397,7 +397,6 @@ impl<T: Config> Pallet<T> {
 
 		// Inform the disputes module of all included candidates.
 		for (_, candidate_hash) in &freed_concluded {
-			println!("T::DisputesHandler::note_included {}", candidate_hash);
 			T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 		}
 

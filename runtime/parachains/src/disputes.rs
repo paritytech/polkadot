@@ -622,7 +622,6 @@ impl StatementSetFilter {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		println!("disputes::initializer_initialize {}", now);
 		let config = <configuration::Pallet<T>>::config();
 		let mut weight = 0;
 		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
@@ -686,7 +685,6 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
-		println!("disputes::initializer_on_new_session");
 		let config = <configuration::Pallet<T>>::config();
 
 		if notification.session_index <= config.dispute_period + 1 {
@@ -703,7 +701,7 @@ impl<T: Config> Pallet<T> {
 			};
 
 			for to_prune in to_prune {
-				println!("Pruning {}", to_prune);
+				println!("pruning {}", to_prune);
 				// This should be small, as disputes are rare, so `None` is fine.
 				<Disputes<T>>::remove_prefix(to_prune, None);
 
@@ -790,7 +788,6 @@ impl<T: Config> Pallet<T> {
 		config: &HostConfiguration<T::BlockNumber>,
 		set: &DisputeStatementSet,
 	) -> StatementSetFilter {
-		println!("filter_dispute_data");
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
 		// Dispute statement sets on any dispute which concluded
@@ -949,7 +946,6 @@ impl<T: Config> Pallet<T> {
 		config: &HostConfiguration<T::BlockNumber>,
 		set: DisputeStatementSet,
 	) -> Result<bool, DispatchError> {
-		println!("provide_dispute_data");
 		// Dispute statement sets on any dispute which concluded
 		// before this point are to be rejected.
 		let now = <frame_system::Pallet<T>>::block_number();
@@ -984,8 +980,6 @@ impl<T: Config> Pallet<T> {
 				)
 			}
 		};
-
-		println!("fresh: {}, dispute start: {}", fresh, dispute_state.start);
 
 		// Check and import all votes.
 		let summary = {
@@ -1023,7 +1017,7 @@ impl<T: Config> Pallet<T> {
 
 		// Apply spam slot changes. Bail early if too many occupied.
 		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
-		println!("is_local {}", is_local);
+
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
@@ -1052,7 +1046,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		if fresh {
-			println!("Deposit dispute initiated");
 			Self::deposit_event(Event::DisputeInitiated(
 				set.candidate_hash,
 				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
@@ -1097,7 +1090,6 @@ impl<T: Config> Pallet<T> {
 			T::PunishValidators::punish_for_invalid(set.session, summary.slash_for);
 		}
 
-		println!("Inserting dispute for {}, session {}", set.candidate_hash, set.session);
 		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
 
 		// Freeze if just concluded against some local candidate
@@ -1105,12 +1097,9 @@ impl<T: Config> Pallet<T> {
 			// Revert if local
 			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
 				Self::revert_and_freeze(revert_to);
-			} else {
-				println!("Block {}, session {} is not local, can't revert", set.candidate_hash, set.session);
 			}
 		}
 
-		println!("^-------provide_dispute_data-----------");
 		Ok(fresh)
 	}
 
@@ -1125,23 +1114,16 @@ impl<T: Config> Pallet<T> {
 		included_in: T::BlockNumber,
 	) {
 		if included_in.is_zero() {
-			println!("included in zero");
 			return
 		}
 
 		let revert_to = included_in - One::one();
 
-		println!("<Included<T>>::insert({}, {}, {})", session, candidate_hash, revert_to);
 		<Included<T>>::insert(&session, &candidate_hash, revert_to);
 
 		// If we just included a block locally which has a live dispute, decrement spam slots
 		// for any involved validators, if the dispute is not already confirmed by f + 1.
 		if let Some(state) = <Disputes<T>>::get(&session, candidate_hash) {
-			println!("Some(state)");
-			println!("state: start: {}", state.start);
-			if let Some(concluded) = state.concluded_at {
-				println!("concluded: {}", concluded);
-			}
 			SpamSlots::<T>::mutate(&session, |spam_slots| {
 				if let Some(ref mut spam_slots) = *spam_slots {
 					decrement_spam(spam_slots, &state);
@@ -1166,7 +1148,6 @@ impl<T: Config> Pallet<T> {
 			// A dispute that has concluded with supermajority-against.
 			has_supermajority_against(&dispute)
 		});
-		println!("session: {}, concluded_invalid: {}, hash: {}", session, concluded, candidate_hash);
 		concluded
 	}
 
@@ -1175,7 +1156,6 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
-		println!("Reverting to {}", revert_to);
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
 

@@ -660,7 +660,6 @@ mod enter {
 			backed_and_concluding.insert(0, 2);
 			backed_and_concluding.insert(1, 2);
 
-			println!("Generating test data");
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
