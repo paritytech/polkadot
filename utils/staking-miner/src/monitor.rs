@@ -35,6 +35,9 @@ use sp_core::storage::StorageKey;
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use EPM::signed::{SignedSubmissionOf, SubmissionIndicesOf};
+
+const EPM_MODULE_PREFIX: &[u8] = b"ElectionProviderMultiPhase";
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
@@ -64,20 +67,16 @@ async fn ensure_no_previous_solution<
 	at: B::Hash,
 	us: &AccountId,
 ) -> Result<(), Error<T>> {
-	use EPM::signed::{SignedSubmissionOf, SubmissionIndicesOf};
-	const MODULE_PREFIX: &[u8] = b"ElectionProviderMultiPhase";
-
-	let indices_key = storage_value(MODULE_PREFIX, b"SignedSubmissionIndices");
+	let indices_key = storage_value(EPM_MODULE_PREFIX, b"SignedSubmissionIndices");
 
 	let indices: SubmissionIndicesOf<T> = get_storage(client, rpc_params! {indices_key, at})
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
-	// TODO(niklasad1): we could fetch the best previous score here if we want.
 	for (_score, id) in indices {
 		let key = storage_value_by_key::<Twox64Concat>(
-			MODULE_PREFIX,
+			EPM_MODULE_PREFIX,
 			b"SignedSubmissionsMap",
 			&id.encode(),
 		);
@@ -87,7 +86,6 @@ async fn ensure_no_previous_solution<
 				.await
 				.map_err::<Error<T>, _>(Into::into)?
 		{
-			log::info!("submission: {:?}", submission);
 			if &submission.who == us {
 				return Err(Error::AlreadySubmitted)
 			}
@@ -105,27 +103,26 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	score: sp_npos_elections::ElectionScore,
 	strategy: SubmissionStrategy,
 ) -> Result<(), Error<T>> {
-	match strategy {
-		SubmissionStrategy::AlwaysSubmit => Ok(()),
-		SubmissionStrategy::OnlySubmitIfLeading => {
-			let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());
-			let best_score =
-				get_storage::<EPM::ReadySolution<AccountId>>(client, rpc_params! {key, at})
-					.await
-					.map_err::<Error<T>, _>(Into::into)?
-					.map(|s| s.score)
-					.unwrap_or_default();
-			if sp_npos_elections::is_score_better(score, best_score, Perbill::zero()) {
-				Ok(())
-			} else {
-				Err(Error::AlreadyExistSolutionWithBetterScore)
-			}
-		},
+	let epsilon = match strategy {
+		SubmissionStrategy::AlwaysSubmit => return Ok(()),
+		SubmissionStrategy::OnlySubmitIfLeading => Perbill::zero(),
+		SubmissionStrategy::SubmitIfClaimBetterThan(epsilon) => epsilon,
+	};
+
+	let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());
+	let best_score = get_storage::<EPM::ReadySolution<AccountId>>(client, rpc_params! {key, at})
+		.await
+		.map_err::<Error<T>, _>(Into::into)?
+		.map(|s| s.score)
+		.unwrap_or_default();
+	if sp_npos_elections::is_score_better(score, best_score, epsilon) {
+		Ok(())
+	} else {
+		Err(Error::AlreadyExistSolutionWithBetterScore)
 	}
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
-
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
 		client: WsClient,

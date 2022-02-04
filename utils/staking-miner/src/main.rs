@@ -35,6 +35,8 @@ mod prelude;
 mod rpc_helpers;
 mod signer;
 
+use std::str::FromStr;
+
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
@@ -44,7 +46,7 @@ use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -295,17 +297,30 @@ enum Solvers {
 	},
 }
 
-#[derive(Debug, Copy, Clone, clap::ArgEnum)]
+#[derive(Debug, Copy, Clone)]
 enum SubmissionStrategy {
 	// Only submit if at the time, we are the best.
 	OnlySubmitIfLeading,
 	// Always submit.
 	AlwaysSubmit,
-	// TODO(niklasad1): fix Perbill with type in some other way
-	//
 	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
 	// better than us. This helps detect obviously fake solutions and still combat them.
-	// SubmitIfClaimBetterThan(sp_runtime::Perbill)
+	SubmitIfClaimBetterThan(Perbill),
+}
+
+impl FromStr for SubmissionStrategy {
+	type Err = std::num::ParseFloatError;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let res = if s == "only-submit-if-leading" {
+			Self::OnlySubmitIfLeading
+		} else if s == "always-submit" {
+			Self::AlwaysSubmit
+		} else {
+			Self::SubmitIfClaimBetterThan(Perbill::from_float(s.parse()?))
+		};
+		Ok(res)
+	}
 }
 
 frame_support::parameter_types! {
@@ -330,7 +345,7 @@ struct MonitorConfig {
 	solver: Solvers,
 
 	/// Submission strategy to use.
-	#[clap(arg_enum, default_value = "only-submit-if-leading")]
+	#[clap(long, parse(try_from_str), default_value = "only-submit-if-leading")]
 	submission_strategy: SubmissionStrategy,
 }
 
@@ -629,7 +644,7 @@ async fn main() {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
 				}),
 			Command::EmergencySolution(c) => emergency_solution_cmd(shared.clone(), c).await
-				.map_err(|e| {
+					.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),
 		}
