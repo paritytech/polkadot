@@ -33,7 +33,7 @@ use futures::{
 };
 
 use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
-use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
+use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore, SessionIndex};
 use polkadot_subsystem::{
 	messages::{AllMessages, ChainApiMessage},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
@@ -131,22 +131,13 @@ impl Requester {
 		Context: SubsystemContext,
 	{
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
-		let ancestors_in_session = get_block_ancestors_in_same_session(
+		let (leaf_session_index, ancestors_in_session) = get_block_ancestors_in_same_session(
 			ctx,
 			runtime,
 			leaf,
 			Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION,
 		)
-		.await
-		.unwrap_or_else(|err| {
-			tracing::debug!(
-				target: LOG_TARGET,
-				leaf = ?leaf,
-				"Failed to fetch leaf ancestors in the same session due to an error: {}",
-				err
-			);
-			Vec::new()
-		});
+		.await?;
 		// Also spawn or bump tasks for candidates in ancestry in the same session.
 		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
 			let cores = get_occupied_cores(ctx, hash).await?;
@@ -162,7 +153,7 @@ impl Requester {
 			// The next time the subsystem receives leaf update, some of spawned task will be bumped
 			// to be live in fresh relay parent, while some might get dropped due to the current leaf
 			// being deactivated.
-			self.add_cores(ctx, runtime, leaf, cores).await?;
+			self.add_cores(ctx, runtime, leaf, leaf_session_index, cores).await?;
 		}
 
 		Ok(())
@@ -190,6 +181,7 @@ impl Requester {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		leaf: Hash,
+		leaf_session_index: SessionIndex,
 		cores: impl IntoIterator<Item = OccupiedCore>,
 	) -> Result<()>
 	where
@@ -216,6 +208,7 @@ impl Requester {
 							// at session boundaries. At the same time, only leaves are guaranteed to
 							// be fetchable by the state trie.
 							leaf,
+							leaf_session_index,
 							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)
 						.await
@@ -263,12 +256,14 @@ impl Stream for Requester {
 }
 
 /// Requests up to `limit` ancestor hashes of relay parent in the same session.
+///
+/// Also returns session index of the `head`.
 async fn get_block_ancestors_in_same_session<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	head: Hash,
 	limit: usize,
-) -> Result<Vec<Hash>>
+) -> Result<(SessionIndex, Vec<Hash>)>
 where
 	Context: SubsystemContext,
 {
@@ -285,7 +280,7 @@ where
 		Some(parent) => runtime.get_session_index_for_child(ctx.sender(), *parent).await?,
 		None => {
 			// No first element, i.e. empty.
-			return Ok(ancestors)
+			return Ok((0, ancestors))
 		},
 	};
 
@@ -304,7 +299,7 @@ where
 	// Drop the rest.
 	ancestors.truncate(session_ancestry_len);
 
-	Ok(ancestors)
+	Ok((head_session_index, ancestors))
 }
 
 /// Request up to `limit` ancestor hashes of relay parent from the Chain API.
