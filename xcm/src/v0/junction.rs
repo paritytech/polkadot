@@ -41,7 +41,6 @@ impl TryInto<NetworkId> for Option<NewNetworkId> {
 		use NewNetworkId::*;
 		Ok(match self {
 			None => NetworkId::Any,
-			Some(ByUri(name)) => NetworkId::Named(name),
 			Some(Polkadot) => NetworkId::Polkadot,
 			Some(Kusama) => NetworkId::Kusama,
 			_ => return Err(()),

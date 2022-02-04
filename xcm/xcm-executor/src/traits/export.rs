@@ -18,30 +18,61 @@ use xcm::latest::prelude::*;
 
 /// Type which is able to send a given message over to another consensus network.
 pub trait ExportXcm {
+	fn export_price(
+		_network: NetworkId,
+		_destination: &InteriorMultiLocation,
+		_message: &Xcm<()>,
+	) -> SendCostResult {
+		Ok(MultiAssets::new())
+	}
+
 	fn export_xcm(
 		network: NetworkId,
 		channel: u32,
-		destination: impl Into<InteriorMultiLocation>,
-		message: Xcm<()>,
-	) -> Result<(), SendError>;
+		destination: &mut Option<InteriorMultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ExportXcm for Tuple {
-	fn export_xcm(
+	fn export_price(
 		network: NetworkId,
-		channel: u32,
-		dest: impl Into<InteriorMultiLocation>,
-		message: Xcm<()>,
-	) -> SendResult {
-		let dest = dest.into();
+		dest: &InteriorMultiLocation,
+		message: &Xcm<()>,
+	) -> SendCostResult {
 		for_tuples!( #(
-			// we shadow `dest` and `message` in each expansion for the next one.
-			let (network, dest, message) = match Tuple::export_xcm(network, channel, dest, message) {
-				Err(SendError::CannotReachNetwork(n, d, m)) => (n, d, m),
+			match Tuple::export_price(network, dest, message) {
+				Err(SendError::CannotReachDestination) => {},
 				o @ _ => return o,
 			};
 		)* );
-		Err(SendError::CannotReachNetwork(network, dest, message))
+		Err(SendError::CannotReachDestination)
 	}
+
+	fn export_xcm(
+		network: NetworkId,
+		channel: u32,
+		dest: &mut Option<InteriorMultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult {
+		for_tuples!( #(
+			match Tuple::export_xcm(network, channel, dest, message) {
+				Err(SendError::CannotReachDestination) => {},
+				o @ _ => return o,
+			};
+		)* );
+		Err(SendError::CannotReachDestination)
+	}
+}
+
+/// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
+/// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+pub fn export_xcm<T: ExportXcm>(
+	network: NetworkId,
+	channel: u32,
+	dest: InteriorMultiLocation,
+	message: Xcm<()>,
+) -> SendResult {
+	T::export_xcm(network, channel, &mut Some(dest), &mut Some(message))
 }

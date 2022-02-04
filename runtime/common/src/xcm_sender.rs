@@ -20,6 +20,7 @@ use parity_scale_codec::Encode;
 use runtime_parachains::{configuration, dmp};
 use sp_std::marker::PhantomData;
 use xcm::latest::prelude::*;
+use SendError::*;
 
 /// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
@@ -27,23 +28,25 @@ pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 	for ChildParachainRouter<T, W>
 {
-	fn send_xcm(dest: impl Into<MultiLocation>, msg: Xcm<()>) -> SendResult {
-		let dest = dest.into();
-		match dest {
-			MultiLocation { parents: 0, interior: X1(Parachain(id)) } => {
-				// Downward message passing.
-				let versioned_xcm =
-					W::wrap_version(&dest, msg).map_err(|()| SendError::DestinationUnsupported)?;
-				let config = <configuration::Pallet<T>>::config();
-				<dmp::Pallet<T>>::queue_downward_message(
-					&config,
-					id.into(),
-					versioned_xcm.encode(),
-				)
-				.map_err(Into::<SendError>::into)?;
-				Ok(())
-			},
-			dest => Err(SendError::CannotReachDestination(dest, msg)),
-		}
+	fn send_xcm(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
+		let d = dest.take().ok_or(MissingArgument)?;
+		let id = if let MultiLocation { parents: 0, interior: X1(Parachain(id)) } = &d {
+			*id
+		} else {
+			*dest = Some(d);
+			return Err(CannotReachDestination);
+		};
+
+		// Downward message passing.
+		let xcm = msg.take().ok_or(MissingArgument)?;
+		let versioned_xcm = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?;
+		let config = <configuration::Pallet<T>>::config();
+		<dmp::Pallet<T>>::queue_downward_message(
+			&config,
+			id.into(),
+			versioned_xcm.encode(),
+		)
+		.map_err(Into::<SendError>::into)?;
+		Ok(())
 	}
 }

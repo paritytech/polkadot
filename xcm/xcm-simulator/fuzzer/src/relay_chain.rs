@@ -95,7 +95,7 @@ impl configuration::Config for Runtime {
 
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
-	pub const ThisNetwork: NetworkId = NetworkId::ByUri(Vec::new());
+	pub const ThisNetwork: NetworkId = NetworkId::ByGenesis([0; 32]);
 	pub const AnyNetwork: Option<NetworkId> = None;
 	pub const Ancestry: InteriorMultiLocation = Here;
 	pub const UnitWeightCost: Weight = 1_000;

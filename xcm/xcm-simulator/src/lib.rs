@@ -296,45 +296,45 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
+			fn send_xcm(destination: &mut Option<$crate::MultiLocation>, message: &mut Option<$crate::Xcm<()>>) -> $crate::SendResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
-				let destination = destination.into();
-				match destination.interior() {
-					$crate::Junctions::Here if destination.parent_count() == 1 => {
-						$crate::PARA_MESSAGE_BUS.with(
-							|b| b.borrow_mut().push_back((T::get(), destination, message)));
-						Ok(())
-					},
+				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
+				match (d.interior(), d.parent_count()) {
+					($crate::Junctions::Here, 1) => {},
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
-							$crate::PARA_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((T::get(), destination, message)));
-							Ok(())
-						},
+						($crate::X1($crate::Parachain(id)), 1) if id == &$para_id => {}
 					)*
-					_ => Err($crate::SendError::CannotReachDestination(destination, message)),
+					_ => {
+						*destination = Some(d);
+						return Err($crate::SendError::CannotReachDestination)
+					},
 				}
+				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
+				$crate::PARA_MESSAGE_BUS.with(|b| b.borrow_mut().push_back((T::get(), d, m)));
+				Ok(())
 			}
 		}
 
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
+			fn send_xcm(destination: &mut Option<$crate::MultiLocation>, message: &mut Option<$crate::Xcm<()>>) -> $crate::SendResult {
 				use $crate::DmpMessageHandlerT;
 
-				let destination = destination.into();
-				match destination.interior() {
+				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
+				match (d.interior(), d.parent_count()) {
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
-							$crate::RELAY_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((destination, message)));
-							Ok(())
-						},
+						($crate::X1($crate::Parachain(id)), 0) if id == &$para_id => {},
 					)*
-					_ => Err($crate::SendError::Unroutable),
+					_ => {
+						*destination = Some(d);
+						return Err($crate::SendError::CannotReachDestination)
+					},
 				}
+				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
+				$crate::RELAY_MESSAGE_BUS.with(|b| b.borrow_mut().push_back((d, m)));
+				Ok(())
 			}
 		}
 	};

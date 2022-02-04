@@ -32,7 +32,7 @@ pub mod traits;
 use traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
 	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	WeightTrader,
+	WeightTrader, export_xcm,
 };
 
 mod assets;
@@ -319,7 +319,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				assets.reanchor(&dest, &context).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				send_xcm::<Config::XcmSender>(dest, Xcm(message)).map_err(Into::into)
 			},
 			ReceiveTeleportedAsset(assets) => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
@@ -422,7 +422,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				send_xcm::<Config::XcmSender>(dest, Xcm(message)).map_err(Into::into)
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				// Note that here we are able to place any assets which could not be reanchored
@@ -434,7 +434,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
+				send_xcm::<Config::XcmSender>(reserve, Xcm(message)).map_err(Into::into)
 			},
 			InitiateTeleport { assets, dest, xcm } => {
 				// We must do this first in order to resolve wildcards.
@@ -447,7 +447,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				send_xcm::<Config::XcmSender>(dest, Xcm(message)).map_err(Into::into)
 			},
 			ReportHolding { response_info, assets } => {
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
@@ -545,7 +545,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let querier = Self::to_querier(self.origin.clone(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);
-				Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+				send_xcm::<Config::XcmSender>(destination, message).map_err(Into::into)
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
 				let pallet = Config::PalletInstancesInfo::infos()
@@ -585,9 +585,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Hash identifies the lane on the exporter which we use. We use the pairwise
 				// combination of the origin and destination to ensure origin/destination pairs will
 				// generally have their own lanes.
+				let fee = Config::MessageExporter::export_price(network, &destination, &xcm)?;
+				self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+
 				let hash = (&self.origin, &destination).using_encoded(blake2_128);
 				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
-				Config::MessageExporter::export_xcm(network, channel, destination, xcm)?;
+				export_xcm::<Config::MessageExporter>(network, channel, destination, xcm)?;
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
@@ -623,7 +626,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+		send_xcm::<Config::XcmSender>(destination, message).map_err(Into::into)
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

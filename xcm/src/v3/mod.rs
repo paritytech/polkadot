@@ -44,7 +44,8 @@ pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
 };
 pub use traits::{
-	Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError, SendResult, SendXcm, Weight,
+	Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError, SendResult, SendCostResult,
+	SendXcm, Weight, send_xcm,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
@@ -178,7 +179,8 @@ pub mod prelude {
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
 			OriginKind, Outcome, PalletInfo, Parent, ParentThen, PreparedMessage, QueryId,
-			QueryResponseInfo, Response, Result as XcmResult, SendError, SendResult, SendXcm,
+			QueryResponseInfo, Response, Result as XcmResult, SendError, SendCostResult, SendResult,
+			SendXcm, send_xcm,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
@@ -781,9 +783,11 @@ pub enum Instruction<Call> {
 	/// Errors: *Fallible*.
 	UniversalOrigin(Junction),
 
-	/// Send a message onwards beyond the local consensus system.
+	/// Send a message on to Non-Local Consensus system.
 	///
 	/// This will tend to utilize some extra-consensus mechanism, the obvious one being a bridge.
+	/// A fee may be charged; this may be determined based on the contents of `xcm`. It will be
+	/// taken from the Holding register.
 	///
 	/// - `network`: The remote consensus system to which the message should be exported.
 	/// - `destination`: The location relative to the remote consensus system to which the message

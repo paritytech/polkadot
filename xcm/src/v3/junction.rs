@@ -30,19 +30,8 @@ use scale_info::TypeInfo;
 ///
 /// Maintenance note: Networks with global consensus and which are practically bridgeable within the
 /// Polkadot ecosystem are given preference over explicit naming in this enumeration.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum NetworkId {
-	/// The network identified by a globally recognized URI. Best practice is to use the canonical
-	/// server name of the primary website providing information on the network. E.g.:
-	///
-	/// - `bitcoin.org`
-	/// - `ethereum.org`
-	/// - `polkadot.network`
-	///
-	/// In general (and like the above three networks) networks should either be introduced into
-	/// this list or referenced by their genesis hash and/or fork properties (in the case that two
-	/// networks exist with the same genesis hash).
-	ByUri(Vec<u8>),
 	/// Network specified by the first 32 bytes of its genesis block.
 	ByGenesis([u8; 32]),
 	/// Network defined by the first 32-bytes of the hash and number of some block it contains.
@@ -72,7 +61,7 @@ impl From<OldNetworkId> for Option<NetworkId> {
 		use OldNetworkId::*;
 		match old {
 			Any => None,
-			Named(name) => Some(NetworkId::ByUri(name)),
+			Named(_) => None,
 			Polkadot => Some(NetworkId::Polkadot),
 			Kusama => Some(NetworkId::Kusama),
 		}

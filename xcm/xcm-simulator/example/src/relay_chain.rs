@@ -95,7 +95,7 @@ impl configuration::Config for Runtime {
 
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
-	pub RelayNetwork: NetworkId = ByUri((&b"example.com"[..]).to_owned());
+	pub RelayNetwork: NetworkId = ByGenesis([0; 32]);
 	pub const AnyNetwork: Option<NetworkId> = None;
 	pub Ancestry: InteriorMultiLocation = Here;
 	pub UnitWeightCost: Weight = 1_000;

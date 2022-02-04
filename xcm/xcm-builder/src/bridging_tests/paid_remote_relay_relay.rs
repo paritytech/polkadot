@@ -53,10 +53,10 @@ type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 /// ```
 #[test]
 fn sending_to_bridged_chain_works() {
-	let dest = (Parent, Parent, Remote::get());
+	let dest: MultiLocation = (Parent, Parent, Remote::get()).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
-		LocalRouter::send_xcm(dest.clone(), Xcm(vec![Trap(1)])),
+		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
 
@@ -64,7 +64,7 @@ fn sending_to_bridged_chain_works() {
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 100));
 
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(<LocalRouter as SendXcm>::send_xcm(dest, msg), Ok(()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -94,17 +94,17 @@ fn sending_to_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
-	let dest = (Parent, Parent, Remote::get(), Parachain(100));
+	let dest: MultiLocation = (Parent, Parent, Remote::get(), Parachain(100)).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
-		LocalRouter::send_xcm(dest.clone(), Xcm(vec![Trap(1)])),
+		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
 
 	// Initialize the local relay so that our parachain has funds to pay for export.
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
 
-	assert_eq!(LocalRouter::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(100).into(),

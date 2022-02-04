@@ -21,6 +21,7 @@ use frame_support::{parameter_types, traits::Get};
 use std::{cell::RefCell, marker::PhantomData};
 use xcm::prelude::*;
 use xcm_executor::XcmExecutor;
+use SendError::*;
 
 mod local_para_para;
 mod local_relay_relay;
@@ -30,8 +31,8 @@ mod remote_para_para_via_relay;
 mod remote_relay_relay;
 
 parameter_types! {
-	pub Local: NetworkId = ByUri(b"local".to_vec());
-	pub Remote: NetworkId = ByUri(b"remote".to_vec());
+	pub Local: NetworkId = ByGenesis([0; 32]);
+	pub Remote: NetworkId = ByGenesis([1; 32]);
 }
 
 std::thread_local! {
@@ -42,7 +43,7 @@ struct TestBridge<D>(PhantomData<D>);
 impl<D: DispatchBlob> TestBridge<D> {
 	fn service() -> u64 {
 		BRIDGE_TRAFFIC
-			.with(|t| t.borrow_mut().drain(..).map(|b| D::dispatch_blob(b).unwrap_or(0)).sum())
+			.with(|t| t.borrow_mut().drain(..).map(|b| D::dispatch_blob(b).map_or(0, |()| 1)).sum())
 	}
 }
 impl<D: DispatchBlob> HaulBlob for TestBridge<D> {
@@ -56,9 +57,9 @@ std::thread_local! {
 }
 struct TestRemoteIncomingRouter;
 impl SendXcm for TestRemoteIncomingRouter {
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-		let destination = destination.into();
-		REMOTE_INCOMING_XCM.with(|r| r.borrow_mut().push((destination, message)));
+	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+		let pair = (destination.take().unwrap(), message.take().unwrap());
+		REMOTE_INCOMING_XCM.with(|r| r.borrow_mut().push(pair));
 		Ok(())
 	}
 }
@@ -75,26 +76,27 @@ struct UnpaidExecutingRouter<Local, Remote, RemoteExporter>(
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for UnpaidExecutingRouter<Local, Remote, RemoteExporter>
 {
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-		let destination = destination.into();
-		if destination == Remote::get().relative_to(&Local::get()) {
-			// We now pretend that the message was delivered from `Local` to `Remote`, and execute
-			// so we need to ensure that the `TestConfig` is set up properly for executing as
-			// though it is `Remote`.
-			ExecutorUniversalLocation::set(Remote::get());
-			let origin = Local::get().relative_to(&Remote::get());
-			AllowUnpaidFrom::set(vec![origin.clone()]);
-			set_exporter_override(RemoteExporter::export_xcm);
-			// The we execute it:
-			let outcome =
-				XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
-			return match outcome {
-				Outcome::Complete(..) => Ok(()),
-				Outcome::Incomplete(..) => Err(SendError::Transport("Error executing")),
-				Outcome::Error(..) => Err(SendError::Transport("Unable to execute")),
-			}
+	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+		let expect_dest = Remote::get().relative_to(&Local::get());
+		if destination.as_ref().ok_or(MissingArgument)? != &expect_dest {
+			return Err(CannotReachDestination)
 		}
-		Err(SendError::CannotReachDestination(destination, message))
+		let message = message.take().ok_or(MissingArgument)?;
+		// We now pretend that the message was delivered from `Local` to `Remote`, and execute
+		// so we need to ensure that the `TestConfig` is set up properly for executing as
+		// though it is `Remote`.
+		ExecutorUniversalLocation::set(Remote::get());
+		let origin = Local::get().relative_to(&Remote::get());
+		AllowUnpaidFrom::set(vec![origin.clone()]);
+		set_exporter_override(RemoteExporter::export_xcm);
+		// The we execute it:
+		let outcome =
+			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+		match outcome {
+			Outcome::Complete(..) => Ok(()),
+			Outcome::Incomplete(..) => Err(Transport("Error executing")),
+			Outcome::Error(..) => Err(Transport("Unable to execute")),
+		}
 	}
 }
 
@@ -105,25 +107,26 @@ struct ExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for ExecutingRouter<Local, Remote, RemoteExporter>
 {
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-		let destination = destination.into();
-		if destination == Remote::get().relative_to(&Local::get()) {
-			// We now pretend that the message was delivered from `Local` to `Remote`, and execute
-			// so we need to ensure that the `TestConfig` is set up properly for executing as
-			// though it is `Remote`.
-			ExecutorUniversalLocation::set(Remote::get());
-			let origin = Local::get().relative_to(&Remote::get());
-			AllowPaidFrom::set(vec![origin.clone()]);
-			set_exporter_override(RemoteExporter::export_xcm);
-			// The we execute it:
-			let outcome =
-				XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
-			return match outcome {
-				Outcome::Complete(..) => Ok(()),
-				Outcome::Incomplete(..) => Err(SendError::Transport("Error executing")),
-				Outcome::Error(..) => Err(SendError::Transport("Unable to execute")),
-			}
+	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+		let expect_dest = Remote::get().relative_to(&Local::get());
+		if destination.as_ref().ok_or(MissingArgument)? != &expect_dest {
+			return Err(CannotReachDestination)
 		}
-		Err(SendError::CannotReachDestination(destination, message))
+		let message = message.take().ok_or(MissingArgument)?;
+		// We now pretend that the message was delivered from `Local` to `Remote`, and execute
+		// so we need to ensure that the `TestConfig` is set up properly for executing as
+		// though it is `Remote`.
+		ExecutorUniversalLocation::set(Remote::get());
+		let origin = Local::get().relative_to(&Remote::get());
+		AllowPaidFrom::set(vec![origin.clone()]);
+		set_exporter_override(RemoteExporter::export_xcm);
+		// The we execute it:
+		let outcome =
+			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+		return match outcome {
+			Outcome::Complete(..) => Ok(()),
+			Outcome::Incomplete(..) => Err(Transport("Error executing")),
+			Outcome::Error(..) => Err(Transport("Unable to execute")),
+		}
 	}
 }

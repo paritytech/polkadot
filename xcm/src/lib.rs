@@ -621,13 +621,13 @@ pub mod opaque {
 		pub use crate::v1::opaque::{Order, Xcm};
 	}
 	pub mod v2 {
-		// Everything from v1
+		// Everything from v2
 		pub use crate::v2::*;
 		// Then override with the opaque types in v2
 		pub use crate::v2::opaque::{Instruction, Xcm};
 	}
 	pub mod v3 {
-		// Everything from v2
+		// Everything from v3
 		pub use crate::v3::*;
 		// Then override with the opaque types in v3
 		pub use crate::v3::opaque::{Instruction, Xcm};

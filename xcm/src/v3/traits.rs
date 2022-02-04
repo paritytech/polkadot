@@ -167,11 +167,13 @@ impl TryFrom<OldError> for Error {
 impl From<SendError> for Error {
 	fn from(e: SendError) -> Self {
 		match e {
-			SendError::CannotReachDestination(..) | SendError::Unroutable => Error::Unroutable,
+			SendError::CannotReachDestination
+			| SendError::Unroutable
+			| SendError::MissingArgument
+			=> Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
-			SendError::CannotReachNetwork(..) => Error::Unroutable,
 		}
 	}
 }
@@ -295,8 +297,8 @@ pub enum SendError {
 	/// The message and destination combination was not recognized as being reachable.
 	///
 	/// This is not considered fatal: if there are alternative transport routes available, then
-	/// they may be attempted. For this reason, the destination and message are contained.
-	CannotReachDestination(MultiLocation, Xcm<()>),
+	/// they may be attempted.
+	CannotReachDestination,
 	/// Destination is routable, but there is some issue with the transport mechanism. This is
 	/// considered fatal.
 	/// A human-readable explanation of the specific issue is provided.
@@ -309,15 +311,15 @@ pub enum SendError {
 	/// Message could not be sent due to its size exceeding the maximum allowed by the transport
 	/// layer.
 	ExceedsMaxMessageSize,
-	/// The network was not recognized as being reachable.
-	///
-	/// This is not considered fatal: if there are alternative transport routes available, then
-	/// they may be attempted. For this reason, the network, destination and message are contained.
-	CannotReachNetwork(NetworkId, InteriorMultiLocation, Xcm<()>),
+	/// A needed argument is `None` when it should be `Some`.
+	MissingArgument,
 }
 
 /// Result value when attempting to send an XCM message.
 pub type SendResult = result::Result<(), SendError>;
+
+/// Result value when attempting to determine the cost for sending an XCM message.
+pub type SendCostResult = result::Result<MultiAssets, SendError>;
 
 /// Utility for sending an XCM message.
 ///
@@ -334,16 +336,17 @@ pub type SendResult = result::Result<(), SendError>;
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         return Err(SendError::CannotReachDestination(destination.into(), message))
+///     fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+///         return Err(SendError::CannotReachDestination)
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = destination.into() {
+///     fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+///         let d = destination.as_ref().ok_or(SendError::MissingArgument)?;
+///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = d {
 ///             Ok(())
 ///         } else {
 ///             Err(SendError::Unroutable)
@@ -354,11 +357,11 @@ pub type SendResult = result::Result<(), SendError>;
 /// /// A sender that accepts a message from a parent, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         let destination = destination.into();
-///         match destination {
+///     fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+///         let d = destination.as_ref().ok_or(SendError::MissingArgument)?;
+///         match d {
 ///             MultiLocation { parents: 1, interior: Here } => Ok(()),
-///             _ => Err(SendError::CannotReachDestination(destination, message)),
+///             _ => Err(SendError::CannotReachDestination),
 ///         }
 ///     }
 /// }
@@ -372,38 +375,61 @@ pub type SendResult = result::Result<(), SendError>;
 ///     call: call.into(),
 /// }]);
 ///
-/// assert!(
-///     // Sender2 will block this.
-///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
-///         .is_err()
-/// );
+/// // Sender2 will block this.
+/// assert!(send_xcm::<(Sender1, Sender2, Sender3) as SendXcm>(Parent.into(), message.clone()).is_err());
 ///
-/// assert!(
-///     // Sender3 will catch this.
-///     <(Sender1, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
-///         .is_ok()
-/// );
+/// // Sender3 will catch this.
+/// assert!(send_xcm::<(Sender1, Sender3) as SendXcm>(Parent.into(), message.clone()).is_ok());
 /// # }
 /// ```
 pub trait SendXcm {
-	/// Send an XCM `message` to a given `destination`.
+	/// Determine the cost which will be paid by this chain if the XCM `message` is sent to the
+	/// given `destination`.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
-	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
-	/// trying other type fields.
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult;
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple
+	/// implementation to exit early without trying other type fields.
+	fn send_cost(_: &MultiLocation, _: &Xcm<()>) -> SendCostResult {
+		Ok(MultiAssets::new())
+	}
+
+	/// Send an XCM `message` to a given `destination`, paying whatever must be paid for the message
+	/// to be delivered.
+	///
+	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
+	/// may only be consumed if the `Err` is not `CannotReachDestination`.
+	///
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple
+	/// implementation to exit early without trying other type fields.
+	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+	fn send_cost(destination: &MultiLocation, message: &Xcm<()>) -> SendCostResult {
 		for_tuples!( #(
-			// we shadow `destination` and `message` in each expansion for the next one.
-			let (destination, message) = match Tuple::send_xcm(destination, message) {
-				Err(SendError::CannotReachDestination(d, m)) => (d, m),
+			match Tuple::send_cost(destination, message) {
+				Err(SendError::CannotReachDestination) => {},
 				o @ _ => return o,
 			};
 		)* );
-		Err(SendError::CannotReachDestination(destination.into(), message))
+		Err(SendError::CannotReachDestination)
 	}
+
+	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+		for_tuples!( #(
+			match Tuple::send_xcm(destination, message) {
+				Err(SendError::CannotReachDestination) => {},
+				o @ _ => return o,
+			};
+		)* );
+		Err(SendError::CannotReachDestination)
+	}
+}
+
+/// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
+/// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+pub fn send_xcm<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResult {
+	T::send_xcm(&mut Some(dest), &mut Some(msg))
 }

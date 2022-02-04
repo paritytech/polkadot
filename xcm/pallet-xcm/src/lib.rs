@@ -557,7 +557,7 @@ pub mod pallet {
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
-				SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
+				SendError::CannotReachDestination => Error::<T>::Unreachable,
 				_ => Error::<T>::SendFailure,
 			})?;
 			Self::deposit_event(Event::Sent(origin_location, dest, message));
@@ -1053,7 +1053,7 @@ pub mod pallet {
 					let response = Response::Version(xcm_version);
 					let message =
 						Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
-					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
+					let event = match send_xcm::<T::XcmRouter>(new_key.clone(), message) {
 						Ok(()) => {
 							let value = (query_id, max_weight, xcm_version);
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
@@ -1104,7 +1104,7 @@ pub mod pallet {
 								max_weight,
 								querier: None,
 							}]);
-							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
+							let event = match send_xcm::<T::XcmRouter>(new_key.clone(), message) {
 								Ok(()) => {
 									VersionNotifyTargets::<T>::insert(
 										XCM_VERSION,
@@ -1140,7 +1140,7 @@ pub mod pallet {
 			});
 			// TODO #3735: Correct weight.
 			let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
-			T::XcmRouter::send_xcm(dest, Xcm(vec![instruction]))?;
+			send_xcm::<T::XcmRouter>(dest, Xcm(vec![instruction]))?;
 			VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
 			let query_status =
 				QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
@@ -1154,7 +1154,7 @@ pub mod pallet {
 			let versioned_dest = LatestVersionedMultiLocation(&dest);
 			let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
 				.ok_or(XcmError::InvalidLocation)?;
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
+			send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
 			Queries::<T>::remove(query_id);
 			Ok(())
 		}
@@ -1172,7 +1172,7 @@ pub mod pallet {
 				message.0.insert(0, DescendOrigin(interior))
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
-			T::XcmRouter::send_xcm(dest, message)
+			send_xcm::<T::XcmRouter>(dest, message)
 		}
 
 		pub fn check_account() -> T::AccountId {
@@ -1369,7 +1369,7 @@ pub mod pallet {
 			let xcm_version = T::AdvertisedXcmVersion::get();
 			let response = Response::Version(xcm_version);
 			let instruction = QueryResponse { query_id, response, max_weight, querier: None };
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
+			send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
 
 			let value = (query_id, max_weight, xcm_version);
 			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);

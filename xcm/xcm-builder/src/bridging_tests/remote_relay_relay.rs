@@ -49,7 +49,7 @@ type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(<LocalRouter as SendXcm>::send_xcm((Parent, Parent, Remote::get()), msg), Ok(()));
+	assert_eq!(send_xcm::<LocalRouter>((Parent, Parent, Remote::get()).into(), msg), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -64,7 +64,7 @@ fn sending_to_bridged_chain_works() {
 	);
 }
 
-/// ``` nocompile
+/// ```nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
@@ -76,8 +76,8 @@ fn sending_to_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
-	let dest = (Parent, Parent, Remote::get(), Parachain(1000));
-	assert_eq!(LocalRouter::send_xcm(dest, Xcm(vec![Trap(1)])), Ok(()));
+	let dest = (Parent, Parent, Remote::get(), Parachain(1000)).into();
+	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(1000).into(),
