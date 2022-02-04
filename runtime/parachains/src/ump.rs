@@ -108,7 +108,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		};
 
 		let id = upward_message_id(&data[..]);
-		let maybe_msg = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
+		let maybe_msg_and_weight = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut &data[..],
 		)
@@ -122,7 +122,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 				<C as Config>::WeightInfo::process_upward_message(data.len() as u32),
 			)
 		});
-		match maybe_msg {
+		match maybe_msg_and_weight {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
 				Ok(0)
@@ -754,4 +754,3 @@ impl NeedsDispatchCursor {
 		<Pallet<T> as Store>::NeedsDispatch::put(self.needs_dispatch);
 	}
 }
-
