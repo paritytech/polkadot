@@ -160,6 +160,7 @@ MQC/SM
 msg
 multisig/S
 multivalidator/SM
+mutators
 mutex
 natively
 NFA
@@ -284,6 +285,7 @@ UDP
 UI
 unassign
 unconcluded
+unexpectable
 unfinalize/B
 unfinalized
 union/MSG

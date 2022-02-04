@@ -44,8 +44,8 @@ fn ensure_is_remote(
 	Ok((remote_net, remote_dest, local_net, local_loc))
 }
 
-/// Implementation of `SendXcm` which uses the given `ExportXcm` impl in order to forward the
-/// message over a bridge.
+/// Implementation of `SendXcm` which uses the given `ExportXcm` implementation in order to forward
+/// the message over a bridge.
 ///
 /// The actual message forwarded over the bridge is prepended with `UniversalOrigin` and
 /// `DescendOrigin` in order to ensure that the message is executed with this Origin.

@@ -28,10 +28,12 @@ type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
 type Router = LocalUnpaidExporter<HaulBlobExporter<TheBridge, Remote>, UniversalLocation>;
 
+/// ```nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
 ///                                         |
+/// ```
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
@@ -43,6 +45,7 @@ fn sending_to_bridged_chain_works() {
 	);
 }
 
+/// ```nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
@@ -51,6 +54,7 @@ fn sending_to_bridged_chain_works() {
 ///                                         |                             ||
 ///                                         |                             \/
 ///                                         |                       Parachain(1000)
+/// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
 	let dest = (Parent, Remote::get(), Parachain(1000));

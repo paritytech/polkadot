@@ -22,7 +22,6 @@
 //! under the standard XCM weight and the weight pricing.
 
 use super::*;
-use crate::mock::*;
 
 parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(100));
@@ -42,6 +41,7 @@ type LocalBridgeRouter = SovereignPaidRemoteExporter<
 >;
 type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 
+/// ```nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
@@ -50,6 +50,7 @@ type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 ///            ||                           |
 ///            ||                           |
 ///     Parachain(100)                      |
+/// ```
 #[test]
 fn sending_to_bridged_chain_works() {
 	let dest = (Parent, Parent, Remote::get());
@@ -81,6 +82,7 @@ fn sending_to_bridged_chain_works() {
 	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 50).into()]);
 }
 
+/// ```nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
@@ -89,6 +91,7 @@ fn sending_to_bridged_chain_works() {
 ///            ||                           |                             ||
 ///            ||                           |                             \/
 ///     Parachain(100)                      |                       Parachain(100)
+/// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
 	let dest = (Parent, Parent, Remote::get(), Parachain(100));

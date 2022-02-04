@@ -19,7 +19,6 @@
 //! the global consensus of the remote side of the bridge.
 
 use super::*;
-use crate::mock::*;
 
 parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1000));
@@ -37,6 +36,7 @@ type LocalBridgingRouter =
 	UnpaidRemoteExporter<NetworkExportTable<BridgeTable>, LocalInnerRouter, UniversalLocation>;
 type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
 
+/// ```nocompile
 ///  local                                    |                                      remote
 ///                                           |
 ///     GlobalConsensus(Local::get())         |         GlobalConsensus(Remote::get())
@@ -45,6 +45,7 @@ type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
 ///                                           |
 ///                                           |
 ///     Parachain(1000)  ===>  Parachain(1)  ===>  Parachain(1)
+/// ```
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
@@ -66,7 +67,7 @@ fn sending_to_bridged_chain_works() {
 	);
 }
 
-///
+/// ```nocompile
 ///  local                                    |                                      remote
 ///                                           |
 ///     GlobalConsensus(Local::get())         |         GlobalConsensus(Remote::get())
@@ -75,6 +76,7 @@ fn sending_to_bridged_chain_works() {
 ///                                           |
 ///                                           |
 ///     Parachain(1000)  ===>  Parachain(1)  ===>  Parachain(1)  ===>  Parachain(1000)
+/// ```
 #[test]
 fn sending_to_sibling_of_bridged_chain_works() {
 	let dest = (Parent, Parent, Remote::get(), Parachain(1000));
@@ -91,7 +93,7 @@ fn sending_to_sibling_of_bridged_chain_works() {
 	assert_eq!(take_received_remote_messages(), expected);
 }
 
-///
+/// ```nocompile
 ///  local                                    |                                      remote
 ///                                           |
 ///     GlobalConsensus(Local::get())         |         GlobalConsensus(Remote::get())
@@ -100,6 +102,7 @@ fn sending_to_sibling_of_bridged_chain_works() {
 ///                                           |            ||
 ///                                           |            ||
 ///     Parachain(1000)  ===>  Parachain(1)  ===>  Parachain(1)
+/// ```
 #[test]
 fn sending_to_relay_of_bridged_chain_works() {
 	let dest = (Parent, Parent, Remote::get());

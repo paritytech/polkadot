@@ -19,7 +19,6 @@
 //! remote side of the bridge.
 
 use super::*;
-use crate::mock::*;
 
 parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1000));
@@ -37,6 +36,7 @@ type LocalBridgeRouter =
 	UnpaidRemoteExporter<NetworkExportTable<BridgeTable>, LocalInnerRouter, UniversalLocation>;
 type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 
+/// ```nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
@@ -45,6 +45,7 @@ type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 ///            ||                           |
 ///            ||                           |
 ///     Parachain(1000)                     |
+/// ```
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
@@ -63,6 +64,7 @@ fn sending_to_bridged_chain_works() {
 	);
 }
 
+/// ``` nocompile
 ///  local                                  |                                      remote
 ///                                         |
 ///     GlobalConsensus(Local::get())   ========>    GlobalConsensus(Remote::get())
@@ -71,6 +73,7 @@ fn sending_to_bridged_chain_works() {
 ///            ||                           |                             ||
 ///            ||                           |                             \/
 ///     Parachain(1000)                     |                       Parachain(1000)
+/// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
 	let dest = (Parent, Parent, Remote::get(), Parachain(1000));
