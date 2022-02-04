@@ -118,6 +118,7 @@ pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm
 pub fn set_exporter_override(f: fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> SendResult) {
 	EXPORTER_OVERRIDE.with(|x| x.replace(Some(f)));
 }
+#[allow(dead_code)]
 pub fn clear_exporter_override() {
 	EXPORTER_OVERRIDE.with(|x| x.replace(None));
 }
@@ -189,7 +190,18 @@ pub fn to_account(l: impl Into<MultiLocation>) -> Result<u64, MultiLocation> {
 		MultiLocation { parents: 0, interior: Here } => 3000,
 		// Parent at 3001
 		MultiLocation { parents: 1, interior: Here } => 3001,
-		l => return Err(l),
+		l => {
+			// Is it a foreign-consensus?
+			let uni = ExecutorUniversalLocation::get();
+			if l.parents as usize != uni.len() {
+				return Err(l)
+			}
+			match l.first_interior() {
+				Some(GlobalConsensus(Kusama)) => 4000,
+				Some(GlobalConsensus(Polkadot)) => 4001,
+				_ => return Err(l),
+			}
+		},
 	})
 }
 
@@ -225,10 +237,13 @@ pub fn add_reserve(from: MultiLocation, asset: MultiAssetFilter) {
 pub fn add_teleporter(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_TELEPORTER.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
-#[allow(dead_code)]
-pub fn add_universal_alias(bridge: MultiLocation, consensus: Junction) {
-	UNIVERSAL_ALIASES.with(|r| r.borrow_mut().insert((bridge, consensus)));
+pub fn add_universal_alias(bridge: impl Into<MultiLocation>, consensus: impl Into<Junction>) {
+	UNIVERSAL_ALIASES.with(|r| r.borrow_mut().insert((bridge.into(), consensus.into())));
 }
+pub fn clear_universal_aliases() {
+	UNIVERSAL_ALIASES.with(|r| r.replace(Default::default()));
+}
+
 pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
@@ -300,7 +315,8 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub static ExecutorUniversalLocation: InteriorMultiLocation = X1(Parachain(42));
+	pub static ExecutorUniversalLocation: InteriorMultiLocation
+		= (ByUri(b"local"[..].into()), Parachain(42)).into();
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {

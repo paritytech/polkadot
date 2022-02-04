@@ -569,13 +569,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.transact_status = Default::default();
 				Ok(())
 			},
-			UniversalOrigin(j) => {
+			UniversalOrigin(new_global) => {
 				let universal_location = Config::LocationInverter::universal_location();
-				ensure!(universal_location.first() != Some(&j), XcmError::InvalidLocation);
+				ensure!(universal_location.first() != Some(&new_global), XcmError::InvalidLocation);
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
-				let new_origin = AncestorThen(universal_location.len() as u8, X1(j.clone())).into();
-				let ok = Config::UniversalAliases::contains(&(origin, j));
+				let origin_xform = (origin, new_global);
+				let ok = Config::UniversalAliases::contains(&origin_xform);
 				ensure!(ok, XcmError::InvalidLocation);
+				let (_, new_global) = origin_xform;
+				let new_origin = X1(new_global).relative_to(&universal_location);
 				self.origin = Some(new_origin);
 				Ok(())
 			},

@@ -25,8 +25,8 @@ use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
 use xcm::latest::{
 	Instruction::{self, *},
-	Junction, Junctions, MultiLocation,
-	WeightLimit::*,
+	Junction, Junctions, Junctions::X1, MultiLocation,
+	WeightLimit::*, InteriorMultiLocation,
 };
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
@@ -145,9 +145,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 /// response from. For example, even if an origin appeared in the `AllowedSubscribers` list, we
 /// would ignore this rule if it began with origin mutators and they changed the origin to something
 /// which was not on the list.
-pub struct WithComputedOrigin<InnerBarrier, MaxPrefixes>(PhantomData<(InnerBarrier, MaxPrefixes)>);
-impl<InnerBarrier: ShouldExecute, MaxPrefixes: Get<u32>> ShouldExecute
-	for WithComputedOrigin<InnerBarrier, MaxPrefixes>
+pub struct WithComputedOrigin<InnerBarrier, LocalUniversal, MaxPrefixes>(PhantomData<(InnerBarrier, LocalUniversal, MaxPrefixes)>);
+impl<InnerBarrier: ShouldExecute, LocalUniversal: Get<InteriorMultiLocation>, MaxPrefixes: Get<u32>> ShouldExecute
+	for WithComputedOrigin<InnerBarrier, LocalUniversal, MaxPrefixes>
 {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
@@ -169,8 +169,10 @@ impl<InnerBarrier: ShouldExecute, MaxPrefixes: Get<u32>> ShouldExecute
 		// invalid UniversalOrigin.
 		while skipped < MaxPrefixes::get() as usize {
 			match instructions.get(skipped) {
-				Some(UniversalOrigin(j)) => {
-					actual_origin = j.clone().into();
+				Some(UniversalOrigin(new_global)) => {
+					// Note the origin is *relative to local consensus*! So we need to escape local
+					// consensus with the `parents` before diving in into the `universal_location`.
+					actual_origin = X1(new_global.clone()).relative_to(&LocalUniversal::get());
 				},
 				Some(DescendOrigin(j)) => {
 					actual_origin.append_with(j.clone()).map_err(|_| ())?;

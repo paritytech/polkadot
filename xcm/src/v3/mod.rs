@@ -368,7 +368,7 @@ pub enum Instruction<Call> {
 	TransferReserveAsset { assets: MultiAssets, dest: MultiLocation, xcm: Xcm<()> },
 
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed
-	/// by the kind of origin `origin_type`.
+	/// by the kind of origin `origin_kind`.
 	///
 	/// The Transact Status Register is set according to the result of dispatching the call.
 	///

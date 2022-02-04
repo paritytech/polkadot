@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, test_utils::*, *};
-use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
+use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND, traits::ConstU32};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -73,6 +73,52 @@ fn take_weight_credit_barrier_should_work() {
 	);
 	assert_eq!(r, Err(()));
 	assert_eq!(weight_credit, 0);
+}
+
+#[test]
+fn computed_origin_should_work() {
+	let mut message = Xcm::<()>(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		DescendOrigin(Parachain(100).into()),
+		DescendOrigin(PalletInstance(69).into()),
+		WithdrawAsset((Parent, 100).into()),
+		BuyExecution { fees: (Parent, 100).into(), weight_limit: Limited(100) },
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+
+	AllowPaidFrom::set(vec![(Parent, Parent, GlobalConsensus(Kusama), Parachain(100), PalletInstance(69)).into()]);
+
+	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		100,
+		&mut 0,
+	);
+	assert_eq!(r, Err(()));
+
+	let r = WithComputedOrigin::<
+		AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>,
+		ExecutorUniversalLocation,
+		ConstU32<2>,
+	>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		100,
+		&mut 0,
+	);
+	assert_eq!(r, Err(()));
+
+	let r = WithComputedOrigin::<
+		AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>,
+		ExecutorUniversalLocation,
+		ConstU32<5>,
+	>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		100,
+		&mut 0,
+	);
+	assert_eq!(r, Ok(()));
 }
 
 #[test]
@@ -190,6 +236,48 @@ fn transfer_should_work() {
 	assert_eq!(assets(3), vec![(Here, 100).into()]);
 	assert_eq!(assets(1001), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn universal_origin_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
+	clear_universal_aliases();
+	// Parachain 1 may represent Kusama to us
+	add_universal_alias(Parachain(1), Kusama);
+	// Parachain 2 may represent Polkadot to us
+	add_universal_alias(Parachain(2), Polkadot);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		Xcm(vec![
+			UniversalOrigin(GlobalConsensus(Kusama)),
+			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::InvalidLocation));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			UniversalOrigin(GlobalConsensus(Kusama)),
+			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
+
+	add_asset(4000, (Parent, 100));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			UniversalOrigin(GlobalConsensus(Kusama)),
+			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(assets(4000), vec![]);
 }
 
 #[test]
