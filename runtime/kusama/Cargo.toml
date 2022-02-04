@@ -201,6 +201,7 @@ std = [
 	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
+	"bridge-runtime-common/runtime-benchmarks",
 	"runtime-common/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
