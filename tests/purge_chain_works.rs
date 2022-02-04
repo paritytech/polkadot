@@ -33,6 +33,8 @@ async fn purge_chain_rocksdb_works() {
 	let mut cmd = Command::new(cargo_bin("polkadot"))
 		.args(&["--dev", "-d"])
 		.arg(tmpdir.path())
+		.arg("--port")
+		.arg("33034")
 		.spawn()
 		.unwrap();
 
@@ -104,5 +106,6 @@ async fn purge_chain_paritydb_works() {
 	// Make sure that the chain folder exists, but `db/full` is deleted.
 	assert!(tmpdir.path().join("chains/dev").exists());
 	assert!(!tmpdir.path().join("chains/dev/paritydb/full").exists());
-	assert!(!tmpdir.path().join("chains/dev/paritydb/parachains").exists()); // TODO this removal is missing
+	// Parachains removal requires calling "purge-chain --parachains".
+	assert!(tmpdir.path().join("chains/dev/paritydb/parachains").exists());
 }
