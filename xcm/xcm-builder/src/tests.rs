@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, test_utils::*, *};
-use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND, traits::ConstU32};
+use frame_support::{assert_err, traits::ConstU32, weights::constants::WEIGHT_PER_SECOND};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -86,7 +86,14 @@ fn computed_origin_should_work() {
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
 
-	AllowPaidFrom::set(vec![(Parent, Parent, GlobalConsensus(Kusama), Parachain(100), PalletInstance(69)).into()]);
+	AllowPaidFrom::set(vec![(
+		Parent,
+		Parent,
+		GlobalConsensus(Kusama),
+		Parachain(100),
+		PalletInstance(69),
+	)
+		.into()]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
@@ -97,27 +104,17 @@ fn computed_origin_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = WithComputedOrigin::<
-		AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>,
+		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 		ExecutorUniversalLocation,
 		ConstU32<2>,
-	>::should_execute(
-		&Parent.into(),
-		message.inner_mut(),
-		100,
-		&mut 0,
-	);
+	>::should_execute(&Parent.into(), message.inner_mut(), 100, &mut 0);
 	assert_eq!(r, Err(()));
 
 	let r = WithComputedOrigin::<
-		AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>,
+		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 		ExecutorUniversalLocation,
 		ConstU32<5>,
-	>::should_execute(
-		&Parent.into(),
-		message.inner_mut(),
-		100,
-		&mut 0,
-	);
+	>::should_execute(&Parent.into(), message.inner_mut(), 100, &mut 0);
 	assert_eq!(r, Ok(()));
 }
 

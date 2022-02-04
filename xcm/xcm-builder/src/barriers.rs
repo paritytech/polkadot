@@ -25,8 +25,10 @@ use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
 use xcm::latest::{
 	Instruction::{self, *},
-	Junction, Junctions, Junctions::X1, MultiLocation,
-	WeightLimit::*, InteriorMultiLocation,
+	InteriorMultiLocation, Junction, Junctions,
+	Junctions::X1,
+	MultiLocation,
+	WeightLimit::*,
 };
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
@@ -145,9 +147,14 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 /// response from. For example, even if an origin appeared in the `AllowedSubscribers` list, we
 /// would ignore this rule if it began with origin mutators and they changed the origin to something
 /// which was not on the list.
-pub struct WithComputedOrigin<InnerBarrier, LocalUniversal, MaxPrefixes>(PhantomData<(InnerBarrier, LocalUniversal, MaxPrefixes)>);
-impl<InnerBarrier: ShouldExecute, LocalUniversal: Get<InteriorMultiLocation>, MaxPrefixes: Get<u32>> ShouldExecute
-	for WithComputedOrigin<InnerBarrier, LocalUniversal, MaxPrefixes>
+pub struct WithComputedOrigin<InnerBarrier, LocalUniversal, MaxPrefixes>(
+	PhantomData<(InnerBarrier, LocalUniversal, MaxPrefixes)>,
+);
+impl<
+		InnerBarrier: ShouldExecute,
+		LocalUniversal: Get<InteriorMultiLocation>,
+		MaxPrefixes: Get<u32>,
+	> ShouldExecute for WithComputedOrigin<InnerBarrier, LocalUniversal, MaxPrefixes>
 {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
