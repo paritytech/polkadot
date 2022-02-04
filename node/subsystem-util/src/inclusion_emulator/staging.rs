@@ -45,11 +45,10 @@ use polkadot_primitives::v1::{
 use std::collections::HashMap;
 
 /// Constraints on inbound HRMP channels.
-// TODO [now]: reframe inbound HRMP limitations as channels existing + next valid watermark.
 #[derive(Debug, Clone, PartialEq)]
-pub struct InboundHrmpChannelLimitations {
-	/// The number of messages remaining to be processed.
-	pub messages_remaining: usize,
+pub struct InboundHrmpLimitations {
+	/// An exhaustive set of all valid watermarks.
+	pub valid_watermarks: Vec<BlockNumber>,
 }
 
 /// Constraints on outbound HRMP channels.
@@ -73,7 +72,7 @@ pub struct Constraints {
 	/// The amount of remaining DMP messages.
 	pub dmp_remaining_messages: usize,
 	/// The limitations of all registered inbound HRMP channels.
-	pub hrmp_channels_in: HashMap<ParaId, InboundHrmpChannelLimitations>,
+	pub hrmp_inbound: InboundHrmpLimitations,
 	/// The limitations of all registered outbound HRMP channels.
 	pub hrmp_channels_out: HashMap<ParaId, OutboundHrmpChannelLimitations>,
 	/// The maximum Proof-of-Validity size allowed, in bytes.
@@ -113,13 +112,6 @@ pub struct Fragment {
 	pub prospective: ProspectiveCandidate,
 }
 
-/// An update to inbound HRMP channels.
-#[derive(Debug, Clone, PartialEq)]
-pub struct InboundHrmpChannelModification {
-	/// The number of messages consumed from the channel.
-	pub messages_consumed: usize,
-}
-
 /// An update to outbound HRMP channels.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutboundHrmpChannelModification {
@@ -135,8 +127,8 @@ pub struct ConstraintModifications {
 	/// The required parent head to build upon.
 	/// `None` indicates 'unmodified'.
 	pub required_head: Option<HeadData>,
-	/// Inbound HRMP channel modifications.
-	pub inbound_hrmp: HashMap<ParaId, InboundHrmpChannelModification>,
+	/// The new HRMP watermark
+	pub hrmp_watermark: BlockNumber,
 	/// Outbound HRMP channel modifications.
 	pub outbound_hrmp: HashMap<ParaId, OutboundHrmpChannelModification>,
 	/// The amount of UMP messages sent.
@@ -146,6 +138,9 @@ pub struct ConstraintModifications {
 	/// The amount of DMP messages processed.
 	pub dmp_messages_processed: usize,
 	// TODO [now]: figure out how to handle code upgrades.
+	// In the block after a go-ahead signal, we know that the code of the
+	// parachain updated. We will need to scrape this from the relay-chain state.
+	// We'd need to scrape that from the relay-chain state.
 }
 
 /// The prospective candidate.
@@ -161,6 +156,8 @@ pub struct ProspectiveCandidate {
 	pub persisted_validation_data: PersistedValidationData,
 	/// The hash of the PoV.
 	pub pov_hash: Hash,
+	/// The validation code hash used by the candidate.
+	pub validation_code_hash: ValidationCodeHash,
 }
 
 #[cfg(test)]
