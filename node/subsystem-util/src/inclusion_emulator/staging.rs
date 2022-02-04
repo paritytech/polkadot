@@ -39,12 +39,13 @@
 //! invalid at first and become valid later on, as the relay chain grows.
 
 use polkadot_primitives::v1::{
-	BlockNumber, CandidateCommitments, Id as ParaId, Hash, PersistedValidationData,
-	ValidationCodeHash, HeadData, UpgradeGoAhead, UpgradeRestriction,
+	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
+	PersistedValidationData, UpgradeGoAhead, UpgradeRestriction, ValidationCodeHash,
 };
 use std::collections::HashMap;
 
 /// Constraints on inbound HRMP channels.
+// TODO [now]: reframe inbound HRMP limitations as channels existing + next valid watermark.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InboundHrmpChannelLimitations {
 	/// The number of messages remaining to be processed.
@@ -58,22 +59,6 @@ pub struct OutboundHrmpChannelLimitations {
 	pub bytes_remaining: usize,
 	/// The maximum messages that can be written to the channel.
 	pub messages_remaining: usize,
-}
-
-/// An update to inbound HRMP channels.
-#[derive(Debug, Clone, PartialEq)]
-pub struct InboundHrmpChannelUpdate {
-	/// The number of messages consumed from the channel.
-	pub messages_consumed: usize,
-}
-
-/// An update to outbound HRMP channels.
-#[derive(Debug, Clone, PartialEq)]
-pub struct OutboundHrmpChannelUpdate {
-	/// The number of bytes submitted to the channel.
-	pub bytes_submitted: usize,
-	/// The number of messages submitted to the channel.
-	pub messages_submitted: usize,
 }
 
 /// Constraints on the actions that can be taken by a new parachain
@@ -122,19 +107,60 @@ pub struct RelayChainBlockInfo {
 pub struct Fragment {
 	/// The new relay-parent.
 	pub relay_parent: RelayChainBlockInfo,
-	/// The limitations associated with this relay-parent.
+	/// The constraints associated with this relay-parent.
 	pub relay_parent_constraints: Constraints,
-	/// The advancement of the parachain which is part of the extension.
-	pub advancement: Advancement,
+	/// The core information about the prospective candidate.
+	pub prospective: ProspectiveCandidate,
 }
 
+/// An update to inbound HRMP channels.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Advancement {
+pub struct InboundHrmpChannelModification {
+	/// The number of messages consumed from the channel.
+	pub messages_consumed: usize,
+}
+
+/// An update to outbound HRMP channels.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutboundHrmpChannelModification {
+	/// The number of bytes submitted to the channel.
+	pub bytes_submitted: usize,
+	/// The number of messages submitted to the channel.
+	pub messages_submitted: usize,
+}
+
+/// Modifications to constraints as a result of prospective candidates.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstraintModifications {
+	/// The required parent head to build upon.
+	/// `None` indicates 'unmodified'.
+	pub required_head: Option<HeadData>,
+	/// Inbound HRMP channel modifications.
+	pub inbound_hrmp: HashMap<ParaId, InboundHrmpChannelModification>,
+	/// Outbound HRMP channel modifications.
+	pub outbound_hrmp: HashMap<ParaId, OutboundHrmpChannelModification>,
+	/// The amount of UMP messages sent.
+	pub ump_messages_sent: usize,
+	/// The amount of UMP bytes sent.
+	pub ump_bytes_sent: usize,
+	/// The amount of DMP messages processed.
+	pub dmp_messages_processed: usize,
+	// TODO [now]: figure out how to handle code upgrades.
+}
+
+/// The prospective candidate.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProspectiveCandidate {
 	/// The commitments to the output of the execution.
 	pub commitments: CandidateCommitments,
-	// We don't want the candidate descriptor, because that commmits to
-	// things like the merkle root.
-	// TODO [now]: finalize this definition.
+	/// The collator that created the candidate.
+	pub collator: CollatorId,
+	/// The signature of the collator on the payload.
+	pub collator_signature: CollatorSignature,
+	/// The persisted validation data used to create the candidate.
+	pub persisted_validation_data: PersistedValidationData,
+	/// The hash of the PoV.
+	pub pov_hash: Hash,
 }
 
 #[cfg(test)]
