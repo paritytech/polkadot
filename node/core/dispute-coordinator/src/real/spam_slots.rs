@@ -34,7 +34,7 @@ type SpamCount = u32;
 /// multiple validators fully make use of their assigned spam slots.
 ///
 /// Also if things are working properly, this number cannot really be too low either, as all
-/// relevant disputes _should_ have been seen as included my enough validators. (Otherwise the
+/// relevant disputes _should_ have been seen as included by enough validators. (Otherwise the
 /// candidate would not have been available in the first place and could not have been included.)
 /// So this is really just a fallback mechanism if things go terribly wrong.
 #[cfg(not(test))]
