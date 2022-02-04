@@ -269,6 +269,8 @@ mod basic {
 }
 
 mod splitable {
+	use syn::parse_quote;
+
 	use super::*;
 
 	#[test]

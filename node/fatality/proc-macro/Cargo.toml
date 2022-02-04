@@ -11,7 +11,7 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0.32"
 quote = "1.0.10"
-syn = { version = "1.0.82", features = ["full"], default-features = false }
+syn = { version = "1.0.82", features = ["full", "extra-traits"], default-features = false }
 thiserror = "1.0.30"
 proc-macro-crate = "1.1.0"
 indexmap = "1.7.0"

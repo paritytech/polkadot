@@ -16,10 +16,10 @@
 
 use indexmap::IndexMap;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
 	parse::{Parse, ParseStream},
-	parse2,
+	parse2, parse_quote,
 	punctuated::Punctuated,
 	spanned::Spanned,
 	token::{Brace, Colon2, Paren},
@@ -38,16 +38,31 @@ mod kw {
 	syn::custom_keyword!(splitable);
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum ResolutionMode {
 	/// Not relevant for fatality determination, always non-fatal.
-	None,
+	NoAnnotation,
 	/// Fatal by default.
 	Fatal,
 	/// Specified via a `bool` argument `#[fatal(true)]` or `#[fatal(false)]`.
 	WithExplicitBool(LitBool),
 	/// Specified via a keyword argument `#[fatal(forward)]`.
 	Forward(kw::forward, Option<Ident>),
+}
+
+impl std::fmt::Debug for ResolutionMode {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::NoAnnotation => writeln!(f, "None"),
+			Self::Fatal => writeln!(f, "Fatal"),
+			Self::WithExplicitBool(ref b) => writeln!(f, "Fatal({})", b.value()),
+			Self::Forward(_, ref ident) => writeln!(
+				f,
+				"Fatal(Forward, {})",
+				ident.as_ref().map(|x| x.to_string()).unwrap_or_else(|| "___".to_string())
+			),
+		}
+	}
 }
 
 impl Default for ResolutionMode {
@@ -75,19 +90,20 @@ impl Parse for ResolutionMode {
 
 impl ToTokens for ResolutionMode {
 	fn to_tokens(&self, ts: &mut TokenStream) {
+		let trait_fatality = abs_helper_path(format_ident!("Fatality"), Span::call_site());
 		let tmp = match self {
-			Self::None => quote! { false },
+			Self::NoAnnotation => quote! { false },
 			Self::Fatal => quote! { true },
 			Self::WithExplicitBool(boolean) => {
 				let value = boolean.value;
 				quote! { #value }
 			},
-			Self::Forward(_, maybe_ident) =>
-				if let Some(ident) = maybe_ident {
-					quote! { #ident .is_fatal() }
-				} else {
-					quote! { x.is_fatal() }
-				},
+			Self::Forward(_, maybe_ident) => {
+				let ident = maybe_ident.as_ref().expect("Forward must have ident set. qed");
+				quote! {
+					<_ as #trait_fatality >::is_fatal( #ident )
+				}
+			},
 		};
 		ts.extend(tmp)
 	}
@@ -100,23 +116,24 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 	} else {
 		crate_name("fatality").expect("`fatality` must be present in `Cargo.toml` for use. q.e.d")
 	};
-	let ts = match found_crate {
-		FoundCrate::Itself => quote!( crate::#what ),
+	let path: Path = match found_crate {
+		FoundCrate::Itself => parse_quote!( crate::#what ),
 		FoundCrate::Name(name) => {
 			let ident = Ident::new(&name, loco);
-			quote!( #ident::#what )
+			parse_quote! { #ident :: #what }
 		},
 	};
-	let path: Path = parse2(ts).unwrap();
 	path
 }
 
+/// Implement `trait Fatality` for `who`.
 fn trait_fatality_impl(
 	who: &Ident,
-	pattern_and_resolution: &IndexMap<Pat, ResolutionMode>,
+	pattern_lut: &IndexMap<Variant, Pat>,
+	resolution_lut: &IndexMap<Variant, ResolutionMode>,
 ) -> TokenStream {
-	let pat = pattern_and_resolution.keys();
-	let resolution = pattern_and_resolution.values();
+	let pat = pattern_lut.values();
+	let resolution = resolution_lut.values();
 
 	let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
 	quote! {
@@ -160,7 +177,6 @@ fn variant_to_pattern(
 ) -> Result<(Pat, ResolutionMode), syn::Error> {
 	let span = variant.fields.span();
 	// default name for referencing a var in an unnamed enum variant
-	let pat_capture_ident = &Ident::new("inner", span);
 	let me = PathSegment { ident: Ident::new("Self", span), arguments: PathArguments::None };
 	let path = Path {
 		leading_colon: None,
@@ -183,7 +199,6 @@ fn variant_to_pattern(
 
 	let source = Ident::new("source", span);
 
-	// let source: Option<Ident> = variant
 	let (pat, resolution) = match variant.fields {
 		Fields::Named(ref fields) => {
 			let fwd_field = if is_transparent {
@@ -193,26 +208,34 @@ fn variant_to_pattern(
 					field.attrs.iter().find(|attr| attr.path.is_ident(&source)).is_some()
 				})
 			}
-			.cloned();
+			.cloned()
+			.expect("Something must be something. qed");
 
-			let fields = match requested_resolution_mode {
-				ResolutionMode::Forward(_, _) if fwd_field.is_some() => {
-					let field_name = fwd_field.as_ref().and_then(|f| f.ident.clone());
+			let (fields, resolution) = match requested_resolution_mode {
+				ResolutionMode::Forward(fwd, _ident) => {
+					assert!(matches!(_ident, None));
+
+					// let fwd_field = fwd_field.as_ref().unwrap();
+					let field_name =
+						fwd_field.ident.clone().expect("Must have member/field name. qed");
 					let fp = FieldPat {
 						attrs: vec![],
-						member: Member::Named(field_name.clone().unwrap()),
+						member: Member::Named(field_name.clone()),
 						colon_token: None,
 						pat: Box::new(Pat::Ident(PatIdent {
 							attrs: vec![],
 							by_ref: Some(Token![ref](span)),
 							mutability: None,
-							ident: field_name.unwrap(),
+							ident: field_name.clone(),
 							subpat: None,
 						})),
 					};
-					Punctuated::<FieldPat, Token![,]>::from_iter([fp])
+					(
+						Punctuated::<FieldPat, Token![,]>::from_iter([fp]),
+						ResolutionMode::Forward(fwd, fwd_field.ident.clone()),
+					)
 				},
-				_ => Punctuated::<FieldPat, Token![,]>::new(),
+				_ => (Punctuated::<FieldPat, Token![,]>::new(), ResolutionMode::Fatal),
 			};
 
 			(
@@ -223,18 +246,16 @@ fn variant_to_pattern(
 					fields,
 					dot2_token: Some(Token![..](span)),
 				}),
-				match requested_resolution_mode {
-					ResolutionMode::Forward(fwd, _) => ResolutionMode::Forward(
-						fwd,
-						fwd_field.as_ref().and_then(|f| f.ident.clone()),
-					),
-					other => other,
-				},
+				resolution,
 			)
 		},
 		Fields::Unnamed(ref fields) => {
-			let mut field_pats = if let ResolutionMode::Forward(..) = requested_resolution_mode {
-				if is_transparent {
+			let (mut field_pats, resolution) = if let ResolutionMode::Forward(keyword, _) =
+				requested_resolution_mode
+			{
+				// obtain the i of the i-th unnamed field.
+				let fwd_idx = if is_transparent {
+					// must be the only field, otherwise bail
 					if fields.unnamed.iter().count() != 1 {
 						return Err(
 							syn::Error::new(
@@ -243,29 +264,6 @@ fn variant_to_pattern(
 							)
 						)
 					}
-				} else {
-					fields
-						.unnamed
-						.iter()
-						.enumerate()
-						.find_map(|(idx, field)| {
-							field
-								.attrs
-								.iter()
-								.find(|attr| attr.path.is_ident(&source))
-								.map(|_attr| idx)
-						})
-						.ok_or_else(|| {
-							syn::Error::new(
-								fields.span(),
-								"Must have a `#[source]` annotated field for `forward` with `fatality`",
-							)
-						})?;
-				}
-
-				// obtain the i of the i-th unnamed field.
-				let fwd_idx = if is_transparent {
-					// take the first one, TODO error if there is more than one
 					0_usize
 				} else {
 					fields
@@ -287,6 +285,8 @@ fn variant_to_pattern(
 						})?
 				};
 
+				let pat_capture_ident =
+					unnamed_fields_variant_pattern_constructor_binding_name(fwd_idx);
 				// create a pattern like this: `_, _, _, inner, ..`
 				let mut field_pats = std::iter::repeat(Pat::Wild(PatWild {
 					attrs: vec![],
@@ -303,9 +303,9 @@ fn variant_to_pattern(
 					subpat: None,
 				}));
 
-				field_pats
+				(field_pats, ResolutionMode::Forward(keyword, Some(pat_capture_ident)))
 			} else {
-				vec![]
+				(vec![], requested_resolution_mode)
 			};
 			field_pats.push(Pat::Rest(PatRest { attrs: vec![], dot2_token: Token![..](span) }));
 			(
@@ -318,22 +318,21 @@ fn variant_to_pattern(
 						elems: Punctuated::<Pat, Token![,]>::from_iter(field_pats),
 					},
 				}),
-				match requested_resolution_mode {
-					ResolutionMode::Forward(x, _) =>
-						ResolutionMode::Forward(x, Some(pat_capture_ident.clone())),
-					x => x,
-				},
+				resolution,
 			)
 		},
-		Fields::Unit => (
-			Pat::Path(PatPath { attrs: vec![], qself: None, path }),
-			match requested_resolution_mode {
-				ResolutionMode::Forward(..) =>
-					return Err(syn::Error::new(span, "Cannot forward to a unit item variant")),
-				resolution => resolution,
-			},
-		),
+		Fields::Unit => {
+			if let ResolutionMode::Forward(..) = requested_resolution_mode {
+				return Err(syn::Error::new(span, "Cannot forward to a unit item variant"))
+			}
+			(Pat::Path(PatPath { attrs: vec![], qself: None, path }), requested_resolution_mode)
+		},
 	};
+	assert!(
+		!matches!(resolution, ResolutionMode::Forward(_kw, None)),
+		"We always set the resolution identifier _right here_. qed"
+	);
+
 	Ok((pat, resolution))
 }
 
@@ -423,10 +422,14 @@ impl ToTokens for VariantConstructor {
 	}
 }
 
-// Generate the Jfyi and Fatal sub enums.
+/// Generate the Jfyi and Fatal sub enums.
+///
+/// `fatal_variants` and `jfyi_variants` cover _all_ variants, if they are forward, they are part of both slices.
+/// `forward_variants` enlists all variants that
 fn trait_split_impl(
 	attr: Attr,
 	original: ItemEnum,
+	resolution_lut: &IndexMap<Variant, ResolutionMode>,
 	jfyi_variants: &[Variant],
 	fatal_variants: &[Variant],
 ) -> Result<TokenStream, syn::Error> {
@@ -436,7 +439,7 @@ fn trait_split_impl(
 
 	let span = original.span();
 
-	let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
+	let thiserror: Path = parse_quote!(thiserror::Error);
 	let thiserror = abs_helper_path(thiserror, span);
 
 	let split_trait = abs_helper_path(Ident::new("Split", span), span);
@@ -474,7 +477,9 @@ fn trait_split_impl(
 		.map(|variant| VariantConstructor(variant.clone()))
 		.collect::<Vec<_>>();
 
-	Ok(quote! {
+	let mut ts = TokenStream::new();
+
+	ts.extend(quote! {
 		impl ::std::convert::From< #fatal_ident> for #original_ident {
 			fn from(fatal: #fatal_ident) -> Self {
 				match fatal {
@@ -498,6 +503,40 @@ fn trait_split_impl(
 
 		#[derive(#thiserror, Debug)]
 		#jfyi
+	});
+
+	// Handle `forward` annotations.
+	let trait_fatality = abs_helper_path(format_ident!("Fatality"), Span::call_site());
+
+	// add a a `fatal` variant
+	let fatal_patterns_w_if_maybe = fatal_variants
+		.iter()
+		.map(|variant| {
+			let pat = VariantPattern(variant.clone());
+			if let Some(ResolutionMode::Forward(_fwd_kw, ident)) = dbg!(resolution_lut.get(variant))
+			{
+				let ident =
+					ident.as_ref().expect("Forward mode must have an ident at this point. qed");
+				quote! { #pat if < _ as #trait_fatality >::is_fatal( & #ident ) }
+			} else {
+				pat.into_token_stream()
+			}
+		})
+		.collect::<Vec<_>>();
+
+	let jfyi_patterns_w_if_maybe = jfyi_variants
+		.iter()
+		.map(|variant| {
+			let pat = VariantPattern(variant.clone());
+			assert!(
+				!matches!(resolution_lut.get(variant), None),
+				"Cannot be annotated as fatal when in the JFYI slice. qed"
+			);
+			pat.into_token_stream()
+		})
+		.collect::<Vec<_>>();
+
+	let split_trait_impl = quote! {
 
 		impl #split_trait for #original_ident {
 			type Fatal = #fatal_ident;
@@ -506,20 +545,26 @@ fn trait_split_impl(
 			fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
 				match self {
 					// Fatal
-					#( Self :: #fatal_patterns => Err(#fatal_ident :: #fatal_constructors), )*
+					#( Self :: #fatal_patterns_w_if_maybe => Err(#fatal_ident :: #fatal_constructors), )*
 					// JFYI
-					#( Self :: #jfyi_patterns => Ok(#jfyi_ident :: #jfyi_constructors), )*
+					#( Self :: #jfyi_patterns_w_if_maybe => Ok(#jfyi_ident :: #jfyi_constructors), )*
+					// issue: https://github.com/rust-lang/rust/issues/93611#issuecomment-1028844586
+					// #( Self :: #forward_patterns => unreachable!("`Fatality::is_fatal` can only be `true` or `false`, which are covered. qed"), )*
 				}
 			}
 		}
-	})
+	};
+	ts.extend(split_trait_impl);
+
+	Ok(ts)
 }
 
 fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 	let name = item.ident.clone();
 	let mut original = item.clone();
 
-	let mut has_fatal_annotation = IndexMap::new();
+	let mut resolution_lut = IndexMap::new();
+	let mut pattern_lut = IndexMap::new();
 
 	let mut jfyi_variants = Vec::new();
 	let mut fatal_variants = Vec::new();
@@ -527,7 +572,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 	// if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(thiserror::Error, Debug)]`
 	// without the intermediate type. But impl `trait Fatality` on-top.
 	for variant in original.variants.iter_mut() {
-		let mut resolution_mode = ResolutionMode::None;
+		let mut resolution_mode = ResolutionMode::NoAnnotation;
 
 		// remove the `#[fatal]` attribute
 		while let Some(idx) = variant.attrs.iter().enumerate().find_map(|(idx, attr)| {
@@ -545,17 +590,28 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 			}
 		}
 
-		// If no `#[fatal]` annotation, this one is non-fatal for sure, statically.
-		if let ResolutionMode::None = resolution_mode {
-			jfyi_variants.push(variant.clone());
-		} else {
-			fatal_variants.push(variant.clone());
+		// Obtain the patterns for each variant, and the resolution, which can either
+		// be `forward`, `true`, or `false`
+		// as used in the `trait Fatality`.
+		let (pattern, resolution_mode) = variant_to_pattern(variant, resolution_mode)?;
+		match resolution_mode {
+			ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
+			ResolutionMode::Forward(_, ref _ident) => {
+				jfyi_variants.push(variant.clone());
+				fatal_variants.push(variant.clone());
+			},
+			ResolutionMode::WithExplicitBool(ref b) if b.value() =>
+				fatal_variants.push(variant.clone()),
+			ResolutionMode::WithExplicitBool(_) => jfyi_variants.push(variant.clone()),
+			ResolutionMode::Fatal => fatal_variants.push(variant.clone()),
+			ResolutionMode::NoAnnotation => jfyi_variants.push(variant.clone()),
 		}
-		has_fatal_annotation.insert(variant.clone(), resolution_mode);
+		resolution_lut.insert(variant.clone(), resolution_mode);
+		pattern_lut.insert(variant.clone(), pattern);
 	}
 
 	// Path to `thiserror`.
-	let thiserror: Path = parse2(quote!(thiserror::Error)).unwrap();
+	let thiserror: Path = parse_quote!(thiserror::Error);
 	let thiserror = abs_helper_path(thiserror, name.span());
 
 	let original_enum = quote! {
@@ -563,38 +619,11 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 		#original
 	};
 
-	// Obtain the patterns for each variant, and the resolution, which can either
-	// be `forward`, `true`, or `false`
-	// as used in the `trait Fatality`.
-	let pattern_and_resolution = original
-		.variants
-		.iter()
-		.map(move |variant| {
-			variant_to_pattern(
-				variant,
-				has_fatal_annotation.get(&*variant).cloned().unwrap_or_default(),
-			)
-			.and_then(|x| {
-				// currently we don't support, `forward` in combination with `splitable`
-				if let Attr::Splitable(keyword_splitable) = attr {
-					if let ResolutionMode::Forward(keyword_forward, _) = x.1 {
-						let mut err = syn::Error::new_spanned(
-							keyword_splitable,
-							"Cannot use `split` when using `forward` annotations",
-						);
-						err.combine(syn::Error::new_spanned(keyword_forward, "used here"));
-						return Err(err)
-					}
-				}
-				Ok(x)
-			})
-		})
-		.collect::<Result<IndexMap<_, _>, syn::Error>>()?;
-
 	let mut ts = TokenStream::new();
 	ts.extend(original_enum);
-	ts.extend(trait_fatality_impl(&original.ident, &pattern_and_resolution));
-	ts.extend(trait_split_impl(attr, original, &jfyi_variants, &fatal_variants));
+	ts.extend(trait_fatality_impl(&original.ident, &pattern_lut, &resolution_lut));
+
+	ts.extend(trait_split_impl(attr, original, &resolution_lut, &jfyi_variants, &fatal_variants));
 	Ok(ts)
 }
 
@@ -646,7 +675,8 @@ fn fatality2(
 
 	expander::Expander::new("fatality")
 		.add_comment("Generated by `#[fatality::fatality]`".to_owned())
-		.dry(true)
+		// .fmt(expander::Edition::_2021)
+		.dry(false)
 		.write_to_out_dir(res)
 		.unwrap()
 }
