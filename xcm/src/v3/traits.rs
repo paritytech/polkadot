@@ -376,10 +376,10 @@ pub type SendCostResult = result::Result<MultiAssets, SendError>;
 /// }]);
 ///
 /// // Sender2 will block this.
-/// assert!(send_xcm::<(Sender1, Sender2, Sender3) as SendXcm>(Parent.into(), message.clone()).is_err());
+/// assert!(send_xcm::<(Sender1, Sender2, Sender3)>(Parent.into(), message.clone()).is_err());
 ///
 /// // Sender3 will catch this.
-/// assert!(send_xcm::<(Sender1, Sender3) as SendXcm>(Parent.into(), message.clone()).is_ok());
+/// assert!(send_xcm::<(Sender1, Sender3)>(Parent.into(), message.clone()).is_ok());
 /// # }
 /// ```
 pub trait SendXcm {
