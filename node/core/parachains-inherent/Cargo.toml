@@ -1,11 +1,11 @@
 [package]
 name = "polkadot-node-core-parachains-inherent"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.19"
 futures-timer = "3.0.2"
 tracing = "0.1.29"
 thiserror = "1.0.30"

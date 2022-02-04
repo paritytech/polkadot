@@ -20,8 +20,9 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use polkadot_primitives::v1::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, ValidatorIndex},
+	v2::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;

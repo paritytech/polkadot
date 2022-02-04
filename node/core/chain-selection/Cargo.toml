@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-node-core-chain-selection"
 description = "Chain Selection Subsystem"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.19"
 futures-timer = "3"
 tracing = "0.1.29"
 polkadot-primitives = { path = "../../../primitives" }

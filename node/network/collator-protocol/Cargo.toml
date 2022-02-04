@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-collator-protocol"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 always-assert = "0.1.2"
 derive_more = "0.99.17"
-futures = "0.3.17"
+futures = "0.3.19"
 futures-timer = "3"
 thiserror = "1.0.30"
 tracing = "0.1.29"

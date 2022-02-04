@@ -28,7 +28,6 @@ use std::{collections::HashSet, sync::Arc};
 
 use futures::FutureExt;
 use kvdb::KeyValueDB;
-use parity_scale_codec::Error as CodecError;
 
 use sc_keystore::LocalKeystore;
 
@@ -40,24 +39,23 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
-use crate::metrics::Metrics;
-use backend::{Backend, OverlayedBackend};
-use db::v1::DbBackend;
-use error::{FatalResult, Result};
-
-use self::{
-	error::{Error, NonFatal},
-	ordering::CandidateComparator,
-	participation::ParticipationRequest,
-	spam_slots::{SpamSlots, UnconfirmedDisputes},
+use crate::{
+	error::{Error, FatalResult, NonFatal, Result},
+	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
 
-mod backend;
-mod db;
+use backend::{Backend, OverlayedBackend};
+use db::v1::DbBackend;
 
-/// Common error types for this subsystem.
-mod error;
+use self::{
+	ordering::CandidateComparator,
+	participation::ParticipationRequest,
+	spam_slots::{SpamSlots, UnconfirmedDisputes},
+};
+
+pub(crate) mod backend;
+pub(crate) mod db;
 
 /// Subsystem after receiving the first active leaf.
 mod initialized;
@@ -90,16 +88,14 @@ mod spam_slots;
 /// participation requests, such that most important/urgent disputes will be resolved and processed
 /// first and more importantly it will order requests in a way so disputes will get resolved, even
 /// if there are lots of them.
-mod participation;
+pub(crate) mod participation;
 
-/// Status tracking of disputes (`DisputeStatus`).
-mod status;
-use status::Clock;
+use crate::status::Clock;
+
+use crate::LOG_TARGET;
 
 #[cfg(test)]
 mod tests;
-
-const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
@@ -206,6 +202,10 @@ impl DisputeCoordinatorSubsystem {
 					continue
 				},
 			};
+
+			// Before we move to the initialized state we need to check if we got at
+			// least on finality notification to prevent large ancestry block scraping,
+			// when the node is syncing.
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, spam_slots, ordering_provider) = match self
@@ -394,11 +394,13 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-			// Note: It seems we really should not receive any messages before the first
-			// `ActiveLeavesUpdate`, if that proves wrong over time and we do receive
-			// messages before the first `ActiveLeavesUpdate` that should not be dropped,
-			// this can easily be fixed by collecting those messages and passing them on to
-			// `Initialized::new()`.
+			// NOTE: We could technically actually handle a couple of message types, even if
+			// not initialized (e.g. all requests that only query the database). The problem
+			// is, we would deliver potentially outdated information, especially in the event
+			// of bugs where initialization fails for a while (e.g. `SessionInfo`s are not
+			// available). So instead of telling subsystems, everything is fine, because of an
+			// hour old database state, we should rather cancel contained oneshots and delay
+			// finality until we are fully functional.
 				tracing::warn!(
 					target: LOG_TARGET,
 					?msg,

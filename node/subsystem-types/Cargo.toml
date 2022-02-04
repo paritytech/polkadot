@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-subsystem-types"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
 derive_more = "0.99.17"
-futures = "0.3.17"
+futures = "0.3.19"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }

@@ -23,7 +23,10 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
+use polkadot_primitives::{
+	v1::{Block, BlockId, Hash},
+	v2::ParachainHost,
+};
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -144,7 +147,9 @@ where
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
 			SessionInfo(_relay_parent, session_index, info) =>
-				self.requests_cache.cache_session_info(session_index, info),
+				if let Some(info) = info {
+					self.requests_cache.cache_session_info(session_index, info);
+				},
 			DmqContents(relay_parent, para_id, messages) =>
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
 			InboundHrmpChannelsContents(relay_parent, para_id, contents) => self
@@ -154,6 +159,12 @@ where
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 			FetchOnChainVotes(relay_parent, scraped) =>
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
+			PvfsRequirePrecheck(relay_parent, pvfs) =>
+				self.requests_cache.cache_pvfs_require_precheck(relay_parent, pvfs),
+			SubmitPvfCheckStatement(_, _, _, ()) => {},
+			ValidationCodeHash(relay_parent, para_id, assumption, hash) => self
+				.requests_cache
+				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 		}
 	}
 
@@ -226,8 +237,15 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
-			Request::SessionInfo(index, sender) => query!(session_info(index), sender)
-				.map(|sender| Request::SessionInfo(index, sender)),
+			Request::SessionInfo(index, sender) => {
+				if let Some(info) = self.requests_cache.session_info(index) {
+					self.metrics.on_cached_request();
+					let _ = sender.send(Ok(Some(info.clone())));
+					None
+				} else {
+					Some(Request::SessionInfo(index, sender))
+				}
+			},
 			Request::DmqContents(id, sender) =>
 				query!(dmq_contents(id), sender).map(|sender| Request::DmqContents(id, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>
@@ -237,6 +255,15 @@ where
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::FetchOnChainVotes(sender) =>
 				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
+			Request::PvfsRequirePrecheck(sender) => query!(pvfs_require_precheck(), sender)
+				.map(|sender| Request::PvfsRequirePrecheck(sender)),
+			request @ Request::SubmitPvfCheckStatement(_, _, _) => {
+				// This request is side-effecting and thus cannot be cached.
+				Some(request)
+			},
+			Request::ValidationCodeHash(para, assumption, sender) =>
+				query!(validation_code_hash(para, assumption), sender)
+					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 		}
 	}
 
@@ -335,42 +362,30 @@ where
 {
 	let _timer = metrics.time_make_runtime_api_request();
 
-	// The version of the `ParachainHost` runtime API that we are absolutely sure is deployed widely
-	// on all supported networks: Rococo, Kusama, Polkadot and perhaps others like Versi.
-	//
-	// This version is used for eliding unnecessary runtime API calls. It is safer to keep the lower
-	// version.
-	const WIDELY_DEPLOYED_API_VERSION: u32 = 1;
-
 	macro_rules! query {
 		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
 
-			let runtime_version = if $version > WIDELY_DEPLOYED_API_VERSION {
-				use sp_api::ApiExt;
-				api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
-					.unwrap_or_else(|e| {
-						tracing::warn!(
-							target: LOG_TARGET,
-							"cannot query the runtime API version: {}",
-							e,
-						);
-						Some(WIDELY_DEPLOYED_API_VERSION)
-					})
-					.unwrap_or_else(|| {
-						tracing::warn!(
-							target: LOG_TARGET,
-							"no runtime version is reported"
-						);
-						WIDELY_DEPLOYED_API_VERSION
-					})
-			} else {
-				// The required version is less or equal to the widely deployed runtime API version.
-				WIDELY_DEPLOYED_API_VERSION
-			};
+			use sp_api::ApiExt;
+			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+				.unwrap_or_else(|e| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"cannot query the runtime API version: {}",
+						e,
+					);
+					Some(0)
+				})
+				.unwrap_or_else(|| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"no runtime version is reported"
+					);
+					0
+				});
 
-			let res = if runtime_version <= $version {
+			let res = if runtime_version >= $version {
 				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
@@ -432,8 +447,42 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionInfo(index, sender) =>
-			query!(SessionInfo, session_info(index), ver = 1, sender),
+		Request::SessionInfo(index, sender) => {
+			use sp_api::ApiExt;
+
+			let api = client.runtime_api();
+			let block_id = BlockId::Hash(relay_parent);
+
+			let api_version = api
+				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+				.unwrap_or_default()
+				.unwrap_or_default();
+
+			let res = if api_version >= 2 {
+				let res =
+					api.session_info(&block_id, index).map_err(|e| RuntimeApiError::Execution {
+						runtime_api_name: "SessionInfo",
+						source: std::sync::Arc::new(e),
+					});
+				metrics.on_request(res.is_ok());
+				res
+			} else {
+				#[allow(deprecated)]
+				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
+					RuntimeApiError::Execution {
+						runtime_api_name: "SessionInfo",
+						source: std::sync::Arc::new(e),
+					}
+				});
+				metrics.on_request(res.is_ok());
+
+				res.map(|r| r.map(|old| old.into()))
+			};
+
+			let _ = sender.send(res.clone());
+
+			res.ok().map(|res| RequestResult::SessionInfo(relay_parent, index, res))
+		},
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
 		Request::InboundHrmpChannelsContents(id, sender) =>
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),
@@ -441,6 +490,19 @@ where
 			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender),
 		Request::FetchOnChainVotes(sender) =>
 			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender),
+		Request::SubmitPvfCheckStatement(stmt, signature, sender) => {
+			query!(
+				SubmitPvfCheckStatement,
+				submit_pvf_check_statement(stmt, signature),
+				ver = 2,
+				sender
+			)
+		},
+		Request::PvfsRequirePrecheck(sender) => {
+			query!(PvfsRequirePrecheck, pvfs_require_precheck(), ver = 2, sender)
+		},
+		Request::ValidationCodeHash(para, assumption, sender) =>
+			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 	}
 }
 

@@ -94,6 +94,20 @@ pub enum RequestError {
 	Canceled(#[source] oneshot::Canceled),
 }
 
+impl RequestError {
+	/// Whether the error represents some kind of timeout condition.
+	pub fn is_timed_out(&self) -> bool {
+		match self {
+			Self::Canceled(_) |
+			Self::NetworkError(network::RequestFailure::Obsolete) |
+			Self::NetworkError(network::RequestFailure::Network(
+				network::OutboundFailure::Timeout,
+			)) => true,
+			_ => false,
+		}
+	}
+}
+
 /// A request to be sent to the network bridge, including a sender for sending responses/failures.
 ///
 /// The network implementation will make use of that sender for informing the requesting subsystem
