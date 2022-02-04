@@ -22,7 +22,7 @@ use crate::mock::{
 use frame_support::{assert_noop, assert_ok, weights::Weight};
 use std::collections::HashSet;
 
-struct GenesisConfigBuilder {
+pub(super) struct GenesisConfigBuilder {
 	max_upward_message_size: u32,
 	max_upward_message_num_per_candidate: u32,
 	max_upward_queue_count: u32,
