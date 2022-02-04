@@ -16,7 +16,7 @@
 
 //! The monitor command.
 
-use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig};
+use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig};
 use codec::Encode;
 use jsonrpsee::{
 	core::{
@@ -71,8 +71,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
-		client: WsClient,
-		shared: SharedConfig,
+		client: Arc<WsClient>,
 		config: MonitorConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
@@ -86,8 +85,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 		};
 
 		let mut subscription: Subscription<Header> = client.subscribe(&sub, None, &unsub).await?;
-
-		let client = Arc::new(client);
 		let (tx, mut rx) = mpsc::unbounded_channel::<StakingMinerError>();
 
 		loop {
@@ -128,7 +125,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			// Spawn task and non-recoverable errors are sent back to the main task
 			// such as if the connection has been closed.
 			tokio::spawn(
-				send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), shared.clone(), config.clone())
+				send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), config.clone())
 			);
 		}
 
@@ -138,7 +135,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			tx: mpsc::UnboundedSender<StakingMinerError>,
 			at: Header,
 			signer: Signer,
-			shared: SharedConfig,
 			config: MonitorConfig,
 		) {
 
@@ -159,7 +155,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// grab an externalities without staking, just the election snapshot.
 			let mut ext = match crate::create_election_ext::<Runtime, Block>(
-				shared.uri.clone(),
+				client.clone(),
 				Some(hash),
 				vec![],
 			).await {

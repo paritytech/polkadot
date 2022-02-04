@@ -16,19 +16,20 @@
 
 //! The emergency-solution command.
 
-use crate::{prelude::*, EmergencySolutionConfig, Error, SharedConfig};
+use crate::{prelude::*, EmergencySolutionConfig, Error, WsClient};
 use codec::Encode;
 use std::io::Write;
+use std::sync::Arc;
 
 macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the emergency-solution command.
 	pub(crate) async fn [<emergency_solution_cmd_ $runtime>](
-		shared: SharedConfig,
+		client: Arc<WsClient>,
 		config: EmergencySolutionConfig,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 
-		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, vec![]).await?;
+		let mut ext = crate::create_election_ext::<Runtime, Block>(client.clone(), config.at, vec![]).await?;
 		let (raw_solution, _witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		ext.execute_with(|| {

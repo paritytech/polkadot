@@ -16,12 +16,11 @@
 
 //! The dry-run command.
 
-use crate::{
-	prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
-};
+use crate::{prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, WsClient};
 use codec::Encode;
 use frame_support::traits::Currency;
 use jsonrpsee::rpc_params;
+use std::sync::Arc;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
@@ -109,14 +108,13 @@ fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the dry-run command.
 	pub(crate) async fn [<dry_run_cmd_ $runtime>](
-		client: &WsClient,
-		shared: SharedConfig,
+		client: Arc<WsClient>,
 		config: DryRunConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		let mut ext = crate::create_election_ext::<Runtime, Block>(
-			shared.uri.clone(),
+			client.clone(),
 			config.at,
 			vec!["Staking".to_string(), "System".to_string()],
 		).await?;
@@ -124,7 +122,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 
 		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
-		let nonce = crate::get_account_info::<Runtime>(client, &signer.account, config.at)
+		let nonce = crate::get_account_info::<Runtime>(&*client, &signer.account, config.at)
 			.await?
 			.map(|i| i.nonce)
 			.expect("signer account is checked to exist upon startup; it can only die if it \
@@ -136,7 +134,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let extrinsic = ext.execute_with(|| create_uxt(raw_solution.clone(), witness, signer.clone(), nonce, tip, era));
 
 		let bytes = sp_core::Bytes(extrinsic.encode().to_vec());
-		print_info::<Runtime>(client, &mut ext, &raw_solution, bytes.clone()).await;
+		print_info::<Runtime>(&*client, &mut ext, &raw_solution, bytes.clone()).await;
 
 		let feasibility_result = ext.execute_with(|| {
 			EPM::Pallet::<Runtime>::feasibility_check(raw_solution.clone(), EPM::ElectionCompute::Signed)
@@ -150,7 +148,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		});
 		log::info!(target: LOG_TARGET, "dispatch result is {:?}", dispatch_result);
 
-		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", rpc_params!{ bytes })
+		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(&*client, "system_dryRun", rpc_params!{ bytes })
 			.await
 			.map_err::<Error<Runtime>, _>(Into::into)?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);

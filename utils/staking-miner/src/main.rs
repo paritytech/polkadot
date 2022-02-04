@@ -45,6 +45,7 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
+use std::sync::Arc;
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -368,7 +369,7 @@ struct Opt {
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
 async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
-	uri: String,
+	client: Arc<WsClient>,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
 ) -> Result<Ext, Error<T>> {
@@ -381,7 +382,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
-			transport: uri.into(),
+			transport: client.into(),
 			at,
 			pallets,
 			..Default::default()
@@ -465,7 +466,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -531,7 +532,7 @@ async fn main() {
 			.build(&shared.uri)
 			.await;
 		match maybe_client {
-			Ok(client) => break client,
+			Ok(client) => break Arc::new(client),
 			Err(why) => {
 				log::warn!(
 					target: LOG_TARGET,
@@ -585,7 +586,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
@@ -602,15 +603,15 @@ async fn main() {
 
 	let outcome = any_runtime! {
 		match command.clone() {
-			Command::Monitor(c) => monitor_cmd(client, shared, c, signer_account).await
+			Command::Monitor(c) => monitor_cmd(client, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
 				}),
-			Command::DryRun(c) => dry_run_cmd(&client, shared, c, signer_account).await
+			Command::DryRun(c) => dry_run_cmd(client, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
 				}),
-			Command::EmergencySolution(c) => emergency_solution_cmd(shared.clone(), c).await
+			Command::EmergencySolution(c) => emergency_solution_cmd(client, c).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),
