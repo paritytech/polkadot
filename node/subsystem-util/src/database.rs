@@ -132,7 +132,7 @@ pub mod kvdb_impl {
 	}
 }
 
-/// Utils to use parity-db base database.
+/// Utilities for using parity-db database.
 pub mod paritydb_impl {
 	use super::{DBTransaction, DBValue, Database, KeyValueDB};
 	use kvdb::{DBOp, IoStats, IoStatsKind};
