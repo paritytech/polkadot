@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 rust-version = "1.57.0" # custom profiles
@@ -117,18 +117,20 @@ exclude = ["bridges/relays/bin-substrate", "bridges/bin/rialto/runtime", "bridge
 [badges]
 maintenance = { status = "actively-developed" }
 
-# make sure dev builds with backtrace do
-# not slow us down
-[profile.dev.package.backtrace]
-opt-level = 3
-
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+opt-level = 3
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+inherits = "release"
 
 [profile.production]
 inherits = "release"
 lto = true
+codegen-units = 1
 
 [profile.testnet]
 inherits = "release"
