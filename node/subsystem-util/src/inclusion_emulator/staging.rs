@@ -160,6 +160,25 @@ pub struct ProspectiveCandidate {
 	pub validation_code_hash: ValidationCodeHash,
 }
 
+impl ProspectiveCandidate {
+	/// Produce a set of constraint modifications based on the outputs
+	/// of the candidate.
+	pub fn constraint_modifications(&self) -> ConstraintModifications {
+		ConstraintModifications {
+			required_head: Some(self.commitments.head_data.clone()),
+			hrmp_watermark: self.commitments.hrmp_watermark,
+			outbound_hrmp: {
+				// TODO [now]: have we enforced that HRMP messages are ascending at this point?
+				// probably better not to assume that and do sanity-checking at other points.
+				unimplemented!()
+			},
+			ump_messages_sent: self.commitments.upward_messages.len(),
+			ump_bytes_sent: self.commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
+			dmp_messages_processed: self.commitments.processed_downward_messages as _,
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
