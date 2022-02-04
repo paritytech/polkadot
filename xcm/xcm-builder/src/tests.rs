@@ -25,6 +25,7 @@ fn basic_setup_works() {
 	assert!(<TestConfig as Config>::IsReserve::filter_asset_location(
 		&(Parent, 100).into(),
 		&Parent.into(),
+		XcmContext::with_message_hash([0; 32]),
 	));
 
 	assert_eq!(to_account(X1(Parachain(1)).into()), Ok(1001));

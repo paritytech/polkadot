@@ -126,13 +126,21 @@ pub fn add_asset<AssetArg: Into<MultiAsset>>(who: u64, what: AssetArg) {
 
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
+	fn deposit_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		_context: XcmContext,
+	) -> Result<(), XcmError> {
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		add_asset(who, what.clone());
 		Ok(())
 	}
 
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
+	fn withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		_context: XcmContext,
+	) -> Result<Assets, XcmError> {
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		ASSETS.with(|a| {
 			a.borrow_mut()
@@ -193,14 +201,22 @@ pub fn add_teleporter(from: MultiLocation, asset: MultiAssetFilter) {
 }
 pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+	fn filter_asset_location(
+		asset: &MultiAsset,
+		origin: &MultiLocation,
+		_context: XcmContext,
+	) -> bool {
 		IS_RESERVE
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
 }
 pub struct TestIsTeleporter;
 impl FilterAssetLocation for TestIsTeleporter {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+	fn filter_asset_location(
+		asset: &MultiAsset,
+		origin: &MultiLocation,
+		_context: XcmContext,
+	) -> bool {
 		IS_TELEPORTER
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
@@ -232,6 +248,7 @@ impl OnResponse for TestResponseHandler {
 		_querier: Option<&MultiLocation>,
 		response: xcm::latest::Response,
 		_max_weight: Weight,
+		_context: XcmContext,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
