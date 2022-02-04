@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use fatality::fatality;
-use fatality::{Split, Nested};
+// use fatality::{Split, Nested};
+use assert_matches::assert_matches;
 
 #[derive(Debug, thiserror::Error)]
 #[error("We tried")]
@@ -28,22 +29,21 @@ struct Bobo;
 #[fatality]
 enum Kaboom {
 	#[error(transparent)]
-	Iffy(Fatal),
+	Iffy(#[from] Fatal),
 
 	#[error(transparent)]
-	Bobo(Bobo),
+	Bobo(#[from] Bobo),
 
-	#[error("Message {.0}")]
+	#[error("Message {0}")]
 	Eh(char),
 }
 
-
 fn iffy() -> Result<(), Kaboom> {
-	Ok(Err(Fatal)?)
+	Err(Fatal)?
 }
 
 fn bobo() -> Result<(), Kaboom> {
-	Ok(Err(Bobo)?)
+	Err(Bobo)?
 }
 
 fn oh_canada() -> Result<(), Kaboom> {
@@ -52,7 +52,7 @@ fn oh_canada() -> Result<(), Kaboom> {
 
 fn main() {
 	if let Err(fatal) = iffy() {
-		assert_matches!(fatal, Kaboom::Fatal(_));
+		assert_matches!(fatal, Kaboom::Iffy(_));
 	}
 	if let Err(bobo) = bobo() {
 		assert_matches!(bobo, Kaboom::Bobo(_));

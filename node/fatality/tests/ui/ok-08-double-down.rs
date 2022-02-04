@@ -14,45 +14,54 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use assert_matches::assert_matches;
 use fatality::{fatality, Fatality, Split};
+use assert_matches::assert_matches;
+
+#[fatality(splitable)]
+enum Wormhole {
+	#[fatal]
+	#[error("Ice baby")]
+	Neptun,
+
+	#[error("So close")]
+	Moon,
+}
 
 #[fatality(splitable)]
 enum Inner {
-	#[fatal]
-	#[error("That's it.")]
-	GameOver,
+	#[fatal(forward)]
+    #[error(transparent)]
+	Wormhole(Wormhole),
 
-	#[error("Chuckle")]
-	ChuckleOn,
+	#[error("Abyss")]
+	Abyss,
 }
+
 
 #[fatality(splitable)]
 enum Kaboom {
 	#[fatal(forward)]
-	#[error(transparent)]
+    #[error(transparent)]
 	Iffy(Inner),
 
 	#[error("Bobo")]
 	Bobo,
 }
 
-fn game_over() -> Result<(), Kaboom> {
-	Err(Kaboom::Iffy(Inner::GameOver))
+fn neptun() -> Result<(), Kaboom> {
+	Err(Kaboom::Iffy(Inner::Wormhole(Wormhole::Neptun)))
 }
 
-fn laughable() -> Result<(), Kaboom> {
-	Err(Kaboom::Iffy(Inner::ChuckleOn))
+fn moon() -> Result<(), Kaboom> {
+    Err(Kaboom::Iffy(Inner::Wormhole(Wormhole::Moon)))
 }
 
-#[test]
 fn main() {
-	assert!(game_over().unwrap_err().is_fatal());
-	assert_matches!(
-		dbg!(game_over()).unwrap_err().split(),
-		Err(FatalKaboom::Iffy(Inner::GameOver))
-	);
+	assert!(neptun().unwrap_err().is_fatal());
+    assert_matches!(neptun().unwrap_err().split(), Err(FatalKaboom::Iffy(..)));
+	assert_matches!(neptun().unwrap_err().split(), Err(FatalKaboom::Iffy(Inner::Wormhole(..))));
 
-	assert!(!laughable().unwrap_err().is_fatal());
-	assert_matches!(dbg!(laughable()).unwrap_err().split(), Ok(JfyiKaboom::Iffy(Inner::ChuckleOn)));
+    assert!(!moon().unwrap_err().is_fatal());
+    assert_matches!(moon().unwrap_err().split(), Ok(JfyiKaboom::Iffy(..)));
+	assert_matches!(moon().unwrap_err().split(), Ok(JfyiKaboom::Iffy(Inner::Wormhole(..))));
 }

@@ -9,8 +9,7 @@ fn ui_compile_fail() {
 }
 
 #[test]
-#[ignore]
 fn ui_compile_pass() {
 	let t = trybuild::TestCases::new();
-	t.compile("tests/ui/ok-*.rs");
+	t.pass("tests/ui/ok-*.rs");
 }

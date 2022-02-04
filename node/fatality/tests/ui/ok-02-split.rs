@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use fatality::fatality;
-use fatality::{Split, Nested};
+use fatality::{fatality, Split};
+use assert_matches::assert_matches;
 
 #[derive(Debug, thiserror::Error)]
 #[error("We tried")]
@@ -27,27 +27,28 @@ struct Bobo;
 
 #[fatality(splitable)]
 enum Kaboom {
-	#[fatal(transparent)]
-	Iffy(Fatal),
+	#[fatal]
+	#[error(transparent)]
+	Iffy(#[from] Fatal),
 
 	#[error(transparent)]
-	Bobo(Bobo),
+	Bobo(#[from] Bobo),
 }
 
 
 fn iffy() -> Result<(), Kaboom> {
-	Ok(Err(Fatal)?)
+	Err(Fatal)?
 }
 
 fn bobo() -> Result<(), Kaboom> {
-	Ok(Err(Bobo)?)
+	Err(Bobo)?
 }
 
 fn main() {
-	if let Err(fatal) = iffy().split() {
-		assert_matches!(fatal, FatalKaboom::Fatal(_));
+	if let Err(fatal) = iffy().unwrap_err().split() {
+		assert_matches!(fatal, FatalKaboom::Iffy(_));
 	}
-	if let Ok(bobo) = bobo().split() {
-		assert_matches!(bobo, BoringKaboom::Bobo(_));
+	if let Ok(bobo) = bobo().unwrap_err().split() {
+		assert_matches!(bobo, JfyiKaboom::Bobo(_));
 	}
 }

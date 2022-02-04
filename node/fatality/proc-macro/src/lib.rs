@@ -513,8 +513,7 @@ fn trait_split_impl(
 		.iter()
 		.map(|variant| {
 			let pat = VariantPattern(variant.clone());
-			if let Some(ResolutionMode::Forward(_fwd_kw, ident)) = dbg!(resolution_lut.get(variant))
-			{
+			if let Some(ResolutionMode::Forward(_fwd_kw, ident)) = resolution_lut.get(variant) {
 				let ident =
 					ident.as_ref().expect("Forward mode must have an ident at this point. qed");
 				quote! { #pat if < _ as #trait_fatality >::is_fatal( & #ident ) }

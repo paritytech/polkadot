@@ -14,39 +14,41 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use fatality::fatality;
-use fatality::{Split, Nested};
+use fatality::{fatality, Fatality};
 
 #[derive(Debug, thiserror::Error)]
-#[fatal("We tried")]
-struct Fatal;
+#[error("We tried")]
+struct FatalX;
+
+impl Fatality for FatalX {
+	fn is_fatal(&self) -> bool {
+		true
+	}
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("Get a dinosaur bandaid")]
 struct Bobo;
 
-#[fatality]
+#[fatality(splitable)]
 enum Kaboom {
-	#[defer(transparent)]
-	Iffy(Fatal),
+	#[fatal(forward)]
+	#[error(transparent)]
+	Iffy(#[from] FatalX),
 
 	#[error(transparent)]
-	Bobo(Bobo),
+	Bobo(#[from] Bobo),
 }
 
 fn iffy() -> Result<(), Kaboom> {
-	Ok(Err(Fatal)?)
+	Err(FatalX)?
 }
 
 fn bobo() -> Result<(), Kaboom> {
-	Ok(Err(Bobo)?)
+	Err(Bobo)?
 }
 
 fn main() {
-	if iffy().is_fatal() {
-		assert_matches!(fatal, Kaboom::Iffy(_));
-	}
-	if bobo().is_fatal() {
-		assert_matches!(bobo, BoringKaboom::Bobo(_));
-	}
+	assert!(iffy().unwrap_err().is_fatal());
+	assert!(!bobo().unwrap_err().is_fatal());
 }

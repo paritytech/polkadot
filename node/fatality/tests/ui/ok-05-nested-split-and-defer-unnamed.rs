@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use fatality::fatality;
-use fatality::{Fatality, Split, Nested};
+use fatality::{Fatality, Split};
 use assert_matches::assert_matches;
 
 #[fatality(splitable)]
@@ -32,8 +32,8 @@ enum Inner {
 #[fatality(splitable)]
 enum Kaboom {
 	#[fatal(forward)]
-    #[error(transparent)]
-	Iffy(Inner),
+	#[error("{0}")]
+	Iffy(#[source] Inner),
 
 	#[error("Bobo")]
 	Bobo,
