@@ -115,7 +115,9 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
-pub fn set_exporter_override(f: fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> SendResult) {
+pub fn set_exporter_override(
+	f: fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> SendResult,
+) {
 	EXPORTER_OVERRIDE.with(|x| x.replace(Some(f)));
 }
 #[allow(dead_code)]

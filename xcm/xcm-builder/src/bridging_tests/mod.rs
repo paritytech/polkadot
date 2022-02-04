@@ -57,7 +57,10 @@ std::thread_local! {
 }
 struct TestRemoteIncomingRouter;
 impl SendXcm for TestRemoteIncomingRouter {
-	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+	fn send_xcm(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult {
 		let pair = (destination.take().unwrap(), message.take().unwrap());
 		REMOTE_INCOMING_XCM.with(|r| r.borrow_mut().push(pair));
 		Ok(())
@@ -76,7 +79,10 @@ struct UnpaidExecutingRouter<Local, Remote, RemoteExporter>(
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for UnpaidExecutingRouter<Local, Remote, RemoteExporter>
 {
-	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+	fn send_xcm(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult {
 		let expect_dest = Remote::get().relative_to(&Local::get());
 		if destination.as_ref().ok_or(MissingArgument)? != &expect_dest {
 			return Err(CannotReachDestination)
@@ -107,7 +113,10 @@ struct ExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for ExecutingRouter<Local, Remote, RemoteExporter>
 {
-	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+	fn send_xcm(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult {
 		let expect_dest = Remote::get().relative_to(&Local::get());
 		if destination.as_ref().ok_or(MissingArgument)? != &expect_dest {
 			return Err(CannotReachDestination)

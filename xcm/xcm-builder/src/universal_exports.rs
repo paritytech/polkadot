@@ -67,7 +67,7 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 			Ok(x) => x,
 			Err(d) => {
 				*dest = Some(d);
-				return Err(CannotReachDestination);
+				return Err(CannotReachDestination)
 			},
 		};
 		let (network, destination, local_network, local_location) = devolved;
@@ -160,9 +160,8 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		}
 		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
 
-		let (bridge, payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &exported)
-				.ok_or(CannotReachDestination)?;
+		let (bridge, payment) = Bridges::exporter_for(&remote_network, &remote_location, &exported)
+			.ok_or(CannotReachDestination)?;
 		ensure!(payment.is_none(), Unroutable);
 
 		// We then send a normal message to the bridge asking it to export the prepended
@@ -213,18 +212,14 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 			Bridges::exporter_for(&remote_network, &remote_location, &exported)
 				.ok_or(CannotReachDestination)?;
 
-		let local_from_bridge = MultiLocation::from(Ancestry::get())
-			.inverted(&bridge)
-			.map_err(|_| Unroutable)?;
+		let local_from_bridge =
+			MultiLocation::from(Ancestry::get()).inverted(&bridge).map_err(|_| Unroutable)?;
 
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let export_instruction = ExportMessage {
-			network: remote_network,
-			destination: remote_location,
-			xcm: exported,
-		};
+		let export_instruction =
+			ExportMessage { network: remote_network, destination: remote_location, xcm: exported };
 
 		let message = Xcm(if let Some(payment) = maybe_payment {
 			vec![
@@ -321,7 +316,7 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>> ExportXcm
 			Ok(d) => d.into(),
 			Err((dest, _)) => {
 				*destination = Some(dest);
-				return Err(SendError::CannotReachDestination);
+				return Err(SendError::CannotReachDestination)
 			},
 		};
 		let message = VersionedXcm::from(message.take().ok_or(SendError::MissingArgument)?);

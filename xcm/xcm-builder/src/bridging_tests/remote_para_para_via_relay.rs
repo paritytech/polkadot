@@ -49,10 +49,7 @@ type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(
-		send_xcm::<LocalRouter>((Parent, Remote::get(), Parachain(1)).into(), msg),
-		Ok(())
-	);
+	assert_eq!(send_xcm::<LocalRouter>((Parent, Remote::get(), Parachain(1)).into(), msg), Ok(()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),

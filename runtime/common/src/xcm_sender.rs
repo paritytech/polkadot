@@ -34,19 +34,15 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 			*id
 		} else {
 			*dest = Some(d);
-			return Err(CannotReachDestination);
+			return Err(CannotReachDestination)
 		};
 
 		// Downward message passing.
 		let xcm = msg.take().ok_or(MissingArgument)?;
 		let versioned_xcm = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?;
 		let config = <configuration::Pallet<T>>::config();
-		<dmp::Pallet<T>>::queue_downward_message(
-			&config,
-			id.into(),
-			versioned_xcm.encode(),
-		)
-		.map_err(Into::<SendError>::into)?;
+		<dmp::Pallet<T>>::queue_downward_message(&config, id.into(), versioned_xcm.encode())
+			.map_err(Into::<SendError>::into)?;
 		Ok(())
 	}
 }

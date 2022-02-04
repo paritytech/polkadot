@@ -167,10 +167,9 @@ impl TryFrom<OldError> for Error {
 impl From<SendError> for Error {
 	fn from(e: SendError) -> Self {
 		match e {
-			SendError::CannotReachDestination
-			| SendError::Unroutable
-			| SendError::MissingArgument
-			=> Error::Unroutable,
+			SendError::CannotReachDestination |
+			SendError::Unroutable |
+			SendError::MissingArgument => Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
@@ -402,7 +401,10 @@ pub trait SendXcm {
 	/// If it is not a destination which can be reached with this type but possibly could by others,
 	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple
 	/// implementation to exit early without trying other type fields.
-	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult;
+	fn send_xcm(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -417,7 +419,10 @@ impl SendXcm for Tuple {
 		Err(SendError::CannotReachDestination)
 	}
 
-	fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
+	fn send_xcm(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult {
 		for_tuples!( #(
 			match Tuple::send_xcm(destination, message) {
 				Err(SendError::CannotReachDestination) => {},

@@ -30,9 +30,9 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
+	export_xcm, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
 	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	WeightTrader, export_xcm,
+	WeightTrader,
 };
 
 mod assets;
