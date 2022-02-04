@@ -5,6 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Fatality extension to crate `thiserror`"
 readme = "README.md"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 fatality-proc-macro = { path = "./proc-macro" }
