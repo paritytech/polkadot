@@ -18,8 +18,7 @@
 
 use crate::{prelude::*, EmergencySolutionConfig, Error, WsClient};
 use codec::Encode;
-use std::io::Write;
-use std::sync::Arc;
+use std::{io::Write, sync::Arc};
 
 macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the emergency-solution command.
