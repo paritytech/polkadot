@@ -88,7 +88,11 @@ impl xcm_executor::traits::TransactAsset for NoAssetTransactor {
 		unreachable!();
 	}
 
-	fn withdraw_asset(_: &MultiAsset, _: &MultiLocation, _: XcmContext) -> Result<Assets, XcmError> {
+	fn withdraw_asset(
+		_: &MultiAsset,
+		_: &MultiLocation,
+		_: XcmContext,
+	) -> Result<Assets, XcmError> {
 		unreachable!();
 	}
 }
