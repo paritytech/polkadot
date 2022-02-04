@@ -834,13 +834,8 @@ impl Junctions {
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &Junctions) -> Option<&Junction> {
-		if prefix.len() + 1 != self.len() {
+		if prefix.len() + 1 != self.len() || !self.starts_with(prefix) {
 			return None
-		}
-		for i in 0..prefix.len() {
-			if prefix.at(i) != self.at(i) {
-				return None
-			}
 		}
 		self.at(prefix.len())
 	}

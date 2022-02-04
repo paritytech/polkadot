@@ -356,13 +356,8 @@ impl MultiLocation {
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
-		if prefix.len() + 1 != self.len() {
+		if prefix.len() + 1 != self.len() || !self.starts_with(prefix) {
 			return None
-		}
-		for i in 0..prefix.len() {
-			if prefix.at(i) != self.at(i) {
-				return None
-			}
 		}
 		return self.at(prefix.len())
 	}
