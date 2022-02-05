@@ -47,8 +47,15 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
+	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, MultiAssets::new()))
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(())
 	}

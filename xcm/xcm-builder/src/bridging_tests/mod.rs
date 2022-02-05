@@ -57,12 +57,16 @@ std::thread_local! {
 }
 struct TestRemoteIncomingRouter;
 impl SendXcm for TestRemoteIncomingRouter {
-	fn send_xcm(
-		destination: &mut Option<MultiLocation>,
-		message: &mut Option<Xcm<()>>,
-	) -> SendResult {
-		let pair = (destination.take().unwrap(), message.take().unwrap());
-		REMOTE_INCOMING_XCM.with(|r| r.borrow_mut().push(pair));
+	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
+		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, MultiAssets::new()))
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+		REMOTE_INCOMING_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(())
 	}
 }
@@ -79,15 +83,21 @@ struct UnpaidExecutingRouter<Local, Remote, RemoteExporter>(
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for UnpaidExecutingRouter<Local, Remote, RemoteExporter>
 {
-	fn send_xcm(
+	type OptionTicket = Option<Xcm<()>>;
+
+	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult {
+	) -> SendResult<Xcm<()>> {
 		let expect_dest = Remote::get().relative_to(&Local::get());
 		if destination.as_ref().ok_or(MissingArgument)? != &expect_dest {
 			return Err(CannotReachDestination)
 		}
 		let message = message.take().ok_or(MissingArgument)?;
+		Ok((message, MultiAssets::new()))
+	}
+
+	fn deliver(message: Xcm<()>) -> Result<(), SendError> {
 		// We now pretend that the message was delivered from `Local` to `Remote`, and execute
 		// so we need to ensure that the `TestConfig` is set up properly for executing as
 		// though it is `Remote`.
@@ -113,15 +123,21 @@ struct ExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for ExecutingRouter<Local, Remote, RemoteExporter>
 {
-	fn send_xcm(
+	type OptionTicket = Option<Xcm<()>>;
+
+	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult {
+	) -> SendResult<Xcm<()>> {
 		let expect_dest = Remote::get().relative_to(&Local::get());
 		if destination.as_ref().ok_or(MissingArgument)? != &expect_dest {
 			return Err(CannotReachDestination)
 		}
 		let message = message.take().ok_or(MissingArgument)?;
+		Ok((message, MultiAssets::new()))
+	}
+
+	fn deliver(message: Xcm<()>) -> Result<(), SendError> {
 		// We now pretend that the message was delivered from `Local` to `Remote`, and execute
 		// so we need to ensure that the `TestConfig` is set up properly for executing as
 		// though it is `Remote`.
@@ -132,7 +148,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		// The we execute it:
 		let outcome =
 			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
-		return match outcome {
+		match outcome {
 			Outcome::Complete(..) => Ok(()),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),

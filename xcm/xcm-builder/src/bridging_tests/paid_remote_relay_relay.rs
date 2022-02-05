@@ -64,7 +64,7 @@ fn sending_to_bridged_chain_works() {
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 100));
 
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok(()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok(MultiAssets::new()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -104,7 +104,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	// Initialize the local relay so that our parachain has funds to pay for export.
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
 
-	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok(()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok(MultiAssets::new()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(100).into(),

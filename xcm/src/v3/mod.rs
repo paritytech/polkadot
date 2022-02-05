@@ -44,8 +44,8 @@ pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
 };
 pub use traits::{
-	send_xcm, Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendCostResult, SendError,
-	SendResult, SendXcm, Weight,
+	Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError,
+	SendResult, SendXcm, Weight, send_xcm, validate_send, Unwrappable,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
@@ -165,7 +165,7 @@ impl<Call> From<Xcm<Call>> for Vec<Instruction<Call>> {
 pub mod prelude {
 	mod contents {
 		pub use super::super::{
-			send_xcm, Ancestor, AncestorThen,
+			Ancestor, AncestorThen,
 			AssetId::{self, *},
 			AssetInstance::{self, *},
 			BodyId, BodyPart, Error as XcmError, ExecuteXcm,
@@ -179,8 +179,8 @@ pub mod prelude {
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
 			OriginKind, Outcome, PalletInfo, Parent, ParentThen, PreparedMessage, QueryId,
-			QueryResponseInfo, Response, Result as XcmResult, SendCostResult, SendError,
-			SendResult, SendXcm,
+			QueryResponseInfo, Response, Result as XcmResult, SendError,
+			SendResult, SendXcm, send_xcm, validate_send, Unwrappable,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},

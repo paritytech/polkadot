@@ -106,7 +106,7 @@ thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
 	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
 	pub static EXPORTER_OVERRIDE: RefCell<Option<
-		fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> SendResult
+		fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> Result<(), SendError>
 	>> = RefCell::new(None);
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
@@ -116,7 +116,7 @@ pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_exporter_override(
-	f: fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> SendResult,
+	f: fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> Result<(), SendError>,
 ) {
 	EXPORTER_OVERRIDE.with(|x| x.replace(Some(f)));
 }
@@ -126,8 +126,15 @@ pub fn clear_exporter_override() {
 }
 pub struct TestMessageSender;
 impl SendXcm for TestMessageSender {
-	fn send_xcm(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
+	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, MultiAssets::new()))
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(())
 	}
@@ -139,7 +146,7 @@ impl ExportXcm for TestMessageExporter {
 		channel: u32,
 		dest: &mut Option<InteriorMultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult {
+	) -> Result<(), SendError> {
 		EXPORTER_OVERRIDE.with(|e| {
 			if let Some(ref f) = &*e.borrow() {
 				f(network, channel, dest, msg)

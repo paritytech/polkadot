@@ -156,8 +156,15 @@ pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
+	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, MultiAssets::new()))
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(())
 	}
@@ -165,14 +172,21 @@ impl SendXcm for TestSendXcm {
 /// Sender that returns error if `X8` junction and stops routing
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
-	fn send_xcm(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
+	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
 		let (dest, msg) = (dest.take().unwrap(), msg.take().unwrap());
 		if dest.len() == 8 {
 			Err(SendError::Transport("Destination location full"))
 		} else {
-			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
-			Ok(())
+			Ok(((dest, msg), MultiAssets::new()))
 		}
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+		SENT_XCM.with(|q| q.borrow_mut().push(pair));
+		Ok(())
 	}
 }
 

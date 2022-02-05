@@ -17,9 +17,10 @@
 //! XCM sender for relay chain.
 
 use parity_scale_codec::Encode;
-use runtime_parachains::{configuration, dmp};
+use primitives::v1::Id as ParaId;
+use runtime_parachains::{configuration::{self, HostConfiguration}, dmp};
 use sp_std::marker::PhantomData;
-use xcm::latest::prelude::*;
+use xcm::prelude::*;
 use SendError::*;
 
 /// XCM sender for relay chain. It only sends downward message.
@@ -28,7 +29,9 @@ pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 	for ChildParachainRouter<T, W>
 {
-	fn send_xcm(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
+	type OptionTicket = Option<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)>;
+
+	fn validate(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let id = if let MultiLocation { parents: 0, interior: X1(Parachain(id)) } = &d {
 			*id
@@ -39,10 +42,18 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 
 		// Downward message passing.
 		let xcm = msg.take().ok_or(MissingArgument)?;
-		let versioned_xcm = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?;
 		let config = <configuration::Pallet<T>>::config();
-		<dmp::Pallet<T>>::queue_downward_message(&config, id.into(), versioned_xcm.encode())
+		let para = id.into();
+		let blob = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?.encode();
+		<dmp::Pallet<T>>::can_queue_downward_message(&config, &para, &blob)
 			.map_err(Into::<SendError>::into)?;
+
+		Ok(((config, para, blob), MultiAssets::new()))
+	}
+
+	fn deliver((config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, VersionedXcm<()>)) -> Result<(), SendError> {
+		let r = <dmp::Pallet<T>>::queue_downward_message(&config, para, blob);
+		debug_assert!(r.is_ok(), "Unexpected error in DMP delivery {:?}", r);
 		Ok(())
 	}
 }

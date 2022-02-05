@@ -319,7 +319,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				assets.reanchor(&dest, &context).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				send_xcm::<Config::XcmSender>(dest, Xcm(message)).map_err(Into::into)
+				let _cost = send_xcm::<Config::XcmSender>(dest, Xcm(message))?;
+				// TODO: pre-charge cost using new API.
+				Ok(())
 			},
 			ReceiveTeleportedAsset(assets) => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
@@ -422,7 +424,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				send_xcm::<Config::XcmSender>(dest, Xcm(message)).map_err(Into::into)
+				let _cost = send_xcm::<Config::XcmSender>(dest, Xcm(message))?;
+				// TODO: pre-charge cost using new API.
+				Ok(())
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				// Note that here we are able to place any assets which could not be reanchored
@@ -434,7 +438,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				send_xcm::<Config::XcmSender>(reserve, Xcm(message)).map_err(Into::into)
+				let _cost = send_xcm::<Config::XcmSender>(reserve, Xcm(message))?;
+				// TODO: pre-charge cost using new API.
+				Ok(())
 			},
 			InitiateTeleport { assets, dest, xcm } => {
 				// We must do this first in order to resolve wildcards.
@@ -447,7 +453,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				send_xcm::<Config::XcmSender>(dest, Xcm(message)).map_err(Into::into)
+				let _cost = send_xcm::<Config::XcmSender>(dest, Xcm(message))?;
+				// TODO: pre-charge cost using new API.
+				Ok(())
 			},
 			ReportHolding { response_info, assets } => {
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
@@ -545,7 +553,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let querier = Self::to_querier(self.origin.clone(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);
-				send_xcm::<Config::XcmSender>(destination, message).map_err(Into::into)
+				let _cost = send_xcm::<Config::XcmSender>(destination, message)?;
+				// TODO: pre-charge cost using new API.
+				Ok(())
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
 				let pallet = Config::PalletInstancesInfo::infos()
@@ -626,7 +636,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		send_xcm::<Config::XcmSender>(destination, message).map_err(Into::into)
+		let _cost = send_xcm::<Config::XcmSender>(destination, message)?;
+		// TODO: pre-charge cost using new API.
+		Ok(())
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

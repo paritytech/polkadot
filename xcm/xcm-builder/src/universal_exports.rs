@@ -59,9 +59,9 @@ pub struct LocalUnpaidExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancest
 impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for LocalUnpaidExporter<Exporter, Ancestry>
 {
-	// TODO: include price for use of `Exporter` in `send_cost` impl.
+	type OptionTicket = Option<(NetworkId, InteriorMultiLocation, Xcm<()>)>;
 
-	fn send_xcm(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult {
+	fn validate(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult<(NetworkId, InteriorMultiLocation, Xcm<()>)> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let devolved = match ensure_is_remote(Ancestry::get(), d) {
 			Ok(x) => x,
@@ -78,6 +78,11 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 			message.inner_mut().push(DescendOrigin(local_location));
 		}
 		message.inner_mut().extend(inner.into_iter());
+		let price = Exporter::export_price(network, &destination, &message)?;
+		Ok(((network, destination, message), price))
+	}
+
+	fn deliver((network, destination, message): (NetworkId, InteriorMultiLocation, Xcm<()>)) -> Result<(), SendError> {
 		Exporter::export_xcm(network, 0, &mut Some(destination), &mut Some(message))
 	}
 }
@@ -86,7 +91,7 @@ pub trait ExporterFor {
 	/// Return the locally-routable bridge (if any) capable of forwarding `message` to the
 	/// `remote_location` on the remote `network`, together with the payment which is required.
 	///
-	/// The payment is specified from the context of the bridge, not the local chain. This is the#
+	/// The payment is specified from the local context, not the bridge chain. This is the
 	/// total amount to withdraw in to Holding and should cover both payment for the execution on
 	/// the bridge chain as well as payment for the use of the `ExportMessage` instruction.
 	fn exporter_for(
@@ -143,9 +148,12 @@ pub struct UnpaidRemoteExporter<Bridges, Router, Ancestry>(
 impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for UnpaidRemoteExporter<Bridges, Router, Ancestry>
 {
-	// TODO: include `Router::send_cost` for getting the `ExportMessage` to the bridge.
+	type OptionTicket = Router::OptionTicket;
 
-	fn send_xcm(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult {
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		xcm: &mut Option<Xcm<()>>,
+	) -> SendResult<<Router::OptionTicket as Unwrappable>::Inner> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| CannotReachDestination)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
@@ -160,9 +168,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		}
 		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
 
-		let (bridge, payment) = Bridges::exporter_for(&remote_network, &remote_location, &exported)
+		let (bridge, maybe_payment) = Bridges::exporter_for(&remote_network, &remote_location, &exported)
 			.ok_or(CannotReachDestination)?;
-		ensure!(payment.is_none(), Unroutable);
+		ensure!(maybe_payment.is_none(), Unroutable);
 
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
@@ -172,7 +180,15 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 			destination: remote_location,
 			xcm: exported,
 		}]);
-		send_xcm::<Router>(bridge, message)
+		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
+		if let Some(payment) = maybe_payment {
+			cost.push(payment);
+		}
+		Ok((v, cost))
+	}
+
+	fn deliver(validation: <Router::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+		Router::deliver(validation)
 	}
 }
 
@@ -190,10 +206,12 @@ pub struct SovereignPaidRemoteExporter<Bridges, Router, Ancestry>(
 impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for SovereignPaidRemoteExporter<Bridges, Router, Ancestry>
 {
-	// TODO: include `Router::send_cost` for getting the `ExportMessage` to the bridge and the
-	// total cost paid at the bridge `Exporter::export_price` in the `send_cost` impl.
+	type OptionTicket = Router::OptionTicket;
 
-	fn send_xcm(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult {
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		xcm: &mut Option<Xcm<()>>,
+	) -> SendResult<<Router::OptionTicket as Unwrappable>::Inner> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| CannotReachDestination)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
@@ -208,23 +226,20 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		}
 		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
 
-		let (bridge, maybe_payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &exported)
-				.ok_or(CannotReachDestination)?;
+		let (bridge, maybe_payment) = Bridges::exporter_for(&remote_network, &remote_location, &exported)
+			.ok_or(CannotReachDestination)?;
 
 		let local_from_bridge =
 			MultiLocation::from(Ancestry::get()).inverted(&bridge).map_err(|_| Unroutable)?;
-
-		// We then send a normal message to the bridge asking it to export the prepended
-		// message to the remote chain. This will only work if the bridge will do the message
-		// export for free. Common-good chains will typically be afforded this.
 		let export_instruction =
 			ExportMessage { network: remote_network, destination: remote_location, xcm: exported };
 
-		let message = Xcm(if let Some(payment) = maybe_payment {
+		let message = Xcm(if let Some(ref payment) = maybe_payment {
+			let fees = payment.clone().reanchored(&bridge, &Ancestry::get().into())
+				.map_err(|_| Unroutable)?;
 			vec![
-				WithdrawAsset(payment.clone().into()),
-				BuyExecution { fees: payment, weight_limit: Unlimited },
+				WithdrawAsset(fees.clone().into()),
+				BuyExecution { fees, weight_limit: Unlimited },
 				export_instruction,
 				RefundSurplus,
 				DepositAsset { assets: All.into(), beneficiary: local_from_bridge },
@@ -236,7 +251,15 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		send_xcm::<Router>(bridge, message)
+		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
+		if let Some(bridge_payment) = maybe_payment {
+			cost.push(bridge_payment);
+		}
+		Ok((v, cost))
+	}
+
+	fn deliver(ticket: <Router::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+		Router::deliver(ticket)
 	}
 }
 

@@ -296,7 +296,11 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: &mut Option<$crate::MultiLocation>, message: &mut Option<$crate::Xcm<()>>) -> $crate::SendResult {
+			type OptionTicket = Option<($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>)>;
+			fn validate(
+				destination: &mut Option<$crate::MultiLocation>,
+				message: &mut Option<$crate::Xcm<()>>,
+			) -> $crate::SendResult<($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>)> {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
 				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
@@ -311,7 +315,12 @@ macro_rules! decl_test_network {
 					},
 				}
 				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
-				$crate::PARA_MESSAGE_BUS.with(|b| b.borrow_mut().push_back((T::get(), d, m)));
+				Ok(((T::get(), d, m), $crate::MultiAssets::new()))
+			}
+			fn deliver(
+				triple: ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>),
+			) -> Result<(), $crate::SendError> {
+				$crate::PARA_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(triple));
 				Ok(())
 			}
 		}
@@ -319,7 +328,11 @@ macro_rules! decl_test_network {
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			fn send_xcm(destination: &mut Option<$crate::MultiLocation>, message: &mut Option<$crate::Xcm<()>>) -> $crate::SendResult {
+			type OptionTicket = Option<($crate::MultiLocation, $crate::Xcm<()>)>;
+			fn validate(
+				destination: &mut Option<$crate::MultiLocation>,
+				message: &mut Option<$crate::Xcm<()>>,
+			) -> $crate::SendResult<($crate::MultiLocation, $crate::Xcm<()>)> {
 				use $crate::DmpMessageHandlerT;
 
 				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
@@ -333,7 +346,12 @@ macro_rules! decl_test_network {
 					},
 				}
 				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
-				$crate::RELAY_MESSAGE_BUS.with(|b| b.borrow_mut().push_back((d, m)));
+				Ok(((d, m), $crate::MultiAssets::new()))
+			}
+			fn deliver(
+				pair: ($crate::MultiLocation, $crate::Xcm<()>),
+			) -> Result<(), $crate::SendError> {
+				$crate::RELAY_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(pair));
 				Ok(())
 			}
 		}

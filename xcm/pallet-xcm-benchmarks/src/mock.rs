@@ -21,9 +21,11 @@ use xcm_executor::traits::FilterAssetLocation;
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
 impl xcm::opaque::latest::SendXcm for DevNull {
-	fn send_xcm(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult {
-		Ok(())
+	type OptionTicket = Option<()>;
+	fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<()> {
+		Ok(((), MultiAssets::new()))
 	}
+	fn deliver(_: ()) -> Result<(), SendError> { Ok(()) }
 }
 
 impl xcm_executor::traits::OnResponse for DevNull {

@@ -315,10 +315,21 @@ pub enum SendError {
 }
 
 /// Result value when attempting to send an XCM message.
-pub type SendResult = result::Result<(), SendError>;
+pub type SendResult<T> = result::Result<(T, MultiAssets), SendError>;
 
-/// Result value when attempting to determine the cost for sending an XCM message.
-pub type SendCostResult = result::Result<MultiAssets, SendError>;
+pub trait Unwrappable {
+	type Inner;
+	fn none() -> Self;
+	fn some(i: Self::Inner) -> Self;
+	fn take(self) -> Option<Self::Inner>;
+}
+
+impl<T> Unwrappable for Option<T> {
+	type Inner = T;
+	fn none() -> Self { None }
+	fn some(i: Self::Inner) -> Self { Some(i) }
+	fn take(self) -> Option<Self::Inner> { self }
+}
 
 /// Utility for sending an XCM message.
 ///
@@ -382,59 +393,83 @@ pub type SendCostResult = result::Result<MultiAssets, SendError>;
 /// # }
 /// ```
 pub trait SendXcm {
-	/// Determine the cost which will be paid by this chain if the XCM `message` is sent to the
-	/// given `destination`.
-	///
-	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple
-	/// implementation to exit early without trying other type fields.
-	fn send_cost(_: &MultiLocation, _: &Xcm<()>) -> SendCostResult {
-		Ok(MultiAssets::new())
-	}
+	type OptionTicket: Unwrappable;
 
-	/// Send an XCM `message` to a given `destination`, paying whatever must be paid for the message
-	/// to be delivered.
+	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
+	/// determine the cost which will be paid by this chain to do so, returning a `Validated` token
+	/// which can be used to enact delivery.
 	///
 	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
 	/// may only be consumed if the `Err` is not `CannotReachDestination`.
 	///
 	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple
+	/// then this *MUST* return `CannotReachDestination`. Any other error will cause the tuple
 	/// implementation to exit early without trying other type fields.
-	fn send_xcm(
+	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult;
+	) -> SendResult<<Self::OptionTicket as Unwrappable>::Inner>;
+
+	/// Actually carry out the delivery operation for a previously validated message sending.
+	fn deliver(ticket: <Self::OptionTicket as Unwrappable>::Inner) -> result::Result<(), SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_cost(destination: &MultiLocation, message: &Xcm<()>) -> SendCostResult {
-		for_tuples!( #(
-			match Tuple::send_cost(destination, message) {
-				Err(SendError::CannotReachDestination) => {},
-				o @ _ => return o,
-			};
-		)* );
-		Err(SendError::CannotReachDestination)
-	}
+	type OptionTicket = Option<( for_tuples!{ #( Tuple::OptionTicket ),* } )>;
 
-	fn send_xcm(
+	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult {
+	) -> SendResult<( for_tuples!{ #( Tuple::OptionTicket ),* } )> {
+		let mut maybe_cost: Option<MultiAssets> = None;
+		let one_ticket: ( for_tuples!{ #( Tuple::OptionTicket ),* } ) = ( for_tuples!{ #(
+			if maybe_cost.is_some() {
+				<Tuple::OptionTicket as Unwrappable>::none()
+			} else {
+				match Tuple::validate(destination, message) {
+					Err(SendError::CannotReachDestination) => <Tuple::OptionTicket as Unwrappable>::none(),
+					Err(e) => { return Err(e) },
+					Ok((v, c)) => {
+						maybe_cost = Some(c);
+						<Tuple::OptionTicket as Unwrappable>::some(v)
+					},
+				}
+			}
+		),* } );
+		if let Some(cost) = maybe_cost {
+			Ok((one_ticket, cost))
+		} else {
+			Err(SendError::CannotReachDestination)
+		}
+	}
+
+	fn deliver(one_ticket: <Self::OptionTicket as Unwrappable>::Inner) -> result::Result<(), SendError> {
 		for_tuples!( #(
-			match Tuple::send_xcm(destination, message) {
-				Err(SendError::CannotReachDestination) => {},
-				o @ _ => return o,
-			};
+			if let Some(validated) = one_ticket.Tuple.take() {
+				return Tuple::deliver(validated);
+			}
 		)* );
-		Err(SendError::CannotReachDestination)
+		Err(SendError::Unroutable)
 	}
 }
 
 /// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
 /// both in `Some` before passing them as as mutable references into `T::send_xcm`.
-pub fn send_xcm<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResult {
-	T::send_xcm(&mut Some(dest), &mut Some(msg))
+pub fn validate_send<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResult<<T::OptionTicket as Unwrappable>::Inner> {
+	T::validate(&mut Some(dest), &mut Some(msg))
+}
+
+/// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
+/// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+///
+/// Returns either `Ok` with the price of the delivery, or `Err` with the reason why the message
+/// could not be sent.
+///
+/// Generally you'll want to validate and get the price first to ensure that the sender can pay it
+/// before actually doing the delivery.
+pub fn send_xcm<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> result::Result<MultiAssets, SendError> {
+	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg))?;
+	T::deliver(ticket)?;
+	Ok(price)
 }

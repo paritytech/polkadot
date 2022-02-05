@@ -22,7 +22,7 @@ pub trait ExportXcm {
 		_network: NetworkId,
 		_destination: &InteriorMultiLocation,
 		_message: &Xcm<()>,
-	) -> SendCostResult {
+	) -> Result<MultiAssets, SendError> {
 		Ok(MultiAssets::new())
 	}
 
@@ -31,7 +31,7 @@ pub trait ExportXcm {
 		channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult;
+	) -> Result<(), SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -40,7 +40,7 @@ impl ExportXcm for Tuple {
 		network: NetworkId,
 		dest: &InteriorMultiLocation,
 		message: &Xcm<()>,
-	) -> SendCostResult {
+	) -> Result<MultiAssets, SendError> {
 		for_tuples!( #(
 			match Tuple::export_price(network, dest, message) {
 				Err(SendError::CannotReachDestination) => {},
@@ -55,7 +55,7 @@ impl ExportXcm for Tuple {
 		channel: u32,
 		dest: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult {
+	) -> Result<(), SendError> {
 		for_tuples!( #(
 			match Tuple::export_xcm(network, channel, dest, message) {
 				Err(SendError::CannotReachDestination) => {},
@@ -73,6 +73,6 @@ pub fn export_xcm<T: ExportXcm>(
 	channel: u32,
 	dest: InteriorMultiLocation,
 	message: Xcm<()>,
-) -> SendResult {
+) -> Result<(), SendError> {
 	T::export_xcm(network, channel, &mut Some(dest), &mut Some(message))
 }

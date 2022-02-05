@@ -1054,7 +1054,8 @@ pub mod pallet {
 					let message =
 						Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
 					let event = match send_xcm::<T::XcmRouter>(new_key.clone(), message) {
-						Ok(()) => {
+						Ok(_cost) => {
+							// TODO: consider charging for cost.
 							let value = (query_id, max_weight, xcm_version);
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
 							Event::VersionChangeNotified(new_key, xcm_version)
@@ -1105,7 +1106,8 @@ pub mod pallet {
 								querier: None,
 							}]);
 							let event = match send_xcm::<T::XcmRouter>(new_key.clone(), message) {
-								Ok(()) => {
+								Ok(_cost) => {
+									// TODO: consider accounting for cost.
 									VersionNotifyTargets::<T>::insert(
 										XCM_VERSION,
 										versioned_key,
@@ -1160,12 +1162,13 @@ pub mod pallet {
 		}
 
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
-		/// location. A null `dest` is not handled.
+		/// location. A `dest` of `Here` is not handled. The overall price of the delivery is
+		/// returned.
 		pub fn send_xcm(
 			interior: impl Into<Junctions>,
 			dest: impl Into<MultiLocation>,
 			mut message: Xcm<()>,
-		) -> Result<(), SendError> {
+		) -> Result<MultiAssets, SendError> {
 			let interior = interior.into();
 			let dest = dest.into();
 			if interior != Junctions::Here {
