@@ -451,6 +451,29 @@ benchmarks! {
 		assert_eq!(executor.transact_status, MaybeErrorCode::Success);
 	}
 
+	set_topic {
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::SetTopic([1; 32]);
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.topic, Some([1; 32]));
+	}
+
+	clear_topic {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.topic = Some([2; 32]);
+
+		let instruction = Instruction::ClearTopic;
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.topic, None);
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),
