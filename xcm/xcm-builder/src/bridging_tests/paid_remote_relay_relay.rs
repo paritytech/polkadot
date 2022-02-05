@@ -27,8 +27,8 @@ parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(100));
 	pub RelayUniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
 	pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote::get()));
-	pub BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
-		= vec![(Remote::get(), MultiLocation::parent(), Some((Here, 100).into()))];
+	pub static BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
+		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 100).into()))];
 }
 type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
@@ -64,7 +64,7 @@ fn sending_to_bridged_chain_works() {
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 100));
 
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok(MultiAssets::new()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((Parent, 100).into()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -104,7 +104,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	// Initialize the local relay so that our parachain has funds to pay for export.
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
 
-	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok(MultiAssets::new()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok((Parent, 100).into()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(100).into(),
