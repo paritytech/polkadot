@@ -450,7 +450,9 @@ impl Initialized {
 				tracing::warn!(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
-					"Could not retrieve session info from rolling session window");
+					?session,
+					"Could not retrieve session info from rolling session window",
+				);
 				return Ok(())
 			};
 
