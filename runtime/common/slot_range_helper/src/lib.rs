@@ -147,11 +147,22 @@ macro_rules! generate_slot_range_len {
 	) => {
 		/// Return the length of occupying a `SlotRange`.
 		///
-		/// Example:`SlotRange::OneTwo.len() == 2`
+		/// Example: `SlotRange::OneTwo.len() == 2`
 		pub fn len(&self) -> usize {
 			match self {
 				// len (0, 2) = 2 - 0 + 1 = 3
 				$( SlotRange::$parsed => { ( $t2 - $t1 + 1) } )*
+			}
+		}
+
+		/// Return the "length summation" of occupying a `SlotRange`.
+		///
+		/// Example: `SlotRange::OneTwo.len() == 5`
+		pub fn len_sum(&self) -> usize {
+			match self {
+				$( SlotRange::$parsed => {
+					($t1 + 1 ..= $t2 + 1).sum()
+				} )*
 			}
 		}
 	};
@@ -254,6 +265,10 @@ mod tests {
 		assert_eq!(SlotRange::TwoTwo.len(), 1);
 		assert_eq!(SlotRange::OneTwo.len(), 2);
 		assert_eq!(SlotRange::ZeroThree.len(), 4);
+		assert_eq!(SlotRange::ZeroZero.len_sum(), 1);
+		assert_eq!(SlotRange::ZeroTwo.len_sum(), 6);
+		assert_eq!(SlotRange::OneTwo.len_sum(), 5);
+		assert_eq!(SlotRange::TwoThree.len_sum(), 7);
 		assert!(SlotRange::ZeroOne.intersects(SlotRange::OneThree));
 		assert!(!SlotRange::ZeroOne.intersects(SlotRange::TwoThree));
 		assert_eq!(SlotRange::ZeroZero.as_pair(), (0, 0));
@@ -279,6 +294,10 @@ mod tests {
 		assert_eq!(SlotRange::OneTwo.len(), 2);
 		assert_eq!(SlotRange::ZeroThree.len(), 4);
 		assert_eq!(SlotRange::ZeroSeven.len(), 8);
+		assert_eq!(SlotRange::ZeroZero.len_sum(), 1);
+		assert_eq!(SlotRange::ZeroTwo.len_sum(), 6);
+		assert_eq!(SlotRange::OneTwo.len_sum(), 5);
+		assert_eq!(SlotRange::ThreeSeven.len_sum(), 30);
 		assert!(SlotRange::ZeroOne.intersects(SlotRange::OneThree));
 		assert!(!SlotRange::ZeroOne.intersects(SlotRange::TwoThree));
 		assert!(SlotRange::FiveSix.intersects(SlotRange::SixSeven));

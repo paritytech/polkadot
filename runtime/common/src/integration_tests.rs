@@ -612,8 +612,14 @@ fn competing_slots() {
 		run_to_block(160);
 
 		// Appropriate Paras should have won slots
-		// 900 + 4500 + 2x 8100 = 21,600
-		// 900 + 4500 + 7200 + 9000 = 21,600
+		//
+		// Unweighted:
+		// 900 + 4500 + 2x 8100 = 21,600 ("tie")
+		// 900 + 4500 + 7200 + 9000 = 21,600 ("tie")
+		//
+		// Length Weighted:
+		// 900 * 1 + 4500 * 2 + 8100 * (3 + 4) = 66,600
+		// 900 * 1 + 4500 * 2 + 7200 * 4 + 9000 * 4 = 67,500 ("winner")
 		assert_eq!(
 			slots::Leases::<Test>::get(para_id),
 			// -- 1 --- 2 --- 3 ---------- 4 ------
@@ -624,11 +630,15 @@ fn competing_slots() {
 			// -- 1 --- 2 --- 3 --- 4 ---------- 5 -------
 			vec![None, None, None, None, Some((50, 4500))],
 		);
-		// TODO: Is this right?
 		assert_eq!(
-			slots::Leases::<Test>::get(para_id + 8),
-			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------- 6 --------------- 7 -------
-			vec![None, None, None, None, None, Some((90, 8100)), Some((90, 8100))],
+			slots::Leases::<Test>::get(para_id + 7),
+			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------- 6 -------
+			vec![None, None, None, None, None, Some((80, 7200))],
+		);
+		assert_eq!(
+			slots::Leases::<Test>::get(para_id + 9),
+			// -- 1 --- 2 --- 3 --- 4 --- 5 --- 6 ------------7--------
+			vec![None, None, None, None, None, None, Some((100, 9000))],
 		);
 	});
 }
