@@ -888,7 +888,7 @@ impl Initialized {
 
 		// Potential spam:
 		if !is_confirmed {
-			let mut free_spam_slots = false;
+			let mut free_spam_slots = statements.is_empty();
 			for (statement, index) in statements.iter() {
 				free_spam_slots |= statement.statement().is_backing() ||
 					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
