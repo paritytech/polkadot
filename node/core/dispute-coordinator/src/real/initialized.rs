@@ -785,7 +785,11 @@ impl Initialized {
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
 					(
-						CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() },
+						CandidateVotes {
+							candidate_receipt,
+							valid: Vec::new(),
+							invalid: Vec::new(),
+						},
 						true,
 					)
 				} else {
@@ -849,7 +853,9 @@ impl Initialized {
 						statement.validator_signature().clone(),
 					);
 
-					if !fresh { continue }
+					if !fresh {
+						continue
+					}
 
 					votes_changed = true;
 					self.metrics.on_valid_vote();
@@ -862,7 +868,9 @@ impl Initialized {
 						statement.validator_signature().clone(),
 					);
 
-					if !fresh { continue }
+					if !fresh {
+						continue
+					}
 
 					votes_changed = true;
 					self.metrics.on_invalid_vote();

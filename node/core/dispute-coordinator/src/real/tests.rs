@@ -1548,3 +1548,7 @@ fn negative_issue_local_statement_only_triggers_import() {
 		})
 	});
 }
+
+// TODO [now]: redundant votes aren't written to DB
+
+// TODO [now]: redundant votes aren't counted in metrics
