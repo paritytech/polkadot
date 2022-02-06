@@ -1571,7 +1571,7 @@ fn empty_import_still_writes_candidate_receipt() {
 						session,
 						statements: Vec::new(),
 						pending_confirmation: tx,
-					}
+					},
 				})
 				.await;
 
@@ -1592,7 +1592,6 @@ fn empty_import_still_writes_candidate_receipt() {
 	});
 }
 
-
 #[test]
 fn redundant_votes_ignored() {
 	test_harness(|mut test_state, mut virtual_overseer| {
@@ -1607,7 +1606,7 @@ fn redundant_votes_ignored() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-			test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
 
 			let valid_vote_2 =
 				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
@@ -1621,11 +1620,9 @@ fn redundant_votes_ignored() {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
-						statements: vec![
-							(valid_vote.clone(), ValidatorIndex(1))
-						],
+						statements: vec![(valid_vote.clone(), ValidatorIndex(1))],
 						pending_confirmation: tx,
-					}
+					},
 				})
 				.await;
 
@@ -1638,11 +1635,9 @@ fn redundant_votes_ignored() {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
-						statements: vec![
-							(valid_vote_2, ValidatorIndex(1))
-						],
+						statements: vec![(valid_vote_2, ValidatorIndex(1))],
 						pending_confirmation: tx,
-					}
+					},
 				})
 				.await;
 
