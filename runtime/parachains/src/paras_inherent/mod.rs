@@ -99,8 +99,7 @@ impl DisputedBitfield {
 }
 
 /// The maximum amount of relay-parent lookback.
-// TODO [now]: put this in the configuration module or file an issue to discuss
-// doing that. It's probably OK as a constant for now.
+// TODO [now]: put this in the configuration module (https://github.com/paritytech/polkadot/issues/4841).
 pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 4;
 
 /// Information about past relay-parents.
