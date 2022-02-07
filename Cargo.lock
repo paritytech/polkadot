@@ -10401,7 +10401,7 @@ dependencies = [
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
- "jsonrpsee 0.4.1",
+ "jsonrpsee 0.8.0",
  "kusama-runtime",
  "log",
  "pallet-balances",
