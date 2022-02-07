@@ -91,6 +91,7 @@ default:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
@@ -638,11 +639,7 @@ zombienet-test-parachains-upgrade-smoke-test:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  <<:                              *zombienet-refs
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
