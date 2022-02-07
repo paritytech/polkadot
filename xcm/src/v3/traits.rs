@@ -326,9 +326,15 @@ pub trait Unwrappable {
 
 impl<T> Unwrappable for Option<T> {
 	type Inner = T;
-	fn none() -> Self { None }
-	fn some(i: Self::Inner) -> Self { Some(i) }
-	fn take(self) -> Option<Self::Inner> { self }
+	fn none() -> Self {
+		None
+	}
+	fn some(i: Self::Inner) -> Self {
+		Some(i)
+	}
+	fn take(self) -> Option<Self::Inner> {
+		self
+	}
 }
 
 /// Utility for sending an XCM message.
@@ -421,19 +427,20 @@ pub trait SendXcm {
 	) -> SendResult<<Self::OptionTicket as Unwrappable>::Inner>;
 
 	/// Actually carry out the delivery operation for a previously validated message sending.
-	fn deliver(ticket: <Self::OptionTicket as Unwrappable>::Inner) -> result::Result<(), SendError>;
+	fn deliver(ticket: <Self::OptionTicket as Unwrappable>::Inner)
+		-> result::Result<(), SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	type OptionTicket = Option<( for_tuples!{ #( Tuple::OptionTicket ),* } )>;
+	type OptionTicket = Option<(for_tuples! { #( Tuple::OptionTicket ),* })>;
 
 	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult<( for_tuples!{ #( Tuple::OptionTicket ),* } )> {
+	) -> SendResult<(for_tuples! { #( Tuple::OptionTicket ),* })> {
 		let mut maybe_cost: Option<MultiAssets> = None;
-		let one_ticket: ( for_tuples!{ #( Tuple::OptionTicket ),* } ) = ( for_tuples!{ #(
+		let one_ticket: (for_tuples! { #( Tuple::OptionTicket ),* }) = (for_tuples! { #(
 			if maybe_cost.is_some() {
 				<Tuple::OptionTicket as Unwrappable>::none()
 			} else {
@@ -446,7 +453,7 @@ impl SendXcm for Tuple {
 					},
 				}
 			}
-		),* } );
+		),* });
 		if let Some(cost) = maybe_cost {
 			Ok((one_ticket, cost))
 		} else {
@@ -454,7 +461,9 @@ impl SendXcm for Tuple {
 		}
 	}
 
-	fn deliver(one_ticket: <Self::OptionTicket as Unwrappable>::Inner) -> result::Result<(), SendError> {
+	fn deliver(
+		one_ticket: <Self::OptionTicket as Unwrappable>::Inner,
+	) -> result::Result<(), SendError> {
 		for_tuples!( #(
 			if let Some(validated) = one_ticket.Tuple.take() {
 				return Tuple::deliver(validated);
@@ -466,7 +475,10 @@ impl SendXcm for Tuple {
 
 /// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
 /// both in `Some` before passing them as as mutable references into `T::send_xcm`.
-pub fn validate_send<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResult<<T::OptionTicket as Unwrappable>::Inner> {
+pub fn validate_send<T: SendXcm>(
+	dest: MultiLocation,
+	msg: Xcm<()>,
+) -> SendResult<<T::OptionTicket as Unwrappable>::Inner> {
 	T::validate(&mut Some(dest), &mut Some(msg))
 }
 
@@ -478,7 +490,10 @@ pub fn validate_send<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResul
 ///
 /// Generally you'll want to validate and get the price first to ensure that the sender can pay it
 /// before actually doing the delivery.
-pub fn send_xcm<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> result::Result<MultiAssets, SendError> {
+pub fn send_xcm<T: SendXcm>(
+	dest: MultiLocation,
+	msg: Xcm<()>,
+) -> result::Result<MultiAssets, SendError> {
 	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg))?;
 	T::deliver(ticket)?;
 	Ok(price)

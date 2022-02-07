@@ -164,7 +164,7 @@ impl ExportXcm for TestMessageExporter {
 				*dest = Some(d);
 				*msg = Some(m);
 				Err(e)
-			}
+			},
 		}
 	}
 	fn deliver(tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>)) -> Result<(), SendError> {

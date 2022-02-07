@@ -30,9 +30,9 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, OnResponse,
-	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	validate_export, WeightTrader, ExportXcm,
+	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation,
+	OnResponse, ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier,
+	WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -597,7 +597,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Hash identifies the lane on the exporter which we use. We use the pairwise
 				// combination of the origin and destination to ensure origin/destination pairs will
 				// generally have their own lanes.
-				let (ticket, fee) = validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
+				let (ticket, fee) =
+					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
 				self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())

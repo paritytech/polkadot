@@ -20,7 +20,10 @@ use crate::{mock::*, universal_exports::*};
 use frame_support::{parameter_types, traits::Get};
 use std::{cell::RefCell, marker::PhantomData};
 use xcm::prelude::*;
-use xcm_executor::{XcmExecutor, traits::{validate_export, export_xcm}};
+use xcm_executor::{
+	traits::{export_xcm, validate_export},
+	XcmExecutor,
+};
 use SendError::*;
 
 mod local_para_para;

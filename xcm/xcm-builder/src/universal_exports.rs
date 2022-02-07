@@ -20,7 +20,7 @@ use frame_support::{ensure, traits::Get};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
 use xcm::prelude::*;
-use xcm_executor::traits::{ExportXcm, validate_export};
+use xcm_executor::traits::{validate_export, ExportXcm};
 use SendError::*;
 
 fn ensure_is_remote(
@@ -61,7 +61,10 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 {
 	type OptionTicket = Exporter::OptionTicket;
 
-	fn validate(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult<<Exporter::OptionTicket as Unwrappable>::Inner> {
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		xcm: &mut Option<Xcm<()>>,
+	) -> SendResult<<Exporter::OptionTicket as Unwrappable>::Inner> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let devolved = match ensure_is_remote(Ancestry::get(), d) {
 			Ok(x) => x,
@@ -167,8 +170,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		}
 		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
 
-		let (bridge, maybe_payment) = Bridges::exporter_for(&remote_network, &remote_location, &exported)
-			.ok_or(CannotReachDestination)?;
+		let (bridge, maybe_payment) =
+			Bridges::exporter_for(&remote_network, &remote_location, &exported)
+				.ok_or(CannotReachDestination)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
 
 		// We then send a normal message to the bridge asking it to export the prepended
@@ -225,8 +229,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		}
 		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
 
-		let (bridge, maybe_payment) = Bridges::exporter_for(&remote_network, &remote_location, &exported)
-			.ok_or(CannotReachDestination)?;
+		let (bridge, maybe_payment) =
+			Bridges::exporter_for(&remote_network, &remote_location, &exported)
+				.ok_or(CannotReachDestination)?;
 
 		let local_from_bridge =
 			MultiLocation::from(Ancestry::get()).inverted(&bridge).map_err(|_| Unroutable)?;
@@ -234,7 +239,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 			ExportMessage { network: remote_network, destination: remote_location, xcm: exported };
 
 		let message = Xcm(if let Some(ref payment) = maybe_payment {
-			let fees = payment.clone().reanchored(&bridge, &Ancestry::get().into())
+			let fees = payment
+				.clone()
+				.reanchored(&bridge, &Ancestry::get().into())
 				.map_err(|_| Unroutable)?;
 			vec![
 				WithdrawAsset(fees.clone().into()),
@@ -318,7 +325,9 @@ impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob
 	}
 }
 
-pub struct HaulBlobExporter<Bridge, BridgedNetwork, Price>(PhantomData<(Bridge, BridgedNetwork, Price)>);
+pub struct HaulBlobExporter<Bridge, BridgedNetwork, Price>(
+	PhantomData<(Bridge, BridgedNetwork, Price)>,
+);
 impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> ExportXcm
 	for HaulBlobExporter<Bridge, BridgedNetwork, Price>
 {

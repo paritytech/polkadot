@@ -18,8 +18,11 @@
 
 use parity_scale_codec::Encode;
 use primitives::v1::Id as ParaId;
-use runtime_parachains::{configuration::{self, HostConfiguration}, dmp};
-use sp_std::{prelude::*, marker::PhantomData};
+use runtime_parachains::{
+	configuration::{self, HostConfiguration},
+	dmp,
+};
+use sp_std::{marker::PhantomData, prelude::*};
 use xcm::prelude::*;
 use SendError::*;
 
@@ -31,7 +34,10 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 {
 	type OptionTicket = Option<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)>;
 
-	fn validate(dest: &mut Option<MultiLocation>, msg: &mut Option<Xcm<()>>) -> SendResult<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)> {
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let id = if let MultiLocation { parents: 0, interior: X1(Parachain(id)) } = &d {
 			*id
@@ -51,7 +57,9 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 		Ok(((config, para, blob), MultiAssets::new()))
 	}
 
-	fn deliver((config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)) -> Result<(), SendError> {
+	fn deliver(
+		(config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>),
+	) -> Result<(), SendError> {
 		<dmp::Pallet<T>>::queue_downward_message(&config, para, blob)
 			.map_err(|_| SendError::Transport(&"Error placing into DMP queue"))
 	}

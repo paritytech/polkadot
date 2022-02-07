@@ -46,16 +46,16 @@ pub trait ExportXcm {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ExportXcm for Tuple {
-	type OptionTicket = Option<( for_tuples!{ #( Tuple::OptionTicket ),* } )>;
+	type OptionTicket = Option<(for_tuples! { #( Tuple::OptionTicket ),* })>;
 
 	fn validate(
 		network: NetworkId,
 		channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult<( for_tuples!{ #( Tuple::OptionTicket ),* } )> {
+	) -> SendResult<(for_tuples! { #( Tuple::OptionTicket ),* })> {
 		let mut maybe_cost: Option<MultiAssets> = None;
-		let one_ticket: ( for_tuples!{ #( Tuple::OptionTicket ),* } ) = ( for_tuples!{ #(
+		let one_ticket: (for_tuples! { #( Tuple::OptionTicket ),* }) = (for_tuples! { #(
 			if maybe_cost.is_some() {
 				<Tuple::OptionTicket as Unwrappable>::none()
 			} else {
@@ -68,7 +68,7 @@ impl ExportXcm for Tuple {
 					},
 				}
 			}
-		),* } );
+		),* });
 		if let Some(cost) = maybe_cost {
 			Ok((one_ticket, cost))
 		} else {
