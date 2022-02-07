@@ -17,8 +17,8 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }

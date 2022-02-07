@@ -10,18 +10,18 @@ tracing = "0.1.31"
 memory-lru = "0.1.0"
 parity-util-mem = { version = "0.11.0", default-features = false }
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-primitives = { path = "../../primitives" }

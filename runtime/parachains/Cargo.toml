@@ -14,28 +14,28 @@ serde = { version = "1.0.136", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "jsonrpsee-polkadot-v0.9.18" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "jsonrpsee-polkadot-v0.9.18" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-jsonrpsee-v0.9.18" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-jsonrpsee-v0.9.18" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "jsonrpsee-polkadot-v0.9.18" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "jsonrpsee-polkadot-v0.9.18" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-jsonrpsee-v0.9.18" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.18" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -49,11 +49,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.3.4"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.18" }
 thousands = "0.2.0"
 assert_matches = "1"
 
