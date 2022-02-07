@@ -72,6 +72,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
 		client: Arc<WsClient>,
+		shared: SharedConfig,
 		config: MonitorConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
@@ -92,7 +93,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				maybe_rp = subscription.next() => {
 					match maybe_rp {
 						Some(Ok(r)) => r,
-						// Custom `jsonrpsee` message; should not occur.
+						// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
 						Some(Err(RpcError::SubscriptionClosed(reason))) => {
 							log::warn!(target: LOG_TARGET, "subscription to {} terminated: {:?}. Retrying..", sub, reason);
 							subscription = client.subscribe(&sub, None, &unsub).await?;
@@ -104,7 +105,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						}
 						// The subscription was dropped, should only happen if:
 						//	- the connection was closed.
-						//	- the subscription could not need keep up with the server.
+						//	- the subscription could not keep up with the server.
 						None => {
 							log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
 							subscription = client.subscribe(&sub, None, &unsub).await?;
@@ -120,13 +121,12 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				}
 			};
 
-			log::info!(target: LOG_TARGET, "subscribing to {:?} / {:?} at: {}", sub, unsub, at.number());
-
 			// Spawn task and non-recoverable errors are sent back to the main task
 			// such as if the connection has been closed.
 			tokio::spawn(
 				send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), config.clone())
 			);
+
 		}
 
 		/// Construct extrinsic at given block and watch it.
@@ -229,8 +229,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					// computation outside of this callback.
 					log::warn!(
 						target: LOG_TARGET,
-						"failing to submit a transaction {:?}. continuing...",
-						why
+						"failing to submit a transaction {:?}. ignore block: {}",
+						why, at.number
 					);
 					return;
 				},
@@ -239,16 +239,17 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			while let Some(rp) = tx_subscription.next().await {
 				let status_update = match rp {
 					Ok(r) => r,
-					// Custom `jsonrpsee` message; should not occur.
+					// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
 					Err(RpcError::SubscriptionClosed(reason)) => {
 						log::warn!(
-							"[rpc]: subscription closed by the server: {:?}; continuing...",
-							reason
+							target: LOG_TARGET,
+							"tx subscription closed by the server: {:?}; skip block: {}",
+							reason, at.number
 						);
-						continue
+						return;
 					},
 					Err(e) => {
-						log::error!("[rpc]: subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
+						log::error!(target: LOG_TARGET, "subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
 						let _ = tx.send(e.into());
 						return;
 					},
@@ -277,8 +278,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 							}
 							// Decoding or other RPC error => just terminate the task.
 							Err(e) => {
-								log::warn!(target: LOG_TARGET, "get_storage [key: {:?}, hash: {:?}] failed: {:?}",
-									key2, hash, e
+								log::warn!(target: LOG_TARGET, "get_storage [key: {:?}, hash: {:?}] failed: {:?}; skip block: {}",
+									key2, hash, e, at.number
 								);
 								return;
 							}
