@@ -228,7 +228,7 @@ macro_rules! any_runtime_unit {
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee::types::Error),
+	JsonRpsee(#[from] jsonrpsee::core::Error),
 	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
@@ -602,7 +602,7 @@ async fn main() {
 
 	let outcome = any_runtime! {
 		match command.clone() {
-			Command::Monitor(c) => monitor_cmd(&client, shared, c, signer_account).await
+			Command::Monitor(c) => monitor_cmd(client, shared, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
 				}),
