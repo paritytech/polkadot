@@ -17,7 +17,7 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
-use crate::{v0::Junction as OldJunction, v3::Junction as NewJunction};
+use crate::v3::Junction as NewJunction;
 use alloc::vec::Vec;
 use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode};
@@ -76,26 +76,6 @@ pub enum Junction {
 	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
 	/// things such as multisigs also.
 	Plurality { id: BodyId, part: BodyPart },
-}
-
-impl TryFrom<OldJunction> for Junction {
-	type Error = ();
-
-	fn try_from(value: OldJunction) -> Result<Self, Self::Error> {
-		use OldJunction::*;
-		match value {
-			Parent => Err(()),
-			Parachain(id) => Ok(Self::Parachain(id)),
-			AccountId32 { network, id } => Ok(Self::AccountId32 { network, id }),
-			AccountIndex64 { network, index } => Ok(Self::AccountIndex64 { network, index }),
-			AccountKey20 { network, key } => Ok(Self::AccountKey20 { network, key }),
-			PalletInstance(index) => Ok(Self::PalletInstance(index)),
-			GeneralIndex(id) => Ok(Self::GeneralIndex(id)),
-			GeneralKey(key) => Ok(Self::GeneralKey(key)),
-			OnlyChild => Ok(Self::OnlyChild),
-			Plurality { id, part } => Ok(Self::Plurality { id: id.into(), part }),
-		}
-	}
 }
 
 impl TryFrom<NewJunction> for Junction {

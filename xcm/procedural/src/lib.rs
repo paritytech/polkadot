@@ -18,17 +18,9 @@
 
 use proc_macro::TokenStream;
 
-mod v0;
 mod v1;
 mod v3;
 mod weight_info;
-
-#[proc_macro]
-pub fn impl_conversion_functions_for_multilocation_v0(input: TokenStream) -> TokenStream {
-	v0::multilocation::generate_conversion_functions(input)
-		.unwrap_or_else(syn::Error::into_compile_error)
-		.into()
-}
 
 #[proc_macro]
 pub fn impl_conversion_functions_for_multilocation_v1(input: TokenStream) -> TokenStream {

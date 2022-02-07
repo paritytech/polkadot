@@ -17,10 +17,10 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::{MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm};
-use crate::{v0::Order as OldOrder, v2::Instruction};
+use crate::v2::Instruction;
 use alloc::{vec, vec::Vec};
 use core::{
-	convert::{TryFrom, TryInto},
+	convert::TryFrom,
 	result,
 };
 use derivative::Derivative;
@@ -182,56 +182,6 @@ impl<Call> Order<Call> {
 				BuyExecution { fees, weight, debt, halt_on_error, instructions }
 			},
 		}
-	}
-}
-
-impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
-	type Error = ();
-	fn try_from(old: OldOrder<Call>) -> result::Result<Order<Call>, ()> {
-		use Order::*;
-		Ok(match old {
-			OldOrder::Null => Noop,
-			OldOrder::DepositAsset { assets, dest } => DepositAsset {
-				assets: assets.try_into()?,
-				max_assets: 1,
-				beneficiary: dest.try_into()?,
-			},
-			OldOrder::DepositReserveAsset { assets, dest, effects } => DepositReserveAsset {
-				assets: assets.try_into()?,
-				max_assets: 1,
-				dest: dest.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::<()>::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldOrder::ExchangeAsset { give, receive } =>
-				ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
-			OldOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
-				InitiateReserveWithdraw {
-					assets: assets.try_into()?,
-					reserve: reserve.try_into()?,
-					effects: effects
-						.into_iter()
-						.map(Order::<()>::try_from)
-						.collect::<result::Result<_, _>>()?,
-				},
-			OldOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
-				assets: assets.try_into()?,
-				dest: dest.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::<()>::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldOrder::QueryHolding { query_id, dest, assets } =>
-				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
-			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let instructions =
-					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
-				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, instructions }
-			},
-		})
 	}
 }
 

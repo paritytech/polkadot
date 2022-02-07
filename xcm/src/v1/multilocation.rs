@@ -1036,9 +1036,6 @@ mod tests {
 
 	#[test]
 	fn conversion_from_other_types_works() {
-		use crate::v0;
-		use core::convert::TryInto;
-
 		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
 
 		takes_multilocation(Parent);
@@ -1055,24 +1052,5 @@ mod tests {
 		takes_multilocation((Parent, Here));
 		takes_multilocation(ParentThen(X1(Parachain(75))));
 		takes_multilocation([Parachain(100), PalletInstance(3)]);
-
-		assert_eq!(v0::MultiLocation::Null.try_into(), Ok(MultiLocation::here()));
-		assert_eq!(
-			v0::MultiLocation::X1(v0::Junction::Parent).try_into(),
-			Ok(MultiLocation::parent())
-		);
-		assert_eq!(
-			v0::MultiLocation::X2(v0::Junction::Parachain(88), v0::Junction::Parent).try_into(),
-			Ok(MultiLocation::here()),
-		);
-		assert_eq!(
-			v0::MultiLocation::X3(
-				v0::Junction::Parent,
-				v0::Junction::Parent,
-				v0::Junction::GeneralKey(b"foo".to_vec()),
-			)
-			.try_into(),
-			Ok(MultiLocation { parents: 2, interior: X1(GeneralKey(b"foo".to_vec())) }),
-		);
 	}
 }

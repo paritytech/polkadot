@@ -25,12 +25,10 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<T
 
 	// Support up to 8 Parents in a tuple, assuming that most use cases don't go past 8 parents.
 	let from_tuples = generate_conversion_from_tuples(8);
-	let from_v0 = generate_conversion_from_v0();
 	let from_v3 = generate_conversion_from_v3();
 
 	Ok(quote! {
 		#from_tuples
-		#from_v0
 		#from_v3
 	})
 }
@@ -149,61 +147,6 @@ fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
 		}
 
 		#from_tuples
-	}
-}
-
-fn generate_conversion_from_v0() -> TokenStream {
-	let match_variants = (0..8u8)
-		.map(|cur_num| {
-			let num_ancestors = cur_num + 1;
-			let variant = format_ident!("X{}", num_ancestors);
-			let idents = (0..=cur_num).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
-
-			let intermediate_match_arms = (1..num_ancestors)
-				.rev()
-				.map(|parent_count| {
-					let parent_idents =
-						(0..parent_count).map(|j| format_ident!("j{}", j)).collect::<Vec<_>>();
-					let junction_idents = (parent_count..num_ancestors)
-						.map(|j| format_ident!("j{}", j))
-						.collect::<Vec<_>>();
-					let junction_variant = format_ident!("X{}", num_ancestors - parent_count);
-
-					quote! {
-						crate::v0::MultiLocation::#variant( #(#idents),* )
-							if #( #parent_idents.is_parent() )&&* =>
-							Ok(MultiLocation {
-								parents: #parent_count,
-								interior: #junction_variant( #( core::convert::TryInto::try_into(#junction_idents)? ),* ),
-							}),
-					}
-				})
-				.collect::<TokenStream>();
-
-			quote! {
-				crate::v0::MultiLocation::#variant( #(#idents),* )
-					if #( #idents.is_parent() )&&* =>
-					Ok(MultiLocation::ancestor(#num_ancestors)),
-				#intermediate_match_arms
-				crate::v0::MultiLocation::#variant( #(#idents),* ) =>
-					Ok( #variant( #( core::convert::TryInto::try_into(#idents)? ),* ).into() ),
-			}
-		})
-		.collect::<TokenStream>();
-
-	quote! {
-		impl core::convert::TryFrom<crate::v0::MultiLocation> for MultiLocation {
-			type Error = ();
-			fn try_from(mut v0: crate::v0::MultiLocation) -> core::result::Result<Self, ()> {
-				use Junctions::*;
-
-				v0.canonicalize();
-				match v0 {
-					crate::v0::MultiLocation::Null => Ok(Here.into()),
-					#match_variants
-				}
-			}
-		}
 	}
 }
 

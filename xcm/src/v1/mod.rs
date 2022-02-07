@@ -60,10 +60,8 @@
 //! - v1 Orders that do allow the notion of `All` to be used as wildcards, will instead use a new
 //!   type called `MultiAssetFilter`.
 
-use super::{
-	v0::{Response as OldResponse, Xcm as OldXcm},
-	v2::{Instruction, Response as NewResponse, Xcm as NewXcm},
-};
+use crate::v2::{Instruction, Response as NewResponse, Xcm as NewXcm};
+use crate::v3::NetworkId as NewNetworkId;
 use crate::DoubleEncoded;
 use alloc::vec::Vec;
 use core::{
@@ -92,9 +90,6 @@ pub use multilocation::{
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
-// These parts of XCM v0 have been unchanged in XCM v1, and are re-imported here.
-pub use super::v0::{BodyId, BodyPart, NetworkId, OriginKind};
-
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
@@ -117,6 +112,121 @@ pub mod prelude {
 		WildMultiAsset::{self, *},
 		Xcm::{self, *},
 	};
+}
+
+/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
+#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+pub enum OriginKind {
+	/// Origin should just be the native dispatch origin representation for the sender in the
+	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
+	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
+	/// primary/native dispatch origin form.
+	Native,
+
+	/// Origin should just be the standard account-based origin with the sovereign account of
+	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
+	SovereignAccount,
+
+	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
+	/// This will not usually be an available option.
+	Superuser,
+
+	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
+	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
+	/// the `pallet_xcm::Origin::Xcm` type.
+	Xcm,
+}
+
+/// A global identifier of an account-bearing consensus system.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+pub enum NetworkId {
+	/// Unidentified/any.
+	Any,
+	/// Some named network.
+	Named(Vec<u8>),
+	/// The Polkadot Relay chain
+	Polkadot,
+	/// Kusama.
+	Kusama,
+}
+
+impl TryInto<NetworkId> for Option<NewNetworkId> {
+	type Error = ();
+	fn try_into(self) -> result::Result<NetworkId, ()> {
+		use NewNetworkId::*;
+		Ok(match self {
+			None => NetworkId::Any,
+			Some(Polkadot) => NetworkId::Polkadot,
+			Some(Kusama) => NetworkId::Kusama,
+			_ => return Err(()),
+		})
+	}
+}
+
+/// An identifier of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+pub enum BodyId {
+	/// The only body in its context.
+	Unit,
+	/// A named body.
+	Named(Vec<u8>),
+	/// An indexed body.
+	Index(#[codec(compact)] u32),
+	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
+	Executive,
+	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
+	Technical,
+	/// The unambiguous legislative body (for Polkadot, this could be considered the opinion of a majority of
+	/// lock-voters).
+	Legislative,
+	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
+	/// may be considered as that).
+	Judicial,
+}
+
+/// A part of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+pub enum BodyPart {
+	/// The body's declaration, under whatever means it decides.
+	Voice,
+	/// A given number of members of the body.
+	Members {
+		#[codec(compact)]
+		count: u32,
+	},
+	/// A given number of members of the body, out of some larger caucus.
+	Fraction {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+	/// No less than the given proportion of members of the body.
+	AtLeastProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+	/// More than than the given proportion of members of the body.
+	MoreThanProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+}
+
+impl BodyPart {
+	/// Returns `true` if the part represents a strict majority (> 50%) of the body in question.
+	pub fn is_majority(&self) -> bool {
+		match self {
+			BodyPart::Fraction { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
+			_ => false,
+		}
+	}
 }
 
 /// Response data to a query.
@@ -382,69 +492,6 @@ pub mod opaque {
 	pub type Xcm = super::Xcm<()>;
 
 	pub use super::order::opaque::*;
-}
-
-// Convert from a v0 response to a v1 response
-impl TryFrom<OldResponse> for Response {
-	type Error = ();
-	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
-		match old_response {
-			OldResponse::Assets(assets) => Ok(Self::Assets(assets.try_into()?)),
-		}
-	}
-}
-
-impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
-	type Error = ();
-	fn try_from(old: OldXcm<Call>) -> result::Result<Xcm<Call>, ()> {
-		use Xcm::*;
-		Ok(match old {
-			OldXcm::WithdrawAsset { assets, effects } => WithdrawAsset {
-				assets: assets.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldXcm::ReserveAssetDeposit { assets, effects } => ReserveAssetDeposited {
-				assets: assets.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldXcm::TeleportAsset { assets, effects } => ReceiveTeleportedAsset {
-				assets: assets.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldXcm::QueryResponse { query_id, response } =>
-				QueryResponse { query_id, response: response.try_into()? },
-			OldXcm::TransferAsset { assets, dest } =>
-				TransferAsset { assets: assets.try_into()?, beneficiary: dest.try_into()? },
-			OldXcm::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
-				assets: assets.try_into()?,
-				dest: dest.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldXcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
-				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
-			OldXcm::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
-			OldXcm::HrmpChannelClosing { initiator, sender, recipient } =>
-				HrmpChannelClosing { initiator, sender, recipient },
-			OldXcm::Transact { origin_type, require_weight_at_most, call } =>
-				Transact { origin_type, require_weight_at_most, call: call.into() },
-			OldXcm::RelayedFrom { who, message } => RelayedFrom {
-				who: MultiLocation::try_from(who)?.try_into()?,
-				message: alloc::boxed::Box::new((*message).try_into()?),
-			},
-		})
-	}
 }
 
 impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
