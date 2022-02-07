@@ -191,12 +191,12 @@ impl Junction {
 
 	/// Convert `self` into a `MultiLocation` containing `n` parents.
 	///
-	/// Similar to `Self::into`, with the added ability to specify the number of parent junctions.
+	/// Similar to `Self::into_location`, with the added ability to specify the number of parent junctions.
 	pub const fn into_exterior(self, n: u8) -> MultiLocation {
 		MultiLocation { parents: n, interior: Junctions::X1(self) }
 	}
 
-	/// Convert `self` into a `MultiLocation` containing 0 parents.
+	/// Convert `self` into a `VersionedMultiLocation` containing 0 parents.
 	///
 	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
 	pub const fn into_versioned(self) -> VersionedMultiLocation {

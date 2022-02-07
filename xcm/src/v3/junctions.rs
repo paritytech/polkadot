@@ -124,7 +124,7 @@ impl Junctions {
 
 	/// Convert `self` into a `MultiLocation` containing `n` parents.
 	///
-	/// Similar to `Self::into`, with the added ability to specify the number of parent junctions.
+	/// Similar to `Self::into_location`, with the added ability to specify the number of parent junctions.
 	pub const fn into_exterior(self, n: u8) -> MultiLocation {
 		MultiLocation { parents: n, interior: self }
 	}
@@ -438,18 +438,6 @@ impl Junctions {
 	/// Returns a reference iterator over the junctions.
 	pub fn iter(&self) -> JunctionsRefIterator {
 		JunctionsRefIterator { junctions: self, next: 0, back: 0 }
-	}
-
-	/// Returns a reference iterator over the junctions in reverse.
-	#[deprecated(note = "Please use iter().rev()")]
-	pub fn iter_rev(&self) -> impl Iterator + '_ {
-		self.iter().rev()
-	}
-
-	/// Consumes `self` and returns an iterator over the junctions in reverse.
-	#[deprecated(note = "Please use into_iter().rev()")]
-	pub fn into_iter_rev(self) -> impl Iterator {
-		self.into_iter().rev()
 	}
 
 	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following.
