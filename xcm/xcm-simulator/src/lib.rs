@@ -311,7 +311,7 @@ macro_rules! decl_test_network {
 					)*
 					_ => {
 						*destination = Some(d);
-						return Err($crate::SendError::CannotReachDestination)
+						return Err($crate::SendError::NotApplicable)
 					},
 				}
 				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
@@ -342,7 +342,7 @@ macro_rules! decl_test_network {
 					)*
 					_ => {
 						*destination = Some(d);
-						return Err($crate::SendError::CannotReachDestination)
+						return Err($crate::SendError::NotApplicable)
 					},
 				}
 				let m = message.take().ok_or($crate::SendError::MissingArgument)?;

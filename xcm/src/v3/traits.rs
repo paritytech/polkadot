@@ -167,7 +167,7 @@ impl TryFrom<OldError> for Error {
 impl From<SendError> for Error {
 	fn from(e: SendError) -> Self {
 		match e {
-			SendError::CannotReachDestination |
+			SendError::NotApplicable |
 			SendError::Unroutable |
 			SendError::MissingArgument => Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
@@ -297,7 +297,7 @@ pub enum SendError {
 	///
 	/// This is not considered fatal: if there are alternative transport routes available, then
 	/// they may be attempted.
-	CannotReachDestination,
+	NotApplicable,
 	/// Destination is routable, but there is some issue with the transport mechanism. This is
 	/// considered fatal.
 	/// A human-readable explanation of the specific issue is provided.
@@ -340,7 +340,7 @@ impl<T> Unwrappable for Option<T> {
 /// Utility for sending an XCM message.
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
-/// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
+/// `NotApplicable` to pass the execution to the next sender item. Note that each `NotApplicable`
 /// might alter the destination and the XCM message for to the next router.
 ///
 ///
@@ -355,7 +355,7 @@ impl<T> Unwrappable for Option<T> {
 /// impl SendXcm for Sender1 {
 ///     type OptionTicket = Option<Infallible>;
 ///     fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<Infallible> {
-///         Err(SendError::CannotReachDestination)
+///         Err(SendError::NotApplicable)
 ///     }
 ///     fn deliver(_: Infallible) -> Result<(), SendError> {
 ///         unreachable!()
@@ -384,7 +384,7 @@ impl<T> Unwrappable for Option<T> {
 ///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
 ///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
 ///             MultiLocation { parents: 1, interior: Here } => Ok(((), MultiAssets::new())),
-///             _ => Err(SendError::CannotReachDestination),
+///             _ => Err(SendError::NotApplicable),
 ///         }
 ///     }
 ///     fn deliver(_: ()) -> Result<(), SendError> {
@@ -416,10 +416,10 @@ pub trait SendXcm {
 	/// which can be used to enact delivery.
 	///
 	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
-	/// may only be consumed if the `Err` is not `CannotReachDestination`.
+	/// may only be consumed if the `Err` is not `NotApplicable`.
 	///
 	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then this *MUST* return `CannotReachDestination`. Any other error will cause the tuple
+	/// then this *MUST* return `NotApplicable`. Any other error will cause the tuple
 	/// implementation to exit early without trying other type fields.
 	fn validate(
 		destination: &mut Option<MultiLocation>,
@@ -445,7 +445,7 @@ impl SendXcm for Tuple {
 				<Tuple::OptionTicket as Unwrappable>::none()
 			} else {
 				match Tuple::validate(destination, message) {
-					Err(SendError::CannotReachDestination) => <Tuple::OptionTicket as Unwrappable>::none(),
+					Err(SendError::NotApplicable) => <Tuple::OptionTicket as Unwrappable>::none(),
 					Err(e) => { return Err(e) },
 					Ok((v, c)) => {
 						maybe_cost = Some(c);
@@ -457,7 +457,7 @@ impl SendXcm for Tuple {
 		if let Some(cost) = maybe_cost {
 			Ok((one_ticket, cost))
 		} else {
-			Err(SendError::CannotReachDestination)
+			Err(SendError::NotApplicable)
 		}
 	}
 

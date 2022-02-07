@@ -557,7 +557,7 @@ pub mod pallet {
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
-				SendError::CannotReachDestination => Error::<T>::Unreachable,
+				SendError::NotApplicable => Error::<T>::Unreachable,
 				_ => Error::<T>::SendFailure,
 			})?;
 			Self::deposit_event(Event::Sent(origin_location, dest, message));

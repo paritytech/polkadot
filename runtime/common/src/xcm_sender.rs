@@ -43,7 +43,7 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 			*id
 		} else {
 			*dest = Some(d);
-			return Err(CannotReachDestination)
+			return Err(NotApplicable)
 		};
 
 		// Downward message passing.

@@ -41,7 +41,7 @@ pub enum Error {
 	/// A human-readable explanation of the specific issue is provided.
 	SendFailed(#[codec(skip)] &'static str),
 	/// The message and destination combination was not recognized as being reachable.
-	CannotReachDestination(MultiLocation, Xcm<()>),
+	NotApplicable(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
 	BadOrigin,
@@ -180,7 +180,7 @@ impl<C> ExecuteXcm<C> for () {
 /// Utility for sending an XCM message.
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
-/// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
+/// `NotApplicable` to pass the execution to the next sender item. Note that each `NotApplicable`
 /// might alter the destination and the XCM message for to the next router.
 ///
 ///
@@ -193,7 +193,7 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         return Err(Error::CannotReachDestination(destination, message))
+///         return Err(Error::NotApplicable(destination, message))
 ///     }
 /// }
 ///
@@ -215,7 +215,7 @@ impl<C> ExecuteXcm<C> for () {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
 ///         match destination {
 ///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
-///             _ => Err(Error::CannotReachDestination(destination, message)),
+///             _ => Err(Error::NotApplicable(destination, message)),
 ///         }
 ///     }
 /// }
@@ -243,7 +243,7 @@ pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
 	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
-	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
+	/// return `NotApplicable`. Any other error will cause the tuple implementation to exit early without
 	/// trying other type fields.
 	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
 }
@@ -254,10 +254,10 @@ impl SendXcm for Tuple {
 		for_tuples!( #(
 			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
-				Err(Error::CannotReachDestination(d, m)) => (d, m),
+				Err(Error::NotApplicable(d, m)) => (d, m),
 				o @ _ => return o,
 			};
 		)* );
-		Err(Error::CannotReachDestination(destination, message))
+		Err(Error::NotApplicable(destination, message))
 	}
 }

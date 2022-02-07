@@ -24,10 +24,10 @@ pub trait ExportXcm {
 	/// which can be used to enact delivery.
 	///
 	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
-	/// may only be consumed if the `Err` is not `CannotReachDestination`.
+	/// may only be consumed if the `Err` is not `NotApplicable`.
 	///
 	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then this *MUST* return `CannotReachDestination`. Any other error will cause the tuple
+	/// then this *MUST* return `NotApplicable`. Any other error will cause the tuple
 	/// implementation to exit early without trying other type fields.
 	fn validate(
 		network: NetworkId,
@@ -60,7 +60,7 @@ impl ExportXcm for Tuple {
 				<Tuple::OptionTicket as Unwrappable>::none()
 			} else {
 				match Tuple::validate(network, channel, destination, message) {
-					Err(SendError::CannotReachDestination) => <Tuple::OptionTicket as Unwrappable>::none(),
+					Err(SendError::NotApplicable) => <Tuple::OptionTicket as Unwrappable>::none(),
 					Err(e) => { return Err(e) },
 					Ok((v, c)) => {
 						maybe_cost = Some(c);
@@ -72,7 +72,7 @@ impl ExportXcm for Tuple {
 		if let Some(cost) = maybe_cost {
 			Ok((one_ticket, cost))
 		} else {
-			Err(SendError::CannotReachDestination)
+			Err(SendError::NotApplicable)
 		}
 	}
 

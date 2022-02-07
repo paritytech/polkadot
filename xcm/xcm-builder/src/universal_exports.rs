@@ -70,7 +70,7 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 			Ok(x) => x,
 			Err(d) => {
 				*dest = Some(d);
-				return Err(CannotReachDestination)
+				return Err(NotApplicable)
 			},
 		};
 		let (network, destination, local_network, local_location) = devolved;
@@ -157,7 +157,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<<Router::OptionTicket as Unwrappable>::Inner> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
-		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| CannotReachDestination)?;
+		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
 
 		// Prepend the desired message with instructions which effectively rewrite the origin.
@@ -172,7 +172,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 
 		let (bridge, maybe_payment) =
 			Bridges::exporter_for(&remote_network, &remote_location, &exported)
-				.ok_or(CannotReachDestination)?;
+				.ok_or(NotApplicable)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
 
 		// We then send a normal message to the bridge asking it to export the prepended
@@ -216,7 +216,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<<Router::OptionTicket as Unwrappable>::Inner> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
-		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| CannotReachDestination)?;
+		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
 
 		// Prepend the desired message with instructions which effectively rewrite the origin.
@@ -231,7 +231,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 
 		let (bridge, maybe_payment) =
 			Bridges::exporter_for(&remote_network, &remote_location, &exported)
-				.ok_or(CannotReachDestination)?;
+				.ok_or(NotApplicable)?;
 
 		let local_from_bridge =
 			MultiLocation::from(Ancestry::get()).inverted(&bridge).map_err(|_| Unroutable)?;
@@ -340,14 +340,14 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 		message: &mut Option<Xcm<()>>,
 	) -> Result<(Vec<u8>, MultiAssets), SendError> {
 		let bridged_network = BridgedNetwork::get();
-		ensure!(&network == &bridged_network, SendError::CannotReachDestination);
+		ensure!(&network == &bridged_network, SendError::NotApplicable);
 		// We don't/can't use the `channel` for this adapter.
 		let dest = destination.take().ok_or(SendError::MissingArgument)?;
 		let universal_dest = match dest.pushed_front_with(GlobalConsensus(bridged_network)) {
 			Ok(d) => d.into(),
 			Err((dest, _)) => {
 				*destination = Some(dest);
-				return Err(SendError::CannotReachDestination)
+				return Err(SendError::NotApplicable)
 			},
 		};
 		let message = VersionedXcm::from(message.take().ok_or(SendError::MissingArgument)?);
