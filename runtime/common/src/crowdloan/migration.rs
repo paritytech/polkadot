@@ -37,6 +37,12 @@ pub mod crowdloan_index_migration {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 			let total_balance = CurrencyOf::<T>::total_balance(&old_fund_account);
 
+			log::info!(
+				target: "runtime",
+				"para_id={:?}, old_fund_account={:?}, total_balance={:?}, fund.raised={:?}",
+				para_id, old_fund_account, total_balance, fund.raised
+			);
+
 			ensure!(
 				total_balance == fund.raised,
 				"Total balance is not equal to the funds raised."
