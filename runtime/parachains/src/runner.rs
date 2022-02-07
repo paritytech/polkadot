@@ -15,7 +15,7 @@ use primitives::{
 use sp_core::H256;
 use sp_runtime::{
 	generic::Digest,
-	traits::{Header as HeaderT, One, TrailingZeroInput},
+	traits::{Header as HeaderT, One},
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
