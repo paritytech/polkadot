@@ -878,7 +878,7 @@ impl Initialized {
 			for (statement, index) in statements.iter() {
 				// Disputes can only be triggered via an invalidity stating vote, thus we only
 				// need to increase spam slots on invalid votes. (If we did not, we would also
-				// increase spam slots for backing valdiators for example - as validators have to
+				// increase spam slots for backing validators for example - as validators have to
 				// provide some opposing vote for dispute-distribution).
 				free_spam_slots &= statement.statement().indicates_validity() ||
 					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
