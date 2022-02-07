@@ -25,6 +25,7 @@ mod enter {
 	use crate::{
 		builder::{Bench, BenchBuilder},
 		mock::{new_test_ext, MockGenesisConfig, Test},
+		disputes
 	};
 	use assert_matches::assert_matches;
 	use frame_support::assert_ok;
@@ -681,7 +682,7 @@ mod enter {
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 12);
 			// * 2 backed candidates
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
-			// * 3 disputes.
+			// * 1 disputes.
 			assert_eq!(expected_para_inherent_data.disputes.len(), 1);
 			let mut inherent_data = InherentData::new();
 			inherent_data
@@ -719,24 +720,29 @@ mod enter {
 
 			// Finalize paras_inherent pallet and initialize new session
 			PalletRunner::<Test>::run_to_next_block(false);
-			// PalletRunner::<Test>::run_to_next_session();
+			PalletRunner::<Test>::trigger_new_session();
 
+			let next_block_seed = 1;
 			let new_block_seed = 2;
 			let backers_number = 2;
 
 			let mut concluding_cores = BTreeMap::new();
+			concluding_cores.insert(next_block_seed, backers_number);
 			concluding_cores.insert(new_block_seed, backers_number);
 
 			let bitfields = PalletRunner::<Test>::create_availability_bitfields_for_session(
 				PalletRunner::<Test>::current_session_index(),
 				&concluding_cores,
-				2,
+				3,
 			);
 
 			let backed_candidates = vec![
 				PalletRunner::<Test>::create_backed_candidate(
+					&next_block_seed, &backers_number, None
+				),
+				PalletRunner::<Test>::create_backed_candidate(
 					&new_block_seed, &backers_number, None
-				)
+				),
 			];
 
 			let parent_header = PalletRunner::<Test>::create_parent_header();
@@ -752,6 +758,14 @@ mod enter {
 				disputes,
 				parent_header
 			};
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 1 disputes => 4*3 = 12)
+			assert_eq!(new_inherent.bitfields.len(), 12);
+			// * 2 backed candidates
+			assert_eq!(new_inherent.backed_candidates.len(), 2);
+			// * 1 disputes.
+			assert_eq!(new_inherent.disputes.len(), 1);
 
 			// This runs the disputes logic
 			assert_ok!(Pallet::<Test>::enter(
@@ -769,12 +783,19 @@ mod enter {
 			let dispute_timed_out_event = crate::mock::Event::Disputes(disputes::pallet::Event::DisputeTimedOut(
                disputed_hash.clone()
             ));
-			let revert_event = crate::mock::Event::Disputes(disputes::pallet::Event::Revert(3));
+			let revert_event = crate::mock::Event::Disputes(disputes::pallet::Event::Revert(4));
 			// Check that the last event is the timed out dispute with the block we've disputed
 			PalletRunner::<Test>::assert_last_events(vec![
 				dispute_timed_out_event,
 				revert_event,
 			]);
+
+			// Need to check there's nothing being disputed at the moment
+			// let mut freed_disputed: Vec<_> =
+			// 	<inclusion::Pallet<Test>>::collect_disputed(&current_concluded_invalid_disputes)
+			// 		.into_iter()
+			// 		.map(|core| (core, FreedReason::Concluded))
+			// 		.collect();
 		});
 	}
 

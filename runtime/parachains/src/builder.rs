@@ -156,14 +156,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		)
 	}
 
-	/// Number of the relay parent block.
-	fn relay_parent_number(&self) -> u32 {
-		(self.block_number - One::one())
-			.try_into()
-			.map_err(|_| ())
-			.expect("self.block_number is u32")
-	}
-
 	/// Maximum number of validators that may be part of a validator group.
 	pub(crate) fn fallback_max_validators() -> u32 {
 		configuration::Pallet::<T>::config().max_validators.unwrap_or(200)

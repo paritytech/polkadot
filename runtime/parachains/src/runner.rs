@@ -1,5 +1,5 @@
 use super::*;
-use crate::{builder::BenchBuilder, paras, paras_inherent, session_info, initializer};
+use crate::{builder::BenchBuilder, initializer, paras, paras_inherent, session_info};
 use frame_support::pallet_prelude::*;
 use primitives::v0::ValidatorSignature;
 use primitives::v1::{
@@ -11,6 +11,7 @@ use primitives::v1::{
 	ValidatorIndex, ValidityAttestation,
 };
 use sp_core::H256;
+use sp_runtime::traits::TrailingZeroInput;
 use sp_runtime::{
 	generic::Digest,
 	traits::{Header as HeaderT, One},
@@ -49,6 +50,26 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		inclusion::PendingAvailability::<C>::remove_all(None);
 	}
 
+	/// Grab an account, seeded by a name and index.
+	///
+	/// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
+	/// "features = runtime-benchmarks".
+	fn create_account_id<AccountId: Decode>(
+		name: &'static str,
+		index: u32,
+		seed: u32,
+	) -> AccountId {
+		let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
+		AccountId::decode(&mut TrailingZeroInput::new(&entropy[..]))
+			.expect("infinite input; no invalid input; qed")
+	}
+
+	/// This is used to trigger new session; Account id isn't used anywhere in the new session
+	/// hook, so dummy value can be used
+	fn create_dummy_account_id() -> C::AccountId {
+		Self::create_account_id("validator", 0, 0)
+	}
+
 	/// Same as BenchBuilder::setup_session, but based off the current block
 	/// to make it possible to trigger multiple sessions during the test
 	/// Skipping inherent hooks is needed for the bench builder to work.
@@ -80,7 +101,6 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 			&header.number(),
 			&header.hash(),
 			&Digest { logs: Vec::new() },
-			Default::default(),
 		);
 
 		assert_eq!(<shared::Pallet<C>>::session_index(), target_session);
@@ -98,14 +118,21 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		(validators_shuffled, block_number, target_session)
 	}
 
-	// pub fn run_to_next_session(
-	//     validators: Vec<(C::AccountId, ValidatorId)>,
-	//     total_cores: u32,
-	//     skip_inherent_hooks: bool,
-	// ) -> (Vec<ValidatorId>, C::BlockNumber, SessionIndex) {
-	//     let next_session: SessionIndex = Self::current_session_index() + One::one();
-	//     Self::run_to_session(next_session, vec![], total_cores, skip_inherent_hooks)
-	// }
+	/// Triggers initializer::on_new_session
+	pub fn trigger_new_session() {
+		// First argument doesn't do anything at the time of writing
+		let new_session_index = Self::current_session_index() + 1;
+		let validators: Vec<(C::AccountId, ValidatorId)> = Self::active_validators_for_session(Self::current_session_index())
+			.iter()
+			.map(|v| (Self::create_dummy_account_id(), v.clone()))
+			.collect();
+		initializer::Pallet::<C>::test_trigger_on_new_session(
+			true,
+			new_session_index,
+			validators.iter().map(|(a, v)| { (a, v.clone()) } ),
+			None,
+		);
+	}
 
 	pub fn active_validators_for_session(session_index: SessionIndex) -> Vec<ValidatorId> {
 		session_info::Pallet::<C>::session_info(session_index)
@@ -162,8 +189,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 
 		// This generates a pair and adds it to the keystore, returning just the public.
 		let collator_public = CollatorId::generate_pair(None);
-		let header = BenchBuilder::<C>::header(Self::current_block_number());
-		let relay_parent = header.hash();
+		let relay_parent = <frame_system::Pallet<C>>::parent_hash();
 		let head_data = BenchBuilder::<C>::mock_head_data();
 		let persisted_validation_data_hash = PersistedValidationData::<H256> {
 			parent_head: head_data.clone(),
@@ -288,8 +314,10 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	}
 
 	fn signing_context() -> SigningContext<C::Hash> {
+		let relay_parent = <frame_system::Pallet<C>>::parent_hash();
+
 		SigningContext {
-			parent_hash: BenchBuilder::<C>::header(Self::current_block_number()).hash(),
+			parent_hash: relay_parent,
 			session_index: Self::current_session_index(),
 		}
 	}
