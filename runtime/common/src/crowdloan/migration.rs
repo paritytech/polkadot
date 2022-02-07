@@ -29,16 +29,28 @@ pub mod crowdloan_index_migration {
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should have a value.
 		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
-		let next_index = NextTrieIndex::take().unwrap_or_default();
+		let next_index = NextTrieIndex::get().unwrap_or_default();
 		ensure!(next_index > 0, "Next index is zero, which implies no migration is needed.");
+
+		log::info!(
+			target: "runtime",
+			"next trie index: {:?}",
+			next_index,
+		);
 
 		// Each fund should have some non-zero balance.
 		for (para_id, fund) in Funds::<T>::iter() {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 			let total_balance = CurrencyOf::<T>::total_balance(&old_fund_account);
 
+			log::info!(
+				target: "runtime",
+				"para_id={:?}, old_fund_account={:?}, total_balance={:?}, fund.raised={:?}",
+				para_id, old_fund_account, total_balance, fund.raised
+			);
+
 			ensure!(
-				total_balance == fund.raised,
+				total_balance >= fund.raised,
 				"Total balance is not equal to the funds raised."
 			);
 			ensure!(total_balance > Zero::zero(), "Total balance is equal to zero.");
@@ -79,9 +91,17 @@ pub mod crowdloan_index_migration {
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should not have a value, and `NextFundIndex` should.
 		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
-		ensure!(NextTrieIndex::take().is_none(), "NextTrieIndex still has a value.");
+		ensure!(NextTrieIndex::get().is_none(), "NextTrieIndex still has a value.");
+
+		let next_index = NextFundIndex::<T>::get();
+		log::info!(
+			target: "runtime",
+			"next fund index: {:?}",
+			next_index,
+		);
+
 		ensure!(
-			NextFundIndex::<T>::get() > 0,
+			next_index > 0,
 			"NextFundIndex was not migrated or is zero. We assume it cannot be zero else no migration is needed."
 		);
 
@@ -99,7 +119,7 @@ pub mod crowdloan_index_migration {
 			let total_balance = CurrencyOf::<T>::total_balance(&new_fund_account);
 
 			ensure!(
-				total_balance == fund.raised,
+				total_balance >= fund.raised,
 				"Total balance in new account is different than the funds raised."
 			);
 			ensure!(total_balance > Zero::zero(), "Total balance in the account is zero.");
