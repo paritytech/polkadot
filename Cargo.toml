@@ -134,7 +134,7 @@ codegen-units = 1
 
 [profile.testnet]
 inherits = "release"
-debug = 1 # debug symbols are useful for profilers
+debug = 2 # debug symbols are useful for profilers
 debug-assertions = true
 overflow-checks = true
 
