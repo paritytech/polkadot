@@ -17,12 +17,12 @@
 //! Helper method for RPC.
 
 use super::*;
-use jsonrpsee::types::traits::Client;
-pub(crate) use jsonrpsee::types::v2::ParamsSer;
+use jsonrpsee::core::client::ClientT;
+pub(crate) use jsonrpsee::types::ParamsSer;
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
-	JsonRpsee(#[from] jsonrpsee::types::Error),
+	JsonRpsee(#[from] jsonrpsee::core::Error),
 	Codec(#[from] codec::Error),
 }
 
