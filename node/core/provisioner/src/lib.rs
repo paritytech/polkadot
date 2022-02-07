@@ -655,7 +655,7 @@ async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
-	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
+	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
