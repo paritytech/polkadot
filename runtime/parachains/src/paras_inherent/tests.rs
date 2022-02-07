@@ -24,14 +24,14 @@ mod enter {
 	use super::*;
 	use crate::{
 		builder::{Bench, BenchBuilder},
+		configuration::HostConfiguration,
+		disputes,
 		mock::{new_test_ext, MockGenesisConfig, Test},
-		disputes
+		runner::PalletRunner,
 	};
 	use assert_matches::assert_matches;
 	use frame_support::assert_ok;
-	use crate::configuration::HostConfiguration;
 	use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
-	use crate::runner::PalletRunner;
 
 	struct TestConfig {
 		dispute_statements: BTreeMap<u32, u32>,
@@ -611,24 +611,20 @@ mod enter {
 				2,
 			);
 
-			let backed_candidates = vec![
-				PalletRunner::<Test>::create_backed_candidate(
-					&new_block_seed, &backers_number, None
-				)
-			];
+			let backed_candidates = vec![PalletRunner::<Test>::create_backed_candidate(
+				&new_block_seed,
+				&backers_number,
+				None,
+			)];
 
 			let parent_header = PalletRunner::<Test>::create_parent_header();
 
-			let disputes = vec![
-				PalletRunner::<Test>::create_dispute_against_block(CandidateHash(parent_header.hash()))
-			];
+			let disputes = vec![PalletRunner::<Test>::create_dispute_against_block(CandidateHash(
+				parent_header.hash(),
+			))];
 
-			let new_inherent = ParachainsInherentData {
-				bitfields,
-				backed_candidates,
-				disputes,
-				parent_header
-			};
+			let new_inherent =
+				ParachainsInherentData { bitfields, backed_candidates, disputes, parent_header };
 
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
@@ -738,26 +734,25 @@ mod enter {
 
 			let backed_candidates = vec![
 				PalletRunner::<Test>::create_backed_candidate(
-					&next_block_seed, &backers_number, None
+					&next_block_seed,
+					&backers_number,
+					None,
 				),
 				PalletRunner::<Test>::create_backed_candidate(
-					&new_block_seed, &backers_number, None
+					&new_block_seed,
+					&backers_number,
+					None,
 				),
 			];
 
 			let parent_header = PalletRunner::<Test>::create_parent_header();
 
 			let disputed_hash = PalletRunner::<Test>::candidate_hash_from_seed(1);
-			let disputes = vec![
-				PalletRunner::<Test>::create_unresolved_dispute(disputed_hash.clone())
-			];
+			let disputes =
+				vec![PalletRunner::<Test>::create_unresolved_dispute(disputed_hash.clone())];
 
-			let new_inherent = ParachainsInherentData {
-				bitfields,
-				backed_candidates,
-				disputes,
-				parent_header
-			};
+			let new_inherent =
+				ParachainsInherentData { bitfields, backed_candidates, disputes, parent_header };
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 1 disputes => 4*3 = 12)
@@ -780,15 +775,12 @@ mod enter {
 			PalletRunner::<Test>::run_to_next_block(true);
 
 			// Checking that the time out event was indeed deposited
-			let dispute_timed_out_event = crate::mock::Event::Disputes(disputes::pallet::Event::DisputeTimedOut(
-               disputed_hash.clone()
-            ));
+			let dispute_timed_out_event = crate::mock::Event::Disputes(
+				disputes::pallet::Event::DisputeTimedOut(disputed_hash.clone()),
+			);
 			let revert_event = crate::mock::Event::Disputes(disputes::pallet::Event::Revert(4));
 			// Check that the last event is the timed out dispute with the block we've disputed
-			PalletRunner::<Test>::assert_last_events(vec![
-				dispute_timed_out_event,
-				revert_event,
-			]);
+			PalletRunner::<Test>::assert_last_events(vec![dispute_timed_out_event, revert_event]);
 
 			// Need to check there's nothing being disputed at the moment
 			// let mut freed_disputed: Vec<_> =

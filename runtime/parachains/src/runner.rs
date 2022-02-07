@@ -1,20 +1,22 @@
 use super::*;
 use crate::{builder::BenchBuilder, initializer, paras, paras_inherent, session_info};
 use frame_support::pallet_prelude::*;
-use primitives::v0::ValidatorSignature;
-use primitives::v1::{
-	collator_signature_payload, supermajority_threshold, AvailabilityBitfield, BackedCandidate,
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId,
-	CommittedCandidateReceipt, CompactStatement, CoreIndex, DisputeStatement, DisputeStatementSet,
-	GroupIndex, Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex,
-	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId,
-	ValidatorIndex, ValidityAttestation,
+use primitives::{
+	v0::ValidatorSignature,
+	v1::{
+		collator_signature_payload, supermajority_threshold, AvailabilityBitfield, BackedCandidate,
+		CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId,
+		CommittedCandidateReceipt, CompactStatement, CoreIndex, DisputeStatement,
+		DisputeStatementSet, GroupIndex, Id as ParaId, InvalidDisputeStatementKind,
+		PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+		ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
+		ValidityAttestation,
+	},
 };
 use sp_core::H256;
-use sp_runtime::traits::TrailingZeroInput;
 use sp_runtime::{
 	generic::Digest,
-	traits::{Header as HeaderT, One},
+	traits::{Header as HeaderT, One, TrailingZeroInput},
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
@@ -122,14 +124,15 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	pub fn trigger_new_session() {
 		// First argument doesn't do anything at the time of writing
 		let new_session_index = Self::current_session_index() + 1;
-		let validators: Vec<(C::AccountId, ValidatorId)> = Self::active_validators_for_session(Self::current_session_index())
-			.iter()
-			.map(|v| (Self::create_dummy_account_id(), v.clone()))
-			.collect();
+		let validators: Vec<(C::AccountId, ValidatorId)> =
+			Self::active_validators_for_session(Self::current_session_index())
+				.iter()
+				.map(|v| (Self::create_dummy_account_id(), v.clone()))
+				.collect();
 		initializer::Pallet::<C>::test_trigger_on_new_session(
 			true,
 			new_session_index,
-			validators.iter().map(|(a, v)| { (a, v.clone()) } ),
+			validators.iter().map(|(a, v)| (a, v.clone())),
 			None,
 		);
 	}
@@ -316,10 +319,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	fn signing_context() -> SigningContext<C::Hash> {
 		let relay_parent = <frame_system::Pallet<C>>::parent_hash();
 
-		SigningContext {
-			parent_hash: relay_parent,
-			session_index: Self::current_session_index(),
-		}
+		SigningContext { parent_hash: relay_parent, session_index: Self::current_session_index() }
 	}
 
 	/// Create a `UncheckedSigned<AvailabilityBitfield> for each validator where each core in
