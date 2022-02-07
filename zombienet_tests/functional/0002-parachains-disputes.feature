@@ -49,21 +49,21 @@ eve: reports parachain_candidate_dispute_concluded{validity="valid"} is at least
 eve: reports parachain_candidate_dispute_concluded{validity="invalid"} is 0 within 15 seconds
 
 # Check lag - approval
-alice: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-bob: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-charlie: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-dave: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-ferdie: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-eve: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-one: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
-two: reports polkadot_parachain_approval_checking_finality_lag is 0 within 15 seconds
+alice: reports polkadot_parachain_approval_checking_finality_lag is 0
+bob: reports polkadot_parachain_approval_checking_finality_lag is 0
+charlie: reports polkadot_parachain_approval_checking_finality_lag is 0
+dave: reports polkadot_parachain_approval_checking_finality_lag is 0
+ferdie: reports polkadot_parachain_approval_checking_finality_lag is 0
+eve: reports polkadot_parachain_approval_checking_finality_lag is 0
+one: reports polkadot_parachain_approval_checking_finality_lag is 0
+two: reports polkadot_parachain_approval_checking_finality_lag is 0
 
 # Check lag - dispute conclusion
-alice: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-bob: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-charlie: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-dave: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-ferdie: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-eve: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-one: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
-two: reports polkadot_parachain_disputes_finality_lag is 0 within 15 seconds
+alice: reports polkadot_parachain_disputes_finality_lag is 0
+bob: reports polkadot_parachain_disputes_finality_lag is 0
+charlie: reports polkadot_parachain_disputes_finality_lag is 0
+dave: reports polkadot_parachain_disputes_finality_lag is 0
+ferdie: reports polkadot_parachain_disputes_finality_lag is 0
+eve: reports polkadot_parachain_disputes_finality_lag is 0
+one: reports polkadot_parachain_disputes_finality_lag is 0
+two: reports polkadot_parachain_disputes_finality_lag is 0
