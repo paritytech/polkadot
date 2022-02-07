@@ -44,7 +44,6 @@ pub struct PalletRunner<T> {
 
 /// Note: initializer config aggregates a lot of different pallets configs, as well
 /// as `frame_system::Config`
-#[cfg(test)]
 impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunner<C> {
 	pub fn init() {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
@@ -57,6 +56,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	///
 	/// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
 	/// "features = runtime-benchmarks".
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	fn create_account_id<AccountId: Decode>(
 		name: &'static str,
 		index: u32,
@@ -69,6 +69,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 
 	/// This is used to trigger new session; Account id isn't used anywhere in the new session
 	/// hook, so dummy value can be used
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	fn create_dummy_account_id() -> C::AccountId {
 		Self::create_account_id("validator", 0, 0)
 	}
@@ -122,6 +123,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	}
 
 	/// Triggers `initializer::on_new_session`
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub fn trigger_new_session() {
 		// First argument doesn't do anything at the time of writing
 		let new_session_index = Self::current_session_index() + 1;
@@ -380,12 +382,14 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 	}
 
 	/// Creates a header for the current on top of the current chain
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub fn create_parent_header() -> C::Header {
 		let parent_height = Self::current_block_number() - One::one();
 
 		BenchBuilder::<C>::header(parent_height)
 	}
 
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub fn create_dispute_against_block(block_hash: CandidateHash) -> DisputeStatementSet {
 		let validators = Self::active_validators_for_session(Self::current_session_index());
 		let statements_len = validators.len() as u32;
@@ -408,6 +412,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		}
 	}
 
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub fn create_unresolved_dispute(block_hash: CandidateHash) -> DisputeStatementSet {
 		let validators_against = 1;
 		let validators_for = 1;
@@ -435,6 +440,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		<shared::Pallet<C>>::session_index()
 	}
 
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub fn assert_last_events(events: Vec<<C as frame_system::Config>::Event>) {
 		let has_enough_events = frame_system::Pallet::<C>::events().len() >= events.len();
 		assert!(has_enough_events);
@@ -444,6 +450,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		assert_eq!(last_events, events.as_slice());
 	}
 
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub fn candidate_hash_from_seed(seed: u32) -> CandidateHash {
 		CandidateHash(H256::from(byte32_slice_from(seed)))
 	}
