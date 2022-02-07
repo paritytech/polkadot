@@ -28,7 +28,7 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 
-		let mut ext = crate::create_election_ext::<Runtime, Block>(client.clone(), config.at, vec![]).await?;
+		let mut ext = crate::create_election_ext::<Runtime, Block>(client, config.at, vec![]).await?;
 		let (raw_solution, _witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		ext.execute_with(|| {
