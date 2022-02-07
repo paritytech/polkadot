@@ -7219,6 +7219,7 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
+ "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
  "pallet-election-provider-multi-phase",
