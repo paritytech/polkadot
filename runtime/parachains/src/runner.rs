@@ -44,7 +44,7 @@ pub struct PalletRunner<T> {
 
 /// Note: initializer config aggregates a lot of different pallets configs, as well
 /// as `frame_system::Config`
-#[cfg(any(feature = "runtime-benchmarks", test))]
+#[cfg(test)]
 impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunner<C> {
 	pub fn init() {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
