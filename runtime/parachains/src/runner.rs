@@ -4,12 +4,11 @@ use frame_support::pallet_prelude::*;
 use primitives::{
 	v0::ValidatorSignature,
 	v1::{
-		collator_signature_payload, supermajority_threshold, AvailabilityBitfield, BackedCandidate,
-		CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId,
-		CommittedCandidateReceipt, CompactStatement, CoreIndex, DisputeStatement,
-		DisputeStatementSet, GroupIndex, Id as ParaId, InvalidDisputeStatementKind,
-		PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-		ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
+		collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+		CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt,
+		CompactStatement, CoreIndex, DisputeStatement, GroupIndex, Id as ParaId,
+		InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
+		UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
 		ValidityAttestation,
 	},
 };
@@ -20,6 +19,11 @@ use sp_runtime::{
 	RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+use primitives::v1::{supermajority_threshold, DisputeStatementSet};
+#[cfg(not(feature = "runtime-benchmarks"))]
+use sp_runtime::traits::TrailingZeroInput;
 
 /// Create a 32 byte slice based on the given number.
 fn byte32_slice_from(n: u32) -> [u8; 32] {
