@@ -292,23 +292,11 @@ pub mod pallet {
 				if id_lifecycle == ParaLifecycle::Parachain &&
 					other_lifecycle == ParaLifecycle::Parathread
 				{
-					// We check that both paras are in an appropriate lifecycle for a swap,
-					// so these should never fail.
-					let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
-					debug_assert!(res1.is_ok());
-					let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
-					debug_assert!(res2.is_ok());
-					T::OnSwap::on_swap(id, other);
+					Self::do_thread_and_chain_swap(id, other);
 				} else if id_lifecycle == ParaLifecycle::Parathread &&
 					other_lifecycle == ParaLifecycle::Parachain
 				{
-					// We check that both paras are in an appropriate lifecycle for a swap,
-					// so these should never fail.
-					let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
-					debug_assert!(res1.is_ok());
-					let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
-					debug_assert!(res2.is_ok());
-					T::OnSwap::on_swap(id, other);
+					Self::do_thread_and_chain_swap(other, id);
 				} else if id_lifecycle == ParaLifecycle::Parachain &&
 					other_lifecycle == ParaLifecycle::Parachain
 				{
@@ -587,6 +575,15 @@ impl<T: Config> Pallet<T> {
 			.saturating_add(per_byte_fee.saturating_mul((validation_code.0.len() as u32).into()));
 
 		Ok((ParaGenesisArgs { genesis_head, validation_code, parachain }, deposit))
+	}
+
+	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.
+	fn do_thread_and_chain_swap(to_downgrade: ParaId, to_upgrade: ParaId) {
+		let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(to_downgrade);
+		debug_assert!(res1.is_ok());
+		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
+		debug_assert!(res2.is_ok());
+		T::OnSwap::on_swap(to_upgrade, to_downgrade);
 	}
 }
 
