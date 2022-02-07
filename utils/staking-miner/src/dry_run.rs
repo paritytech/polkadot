@@ -16,11 +16,10 @@
 
 //! The dry-run command.
 
-use crate::{prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, WsClient};
+use crate::{prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedRpcClient};
 use codec::Encode;
 use frame_support::traits::Currency;
 use jsonrpsee::rpc_params;
-use std::sync::Arc;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
@@ -37,7 +36,7 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> 
 
 /// Helper method to print the encoded size of the snapshot.
 async fn print_info<T: EPM::Config>(
-	client: &WsClient,
+	client: &SharedRpcClient,
 	ext: &mut Ext,
 	raw_solution: &EPM::RawSolution<EPM::SolutionOf<T>>,
 	extrinsic: sp_core::Bytes,
@@ -108,7 +107,7 @@ fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the dry-run command.
 	pub(crate) async fn [<dry_run_cmd_ $runtime>](
-		client: Arc<WsClient>,
+		client: SharedRpcClient,
 		config: DryRunConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
@@ -134,7 +133,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let extrinsic = ext.execute_with(|| create_uxt(raw_solution.clone(), witness, signer.clone(), nonce, tip, era));
 
 		let bytes = sp_core::Bytes(extrinsic.encode().to_vec());
-		print_info::<Runtime>(&*client, &mut ext, &raw_solution, bytes.clone()).await;
+		print_info::<Runtime>(&client, &mut ext, &raw_solution, bytes.clone()).await;
 
 		let feasibility_result = ext.execute_with(|| {
 			EPM::Pallet::<Runtime>::feasibility_check(raw_solution.clone(), EPM::ElectionCompute::Signed)

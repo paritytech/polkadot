@@ -16,7 +16,7 @@
 
 //! The monitor command.
 
-use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig};
+use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedRpcClient};
 use codec::Encode;
 use jsonrpsee::{
 	core::{
@@ -24,16 +24,14 @@ use jsonrpsee::{
 		Error as RpcError,
 	},
 	rpc_params,
-	ws_client::WsClient,
 };
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
-	client: &WsClient,
+	client: &SharedRpcClient,
 	at: B::Hash,
 ) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
@@ -71,8 +69,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
-		client: Arc<WsClient>,
-		shared: SharedConfig,
+		client: SharedRpcClient,
 		config: MonitorConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
@@ -131,7 +128,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 		/// Construct extrinsic at given block and watch it.
 		async fn send_and_watch_extrinsic(
-			client: Arc<WsClient>,
+			client: SharedRpcClient,
 			tx: mpsc::UnboundedSender<StakingMinerError>,
 			at: Header,
 			signer: Signer,
@@ -142,13 +139,13 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
 			// if the runtime version has changed, terminate.
-			if let Err(err) = crate::check_versions::<Runtime>(&*client).await {
+			if let Err(err) = crate::check_versions::<Runtime>(&client).await {
 				let _ = tx.send(err.into());
 				return;
 			}
 
 			// we prefer doing this check before fetching anything into a remote-ext.
-			if ensure_signed_phase::<Runtime, Block>(&*client, hash).await.is_err() {
+			if ensure_signed_phase::<Runtime, Block>(&client, hash).await.is_err() {
 				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
 				return;
 			}
@@ -182,7 +179,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let nonce = match crate::get_account_info::<Runtime>(&*client, &signer.account, Some(hash)).await {
+			let nonce = match crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash)).await {
 				Ok(maybe_account) => {
 					let acc = maybe_account.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
 					acc.nonce
@@ -269,7 +266,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 						let events = match get_storage::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
-						>(&*client, rpc_params! { key, hash })
+						>(&client, rpc_params! { key, hash })
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),
 							Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {

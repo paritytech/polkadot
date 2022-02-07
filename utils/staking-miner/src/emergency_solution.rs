@@ -16,14 +16,14 @@
 
 //! The emergency-solution command.
 
-use crate::{prelude::*, EmergencySolutionConfig, Error, WsClient};
+use crate::{prelude::*, EmergencySolutionConfig, Error, SharedRpcClient};
 use codec::Encode;
-use std::{io::Write, sync::Arc};
+use std::io::Write;
 
 macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the emergency-solution command.
 	pub(crate) async fn [<emergency_solution_cmd_ $runtime>](
-		client: Arc<WsClient>,
+		client: SharedRpcClient,
 		config: EmergencySolutionConfig,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;

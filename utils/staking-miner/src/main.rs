@@ -45,7 +45,7 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -54,6 +54,24 @@ pub(crate) enum AnyRuntime {
 }
 
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
+
+/// Wraps a shared WebSocket JSON-RPC client that can be cloned.
+#[derive(Clone, Debug)]
+pub(crate) struct SharedRpcClient(Arc<WsClient>);
+
+impl Deref for SharedRpcClient {
+	type Target = WsClient;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl SharedRpcClient {
+	fn into_inner(self) -> Arc<WsClient> {
+		self.0
+	}
+}
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
@@ -369,7 +387,7 @@ struct Opt {
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
 async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
-	client: Arc<WsClient>,
+	client: SharedRpcClient,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
 ) -> Result<Ext, Error<T>> {
@@ -382,7 +400,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
-			transport: client.into(),
+			transport: client.into_inner().into(),
 			at,
 			pallets,
 			..Default::default()
@@ -466,7 +484,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -532,7 +550,7 @@ async fn main() {
 			.build(&shared.uri)
 			.await;
 		match maybe_client {
-			Ok(client) => break Arc::new(client),
+			Ok(client) => break SharedRpcClient(Arc::new(client)),
 			Err(why) => {
 				log::warn!(
 					target: LOG_TARGET,
@@ -586,7 +604,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
