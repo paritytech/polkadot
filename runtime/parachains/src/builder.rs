@@ -370,7 +370,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	/// Fill cores `start..last` with dikspute statement sets. The statement sets will have 3/4th of
+	/// Fill cores `start..last` with dispute statement sets. The statement sets will have 3/4th of
 	/// votes be valid, and 1/4th of votes be invalid.
 	fn create_disputes_with_no_spam(
 		&self,

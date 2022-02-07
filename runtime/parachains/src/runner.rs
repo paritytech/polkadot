@@ -43,7 +43,7 @@ pub struct PalletRunner<T> {
 }
 
 /// Note: initializer config aggregates a lot of different pallets configs, as well
-/// as frame_system::Config
+/// as `frame_system::Config`
 impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunner<C> {
 	pub fn init() {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
@@ -72,7 +72,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		Self::create_account_id("validator", 0, 0)
 	}
 
-	/// Same as BenchBuilder::setup_session, but based off the current block
+	/// Same as `BenchBuilder::setup_session`, but based off the current block
 	/// to make it possible to trigger multiple sessions during the test
 	/// Skipping inherent hooks is needed for the bench builder to work.
 	/// TODO: need to explore how not skipping those hooks would affect benchmarks
@@ -120,7 +120,7 @@ impl<C: initializer::pallet::Config + paras_inherent::pallet::Config> PalletRunn
 		(validators_shuffled, block_number, target_session)
 	}
 
-	/// Triggers initializer::on_new_session
+	/// Triggers `initializer::on_new_session`
 	pub fn trigger_new_session() {
 		// First argument doesn't do anything at the time of writing
 		let new_session_index = Self::current_session_index() + 1;
