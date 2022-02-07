@@ -55,7 +55,7 @@ pub(crate) enum AnyRuntime {
 
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
-/// Wraps a shared WebSocket JSON-RPC client that can be cloned.
+/// Wraps a shared websocket JSON-RPC client that can be cloned.
 #[derive(Clone, Debug)]
 pub(crate) struct SharedRpcClient(Arc<WsClient>);
 
