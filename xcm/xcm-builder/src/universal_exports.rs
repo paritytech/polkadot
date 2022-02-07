@@ -20,7 +20,7 @@ use frame_support::{ensure, traits::Get};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
 use xcm::prelude::*;
-use xcm_executor::traits::ExportXcm;
+use xcm_executor::traits::{ExportXcm, validate_export};
 use SendError::*;
 
 fn ensure_is_remote(
@@ -59,9 +59,9 @@ pub struct LocalUnpaidExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancest
 impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for LocalUnpaidExporter<Exporter, Ancestry>
 {
-	type OptionTicket = Option<(NetworkId, InteriorMultiLocation, Xcm<()>)>;
+	type OptionTicket = Exporter::OptionTicket;
 
-	fn validate(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult<(NetworkId, InteriorMultiLocation, Xcm<()>)> {
+	fn validate(dest: &mut Option<MultiLocation>, xcm: &mut Option<Xcm<()>>) -> SendResult<<Exporter::OptionTicket as Unwrappable>::Inner> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let devolved = match ensure_is_remote(Ancestry::get(), d) {
 			Ok(x) => x,
@@ -78,12 +78,11 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 			message.inner_mut().push(DescendOrigin(local_location));
 		}
 		message.inner_mut().extend(inner.into_iter());
-		let price = Exporter::export_price(network, &destination, &message)?;
-		Ok(((network, destination, message), price))
+		validate_export::<Exporter>(network, 0, destination, message)
 	}
 
-	fn deliver((network, destination, message): (NetworkId, InteriorMultiLocation, Xcm<()>)) -> Result<(), SendError> {
-		Exporter::export_xcm(network, 0, &mut Some(destination), &mut Some(message))
+	fn deliver(ticket: <Exporter::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+		Exporter::deliver(ticket)
 	}
 }
 
@@ -319,18 +318,18 @@ impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob
 	}
 }
 
-pub struct HaulBlobExporter<Bridge, BridgedNetwork>(PhantomData<(Bridge, BridgedNetwork)>);
-impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>> ExportXcm
-	for HaulBlobExporter<Bridge, BridgedNetwork>
+pub struct HaulBlobExporter<Bridge, BridgedNetwork, Price>(PhantomData<(Bridge, BridgedNetwork, Price)>);
+impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> ExportXcm
+	for HaulBlobExporter<Bridge, BridgedNetwork, Price>
 {
-	// TODO: Get impl for what value to return for `export_price`, then tests for it.
+	type OptionTicket = Option<Vec<u8>>;
 
-	fn export_xcm(
+	fn validate(
 		network: NetworkId,
 		_channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> Result<(), SendError> {
+	) -> Result<(Vec<u8>, MultiAssets), SendError> {
 		let bridged_network = BridgedNetwork::get();
 		ensure!(&network == &bridged_network, SendError::CannotReachDestination);
 		// We don't/can't use the `channel` for this adapter.
@@ -343,7 +342,12 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>> ExportXcm
 			},
 		};
 		let message = VersionedXcm::from(message.take().ok_or(SendError::MissingArgument)?);
-		Bridge::haul_blob(BridgeMessage { universal_dest, message }.encode());
+		let blob = BridgeMessage { universal_dest, message }.encode();
+		Ok((blob, Price::get()))
+	}
+
+	fn deliver(blob: Vec<u8>) -> Result<(), SendError> {
+		Bridge::haul_blob(blob);
 		Ok(())
 	}
 }

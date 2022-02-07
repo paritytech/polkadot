@@ -42,7 +42,10 @@ pub type LocalOriginToLocation = (
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
 	type OptionTicket = Option<()>;
-	fn validate(_dest: &mut Option<MultiLocation>, _msg: &mut Option<Xcm<()>>) -> SendResult {
+	fn validate(_dest: &mut Option<MultiLocation>, _msg: &mut Option<Xcm<()>>) -> SendResult<()> {
+		Ok(((), MultiAssets::new()))
+	}
+	fn deliver(_: ()) -> Result<(), SendError> {
 		Ok(())
 	}
 }

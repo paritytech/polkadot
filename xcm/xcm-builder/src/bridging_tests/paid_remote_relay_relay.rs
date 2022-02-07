@@ -28,11 +28,13 @@ parameter_types! {
 	pub RelayUniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
 	pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote::get()));
 	pub static BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
-		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 100).into()))];
+		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 150).into()))];
+	// ^^^ 100 to use the bridge (export) and 50 for the remote execution weight (5 instuctions
+	//     x 10 weight each).
 }
 type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
-type RelayExporter = HaulBlobExporter<TheBridge, Remote>;
+type RelayExporter = HaulBlobExporter<TheBridge, Remote, Price>;
 type LocalInnerRouter = ExecutingRouter<UniversalLocation, RelayUniversalLocation, RelayExporter>;
 type LocalBridgeRouter = SovereignPaidRemoteExporter<
 	NetworkExportTable<BridgeTable>,
@@ -61,10 +63,10 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(to_account(Parachain(100)).unwrap(), (Here, 100));
+	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
 
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((Parent, 100).into()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((Parent, 150).into()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -79,7 +81,7 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 50).into()]);
+	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 850).into()]);
 }
 
 /// ```nocompile
@@ -104,7 +106,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	// Initialize the local relay so that our parachain has funds to pay for export.
 	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
 
-	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok((Parent, 100).into()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok((Parent, 150).into()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(100).into(),
@@ -117,5 +119,5 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	assert_eq!(take_received_remote_messages(), expected);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 950).into()]);
+	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 850).into()]);
 }

@@ -181,7 +181,7 @@ impl TryFrom<OldMultiAsset> for MultiAsset {
 }
 
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, Default)]
 pub struct MultiAssets(Vec<MultiAsset>);
 
 impl Decode for MultiAssets {

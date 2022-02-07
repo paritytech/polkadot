@@ -30,9 +30,9 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	export_xcm, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
+	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, OnResponse,
 	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	WeightTrader,
+	validate_export, WeightTrader, ExportXcm,
 };
 
 mod assets;
@@ -592,15 +592,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
+				let hash = (&self.origin, &destination).using_encoded(blake2_128);
+				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
 				// Hash identifies the lane on the exporter which we use. We use the pairwise
 				// combination of the origin and destination to ensure origin/destination pairs will
 				// generally have their own lanes.
-				let fee = Config::MessageExporter::export_price(network, &destination, &xcm)?;
+				let (ticket, fee) = validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
 				self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-
-				let hash = (&self.origin, &destination).using_encoded(blake2_128);
-				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
-				export_xcm::<Config::MessageExporter>(network, channel, destination, xcm)?;
+				Config::MessageExporter::deliver(ticket)?;
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),

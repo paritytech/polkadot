@@ -105,9 +105,10 @@ impl GetDispatchInfo for TestCall {
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
 	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
-	pub static EXPORTER_OVERRIDE: RefCell<Option<
-		fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> Result<(), SendError>
-	>> = RefCell::new(None);
+	pub static EXPORTER_OVERRIDE: RefCell<Option<(
+		fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
+		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<(), SendError>,
+	)>> = RefCell::new(None);
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
@@ -116,9 +117,10 @@ pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_exporter_override(
-	f: fn(NetworkId, u32, &mut Option<InteriorMultiLocation>, &mut Option<Xcm<()>>) -> Result<(), SendError>,
+	price: fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
+	deliver: fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<(), SendError>,
 ) {
-	EXPORTER_OVERRIDE.with(|x| x.replace(Some(f)));
+	EXPORTER_OVERRIDE.with(|x| x.replace(Some((price, deliver))));
 }
 #[allow(dead_code)]
 pub fn clear_exporter_override() {
@@ -141,18 +143,37 @@ impl SendXcm for TestMessageSender {
 }
 pub struct TestMessageExporter;
 impl ExportXcm for TestMessageExporter {
-	fn export_xcm(
+	type OptionTicket = Option<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)>;
+	fn validate(
 		network: NetworkId,
 		channel: u32,
 		dest: &mut Option<InteriorMultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> Result<(), SendError> {
+	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)> {
+		let (d, m) = (dest.take().unwrap(), msg.take().unwrap());
+		let r: Result<MultiAssets, SendError> = EXPORTER_OVERRIDE.with(|e| {
+			if let Some((ref f, _)) = &*e.borrow() {
+				f(network, channel, &d, &m)
+			} else {
+				Ok(MultiAssets::new())
+			}
+		});
+		match r {
+			Ok(price) => Ok(((network, channel, d, m), price)),
+			Err(e) => {
+				*dest = Some(d);
+				*msg = Some(m);
+				Err(e)
+			}
+		}
+	}
+	fn deliver(tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>)) -> Result<(), SendError> {
 		EXPORTER_OVERRIDE.with(|e| {
-			if let Some(ref f) = &*e.borrow() {
+			if let Some((_, ref f)) = &*e.borrow() {
+				let (network, channel, dest, msg) = tuple;
 				f(network, channel, dest, msg)
 			} else {
-				let (dest, msg) = (dest.take().unwrap(), msg.take().unwrap());
-				EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest, msg)));
+				EXPORTED_XCM.with(|q| q.borrow_mut().push(tuple));
 				Ok(())
 			}
 		})

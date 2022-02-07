@@ -342,37 +342,47 @@ impl<T> Unwrappable for Option<T> {
 /// ```rust
 /// # use xcm::v3::prelude::*;
 /// # use parity_scale_codec::Encode;
+/// # use std::convert::Infallible;
 ///
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
-///         return Err(SendError::CannotReachDestination)
+///     type OptionTicket = Option<Infallible>;
+///     fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<Infallible> {
+///         Err(SendError::CannotReachDestination)
+///     }
+///     fn deliver(_: Infallible) -> Result<(), SendError> {
+///         unreachable!()
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
-///         let d = destination.as_ref().ok_or(SendError::MissingArgument)?;
-///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = d {
-///             Ok(())
-///         } else {
-///             Err(SendError::Unroutable)
+///     type OptionTicket = Option<()>;
+///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
+///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
+///             MultiLocation { parents: 0, interior: X2(j1, j2) } => Ok(((), MultiAssets::new())),
+///             _ => Err(SendError::Unroutable),
 ///         }
+///     }
+///     fn deliver(_: ()) -> Result<(), SendError> {
+///         Ok(())
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message from a parent, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult {
-///         let d = destination.as_ref().ok_or(SendError::MissingArgument)?;
-///         match d {
-///             MultiLocation { parents: 1, interior: Here } => Ok(()),
+///     type OptionTicket = Option<()>;
+///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
+///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
+///             MultiLocation { parents: 1, interior: Here } => Ok(((), MultiAssets::new())),
 ///             _ => Err(SendError::CannotReachDestination),
 ///         }
+///     }
+///     fn deliver(_: ()) -> Result<(), SendError> {
+///         Ok(())
 ///     }
 /// }
 ///

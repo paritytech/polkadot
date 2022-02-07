@@ -16,63 +16,102 @@
 
 use xcm::latest::prelude::*;
 
-/// Type which is able to send a given message over to another consensus network.
 pub trait ExportXcm {
-	fn export_price(
-		_network: NetworkId,
-		_destination: &InteriorMultiLocation,
-		_message: &Xcm<()>,
-	) -> Result<MultiAssets, SendError> {
-		Ok(MultiAssets::new())
-	}
+	type OptionTicket: Unwrappable;
 
-	fn export_xcm(
+	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
+	/// determine the cost which will be paid by this chain to do so, returning a `Validated` token
+	/// which can be used to enact delivery.
+	///
+	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
+	/// may only be consumed if the `Err` is not `CannotReachDestination`.
+	///
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then this *MUST* return `CannotReachDestination`. Any other error will cause the tuple
+	/// implementation to exit early without trying other type fields.
+	fn validate(
 		network: NetworkId,
 		channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> Result<(), SendError>;
+	) -> SendResult<<Self::OptionTicket as Unwrappable>::Inner>;
+
+	/// Actually carry out the delivery operation for a previously validated message sending.
+	///
+	/// The implementation should do everything possible to ensure that this function is infallible
+	/// if called immediately after `validate`. Returning an error here would result in a price
+	/// paid without the service being delivered.
+	fn deliver(ticket: <Self::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ExportXcm for Tuple {
-	fn export_price(
-		network: NetworkId,
-		dest: &InteriorMultiLocation,
-		message: &Xcm<()>,
-	) -> Result<MultiAssets, SendError> {
-		for_tuples!( #(
-			match Tuple::export_price(network, dest, message) {
-				Err(SendError::CannotReachDestination) => {},
-				o @ _ => return o,
-			};
-		)* );
-		Err(SendError::CannotReachDestination)
-	}
+	type OptionTicket = Option<( for_tuples!{ #( Tuple::OptionTicket ),* } )>;
 
-	fn export_xcm(
+	fn validate(
 		network: NetworkId,
 		channel: u32,
-		dest: &mut Option<InteriorMultiLocation>,
+		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> Result<(), SendError> {
+	) -> SendResult<( for_tuples!{ #( Tuple::OptionTicket ),* } )> {
+		let mut maybe_cost: Option<MultiAssets> = None;
+		let one_ticket: ( for_tuples!{ #( Tuple::OptionTicket ),* } ) = ( for_tuples!{ #(
+			if maybe_cost.is_some() {
+				<Tuple::OptionTicket as Unwrappable>::none()
+			} else {
+				match Tuple::validate(network, channel, destination, message) {
+					Err(SendError::CannotReachDestination) => <Tuple::OptionTicket as Unwrappable>::none(),
+					Err(e) => { return Err(e) },
+					Ok((v, c)) => {
+						maybe_cost = Some(c);
+						<Tuple::OptionTicket as Unwrappable>::some(v)
+					},
+				}
+			}
+		),* } );
+		if let Some(cost) = maybe_cost {
+			Ok((one_ticket, cost))
+		} else {
+			Err(SendError::CannotReachDestination)
+		}
+	}
+
+	fn deliver(one_ticket: <Self::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
 		for_tuples!( #(
-			match Tuple::export_xcm(network, channel, dest, message) {
-				Err(SendError::CannotReachDestination) => {},
-				o @ _ => return o,
-			};
+			if let Some(validated) = one_ticket.Tuple.take() {
+				return Tuple::deliver(validated);
+			}
 		)* );
-		Err(SendError::CannotReachDestination)
+		Err(SendError::Unroutable)
 	}
 }
 
 /// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
 /// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+pub fn validate_export<T: ExportXcm>(
+	network: NetworkId,
+	channel: u32,
+	dest: InteriorMultiLocation,
+	msg: Xcm<()>,
+) -> SendResult<<T::OptionTicket as Unwrappable>::Inner> {
+	T::validate(network, channel, &mut Some(dest), &mut Some(msg))
+}
+
+/// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
+/// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+///
+/// Returns either `Ok` with the price of the delivery, or `Err` with the reason why the message
+/// could not be sent.
+///
+/// Generally you'll want to validate and get the price first to ensure that the sender can pay it
+/// before actually doing the delivery.
 pub fn export_xcm<T: ExportXcm>(
 	network: NetworkId,
 	channel: u32,
 	dest: InteriorMultiLocation,
-	message: Xcm<()>,
-) -> Result<(), SendError> {
-	T::export_xcm(network, channel, &mut Some(dest), &mut Some(message))
+	msg: Xcm<()>,
+) -> Result<MultiAssets, SendError> {
+	let (ticket, price) = T::validate(network, channel, &mut Some(dest), &mut Some(msg))?;
+	T::deliver(ticket)?;
+	Ok(price)
 }

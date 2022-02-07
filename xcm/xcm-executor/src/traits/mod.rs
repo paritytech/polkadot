@@ -23,7 +23,7 @@ pub use conversion::{
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
 mod export;
-pub use export::{export_xcm, ExportXcm};
+pub use export::{export_xcm, ExportXcm, validate_export};
 mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod matches_fungible;
