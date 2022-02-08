@@ -9,7 +9,7 @@ description = "Subsystem traits and message definitions"
 async-trait = "0.1.52"
 futures = "0.3.19"
 itertools = "0.10"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
 pin-project = "1.0.9"
 rand = "0.8.3"
 thiserror = "1.0.30"
