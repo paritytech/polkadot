@@ -86,8 +86,8 @@ struct State {
 	/// drive the PoV size.
 	/// Important note: block execution heavily clones this state, so something like 300.000 is
 	/// the max value here, otherwise we'll get OOM during wasm execution.
-	/// TODO: Implement a static state, and use balast to inflate the PoV size. This way
-	/// we can just discard the balast before processing the block.
+	/// TODO: Implement a static state, and use `ballast` to inflate the PoV size. This way
+	/// we can just discard the `ballast` before processing the block.
 	graveyard_size: usize,
 }
 
