@@ -304,9 +304,11 @@ pub fn run() -> Result<()> {
 		}
 		#[cfg(not(feature = "pyroscoped"))]
 		{
-			Err(Error::PyroscopeNotCompiledIn)
+			return Err(Error::PyroscopeNotCompiledIn)
 		}
-	}?;
+	} else {
+		None
+	};
 
 	match &cli.subcommand {
 		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
