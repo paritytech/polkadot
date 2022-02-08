@@ -45,8 +45,8 @@ pub mod crowdloan_index_migration {
 
 			log::info!(
 				target: "runtime",
-				"para_id={:?}, old_fund_account={:?}, total_balance={:?}, fund.raised={:?}",
-				para_id, old_fund_account, total_balance, fund.raised
+				"para_id={:?}, old_fund_account={:?}, total_balance={:?}, fund.raised={:?}, fund.raised.cmp(&total_balance)={:?}",
+				para_id, old_fund_account, total_balance, fund.raised, fund.raised.cmp(&total_balance)
 			);
 
 			ensure!(
