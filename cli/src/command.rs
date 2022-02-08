@@ -293,6 +293,21 @@ where
 pub fn run() -> Result<()> {
 	let cli: Cli = Cli::from_args();
 
+	let mut pyroscope_agent_maybe = if let Some(ref agent_addr) = cli.run.pyroscope_agent {
+		#[cfg(feature = "pyroscoped")]
+		{
+			agent = pyroscope::PyroscopeAgent::builder(agent_addr, "polkadot")
+				.sample_rate(100)
+				.build()?;
+			agent.start();
+			agent
+		}
+		#[cfg(not(feature = "pyroscoped"))]
+		{
+			Err(Error::PyroscopeNotCompiledIn)
+		}
+	}?;
+
 	match &cli.subcommand {
 		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
 		Some(Subcommand::BuildSpec(cmd)) => {
@@ -509,5 +524,10 @@ pub fn run() -> Result<()> {
 		)
 		.into()),
 	}?;
+
+	#[cfg(feature = "pyroscoped")]
+	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
+		pyroscope_agent.stop();
+	}
 	Ok(())
 }

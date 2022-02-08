@@ -31,6 +31,14 @@ pub enum Error {
 	#[error(transparent)]
 	PerfCheck(#[from] polkadot_performance_test::PerfCheckError),
 
+	#[cfg(not(feature = "pyroscoped"))]
+	#[error("Binary was not compiled with `--feature=pyroscoped`")]
+	PyroscopeNotCompiledIn,
+
+	#[cfg(feature = "pyroscoped")]
+	#[error("Failed to connect to pyroscope agent")]
+	PyroscopeError(#[from] pyroscope::error::PyroscopeError),
+
 	#[error("Other: {0}")]
 	Other(String),
 }
