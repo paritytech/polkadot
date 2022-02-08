@@ -67,7 +67,7 @@ pub struct RunCmd {
 	#[clap(long, default_value = "1024")]
 	pub pov_size: usize,
 
-	/// The PVF execution complexity. Actually specifies how  many iterations/signatures
+	/// The PVF execution complexity. Actually specifies how many iterations/signatures
 	/// we compute per block.
 	#[clap(long, default_value = "1")]
 	pub pvf_complexity: u32,
@@ -105,11 +105,11 @@ impl SubstrateCli for Cli {
 	}
 
 	fn copyright_start_year() -> i32 {
-		2017
+		2022
 	}
 
 	fn executable_name() -> String {
-		"polkadot".into()
+		"undying-collator".into()
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {

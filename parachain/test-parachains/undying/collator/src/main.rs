@@ -42,8 +42,7 @@ fn main() -> Result<()> {
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
 			// We pass some dummy values for `pov_size` and `pvf_complexity` as these don't
 			// matter for `wasm` export.
-			let collator = Collator::new(1000, 1);
-			println!("0x{:?}", HexDisplay::from(&collator.validation_code()));
+			println!("0x{:?}", HexDisplay::from(&Collator::default().validation_code()));
 
 			Ok(())
 		},

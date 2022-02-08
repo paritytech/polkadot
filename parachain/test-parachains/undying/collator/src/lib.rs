@@ -35,6 +35,11 @@ use std::{
 };
 use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
 
+/// Default PoV size which also drives state size.
+const DEFAULT_POV_SIZE: usize = 1000;
+/// Default PVF time complexity - 1 signature per block.
+const DEFAULT_PVF_COMPLEXITY: u32 = 1;
+
 /// Calculates the head and state for the block with the given `number`.
 fn calculate_head_and_state_for_number(
 	number: u64,
@@ -75,9 +80,14 @@ struct State {
 	number_to_head: HashMap<u64, Arc<HeadData>>,
 	/// Block number of the best block.
 	best_block: u64,
-	/// PVF complexity.
+	/// PVF time complexity.
 	pvf_complexity: u32,
-	/// Size of the graveyard.
+	/// Defines the state size (Vec<u8>). Our PoV includes the entire state so this value will
+	/// drive the PoV size.
+	/// Important note: block execution heavily clones this state, so something like 300.000 is
+	/// the max value here, otherwise we'll get OOM during wasm execution.
+	/// TODO: Implement a static state, and use balast to inflate the PoV size. This way
+	/// we can just discard the balast before processing the block.
 	graveyard_size: usize,
 }
 
@@ -155,6 +165,12 @@ pub struct Collator {
 	seconded_collations: Arc<AtomicU32>,
 }
 
+impl Default for Collator {
+	fn default() -> Self {
+		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY)
+	}
+}
+
 impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
@@ -167,6 +183,8 @@ impl Collator {
 			graveyard_size,
 			graveyard_size
 		);
+
+		log::info!("PVF time complexity: {}", pvf_complexity);
 
 		Self {
 			state: Arc::new(Mutex::new(State::genesis(graveyard_size, pvf_complexity))),

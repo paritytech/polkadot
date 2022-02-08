@@ -75,11 +75,11 @@ impl HeadData {
 /// Block data for this parachain.
 #[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct GraveyardState {
-	/// The grave index of the last tombstone.
+	/// The grave index of the last placed tombstone.
 	pub index: u64,
 	/// We use a matrix where each element represents a grave.
-	/// The unsigned integer tracks the number of tombstones erected on
-	/// each trave.
+	/// The unsigned integer tracks the number of tombstones errected on
+	/// each grave.
 	pub graveyard: Vec<u8>,
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
 	// defined in blocks. The number of zombies produced scales with the tombstones.
