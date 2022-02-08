@@ -2157,10 +2157,10 @@ fn redundant_votes_ignored() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
+				test_state.issue_backing_statement_with_index(1, candidate_hash, session).await;
 
 			let valid_vote_2 =
-				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
+				test_state.issue_backing_statement_with_index(1, candidate_hash, session).await;
 
 			assert!(valid_vote.validator_signature() != valid_vote_2.validator_signature());
 

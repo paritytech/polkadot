@@ -86,7 +86,7 @@ impl SpamSlots {
 	/// This function should get called for any validator's invalidity vote for any not yet
 	/// confirmed dispute.
 	///
-	/// Returns: true if validator still had free spam slots, false otherwise.
+	/// Returns: `true` if validator still had vacant spam slots, `false` otherwise.
 	pub fn add_unconfirmed(
 		&mut self,
 		session: SessionIndex,

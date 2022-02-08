@@ -244,8 +244,10 @@ impl Initialized {
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
-				confirm_write()?;
 			}
+			// even if the changeset was empty,
+			// otherwise the caller will error.
+			confirm_write()?;
 		}
 	}
 
