@@ -58,7 +58,7 @@ trie-memory-tracker = ["sp-trie/memory-tracker"]
 full-node = ["service/full-node"]
 try-runtime = ["service/try-runtime"]
 fast-runtime = ["service/fast-runtime"]
-pyroscoped = ["pyroscope"]
+pyroscope = ["pyroscope"]
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #

@@ -293,7 +293,7 @@ where
 pub fn run() -> Result<()> {
 	let cli: Cli = Cli::from_args();
 
-	#[cfg(feature = "pyroscoped")]
+	#[cfg(feature = "pyroscope")]
 	let mut pyroscope_agent_maybe = if let Some(agent_addr) = cli.run.pyroscope_agent {
 		let mut agent =
 			pyroscope::PyroscopeAgent::builder(agent_addr.to_string().as_str(), "polkadot")
@@ -305,7 +305,7 @@ pub fn run() -> Result<()> {
 		None
 	};
 
-	#[cfg(not(feature = "pyroscoped"))]
+	#[cfg(not(feature = "pyroscope"))]
 	if cli.run.pyroscope_agent.is_some() {
 		return Err(Error::PyroscopeNotCompiledIn)
 	}
@@ -527,7 +527,7 @@ pub fn run() -> Result<()> {
 		.into()),
 	}?;
 
-	#[cfg(feature = "pyroscoped")]
+	#[cfg(feature = "pyroscope")]
 	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
 		pyroscope_agent.stop();
 	}
