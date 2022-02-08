@@ -60,9 +60,11 @@
 //! - v1 Orders that do allow the notion of `All` to be used as wildcards, will instead use a new
 //!   type called `MultiAssetFilter`.
 
-use crate::v2::{Instruction, Response as NewResponse, Xcm as NewXcm};
-use crate::v3::NetworkId as NewNetworkId;
-use crate::DoubleEncoded;
+use crate::{
+	v2::{Instruction, Response as NewResponse, Xcm as NewXcm},
+	v3::NetworkId as NewNetworkId,
+	DoubleEncoded,
+};
 use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
