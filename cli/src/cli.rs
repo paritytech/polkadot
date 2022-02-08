@@ -117,7 +117,7 @@ pub struct RunCmd {
 	#[clap(long)]
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 
-	/// Add the destination address to the pyroscope agent.
+	/// Add the destination address to the `pyroscope` agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`
 	/// commonly `127.0.0.1:4040`.
