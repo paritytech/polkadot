@@ -118,7 +118,7 @@ pub struct Fragment {
 }
 
 /// An update to outbound HRMP channels.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutboundHrmpChannelModification {
 	/// The number of bytes submitted to the channel.
 	pub bytes_submitted: usize,
@@ -131,7 +131,7 @@ pub struct OutboundHrmpChannelModification {
 pub struct ConstraintModifications {
 	/// The required parent head to build upon.
 	/// `None` indicates 'unmodified'.
-	pub required_head: Option<HeadData>,
+	pub required_head: HeadData,
 	/// The new HRMP watermark
 	pub hrmp_watermark: BlockNumber,
 	/// Outbound HRMP channel modifications.
@@ -142,6 +142,27 @@ pub struct ConstraintModifications {
 	pub ump_bytes_sent: usize,
 	/// The amount of DMP messages processed.
 	pub dmp_messages_processed: usize,
+}
+
+impl ConstraintModifications {
+	/// Stack other modifications on top of these.
+	///
+	/// This does no sanity-checking, so if `other` is garbage relative
+	/// to `self`, then the new value will be garbage as well.
+	pub fn stack(&mut self, other: &Self) {
+		self.required_head = other.required_head.clone();
+		self.hrmp_watermark = other.hrmp_watermark;
+
+		for (id, mods) in &other.outbound_hrmp {
+			let record = self.outbound_hrmp.entry(id.clone()).or_default();
+			record.messages_submitted += mods.messages_submitted;
+			record.bytes_submitted += mods.bytes_submitted;
+		}
+
+		self.ump_messages_sent += other.ump_messages_sent;
+		self.ump_bytes_sent += other.ump_bytes_sent;
+		self.dmp_messages_processed += other.dmp_messages_processed;
+	}
 }
 
 /// The prospective candidate.
@@ -168,15 +189,12 @@ impl ProspectiveCandidate {
 	/// of the candidate.
 	pub fn constraint_modifications(&self) -> ConstraintModifications {
 		ConstraintModifications {
-			required_head: Some(self.commitments.head_data.clone()),
+			required_head: self.commitments.head_data.clone(),
 			hrmp_watermark: self.commitments.hrmp_watermark,
 			outbound_hrmp: {
-				let mut outbound_hrmp = HashMap::new();
+				let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
 				for message in &self.commitments.horizontal_messages {
-					let record = outbound_hrmp.entry(message.recipient.clone()).or_insert(OutboundHrmpChannelModification {
-						bytes_submitted: 0,
-						messages_submitted: 0,
-					});
+					let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
 
 					record.bytes_submitted += message.data.len();
 					record.messages_submitted += 1;
