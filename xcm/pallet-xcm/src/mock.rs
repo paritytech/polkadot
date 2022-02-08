@@ -299,7 +299,7 @@ impl xcm_executor::Config for XcmConfig {
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
 
 parameter_types! {
-	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 2;
+	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 3;
 }
 
 impl pallet_xcm::Config for Test {
