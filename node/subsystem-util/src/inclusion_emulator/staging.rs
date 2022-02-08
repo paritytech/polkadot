@@ -142,8 +142,6 @@ pub struct ConstraintModifications {
 	pub ump_bytes_sent: usize,
 	/// The amount of DMP messages processed.
 	pub dmp_messages_processed: usize,
-	/// Whether a scheduled code upgrade was applied.
-	pub code_upgrade_applied: usize,
 }
 
 /// The prospective candidate.
@@ -161,6 +159,8 @@ pub struct ProspectiveCandidate {
 	pub pov_hash: Hash,
 	/// The validation code hash used by the candidate.
 	pub validation_code_hash: ValidationCodeHash,
+	// TODO [now]: do code upgrades go here? if so, we can't produce
+	// modifications just from a candidate.
 }
 
 impl ProspectiveCandidate {
@@ -171,9 +171,18 @@ impl ProspectiveCandidate {
 			required_head: Some(self.commitments.head_data.clone()),
 			hrmp_watermark: self.commitments.hrmp_watermark,
 			outbound_hrmp: {
-				// TODO [now]: have we enforced that HRMP messages are ascending at this point?
-				// probably better not to assume that and do sanity-checking at other points.
-				unimplemented!()
+				let mut outbound_hrmp = HashMap::new();
+				for message in &self.commitments.horizontal_messages {
+					let record = outbound_hrmp.entry(message.recipient.clone()).or_insert(OutboundHrmpChannelModification {
+						bytes_submitted: 0,
+						messages_submitted: 0,
+					});
+
+					record.bytes_submitted += message.data.len();
+					record.messages_submitted += 1;
+				}
+
+				outbound_hrmp
 			},
 			ump_messages_sent: self.commitments.upward_messages.len(),
 			ump_bytes_sent: self.commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
