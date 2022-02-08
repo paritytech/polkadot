@@ -22,7 +22,7 @@ thiserror = "1.0.30"
 serde = { version = "1.0.132", features = ["derive"] }
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
-zstd = "0.9.1"
+zstd = "0.9.2"
 
 [dev-dependencies]
 polkadot-erasure-coding = { path = "../../erasure-coding" }
