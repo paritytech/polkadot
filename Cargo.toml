@@ -23,7 +23,7 @@ nix = "0.23.1"
 tempfile = "3.2.0"
 tokio = "1.15.0"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-node-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
 members = [
