@@ -4488,19 +4488,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "node-primitives"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#529c2fd27d3d584951f73ba05bdea357117eadec"
-dependencies = [
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-application-crypto",
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5969,9 +5956,9 @@ dependencies = [
  "assert_cmd",
  "color-eyre",
  "nix",
- "node-primitives",
  "parity-util-mem",
  "polkadot-cli",
+ "polkadot-core-primitives",
  "remote-externalities",
  "tempfile",
  "tokio",
