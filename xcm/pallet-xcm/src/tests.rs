@@ -336,7 +336,7 @@ fn teleport_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -378,7 +378,7 @@ fn limmited_teleport_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -463,7 +463,7 @@ fn reserve_transfer_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -509,7 +509,7 @@ fn limited_reserve_transfer_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -852,38 +852,29 @@ fn subscription_side_upgrades_work_with_notify() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		AdvertisedXcmVersion::set(1);
 
-		// An entry from a previous runtime with v0 XCM.
-		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
-		let v0_location = VersionedMultiLocation::from(v0_location);
-		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 1));
-		let v1_location = Parachain(1001).into_versioned();
-		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 1));
-		let v2_location = Parachain(1002).into_versioned();
-		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
+		// An entry from a previous runtime with v1 XCM.
+		let v1_location = VersionedMultiLocation::V1(xcm::v1::Junction::Parachain(1001).into());
+		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 2));
+		let v3_location = Parachain(1003).into_versioned();
+		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, 0, 2));
 
 		// New version.
-		AdvertisedXcmVersion::set(2);
+		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
 		XcmPallet::on_initialize(1);
 
-		let instr0 = QueryResponse {
-			query_id: 69,
-			max_weight: 0,
-			response: Response::Version(2),
-			querier: None,
-		};
 		let instr1 = QueryResponse {
 			query_id: 70,
 			max_weight: 0,
-			response: Response::Version(2),
+			response: Response::Version(3),
 			querier: None,
 		};
-		let instr2 = QueryResponse {
-			query_id: 71,
+		let instr3 = QueryResponse {
+			query_id: 72,
 			max_weight: 0,
-			response: Response::Version(2),
+			response: Response::Version(3),
 			querier: None,
 		};
 		let mut sent = take_sent_xcm();
@@ -894,9 +885,8 @@ fn subscription_side_upgrades_work_with_notify() {
 		assert_eq!(
 			sent,
 			vec![
-				(Parachain(1000).into(), Xcm(vec![instr0])),
 				(Parachain(1001).into(), Xcm(vec![instr1])),
-				(Parachain(1002).into(), Xcm(vec![instr2])),
+				(Parachain(1003).into(), Xcm(vec![instr3])),
 			]
 		);
 
@@ -905,9 +895,8 @@ fn subscription_side_upgrades_work_with_notify() {
 		assert_eq!(
 			contents,
 			vec![
-				(XCM_VERSION, Parachain(1000).into_versioned(), (69, 0, 2)),
-				(XCM_VERSION, Parachain(1001).into_versioned(), (70, 0, 2)),
-				(XCM_VERSION, Parachain(1002).into_versioned(), (71, 0, 2)),
+				(XCM_VERSION, Parachain(1001).into_versioned(), (70, 0, 3)),
+				(XCM_VERSION, Parachain(1003).into_versioned(), (72, 0, 3)),
 			]
 		);
 	});
@@ -916,14 +905,11 @@ fn subscription_side_upgrades_work_with_notify() {
 #[test]
 fn subscription_side_upgrades_work_without_notify() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
-		// An entry from a previous runtime with v0 XCM.
-		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
-		let v0_location = VersionedMultiLocation::from(v0_location);
-		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 2));
-		let v1_location = Parachain(1001).into_versioned();
+		// An entry from a previous runtime with v1 XCM.
+		let v1_location = VersionedMultiLocation::V1(xcm::v1::Junction::Parachain(1001).into());
 		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 2));
-		let v2_location = Parachain(1002).into_versioned();
-		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 2));
+		let v3_location = Parachain(1003).into_versioned();
+		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, 0, 2));
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
@@ -934,9 +920,8 @@ fn subscription_side_upgrades_work_without_notify() {
 		assert_eq!(
 			contents,
 			vec![
-				(XCM_VERSION, Parachain(1000).into_versioned(), (69, 0, 2)),
-				(XCM_VERSION, Parachain(1001).into_versioned(), (70, 0, 2)),
-				(XCM_VERSION, Parachain(1002).into_versioned(), (71, 0, 2)),
+				(XCM_VERSION, Parachain(1001).into_versioned(), (70, 0, 3)),
+				(XCM_VERSION, Parachain(1003).into_versioned(), (72, 0, 3)),
 			]
 		);
 	});
@@ -1086,16 +1071,15 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		AdvertisedXcmVersion::set(1);
 
 		// An entry from a previous runtime with v0 XCM.
-		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
-		let v0_location = VersionedMultiLocation::from(v0_location);
-		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 1));
-		let v1_location = Parachain(1001).into_versioned();
+		let v1_location = VersionedMultiLocation::V1(xcm::v1::Junction::Parachain(1001).into());
 		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 1));
-		let v2_location = Parachain(1002).into_versioned();
+		let v2_location = VersionedMultiLocation::V1(xcm::v2::Junction::Parachain(1002).into());
 		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
+		let v3_location = Parachain(1003).into_versioned();
+		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, 0, 1));
 
 		// New version.
-		AdvertisedXcmVersion::set(2);
+		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
@@ -1108,22 +1092,22 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		}
 		assert_eq!(counter, 4);
 
-		let instr0 = QueryResponse {
-			query_id: 69,
-			max_weight: 0,
-			response: Response::Version(2),
-			querier: None,
-		};
 		let instr1 = QueryResponse {
 			query_id: 70,
 			max_weight: 0,
-			response: Response::Version(2),
+			response: Response::Version(3),
 			querier: None,
 		};
 		let instr2 = QueryResponse {
 			query_id: 71,
 			max_weight: 0,
-			response: Response::Version(2),
+			response: Response::Version(3),
+			querier: None,
+		};
+		let instr3 = QueryResponse {
+			query_id: 72,
+			max_weight: 0,
+			response: Response::Version(3),
 			querier: None,
 		};
 		let mut sent = take_sent_xcm();
@@ -1134,9 +1118,9 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		assert_eq!(
 			sent,
 			vec![
-				(Parachain(1000).into(), Xcm(vec![instr0])),
 				(Parachain(1001).into(), Xcm(vec![instr1])),
 				(Parachain(1002).into(), Xcm(vec![instr2])),
+				(Parachain(1003).into(), Xcm(vec![instr3])),
 			]
 		);
 
@@ -1145,9 +1129,9 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		assert_eq!(
 			contents,
 			vec![
-				(XCM_VERSION, Parachain(1000).into_versioned(), (69, 0, 2)),
-				(XCM_VERSION, Parachain(1001).into_versioned(), (70, 0, 2)),
-				(XCM_VERSION, Parachain(1002).into_versioned(), (71, 0, 2)),
+				(XCM_VERSION, Parachain(1001).into_versioned(), (70, 0, 3)),
+				(XCM_VERSION, Parachain(1002).into_versioned(), (71, 0, 3)),
+				(XCM_VERSION, Parachain(1003).into_versioned(), (72, 0, 3)),
 			]
 		);
 	});
