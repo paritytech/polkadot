@@ -1,5 +1,5 @@
 Description: PVF preparation & execution time
-Network: ./small-rococo-net.toml
+Network: ./0001-parachains-pvf.toml
 Creds: config
 
 # Some sanity checks
