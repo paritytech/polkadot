@@ -138,6 +138,12 @@ debug = 1 # debug symbols are useful for profilers
 debug-assertions = true
 overflow-checks = true
 
+[profile.pyroscope]
+inherits = "release"
+debug = 2 # debug symbols are useful for profilers
+debug-assertions = true
+overflow-checks = true
+
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
