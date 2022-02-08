@@ -13,7 +13,7 @@
 
 //! The implementation of the inclusion emulator for the 'staging' runtime version.
 //!
-//! This is currently v1, but will evolve to v3.
+//! This is currently v1 (v2?), but will evolve to v3.
 // TODO https://github.com/paritytech/polkadot/issues/4803
 //!
 //! A set of utilities for node-side code to emulate the logic the runtime uses for checking
@@ -38,7 +38,7 @@
 //! As such, [`Fragment`]s are often, but not always constructed in such a way that they are
 //! invalid at first and become valid later on, as the relay chain grows.
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
 	PersistedValidationData, UpgradeGoAhead, UpgradeRestriction, ValidationCodeHash,
 };
@@ -77,6 +77,8 @@ pub struct Constraints {
 	pub hrmp_channels_out: HashMap<ParaId, OutboundHrmpChannelLimitations>,
 	/// The maximum Proof-of-Validity size allowed, in bytes.
 	pub max_pov_size: usize,
+	/// The maximum number of HRMP messages allowed per candidate.
+	pub max_hrmp_num_per_candidate: usize,
 	/// The required parent head-data of the parachain.
 	pub required_parent: HeadData,
 	/// The expected validation-code-hash of this parachain.
@@ -85,6 +87,9 @@ pub struct Constraints {
 	pub go_ahead: UpgradeGoAhead,
 	/// The code upgrade restriction signal as-of this parachain.
 	pub upgrade_restriction: UpgradeRestriction,
+	/// The future validation code hash, if any, and at what relay-parent
+	/// number the upgrade would be minimally applied.
+	pub future_validation_code: Option<(BlockNumber, ValidationCodeHash)>,
 }
 
 /// Information about a relay-chain block.
@@ -137,10 +142,8 @@ pub struct ConstraintModifications {
 	pub ump_bytes_sent: usize,
 	/// The amount of DMP messages processed.
 	pub dmp_messages_processed: usize,
-	// TODO [now]: figure out how to handle code upgrades.
-	// In the block after a go-ahead signal, we know that the code of the
-	// parachain updated. We will need to scrape this from the relay-chain state.
-	// We'd need to scrape that from the relay-chain state.
+	/// Whether a scheduled code upgrade was applied.
+	pub code_upgrade_applied: usize,
 }
 
 /// The prospective candidate.
