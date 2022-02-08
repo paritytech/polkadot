@@ -1,5 +1,5 @@
 Description: Disputes initiation, conclusion and lag
-Network: ./0002.parachains-disputes.toml
+Network: ./0002-parachains-disputes.toml
 Creds: config
 
 alice: is up
