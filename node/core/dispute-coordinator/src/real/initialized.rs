@@ -779,14 +779,21 @@ impl Initialized {
 		// There is one exception: A sufficiently sophisticated attacker could prevent
 		// us from seeing the backing votes by witholding arbitrary blocks, and hence we do
 		// not have a `CandidateReceipt` available.
-		let mut votes = match overlay_db
+		let (mut votes, mut votes_changed) = match overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 		{
-			Some(votes) => votes,
+			Some(votes) => (votes, false),
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
-					CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() }
+					(
+						CandidateVotes {
+							candidate_receipt,
+							valid: Vec::new(),
+							invalid: Vec::new(),
+						},
+						true,
+					)
 				} else {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -841,24 +848,34 @@ impl Initialized {
 
 			match statement.statement().clone() {
 				DisputeStatement::Valid(valid_kind) => {
-					self.metrics.on_valid_vote();
-
-					insert_into_statement_vec(
+					let fresh = insert_into_statement_vec(
 						&mut votes.valid,
 						valid_kind,
 						*val_index,
 						statement.validator_signature().clone(),
 					);
+
+					if !fresh {
+						continue
+					}
+
+					votes_changed = true;
+					self.metrics.on_valid_vote();
 				},
 				DisputeStatement::Invalid(invalid_kind) => {
-					self.metrics.on_invalid_vote();
-
-					insert_into_statement_vec(
+					let fresh = insert_into_statement_vec(
 						&mut votes.invalid,
 						invalid_kind,
 						*val_index,
 						statement.validator_signature().clone(),
 					);
+
+					if !fresh {
+						continue
+					}
+
+					votes_changed = true;
+					self.metrics.on_invalid_vote();
 				},
 			}
 		}
@@ -997,7 +1014,10 @@ impl Initialized {
 			overlay_db.write_recent_disputes(recent_disputes);
 		}
 
-		overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
+		// Only write when votes have changed.
+		if votes_changed {
+			overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
+		}
 
 		Ok(ImportStatementsResult::ValidImport)
 	}
@@ -1154,18 +1174,21 @@ impl MuxedMessage {
 	}
 }
 
+// Returns 'true' if no other vote by that validator was already
+// present and 'false' otherwise. Same semantics as `HashSet`.
 fn insert_into_statement_vec<T>(
 	vec: &mut Vec<(T, ValidatorIndex, ValidatorSignature)>,
 	tag: T,
 	val_index: ValidatorIndex,
 	val_signature: ValidatorSignature,
-) {
+) -> bool {
 	let pos = match vec.binary_search_by_key(&val_index, |x| x.1) {
-		Ok(_) => return, // no duplicates needed.
+		Ok(_) => return false, // no duplicates needed.
 		Err(p) => p,
 	};
 
 	vec.insert(pos, (tag, val_index, val_signature));
+	true
 }
 
 #[derive(Debug, Clone)]

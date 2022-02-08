@@ -1729,33 +1729,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethbloom"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfb684ac8fa8f6c5759f788862bb22ec6fe3cb392f6bfd08e3c64b603661e3f8"
-dependencies = [
- "crunchy",
- "fixed-hash",
- "impl-rlp",
- "impl-serde",
- "tiny-keccak",
-]
-
-[[package]]
-name = "ethereum-types"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05136f7057fe789f06e6d41d07b34e6f70d8c86e5693b60f97aaa6553553bdaf"
-dependencies = [
- "ethbloom",
- "fixed-hash",
- "impl-rlp",
- "impl-serde",
- "primitive-types",
- "uint",
-]
-
-[[package]]
 name = "event-listener"
 version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2527,6 +2500,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c21d40587b92fa6a6c6e3c1bdbf87d75511db5672f9c93175574b3a00df1758"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2793,15 +2775,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "impl-rlp"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f28220f89297a075ddc7245cd538076ee98b01f2a9c23a53a4f1105d5a322808"
-dependencies = [
- "rlp",
-]
-
-[[package]]
 name = "impl-serde"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2834,7 +2807,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.11.2",
  "serde",
 ]
 
@@ -4056,7 +4029,7 @@ version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ea2d928b485416e8908cff2d97d621db22b27f7b3b6729e438bcf42c671ba91"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -4065,7 +4038,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "274353858935c992b13c0ca408752e2121da852d07dec7ce5f108c77dfa14d1f"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -4192,7 +4165,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d505169b746dacf02f7d14d8c80b34edfd8212159c63d23c977739a0d960c626"
 dependencies = [
  "hash-db",
- "hashbrown",
+ "hashbrown 0.11.2",
  "parity-util-mem",
 ]
 
@@ -5738,10 +5711,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f4cb4e169446179cbc6b8b6320cc9fca49bd2e94e8db25f25f200a8ea774770"
 dependencies = [
  "cfg-if 1.0.0",
- "ethereum-types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "impl-trait-for-tuples",
- "lru 0.6.6",
  "parity-util-mem-derive",
  "parking_lot",
  "primitive-types",
@@ -7562,7 +7533,6 @@ checksum = "05e4722c697a58a99d5d06a08c30821d7c082a4632198de1eaa5a6c22ef42373"
 dependencies = [
  "fixed-hash",
  "impl-codec",
- "impl-rlp",
  "impl-serde",
  "scale-info",
  "uint",
@@ -8087,16 +8057,6 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "rlp"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "999508abb0ae792aabed2460c45b89106d97fe4adac593bdaef433c2605847b5"
-dependencies = [
- "bytes 1.1.0",
- "rustc-hex",
 ]
 
 [[package]]
@@ -11118,12 +11078,12 @@ dependencies = [
 
 [[package]]
 name = "trie-db"
-version = "0.23.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3ddae50680c12ef75bfbf58416ca6622fa43d879553f6cb2ed1a817346e1ffe"
+checksum = "d32d034c0d3db64b43c31de38e945f15b40cd4ca6d2dcfc26d4798ce8de4ab83"
 dependencies = [
  "hash-db",
- "hashbrown",
+ "hashbrown 0.12.0",
  "log",
  "rustc-hex",
  "smallvec",
