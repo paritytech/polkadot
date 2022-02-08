@@ -61,7 +61,7 @@ std::thread_local! {
 }
 struct TestRemoteIncomingRouter;
 impl SendXcm for TestRemoteIncomingRouter {
-	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	type Ticket = (MultiLocation, Xcm<()>);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
@@ -107,7 +107,7 @@ fn deliver<RemoteExporter: ExportXcm>(
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for UnpaidExecutingRouter<Local, Remote, RemoteExporter>
 {
-	type OptionTicket = Option<Xcm<()>>;
+	type Ticket = Xcm<()>;
 
 	fn validate(
 		destination: &mut Option<MultiLocation>,
@@ -147,7 +147,7 @@ struct ExecutingRouter<Local, Remote, RemoteExporter>(PhantomData<(Local, Remote
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for ExecutingRouter<Local, Remote, RemoteExporter>
 {
-	type OptionTicket = Option<Xcm<()>>;
+	type Ticket = Xcm<()>;
 
 	fn validate(
 		destination: &mut Option<MultiLocation>,

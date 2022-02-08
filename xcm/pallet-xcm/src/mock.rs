@@ -156,7 +156,7 @@ pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	type Ticket = (MultiLocation, Xcm<()>);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
@@ -172,7 +172,7 @@ impl SendXcm for TestSendXcm {
 /// Sender that returns error if `X8` junction and stops routing
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
-	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	type Ticket = (MultiLocation, Xcm<()>);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,

@@ -47,7 +47,7 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	type Ticket = (MultiLocation, Xcm<()>);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,

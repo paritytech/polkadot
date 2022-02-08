@@ -32,7 +32,7 @@ pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 	for ChildParachainRouter<T, W>
 {
-	type OptionTicket = Option<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)>;
+	type Ticket = (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>);
 
 	fn validate(
 		dest: &mut Option<MultiLocation>,

@@ -128,7 +128,7 @@ pub fn clear_exporter_override() {
 }
 pub struct TestMessageSender;
 impl SendXcm for TestMessageSender {
-	type OptionTicket = Option<(MultiLocation, Xcm<()>)>;
+	type Ticket = (MultiLocation, Xcm<()>);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
@@ -143,7 +143,7 @@ impl SendXcm for TestMessageSender {
 }
 pub struct TestMessageExporter;
 impl ExportXcm for TestMessageExporter {
-	type OptionTicket = Option<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)>;
+	type Ticket = (NetworkId, u32, InteriorMultiLocation, Xcm<()>);
 	fn validate(
 		network: NetworkId,
 		channel: u32,

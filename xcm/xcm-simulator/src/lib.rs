@@ -296,7 +296,7 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			type OptionTicket = Option<($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>)>;
+			type Ticket = ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>);
 			fn validate(
 				destination: &mut Option<$crate::MultiLocation>,
 				message: &mut Option<$crate::Xcm<()>>,
@@ -328,7 +328,7 @@ macro_rules! decl_test_network {
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			type OptionTicket = Option<($crate::MultiLocation, $crate::Xcm<()>)>;
+			type Ticket = ($crate::MultiLocation, $crate::Xcm<()>);
 			fn validate(
 				destination: &mut Option<$crate::MultiLocation>,
 				message: &mut Option<$crate::Xcm<()>>,

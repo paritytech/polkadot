@@ -19,10 +19,7 @@
 use super::{MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm};
 use crate::v2::Instruction;
 use alloc::{vec, vec::Vec};
-use core::{
-	convert::TryFrom,
-	result,
-};
+use core::{convert::TryFrom, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;

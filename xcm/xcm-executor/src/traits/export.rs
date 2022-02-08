@@ -17,7 +17,7 @@
 use xcm::latest::prelude::*;
 
 pub trait ExportXcm {
-	type OptionTicket: Unwrappable;
+	type Ticket;
 
 	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
 	/// determine the cost which will be paid by this chain to do so, returning a `Validated` token
@@ -34,37 +34,37 @@ pub trait ExportXcm {
 		channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult<<Self::OptionTicket as Unwrappable>::Inner>;
+	) -> SendResult<Self::Ticket>;
 
 	/// Actually carry out the delivery operation for a previously validated message sending.
 	///
 	/// The implementation should do everything possible to ensure that this function is infallible
 	/// if called immediately after `validate`. Returning an error here would result in a price
 	/// paid without the service being delivered.
-	fn deliver(ticket: <Self::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError>;
+	fn deliver(ticket: Self::Ticket) -> Result<(), SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ExportXcm for Tuple {
-	type OptionTicket = Option<(for_tuples! { #( Tuple::OptionTicket ),* })>;
+	for_tuples! { type Ticket = (#( Option<Tuple::Ticket> ),* ); }
 
 	fn validate(
 		network: NetworkId,
 		channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult<(for_tuples! { #( Tuple::OptionTicket ),* })> {
+	) -> SendResult<Self::Ticket> {
 		let mut maybe_cost: Option<MultiAssets> = None;
-		let one_ticket: (for_tuples! { #( Tuple::OptionTicket ),* }) = (for_tuples! { #(
+		let one_ticket: Self::Ticket = (for_tuples! { #(
 			if maybe_cost.is_some() {
-				<Tuple::OptionTicket as Unwrappable>::none()
+				None
 			} else {
 				match Tuple::validate(network, channel, destination, message) {
-					Err(SendError::NotApplicable) => <Tuple::OptionTicket as Unwrappable>::none(),
+					Err(SendError::NotApplicable) => None,
 					Err(e) => { return Err(e) },
 					Ok((v, c)) => {
 						maybe_cost = Some(c);
-						<Tuple::OptionTicket as Unwrappable>::some(v)
+						Some(v)
 					},
 				}
 			}
@@ -76,7 +76,7 @@ impl ExportXcm for Tuple {
 		}
 	}
 
-	fn deliver(one_ticket: <Self::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+	fn deliver(one_ticket: Self::Ticket) -> Result<(), SendError> {
 		for_tuples!( #(
 			if let Some(validated) = one_ticket.Tuple.take() {
 				return Tuple::deliver(validated);
@@ -93,7 +93,7 @@ pub fn validate_export<T: ExportXcm>(
 	channel: u32,
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
-) -> SendResult<<T::OptionTicket as Unwrappable>::Inner> {
+) -> SendResult<T::Ticket> {
 	T::validate(network, channel, &mut Some(dest), &mut Some(msg))
 }
 

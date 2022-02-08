@@ -59,12 +59,12 @@ pub struct LocalUnpaidExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancest
 impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for LocalUnpaidExporter<Exporter, Ancestry>
 {
-	type OptionTicket = Exporter::OptionTicket;
+	type Ticket = Exporter::Ticket;
 
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
-	) -> SendResult<<Exporter::OptionTicket as Unwrappable>::Inner> {
+	) -> SendResult<Exporter::Ticket> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let devolved = match ensure_is_remote(Ancestry::get(), d) {
 			Ok(x) => x,
@@ -84,7 +84,7 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 		validate_export::<Exporter>(network, 0, destination, message)
 	}
 
-	fn deliver(ticket: <Exporter::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+	fn deliver(ticket: Exporter::Ticket) -> Result<(), SendError> {
 		Exporter::deliver(ticket)
 	}
 }
@@ -150,12 +150,12 @@ pub struct UnpaidRemoteExporter<Bridges, Router, Ancestry>(
 impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for UnpaidRemoteExporter<Bridges, Router, Ancestry>
 {
-	type OptionTicket = Router::OptionTicket;
+	type Ticket = Router::Ticket;
 
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
-	) -> SendResult<<Router::OptionTicket as Unwrappable>::Inner> {
+	) -> SendResult<Router::Ticket> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
@@ -190,7 +190,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		Ok((v, cost))
 	}
 
-	fn deliver(validation: <Router::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+	fn deliver(validation: Router::Ticket) -> Result<(), SendError> {
 		Router::deliver(validation)
 	}
 }
@@ -209,12 +209,12 @@ pub struct SovereignPaidRemoteExporter<Bridges, Router, Ancestry>(
 impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 	for SovereignPaidRemoteExporter<Bridges, Router, Ancestry>
 {
-	type OptionTicket = Router::OptionTicket;
+	type Ticket = Router::Ticket;
 
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
-	) -> SendResult<<Router::OptionTicket as Unwrappable>::Inner> {
+	) -> SendResult<Router::Ticket> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
@@ -264,7 +264,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		Ok((v, cost))
 	}
 
-	fn deliver(ticket: <Router::OptionTicket as Unwrappable>::Inner) -> Result<(), SendError> {
+	fn deliver(ticket: Router::Ticket) -> Result<(), SendError> {
 		Router::deliver(ticket)
 	}
 }
@@ -331,7 +331,7 @@ pub struct HaulBlobExporter<Bridge, BridgedNetwork, Price>(
 impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> ExportXcm
 	for HaulBlobExporter<Bridge, BridgedNetwork, Price>
 {
-	type OptionTicket = Option<Vec<u8>>;
+	type Ticket = Vec<u8>;
 
 	fn validate(
 		network: NetworkId,

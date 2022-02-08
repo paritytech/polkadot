@@ -21,7 +21,7 @@ use xcm_executor::traits::FilterAssetLocation;
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
 impl xcm::opaque::latest::SendXcm for DevNull {
-	type OptionTicket = Option<()>;
+	type Ticket = ();
 	fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<()> {
 		Ok(((), MultiAssets::new()))
 	}

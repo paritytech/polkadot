@@ -167,9 +167,8 @@ impl TryFrom<OldError> for Error {
 impl From<SendError> for Error {
 	fn from(e: SendError) -> Self {
 		match e {
-			SendError::NotApplicable |
-			SendError::Unroutable |
-			SendError::MissingArgument => Error::Unroutable,
+			SendError::NotApplicable | SendError::Unroutable | SendError::MissingArgument =>
+				Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
@@ -353,7 +352,7 @@ impl<T> Unwrappable for Option<T> {
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     type OptionTicket = Option<Infallible>;
+///     type Ticket = Infallible;
 ///     fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<Infallible> {
 ///         Err(SendError::NotApplicable)
 ///     }
@@ -365,7 +364,7 @@ impl<T> Unwrappable for Option<T> {
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     type OptionTicket = Option<()>;
+///     type Ticket = ();
 ///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
 ///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
 ///             MultiLocation { parents: 0, interior: X2(j1, j2) } => Ok(((), MultiAssets::new())),
@@ -380,7 +379,7 @@ impl<T> Unwrappable for Option<T> {
 /// /// A sender that accepts a message from a parent, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     type OptionTicket = Option<()>;
+///     type Ticket = ();
 ///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
 ///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
 ///             MultiLocation { parents: 1, interior: Here } => Ok(((), MultiAssets::new())),
@@ -409,7 +408,7 @@ impl<T> Unwrappable for Option<T> {
 /// # }
 /// ```
 pub trait SendXcm {
-	type OptionTicket: Unwrappable;
+	type Ticket;
 
 	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
 	/// determine the cost which will be paid by this chain to do so, returning a `Validated` token
@@ -424,32 +423,31 @@ pub trait SendXcm {
 	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult<<Self::OptionTicket as Unwrappable>::Inner>;
+	) -> SendResult<Self::Ticket>;
 
 	/// Actually carry out the delivery operation for a previously validated message sending.
-	fn deliver(ticket: <Self::OptionTicket as Unwrappable>::Inner)
-		-> result::Result<(), SendError>;
+	fn deliver(ticket: Self::Ticket) -> result::Result<(), SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	type OptionTicket = Option<(for_tuples! { #( Tuple::OptionTicket ),* })>;
+	for_tuples! { type Ticket = (#( Option<Tuple::Ticket> ),* ); }
 
 	fn validate(
 		destination: &mut Option<MultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> SendResult<(for_tuples! { #( Tuple::OptionTicket ),* })> {
+	) -> SendResult<Self::Ticket> {
 		let mut maybe_cost: Option<MultiAssets> = None;
-		let one_ticket: (for_tuples! { #( Tuple::OptionTicket ),* }) = (for_tuples! { #(
+		let one_ticket: Self::Ticket = (for_tuples! { #(
 			if maybe_cost.is_some() {
-				<Tuple::OptionTicket as Unwrappable>::none()
+				None
 			} else {
 				match Tuple::validate(destination, message) {
-					Err(SendError::NotApplicable) => <Tuple::OptionTicket as Unwrappable>::none(),
+					Err(SendError::NotApplicable) => None,
 					Err(e) => { return Err(e) },
 					Ok((v, c)) => {
 						maybe_cost = Some(c);
-						<Tuple::OptionTicket as Unwrappable>::some(v)
+						Some(v)
 					},
 				}
 			}
@@ -461,11 +459,9 @@ impl SendXcm for Tuple {
 		}
 	}
 
-	fn deliver(
-		one_ticket: <Self::OptionTicket as Unwrappable>::Inner,
-	) -> result::Result<(), SendError> {
+	fn deliver(one_ticket: Self::Ticket) -> result::Result<(), SendError> {
 		for_tuples!( #(
-			if let Some(validated) = one_ticket.Tuple.take() {
+			if let Some(validated) = one_ticket.Tuple {
 				return Tuple::deliver(validated);
 			}
 		)* );
@@ -475,10 +471,7 @@ impl SendXcm for Tuple {
 
 /// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
 /// both in `Some` before passing them as as mutable references into `T::send_xcm`.
-pub fn validate_send<T: SendXcm>(
-	dest: MultiLocation,
-	msg: Xcm<()>,
-) -> SendResult<<T::OptionTicket as Unwrappable>::Inner> {
+pub fn validate_send<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResult<T::Ticket> {
 	T::validate(&mut Some(dest), &mut Some(msg))
 }
 
