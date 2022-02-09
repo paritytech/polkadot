@@ -461,9 +461,26 @@ impl MessagesConfig<crate::WithPolkadotMessagesInstance> for Runtime {
 #[cfg(test)]
 mod tests {
 	use bp_messages::{target_chain::ProvedLaneMessages, MessageData, MessageKey};
+	use bridge_runtime_common::messages::source::estimate_message_dispatch_and_delivery_fee;
+	use frame_support::weights::GetDispatchInfo;
 	use runtime_common::RocksDbWeight;
 	use crate::*;
 	use super::*;
+
+	fn message_payload(sender: bp_kusama::AccountId) -> ToPolkadotMessagePayload {
+		let call = Call::Balances(pallet_balances::Call::<Runtime>::transfer {
+			dest: bp_polkadot::AccountId::from([0u8; 32]).into(),
+			value: 10_000_000_000,
+		});
+		let weight = call.get_dispatch_info().weight;
+		bp_message_dispatch::MessagePayload {
+			spec_version: 4242,
+			weight,
+			origin: bp_message_dispatch::CallOrigin::SourceAccount(sender),
+			dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain,
+			call: call.encode(),
+		}
+	}
 
 	#[test]
 	fn ensure_kusama_message_lane_weights_are_correct() {
@@ -506,16 +523,6 @@ mod tests {
 	#[test]
 	fn message_by_invalid_submitter_are_rejected() {
 		sp_io::TestExternalities::new(Default::default()).execute_with(|| {
-			fn message_payload(sender: bp_kusama::AccountId) -> ToPolkadotMessagePayload {
-				bp_message_dispatch::MessagePayload {
-					spec_version: 1,
-					weight: 100,
-					origin: bp_message_dispatch::CallOrigin::SourceAccount(sender),
-					dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain,
-					call: vec![42],
-				}
-			}
-
 			let invalid_sender = bp_kusama::AccountId::from([1u8; 32]);
 			let valid_sender = bp_kusama::AccountId::from([2u8; 32]);
 			AllowedMessageSender::set(&Some(valid_sender.clone()));
@@ -581,5 +588,22 @@ mod tests {
 			verify_inbound_messages_lane(proved_messages),
 			Err(INBOUND_LANE_DISABLED),
 		);
+	}
+
+	#[test]
+	#[ignore]
+	fn estimate_kusama_to_polkadot_message_fee() {
+		sp_io::TestExternalities::new(Default::default()).execute_with(|| {
+			PolkadotToKusamaConversionRate::set(&FixedU128::from_float(8.93751388468141));
+			let fee = estimate_message_dispatch_and_delivery_fee::<WithPolkadotMessageBridge>(
+				&message_payload(bp_kusama::AccountId::from([1u8; 32])),
+				WithPolkadotMessageBridge::RELAYER_FEE_PERCENT,
+			).unwrap();
+			println!(
+				"Message fee for balances::transfer call is: {} ({} KSM)",
+				fee,
+				FixedU128::saturating_from_rational(fee, kusama_runtime_constants::currency::UNITS).to_float(),
+			);
+		});
 	}
 }
