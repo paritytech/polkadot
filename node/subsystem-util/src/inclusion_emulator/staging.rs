@@ -287,47 +287,6 @@ pub struct RelayChainBlockInfo {
 	pub storage_root: Hash,
 }
 
-/// A parachain fragment, representing another prospective parachain block.
-///
-/// This has two parts: the first is the new relay-parent and its associated limitations,
-/// and the second is information about the advancement of the parachain.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Fragment {
-	/// The new relay-parent.
-	pub relay_parent: RelayChainBlockInfo,
-	/// The constraints this fragment is operating under.
-	pub operating_constraints: Constraints,
-	/// The core information about the prospective candidate.
-	pub candidate: ProspectiveCandidate,
-}
-
-impl Fragment {
-	/// Produce a set of constraint modifications based on the outputs
-	/// of the candidate.
-	pub fn constraint_modifications(&self) -> ConstraintModifications {
-		let commitments = &self.candidate.commitments;
-
-		ConstraintModifications {
-			required_parent: commitments.head_data.clone(),
-			hrmp_watermark: commitments.hrmp_watermark,
-			outbound_hrmp: {
-				let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
-				for message in &commitments.horizontal_messages {
-					let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
-
-					record.bytes_submitted += message.data.len();
-					record.messages_submitted += 1;
-				}
-
-				outbound_hrmp
-			},
-			ump_messages_sent: commitments.upward_messages.len(),
-			ump_bytes_sent: commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
-			dmp_messages_processed: commitments.processed_downward_messages as _,
-		}
-	}
-}
-
 /// An update to outbound HRMP channels.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutboundHrmpChannelModification {
@@ -394,6 +353,47 @@ pub struct ProspectiveCandidate {
 	pub validation_code_hash: ValidationCodeHash,
 	// TODO [now]: do code upgrades go here? if so, we can't produce
 	// modifications just from a candidate.
+}
+
+/// A parachain fragment, representing another prospective parachain block.
+///
+/// This has two parts: the first is the new relay-parent and its associated limitations,
+/// and the second is information about the advancement of the parachain.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Fragment {
+	/// The new relay-parent.
+	pub relay_parent: RelayChainBlockInfo,
+	/// The constraints this fragment is operating under.
+	pub operating_constraints: Constraints,
+	/// The core information about the prospective candidate.
+	pub candidate: ProspectiveCandidate,
+}
+
+impl Fragment {
+	/// Produce a set of constraint modifications based on the outputs
+	/// of the candidate.
+	pub fn constraint_modifications(&self) -> ConstraintModifications {
+		let commitments = &self.candidate.commitments;
+
+		ConstraintModifications {
+			required_parent: commitments.head_data.clone(),
+			hrmp_watermark: commitments.hrmp_watermark,
+			outbound_hrmp: {
+				let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
+				for message in &commitments.horizontal_messages {
+					let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
+
+					record.bytes_submitted += message.data.len();
+					record.messages_submitted += 1;
+				}
+
+				outbound_hrmp
+			},
+			ump_messages_sent: commitments.upward_messages.len(),
+			ump_bytes_sent: commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
+			dmp_messages_processed: commitments.processed_downward_messages as _,
+		}
+	}
 }
 
 #[cfg(test)]
