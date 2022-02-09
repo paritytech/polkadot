@@ -14,7 +14,7 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 smallvec = "1.6.1"
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 thiserror = "1.0.30"

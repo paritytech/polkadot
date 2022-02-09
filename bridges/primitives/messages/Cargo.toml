@@ -19,9 +19,9 @@ bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
 
 [features]
 default = ["std"]

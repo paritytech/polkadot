@@ -12,15 +12,15 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-inner-hashing-test" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 
 [features]
 default = ["std"]

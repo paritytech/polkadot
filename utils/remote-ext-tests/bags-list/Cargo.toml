@@ -12,10 +12,10 @@ polkadot-runtime-constants = { version = "0.9.16", path = "../../../runtime/polk
 kusama-runtime-constants = { version = "0.9.16", path = "../../../runtime/kusama/constants" }
 westend-runtime-constants = { version = "0.9.16", path = "../../../runtime/westend/constants" }
 
-pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 
 clap = { version = "3.0", features = ["derive"] }
 log = "0.4.14"

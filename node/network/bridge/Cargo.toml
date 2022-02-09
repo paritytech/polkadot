@@ -10,8 +10,8 @@ futures = "0.3.19"
 tracing = "0.1.29"
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-node-network-protocol = { path = "../protocol" }
@@ -21,7 +21,7 @@ parking_lot = "0.11.1"
 [dev-dependencies]
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 futures-timer = "3"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

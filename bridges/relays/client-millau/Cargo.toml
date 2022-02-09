@@ -17,8 +17,8 @@ millau-runtime = { path = "../../bin/millau/runtime" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }

@@ -17,14 +17,14 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 
 [dev-dependencies]
 kvdb-memorydb = "0.10.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 

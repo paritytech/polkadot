@@ -9,13 +9,13 @@ edition = "2018"
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 scale-info = { version = "1.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "kiz-inner-hashing-test" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
