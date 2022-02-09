@@ -311,9 +311,13 @@ pub fn run() -> Result<()> {
 			.map_err(Error::AddressResolutionFailure)?
 			.next()
 			.ok_or_else(|| Error::AddressResolutionMissing)?;
-		let mut agent = pyro::PyroscopeAgent::builder(address.to_string().as_str(), "polkadot")
-			.sample_rate(100)
-			.build()?;
+		// The pyroscope agent requires a `http://` prefix, so we just do that.
+		let mut agent = pyro::PyroscopeAgent::builder(
+			"http://".to_owned() + address.to_string().as_str(),
+			"polkadot".to_owned(),
+		)
+		.sample_rate(100)
+		.build()?;
 		agent.start();
 		Some(agent)
 	} else {
