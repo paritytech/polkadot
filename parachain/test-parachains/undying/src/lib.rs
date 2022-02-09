@@ -78,7 +78,7 @@ pub struct GraveyardState {
 	/// The grave index of the last placed tombstone.
 	pub index: u64,
 	/// We use a matrix where each element represents a grave.
-	/// The unsigned integer tracks the number of tombstones errected on
+	/// The unsigned integer tracks the number of tombstones raised on
 	/// each grave.
 	pub graveyard: Vec<u8>,
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
