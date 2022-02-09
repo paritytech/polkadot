@@ -141,14 +141,80 @@ pub enum ModificationError {
 }
 
 impl Constraints {
+	/// Check modifications against constraints.
+	pub fn check_modifications(
+		&self,
+		modifications: &ConstraintModifications,
+	) -> Result<(), ModificationError> {
+		if self
+			.hrmp_inbound
+			.valid_watermarks
+			.iter()
+			.position(|w| w == &modifications.hrmp_watermark)
+			.is_none()
+		{
+			return Err(ModificationError::DisallowedHrmpWatermark(modifications.hrmp_watermark));
+		}
+
+		for (id, outbound_hrmp_mod) in &modifications.outbound_hrmp {
+			if let Some(outbound) = self.hrmp_channels_out.get(&id) {
+				outbound
+					.bytes_remaining
+					.checked_sub(outbound_hrmp_mod.bytes_submitted)
+					.ok_or(ModificationError::HrmpBytesOverflow {
+						para_id: *id,
+						bytes_remaining: outbound.bytes_remaining,
+						bytes_submitted: outbound_hrmp_mod.bytes_submitted,
+					})?;
+
+				outbound
+					.messages_remaining
+					.checked_sub(outbound_hrmp_mod.messages_submitted)
+					.ok_or(ModificationError::HrmpMessagesOverflow {
+						para_id: *id,
+						messages_remaining: outbound.messages_remaining,
+						messages_submitted: outbound_hrmp_mod.messages_submitted,
+					})?;
+			} else {
+				return Err(ModificationError::NoSuchHrmpChannel(*id))
+			}
+		}
+
+		self.ump_remaining.checked_sub(modifications.ump_messages_sent).ok_or(
+			ModificationError::UmpMessagesOverflow {
+				messages_remaining: self.ump_remaining,
+				messages_submitted: modifications.ump_messages_sent,
+			},
+		)?;
+
+		self
+			.ump_remaining_bytes
+			.checked_sub(modifications.ump_bytes_sent)
+			.ok_or(ModificationError::UmpBytesOverflow {
+				bytes_remaining: self.ump_remaining_bytes,
+				bytes_submitted: modifications.ump_bytes_sent,
+			})?;
+
+		self
+			.dmp_remaining_messages
+			.checked_sub(modifications.dmp_messages_processed)
+			.ok_or(ModificationError::DmpMessagesUnderflow {
+				messages_remaining: self.dmp_remaining_messages,
+				messages_processed: modifications.dmp_messages_processed,
+			})?;
+
+		Ok(())
+	}
+
 	/// Apply modifications to these constraints. If this succeeds, it passes
 	/// all sanity-checks.
 	pub fn apply_modifications(
 		&self,
-		modifications: ConstraintModifications,
+		modifications: &ConstraintModifications,
 	) -> Result<Self, ModificationError> {
 		let mut new = self.clone();
 
+		new.required_parent = modifications.required_parent.clone();
 		match new
 			.hrmp_inbound
 			.valid_watermarks
@@ -162,15 +228,13 @@ impl Constraints {
 				return Err(ModificationError::DisallowedHrmpWatermark(modifications.hrmp_watermark)),
 		}
 
-		new.required_parent = modifications.required_parent;
-
-		for (id, outbound_hrmp_mod) in modifications.outbound_hrmp {
+		for (id, outbound_hrmp_mod) in &modifications.outbound_hrmp {
 			if let Some(outbound) = new.hrmp_channels_out.get_mut(&id) {
 				outbound.bytes_remaining = outbound
 					.bytes_remaining
 					.checked_sub(outbound_hrmp_mod.bytes_submitted)
 					.ok_or(ModificationError::HrmpBytesOverflow {
-						para_id: id,
+						para_id: *id,
 						bytes_remaining: outbound.bytes_remaining,
 						bytes_submitted: outbound_hrmp_mod.bytes_submitted,
 					})?;
@@ -179,12 +243,12 @@ impl Constraints {
 					.messages_remaining
 					.checked_sub(outbound_hrmp_mod.messages_submitted)
 					.ok_or(ModificationError::HrmpMessagesOverflow {
-						para_id: id,
+						para_id: *id,
 						messages_remaining: outbound.messages_remaining,
 						messages_submitted: outbound_hrmp_mod.messages_submitted,
 					})?;
 			} else {
-				return Err(ModificationError::NoSuchHrmpChannel(id))
+				return Err(ModificationError::NoSuchHrmpChannel(*id))
 			}
 		}
 
