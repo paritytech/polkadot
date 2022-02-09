@@ -203,7 +203,7 @@ impl Constraints {
 			})?;
 
 		if self.future_validation_code.is_none() && modifications.code_upgrade_applied {
-			return Err(ModificationError::AppliedNonexistentCodeUpgrade);
+			return Err(ModificationError::AppliedNonexistentCodeUpgrade)
 		}
 
 		Ok(())
@@ -370,9 +370,18 @@ pub struct ProspectiveCandidate {
 /// Kinds of errors with the validity of a fragment.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FragmentValidityError {
-	/// The validation code of
+	/// The validation code of the candidate doesn't match the
+	/// operating constraints.
+	///
+	/// Expected, Got
 	ValidationCodeMismatch(ValidationCodeHash, ValidationCodeHash),
-	Outputs(ModificationError)
+	/// The persisted-validation-data doesn't match.
+	///
+	/// Expected, Got
+	PersistedValidationDataMismatch(PersistedValidationData, PersistedValidationData),
+	/// The outputs of the candidate are invalid under the operating
+	/// constraints.
+	OutputsInvalid(ModificationError),
 }
 
 /// A parachain fragment, representing another prospective parachain block.
@@ -387,6 +396,9 @@ pub struct Fragment {
 	operating_constraints: Constraints,
 	/// The core information about the prospective candidate.
 	candidate: ProspectiveCandidate,
+	/// Modifications to the constraints based on the outputs of
+	/// the candidate.
+	modifications: ConstraintModifications,
 }
 
 impl Fragment {
@@ -396,7 +408,57 @@ impl Fragment {
 		operating_constraints: Constraints,
 		candidate: ProspectiveCandidate,
 	) -> Result<Self, FragmentValidityError> {
-		unimplemented!()
+		let expected_pvd = PersistedValidationData {
+			parent_head: operating_constraints.required_parent.clone(),
+			relay_parent_number: relay_parent.number,
+			relay_parent_storage_root: relay_parent.storage_root,
+			max_pov_size: operating_constraints.max_pov_size as u32,
+		};
+
+		if expected_pvd != candidate.persisted_validation_data {
+			return Err(FragmentValidityError::PersistedValidationDataMismatch(
+				expected_pvd,
+				candidate.persisted_validation_data,
+			))
+		}
+
+		if operating_constraints.validation_code_hash != candidate.validation_code_hash {
+			return Err(FragmentValidityError::ValidationCodeMismatch(
+				operating_constraints.validation_code_hash,
+				candidate.validation_code_hash,
+			))
+		}
+
+		let modifications = {
+			let commitments = &candidate.commitments;
+			ConstraintModifications {
+				required_parent: commitments.head_data.clone(),
+				hrmp_watermark: commitments.hrmp_watermark,
+				outbound_hrmp: {
+					let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
+					for message in &commitments.horizontal_messages {
+						let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
+
+						record.bytes_submitted += message.data.len();
+						record.messages_submitted += 1;
+					}
+
+					outbound_hrmp
+				},
+				ump_messages_sent: commitments.upward_messages.len(),
+				ump_bytes_sent: commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
+				dmp_messages_processed: commitments.processed_downward_messages as _,
+				code_upgrade_applied: operating_constraints
+					.future_validation_code
+					.map_or(false, |(at, _)| relay_parent.number >= at),
+			}
+		};
+
+		operating_constraints
+			.check_modifications(&modifications)
+			.map_err(FragmentValidityError::OutputsInvalid)?;
+
+		Ok(Fragment { relay_parent, operating_constraints, candidate, modifications })
 	}
 
 	/// Access the relay parent information.
@@ -414,33 +476,9 @@ impl Fragment {
 		&self.candidate
 	}
 
-	/// Produce a set of constraint modifications based on the outputs
-	/// of the candidate.
-	pub fn constraint_modifications(&self) -> ConstraintModifications {
-		let commitments = &self.candidate.commitments;
-
-		ConstraintModifications {
-			required_parent: commitments.head_data.clone(),
-			hrmp_watermark: commitments.hrmp_watermark,
-			outbound_hrmp: {
-				let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
-				for message in &commitments.horizontal_messages {
-					let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
-
-					record.bytes_submitted += message.data.len();
-					record.messages_submitted += 1;
-				}
-
-				outbound_hrmp
-			},
-			ump_messages_sent: commitments.upward_messages.len(),
-			ump_bytes_sent: commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
-			dmp_messages_processed: commitments.processed_downward_messages as _,
-			code_upgrade_applied: self.operating_constraints.future_validation_code.map_or(
-				false,
-				|(at, _)| self.relay_parent.number >= at,
-			),
-		}
+	/// Modifications to constraints based on the outputs of the candidate.
+	pub fn constraint_modifications(&self) -> &ConstraintModifications {
+		&self.modifications
 	}
 }
 
