@@ -328,6 +328,28 @@ pub struct ConstraintModifications {
 	pub code_upgrade_applied: bool,
 }
 
+impl ConstraintModifications {
+	/// Stack other modifications on top of these.
+	///
+	/// This does no sanity-checking, so if `other` is garbage relative
+	/// to `self`, then the new value will be garbage as well.
+	pub fn stack(&mut self, other: &Self) {
+		self.required_parent = other.required_parent.clone();
+		self.hrmp_watermark = other.hrmp_watermark;
+
+		for (id, mods) in &other.outbound_hrmp {
+			let record = self.outbound_hrmp.entry(id.clone()).or_default();
+			record.messages_submitted += mods.messages_submitted;
+			record.bytes_submitted += mods.bytes_submitted;
+		}
+
+		self.ump_messages_sent += other.ump_messages_sent;
+		self.ump_bytes_sent += other.ump_bytes_sent;
+		self.dmp_messages_processed += other.dmp_messages_processed;
+		self.code_upgrade_applied |= other.code_upgrade_applied;
+	}
+}
+
 /// The prospective candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProspectiveCandidate {
