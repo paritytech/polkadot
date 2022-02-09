@@ -37,7 +37,13 @@ pub enum Error {
 
 	#[cfg(feature = "pyroscope")]
 	#[error("Failed to connect to pyroscope agent")]
-	PyroscopeError(#[from] pyroscope::error::PyroscopeError),
+	PyroscopeError(#[from] pyro::error::PyroscopeError),
+
+	#[error("Failed to resolve provided URL")]
+	AddressResolutionFailure(#[from] std::io::Error),
+
+	#[error("URL did not resolve to anything")]
+	AddressResolutionMissing,
 
 	#[error("Other: {0}")]
 	Other(String),

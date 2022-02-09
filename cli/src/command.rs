@@ -20,6 +20,7 @@ use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
+use std::net::ToSocketAddrs;
 
 pub use crate::error::Error;
 pub use polkadot_performance_test::PerfCheckError;
@@ -266,7 +267,17 @@ where
 		info!("----------------------------");
 	}
 
-	let jaeger_agent = cli.run.jaeger_agent;
+	let jaeger_agent = if let Some(ref jaeger_agent) = cli.run.jaeger_agent {
+		Some(
+			jaeger_agent
+				.to_socket_addrs()
+				.map_err(Error::AddressResolutionFailure)?
+				.next()
+				.ok_or_else(|| Error::AddressResolutionMissing)?,
+		)
+	} else {
+		None
+	};
 
 	runner.run_node_until_exit(move |config| async move {
 		let role = config.role.clone();
@@ -294,11 +305,15 @@ pub fn run() -> Result<()> {
 	let cli: Cli = Cli::from_args();
 
 	#[cfg(feature = "pyroscope")]
-	let mut pyroscope_agent_maybe = if let Some(agent_addr) = cli.run.pyroscope_agent {
-		let mut agent =
-			pyroscope::PyroscopeAgent::builder(agent_addr.to_string().as_str(), "polkadot")
-				.sample_rate(100)
-				.build()?;
+	let mut pyroscope_agent_maybe = if let Some(ref agent_addr) = cli.run.pyroscope_server {
+		let address = agent_addr
+			.to_socket_addrs()
+			.map_err(Error::AddressResolutionFailure)?
+			.next()
+			.ok_or_else(|| Error::AddressResolutionMissing)?;
+		let mut agent = pyro::PyroscopeAgent::builder(address.to_string().as_str(), "polkadot")
+			.sample_rate(100)
+			.build()?;
 		agent.start();
 		Some(agent)
 	} else {
@@ -306,7 +321,7 @@ pub fn run() -> Result<()> {
 	};
 
 	#[cfg(not(feature = "pyroscope"))]
-	if cli.run.pyroscope_agent.is_some() {
+	if cli.run.pyroscope_server.is_some() {
 		return Err(Error::PyroscopeNotCompiledIn)
 	}
 
