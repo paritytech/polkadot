@@ -153,19 +153,18 @@ impl Constraints {
 			.position(|w| w == &modifications.hrmp_watermark)
 			.is_none()
 		{
-			return Err(ModificationError::DisallowedHrmpWatermark(modifications.hrmp_watermark));
+			return Err(ModificationError::DisallowedHrmpWatermark(modifications.hrmp_watermark))
 		}
 
 		for (id, outbound_hrmp_mod) in &modifications.outbound_hrmp {
 			if let Some(outbound) = self.hrmp_channels_out.get(&id) {
-				outbound
-					.bytes_remaining
-					.checked_sub(outbound_hrmp_mod.bytes_submitted)
-					.ok_or(ModificationError::HrmpBytesOverflow {
+				outbound.bytes_remaining.checked_sub(outbound_hrmp_mod.bytes_submitted).ok_or(
+					ModificationError::HrmpBytesOverflow {
 						para_id: *id,
 						bytes_remaining: outbound.bytes_remaining,
 						bytes_submitted: outbound_hrmp_mod.bytes_submitted,
-					})?;
+					},
+				)?;
 
 				outbound
 					.messages_remaining
@@ -187,16 +186,14 @@ impl Constraints {
 			},
 		)?;
 
-		self
-			.ump_remaining_bytes
-			.checked_sub(modifications.ump_bytes_sent)
-			.ok_or(ModificationError::UmpBytesOverflow {
+		self.ump_remaining_bytes.checked_sub(modifications.ump_bytes_sent).ok_or(
+			ModificationError::UmpBytesOverflow {
 				bytes_remaining: self.ump_remaining_bytes,
 				bytes_submitted: modifications.ump_bytes_sent,
-			})?;
+			},
+		)?;
 
-		self
-			.dmp_remaining_messages
+		self.dmp_remaining_messages
 			.checked_sub(modifications.dmp_messages_processed)
 			.ok_or(ModificationError::DmpMessagesUnderflow {
 				messages_remaining: self.dmp_remaining_messages,
@@ -298,10 +295,37 @@ pub struct RelayChainBlockInfo {
 pub struct Fragment {
 	/// The new relay-parent.
 	pub relay_parent: RelayChainBlockInfo,
-	/// The constraints associated with this relay-parent.
-	pub relay_parent_constraints: Constraints,
+	/// The constraints this fragment is operating under.
+	pub operating_constraints: Constraints,
 	/// The core information about the prospective candidate.
-	pub prospective: ProspectiveCandidate,
+	pub candidate: ProspectiveCandidate,
+}
+
+impl Fragment {
+	/// Produce a set of constraint modifications based on the outputs
+	/// of the candidate.
+	pub fn constraint_modifications(&self) -> ConstraintModifications {
+		let commitments = &self.candidate.commitments;
+
+		ConstraintModifications {
+			required_parent: commitments.head_data.clone(),
+			hrmp_watermark: commitments.hrmp_watermark,
+			outbound_hrmp: {
+				let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
+				for message in &commitments.horizontal_messages {
+					let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
+
+					record.bytes_submitted += message.data.len();
+					record.messages_submitted += 1;
+				}
+
+				outbound_hrmp
+			},
+			ump_messages_sent: commitments.upward_messages.len(),
+			ump_bytes_sent: commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
+			dmp_messages_processed: commitments.processed_downward_messages as _,
+		}
+	}
 }
 
 /// An update to outbound HRMP channels.
@@ -329,6 +353,7 @@ pub struct ConstraintModifications {
 	pub ump_bytes_sent: usize,
 	/// The amount of DMP messages processed.
 	pub dmp_messages_processed: usize,
+	// TODO [now]: code upgrade application.
 }
 
 impl ConstraintModifications {
@@ -369,31 +394,6 @@ pub struct ProspectiveCandidate {
 	pub validation_code_hash: ValidationCodeHash,
 	// TODO [now]: do code upgrades go here? if so, we can't produce
 	// modifications just from a candidate.
-}
-
-impl ProspectiveCandidate {
-	/// Produce a set of constraint modifications based on the outputs
-	/// of the candidate.
-	pub fn constraint_modifications(&self) -> ConstraintModifications {
-		ConstraintModifications {
-			required_parent: self.commitments.head_data.clone(),
-			hrmp_watermark: self.commitments.hrmp_watermark,
-			outbound_hrmp: {
-				let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
-				for message in &self.commitments.horizontal_messages {
-					let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
-
-					record.bytes_submitted += message.data.len();
-					record.messages_submitted += 1;
-				}
-
-				outbound_hrmp
-			},
-			ump_messages_sent: self.commitments.upward_messages.len(),
-			ump_bytes_sent: self.commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
-			dmp_messages_processed: self.commitments.processed_downward_messages as _,
-		}
-	}
 }
 
 #[cfg(test)]
