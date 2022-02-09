@@ -19,7 +19,7 @@ use crate::{
 	initializer,
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
-use frame_system::{limits::BlockWeights, pallet_prelude::*};
+use frame_system::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
 	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
@@ -28,9 +28,9 @@ use xcm::latest::Outcome;
 
 pub use pallet::*;
 
-/// Maximum value that `max_upward_message_size` can be set to
+/// Maximum value that `config.max_upward_message_size` can be set to
 ///
-/// This is used for benchmarking sanely bounding relevant storate items. It is expected form the `configurations`
+/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
 /// pallet to check these values before setting.
 pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
 
@@ -119,7 +119,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
 				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
 				// are taking call and control-flow overhead into account twice.
-				<C as Config>::WeightInfo::process_upward_message(data.len() as u32),
+				<C as Config>::WeightInfo::sink_process_upward_message(data.len() as u32),
 			)
 		});
 		match maybe_msg_and_weight {
@@ -186,7 +186,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 /// Weight information of this pallet.
 pub trait WeightInfo {
 	fn service_overweight() -> Weight;
-	fn process_upward_message(s: u32) -> Weight;
+	fn sink_process_upward_message(s: u32) -> Weight;
 	fn clean_ump_after_outgoing() -> Weight;
 }
 
@@ -194,15 +194,15 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn service_overweight() -> Weight {
-		BlockWeights::default().max_block
+		Weight::MAX
 	}
 
-	fn process_upward_message(_msg_size: u32) -> Weight {
-		BlockWeights::default().max_block
+	fn sink_process_upward_message(_msg_size: u32) -> Weight {
+		Weight::MAX
 	}
 
 	fn clean_ump_after_outgoing() -> Weight {
-		BlockWeights::default().max_block
+		Weight::MAX
 	}
 }
 
