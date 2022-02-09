@@ -138,6 +138,8 @@ pub enum ModificationError {
 		/// The amount of messages processed.
 		messages_processed: usize,
 	},
+	/// No validation code upgrade to apply.
+	AppliedNonexistentCodeUpgrade,
 }
 
 impl Constraints {
@@ -199,6 +201,10 @@ impl Constraints {
 				messages_remaining: self.dmp_remaining_messages,
 				messages_processed: modifications.dmp_messages_processed,
 			})?;
+
+		if self.future_validation_code.is_none() && modifications.code_upgrade_applied {
+			return Err(ModificationError::AppliedNonexistentCodeUpgrade);
+		}
 
 		Ok(())
 	}
@@ -272,6 +278,12 @@ impl Constraints {
 				messages_processed: modifications.dmp_messages_processed,
 			})?;
 
+		new.validation_code_hash = new
+			.future_validation_code
+			.take()
+			.ok_or(ModificationError::AppliedNonexistentCodeUpgrade)?
+			.1;
+
 		Ok(new)
 	}
 }
@@ -312,28 +324,8 @@ pub struct ConstraintModifications {
 	pub ump_bytes_sent: usize,
 	/// The amount of DMP messages processed.
 	pub dmp_messages_processed: usize,
-	// TODO [now]: code upgrade application.
-}
-
-impl ConstraintModifications {
-	/// Stack other modifications on top of these.
-	///
-	/// This does no sanity-checking, so if `other` is garbage relative
-	/// to `self`, then the new value will be garbage as well.
-	pub fn stack(&mut self, other: &Self) {
-		self.required_parent = other.required_parent.clone();
-		self.hrmp_watermark = other.hrmp_watermark;
-
-		for (id, mods) in &other.outbound_hrmp {
-			let record = self.outbound_hrmp.entry(id.clone()).or_default();
-			record.messages_submitted += mods.messages_submitted;
-			record.bytes_submitted += mods.bytes_submitted;
-		}
-
-		self.ump_messages_sent += other.ump_messages_sent;
-		self.ump_bytes_sent += other.ump_bytes_sent;
-		self.dmp_messages_processed += other.dmp_messages_processed;
-	}
+	/// Whether a pending code upgrade has been applied.
+	pub code_upgrade_applied: bool,
 }
 
 /// The prospective candidate.
@@ -351,8 +343,6 @@ pub struct ProspectiveCandidate {
 	pub pov_hash: Hash,
 	/// The validation code hash used by the candidate.
 	pub validation_code_hash: ValidationCodeHash,
-	// TODO [now]: do code upgrades go here? if so, we can't produce
-	// modifications just from a candidate.
 }
 
 /// A parachain fragment, representing another prospective parachain block.
@@ -392,6 +382,10 @@ impl Fragment {
 			ump_messages_sent: commitments.upward_messages.len(),
 			ump_bytes_sent: commitments.upward_messages.iter().map(|msg| msg.len()).sum(),
 			dmp_messages_processed: commitments.processed_downward_messages as _,
+			code_upgrade_applied: self.operating_constraints.future_validation_code.map_or(
+				false,
+				|(at, _)| self.relay_parent.number >= at,
+			),
 		}
 	}
 }
