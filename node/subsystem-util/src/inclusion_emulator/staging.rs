@@ -396,6 +396,10 @@ impl Fragment {
 	}
 }
 
+// TODO [now]: function for cumulative modifications to produce new constraints.
+
+// TODO [now]: function for 'rebasing'.
+
 #[cfg(test)]
 mod tests {
 	use super::*;
