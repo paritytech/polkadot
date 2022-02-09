@@ -17,7 +17,7 @@
 use crate::traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, OnResponse,
 	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	WeightTrader,
+	WeightTrader, FeeManager,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -79,6 +79,9 @@ pub trait Config {
 	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
 	/// and any benchmarks should take that into account.
 	type MaxAssetsIntoHolding: Get<u32>;
+
+	/// Configure the fees.
+	type FeeManager: FeeManager;
 
 	/// The method of exporting a message.
 	type MessageExporter: ExportXcm;

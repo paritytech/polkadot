@@ -39,6 +39,7 @@ pub use xcm::latest::prelude::*;
 pub use xcm_executor::{
 	traits::{
 		ConvertOrigin, ExportXcm, FilterAssetLocation, OnResponse, TransactAsset, UniversalLocation,
+		FeeManager, FeeReason,
 	},
 	Assets, Config,
 };
@@ -369,6 +370,14 @@ pub type TestBarrier = (
 	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );
 
+pub struct TestFeeManager;
+impl FeeManager for TestFeeManager {
+	fn is_waived(_: &Option<MultiLocation>, r: FeeReason) -> bool {
+		!matches!(r, FeeReason::Export(_))
+	}
+	fn handle_fee(_: MultiAssets) {}
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type Call = TestCall;
@@ -387,6 +396,7 @@ impl Config for TestConfig {
 	type SubscriptionService = TestSubscriptionService;
 	type PalletInstancesInfo = TestPalletsInfo;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = TestFeeManager;
 	type UniversalAliases = TestUniversalAliases;
 	type MessageExporter = TestMessageExporter;
 }

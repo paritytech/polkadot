@@ -32,7 +32,7 @@ pub mod traits;
 use traits::{
 	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation,
 	OnResponse, ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier,
-	WeightBounds, WeightTrader,
+	WeightBounds, WeightTrader, FeeManager, FeeReason,
 };
 
 mod assets;
@@ -223,6 +223,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 
+	/// Send an XCM, charging fees from Holding as needed.
+	fn send(&mut self, dest: MultiLocation, msg: Xcm::<()>, reason: FeeReason) -> Result<(), XcmError> {
+		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
+		if !Config::FeeManager::is_waived(&self.origin, reason) {
+			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+			Config::FeeManager::handle_fee(paid.into());
+		}
+		Config::XcmSender::deliver(ticket)?;
+		Ok(())
+	}
+
 	/// Remove the registered error handler and return it. Do not refund its weight.
 	fn take_error_handler(&mut self) -> Xcm<Config::Call> {
 		let mut r = Xcm::<Config::Call>(vec![]);
@@ -319,8 +330,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				assets.reanchor(&dest, &context).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				let _cost = send_xcm::<Config::XcmSender>(dest, Xcm(message))?;
-				// TODO: pre-charge cost using new API.
+				self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
 				Ok(())
 			},
 			ReceiveTeleportedAsset(assets) => {
@@ -401,10 +411,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				Self::respond(
+				self.respond(
 					self.origin.clone(),
 					Response::ExecutionResult(self.error),
 					response_info,
+					FeeReason::Report,
 				)
 			},
 			DepositAsset { assets, beneficiary } => {
@@ -424,8 +435,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				let _cost = send_xcm::<Config::XcmSender>(dest, Xcm(message))?;
-				// TODO: pre-charge cost using new API.
+				self.send(dest, Xcm(message), FeeReason::DepositReserveAsset)?;
 				Ok(())
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
@@ -438,8 +448,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				let _cost = send_xcm::<Config::XcmSender>(reserve, Xcm(message))?;
-				// TODO: pre-charge cost using new API.
+				self.send(reserve, Xcm(message), FeeReason::InitiateReserveWithdraw)?;
 				Ok(())
 			},
 			InitiateTeleport { assets, dest, xcm } => {
@@ -453,8 +462,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				let _cost = send_xcm::<Config::XcmSender>(dest, Xcm(message))?;
-				// TODO: pre-charge cost using new API.
+				self.send(dest, Xcm(message), FeeReason::InitiateTeleport)?;
 				Ok(())
 			},
 			ReportHolding { response_info, assets } => {
@@ -462,7 +470,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// from Holding.
 				let assets =
 					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
-				Self::respond(self.origin.clone(), Response::Assets(assets), response_info)
+				self.respond(self.origin.clone(), Response::Assets(assets), response_info, FeeReason::Report)
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -553,8 +561,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let querier = Self::to_querier(self.origin.clone(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);
-				let _cost = send_xcm::<Config::XcmSender>(destination, message)?;
-				// TODO: pre-charge cost using new API.
+				self.send(destination, message, FeeReason::QueryPallet)?;
 				Ok(())
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
@@ -570,10 +577,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
-			ReportTransactStatus(response_info) => Self::respond(
+			ReportTransactStatus(response_info) => self.respond(
 				self.origin.clone(),
 				Response::DispatchResult(self.transact_status.clone()),
 				response_info,
+				FeeReason::Report,
 			),
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
@@ -599,7 +607,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// generally have their own lanes.
 				let (ticket, fee) =
 					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
-				self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+				if !Config::FeeManager::is_waived(&self.origin, FeeReason::Export(network)) {
+					let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+					Config::FeeManager::handle_fee(paid.into());
+				}
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())
 			},
@@ -628,16 +639,22 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	///
 	/// The `local_querier` argument is the querier (if any) specified from the *local* perspective.
 	fn respond(
+		&mut self,
 		local_querier: Option<MultiLocation>,
 		response: Response,
 		info: QueryResponseInfo,
+		fee_reason: FeeReason,
 	) -> Result<(), XcmError> {
 		let querier = Self::to_querier(local_querier, &info.destination)?;
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		let _cost = send_xcm::<Config::XcmSender>(destination, message)?;
-		// TODO: pre-charge cost using new API.
+		let (ticket, fee) = validate_send::<Config::XcmSender>(destination, message)?;
+		if !Config::FeeManager::is_waived(&self.origin, fee_reason) {
+			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+			Config::FeeManager::handle_fee(paid.into());
+		}
+		Config::XcmSender::deliver(ticket)?;
 		Ok(())
 	}
 
