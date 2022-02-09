@@ -339,11 +339,6 @@ fn verify_inbound_messages_lane(
 impl SenderOrigin<AccountId> for Origin {
 	fn linked_account(&self) -> Option<AccountId> {
 		match self.caller {
-			OriginCaller::system(frame_system::RawOrigin::Signed(ref submitter)) =>
-				Some(submitter.clone()),
-			OriginCaller::system(frame_system::RawOrigin::Root) |
-			OriginCaller::system(frame_system::RawOrigin::None) =>
-				RootAccountForPayments::get(),
 			OriginCaller::Council(_) => AllowedMessageSender::get(), // TODO: rename to council account,
 				_ => None,
 		}
