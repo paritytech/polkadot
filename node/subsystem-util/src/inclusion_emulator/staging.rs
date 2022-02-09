@@ -77,6 +77,7 @@ pub struct Constraints {
 	pub hrmp_channels_out: HashMap<ParaId, OutboundHrmpChannelLimitations>,
 	/// The maximum Proof-of-Validity size allowed, in bytes.
 	pub max_pov_size: usize,
+	// TODO [now]: max code size?
 	/// The maximum number of HRMP messages allowed per candidate.
 	pub max_hrmp_num_per_candidate: usize,
 	/// The required parent head-data of the parachain.
