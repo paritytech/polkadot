@@ -345,6 +345,14 @@ pub struct ProspectiveCandidate {
 	pub validation_code_hash: ValidationCodeHash,
 }
 
+/// Kinds of errors with the validity of a fragment.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FragmentValidityError {
+	/// The validation code of
+	ValidationCodeMismatch(ValidationCodeHash, ValidationCodeHash),
+	Outputs(ModificationError)
+}
+
 /// A parachain fragment, representing another prospective parachain block.
 ///
 /// This has two parts: the first is the new relay-parent and its associated limitations,
@@ -352,14 +360,38 @@ pub struct ProspectiveCandidate {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fragment {
 	/// The new relay-parent.
-	pub relay_parent: RelayChainBlockInfo,
+	relay_parent: RelayChainBlockInfo,
 	/// The constraints this fragment is operating under.
-	pub operating_constraints: Constraints,
+	operating_constraints: Constraints,
 	/// The core information about the prospective candidate.
-	pub candidate: ProspectiveCandidate,
+	candidate: ProspectiveCandidate,
 }
 
 impl Fragment {
+	/// Create a new fragment.
+	pub fn new(
+		relay_parent: RelayChainBlockInfo,
+		operating_constraints: Constraints,
+		candidate: ProspectiveCandidate,
+	) -> Result<Self, FragmentValidityError> {
+		unimplemented!()
+	}
+
+	/// Access the relay parent information.
+	pub fn relay_parent(&self) -> &RelayChainBlockInfo {
+		&self.relay_parent
+	}
+
+	/// Access the operating constraints
+	pub fn operating_constraints(&self) -> &Constraints {
+		&self.operating_constraints
+	}
+
+	/// Access the underlying prospective candidate.
+	pub fn candidate(&self) -> &ProspectiveCandidate {
+		&self.candidate
+	}
+
 	/// Produce a set of constraint modifications based on the outputs
 	/// of the candidate.
 	pub fn constraint_modifications(&self) -> ConstraintModifications {
