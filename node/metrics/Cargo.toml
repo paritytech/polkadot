@@ -24,7 +24,7 @@ bs58 = { version = "0.4.0", features = ["alloc"] }
 log = "0.4.13"
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
 hyper = { version = "0.14.16", default-features = false, features = ["http1", "tcp"] }

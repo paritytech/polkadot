@@ -18,12 +18,12 @@ color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
 tokio = "1.15.0"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-node-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
 members = [
