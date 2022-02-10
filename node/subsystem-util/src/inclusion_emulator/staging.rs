@@ -101,6 +101,17 @@
 //! Every new relay-chain block is an opportunity to make a new prediction about the future.
 //! higher-level logic should select the leaves of the fragment-trees to build upon or whether
 //! to create a new fragment-tree.
+//!
+//! ### Code Upgrades
+//!
+//! Code upgrades are the main place where this emulation fails. The on-chain PVF upgrade scheduling
+//! logic is very path-dependent and intricate so we just assume that code upgrades
+//! can't be initiated and applied within a single fragment-tree. Fragment-trees aren't deep,
+//! in practice and code upgrades are fairly rare. So what's likely to happen around code
+//! upgrades is that the entire fragment-tree has to get discarded at some point.
+//!
+//! That means a few blocks of execution time lost, which is not a big deal for code upgrades
+//! in practice at most once every few weeks.
 
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
