@@ -154,7 +154,7 @@ pub struct Constraints {
 	/// The go-ahead signal as-of this parachain.
 	pub go_ahead: UpgradeGoAhead,
 	/// The code upgrade restriction signal as-of this parachain.
-	pub upgrade_restriction: UpgradeRestriction,
+	pub upgrade_restriction: Option<UpgradeRestriction>,
 	/// The future validation code hash, if any, and at what relay-parent
 	/// number the upgrade would be minimally applied.
 	pub future_validation_code: Option<(BlockNumber, ValidationCodeHash)>,
@@ -486,6 +486,8 @@ pub enum FragmentValidityError {
 	///
 	/// Min allowed, current.
 	RelayParentTooOld(BlockNumber, BlockNumber),
+	/// Code upgrade not allowed.
+	CodeUpgradeRestricted,
 }
 
 /// A parachain fragment, representing another prospective parachain block.
@@ -617,6 +619,13 @@ fn validate_against_constraints(
 			constraints.min_relay_parent_number,
 			relay_parent.number,
 		));
+	}
+
+	if candidate.commitments.new_validation_code.is_some() {
+		match constraints.upgrade_restriction {
+			None => {}
+			Some(UpgradeRestriction::Present) => return Err(FragmentValidityError::CodeUpgradeRestricted),
+		}
 	}
 
 	let announced_code_size = candidate.commitments.new_validation_code.as_ref().map_or(0, |code| code.0.len());
