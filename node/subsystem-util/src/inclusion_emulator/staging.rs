@@ -37,6 +37,70 @@
 //!
 //! As such, [`Fragment`]s are often, but not always constructed in such a way that they are
 //! invalid at first and become valid later on, as the relay chain grows.
+//!
+//! # Usage
+//!
+//! It's expected that the users of this module will be building up trees of
+//! [`Fragment`]s and consistently pruning and adding to the tree.
+//!
+//! ## Operating Constraints
+//!
+//! The *operating constraints* of a `Fragment` are the constraints with which that fragment
+//! was intended to comply. The operating constraints are defined as the base constraints
+//! of the relay-parent of the fragment modified by the cumulative modifications of all
+//! fragments between the relay-parent and the current fragment.
+//!
+//! What the operating constraints are, in practice, is a prediction about the state of the
+//! relay-chain in the future. The relay-chain is aware of some current state, and we want to
+//! make an intelligent prediction about what'll be accepted in the future based on
+//! prior fragments that also exist off-chain.
+//!
+//! ## Fragment Trees
+//!
+//! As the relay-chain grows, some predictions come true and others come false.
+//! And new predictions get made. These three changes correspond distinctly to the
+//! 3 primary operations on fragment trees.
+//!
+//! A fragment tree is a mental model for thinking about a forking series of predictions
+//! about a single parachain. There may be one or more fragment trees per parachain.
+//!
+//! In expectation, most parachains will have a plausibly-unique authorship method
+//! which means that they should really be much closer to fragment-chains, maybe
+//! maybe with an occasional fork.
+//!
+//! Avoiding fragment-tree blowup is beyond the scope of this module.
+//!
+//! ### Pruning Fragment Trees
+//!
+//! When the relay-chain advances, we want to compare the new constraints
+//!    of that relay-parent to the roots of the fragment trees we have. There are 3 cases.
+//!
+//! 1. The root fragment is still valid under the new constraints. In this case, we do nothing.
+//!    This is the "prediction still uncertain" case.
+//! 2. The root fragment is invalid under the new constraints because it has been subsumed by the relay-chain.
+//!    in this case, we can discard the root and split & re-root the fragment tree
+//!    under its descendents and compare to the new constraints again.
+//!    This is the "prediction came true" case.
+//! 3. The root fragment is invalid under the new constraints because a competing parachain block has been included
+//!    or it would never be accepted for some other reason. In this case we can discard the entire
+//!    fragment tree.
+//!    This is the "prediction came false" case.
+//!
+//! This is all a bit of a simplification because it assumes that the relay-chain advances without
+//! forks and is finalized instantly. In practice, the set of fragment-trees needs to be observable
+//! from the perspective of a few different possible forks of the relay-chain and not pruned
+//! too eagerly.
+//!
+//! Note that the fragments themselves don't need to change and the only thing we care about
+//! is whether the predictions they represent are still valid.
+//!
+//! ### Extending Fragment Trees
+//!
+//! As predictions fade into the past, new ones should be stacked on top.
+//!
+//! Every new relay-chain block is an opportunity to make a new prediction about the future.
+//! higher-level logic should select the leaves of the fragment-trees to build upon or whether
+//! to create a new fragment-tree.
 
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
@@ -65,6 +129,7 @@ pub struct OutboundHrmpChannelLimitations {
 /// parachain, which should be apparent from usage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Constraints {
+	// TODO [now]: Min relay-parent number?
 	/// The amount of UMP messages remaining.
 	pub ump_remaining: usize,
 	/// The amount of UMP bytes remaining.
@@ -542,20 +607,7 @@ fn validate_against_constraints(
 		.map_err(FragmentValidityError::OutputsInvalid)
 }
 
-// TODO [now]: move this to docs.
-// When we get a new relay-chain block, we'll need to prune the prospective chain trees to only those that are compatible.
-// This is because we need to know which prospective chains might be valid in the descendents of our new blocks.
-//
-// The operating constraints of our predictions won't change, because those are based on the
-// relay-parents. Therefore fragments don't actually need to be updated.
-//
-// But instead what we need to do is
-// 1. Prune off all the prospective chains which aren't based on the parent head-data at the tip of the relay-chain.
-//    More accurately, we need to prune off all the prospective chains which aren't based on the constraints at the
-//    tip of the relay-chain. This includes prospective chains which are offboarded i.e. the constraints don't exist.
-// 2. Do we need to do anything that doesn't relate to the tail? We shouldn't need to update operating
-//    constraints. So as long as we can verify that one fragment directly follows another and that its parent
-//    was valid under the previous constraints, then everything seems fine.
+// TODO [now]: fn for loading constraints from runtime.
 
 #[cfg(test)]
 mod tests {
