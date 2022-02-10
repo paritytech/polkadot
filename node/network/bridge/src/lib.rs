@@ -977,7 +977,7 @@ fn update_our_view(
 		target: LOG_TARGET,
 		?new_view,
 		?collation_peers,
-		"Sending our new view to validator peerset"
+		"Sending our new view to collator peerset"
 	);
 
 	send_collation_message(net, collation_peers, WireMessage::ViewUpdate(new_view), metrics);
