@@ -292,17 +292,11 @@ impl Constraints {
 		}
 
 		if let Some(hrmp_watermark) = modifications.hrmp_watermark {
-			match new
-				.hrmp_inbound
-				.valid_watermarks
-				.iter()
-				.position(|w| w == &hrmp_watermark)
-			{
+			match new.hrmp_inbound.valid_watermarks.iter().position(|w| w == &hrmp_watermark) {
 				Some(pos) => {
 					let _ = new.hrmp_inbound.valid_watermarks.drain(..pos + 1);
 				},
-				None =>
-					return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark)),
+				None => return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark)),
 			}
 		}
 
@@ -625,29 +619,34 @@ fn validate_against_constraints(
 		return Err(FragmentValidityError::RelayParentTooOld(
 			constraints.min_relay_parent_number,
 			relay_parent.number,
-		));
+		))
 	}
 
 	if candidate.commitments.new_validation_code.is_some() {
 		match constraints.upgrade_restriction {
-			None => {}
-			Some(UpgradeRestriction::Present) => return Err(FragmentValidityError::CodeUpgradeRestricted),
+			None => {},
+			Some(UpgradeRestriction::Present) =>
+				return Err(FragmentValidityError::CodeUpgradeRestricted),
 		}
 	}
 
-	let announced_code_size = candidate.commitments.new_validation_code.as_ref().map_or(0, |code| code.0.len());
+	let announced_code_size = candidate
+		.commitments
+		.new_validation_code
+		.as_ref()
+		.map_or(0, |code| code.0.len());
 	if announced_code_size > constraints.max_code_size {
 		return Err(FragmentValidityError::CodeSizeTooLarge(
 			constraints.max_code_size,
 			announced_code_size,
-		));
+		))
 	}
 
 	if candidate.commitments.horizontal_messages.len() > constraints.max_hrmp_num_per_candidate {
 		return Err(FragmentValidityError::HrmpMessagesPerCandidateOverflow {
 			messages_allowed: constraints.max_hrmp_num_per_candidate,
 			messages_submitted: candidate.commitments.horizontal_messages.len(),
-		});
+		})
 	}
 
 	constraints
