@@ -6,7 +6,7 @@ description = "An abstract and configurable XCM message executor."
 version = "0.9.16"
 
 [dependencies]
-impl-trait-for-tuples = "0.2.0"
+impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
