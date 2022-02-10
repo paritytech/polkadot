@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-futures = "0.3.19"
+futures = "0.3.21"
 tracing = "0.1.29"
 thiserror = "1.0.30"
 polkadot-primitives = { path = "../../../primitives" }
