@@ -104,7 +104,7 @@
 
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
-	PersistedValidationData, UpgradeGoAhead, UpgradeRestriction, ValidationCodeHash,
+	PersistedValidationData, UpgradeRestriction, ValidationCodeHash,
 };
 use std::collections::HashMap;
 
@@ -151,8 +151,6 @@ pub struct Constraints {
 	pub required_parent: HeadData,
 	/// The expected validation-code-hash of this parachain.
 	pub validation_code_hash: ValidationCodeHash,
-	/// The go-ahead signal as-of this parachain.
-	pub go_ahead: UpgradeGoAhead,
 	/// The code upgrade restriction signal as-of this parachain.
 	pub upgrade_restriction: Option<UpgradeRestriction>,
 	/// The future validation code hash, if any, and at what relay-parent
@@ -635,6 +633,7 @@ fn validate_against_constraints(
 		.new_validation_code
 		.as_ref()
 		.map_or(0, |code| code.0.len());
+
 	if announced_code_size > constraints.max_code_size {
 		return Err(FragmentValidityError::CodeSizeTooLarge(
 			constraints.max_code_size,
