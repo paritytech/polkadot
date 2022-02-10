@@ -9,7 +9,7 @@ futures = "0.3.19"
 futures-timer = "3.0.2"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
 tracing = "0.1.29"
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 lru = "0.7"
 merlin = "2.0"
 schnorrkel = "0.9.1"

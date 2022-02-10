@@ -553,10 +553,22 @@ version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7774144344a4faa177370406a7ff5f1da24303817368584c6206c8303eb07848"
 dependencies = [
- "funty",
- "radium",
+ "funty 1.1.0",
+ "radium 0.6.2",
  "tap",
- "wyz",
+ "wyz 0.2.0",
+]
+
+[[package]]
+name = "bitvec"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1489fcb93a5bb47da0462ca93ad252ad6af2145cce58d10d46a83931ba9f016b"
+dependencies = [
+ "funty 2.0.0",
+ "radium 0.7.0",
+ "tap",
+ "wyz 0.5.0",
 ]
 
 [[package]]
@@ -718,7 +730,7 @@ dependencies = [
 name = "bp-messages"
 version = "0.1.0"
 dependencies = [
- "bitvec",
+ "bitvec 0.20.4",
  "bp-runtime",
  "frame-support",
  "frame-system",
@@ -2190,6 +2202,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fed34cd105917e91daa4da6b3728c47b068749d6a62c59811f06ed2ac71d9da7"
 
 [[package]]
+name = "funty"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
+
+[[package]]
 name = "futures"
 version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3227,7 +3245,7 @@ name = "kusama-runtime"
 version = "0.9.16"
 dependencies = [
  "beefy-primitives",
- "bitvec",
+ "bitvec 1.0.0",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -4957,7 +4975,7 @@ dependencies = [
 name = "pallet-bridge-messages"
 version = "0.1.0"
 dependencies = [
- "bitvec",
+ "bitvec 0.20.4",
  "bp-message-dispatch",
  "bp-messages",
  "bp-runtime",
@@ -5652,7 +5670,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "373b1a4c1338d9cd3d1fa53b3a11bdab5ab6bd80a20f7f7becd76953ae2be909"
 dependencies = [
  "arrayvec 0.7.2",
- "bitvec",
+ "bitvec 0.20.4",
  "byte-slice-cast",
  "impl-trait-for-tuples",
  "parity-scale-codec-derive",
@@ -5989,7 +6007,7 @@ name = "polkadot-availability-bitfield-distribution"
 version = "0.9.16"
 dependencies = [
  "assert_matches",
- "bitvec",
+ "bitvec 1.0.0",
  "env_logger 0.9.0",
  "futures 0.3.19",
  "log",
@@ -6272,7 +6290,7 @@ name = "polkadot-node-core-approval-voting"
 version = "0.9.16"
 dependencies = [
  "assert_matches",
- "bitvec",
+ "bitvec 1.0.0",
  "derive_more",
  "futures 0.3.19",
  "futures-timer",
@@ -6309,7 +6327,7 @@ name = "polkadot-node-core-av-store"
 version = "0.9.16"
 dependencies = [
  "assert_matches",
- "bitvec",
+ "bitvec 1.0.0",
  "env_logger 0.9.0",
  "futures 0.3.19",
  "futures-timer",
@@ -6337,7 +6355,7 @@ name = "polkadot-node-core-backing"
 version = "0.9.16"
 dependencies = [
  "assert_matches",
- "bitvec",
+ "bitvec 1.0.0",
  "futures 0.3.19",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
@@ -6479,7 +6497,7 @@ dependencies = [
 name = "polkadot-node-core-provisioner"
 version = "0.9.16"
 dependencies = [
- "bitvec",
+ "bitvec 1.0.0",
  "futures 0.3.19",
  "futures-timer",
  "polkadot-node-primitives",
@@ -6821,7 +6839,7 @@ dependencies = [
 name = "polkadot-primitives"
 version = "0.9.16"
 dependencies = [
- "bitvec",
+ "bitvec 1.0.0",
  "frame-system",
  "hex-literal",
  "parity-scale-codec",
@@ -6891,7 +6909,7 @@ name = "polkadot-runtime"
 version = "0.9.16"
 dependencies = [
  "beefy-primitives",
- "bitvec",
+ "bitvec 1.0.0",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -6980,7 +6998,7 @@ name = "polkadot-runtime-common"
 version = "0.9.16"
 dependencies = [
  "beefy-primitives",
- "bitvec",
+ "bitvec 1.0.0",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
@@ -7055,7 +7073,7 @@ version = "0.9.16"
 dependencies = [
  "assert_matches",
  "bitflags",
- "bitvec",
+ "bitvec 1.0.0",
  "derive_more",
  "frame-benchmarking",
  "frame-support",
@@ -7303,7 +7321,7 @@ name = "polkadot-test-runtime"
 version = "0.9.16"
 dependencies = [
  "beefy-primitives",
- "bitvec",
+ "bitvec 1.0.0",
  "frame-election-provider-support",
  "frame-executive",
  "frame-support",
@@ -7701,6 +7719,12 @@ name = "radium"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "643f8f41a8ebc4c5dc4515c82bb8abd397b527fc20fd681b7c011c2aee5d44fb"
+
+[[package]]
+name = "radium"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rand"
@@ -9216,7 +9240,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c55b744399c25532d63a0d2789b109df8d46fc93752d46b0782991a931a782f"
 dependencies = [
- "bitvec",
+ "bitvec 0.20.4",
  "cfg-if 1.0.0",
  "derive_more",
  "parity-scale-codec",
@@ -11768,7 +11792,7 @@ name = "westend-runtime"
 version = "0.9.16"
 dependencies = [
  "beefy-primitives",
- "bitvec",
+ "bitvec 1.0.0",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -11956,6 +11980,15 @@ name = "wyz"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
+
+[[package]]
+name = "wyz"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30b31594f29d27036c383b53b59ed3476874d518f0efb151b27a4c275141390e"
+dependencies = [
+ "tap",
+]
 
 [[package]]
 name = "x25519-dalek"
