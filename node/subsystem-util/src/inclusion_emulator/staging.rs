@@ -129,7 +129,12 @@ pub struct OutboundHrmpChannelLimitations {
 /// parachain, which should be apparent from usage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Constraints {
-	// TODO [now]: Min relay-parent number?
+	/// The minimum relay-parent number accepted under these constraints.
+	pub min_relay_parent_number: BlockNumber,
+	/// The maximum Proof-of-Validity size allowed, in bytes.
+	pub max_pov_size: usize,
+	/// The maximum new validation code size allowed, in bytes.
+	pub max_code_size: usize,
 	/// The amount of UMP messages remaining.
 	pub ump_remaining: usize,
 	/// The amount of UMP bytes remaining.
@@ -140,9 +145,6 @@ pub struct Constraints {
 	pub hrmp_inbound: InboundHrmpLimitations,
 	/// The limitations of all registered outbound HRMP channels.
 	pub hrmp_channels_out: HashMap<ParaId, OutboundHrmpChannelLimitations>,
-	/// The maximum Proof-of-Validity size allowed, in bytes.
-	pub max_pov_size: usize,
-	// TODO [now]: max code size?
 	/// The maximum number of HRMP messages allowed per candidate.
 	pub max_hrmp_num_per_candidate: usize,
 	/// The required parent head-data of the parachain.
@@ -476,6 +478,14 @@ pub enum FragmentValidityError {
 	/// The outputs of the candidate are invalid under the operating
 	/// constraints.
 	OutputsInvalid(ModificationError),
+	/// New validation code size too big.
+	///
+	/// Max allowed, new.
+	CodeSizeTooLarge(usize, usize),
+	/// Relay parent too old.
+	///
+	/// Min allowed, current.
+	RelayParentTooOld(BlockNumber, BlockNumber),
 }
 
 /// A parachain fragment, representing another prospective parachain block.
@@ -602,12 +612,25 @@ fn validate_against_constraints(
 		))
 	}
 
+	if relay_parent.number < constraints.min_relay_parent_number {
+		return Err(FragmentValidityError::RelayParentTooOld(
+			constraints.min_relay_parent_number,
+			relay_parent.number,
+		));
+	}
+
+	let announced_code_size = candidate.commitments.new_validation_code.as_ref().map_or(0, |code| code.0.len());
+	if announced_code_size > constraints.max_code_size {
+		return Err(FragmentValidityError::CodeSizeTooLarge(
+			constraints.max_code_size,
+			announced_code_size,
+		));
+	}
+
 	constraints
 		.check_modifications(&modifications)
 		.map_err(FragmentValidityError::OutputsInvalid)
 }
-
-// TODO [now]: fn for loading constraints from runtime.
 
 #[cfg(test)]
 mod tests {
