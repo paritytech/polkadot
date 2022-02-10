@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.13"
+version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem metric helpers"
@@ -24,10 +24,10 @@ bs58 = { version = "0.4.0", features = ["alloc"] }
 log = "0.4.13"
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
-hyper = { version = "0.14.16", default-features = false, features = ["http1", "tcp"] }
+hyper = { version = "0.14.17", default-features = false, features = ["http1", "tcp"] }
 tokio = "1.13"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
