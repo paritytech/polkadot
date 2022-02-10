@@ -959,11 +959,25 @@ fn update_our_view(
 		)
 	};
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		?new_view,
+		?validation_peers,
+		"Sending our new view to validator peerset"
+	);
+
 	send_validation_message(
 		net,
 		validation_peers,
 		WireMessage::ViewUpdate(new_view.clone()),
 		metrics,
+	);
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		?new_view,
+		?collation_peers,
+		"Sending our new view to validator peerset"
 	);
 
 	send_collation_message(net, collation_peers, WireMessage::ViewUpdate(new_view), metrics);
@@ -1006,6 +1020,14 @@ fn handle_peer_messages<M>(
 
 		outgoing_messages.push(match message {
 			WireMessage::ViewUpdate(new_view) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?peer,
+					?peer_set,
+					?new_view,
+					"Peer view update",
+				);
+
 				if new_view.len() > MAX_VIEW_HEADS ||
 					new_view.finalized_number < peer_data.view.finalized_number
 				{
