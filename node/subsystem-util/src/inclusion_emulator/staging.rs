@@ -149,14 +149,16 @@ impl Constraints {
 		&self,
 		modifications: &ConstraintModifications,
 	) -> Result<(), ModificationError> {
-		if self
-			.hrmp_inbound
-			.valid_watermarks
-			.iter()
-			.position(|w| w == &modifications.hrmp_watermark)
-			.is_none()
-		{
-			return Err(ModificationError::DisallowedHrmpWatermark(modifications.hrmp_watermark))
+		if let Some(hrmp_watermark) = modifications.hrmp_watermark {
+			if self
+				.hrmp_inbound
+				.valid_watermarks
+				.iter()
+				.position(|w| w == &hrmp_watermark)
+				.is_none()
+			{
+				return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark))
+			}
 		}
 
 		for (id, outbound_hrmp_mod) in &modifications.outbound_hrmp {
@@ -218,18 +220,23 @@ impl Constraints {
 	) -> Result<Self, ModificationError> {
 		let mut new = self.clone();
 
-		new.required_parent = modifications.required_parent.clone();
-		match new
-			.hrmp_inbound
-			.valid_watermarks
-			.iter()
-			.position(|w| w == &modifications.hrmp_watermark)
-		{
-			Some(pos) => {
-				let _ = new.hrmp_inbound.valid_watermarks.drain(..pos + 1);
-			},
-			None =>
-				return Err(ModificationError::DisallowedHrmpWatermark(modifications.hrmp_watermark)),
+		if let Some(required_parent) = modifications.required_parent.as_ref() {
+			new.required_parent = required_parent.clone();
+		}
+
+		if let Some(hrmp_watermark) = modifications.hrmp_watermark {
+			match new
+				.hrmp_inbound
+				.valid_watermarks
+				.iter()
+				.position(|w| w == &hrmp_watermark)
+			{
+				Some(pos) => {
+					let _ = new.hrmp_inbound.valid_watermarks.drain(..pos + 1);
+				},
+				None =>
+					return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark)),
+			}
 		}
 
 		for (id, outbound_hrmp_mod) in &modifications.outbound_hrmp {
@@ -279,11 +286,13 @@ impl Constraints {
 				messages_processed: modifications.dmp_messages_processed,
 			})?;
 
-		new.validation_code_hash = new
-			.future_validation_code
-			.take()
-			.ok_or(ModificationError::AppliedNonexistentCodeUpgrade)?
-			.1;
+		if modifications.code_upgrade_applied {
+			new.validation_code_hash = new
+				.future_validation_code
+				.take()
+				.ok_or(ModificationError::AppliedNonexistentCodeUpgrade)?
+				.1;
+		}
 
 		Ok(new)
 	}
@@ -313,10 +322,9 @@ pub struct OutboundHrmpChannelModification {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConstraintModifications {
 	/// The required parent head to build upon.
-	/// `None` indicates 'unmodified'.
-	pub required_parent: HeadData,
+	pub required_parent: Option<HeadData>,
 	/// The new HRMP watermark
-	pub hrmp_watermark: BlockNumber,
+	pub hrmp_watermark: Option<BlockNumber>,
 	/// Outbound HRMP channel modifications.
 	pub outbound_hrmp: HashMap<ParaId, OutboundHrmpChannelModification>,
 	/// The amount of UMP messages sent.
@@ -330,13 +338,33 @@ pub struct ConstraintModifications {
 }
 
 impl ConstraintModifications {
+	/// The 'identity' modifications: these can be applied to
+	/// any constraints and yield the exact same result.
+	pub fn identity() -> Self {
+		ConstraintModifications {
+			required_parent: None,
+			hrmp_watermark: None,
+			outbound_hrmp: HashMap::new(),
+			ump_messages_sent: 0,
+			ump_bytes_sent: 0,
+			dmp_messages_processed: 0,
+			code_upgrade_applied: false,
+		}
+	}
+
 	/// Stack other modifications on top of these.
 	///
 	/// This does no sanity-checking, so if `other` is garbage relative
 	/// to `self`, then the new value will be garbage as well.
+	///
+	/// This is an addition which is not commutative.
 	pub fn stack(&mut self, other: &Self) {
-		self.required_parent = other.required_parent.clone();
-		self.hrmp_watermark = other.hrmp_watermark;
+		if let Some(ref new_parent) = other.required_parent {
+			self.required_parent = Some(new_parent.clone());
+		}
+		if let Some(ref new_hrmp_watermark) = other.hrmp_watermark {
+			self.hrmp_watermark = Some(new_hrmp_watermark.clone());
+		}
 
 		for (id, mods) in &other.outbound_hrmp {
 			let record = self.outbound_hrmp.entry(id.clone()).or_default();
@@ -404,37 +432,19 @@ pub struct Fragment {
 
 impl Fragment {
 	/// Create a new fragment.
+	///
+	/// This fails if the fragment isn't in line with the operating
+	/// constraints.
 	pub fn new(
 		relay_parent: RelayChainBlockInfo,
 		operating_constraints: Constraints,
 		candidate: ProspectiveCandidate,
 	) -> Result<Self, FragmentValidityError> {
-		let expected_pvd = PersistedValidationData {
-			parent_head: operating_constraints.required_parent.clone(),
-			relay_parent_number: relay_parent.number,
-			relay_parent_storage_root: relay_parent.storage_root,
-			max_pov_size: operating_constraints.max_pov_size as u32,
-		};
-
-		if expected_pvd != candidate.persisted_validation_data {
-			return Err(FragmentValidityError::PersistedValidationDataMismatch(
-				expected_pvd,
-				candidate.persisted_validation_data,
-			))
-		}
-
-		if operating_constraints.validation_code_hash != candidate.validation_code_hash {
-			return Err(FragmentValidityError::ValidationCodeMismatch(
-				operating_constraints.validation_code_hash,
-				candidate.validation_code_hash,
-			))
-		}
-
 		let modifications = {
 			let commitments = &candidate.commitments;
 			ConstraintModifications {
-				required_parent: commitments.head_data.clone(),
-				hrmp_watermark: commitments.hrmp_watermark,
+				required_parent: Some(commitments.head_data.clone()),
+				hrmp_watermark: Some(commitments.hrmp_watermark),
 				outbound_hrmp: {
 					let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
 					for message in &commitments.horizontal_messages {
@@ -455,9 +465,12 @@ impl Fragment {
 			}
 		};
 
-		operating_constraints
-			.check_modifications(&modifications)
-			.map_err(FragmentValidityError::OutputsInvalid)?;
+		validate_against_constraints(
+			&operating_constraints,
+			&relay_parent,
+			&candidate,
+			&modifications,
+		)?;
 
 		Ok(Fragment { relay_parent, operating_constraints, candidate, modifications })
 	}
@@ -481,11 +494,68 @@ impl Fragment {
 	pub fn constraint_modifications(&self) -> &ConstraintModifications {
 		&self.modifications
 	}
+
+	/// Validate this fragment against some set of constraints
+	/// instead of the operating constraints.
+	pub fn validate_against_constraints(
+		&self,
+		constraints: &Constraints,
+	) -> Result<(), FragmentValidityError> {
+		validate_against_constraints(
+			constraints,
+			&self.relay_parent,
+			&self.candidate,
+			&self.modifications,
+		)
+	}
 }
 
-// TODO [now]: function for cumulative modifications to produce new constraints.
+fn validate_against_constraints(
+	constraints: &Constraints,
+	relay_parent: &RelayChainBlockInfo,
+	candidate: &ProspectiveCandidate,
+	modifications: &ConstraintModifications,
+) -> Result<(), FragmentValidityError> {
+	let expected_pvd = PersistedValidationData {
+		parent_head: constraints.required_parent.clone(),
+		relay_parent_number: relay_parent.number,
+		relay_parent_storage_root: relay_parent.storage_root,
+		max_pov_size: constraints.max_pov_size as u32,
+	};
 
-// TODO [now]: function for 'rebasing'.
+	if expected_pvd != candidate.persisted_validation_data {
+		return Err(FragmentValidityError::PersistedValidationDataMismatch(
+			expected_pvd,
+			candidate.persisted_validation_data.clone(),
+		))
+	}
+
+	if constraints.validation_code_hash != candidate.validation_code_hash {
+		return Err(FragmentValidityError::ValidationCodeMismatch(
+			constraints.validation_code_hash,
+			candidate.validation_code_hash,
+		))
+	}
+
+	constraints
+		.check_modifications(&modifications)
+		.map_err(FragmentValidityError::OutputsInvalid)
+}
+
+// TODO [now]: move this to docs.
+// When we get a new relay-chain block, we'll need to prune the prospective chain trees to only those that are compatible.
+// This is because we need to know which prospective chains might be valid in the descendents of our new blocks.
+//
+// The operating constraints of our predictions won't change, because those are based on the
+// relay-parents. Therefore fragments don't actually need to be updated.
+//
+// But instead what we need to do is
+// 1. Prune off all the prospective chains which aren't based on the parent head-data at the tip of the relay-chain.
+//    More accurately, we need to prune off all the prospective chains which aren't based on the constraints at the
+//    tip of the relay-chain. This includes prospective chains which are offboarded i.e. the constraints don't exist.
+// 2. Do we need to do anything that doesn't relate to the tail? We shouldn't need to update operating
+//    constraints. So as long as we can verify that one fragment directly follows another and that its parent
+//    was valid under the previous constraints, then everything seems fine.
 
 #[cfg(test)]
 mod tests {
