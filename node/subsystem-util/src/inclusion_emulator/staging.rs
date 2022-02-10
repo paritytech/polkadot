@@ -486,6 +486,13 @@ pub enum FragmentValidityError {
 	///
 	/// Min allowed, current.
 	RelayParentTooOld(BlockNumber, BlockNumber),
+	/// Too many messages submitted to all HRMP channels.
+	HrmpMessagesPerCandidateOverflow {
+		/// The amount of messages a single candidate can submit.
+		messages_allowed: usize,
+		/// The amount of messages sent to all HRMP channels.
+		messages_submitted: usize,
+	},
 	/// Code upgrade not allowed.
 	CodeUpgradeRestricted,
 }
@@ -634,6 +641,13 @@ fn validate_against_constraints(
 			constraints.max_code_size,
 			announced_code_size,
 		));
+	}
+
+	if candidate.commitments.horizontal_messages.len() > constraints.max_hrmp_num_per_candidate {
+		return Err(FragmentValidityError::HrmpMessagesPerCandidateOverflow {
+			messages_allowed: constraints.max_hrmp_num_per_candidate,
+			messages_submitted: candidate.commitments.horizontal_messages.len(),
+		});
 	}
 
 	constraints
