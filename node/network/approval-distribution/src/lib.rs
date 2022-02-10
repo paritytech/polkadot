@@ -797,6 +797,7 @@ impl State {
 						target: LOG_TARGET,
 						?peer_id,
 						?fingerprint,
+						?entry.known_by,
 						"Approval from a peer is out of view",
 					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
