@@ -1,21 +1,21 @@
 [package]
 name = "remote-ext-tests-bags-list"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-polkadot-runtime = { version = "0.9.16", path = "../../../runtime/polkadot" }
-kusama-runtime = { version = "0.9.16", path = "../../../runtime/kusama" }
-westend-runtime = { version = "0.9.16", path = "../../../runtime/westend" }
-polkadot-runtime-constants = { version = "0.9.16", path = "../../../runtime/polkadot/constants" }
-kusama-runtime-constants = { version = "0.9.16", path = "../../../runtime/kusama/constants" }
-westend-runtime-constants = { version = "0.9.16", path = "../../../runtime/westend/constants" }
+polkadot-runtime = { version = "0.9.17", path = "../../../runtime/polkadot" }
+kusama-runtime = { version = "0.9.17", path = "../../../runtime/kusama" }
+westend-runtime = { version = "0.9.17", path = "../../../runtime/westend" }
+polkadot-runtime-constants = { version = "0.9.17", path = "../../../runtime/polkadot/constants" }
+kusama-runtime-constants = { version = "0.9.17", path = "../../../runtime/kusama/constants" }
+westend-runtime-constants = { version = "0.9.17", path = "../../../runtime/westend/constants" }
 
-pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
 
 clap = { version = "3.0", features = ["derive"] }
 log = "0.4.14"
