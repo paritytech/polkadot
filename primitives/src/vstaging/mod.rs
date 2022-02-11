@@ -17,9 +17,6 @@
 //! Staging Primitives.
 
 use parity_scale_codec::{Decode, Encode};
-use primitives::RuntimeDebug;
-use scale_info::TypeInfo;
-use sp_std::prelude::*;
 
 pub use crate::v2::*;
 

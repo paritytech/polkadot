@@ -18,9 +18,12 @@
 
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
+use sp_std::prelude::*;
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
+use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Header as HeaderT};
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 
