@@ -99,6 +99,7 @@ pub fn create_full<C, P, SC, B>(
 where
 	C: ProvideRuntimeApi<Block>
 		+ HeaderBackend<Block>
+		+ sc_client_api::StorageProvider<Block, B>
 		+ AuxStore
 		+ HeaderMetadata<Block, Error = BlockChainError>
 		+ Send
@@ -131,6 +132,10 @@ where
 		subscription_executor,
 		finality_provider,
 	} = grandpa;
+
+	io.extend_with(pallet_state_trie_migration_rpc::StateMigrationApi::to_delegate(
+		pallet_state_trie_migration_rpc::MigrationRpc::new(client.clone())
+	));
 
 	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
 	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone())));
