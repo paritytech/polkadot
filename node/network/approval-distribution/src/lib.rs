@@ -1000,6 +1000,12 @@ impl State {
 						// This safeguard is needed primarily in case of long finality stalls
 						// so we don't waste time in a loop for every peer.
 						if missing.is_empty() {
+							tracing::trace!(
+								target: LOG_TARGET,
+								?block,
+								?peer_id,
+								"Stopping at this block, because peer knows all",
+							);
 							return None
 						}
 						missing
@@ -1073,6 +1079,13 @@ impl State {
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
 							if !missing.contains(&assignment_fingerprint) {
+								tracing::trace!(
+									target: LOG_TARGET,
+									?block,
+									?validator_index,
+									?candidate_index,
+									"Skipping sending this known assignment",
+								);
 								continue
 							}
 							if let Some(p) = entry.known_by.get_mut(&peer_id) {
@@ -1105,6 +1118,14 @@ impl State {
 									},
 									candidate_index.clone(),
 								));
+							} else {
+								tracing::trace!(
+									target: LOG_TARGET,
+									?block,
+									?validator_index,
+									?candidate_index,
+									"Skipping sending this known assignment",
+								);
 							}
 							if missing.contains(&fingerprint) {
 								if let Some(p) = entry.known_by.get_mut(&peer_id) {
@@ -1116,6 +1137,14 @@ impl State {
 									candidate_index: candidate_index.clone(),
 									signature: signature.clone(),
 								});
+							} else {
+								tracing::trace!(
+									target: LOG_TARGET,
+									?block,
+									?validator_index,
+									?candidate_index,
+									"Skipping sending this known approval",
+								);
 							}
 						},
 					}
