@@ -16,7 +16,7 @@
 
 //! Wrappers around creating a signer account.
 
-use crate::{prelude::*, rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
+use crate::{prelude::*, rpc::SharedRpcClient, AccountId, Error, Index, Pair, LOG_TARGET};
 use sp_core::crypto::Pair as _;
 
 pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &str =
@@ -34,17 +34,14 @@ pub(crate) struct Signer {
 	pub(crate) pair: Pair,
 }
 
-pub(crate) async fn get_account_info<T: frame_system::Config + EPM::Config>(
-	client: &WsClient,
+pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM::Config>(
+	rpc: &SharedRpcClient,
 	who: &T::AccountId,
 	maybe_at: Option<T::Hash>,
 ) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error<T>> {
-	rpc_helpers::get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
-		client,
-		jsonrpsee::rpc_params! {
-			sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
-			maybe_at
-		},
+	rpc.get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
+		sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
+		maybe_at,
 	)
 	.await
 	.map_err(Into::into)
@@ -56,10 +53,11 @@ pub(crate) async fn signer_uri_from_string<
 			AccountId = AccountId,
 			Index = Index,
 			AccountData = pallet_balances::AccountData<Balance>,
+			Hash = Hash,
 		> + EPM::Config,
 >(
 	seed: &str,
-	client: &WsClient,
+	client: &SharedRpcClient,
 ) -> Result<Signer, Error<T>> {
 	let seed = seed.trim();
 

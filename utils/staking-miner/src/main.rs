@@ -32,7 +32,7 @@ mod dry_run;
 mod emergency_solution;
 mod monitor;
 mod prelude;
-mod rpc_helpers;
+mod rpc;
 mod signer;
 
 pub(crate) use prelude::*;
@@ -43,8 +43,11 @@ use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
+use rpc::{RpcApiClient, SharedRpcClient};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
+use tracing_subscriber::{fmt, EnvFilter};
+
 use std::{ops::Deref, sync::Arc};
 
 pub(crate) enum AnyRuntime {
@@ -54,24 +57,6 @@ pub(crate) enum AnyRuntime {
 }
 
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
-
-/// Wraps a shared websocket JSON-RPC client that can be cloned.
-#[derive(Clone, Debug)]
-pub(crate) struct SharedRpcClient(Arc<WsClient>);
-
-impl Deref for SharedRpcClient {
-	type Target = WsClient;
-
-	fn deref(&self) -> &Self::Target {
-		&self.0
-	}
-}
-
-impl SharedRpcClient {
-	fn into_inner(self) -> Arc<WsClient> {
-		self.0
-	}
-}
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
@@ -248,7 +233,7 @@ macro_rules! any_runtime_unit {
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
 	JsonRpsee(#[from] jsonrpsee::core::Error),
-	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
+	RpcHelperError(#[from] rpc::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
 	RemoteExternalities(&'static str),
@@ -484,7 +469,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -512,13 +497,13 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 }
 
 pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
-	client: &WsClient,
+	rpc: &SharedRpcClient,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
-	let on_chain_version =
-		rpc_helpers::rpc::<sp_version::RuntimeVersion>(client, "state_getRuntimeVersion", None)
-			.await
-			.expect("runtime version RPC should always work; qed");
+	let on_chain_version = rpc
+		.runtime_version(None)
+		.await
+		.expect("runtime version RPC should always work; qed");
 
 	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
 	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
@@ -536,35 +521,26 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 
 #[tokio::main]
 async fn main() {
-	env_logger::Builder::from_default_env()
-		.format_module_path(true)
-		.format_level(true)
-		.init();
+	fmt().with_env_filter(EnvFilter::from_default_env()).init();
+
 	let Opt { shared, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
-	let client = loop {
-		let maybe_client = WsClientBuilder::default()
-			.connection_timeout(std::time::Duration::new(20, 0))
-			.max_request_body_size(u32::MAX)
-			.build(&shared.uri)
-			.await;
-		match maybe_client {
-			Ok(client) => break SharedRpcClient(Arc::new(client)),
+	let rpc = loop {
+		match SharedRpcClient::new(&shared.uri).await {
+			Ok(client) => break client,
 			Err(why) => {
 				log::warn!(
 					target: LOG_TARGET,
 					"failed to connect to client due to {:?}, retrying soon..",
 					why
 				);
-				std::thread::sleep(std::time::Duration::from_millis(2500));
+				tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
 			},
 		}
 	};
 
-	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", None)
-		.await
-		.expect("system_chain infallible; qed.");
+	let chain: String = rpc.system_chain().await.expect("system_chain infallible; qed.");
 	match chain.to_lowercase().as_str() {
 		"polkadot" | "development" => {
 			sp_core::crypto::set_default_ss58_version(
@@ -604,32 +580,32 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&client).await
+		check_versions::<Runtime>(&rpc).await
 	};
 
 	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&shared.seed, &client)
+		signer::signer_uri_from_string::<Runtime>(&shared.seed, &rpc)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
 
 	let outcome = any_runtime! {
 		match command.clone() {
-			Command::Monitor(c) => monitor_cmd(client, c, signer_account).await
+			Command::Monitor(cmd) => monitor_cmd(rpc, cmd, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
 				}),
-			Command::DryRun(c) => dry_run_cmd(client, c, signer_account).await
+			Command::DryRun(cmd) => dry_run_cmd(rpc, cmd, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
 				}),
-			Command::EmergencySolution(c) => emergency_solution_cmd(client, c).await
+			Command::EmergencySolution(cmd) => emergency_solution_cmd(rpc, cmd).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),
