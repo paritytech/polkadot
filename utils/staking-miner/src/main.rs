@@ -94,10 +94,10 @@ macro_rules! construct_runtime_prelude {
 					let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
 					let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");
 					let signature = raw_payload.using_encoded(|payload| {
-						pair.clone().sign(payload)
+						pair.sign(payload)
 					});
 					let (call, extra, _) = raw_payload.deconstruct();
-					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
+					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account);
 					let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
 					log::debug!(
 						target: crate::LOG_TARGET, "constructed extrinsic {} with length {}",
@@ -469,7 +469,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return;
+				return
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -580,7 +580,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return;
+			return
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
@@ -596,7 +596,7 @@ async fn main() {
 	};
 
 	let outcome = any_runtime! {
-		match command.clone() {
+		match command {
 			Command::Monitor(cmd) => monitor_cmd(rpc, cmd, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);

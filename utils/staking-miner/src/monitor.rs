@@ -30,7 +30,7 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
 ) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
 	let phase = rpc
-		.get_storage::<EPM::Phase<BlockNumber>>(key, Some(at))
+		.get_storage::<EPM::Phase<BlockNumber>>(&key, Some(&at))
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
@@ -88,7 +88,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						Some(Ok(r)) => r,
 						// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
 						Some(Err(RpcError::SubscriptionClosed(reason))) => {
-							log::warn!(target: LOG_TARGET, "subscription to chain_subscribeHeads/FinalizedHeads terminated: {:?}. Retrying..", reason);
+							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated: {:?}. Retrying..", reason);
 							subscription = heads_subscription().await?;
 							continue;
 						}
@@ -100,7 +100,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						//	- the connection was closed.
 						//	- the subscription could not keep up with the server.
 						None => {
-							log::warn!(target: LOG_TARGET, "subscription to chain_subscribeHeads/FinalizedHeads terminated. Retrying..");
+							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated. Retrying..");
 							subscription = heads_subscription().await?;
 							continue
 						}
@@ -175,7 +175,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(hash)).await {
+			let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(&hash)).await {
 				Ok(maybe_account) => {
 					let acc = maybe_account.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
 					acc.nonce
@@ -200,7 +200,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
-			let mut tx_subscription = match rpc.watch_extrinsic(bytes).await {
+			let mut tx_subscription = match rpc.watch_extrinsic(&bytes).await {
 				Ok(sub) => sub,
 				Err(RpcError::RestartNeeded(e)) => {
 					let _ = tx.send(RpcError::RestartNeeded(e).into());
@@ -252,11 +252,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						let key = StorageKey(
 							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
 						);
-						let key2 = key.clone();
 
 						let events = match rpc.get_storage::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
-						>(key, Some(hash))
+						>(&key, Some(&hash))
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),
 							Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {
@@ -266,7 +265,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 							// Decoding or other RPC error => just terminate the task.
 							Err(e) => {
 								log::warn!(target: LOG_TARGET, "get_storage [key: {:?}, hash: {:?}] failed: {:?}; skip block: {}",
-									key2, hash, e, at.number
+									key, hash, e, at.number
 								);
 								return;
 							}

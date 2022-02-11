@@ -17,7 +17,8 @@
 //! Wrappers around creating a signer account.
 
 use crate::{prelude::*, rpc::SharedRpcClient, AccountId, Error, Index, Pair, LOG_TARGET};
-use sp_core::crypto::Pair as _;
+use frame_system::AccountInfo;
+use sp_core::{crypto::Pair as _, storage::StorageKey};
 
 pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &str =
 	"signer account is checked to exist upon startup; it can only die if it transfers funds out \
@@ -37,10 +38,10 @@ pub(crate) struct Signer {
 pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM::Config>(
 	rpc: &SharedRpcClient,
 	who: &T::AccountId,
-	maybe_at: Option<T::Hash>,
-) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error<T>> {
-	rpc.get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
-		sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
+	maybe_at: Option<&T::Hash>,
+) -> Result<Option<AccountInfo<Index, T::AccountData>>, Error<T>> {
+	rpc.get_storage::<AccountInfo<Index, T::AccountData>>(
+		&StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
 		maybe_at,
 	)
 	.await
