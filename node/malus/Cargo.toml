@@ -27,7 +27,7 @@ parity-util-mem = { version = "0.10.0", default-features = false, features = ["j
 color-eyre = { version = "0.6.0", default-features = false }
 assert_matches = "1.5"
 async-trait = "0.1.52"
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
 clap = { version = "3.0", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
@@ -38,5 +38,5 @@ default = []
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
