@@ -992,7 +992,9 @@ where
 	let no_one_is_assigned = validators.is_empty();
 	if no_one_is_assigned {
 		if let Some(core) = maybe_core {
-			tracing::warn!(target: LOG_TARGET, ?core, "No validators assigned to our core.",);
+			tracing::warn!(target: LOG_TARGET, ?core, "No validators assigned to our core.");
+		} else {
+			tracing::debug!(target: LOG_TARGET, "Core is occupied for all active leaves.");
 		}
 		return Ok(())
 	}
