@@ -1051,6 +1051,21 @@ dependencies = [
 
 [[package]]
 name = "clap"
+version = "2.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
+dependencies = [
+ "ansi_term",
+ "atty",
+ "bitflags",
+ "strsim 0.8.0",
+ "textwrap 0.11.0",
+ "unicode-width",
+ "vec_map",
+]
+
+[[package]]
+name = "clap"
 version = "3.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b63edc3f163b3c71ec8aa23f9bd6070f77edbf3d1d198b164afa90ff00e4ec62"
@@ -1924,7 +1939,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#27b8806ed828
 dependencies = [
  "Inflector",
  "chrono",
- "clap 3.0.7",
+ "clap 3.0.14",
  "frame-benchmarking",
  "frame-support",
  "handlebars",
@@ -6067,7 +6082,7 @@ dependencies = [
 name = "polkadot-cli"
 version = "0.9.16"
 dependencies = [
- "clap 3.0.7",
+ "clap 3.0.14",
  "frame-benchmarking-cli",
  "futures 0.3.21",
  "log",
@@ -7279,7 +7294,7 @@ version = "0.9.16"
 dependencies = [
  "assert_matches",
  "async-trait",
- "clap 3.0.7",
+ "clap 3.0.14",
  "color-eyre",
  "futures 0.3.21",
  "futures-timer",
@@ -7425,7 +7440,7 @@ dependencies = [
 name = "polkadot-voter-bags"
 version = "0.9.16"
 dependencies = [
- "clap 3.0.7",
+ "clap 3.0.14",
  "generate-bags",
  "kusama-runtime",
  "polkadot-runtime",
@@ -7941,7 +7956,7 @@ dependencies = [
 name = "remote-ext-tests-bags-list"
 version = "0.9.16"
 dependencies = [
- "clap 3.0.7",
+ "clap 3.0.14",
  "frame-system",
  "kusama-runtime",
  "kusama-runtime-constants",
@@ -8414,7 +8429,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#27b8806ed82844bb5283a4dadf853ee518fd042f"
 dependencies = [
  "chrono",
- "clap 3.0.7",
+ "clap 3.0.14",
  "fdlimit",
  "futures 0.3.21",
  "hex",
@@ -10347,7 +10362,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 name = "staking-miner"
 version = "0.9.16"
 dependencies = [
- "clap 3.0.7",
+ "clap 3.0.14",
  "env_logger 0.9.0",
  "frame-election-provider-support",
  "frame-support",
@@ -10696,13 +10711,8 @@ dependencies = [
 name = "test-parachain-adder-collator"
 version = "0.9.16"
 dependencies = [
-<<<<<<< HEAD
- "clap 3.0.7",
- "futures 0.3.19",
-=======
- "clap",
+ "clap 3.0.14",
  "futures 0.3.21",
->>>>>>> 0e23f8095089974e1adce98a1acaa72216d02459
  "futures-timer",
  "log",
  "parity-scale-codec",
@@ -10748,8 +10758,8 @@ dependencies = [
 name = "test-parachain-undying-collator"
 version = "0.9.13"
 dependencies = [
- "clap 3.0.7",
- "futures 0.3.19",
+ "clap 3.0.14",
+ "futures 0.3.21",
  "futures-timer",
  "log",
  "parity-scale-codec",
@@ -11228,7 +11238,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#27b8806ed82844bb5283a4dadf853ee518fd042f"
 dependencies = [
- "clap 3.0.7",
+ "clap 3.0.14",
  "jsonrpsee 0.4.1",
  "log",
  "parity-scale-codec",
