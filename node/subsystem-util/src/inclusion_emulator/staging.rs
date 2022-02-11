@@ -554,7 +554,9 @@ impl Fragment {
 					for (i, message) in commitments.horizontal_messages.iter().enumerate() {
 						if let Some(last) = last_recipient {
 							if last >= message.recipient {
-								return Err(FragmentValidityError::HrmpMessagesDescendingOrDuplicate(i));
+								return Err(
+									FragmentValidityError::HrmpMessagesDescendingOrDuplicate(i),
+								)
 							}
 						}
 
@@ -691,7 +693,7 @@ fn validate_against_constraints(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::vstaging::{CollatorPair, ValidationCode, OutboundHrmpMessage};
+	use polkadot_primitives::vstaging::{CollatorPair, OutboundHrmpMessage, ValidationCode};
 	use sp_application_crypto::Pair;
 
 	#[test]
@@ -1065,16 +1067,13 @@ mod tests {
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
 		let expected_code = constraints.validation_code_hash.clone();
-		let got_code = ValidationCode(vec![9, 9 , 9]).hash();
+		let got_code = ValidationCode(vec![9, 9, 9]).hash();
 
 		candidate.validation_code_hash = got_code;
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
-			Err(FragmentValidityError::ValidationCodeMismatch(
-				expected_code,
-				got_code,
-			)),
+			Err(FragmentValidityError::ValidationCodeMismatch(expected_code, got_code,)),
 		)
 	}
 
@@ -1106,10 +1105,7 @@ mod tests {
 
 		assert_eq!(
 			Fragment::new(relay_parent_b, constraints, candidate),
-			Err(FragmentValidityError::PersistedValidationDataMismatch(
-				expected_pvd,
-				got_pvd,
-			)),
+			Err(FragmentValidityError::PersistedValidationDataMismatch(expected_pvd, got_pvd,)),
 		);
 	}
 
@@ -1129,10 +1125,7 @@ mod tests {
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
-			Err(FragmentValidityError::CodeSizeTooLarge(
-				max_code_size,
-				max_code_size + 1,
-			)),
+			Err(FragmentValidityError::CodeSizeTooLarge(max_code_size, max_code_size + 1,)),
 		);
 	}
 
@@ -1149,10 +1142,7 @@ mod tests {
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
-			Err(FragmentValidityError::RelayParentTooOld(
-				5,
-				3,
-			)),
+			Err(FragmentValidityError::RelayParentTooOld(5, 3,)),
 		);
 	}
 
@@ -1169,12 +1159,9 @@ mod tests {
 
 		let max_hrmp = constraints.max_hrmp_num_per_candidate;
 
-		candidate.commitments.horizontal_messages.extend(
-			(0..max_hrmp + 1).map(|i| OutboundHrmpMessage {
-				recipient: ParaId::from(i as u32),
-				data: vec![1, 2, 3],
-			})
-		);
+		candidate.commitments.horizontal_messages.extend((0..max_hrmp + 1).map(|i| {
+			OutboundHrmpMessage { recipient: ParaId::from(i as u32), data: vec![1, 2, 3] }
+		}));
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
@@ -1217,14 +1204,8 @@ mod tests {
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
 		candidate.commitments.horizontal_messages = vec![
-			OutboundHrmpMessage {
-				recipient: ParaId::from(0 as u32),
-				data: vec![1, 2, 3],
-			},
-			OutboundHrmpMessage {
-				recipient: ParaId::from(0 as u32),
-				data: vec![4, 5, 6],
-			}
+			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![1, 2, 3] },
+			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![4, 5, 6] },
 		];
 
 		assert_eq!(
@@ -1233,14 +1214,8 @@ mod tests {
 		);
 
 		candidate.commitments.horizontal_messages = vec![
-			OutboundHrmpMessage {
-				recipient: ParaId::from(1 as u32),
-				data: vec![1, 2, 3],
-			},
-			OutboundHrmpMessage {
-				recipient: ParaId::from(0 as u32),
-				data: vec![4, 5, 6],
-			}
+			OutboundHrmpMessage { recipient: ParaId::from(1 as u32), data: vec![1, 2, 3] },
+			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![4, 5, 6] },
 		];
 
 		assert_eq!(
