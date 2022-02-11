@@ -1,0 +1,112 @@
+
+#### stage:                        test
+
+check-runtime:
+  stage:                           test
+  image:                           paritytech/tools:latest
+  <<:                              *kubernetes-env
+  <<:                              *test-refs
+  variables:
+    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+  script:
+    - ./scripts/gitlab/check_runtime.sh
+  allow_failure:                   true
+
+cargo-fmt:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *test-refs
+  script:
+    - cargo +nightly --version
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
+test-deterministic-wasm:
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  script:
+    - ./scripts/gitlab/test_deterministic_wasm.sh
+
+test-build-linux-stable:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *collect-artifacts
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  script:
+    - ./scripts/gitlab/test_linux_stable.sh
+    # we're using the bin built here, instead of having a parallel `build-linux-release`
+    - time cargo build --profile testnet --verbose --bin polkadot
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - mv ./target/testnet/polkadot ./artifacts/.
+    - pushd artifacts
+    - sha256sum polkadot | tee polkadot.sha256
+    - shasum -c polkadot.sha256
+    - popd
+    - EXTRATAG="$(./artifacts/polkadot --version |
+        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
+    - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
+    - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
+    - echo -n ${VERSION} > ./artifacts/VERSION
+    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+    - cp -r scripts/* ./artifacts
+
+check-runtime-benchmarks:
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  script:
+    # Check that everything compiles with `runtime-benchmarks` feature flag.
+    - cargo check --features runtime-benchmarks --all
+    - sccache -s
+
+check-try-runtime:
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  script:
+    # Check that everything compiles with `try-runtime` feature flag.
+    - cargo check --features try-runtime --all
+    - sccache -s
+
+check-no-default-features:
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - pushd node/service && cargo check --no-default-features && popd
+    - pushd cli && cargo check --no-default-features --features "service" && popd
+    - sccache -s
+
+spellcheck:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *test-refs
+  script:
+    - cargo spellcheck --version
+    # compare with the commit parent to the PR, given it's from a default branch
+    - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - echo "___Spellcheck is going to check your diff___"
+    - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
+        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+  allow_failure:                   true

@@ -1,0 +1,92 @@
+
+#### Publish stage
+
+publish-s3-release:                &publish-s3
+  stage:                           publish
+  needs:
+    - job:                         test-build-linux-stable
+      artifacts:                   true
+  <<:                              *kubernetes-env
+  <<:                              *vault-secrets
+  image:                           paritytech/awscli:latest
+  variables:
+    GIT_STRATEGY:                  none
+    PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    # publishing binaries nightly
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - *check-versions
+  script:
+    - echo "uploading objects to https://releases.parity.io/${PREFIX}/${VERSION}"
+    - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
+    - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
+    - find ./artifacts -type f | while read file; do
+        name="${file#./artifacts/}";
+        aws s3api copy-object
+          --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
+          --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
+      done
+    - |
+      cat <<-EOM
+      |
+      |  polkadot binary paths:
+      |
+      |  - https://releases.parity.io/${PREFIX}/${EXTRATAG}/polkadot
+      |  - https://releases.parity.io/${PREFIX}/${VERSION}/polkadot
+      |
+      EOM
+  after_script:
+    - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
+        --recursive --human-readable --summarize
+
+publish-rustdoc:
+  stage:                           publish
+  <<:                              *kubernetes-env
+  <<:                              *vault-secrets
+  image:                           paritytech/tools:latest
+  variables:
+    GIT_DEPTH:                     100
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  # `needs:` can be removed after CI image gets nonroot. In this case `needs:` stops other
+  # artifacts from being dowloaded by this job.
+  needs:
+    - job:                         build-rustdoc
+      artifacts:                   true
+  script:
+    # setup ssh
+    - eval $(ssh-agent)
+    - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
+    - mkdir ~/.ssh && touch ~/.ssh/known_hosts
+    - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+    # Set git config
+    - git config user.email "devops-team@parity.io"
+    - git config user.name "${GITHUB_USER}"
+    - git config remote.origin.url "git@github.com:/paritytech/${CI_PROJECT_NAME}.git"
+    - git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+    - git fetch origin gh-pages
+    # Save README and docs
+    - cp -r ./crate-docs/ /tmp/doc/
+    - cp README.md /tmp/doc/
+    - git checkout gh-pages
+    # Remove everything and restore generated docs and README
+    - rm -rf ./*
+    - mv /tmp/doc/* .
+    # Upload files
+    - git add --all --force
+    # `git commit` has an exit code of > 0 if there is nothing to commit.
+    # This causes GitLab to exit immediately and marks this job failed.
+    # We don't want to mark the entire job failed if there's nothing to
+    # publish though, hence the `|| true`.
+    - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
+        echo "___Nothing to commit___"
+    - git push origin gh-pages --force
+    - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
+  after_script:
+    - rm -rf .git/ ./*
