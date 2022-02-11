@@ -450,6 +450,12 @@ impl ConstraintModifications {
 }
 
 /// The prospective candidate.
+///
+/// This comprises the key information that represent a candidate
+/// without pinning it to a particular session. For example, everything
+/// to do with the collator's signature and commitments are represented
+/// here. But the erasure-root is not. This means that prospective candidates
+/// are unlinked from all sessions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProspectiveCandidate {
 	/// The commitments to the output of the execution.
@@ -502,8 +508,8 @@ pub enum FragmentValidityError {
 
 /// A parachain fragment, representing another prospective parachain block.
 ///
-/// This has two parts: the first is the new relay-parent and its associated limitations,
-/// and the second is information about the advancement of the parachain.
+/// This is a type which guarantees that the candidate is valid under the
+/// operating constraints.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fragment {
 	/// The new relay-parent.
@@ -521,7 +527,8 @@ impl Fragment {
 	/// Create a new fragment.
 	///
 	/// This fails if the fragment isn't in line with the operating
-	/// constraints.
+	/// constraints. That is, either its inputs or its outputs fail
+	/// checks against the constraints.
 	pub fn new(
 		relay_parent: RelayChainBlockInfo,
 		operating_constraints: Constraints,
@@ -668,7 +675,103 @@ fn validate_against_constraints(
 mod tests {
 	use super::*;
 
-	// TODO [now] Stacking modifications
+	#[test]
+	fn stack_modifications() {
+		let para_a = ParaId::from(1u32);
+		let para_b = ParaId::from(2u32);
+		let para_c = ParaId::from(3u32);
+
+		let a = ConstraintModifications {
+			required_parent: None,
+			hrmp_watermark: None,
+			outbound_hrmp: {
+				let mut map = HashMap::new();
+				map.insert(para_a, OutboundHrmpChannelModification {
+					bytes_submitted: 100,
+					messages_submitted: 5,
+				});
+
+				map.insert(para_b, OutboundHrmpChannelModification {
+					bytes_submitted: 100,
+					messages_submitted: 5,
+				});
+
+				map
+			},
+			ump_messages_sent: 6,
+			ump_bytes_sent: 1000,
+			dmp_messages_processed: 5,
+			code_upgrade_applied: true,
+		};
+
+		let b = ConstraintModifications {
+			required_parent: None,
+			hrmp_watermark: None,
+			outbound_hrmp: {
+				let mut map = HashMap::new();
+				map.insert(para_b, OutboundHrmpChannelModification {
+					bytes_submitted: 100,
+					messages_submitted: 5,
+				});
+
+				map.insert(para_c, OutboundHrmpChannelModification {
+					bytes_submitted: 100,
+					messages_submitted: 5,
+				});
+
+				map
+			},
+			ump_messages_sent: 6,
+			ump_bytes_sent: 1000,
+			dmp_messages_processed: 5,
+			code_upgrade_applied: true,
+		};
+
+		let mut c = a.clone();
+		c.stack(&b);
+
+		assert_eq!(
+			c,
+			ConstraintModifications {
+				required_parent: None,
+				hrmp_watermark: None,
+				outbound_hrmp: {
+					let mut map = HashMap::new();
+					map.insert(para_a, OutboundHrmpChannelModification {
+						bytes_submitted: 100,
+						messages_submitted: 5,
+					});
+
+					map.insert(para_b, OutboundHrmpChannelModification {
+						bytes_submitted: 200,
+						messages_submitted: 10,
+					});
+
+					map.insert(para_c, OutboundHrmpChannelModification {
+						bytes_submitted: 100,
+						messages_submitted: 5,
+					});
+
+					map
+				},
+				ump_messages_sent: 12,
+				ump_bytes_sent: 2000,
+				dmp_messages_processed: 10,
+				code_upgrade_applied: true,
+			},
+		);
+
+		let mut d = ConstraintModifications::identity();
+		d.stack(&a);
+		d.stack(&b);
+
+		assert_eq!(c, d);
+	}
 
 	// TODO [now] checking outputs against constraints.
+
+	// TODO [now] checking fragments against constraints.
+
+	// TODO [now] checking modifications from fragments are
+	// produced correctly.
 }
