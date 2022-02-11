@@ -6,7 +6,7 @@ description = "Statement Distribution Subsystem"
 edition = "2018"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 tracing = "0.1.29"
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -16,7 +16,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
-indexmap = "1.7.0"
+indexmap = "1.8.0"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 derive_more = "0.99.17"
 thiserror = "1.0.30"

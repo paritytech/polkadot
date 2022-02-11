@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 tracing = "0.1.29"
 derive_more = "0.99.17"
 parity-scale-codec = { version = "2.3.1", features = ["std"] }

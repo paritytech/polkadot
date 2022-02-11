@@ -24,12 +24,12 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
-color-eyre = { version = "0.5.11", default-features = false }
+color-eyre = { version = "0.6.0", default-features = false }
 assert_matches = "1.5"
 async-trait = "0.1.52"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 clap = { version = "3.0", features = ["derive"] }
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3.0.2"
 tracing = "0.1.26"
 
@@ -39,4 +39,4 @@ default = []
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.19", features = ["thread-pool"] }
+futures = { version = "0.3.21", features = ["thread-pool"] }
