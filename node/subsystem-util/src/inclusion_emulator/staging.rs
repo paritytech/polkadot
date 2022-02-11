@@ -113,7 +113,7 @@
 //! That means a few blocks of execution time lost, which is not a big deal for code upgrades
 //! in practice at most once every few weeks.
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
 	PersistedValidationData, UpgradeRestriction, ValidationCodeHash,
 };
@@ -674,6 +674,7 @@ fn validate_against_constraints(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use polkadot_primitives::vstaging::ValidationCode;
 
 	#[test]
 	fn stack_modifications() {
@@ -766,6 +767,240 @@ mod tests {
 		d.stack(&b);
 
 		assert_eq!(c, d);
+	}
+
+	fn make_constraints() -> Constraints {
+		let para_a = ParaId::from(1u32);
+		let para_b = ParaId::from(2u32);
+		let para_c = ParaId::from(3u32);
+
+		Constraints {
+			min_relay_parent_number: 5,
+			max_pov_size: 1000,
+			max_code_size: 1000,
+			ump_remaining: 10,
+			ump_remaining_bytes: 1024,
+			dmp_remaining_messages: 5,
+			hrmp_inbound: InboundHrmpLimitations {
+				valid_watermarks: vec![6, 8],
+			},
+			hrmp_channels_out: {
+				let mut map = HashMap::new();
+
+				map.insert(para_a, OutboundHrmpChannelLimitations {
+					messages_remaining: 5,
+					bytes_remaining: 512,
+				});
+
+				map.insert(para_b, OutboundHrmpChannelLimitations {
+					messages_remaining: 10,
+					bytes_remaining: 1024,
+				});
+
+				map.insert(para_c, OutboundHrmpChannelLimitations {
+					messages_remaining: 1,
+					bytes_remaining: 128,
+				});
+
+				map
+			},
+			max_hrmp_num_per_candidate: 5,
+			required_parent: HeadData::from(vec![1, 2, 3]),
+			validation_code_hash: ValidationCode(vec![4, 5, 6]).hash(),
+			upgrade_restriction: None,
+			future_validation_code: None,
+		}
+	}
+
+	#[test]
+	fn constraints_disallowed_watermark() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		modifications.hrmp_watermark = Some(7);
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::DisallowedHrmpWatermark(7)),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::DisallowedHrmpWatermark(7)),
+		);
+	}
+
+	#[test]
+	fn constraints_no_such_hrmp_channel() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		let bad_para = ParaId::from(100u32);
+		modifications.outbound_hrmp.insert(
+			bad_para,
+			OutboundHrmpChannelModification {
+				bytes_submitted: 0,
+				messages_submitted: 0,
+			},
+		);
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::NoSuchHrmpChannel(bad_para)),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::NoSuchHrmpChannel(bad_para)),
+		);
+	}
+
+	#[test]
+	fn constraints_hrmp_messages_overflow() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		let para_a = ParaId::from(1u32);
+		modifications.outbound_hrmp.insert(
+			para_a,
+			OutboundHrmpChannelModification {
+				bytes_submitted: 0,
+				messages_submitted: 6,
+			},
+		);
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::HrmpMessagesOverflow {
+				para_id: para_a,
+				messages_remaining: 5,
+				messages_submitted: 6,
+			}),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::HrmpMessagesOverflow {
+				para_id: para_a,
+				messages_remaining: 5,
+				messages_submitted: 6,
+			}),
+		);
+	}
+
+	#[test]
+	fn constraints_hrmp_bytes_overflow() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		let para_a = ParaId::from(1u32);
+		modifications.outbound_hrmp.insert(
+			para_a,
+			OutboundHrmpChannelModification {
+				bytes_submitted: 513,
+				messages_submitted: 1,
+			},
+		);
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::HrmpBytesOverflow {
+				para_id: para_a,
+				bytes_remaining: 512,
+				bytes_submitted: 513,
+			}),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::HrmpBytesOverflow {
+				para_id: para_a,
+				bytes_remaining: 512,
+				bytes_submitted: 513,
+			}),
+		);
+	}
+
+	#[test]
+	fn constraints_ump_messages_overflow() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		modifications.ump_messages_sent = 11;
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::UmpMessagesOverflow {
+				messages_remaining: 10,
+				messages_submitted: 11,
+			}),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::UmpMessagesOverflow {
+				messages_remaining: 10,
+				messages_submitted: 11,
+			}),
+		);
+	}
+
+	#[test]
+	fn constraints_ump_bytes_overflow() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		modifications.ump_bytes_sent = 1025;
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::UmpBytesOverflow {
+				bytes_remaining: 1024,
+				bytes_submitted: 1025,
+			}),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::UmpBytesOverflow {
+				bytes_remaining: 1024,
+				bytes_submitted: 1025,
+			}),
+		);
+	}
+
+	#[test]
+	fn constraints_dmp_messages() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		modifications.dmp_messages_processed = 6;
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::DmpMessagesUnderflow {
+				messages_remaining: 5,
+				messages_processed: 6,
+			}),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::DmpMessagesUnderflow {
+				messages_remaining: 5,
+				messages_processed: 6,
+			}),
+		);
+	}
+
+	#[test]
+	fn constraints_nonexistent_code_upgrade() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		modifications.code_upgrade_applied = true;
+
+		assert_eq!(
+			constraints.check_modifications(&modifications),
+			Err(ModificationError::AppliedNonexistentCodeUpgrade),
+		);
+
+		assert_eq!(
+			constraints.apply_modifications(&modifications),
+			Err(ModificationError::AppliedNonexistentCodeUpgrade),
+		);
 	}
 
 	// TODO [now] checking outputs against constraints.
