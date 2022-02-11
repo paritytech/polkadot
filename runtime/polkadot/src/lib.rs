@@ -1455,7 +1455,6 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 ///
 /// See more details here: https://github.com/paritytech/polkadot/issues/4160
 pub struct FixCouncilDepositMigration;
-
 impl FixCouncilDepositMigration {
 	fn execute(check: bool) -> frame_support::weights::Weight {
 		let accounts = vec![
