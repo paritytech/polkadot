@@ -687,15 +687,15 @@ mod tests {
 			hrmp_watermark: None,
 			outbound_hrmp: {
 				let mut map = HashMap::new();
-				map.insert(para_a, OutboundHrmpChannelModification {
-					bytes_submitted: 100,
-					messages_submitted: 5,
-				});
+				map.insert(
+					para_a,
+					OutboundHrmpChannelModification { bytes_submitted: 100, messages_submitted: 5 },
+				);
 
-				map.insert(para_b, OutboundHrmpChannelModification {
-					bytes_submitted: 100,
-					messages_submitted: 5,
-				});
+				map.insert(
+					para_b,
+					OutboundHrmpChannelModification { bytes_submitted: 100, messages_submitted: 5 },
+				);
 
 				map
 			},
@@ -710,15 +710,15 @@ mod tests {
 			hrmp_watermark: None,
 			outbound_hrmp: {
 				let mut map = HashMap::new();
-				map.insert(para_b, OutboundHrmpChannelModification {
-					bytes_submitted: 100,
-					messages_submitted: 5,
-				});
+				map.insert(
+					para_b,
+					OutboundHrmpChannelModification { bytes_submitted: 100, messages_submitted: 5 },
+				);
 
-				map.insert(para_c, OutboundHrmpChannelModification {
-					bytes_submitted: 100,
-					messages_submitted: 5,
-				});
+				map.insert(
+					para_c,
+					OutboundHrmpChannelModification { bytes_submitted: 100, messages_submitted: 5 },
+				);
 
 				map
 			},
@@ -738,20 +738,29 @@ mod tests {
 				hrmp_watermark: None,
 				outbound_hrmp: {
 					let mut map = HashMap::new();
-					map.insert(para_a, OutboundHrmpChannelModification {
-						bytes_submitted: 100,
-						messages_submitted: 5,
-					});
+					map.insert(
+						para_a,
+						OutboundHrmpChannelModification {
+							bytes_submitted: 100,
+							messages_submitted: 5,
+						},
+					);
 
-					map.insert(para_b, OutboundHrmpChannelModification {
-						bytes_submitted: 200,
-						messages_submitted: 10,
-					});
+					map.insert(
+						para_b,
+						OutboundHrmpChannelModification {
+							bytes_submitted: 200,
+							messages_submitted: 10,
+						},
+					);
 
-					map.insert(para_c, OutboundHrmpChannelModification {
-						bytes_submitted: 100,
-						messages_submitted: 5,
-					});
+					map.insert(
+						para_c,
+						OutboundHrmpChannelModification {
+							bytes_submitted: 100,
+							messages_submitted: 5,
+						},
+					);
 
 					map
 				},
@@ -781,26 +790,27 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1024,
 			dmp_remaining_messages: 5,
-			hrmp_inbound: InboundHrmpLimitations {
-				valid_watermarks: vec![6, 8],
-			},
+			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![6, 8] },
 			hrmp_channels_out: {
 				let mut map = HashMap::new();
 
-				map.insert(para_a, OutboundHrmpChannelLimitations {
-					messages_remaining: 5,
-					bytes_remaining: 512,
-				});
+				map.insert(
+					para_a,
+					OutboundHrmpChannelLimitations { messages_remaining: 5, bytes_remaining: 512 },
+				);
 
-				map.insert(para_b, OutboundHrmpChannelLimitations {
-					messages_remaining: 10,
-					bytes_remaining: 1024,
-				});
+				map.insert(
+					para_b,
+					OutboundHrmpChannelLimitations {
+						messages_remaining: 10,
+						bytes_remaining: 1024,
+					},
+				);
 
-				map.insert(para_c, OutboundHrmpChannelLimitations {
-					messages_remaining: 1,
-					bytes_remaining: 128,
-				});
+				map.insert(
+					para_c,
+					OutboundHrmpChannelLimitations { messages_remaining: 1, bytes_remaining: 128 },
+				);
 
 				map
 			},
@@ -836,10 +846,7 @@ mod tests {
 		let bad_para = ParaId::from(100u32);
 		modifications.outbound_hrmp.insert(
 			bad_para,
-			OutboundHrmpChannelModification {
-				bytes_submitted: 0,
-				messages_submitted: 0,
-			},
+			OutboundHrmpChannelModification { bytes_submitted: 0, messages_submitted: 0 },
 		);
 
 		assert_eq!(
@@ -860,10 +867,7 @@ mod tests {
 		let para_a = ParaId::from(1u32);
 		modifications.outbound_hrmp.insert(
 			para_a,
-			OutboundHrmpChannelModification {
-				bytes_submitted: 0,
-				messages_submitted: 6,
-			},
+			OutboundHrmpChannelModification { bytes_submitted: 0, messages_submitted: 6 },
 		);
 
 		assert_eq!(
@@ -892,10 +896,7 @@ mod tests {
 		let para_a = ParaId::from(1u32);
 		modifications.outbound_hrmp.insert(
 			para_a,
-			OutboundHrmpChannelModification {
-				bytes_submitted: 513,
-				messages_submitted: 1,
-			},
+			OutboundHrmpChannelModification { bytes_submitted: 513, messages_submitted: 1 },
 		);
 
 		assert_eq!(
