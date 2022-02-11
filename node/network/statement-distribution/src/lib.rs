@@ -257,14 +257,24 @@ impl PeerRelayParentKnowledge {
 			"send is only called after `can_send` returns true; qed",
 		);
 
-		let new_known = match fingerprint.0 {
+		let (compact_statement, validator_index) = &fingerprint;
+		let new_known = match compact_statement {
 			CompactStatement::Seconded(ref h) => {
 				self.seconded_counts.entry(fingerprint.1).or_default().note_local(h.clone());
 
 				self.sent_candidates.insert(h.clone())
 			},
+			// TODO: this does not update sent_candidates but updates sent_statements, need to check after extra loggging
 			CompactStatement::Valid(_) => false,
 		};
+
+		tracing::trace!(
+			target: LOG_TARGET,
+			?validator_index,
+			?compact_statement,
+			?new_known,
+			"Update peer relay parent knowledge with a sent statement"
+		);
 
 		self.sent_statements.insert(fingerprint.clone());
 
@@ -334,6 +344,11 @@ impl PeerRelayParentKnowledge {
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(&h) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?h,
+						"Got a valid statement but it is not in the sent_candidates or received_candidates"
+					);
 					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
@@ -394,6 +409,11 @@ impl PeerRelayParentKnowledge {
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(&h) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?h,
+						"Got a valid statement but it is not in the sent_candidates or received_candidates on can receive"
+					);
 					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
