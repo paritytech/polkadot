@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-smallvec = "1.6.1"
+smallvec = "1.8.0"
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
