@@ -504,6 +504,11 @@ pub enum FragmentValidityError {
 	},
 	/// Code upgrade not allowed.
 	CodeUpgradeRestricted,
+	/// HRMP messages are not ascending or are duplicate.
+	///
+	/// The `usize` is the index into the outbound HRMP messages of
+	/// the candidate.
+	HrmpMessagesDescendingOrDuplicate(usize),
 }
 
 /// A parachain fragment, representing another prospective parachain block.
@@ -531,9 +536,7 @@ impl Fragment {
 	/// checks against the constraints.
 	///
 	/// This doesn't check that the collator signature is valid or
-	/// whether the PoV is large enough or whether the hrmp messages
-	/// are in ascending order and non-duplicate
-	// TODO [now]: maybe it should.
+	/// whether the PoV is small enough.
 	pub fn new(
 		relay_parent: RelayChainBlockInfo,
 		operating_constraints: Constraints,
@@ -546,7 +549,16 @@ impl Fragment {
 				hrmp_watermark: Some(commitments.hrmp_watermark),
 				outbound_hrmp: {
 					let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
-					for message in &commitments.horizontal_messages {
+
+					let mut last_recipient = None::<ParaId>;
+					for (i, message) in commitments.horizontal_messages.iter().enumerate() {
+						if let Some(last) = last_recipient {
+							if last >= message.recipient {
+								return Err(FragmentValidityError::HrmpMessagesDescendingOrDuplicate(i));
+							}
+						}
+
+						last_recipient = Some(message.recipient);
 						let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
 
 						record.bytes_submitted += message.data.len();
@@ -1193,10 +1205,47 @@ mod tests {
 		);
 	}
 
-	// TODO [now] checking outputs against constraints.
+	#[test]
+	fn fragment_hrmp_messages_descending_or_duplicate() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
 
-	// TODO [now] checking fragments against constraints.
+		let constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
 
-	// TODO [now] checking modifications from fragments are
-	// produced correctly.
+		candidate.commitments.horizontal_messages = vec![
+			OutboundHrmpMessage {
+				recipient: ParaId::from(0 as u32),
+				data: vec![1, 2, 3],
+			},
+			OutboundHrmpMessage {
+				recipient: ParaId::from(0 as u32),
+				data: vec![4, 5, 6],
+			}
+		];
+
+		assert_eq!(
+			Fragment::new(relay_parent.clone(), constraints.clone(), candidate.clone()),
+			Err(FragmentValidityError::HrmpMessagesDescendingOrDuplicate(1)),
+		);
+
+		candidate.commitments.horizontal_messages = vec![
+			OutboundHrmpMessage {
+				recipient: ParaId::from(1 as u32),
+				data: vec![1, 2, 3],
+			},
+			OutboundHrmpMessage {
+				recipient: ParaId::from(0 as u32),
+				data: vec![4, 5, 6],
+			}
+		];
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::HrmpMessagesDescendingOrDuplicate(1)),
+		);
+	}
 }
