@@ -5,3 +5,6 @@ bridges/ @tomusdrw @svyatonik @adoerr @acatangiu @antonio-dropulic
 /scripts/github/ @paritytech/ci @chevdor
 /scripts/gitlab/ @paritytech/ci @chevdor
 /.gitlab-ci.yml @paritytech/ci
+/ci/build.yml @paritytech/ci
+/ci/publish.yml @paritytech/ci
+
