@@ -529,6 +529,11 @@ impl Fragment {
 	/// This fails if the fragment isn't in line with the operating
 	/// constraints. That is, either its inputs or its outputs fail
 	/// checks against the constraints.
+	///
+	/// This doesn't check that the collator signature is valid or
+	/// whether the PoV is large enough or whether the hrmp messages
+	/// are in ascending order and non-duplicate
+	// TODO [now]: maybe it should.
 	pub fn new(
 		relay_parent: RelayChainBlockInfo,
 		operating_constraints: Constraints,
@@ -674,7 +679,8 @@ fn validate_against_constraints(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::vstaging::ValidationCode;
+	use polkadot_primitives::vstaging::{CollatorPair, ValidationCode, OutboundHrmpMessage};
+	use sp_application_crypto::Pair;
 
 	#[test]
 	fn stack_modifications() {
@@ -1001,6 +1007,189 @@ mod tests {
 		assert_eq!(
 			constraints.apply_modifications(&modifications),
 			Err(ModificationError::AppliedNonexistentCodeUpgrade),
+		);
+	}
+
+	fn make_candidate(
+		constraints: &Constraints,
+		relay_parent: &RelayChainBlockInfo,
+	) -> ProspectiveCandidate {
+		let collator_pair = CollatorPair::generate().0;
+		let collator = collator_pair.public();
+
+		let sig = collator_pair.sign(b"blabla".as_slice());
+
+		ProspectiveCandidate {
+			commitments: CandidateCommitments {
+				upward_messages: Vec::new(),
+				horizontal_messages: Vec::new(),
+				new_validation_code: None,
+				head_data: HeadData::from(vec![1, 2, 3, 4, 5]),
+				processed_downward_messages: 0,
+				hrmp_watermark: relay_parent.number,
+			},
+			collator,
+			collator_signature: sig,
+			persisted_validation_data: PersistedValidationData {
+				parent_head: constraints.required_parent.clone(),
+				relay_parent_number: relay_parent.number,
+				relay_parent_storage_root: relay_parent.storage_root,
+				max_pov_size: constraints.max_pov_size as u32,
+			},
+			pov_hash: Hash::repeat_byte(1),
+			validation_code_hash: constraints.validation_code_hash,
+		}
+	}
+
+	#[test]
+	fn fragment_validation_code_mismatch() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
+
+		let expected_code = constraints.validation_code_hash.clone();
+		let got_code = ValidationCode(vec![9, 9 , 9]).hash();
+
+		candidate.validation_code_hash = got_code;
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::ValidationCodeMismatch(
+				expected_code,
+				got_code,
+			)),
+		)
+	}
+
+	#[test]
+	fn fragment_pvd_mismatch() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let relay_parent_b = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0b),
+			storage_root: Hash::repeat_byte(0xee),
+		};
+
+		let constraints = make_constraints();
+		let candidate = make_candidate(&constraints, &relay_parent);
+
+		let expected_pvd = PersistedValidationData {
+			parent_head: constraints.required_parent.clone(),
+			relay_parent_number: relay_parent_b.number,
+			relay_parent_storage_root: relay_parent_b.storage_root,
+			max_pov_size: constraints.max_pov_size as u32,
+		};
+
+		let got_pvd = candidate.persisted_validation_data.clone();
+
+		assert_eq!(
+			Fragment::new(relay_parent_b, constraints, candidate),
+			Err(FragmentValidityError::PersistedValidationDataMismatch(
+				expected_pvd,
+				got_pvd,
+			)),
+		);
+	}
+
+	#[test]
+	fn fragment_code_size_too_large() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
+
+		let max_code_size = constraints.max_code_size;
+		candidate.commitments.new_validation_code = Some(vec![0; max_code_size + 1].into());
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::CodeSizeTooLarge(
+				max_code_size,
+				max_code_size + 1,
+			)),
+		);
+	}
+
+	#[test]
+	fn fragment_relay_parent_too_old() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 3,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let constraints = make_constraints();
+		let candidate = make_candidate(&constraints, &relay_parent);
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::RelayParentTooOld(
+				5,
+				3,
+			)),
+		);
+	}
+
+	#[test]
+	fn fragment_hrmp_messages_overflow() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
+
+		let max_hrmp = constraints.max_hrmp_num_per_candidate;
+
+		candidate.commitments.horizontal_messages.extend(
+			(0..max_hrmp + 1).map(|i| OutboundHrmpMessage {
+				recipient: ParaId::from(i as u32),
+				data: vec![1, 2, 3],
+			})
+		);
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::HrmpMessagesPerCandidateOverflow {
+				messages_allowed: max_hrmp,
+				messages_submitted: max_hrmp + 1,
+			}),
+		);
+	}
+
+	#[test]
+	fn fragment_code_upgrade_restricted() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let mut constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
+
+		constraints.upgrade_restriction = Some(UpgradeRestriction::Present);
+		candidate.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::CodeUpgradeRestricted),
 		);
 	}
 
