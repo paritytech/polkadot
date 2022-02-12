@@ -1,0 +1,22 @@
+[package]
+name = "polkadot-node-core-fragment-manager"
+version = "0.9.16"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.19"
+tracing = "0.1.29"
+parity-scale-codec = "2"
+thiserror = "1.0.30"
+
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+
+[dev-dependencies]
+
+[features]
+# If not enabled, the dispute coordinator will do nothing.
+disputes = []
