@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem metric helpers"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3.0.2"
-tracing = "0.1.29"
+tracing = "0.1.30"
 
 metered-channel = { path = "../metered-channel" }
 
@@ -28,7 +28,7 @@ assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
 hyper = { version = "0.14.17", default-features = false, features = ["http1", "tcp"] }
-tokio = "1.13"
+tokio = "1.16"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
 edition = "2018"
 
 [dependencies]
-futures = "0.3.19"
-tracing = "0.1.29"
+futures = "0.3.21"
+tracing = "0.1.30"
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
