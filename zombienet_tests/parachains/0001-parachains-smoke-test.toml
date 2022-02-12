@@ -8,11 +8,11 @@ command = "polkadot"
 
   [[relaychain.nodes]]
   name = "alice"
-  extra_args = [ "--alice" ]
+  extra_args = [ "--alice", "-lruntime=debug,parachain=trace" ]
 
   [[relaychain.nodes]]
   name = "bob"
-  extra_args = [ "--bob" ]
+  extra_args = [ "--bob", "-lruntime=debug,parachain=trace" ]
 
 [[parachains]]
 id = 100
@@ -22,6 +22,7 @@ addToGenesis = false
   name = "collator01"
   image = "{{COL_IMAGE}}"
   command = "/usr/local/bin/adder-collator"
+  args = [ "-lruntime=debug,parachain=trace" ]
 
 [types.Header]
 number = "u64"

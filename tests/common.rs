@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use node_primitives::Block;
+use polkadot_core_primitives::Block;
 use remote_externalities::rpc_api::get_finalized_head;
 use std::{
 	process::{Child, ExitStatus},
@@ -25,7 +25,7 @@ use tokio::time::timeout;
 
 static LOCALHOST_WS: &str = "ws://127.0.0.1:9944/";
 
-/// Wait for the given `child` the given ammount of `secs`.
+/// Wait for the given `child` the given amount of `secs`.
 ///
 /// Returns the `Some(exit status)` or `None` if the process did not finish in the given time.
 pub fn wait_for(child: &mut Child, secs: usize) -> Option<ExitStatus> {

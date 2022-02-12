@@ -91,6 +91,7 @@ default:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
@@ -629,39 +630,6 @@ zombienet-tests-parachains-smoke-test:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-smoke-test.feature"
-  allow_failure:                   true
-  retry: 2
-  tags:
-    - zombienet-polkadot-integration-test
-
-zombienet-test-parachains-upgrade-smoke-test:
-  stage:                           deploy
-  image:                           "${ZOMBIENET_IMAGE}"
-  <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-  needs:
-    - job:                         publish-polkadot-image
-    - job:                         publish-malus-image
-    - job:                         publish-adder-collator-image
-  variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/parachains'
-  before_script:
-    - echo "ZombieNet Tests Config"
-    - echo "docker.io/parity/polkadot:latest"
-    - echo "docker.io/parity/polkadot-collator:latest"
-    - echo "${ZOMBIENET_IMAGE}"
-    - echo "${GH_DIR}"
-    - export DEBUG=zombie,zombie::network-node
-    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
-    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
-  script:
-    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0002-parachains-upgrade-smoke-test.feature"
   allow_failure:                   true
   retry: 2
   tags:
