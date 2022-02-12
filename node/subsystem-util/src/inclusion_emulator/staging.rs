@@ -13,7 +13,7 @@
 
 //! The implementation of the inclusion emulator for the 'staging' runtime version.
 //!
-//! This is currently v1 (v2?), but will evolve to v3.
+//! This is currently `v1` (`v2`?), but will evolve to `v3`.
 // TODO https://github.com/paritytech/polkadot/issues/4803
 //!
 //! A set of utilities for node-side code to emulate the logic the runtime uses for checking
@@ -52,7 +52,7 @@
 //!
 //! What the operating constraints are, in practice, is a prediction about the state of the
 //! relay-chain in the future. The relay-chain is aware of some current state, and we want to
-//! make an intelligent prediction about what'll be accepted in the future based on
+//! make an intelligent prediction about what might be accepted in the future based on
 //! prior fragments that also exist off-chain.
 //!
 //! ## Fragment Trees
@@ -455,7 +455,7 @@ impl ConstraintModifications {
 /// without pinning it to a particular session. For example, everything
 /// to do with the collator's signature and commitments are represented
 /// here. But the erasure-root is not. This means that prospective candidates
-/// are unlinked from all sessions.
+/// are not correlated to any session in particular.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProspectiveCandidate {
 	/// The commitments to the output of the execution.
