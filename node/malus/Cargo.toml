@@ -2,7 +2,7 @@
 name = "polkadot-test-malus"
 description = "Misbehaving nodes for local testnets, system and Simnet tests."
 license = "GPL-3.0-only"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -31,7 +31,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 clap = { version = "3.0", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
-tracing = "0.1.26"
+tracing = "0.1.30"
 
 [features]
 default = []

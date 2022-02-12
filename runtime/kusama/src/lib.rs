@@ -114,7 +114,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9160,
+	spec_version: 9170,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -137,11 +137,11 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-/// Don't allow swaps until parathread story is more mature.
+/// We currently allow all calls.
 pub struct BaseFilter;
 impl Contains<Call> for BaseFilter {
-	fn contains(c: &Call) -> bool {
-		!matches!(c, Call::Registrar(paras_registrar::Call::swap { .. }))
+	fn contains(_c: &Call) -> bool {
+		true
 	}
 }
 
@@ -1496,9 +1496,27 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
+	CrowdloanIndexMigration,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+pub struct CrowdloanIndexMigration;
+impl OnRuntimeUpgrade for CrowdloanIndexMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
+	}
+}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]

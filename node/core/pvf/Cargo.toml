@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -16,7 +16,7 @@ assert_matches = "1.4.0"
 futures = "0.3.21"
 futures-timer = "3.0.2"
 slotmap = "1.0"
-tracing = "0.1.29"
+tracing = "0.1.30"
 pin-project = "1.0.9"
 rand = "0.8.3"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
