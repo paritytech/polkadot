@@ -1078,12 +1078,15 @@ pub enum ProxyType {
 	IdentityJudgement,
 	CancelProxy,
 	Auction,
+	Society,
 }
+
 impl Default for ProxyType {
 	fn default() -> Self {
 		Self::Any
 	}
 }
+
 impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
@@ -1160,6 +1163,7 @@ impl InstanceFilter<Call> for ProxyType {
 				c,
 				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
 			),
+			ProxyType::Society => matches!(c, Call::Society(..)),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
