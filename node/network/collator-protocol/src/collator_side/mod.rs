@@ -958,7 +958,6 @@ where
 	// but can also include the previous group at
 	// rotation boundaries and considering forks
 	let mut group_validators = HashSet::new();
-	let mut maybe_core = None;
 
 	for relay_parent in state.view.iter().cloned() {
 		tracing::debug!(
@@ -971,10 +970,7 @@ where
 		// Determine our assigned core.
 		// If it is not scheduled then ignore the relay parent.
 		let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
-			Some(core) => {
-				maybe_core = Some(core);
-				core
-			},
+			Some(core) => core,
 			None => continue,
 		};
 
@@ -991,11 +987,7 @@ where
 	let validators: Vec<_> = group_validators.into_iter().collect();
 	let no_one_is_assigned = validators.is_empty();
 	if no_one_is_assigned {
-		if let Some(core) = maybe_core {
-			tracing::warn!(target: LOG_TARGET, ?core, "No validators assigned to our core.");
-		} else {
-			tracing::debug!(target: LOG_TARGET, "Core is occupied for all active leaves.");
-		}
+		tracing::warn!(target: LOG_TARGET, "No validators assigned to our core.",);
 		return Ok(())
 	}
 	tracing::debug!(
