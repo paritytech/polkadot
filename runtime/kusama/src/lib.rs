@@ -54,7 +54,8 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
+		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
