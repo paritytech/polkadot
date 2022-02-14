@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Helper method for RPC.
+//! RPC related types and helpers.
 
 use super::*;
 use jsonrpsee::{
@@ -68,8 +68,10 @@ pub trait RpcApi {
 	///
 	/// See [`TransactionStatus`](sc_transaction_pool_api::TransactionStatus) for details on
 	/// transaction life cycle.
+	//
+	// TODO: https://github.com/paritytech/jsonrpsee/issues/698
 	#[subscription(
-		name = "author_submitAndWatchExtrinsic" => "extrinsicUpdate",
+		name = "author_submitAndWatchExtrinsic" => "author_extrinsicUpdate",
 		unsubscribe_aliases = ["author_unwatchExtrinsic"],
 		item = TransactionStatus<Hash, Hash>,
 	)]
@@ -84,7 +86,7 @@ pub trait RpcApi {
 
 	/// Finalized head subscription.
 	#[subscription(
-		name = "chain_subscribeFinalizedHeads" => "finalizedHead",
+		name = "chain_subscribeFinalizedHeads" => "chain_finalizedHead",
 		item = Header
 	)]
 	fn subscribe_finalized_heads(&self) -> RpcResult<()>;
