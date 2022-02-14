@@ -20,7 +20,7 @@ use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
 	parameter_types,
-	traits::{Everything, OriginTrait},
+	traits::{Everything, Nothing, OriginTrait},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -116,6 +116,10 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = TestSubscriptionService;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	// No bridges yet...
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
 
 impl crate::Config for Test {
@@ -123,7 +127,7 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
+			Junction::AccountId32 { network: None, id: [0u8; 32] }.into();
 
 		Ok(valid_destination)
 	}

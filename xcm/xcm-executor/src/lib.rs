@@ -19,23 +19,20 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
-	traits::{Get, PalletsInfoAccess},
+	traits::{Contains, Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
+use sp_io::hashing::blake2_128;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::{
-	Error as XcmError, ExecuteXcm,
-	Instruction::{self, *},
-	MaybeErrorCode, MultiAsset, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo,
-	Response, SendXcm, Xcm,
-};
+use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FeeReason,
+	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -67,60 +64,46 @@ pub struct XcmExecutor<Config: config::Config> {
 	_config: PhantomData<Config>,
 }
 
+pub struct WeighedMessage<Call>(Weight, Xcm<Call>);
+impl<C> PreparedMessage for WeighedMessage<C> {
+	fn weight_of(&self) -> Weight {
+		self.0
+	}
+}
+
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
-	fn execute_xcm_in_credit(
+	type Prepared = WeighedMessage<Config::Call>;
+	fn prepare(mut message: Xcm<Config::Call>) -> Result<Self::Prepared, Xcm<Config::Call>> {
+		match Config::Weigher::weight(&mut message) {
+			Ok(weight) => Ok(WeighedMessage(weight, message)),
+			Err(_) => Err(message),
+		}
+	}
+	fn execute(
 		origin: impl Into<MultiLocation>,
-		mut message: Xcm<Config::Call>,
-		weight_limit: Weight,
+		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::Call>,
 		mut weight_credit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
-			"origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?}",
+			"origin: {:?}, message: {:?}, weight_credit: {:?}",
 			origin,
 			message,
-			weight_limit,
 			weight_credit,
 		);
-		let xcm_weight = match Config::Weigher::weight(&mut message) {
-			Ok(x) => x,
-			Err(()) => {
-				log::debug!(
-					target: "xcm::execute_xcm_in_credit",
-					"Weight not computable! (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
-					origin,
-					message,
-					weight_limit,
-					weight_credit,
-				);
-				return Outcome::Error(XcmError::WeightNotComputable)
-			},
-		};
-		if xcm_weight > weight_limit {
+		if let Err(e) = Config::Barrier::should_execute(
+			&origin,
+			message.inner_mut(),
+			xcm_weight,
+			&mut weight_credit,
+		) {
 			log::debug!(
 				target: "xcm::execute_xcm_in_credit",
-				"Weight limit reached! weight > weight_limit: {:?} > {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
-				xcm_weight,
-				weight_limit,
-				origin,
-				message,
-				weight_limit,
-				weight_credit,
-			);
-			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
-		}
-
-		if let Err(e) =
-			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
-		{
-			log::debug!(
-				target: "xcm::execute_xcm_in_credit",
-				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
+				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",
 				e,
 				origin,
 				message,
-				weight_limit,
 				weight_credit,
 			);
 			return Outcome::Error(XcmError::Barrier)
@@ -240,6 +223,22 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 
+	/// Send an XCM, charging fees from Holding as needed.
+	fn send(
+		&mut self,
+		dest: MultiLocation,
+		msg: Xcm<()>,
+		reason: FeeReason,
+	) -> Result<(), XcmError> {
+		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
+		if !Config::FeeManager::is_waived(&self.origin, reason) {
+			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+			Config::FeeManager::handle_fee(paid.into());
+		}
+		Config::XcmSender::deliver(ticket)?;
+		Ok(())
+	}
+
 	/// Remove the registered error handler and return it. Do not refund its weight.
 	fn take_error_handler(&mut self) -> Xcm<Config::Call> {
 		let mut r = Xcm::<Config::Call>(vec![]);
@@ -332,11 +331,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
-				let ancestry = Config::LocationInverter::ancestry();
-				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
+				let context = Config::LocationInverter::universal_location().into();
+				assets.reanchor(&dest, &context).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
+				Ok(())
 			},
 			ReceiveTeleportedAsset(assets) => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
@@ -416,10 +416,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				Self::respond(
+				self.respond(
 					self.origin.clone(),
 					Response::ExecutionResult(self.error),
 					response_info,
+					FeeReason::Report,
 				)
 			},
 			DepositAsset { assets, beneficiary } => {
@@ -439,7 +440,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				self.send(dest, Xcm(message), FeeReason::DepositReserveAsset)?;
+				Ok(())
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				// Note that here we are able to place any assets which could not be reanchored
@@ -451,7 +453,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
+				self.send(reserve, Xcm(message), FeeReason::InitiateReserveWithdraw)?;
+				Ok(())
 			},
 			InitiateTeleport { assets, dest, xcm } => {
 				// We must do this first in order to resolve wildcards.
@@ -464,14 +467,20 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
-				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
+				self.send(dest, Xcm(message), FeeReason::InitiateTeleport)?;
+				Ok(())
 			},
 			ReportHolding { response_info, assets } => {
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
 				// from Holding.
 				let assets =
 					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
-				Self::respond(self.origin.clone(), Response::Assets(assets), response_info)
+				self.respond(
+					self.origin.clone(),
+					Response::Assets(assets),
+					response_info,
+					FeeReason::Report,
+				)
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -562,7 +571,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let querier = Self::to_querier(self.origin.clone(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);
-				Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+				self.send(destination, message, FeeReason::QueryPallet)?;
+				Ok(())
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
 				let pallet = Config::PalletInstancesInfo::infos()
@@ -577,13 +587,42 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
-			ReportTransactStatus(response_info) => Self::respond(
+			ReportTransactStatus(response_info) => self.respond(
 				self.origin.clone(),
 				Response::DispatchResult(self.transact_status.clone()),
 				response_info,
+				FeeReason::Report,
 			),
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
+				Ok(())
+			},
+			UniversalOrigin(new_global) => {
+				let universal_location = Config::LocationInverter::universal_location();
+				ensure!(universal_location.first() != Some(&new_global), XcmError::InvalidLocation);
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				let origin_xform = (origin, new_global);
+				let ok = Config::UniversalAliases::contains(&origin_xform);
+				ensure!(ok, XcmError::InvalidLocation);
+				let (_, new_global) = origin_xform;
+				let new_origin = X1(new_global).relative_to(&universal_location);
+				self.origin = Some(new_origin);
+				Ok(())
+			},
+			ExportMessage { network, destination, xcm } => {
+				let hash = (&self.origin, &destination).using_encoded(blake2_128);
+				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
+				// Hash identifies the lane on the exporter which we use. We use the pairwise
+				// combination of the origin and destination to ensure origin/destination pairs will
+				// generally have their own lanes.
+				let (ticket, fee) =
+					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
+				if !Config::FeeManager::is_waived(&self.origin, FeeReason::Export(network)) {
+					let paid =
+						self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+					Config::FeeManager::handle_fee(paid.into());
+				}
+				Config::MessageExporter::deliver(ticket)?;
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
@@ -601,7 +640,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(match local_querier {
 			None => None,
 			Some(q) => Some(
-				q.reanchored(&destination, &Config::LocationInverter::ancestry())
+				q.reanchored(&destination, &Config::LocationInverter::universal_location().into())
 					.map_err(|_| XcmError::ReanchorFailed)?,
 			),
 		})
@@ -611,15 +650,23 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	///
 	/// The `local_querier` argument is the querier (if any) specified from the *local* perspective.
 	fn respond(
+		&mut self,
 		local_querier: Option<MultiLocation>,
 		response: Response,
 		info: QueryResponseInfo,
+		fee_reason: FeeReason,
 	) -> Result<(), XcmError> {
 		let querier = Self::to_querier(local_querier, &info.destination)?;
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+		let (ticket, fee) = validate_send::<Config::XcmSender>(destination, message)?;
+		if !Config::FeeManager::is_waived(&self.origin, fee_reason) {
+			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+			Config::FeeManager::handle_fee(paid.into());
+		}
+		Config::XcmSender::deliver(ticket)?;
+		Ok(())
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.
@@ -628,7 +675,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		dest: &MultiLocation,
 		maybe_failed_bin: Option<&mut Assets>,
 	) -> MultiAssets {
-		assets.reanchor(dest, &Config::LocationInverter::ancestry(), maybe_failed_bin);
+		let context = Config::LocationInverter::universal_location().into();
+		assets.reanchor(dest, &context, maybe_failed_bin);
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 }

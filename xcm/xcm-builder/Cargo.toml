@@ -6,6 +6,7 @@ description = "Tools & types for building with XCM and its executor."
 version = "0.9.17"
 
 [dependencies]
+impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
@@ -27,6 +28,8 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
+assert_matches = "1.5.0"
+
 [features]
 default = ["std"]
 runtime-benchmarks = []

@@ -99,7 +99,7 @@ fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 	encoded.resize(32, 0u8);
 	let mut id = [0u8; 32];
 	id.copy_from_slice(&encoded);
-	Junction::AccountId32 { network: NetworkId::Any, id }
+	Junction::AccountId32 { network: None, id }
 }
 
 pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocation) {

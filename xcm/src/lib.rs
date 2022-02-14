@@ -23,7 +23,6 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
 	result::Result,
@@ -32,7 +31,6 @@ use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use scale_info::TypeInfo;
 
-pub mod v0;
 pub mod v1;
 pub mod v2;
 pub mod v3;
@@ -76,40 +74,31 @@ pub trait IntoVersion: Sized {
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedMultiLocation {
-	V0(v0::MultiLocation),
+	#[codec(index = 1)]
 	V1(v1::MultiLocation),
+	#[codec(index = 2)]
+	V3(v3::MultiLocation),
 }
 
 impl IntoVersion for VersionedMultiLocation {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
-			0 => Self::V0(self.try_into()?),
-			1 | 2 | 3 => Self::V1(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
 }
 
-impl From<v0::MultiLocation> for VersionedMultiLocation {
-	fn from(x: v0::MultiLocation) -> Self {
-		VersionedMultiLocation::V0(x)
+impl From<v1::MultiLocation> for VersionedMultiLocation {
+	fn from(x: v1::MultiLocation) -> Self {
+		VersionedMultiLocation::V1(x)
 	}
 }
 
-impl<T: Into<v1::MultiLocation>> From<T> for VersionedMultiLocation {
+impl<T: Into<v3::MultiLocation>> From<T> for VersionedMultiLocation {
 	fn from(x: T) -> Self {
-		VersionedMultiLocation::V1(x.into())
-	}
-}
-
-impl TryFrom<VersionedMultiLocation> for v0::MultiLocation {
-	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
-		use VersionedMultiLocation::*;
-		match x {
-			V0(x) => Ok(x),
-			V1(x) => x.try_into(),
-		}
+		VersionedMultiLocation::V3(x.into())
 	}
 }
 
@@ -118,8 +107,75 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
 		use VersionedMultiLocation::*;
 		match x {
-			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiLocation> for v3::MultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+		use VersionedMultiLocation::*;
+		match x {
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
+		}
+	}
+}
+
+/// A single `InteriorMultiLocation` value, together with its version code.
+#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedInteriorMultiLocation {
+	#[codec(index = 0)]
+	V1(v1::InteriorMultiLocation),
+	#[codec(index = 1)]
+	V3(v3::InteriorMultiLocation),
+}
+
+impl IntoVersion for VersionedInteriorMultiLocation {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
+}
+
+impl From<v1::InteriorMultiLocation> for VersionedInteriorMultiLocation {
+	fn from(x: v1::InteriorMultiLocation) -> Self {
+		VersionedInteriorMultiLocation::V1(x)
+	}
+}
+
+impl<T: Into<v3::InteriorMultiLocation>> From<T> for VersionedInteriorMultiLocation {
+	fn from(x: T) -> Self {
+		VersionedInteriorMultiLocation::V3(x.into())
+	}
+}
+
+impl TryFrom<VersionedInteriorMultiLocation> for v1::InteriorMultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedInteriorMultiLocation) -> Result<Self, ()> {
+		use VersionedInteriorMultiLocation::*;
+		match x {
+			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedInteriorMultiLocation> for v3::InteriorMultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedInteriorMultiLocation) -> Result<Self, ()> {
+		use VersionedInteriorMultiLocation::*;
+		match x {
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -130,27 +186,22 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedResponse {
-	V0(v0::Response),
+	#[codec(index = 1)]
 	V1(v1::Response),
+	#[codec(index = 2)]
 	V2(v2::Response),
+	#[codec(index = 3)]
 	V3(v3::Response),
 }
 
 impl IntoVersion for VersionedResponse {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
-			0 => Self::V0(self.try_into()?),
 			1 => Self::V1(self.try_into()?),
 			2 => Self::V2(self.try_into()?),
 			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
-	}
-}
-
-impl From<v0::Response> for VersionedResponse {
-	fn from(x: v0::Response) -> Self {
-		VersionedResponse::V0(x)
 	}
 }
 
@@ -172,25 +223,11 @@ impl<T: Into<v3::Response>> From<T> for VersionedResponse {
 	}
 }
 
-impl TryFrom<VersionedResponse> for v0::Response {
-	type Error = ();
-	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
-		use VersionedResponse::*;
-		match x {
-			V0(x) => Ok(x),
-			V1(x) => x.try_into(),
-			V2(x) => V1(x.try_into()?).try_into(),
-			V3(x) => V2(x.try_into()?).try_into(),
-		}
-	}
-}
-
 impl TryFrom<VersionedResponse> for v1::Response {
 	type Error = ();
 	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
 		use VersionedResponse::*;
 		match x {
-			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
 			V2(x) => x.try_into(),
 			V3(x) => V2(x.try_into()?).try_into(),
@@ -203,7 +240,6 @@ impl TryFrom<VersionedResponse> for v2::Response {
 	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
 		use VersionedResponse::*;
 		match x {
-			V0(x) => V1(x.try_into()?).try_into(),
 			V1(x) => x.try_into(),
 			V2(x) => Ok(x),
 			V3(x) => x.try_into(),
@@ -216,7 +252,6 @@ impl TryFrom<VersionedResponse> for v3::Response {
 	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
 		use VersionedResponse::*;
 		match x {
-			V0(x) => V1(x.try_into()?).try_into(),
 			V1(x) => V2(x.try_into()?).try_into(),
 			V2(x) => x.try_into(),
 			V3(x) => Ok(x),
@@ -230,40 +265,31 @@ impl TryFrom<VersionedResponse> for v3::Response {
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedMultiAsset {
-	V0(v0::MultiAsset),
+	#[codec(index = 1)]
 	V1(v1::MultiAsset),
+	#[codec(index = 2)]
+	V3(v3::MultiAsset),
 }
 
 impl IntoVersion for VersionedMultiAsset {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
-			0 => Self::V0(self.try_into()?),
-			1 | 2 | 3 => Self::V1(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
 }
 
-impl From<v0::MultiAsset> for VersionedMultiAsset {
-	fn from(x: v0::MultiAsset) -> Self {
-		VersionedMultiAsset::V0(x)
+impl From<v1::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v1::MultiAsset) -> Self {
+		VersionedMultiAsset::V1(x)
 	}
 }
 
-impl<T: Into<v1::MultiAsset>> From<T> for VersionedMultiAsset {
-	fn from(x: T) -> Self {
-		VersionedMultiAsset::V1(x.into())
-	}
-}
-
-impl TryFrom<VersionedMultiAsset> for v0::MultiAsset {
-	type Error = ();
-	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
-		use VersionedMultiAsset::*;
-		match x {
-			V0(x) => Ok(x),
-			V1(x) => x.try_into(),
-		}
+impl From<v3::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v3::MultiAsset) -> Self {
+		VersionedMultiAsset::V3(x)
 	}
 }
 
@@ -272,8 +298,19 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
 		use VersionedMultiAsset::*;
 		match x {
-			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiAsset> for v3::MultiAsset {
+	type Error = ();
+	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
+		use VersionedMultiAsset::*;
+		match x {
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -284,40 +321,31 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedMultiAssets {
-	V0(Vec<v0::MultiAsset>),
+	#[codec(index = 1)]
 	V1(v1::MultiAssets),
+	#[codec(index = 2)]
+	V3(v3::MultiAssets),
 }
 
 impl IntoVersion for VersionedMultiAssets {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
-			0 => Self::V0(self.try_into()?),
-			1 | 2 | 3 => Self::V1(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
 }
 
-impl From<Vec<v0::MultiAsset>> for VersionedMultiAssets {
-	fn from(x: Vec<v0::MultiAsset>) -> Self {
-		VersionedMultiAssets::V0(x)
+impl From<v1::MultiAssets> for VersionedMultiAssets {
+	fn from(x: v1::MultiAssets) -> Self {
+		VersionedMultiAssets::V1(x)
 	}
 }
 
-impl<T: Into<v1::MultiAssets>> From<T> for VersionedMultiAssets {
+impl<T: Into<v3::MultiAssets>> From<T> for VersionedMultiAssets {
 	fn from(x: T) -> Self {
-		VersionedMultiAssets::V1(x.into())
-	}
-}
-
-impl TryFrom<VersionedMultiAssets> for Vec<v0::MultiAsset> {
-	type Error = ();
-	fn try_from(x: VersionedMultiAssets) -> Result<Self, ()> {
-		use VersionedMultiAssets::*;
-		match x {
-			V0(x) => Ok(x),
-			V1(x) => x.try_into(),
-		}
+		VersionedMultiAssets::V3(x.into())
 	}
 }
 
@@ -326,8 +354,19 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 	fn try_from(x: VersionedMultiAssets) -> Result<Self, ()> {
 		use VersionedMultiAssets::*;
 		match x {
-			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiAssets> for v3::MultiAssets {
+	type Error = ();
+	fn try_from(x: VersionedMultiAssets) -> Result<Self, ()> {
+		use VersionedMultiAssets::*;
+		match x {
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -339,27 +378,22 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 #[codec(decode_bound())]
 #[scale_info(bounds(), skip_type_params(Call))]
 pub enum VersionedXcm<Call> {
-	V0(v0::Xcm<Call>),
+	#[codec(index = 1)]
 	V1(v1::Xcm<Call>),
+	#[codec(index = 2)]
 	V2(v2::Xcm<Call>),
+	#[codec(index = 3)]
 	V3(v3::Xcm<Call>),
 }
 
 impl<C> IntoVersion for VersionedXcm<C> {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
-			0 => Self::V0(self.try_into()?),
 			1 => Self::V1(self.try_into()?),
 			2 => Self::V2(self.try_into()?),
 			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
-	}
-}
-
-impl<Call> From<v0::Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: v0::Xcm<Call>) -> Self {
-		VersionedXcm::V0(x)
 	}
 }
 
@@ -381,25 +415,11 @@ impl<Call> From<v3::Xcm<Call>> for VersionedXcm<Call> {
 	}
 }
 
-impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
-		use VersionedXcm::*;
-		match x {
-			V0(x) => Ok(x),
-			V1(x) => x.try_into(),
-			V2(x) => V1(x.try_into()?).try_into(),
-			V3(x) => V2(x.try_into()?).try_into(),
-		}
-	}
-}
-
 impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
 		use VersionedXcm::*;
 		match x {
-			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
 			V2(x) => x.try_into(),
 			V3(x) => V2(x.try_into()?).try_into(),
@@ -412,7 +432,6 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v2::Xcm<Call> {
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
 		use VersionedXcm::*;
 		match x {
-			V0(x) => V1(x.try_into()?).try_into(),
 			V1(x) => x.try_into(),
 			V2(x) => Ok(x),
 			V3(x) => x.try_into(),
@@ -425,7 +444,6 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v3::Xcm<Call> {
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
 		use VersionedXcm::*;
 		match x {
-			V0(x) => V1(x.try_into()?).try_into(),
 			V1(x) => V2(x.try_into()?).try_into(),
 			V2(x) => x.try_into(),
 			V3(x) => Ok(x),
@@ -482,18 +500,12 @@ pub type AlwaysRelease = AlwaysV2;
 pub mod prelude {
 	pub use super::{
 		latest::prelude::*, AlwaysLatest, AlwaysRelease, AlwaysV2, AlwaysV3, IntoVersion,
-		Unsupported, Version as XcmVersion, VersionedMultiAsset, VersionedMultiAssets,
-		VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
+		Unsupported, Version as XcmVersion, VersionedInteriorMultiLocation, VersionedMultiAsset,
+		VersionedMultiAssets, VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
 	};
 }
 
 pub mod opaque {
-	pub mod v0 {
-		// Everything from v0
-		pub use crate::v0::*;
-		// Then override with the opaque types in v0
-		pub use crate::v0::opaque::{Order, Xcm};
-	}
 	pub mod v1 {
 		// Everything from v1
 		pub use crate::v1::*;
@@ -501,13 +513,13 @@ pub mod opaque {
 		pub use crate::v1::opaque::{Order, Xcm};
 	}
 	pub mod v2 {
-		// Everything from v1
+		// Everything from v2
 		pub use crate::v2::*;
 		// Then override with the opaque types in v2
 		pub use crate::v2::opaque::{Instruction, Xcm};
 	}
 	pub mod v3 {
-		// Everything from v2
+		// Everything from v3
 		pub use crate::v3::*;
 		// Then override with the opaque types in v3
 		pub use crate::v3::opaque::{Instruction, Xcm};
@@ -524,4 +536,10 @@ pub mod opaque {
 // A simple trait to get the weight of some object.
 pub trait GetWeight<W> {
 	fn weight(&self) -> latest::Weight;
+}
+
+#[test]
+fn conversion_works() {
+	use latest::prelude::*;
+	let _: VersionedMultiAssets = (Here, 1).into();
 }

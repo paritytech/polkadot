@@ -15,15 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FilterAssetLocation, OnResponse,
+	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
+	WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
-	traits::{Get, PalletsInfoAccess},
+	traits::{Contains, Get, PalletsInfoAccess},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::latest::SendXcm;
+use xcm::latest::{Junction, MultiLocation, SendXcm};
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
@@ -46,7 +47,7 @@ pub trait Config {
 	type IsTeleporter: FilterAssetLocation;
 
 	/// Means of inverting a location.
-	type LocationInverter: InvertLocation;
+	type LocationInverter: UniversalLocation;
 
 	/// Whether we should execute the given XCM at all.
 	type Barrier: ShouldExecute;
@@ -78,4 +79,14 @@ pub trait Config {
 	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
 	/// and any benchmarks should take that into account.
 	type MaxAssetsIntoHolding: Get<u32>;
+
+	/// Configure the fees.
+	type FeeManager: FeeManager;
+
+	/// The method of exporting a message.
+	type MessageExporter: ExportXcm;
+
+	/// The origin locations and specific universal junctions to which they are allowed to elevate
+	/// themselves.
+	type UniversalAliases: Contains<(MultiLocation, Junction)>;
 }

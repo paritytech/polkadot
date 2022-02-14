@@ -210,20 +210,20 @@ impl Assets {
 	}
 
 	/// Mutate the assets to be interpreted as the same assets from the perspective of a `target`
-	/// chain. The local chain's `ancestry` is provided.
+	/// chain. The local chain's `context` is provided.
 	///
 	/// Any assets which were unable to be reanchored are introduced into `failed_bin`.
 	pub fn reanchor(
 		&mut self,
 		target: &MultiLocation,
-		ancestry: &MultiLocation,
+		context: &MultiLocation,
 		mut maybe_failed_bin: Option<&mut Self>,
 	) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible
 			.into_iter()
-			.filter_map(|(mut id, amount)| match id.reanchor(target, ancestry) {
+			.filter_map(|(mut id, amount)| match id.reanchor(target, context) {
 				Ok(()) => Some((id, amount)),
 				Err(()) => {
 					maybe_failed_bin.as_mut().map(|f| f.fungible.insert(id, amount));
@@ -235,7 +235,7 @@ impl Assets {
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible
 			.into_iter()
-			.filter_map(|(mut class, inst)| match class.reanchor(target, ancestry) {
+			.filter_map(|(mut class, inst)| match class.reanchor(target, context) {
 				Ok(()) => Some((class, inst)),
 				Err(()) => {
 					maybe_failed_bin.as_mut().map(|f| f.non_fungible.insert((class, inst)));

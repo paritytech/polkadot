@@ -801,16 +801,16 @@ impl TryFrom<OldResponse> for Response {
 impl TryFrom<NewResponse> for Response {
 	type Error = ();
 	fn try_from(response: NewResponse) -> result::Result<Self, ()> {
-		match response {
-			NewResponse::Assets(assets) => Ok(Self::Assets(assets)),
-			NewResponse::Version(version) => Ok(Self::Version(version)),
-			NewResponse::ExecutionResult(error) => Ok(Self::ExecutionResult(match error {
+		Ok(match response {
+			NewResponse::Assets(assets) => Self::Assets(assets.try_into()?),
+			NewResponse::Version(version) => Self::Version(version),
+			NewResponse::ExecutionResult(error) => Self::ExecutionResult(match error {
 				Some((i, e)) => Some((i, e.try_into()?)),
 				None => None,
-			})),
-			NewResponse::Null => Ok(Self::Null),
-			_ => Err(()),
-		}
+			}),
+			NewResponse::Null => Self::Null,
+			_ => return Err(()),
+		})
 	}
 }
 
@@ -929,14 +929,20 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 	fn try_from(instruction: NewInstruction<Call>) -> result::Result<Self, ()> {
 		use NewInstruction::*;
 		Ok(match instruction {
-			WithdrawAsset(assets) => Self::WithdrawAsset(assets),
-			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets),
-			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets),
+			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),
+			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets.try_into()?),
+			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
 			QueryResponse { query_id, response, max_weight, .. } =>
 				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
-			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets, beneficiary },
-			TransferReserveAsset { assets, dest, xcm } =>
-				Self::TransferReserveAsset { assets, dest, xcm: xcm.try_into()? },
+			TransferAsset { assets, beneficiary } => Self::TransferAsset {
+				assets: assets.try_into()?,
+				beneficiary: beneficiary.try_into()?,
+			},
+			TransferReserveAsset { assets, dest, xcm } => Self::TransferReserveAsset {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				xcm: xcm.try_into()?,
+			},
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				Self::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
@@ -949,47 +955,62 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 			},
 			ReportError(response_info) => Self::ReportError {
 				query_id: response_info.query_id,
-				dest: response_info.destination,
+				dest: response_info.destination.try_into()?,
 				max_response_weight: response_info.max_weight,
 			},
 			DepositAsset { assets, beneficiary } => {
 				let max_assets = assets.count().ok_or(())?;
-				Self::DepositAsset { assets: assets.into(), max_assets, beneficiary }
+				let beneficiary = beneficiary.try_into()?;
+				let assets = assets.try_into()?;
+				Self::DepositAsset { assets, max_assets, beneficiary }
 			},
 			DepositReserveAsset { assets, dest, xcm } => {
 				let max_assets = assets.count().ok_or(())?;
-				Self::DepositReserveAsset {
-					assets: assets.into(),
-					max_assets,
-					dest,
-					xcm: xcm.try_into()?,
-				}
+				let dest = dest.try_into()?;
+				let xcm = xcm.try_into()?;
+				let assets = assets.try_into()?;
+				Self::DepositReserveAsset { assets, max_assets, dest, xcm }
 			},
-			ExchangeAsset { give, receive } => Self::ExchangeAsset { give: give.into(), receive },
+			ExchangeAsset { give, receive } => {
+				let give = give.try_into()?;
+				let receive = receive.try_into()?;
+				Self::ExchangeAsset { give, receive }
+			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				// No `max_assets` here, so if there's a connt, then we cannot translate.
-				let assets = assets.try_into().map_err(|_| ())?;
-				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? }
+				let assets = assets.try_into()?;
+				let reserve = reserve.try_into()?;
+				let xcm = xcm.try_into()?;
+				Self::InitiateReserveWithdraw { assets, reserve, xcm }
 			},
 			InitiateTeleport { assets, dest, xcm } => {
 				// No `max_assets` here, so if there's a connt, then we cannot translate.
-				let assets = assets.try_into().map_err(|_| ())?;
-				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? }
+				let assets = assets.try_into()?;
+				let dest = dest.try_into()?;
+				let xcm = xcm.try_into()?;
+				Self::InitiateTeleport { assets, dest, xcm }
 			},
 			ReportHolding { response_info, assets } => Self::QueryHolding {
 				query_id: response_info.query_id,
-				dest: response_info.destination,
-				assets: assets.try_into().map_err(|_| ())?,
+				dest: response_info.destination.try_into()?,
+				assets: assets.try_into()?,
 				max_response_weight: response_info.max_weight,
 			},
-			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },
+			BuyExecution { fees, weight_limit } => {
+				let fees = fees.try_into()?;
+				Self::BuyExecution { fees, weight_limit }
+			},
 			ClearOrigin => Self::ClearOrigin,
-			DescendOrigin(who) => Self::DescendOrigin(who),
+			DescendOrigin(who) => Self::DescendOrigin(who.try_into()?),
 			RefundSurplus => Self::RefundSurplus,
 			SetErrorHandler(xcm) => Self::SetErrorHandler(xcm.try_into()?),
 			SetAppendix(xcm) => Self::SetAppendix(xcm.try_into()?),
 			ClearError => Self::ClearError,
-			ClaimAsset { assets, ticket } => Self::ClaimAsset { assets, ticket },
+			ClaimAsset { assets, ticket } => {
+				let assets = assets.try_into()?;
+				let ticket = ticket.try_into()?;
+				Self::ClaimAsset { assets, ticket }
+			},
 			Trap(code) => Self::Trap(code),
 			SubscribeVersion { query_id, max_response_weight } =>
 				Self::SubscribeVersion { query_id, max_response_weight },
