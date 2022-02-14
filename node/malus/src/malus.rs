@@ -16,7 +16,7 @@
 
 //! A malus or nemesis node launch code.
 
-use clap::{AppSettings, Parser};
+use clap::{AppSettings, ArgEnum, Parser};
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
 
@@ -48,11 +48,26 @@ enum NemesisVariant {
 	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
+#[derive(ArgEnum, Clone, Debug, PartialEq)]
+#[clap(
+	about = "Fake candidate validation - forces all `ValidateCandidate*` calls to return a configured result.",
+	version
+)]
+#[clap(rename_all = "kebab-case")]
+pub(crate) enum FakeCandidateValidation {
+	None,
+	Invalid,
+	// TODO: impl valid.
+}
+
 #[derive(Debug, Parser)]
 #[allow(missing_docs)]
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
+
+	#[clap(long, arg_enum, ignore_case = true, default_value = "None")]
+	pub fake_validation: FakeCandidateValidation,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -67,8 +82,10 @@ impl MalusCli {
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
 			NemesisVariant::SuggestGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
+			NemesisVariant::DisputeAncestor(cmd) => polkadot_cli::run_node(
+				run_cmd(cmd),
+				DisputeValidCandidates::new(self.fake_validation),
+			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
