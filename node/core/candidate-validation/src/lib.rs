@@ -560,7 +560,7 @@ where
 			let err = ValidationFailed(
 				"Validation host failed to find artifact even though it was supplied".to_string(),
 			);
-			tracing::error!(target: LOG_TARGET, error = ?err, "Unexpected error reported by the validation backend");
+			tracing::error!(target: LOG_TARGET, error = ?err);
 			Err(err)
 		},
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
