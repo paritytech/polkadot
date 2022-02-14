@@ -64,9 +64,7 @@ use primitives::{
 	},
 	v2::SessionInfo,
 };
-use sp_core::{
-	OpaqueMetadata,
-};
+use sp_core::OpaqueMetadata;
 use sp_runtime::{
 	create_runtime_str,
 	curve::PiecewiseLinear,
