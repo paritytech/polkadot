@@ -194,17 +194,17 @@ impl MockValidateCandidateBackend {
 impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
-		raw_validation_code: Pvf,
+		raw_validation_code: PvfDescriptor,
 		_timeout: Duration,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		match raw_validation_code {
-			Pvf::Code(_) => self.result.clone(),
-			Pvf::Hash(_) => Err(ValidationError::ArtifactNotFound),
+			PvfDescriptor::Preimage(_) => self.result.clone(),
+			PvfDescriptor::Hash(_) => Err(ValidationError::ArtifactNotFound),
 		}
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: PvfCode) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPreimage) -> Result<(), PrepareError> {
 		unreachable!()
 	}
 }
@@ -781,14 +781,14 @@ impl MockPreCheckBackend {
 impl ValidationBackend for MockPreCheckBackend {
 	async fn validate_candidate(
 		&mut self,
-		_raw_validation_code: Pvf,
+		_raw_validation_code: PvfDescriptor,
 		_timeout: Duration,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: PvfCode) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPreimage) -> Result<(), PrepareError> {
 		self.result.clone()
 	}
 }

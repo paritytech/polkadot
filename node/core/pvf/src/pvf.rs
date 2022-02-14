@@ -23,12 +23,12 @@ use std::{fmt, sync::Arc};
 ///
 /// Should be cheap to clone.
 #[derive(Clone)]
-pub struct PvfCode {
+pub struct PvfPreimage {
 	pub(crate) code: Arc<Vec<u8>>,
 	pub(crate) code_hash: ValidationCodeHash,
 }
 
-impl PvfCode {
+impl PvfPreimage {
 	/// Returns an instance of the PVF out of the given PVF code.
 	pub fn from_code(code: Vec<u8>) -> Self {
 		let code = Arc::new(code);
@@ -44,48 +44,47 @@ impl PvfCode {
 	}
 }
 
-impl fmt::Debug for PvfCode {
+impl fmt::Debug for PvfPreimage {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "Pvf {{ code, code_hash: {:?} }}", self.code_hash)
 	}
 }
 
-impl PvfCode {
+impl PvfPreimage {
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
 		ArtifactId::new(self.code_hash)
 	}
 }
 
-/// An enum that either contains full preimage of validation function along
-/// with its hash (see [`PvfCode`]) or the hash only.
+/// An enum that either contains full preimage of the validation function
+/// (see [`PvfPreimage`]) or the hash only.
 #[derive(Clone, Debug)]
-pub enum Pvf {
-	/// Hash-preimage of the validation function, contains both the code
-	/// and the hash itself.
-	Code(PvfCode),
-	/// Hash of the validation function without its validation code.
+pub enum PvfDescriptor {
+	/// Hash-preimage of the validation function, carries the full bytecode.
+	Preimage(PvfPreimage),
+	/// Hash of the validation function.
 	Hash(ValidationCodeHash),
 }
 
-impl Pvf {
+impl PvfDescriptor {
 	/// Returns an instance of the PVF out of the given PVF code.
 	pub fn from_code(code: Vec<u8>) -> Self {
-		Self::Code(PvfCode::from_code(code))
+		Self::Preimage(PvfPreimage::from_code(code))
 	}
 
 	/// Returns the validation code hash of the given PVF.
 	pub fn hash(&self) -> ValidationCodeHash {
 		match self {
-			Pvf::Code(code) => code.code_hash,
-			Pvf::Hash(hash) => *hash,
+			Self::Preimage(code) => code.code_hash,
+			Self::Hash(hash) => *hash,
 		}
 	}
 
 	/// Returns the artifact ID that corresponds to this PVF.
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
 		match self {
-			Pvf::Code(ref inner) => inner.as_artifact_id(),
-			Pvf::Hash(code_hash) => ArtifactId::new(*code_hash),
+			Self::Preimage(ref inner) => inner.as_artifact_id(),
+			Self::Hash(code_hash) => ArtifactId::new(*code_hash),
 		}
 	}
 }

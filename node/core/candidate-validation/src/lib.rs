@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, PvfCode, ValidationError,
-	ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, PvfDescriptor, PvfPreimage,
+	ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -341,7 +341,7 @@ where
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => PvfCode::from_code(code.into_owned()),
+		Ok(code) => PvfPreimage::from_code(code.into_owned()),
 		Err(e) => {
 			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
@@ -467,11 +467,11 @@ where
 			},
 		}
 		.to_vec();
-		Pvf::from_code(raw_code)
+		PvfDescriptor::from_code(raw_code)
 	} else {
 		// In case validation code is not provided, ask the backend to obtain
 		// it from the cache using the hash.
-		Pvf::Hash(ValidationCodeHash::from(descriptor.validation_code_hash))
+		PvfDescriptor::Hash(ValidationCodeHash::from(descriptor.validation_code_hash))
 	};
 
 	let raw_block_data =
@@ -529,7 +529,7 @@ where
 					return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
 				},
 			};
-			let validation_code = Pvf::from_code(raw_code.to_vec());
+			let validation_code = PvfDescriptor::from_code(raw_code.to_vec());
 			validation_backend.validate_candidate(validation_code, timeout, params).await
 		},
 		result => result,
@@ -586,19 +586,19 @@ where
 trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
-		validation_code: Pvf,
+		validation_code: PvfDescriptor,
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 
-	async fn precheck_pvf(&mut self, pvf: PvfCode) -> Result<(), PrepareError>;
+	async fn precheck_pvf(&mut self, pvf: PvfPreimage) -> Result<(), PrepareError>;
 }
 
 #[async_trait]
 impl ValidationBackend for ValidationHost {
 	async fn validate_candidate(
 		&mut self,
-		validation_code: Pvf,
+		validation_code: PvfDescriptor,
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
@@ -626,7 +626,7 @@ impl ValidationBackend for ValidationHost {
 		validation_result
 	}
 
-	async fn precheck_pvf(&mut self, pvf: PvfCode) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, pvf: PvfPreimage) -> Result<(), PrepareError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(_) = self.precheck_pvf(pvf, tx).await {
 			return Err(PrepareError::DidNotMakeIt)

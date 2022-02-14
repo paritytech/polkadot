@@ -18,7 +18,7 @@
 
 use super::pool::{self, Worker};
 use crate::{
-	artifacts::ArtifactId, metrics::Metrics, pvf::PvfCode, PrepareResult, Priority, LOG_TARGET,
+	artifacts::ArtifactId, metrics::Metrics, pvf::PvfPreimage, PrepareResult, Priority, LOG_TARGET,
 };
 use always_assert::{always, never};
 use async_std::path::PathBuf;
@@ -32,7 +32,7 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: PvfCode },
+	Enqueue { priority: Priority, pvf: PvfPreimage },
 }
 
 /// A response from queue.
@@ -77,7 +77,7 @@ slotmap::new_key_type! { pub struct Job; }
 struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
-	pvf: PvfCode,
+	pvf: PvfPreimage,
 	worker: Option<Worker>,
 }
 
@@ -212,7 +212,11 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 	Ok(())
 }
 
-async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: PvfCode) -> Result<(), Fatal> {
+async fn handle_enqueue(
+	queue: &mut Queue,
+	priority: Priority,
+	pvf: PvfPreimage,
+) -> Result<(), Fatal> {
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash,
@@ -487,8 +491,8 @@ mod tests {
 	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(discriminator: u32) -> PvfCode {
-		PvfCode::from_discriminator(discriminator)
+	fn pvf(discriminator: u32) -> PvfPreimage {
+		PvfPreimage::from_discriminator(discriminator)
 	}
 
 	async fn run_until<R>(
