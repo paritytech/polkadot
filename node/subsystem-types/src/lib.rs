@@ -40,7 +40,7 @@ pub use polkadot_node_jaeger as jaeger;
 const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
 /// The status of an activated leaf.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LeafStatus {
 	/// A leaf is fresh when it's the first time the leaf has been encountered.
 	/// Most leaves should be fresh.

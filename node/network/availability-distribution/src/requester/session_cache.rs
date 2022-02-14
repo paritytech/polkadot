@@ -105,7 +105,7 @@ impl SessionCache {
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
-		let session_index = runtime.get_session_index(ctx.sender(), parent).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), parent).await?;
 
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
@@ -177,13 +177,15 @@ impl SessionCache {
 		&self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		parent: Hash,
+		relay_parent: Hash,
 		session_index: SessionIndex,
 	) -> Result<Option<SessionInfo>, Error>
 	where
 		Context: SubsystemContext,
 	{
-		let info = runtime.get_session_info_by_index(ctx.sender(), parent, session_index).await?;
+		let info = runtime
+			.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
+			.await?;
 
 		let discovery_keys = info.session_info.discovery_keys.clone();
 		let mut validator_groups = info.session_info.validator_groups.clone();

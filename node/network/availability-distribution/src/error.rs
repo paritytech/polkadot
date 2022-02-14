@@ -24,7 +24,7 @@ use thiserror::Error;
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::runtime;
-use polkadot_subsystem::SubsystemError;
+use polkadot_subsystem::{ChainApiError, SubsystemError};
 
 use crate::LOG_TARGET;
 
@@ -63,6 +63,12 @@ pub enum Fatal {
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::Fatal),
+
+	#[error("Oneshot for receiving response from Chain API got cancelled")]
+	ChainApiSenderDropped(#[source] oneshot::Canceled),
+
+	#[error("Retrieving response from Chain API unexpectedly failed with error: {0}")]
+	ChainApi(#[from] ChainApiError),
 }
 
 /// Non-fatal errors of this subsystem.

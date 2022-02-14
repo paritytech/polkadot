@@ -203,6 +203,10 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
+			// Before we move to the initialized state we need to check if we got at
+			// least on finality notification to prevent large ancestry block scraping,
+			// when the node is syncing.
+
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, spam_slots, ordering_provider) = match self
 				.handle_startup(

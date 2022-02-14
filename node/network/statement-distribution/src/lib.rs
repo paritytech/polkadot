@@ -77,6 +77,13 @@ use responder::{respond, ResponderMessage};
 mod tests;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
+	Rep::CostMinor("Unexpected Statement, missing knowlege for relay parent");
+const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
+	Rep::CostMinor("Unexpected Statement, unknown candidate");
+const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
+	Rep::CostMinor("Unexpected Statement, remote not allowed");
+
 const COST_FETCH_FAIL: Rep =
 	Rep::CostMinor("Requesting `CommittedCandidateReceipt` from peer failed");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
@@ -320,14 +327,14 @@ impl PeerRelayParentKnowledge {
 					.note_remote(h.clone());
 
 				if !allowed_remote {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
 				h
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(&h) {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
 				h
@@ -380,14 +387,14 @@ impl PeerRelayParentKnowledge {
 					.map_or(true, |r| r.is_wanted_candidate(h));
 
 				if !allowed_remote {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
 				h
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(&h) {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
 				h
@@ -476,7 +483,7 @@ impl PeerData {
 	) -> std::result::Result<bool, Rep> {
 		self.view_knowledge
 			.get_mut(relay_parent)
-			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.receive(fingerprint, max_message_count)
 	}
 
@@ -491,7 +498,7 @@ impl PeerData {
 	) -> std::result::Result<(), Rep> {
 		self.view_knowledge
 			.get(relay_parent)
-			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.check_can_receive(fingerprint, max_message_count)
 	}
 
@@ -499,7 +506,7 @@ impl PeerData {
 	fn receive_large_statement(&mut self, relay_parent: &Hash) -> std::result::Result<(), Rep> {
 		self.view_knowledge
 			.get_mut(relay_parent)
-			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.receive_large_statement()
 	}
 }
@@ -624,9 +631,9 @@ struct ActiveHeadData {
 	statements: IndexMap<StoredStatementComparator, SignedFullStatement>,
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
-	/// The validators at this head.
+	/// The parachain validators at the head's child session index.
 	validators: Vec<ValidatorId>,
-	/// The session index this head is at.
+	/// The current session index of this fork.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
@@ -1325,6 +1332,7 @@ async fn handle_incoming_message<'a>(
 	if let Err(rep) = peer_data.check_can_receive(&relay_parent, &fingerprint, max_message_count) {
 		tracing::debug!(
 			target: LOG_TARGET,
+			?relay_parent,
 			?peer,
 			?message,
 			?rep,
@@ -1798,8 +1806,9 @@ impl StatementDistributionSubsystem {
 						"New active leaf",
 					);
 
+					// Retrieve the parachain validators at the child of the head we track.
 					let session_index =
-						runtime.get_session_index(ctx.sender(), relay_parent).await?;
+						runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 					let info = runtime
 						.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 						.await?;

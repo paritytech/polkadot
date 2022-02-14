@@ -409,11 +409,13 @@ pub fn account_info_storage_key(id: &AccountId) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_runtime::codec::Encode;
+	use parity_scale_codec::Decode;
+	use sp_runtime::{codec::Encode, traits::TrailingZeroInput};
 
 	#[test]
 	fn maximal_encoded_account_id_size_is_correct() {
-		let actual_size = AccountId::default().encode().len();
+		let actual_size =
+			AccountId::decode(&mut TrailingZeroInput::new(&[])).unwrap().encode().len();
 		assert!(
 			actual_size <= MAXIMAL_ENCODED_ACCOUNT_ID_SIZE as usize,
 			"Actual size of encoded account id for Polkadot-like chains ({}) is larger than expected {}",

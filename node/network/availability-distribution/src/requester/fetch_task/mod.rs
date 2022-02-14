@@ -64,7 +64,7 @@ pub struct FetchTask {
 	/// In other words, for which relay chain parents this candidate is considered live.
 	/// This is updated on every `ActiveLeavesUpdate` and enables us to know when we can safely
 	/// stop keeping track of that candidate/chunk.
-	live_in: HashSet<Hash>,
+	pub(crate) live_in: HashSet<Hash>,
 
 	/// We keep the task around in until `live_in` becomes empty, to make
 	/// sure we won't re-fetch an already fetched candidate.

@@ -434,7 +434,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
+	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 	let info = &runtime
 		.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 		.await?
@@ -958,6 +958,7 @@ where
 	// but can also include the previous group at
 	// rotation boundaries and considering forks
 	let mut group_validators = HashSet::new();
+	let mut maybe_core = None;
 
 	for relay_parent in state.view.iter().cloned() {
 		tracing::debug!(
@@ -970,7 +971,10 @@ where
 		// Determine our assigned core.
 		// If it is not scheduled then ignore the relay parent.
 		let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
-			Some(core) => core,
+			Some(core) => {
+				maybe_core = Some(core);
+				core
+			},
 			None => continue,
 		};
 
@@ -987,7 +991,11 @@ where
 	let validators: Vec<_> = group_validators.into_iter().collect();
 	let no_one_is_assigned = validators.is_empty();
 	if no_one_is_assigned {
-		tracing::warn!(target: LOG_TARGET, "No validators assigned to our core.",);
+		if let Some(core) = maybe_core {
+			tracing::warn!(target: LOG_TARGET, ?core, "No validators assigned to our core.");
+		} else {
+			tracing::debug!(target: LOG_TARGET, "Core is occupied for all active leaves.");
+		}
 		return Ok(())
 	}
 	tracing::debug!(
