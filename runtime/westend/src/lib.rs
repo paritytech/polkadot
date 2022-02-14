@@ -1543,7 +1543,7 @@ sp_api::impl_runtime_apis! {
 				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
 				Response,
 			};
-			use xcm_config::{Westmint, WndLocation};
+			use xcm_config::{Westmint, TokenLocation};
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = xcm_config::XcmConfig;
@@ -1554,7 +1554,7 @@ sp_api::impl_runtime_apis! {
 				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
 					// Westend only knows about WND.
 					vec![MultiAsset{
-						id: Concrete(WndLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),
 					}].into()
 				}

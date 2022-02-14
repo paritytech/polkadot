@@ -25,7 +25,7 @@ pub use drop_assets::{ClaimAssets, DropAssets};
 mod export;
 pub use export::{export_xcm, validate_export, ExportXcm};
 mod fee_manager;
-pub use fee_manager::{FeeReason, FeeManager};
+pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod matches_fungible;

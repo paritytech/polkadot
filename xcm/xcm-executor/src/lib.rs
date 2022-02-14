@@ -30,9 +30,9 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation,
-	OnResponse, ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier,
-	WeightBounds, WeightTrader, FeeManager, FeeReason,
+	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FeeReason,
+	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -224,7 +224,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Send an XCM, charging fees from Holding as needed.
-	fn send(&mut self, dest: MultiLocation, msg: Xcm::<()>, reason: FeeReason) -> Result<(), XcmError> {
+	fn send(
+		&mut self,
+		dest: MultiLocation,
+		msg: Xcm<()>,
+		reason: FeeReason,
+	) -> Result<(), XcmError> {
 		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
 		if !Config::FeeManager::is_waived(&self.origin, reason) {
 			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
@@ -470,7 +475,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// from Holding.
 				let assets =
 					Self::reanchored(self.holding.min(&assets), &response_info.destination, None);
-				self.respond(self.origin.clone(), Response::Assets(assets), response_info, FeeReason::Report)
+				self.respond(
+					self.origin.clone(),
+					Response::Assets(assets),
+					response_info,
+					FeeReason::Report,
+				)
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -608,7 +618,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let (ticket, fee) =
 					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
 				if !Config::FeeManager::is_waived(&self.origin, FeeReason::Export(network)) {
-					let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
+					let paid =
+						self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
 					Config::FeeManager::handle_fee(paid.into());
 				}
 				Config::MessageExporter::deliver(ticket)?;
