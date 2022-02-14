@@ -18,7 +18,7 @@ futures-timer = "3.0.2"
 slotmap = "1.0"
 tracing = "0.1.30"
 pin-project = "1.0.9"
-rand = "0.8.3"
+rand = "0.8.5"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
