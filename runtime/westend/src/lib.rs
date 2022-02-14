@@ -1598,7 +1598,7 @@ sp_api::impl_runtime_apis! {
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 					let origin = Westmint::get();
-					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
+					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
 				}
