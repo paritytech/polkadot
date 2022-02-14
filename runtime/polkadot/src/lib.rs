@@ -1446,7 +1446,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SchedulerMigrationV3, FixCouncilDepositMigration, CrowdloanIndexMigration),
+	(FixCouncilDepositMigration, CrowdloanIndexMigration),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1473,7 +1473,6 @@ impl OnRuntimeUpgrade for CrowdloanIndexMigration {
 ///
 /// See more details here: https://github.com/paritytech/polkadot/issues/4160
 pub struct FixCouncilDepositMigration;
-
 impl FixCouncilDepositMigration {
 	fn execute(check: bool) -> frame_support::weights::Weight {
 		let accounts = vec![
@@ -1648,7 +1647,7 @@ impl FixCouncilDepositMigration {
 
 impl OnRuntimeUpgrade for FixCouncilDepositMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		if VERSION.spec_version == 9150 {
+		if VERSION.spec_version == 9180 {
 			Self::execute(false)
 		} else {
 			log::warn!(target: "runtime::polkadot", "FixCouncilDepositMigration should be removed.");
@@ -1659,65 +1658,6 @@ impl OnRuntimeUpgrade for FixCouncilDepositMigration {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
 		let _ = Self::execute(true);
-		Ok(())
-	}
-}
-
-// Migration for scheduler pallet to move from a plain Call to a CallOrHash.
-pub struct SchedulerMigrationV3;
-
-impl OnRuntimeUpgrade for SchedulerMigrationV3 {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Scheduler::migrate_v2_to_v3()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		Scheduler::pre_migrate_to_v3()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		Scheduler::post_migrate_to_v3()
-	}
-}
-
-// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
-pub struct StakingBagsListMigrationV8;
-
-impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_staking::migrations::v8::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v8::post_migrate::<Runtime>()
-	}
-}
-
-/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
-pub struct SessionHistoricalPalletPrefixMigration;
-
-impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
 		Ok(())
 	}
 }
