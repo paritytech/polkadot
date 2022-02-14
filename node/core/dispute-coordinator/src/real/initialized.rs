@@ -894,8 +894,8 @@ impl Initialized {
 		// Potential spam:
 		if !is_confirmed {
 			let mut free_spam_slots_available = true;
-			// Only allow import if there is at least one validator voting invalid, that didn't exceed
-			// its spam slot:
+			// Only allow import if all validators voting invalid, have not exceeded
+			// their spam slots:
 			for (statement, index) in statements.iter() {
 				// Disputes can only be triggered via an invalidity stating vote, thus we only
 				// need to increase spam slots on invalid votes. (If we did not, we would also
