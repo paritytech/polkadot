@@ -501,6 +501,7 @@ where
 			// validation host, request the code from Runtime API and try again.
 			tracing::debug!(
 				target: LOG_TARGET,
+				validation_code_hash = ?descriptor.validation_code_hash,
 				"Validation host failed to find artifact by provided hash",
 			);
 
@@ -512,8 +513,18 @@ where
 			.await
 			{
 				Ok(Some(validation_code)) => validation_code,
-				Ok(None) =>
-					return Ok(ValidationResult::Invalid(InvalidCandidate::MissingValidationCode)),
+				Ok(None) => {
+					// This path can only happen when validating candidate from chain state.
+					// Earlier we obtained the PVF hash from the runtime and verified
+					// that it matches with the one in candidate descriptor.
+					// As a result, receiving `None` is unexpected and should hint on a major
+					// bug in Runtime API.
+					return Err(ValidationFailed(
+						"Runtime API returned `None` for the validation \
+						code with a known hash"
+							.into(),
+					))
+				},
 				Err(_) => return Err(ValidationFailed("Runtime API request failed".into())),
 			};
 

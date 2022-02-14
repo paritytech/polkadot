@@ -231,8 +231,6 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
-	/// The corresponding validation code is not present in the Runtime storage.
-	MissingValidationCode,
 }
 
 /// Result of the validation of the candidate.
