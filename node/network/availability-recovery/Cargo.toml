@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.21"
 lru = "0.7.2"
-rand = "0.8.3"
+rand = "0.8.5"
 thiserror = "1.0.30"
 tracing = "0.1.30"
 
