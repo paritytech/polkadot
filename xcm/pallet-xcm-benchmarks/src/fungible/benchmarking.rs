@@ -112,14 +112,16 @@ benchmarks_instance_pallet! {
 			.ok_or(BenchmarkError::Skip)?;
 
 		if let Some(checked_account) = T::CheckedAccount::get() {
-			T::TransactAsset::mint_into(
-				&checked_account,
-				<
-					T::TransactAsset
-					as
-					Inspect<T::AccountId>
-				>::Balance::max_value() / 2u32.into(),
-			)?;
+			if T::TransactAsset::balance(&checked_account).is_zero() {
+				T::TransactAsset::mint_into(
+					&checked_account,
+					<
+						T::TransactAsset
+						as
+						Inspect<T::AccountId>
+					>::Balance::max_value() / 2u32.into(),
+				)?;
+			}
 		}
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
@@ -143,14 +145,16 @@ benchmarks_instance_pallet! {
 			.ok_or(BenchmarkError::Skip)?;
 
 		if let Some(checked_account) = T::CheckedAccount::get() {
-			T::TransactAsset::mint_into(
-				&checked_account,
-				<
-					T::TransactAsset
-					as
-					Inspect<T::AccountId>
-				>::Balance::max_value() / 2u32.into(),
-			)?;
+			if T::TransactAsset::balance(&checked_account).is_zero() {
+				T::TransactAsset::mint_into(
+					&checked_account,
+					<
+						T::TransactAsset
+						as
+						Inspect<T::AccountId>
+					>::Balance::max_value() / 2u32.into(),
+				)?;
+			}
 		}
 
 		let assets: MultiAssets = vec![ teleportable_asset ].into();
