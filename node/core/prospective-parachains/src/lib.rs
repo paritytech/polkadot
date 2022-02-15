@@ -52,16 +52,19 @@
 // TODO [now]: remove
 #![allow(unused)]
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use futures::prelude::*;
 
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::vstaging::{Block, BlockId};
 use polkadot_node_subsystem::{
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemResult,
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
+	SubsystemResult,
 };
+use polkadot_node_subsystem_util::{
+	inclusion_emulator::staging::{ConstraintModifications, Constraints, Fragment},
+	metrics::{self, prometheus},
+};
+use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Id as ParaId};
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
@@ -71,27 +74,42 @@ pub struct ProspectiveParachainsSubsystems {
 }
 
 // TODO [now]: add this enum to the broader subsystem types.
-pub enum ProspectiveParachainsMessage { }
+pub enum ProspectiveParachainsMessage {}
 
-async fn run<Context>(
-	mut ctx: Context,
-) -> SubsystemResult<()>
+async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {
 				// TODO [now]: handle active leaves and obsolete leaves.
-			}
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
+			},
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				// TODO [now]: handle messages
-			}
+			},
 		}
 	}
+}
+
+struct FragmentTree {
+	para: ParaId,
+	// Fragment nodes based on fragment head-data
+	nodes: HashMap<Hash, (FragmentNode, usize)>,
+	// The root hash of this fragment-tree.
+	root: Hash,
+}
+
+struct FragmentNode {
+	// Head-data of the parent node.
+	parent: Hash,
+	// Head-data of children.
+	// TODO [now]: make sure traversal detects loops.
+	children: Vec<Hash>,
+	fragment: Fragment,
 }
 
 #[derive(Clone)]
