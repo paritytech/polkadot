@@ -69,7 +69,7 @@ use polkadot_node_subsystem_util::{
 	},
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Id as ParaId};
+use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Header, Id as ParaId};
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
@@ -103,8 +103,7 @@ struct FragmentNode {
 // TODO [now] rename maybe
 struct RelevantParaFragments {
 	para: ParaId,
-	relay_parent: Hash,
-	constraints: Constraints,
+	base_constraints: Constraints,
 	relevant: HashSet<Hash>,
 }
 
@@ -112,19 +111,23 @@ struct RelayBlockViewData {
 	// Relevant fragments for each parachain that is scheduled.
 	relevant_fragments: HashMap<ParaId, RelevantParaFragments>,
 	block_info: RelayChainBlockInfo,
-	base_constraints: Constraints,
 	// TODO [now]: other stuff
 }
 
 struct View {
 	// Active or recent relay-chain blocks by block hash.
+	active_leaves: HashSet<Hash>,
 	active_or_recent: HashMap<Hash, RelayBlockViewData>,
 	fragment_trees: HashMap<ParaId, FragmentTrees>,
 }
 
 impl View {
 	fn new() -> Self {
-		View { active_or_recent: HashMap::new(), fragment_trees: HashMap::new() }
+		View {
+			active_leaves: HashSet::new(),
+			active_or_recent: HashMap::new(),
+			fragment_trees: HashMap::new(),
+		}
 	}
 }
 
@@ -158,11 +161,85 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
-	// TODO [now]: get block info for all new blocks.
-	// update ref counts for anything still relevant
-	// clean up outgoing blocks
-	// clean up unreferenced fragments
+	// Update active_leaves
+	{
+		for activated in update.activated.into_iter() {
+			view.active_leaves.insert(activated.hash);
+		}
 
+		for deactivated in update.deactivated.into_iter() {
+			view.active_leaves.remove(&deactivated);
+		}
+	}
+
+	// Find the set of blocks we care about.
+	let relevant_blocks = find_all_relevant_blocks(ctx, &view.active_leaves).await?;
+
+	// Prune everything that was relevant but isn't anymore.
+	{
+		let all_removed: Vec<_> = view
+			.active_or_recent
+			.keys()
+			.cloned()
+			.filter(|h| !relevant_blocks.contains_key(&h))
+			.collect();
+
+		for removed in all_removed {
+			let view_data = view.active_or_recent.remove(&removed).expect(
+				"key was gathered from iterating over all present keys; therefore is present; qed",
+			);
+
+			// TODO [now]: update fragment trees accordingly
+		}
+	}
+
+	// Add new blocks and get data if necessary.
+	{
+		let all_new: Vec<_> = relevant_blocks
+			.iter()
+			.filter(|(h, _hdr)| !view.active_or_recent.contains_key(h))
+			.collect();
+
+		for (new_hash, new_header) in all_new {
+			let block_info = RelayChainBlockInfo {
+				hash: *new_hash,
+				number: new_header.number,
+				storage_root: new_header.state_root,
+			};
+
+			// TODO [now]: determine parachains to hold fragments for.
+			// TODO [now]: determine relevant fragments according to constraints.
+			// TODO [now]: update ref counts in fragment trees
+			// TODO [now]: insert into `active_or_recent`
+		}
+	}
+
+	unimplemented!()
+}
+
+// TODO [now]; non-fatal error type.
+async fn get_base_constraints<Context>(
+	ctx: &mut Context,
+	relay_block: Hash,
+	para_id: ParaId,
+) -> SubsystemResult<Constraints>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	unimplemented!()
+}
+
+// TODO [now]; non-fatal error type.
+async fn find_all_relevant_blocks<Context>(
+	ctx: &mut Context,
+	active_leaves: &HashSet<Hash>,
+) -> SubsystemResult<HashMap<Hash, Header>>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	const LOOKBACK: usize = 2;
 	unimplemented!()
 }
 
