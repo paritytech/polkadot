@@ -54,6 +54,7 @@
 
 use std::{
 	collections::{HashMap, HashSet},
+	collections::hash_map::Entry as HEntry,
 	sync::Arc,
 };
 
@@ -94,6 +95,40 @@ struct FragmentTrees {
 impl FragmentTrees {
 	fn is_empty(&self) -> bool {
 		self.nodes.is_empty()
+	}
+
+	fn determine_relevant_fragments(
+		&self,
+		constraints: &Constraints,
+	) -> Vec<Hash> {
+		unimplemented!()
+	}
+
+	fn add_refcount(&mut self, fragment_hash: &Hash) {
+		if let Some(entry) = self.nodes.get_mut(fragment_hash) {
+			entry.1 += 1;
+		}
+	}
+
+	fn remove_refcount(&mut self, fragment_hash: Hash) {
+		let node = match self.nodes.entry(fragment_hash) {
+			HEntry::Vacant(_) => return,
+			HEntry::Occupied(mut entry) => {
+				if entry.get().1 == 1 {
+					entry.remove().0
+				} else {
+					entry.get_mut().1 -= 1;
+					return;
+				}
+			}
+		};
+
+		// TODO [now]: verify that this means 'it was present'
+		if self.roots.remove(&fragment_hash) {
+			for child in node.children {
+				self.roots.insert(child);
+			}
+		}
 	}
 }
 
@@ -170,6 +205,8 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
+	// TODO [now]: separate determining updates from updates themselves.
+
 	// Update active_leaves
 	{
 		for activated in update.activated.into_iter() {
