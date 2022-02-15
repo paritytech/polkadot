@@ -195,7 +195,7 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
-    - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
+    - time cargo build --profile testnet --verbose --bin polkadot
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
