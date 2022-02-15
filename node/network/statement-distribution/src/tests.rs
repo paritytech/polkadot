@@ -273,11 +273,11 @@ fn per_peer_relay_parent_knowledge_receive() {
 
 	assert_eq!(
 		knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE),
 	);
 	assert_eq!(
 		knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE),
 	);
 
 	assert!(knowledge
@@ -336,11 +336,11 @@ fn per_peer_relay_parent_knowledge_receive() {
 
 	assert_eq!(
 		knowledge.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_REMOTE),
 	);
 	assert_eq!(
 		knowledge.receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_REMOTE),
 	);
 
 	// Last, make sure that already-known statements are disregarded.

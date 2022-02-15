@@ -1257,6 +1257,14 @@ pub fn new_chain_ops(
 	Err(Error::NoRuntime)
 }
 
+/// Build a full node.
+///
+/// The actual "flavor", aka if it will use `Polkadot`, `Rococo` or `Kusama` is determined based on
+/// [`IdentifyVariant`] using the chain spec.
+///
+/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
+/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
+/// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
@@ -1265,6 +1273,7 @@ pub fn build_full(
 	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
@@ -1280,7 +1289,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
-			false,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Rococo))
@@ -1296,7 +1305,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
-			false,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Kusama))
@@ -1312,7 +1321,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
-			false,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Westend))
@@ -1328,7 +1337,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
-			false,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Polkadot))

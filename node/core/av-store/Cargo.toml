@@ -1,15 +1,15 @@
 [package]
 name = "polkadot-node-core-av-store"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3.0.2"
 kvdb = "0.10.0"
 thiserror = "1.0.30"
-tracing = "0.1.29"
+tracing = "0.1.30"
 bitvec = "0.20.1"
 
 parity-scale-codec = { version = "2.3.1", features = ["derive"] }
@@ -30,5 +30,5 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-parking_lot = "0.11.1"
+parking_lot = "0.12.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

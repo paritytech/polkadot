@@ -38,9 +38,9 @@ pub(crate) struct Signer {
 pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM::Config>(
 	rpc: &SharedRpcClient,
 	who: &T::AccountId,
-	maybe_at: Option<&T::Hash>,
+	maybe_at: Option<T::Hash>,
 ) -> Result<Option<AccountInfo<Index, T::AccountData>>, Error<T>> {
-	rpc.get_storage::<AccountInfo<Index, T::AccountData>>(
+	rpc.get_storage_and_decode::<AccountInfo<Index, T::AccountData>>(
 		&StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
 		maybe_at,
 	)

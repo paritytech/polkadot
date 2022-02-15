@@ -30,7 +30,7 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
 ) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
 	let phase = rpc
-		.get_storage::<EPM::Phase<BlockNumber>>(&key, Some(&at))
+		.get_storage_and_decode::<EPM::Phase<BlockNumber>>(&key, Some(at))
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
@@ -175,7 +175,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(&hash)).await {
+			let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(hash)).await {
 				Ok(maybe_account) => {
 					let acc = maybe_account.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
 					acc.nonce
@@ -253,9 +253,9 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
 						);
 
-						let events = match rpc.get_storage::<
+						let events = match rpc.get_storage_and_decode::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
-						>(&key, Some(&hash))
+						>(&key, Some(hash))
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),
 							Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {

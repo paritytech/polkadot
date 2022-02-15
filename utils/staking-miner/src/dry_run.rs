@@ -117,7 +117,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 
 		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
-		let nonce = crate::get_account_info::<Runtime>(&rpc, &signer.account, config.at.as_ref())
+		let nonce = crate::get_account_info::<Runtime>(&rpc, &signer.account, config.at)
 			.await?
 			.map(|i| i.nonce)
 			.expect("signer account is checked to exist upon startup; it can only die if it \

@@ -77,6 +77,13 @@ use responder::{respond, ResponderMessage};
 mod tests;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
+	Rep::CostMinor("Unexpected Statement, missing knowlege for relay parent");
+const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
+	Rep::CostMinor("Unexpected Statement, unknown candidate");
+const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
+	Rep::CostMinor("Unexpected Statement, remote not allowed");
+
 const COST_FETCH_FAIL: Rep =
 	Rep::CostMinor("Requesting `CommittedCandidateReceipt` from peer failed");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
@@ -320,14 +327,14 @@ impl PeerRelayParentKnowledge {
 					.note_remote(h.clone());
 
 				if !allowed_remote {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
 				h
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(&h) {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
 				h
@@ -380,14 +387,14 @@ impl PeerRelayParentKnowledge {
 					.map_or(true, |r| r.is_wanted_candidate(h));
 
 				if !allowed_remote {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
 				h
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(&h) {
-					return Err(COST_UNEXPECTED_STATEMENT)
+					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
 				h
@@ -476,7 +483,7 @@ impl PeerData {
 	) -> std::result::Result<bool, Rep> {
 		self.view_knowledge
 			.get_mut(relay_parent)
-			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.receive(fingerprint, max_message_count)
 	}
 
@@ -491,7 +498,7 @@ impl PeerData {
 	) -> std::result::Result<(), Rep> {
 		self.view_knowledge
 			.get(relay_parent)
-			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.check_can_receive(fingerprint, max_message_count)
 	}
 
@@ -499,7 +506,7 @@ impl PeerData {
 	fn receive_large_statement(&mut self, relay_parent: &Hash) -> std::result::Result<(), Rep> {
 		self.view_knowledge
 			.get_mut(relay_parent)
-			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.receive_large_statement()
 	}
 }
@@ -1325,6 +1332,7 @@ async fn handle_incoming_message<'a>(
 	if let Err(rep) = peer_data.check_can_receive(&relay_parent, &fingerprint, max_message_count) {
 		tracing::debug!(
 			target: LOG_TARGET,
+			?relay_parent,
 			?peer,
 			?message,
 			?rep,

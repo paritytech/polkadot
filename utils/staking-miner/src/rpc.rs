@@ -27,6 +27,9 @@ use sp_core::{storage::StorageKey, Bytes};
 use sp_version::RuntimeVersion;
 use std::{future::Future, time::Duration};
 
+const MAX_CONNECTION_DURATION: Duration = Duration::from_secs(20);
+const MAX_REQUEST_DURATION: Duration = Duration::from_secs(60);
+
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
 	JsonRpsee(#[from] jsonrpsee::core::Error),
@@ -41,18 +44,19 @@ impl std::fmt::Display for RpcHelperError {
 
 #[rpc(client)]
 pub trait RpcApi {
-	/// Fetch system name
+	/// Fetch system name.
 	#[method(name = "system_chain")]
 	async fn system_chain(&self) -> RpcResult<String>;
 
-	/// Fetch a storage key
+	/// Fetch a storage key.
 	#[method(name = "state_getStorage")]
-	async fn storage(&self, key: &StorageKey, hash: Option<&Hash>) -> RpcResult<Option<Bytes>>;
+	async fn storage(&self, key: &StorageKey, hash: Option<Hash>) -> RpcResult<Option<Bytes>>;
 
-	/// Fetch the runtime version
+	/// Fetch the runtime version.
 	#[method(name = "state_getRuntimeVersion")]
-	async fn runtime_version(&self, at: Option<&Hash>) -> RpcResult<RuntimeVersion>;
+	async fn runtime_version(&self, at: Option<Hash>) -> RpcResult<RuntimeVersion>;
 
+	/// Fetch the payment query info.
 	#[method(name = "payment_queryInfo")]
 	async fn payment_query_info(
 		&self,
@@ -61,18 +65,17 @@ pub trait RpcApi {
 	) -> RpcResult<RuntimeDispatchInfo<Balance>>;
 
 	/// Dry run an extrinsic at a given block. Return SCALE encoded ApplyExtrinsicResult.
-	#[method(name = "system_dryRun", aliases = ["system_dryRunAt"])]
-	async fn dry_run(&self, extrinsic: &Bytes, at: Option<&Hash>) -> RpcResult<Bytes>;
+	#[method(name = "system_dryRun")]
+	async fn dry_run(&self, extrinsic: &Bytes, at: Option<Hash>) -> RpcResult<Bytes>;
 
 	/// Submit an extrinsic to watch.
 	///
 	/// See [`TransactionStatus`](sc_transaction_pool_api::TransactionStatus) for details on
 	/// transaction life cycle.
 	//
-	// TODO: https://github.com/paritytech/jsonrpsee/issues/698
+	// TODO: https://github.com/paritytech/jsonrpsee/issues/698.
 	#[subscription(
 		name = "author_submitAndWatchExtrinsic" => "author_extrinsicUpdate",
-		unsubscribe_aliases = ["author_unwatchExtrinsic"],
 		item = TransactionStatus<Hash, Hash>,
 	)]
 	fn watch_extrinsic(&self, bytes: &Bytes) -> RpcResult<()>;
@@ -113,19 +116,27 @@ impl SharedRpcClient {
 	/// Create a new shared RPC client.
 	pub(crate) async fn new(uri: &str) -> Result<Self, RpcError> {
 		let client = WsClientBuilder::default()
-			.connection_timeout(Duration::from_secs(20))
+			.connection_timeout(MAX_CONNECTION_DURATION)
 			.max_request_body_size(u32::MAX)
-			.request_timeout(Duration::from_secs(60))
+			.request_timeout(MAX_REQUEST_DURATION)
 			.build(uri)
 			.await?;
 		Ok(Self(Arc::new(client)))
 	}
 
-	/// Get the storage item.
-	pub(crate) async fn get_storage<'a, T: codec::Decode>(
+	/// Get a storage item and decode it as `T`.
+	///
+	/// # Return value:
+	///
+	/// The function returns:
+	///
+	/// * `Ok(Some(val))` if successful.
+	/// * `Ok(None)` if the storage item was not found.
+	/// * `Err(e)` if the RPC call failed.
+	pub(crate) async fn get_storage_and_decode<'a, T: codec::Decode>(
 		&self,
 		key: &StorageKey,
-		hash: Option<&Hash>,
+		hash: Option<Hash>,
 	) -> Result<Option<T>, RpcHelperError> {
 		if let Some(bytes) = self.storage(key, hash).await? {
 			let decoded = <T as codec::Decode>::decode(&mut &*bytes.0)
@@ -137,8 +148,16 @@ impl SharedRpcClient {
 	}
 }
 
-/// Takes a future that returns `Bytes` and tries the decode those bytes into the type `Dec`
-/// Don't use for storage, it will fail for non-existent storage items.
+/// Takes a future that returns `Bytes` and tries to decode those bytes into the type `Dec`.
+/// Warning: don't use for storage, it will fail for non-existent storage items.
+///
+/// # Return value:
+///
+/// The function returns:
+///
+/// * `Ok(val)` if successful.
+/// * `Err(RpcHelperError::JsonRpsee)` if the RPC call failed.
+/// * `Err(RpcHelperError::Codec)` if `Bytes` could not be decoded.
 pub(crate) async fn await_request_and_decode<'a, Dec: codec::Decode>(
 	req: impl Future<Output = Result<Bytes, RpcError>>,
 ) -> Result<Dec, RpcHelperError> {
