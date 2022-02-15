@@ -91,6 +91,12 @@ struct FragmentTrees {
 	roots: HashSet<Hash>,
 }
 
+impl FragmentTrees {
+	fn is_empty(&self) -> bool {
+		self.nodes.is_empty()
+	}
+}
+
 struct FragmentNode {
 	// Head-data of the parent node.
 	parent: Hash,
@@ -118,6 +124,9 @@ struct View {
 	// Active or recent relay-chain blocks by block hash.
 	active_leaves: HashSet<Hash>,
 	active_or_recent: HashMap<Hash, RelayBlockViewData>,
+
+	// Fragment trees, one for each parachain.
+	// TODO [now]: handle cleanup when these go obsolete.
 	fragment_trees: HashMap<ParaId, FragmentTrees>,
 }
 
@@ -190,6 +199,7 @@ where
 			);
 
 			// TODO [now]: update fragment trees accordingly
+			// TODO [now]: prune empty fragment trees
 		}
 	}
 
@@ -207,10 +217,18 @@ where
 				storage_root: new_header.state_root,
 			};
 
-			// TODO [now]: determine parachains to hold fragments for.
-			// TODO [now]: determine relevant fragments according to constraints.
-			// TODO [now]: update ref counts in fragment trees
-			// TODO [now]: insert into `active_or_recent`
+			let all_parachains = get_all_parachains(ctx, *new_hash).await?;
+
+			let mut relevant_fragments = HashMap::new();
+			for p in all_parachains {
+				let constraints = get_base_constraints(ctx, *new_hash, p).await?;
+
+				// TODO [now]: determine relevant fragments according to constraints.
+				// TODO [now]: update ref counts in fragment trees
+			}
+
+			view.active_or_recent
+				.insert(*new_hash, RelayBlockViewData { relevant_fragments, block_info });
 		}
 	}
 
@@ -223,6 +241,18 @@ async fn get_base_constraints<Context>(
 	relay_block: Hash,
 	para_id: ParaId,
 ) -> SubsystemResult<Constraints>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	unimplemented!()
+}
+
+// TODO [now]; non-fatal error type.
+async fn get_all_parachains<Context>(
+	ctx: &mut Context,
+	relay_block: Hash,
+) -> SubsystemResult<Vec<ParaId>>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
