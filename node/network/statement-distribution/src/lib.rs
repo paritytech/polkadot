@@ -476,7 +476,26 @@ impl PeerData {
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 	) -> bool {
-		self.view_knowledge.get(relay_parent).map_or(false, |k| k.can_send(fingerprint))
+		self.view_knowledge.get(relay_parent).map_or_else(|| {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?fingerprint,
+				"Cannot send statement: relay parent is not in the view knowledge");
+			false
+		}, |k| {
+			if !k.can_send(fingerprint) {
+				tracing::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?fingerprint,
+				"Cannot send statement: already sent to the peer");
+				false
+			}
+			else {
+				true
+			}
+		})
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -988,6 +1007,12 @@ async fn circulate_statement<'a>(
 			if data.can_send(&relay_parent, &fingerprint) {
 				Some(peer.clone())
 			} else {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer,
+					?relay_parent,
+					?fingerprint,
+					"Cannot send statement to the peer when circulating statement");
 				None
 			}
 		})
@@ -1067,6 +1092,13 @@ async fn send_statements_about(
 	for statement in active_head.statements_about(candidate_hash) {
 		let fingerprint = statement.fingerprint();
 		if !peer_data.can_send(&relay_parent, &fingerprint) {
+			tracing::trace!(
+					target: LOG_TARGET,
+					?peer,
+					?relay_parent,
+					?fingerprint,
+					?candidate_hash,
+					"Cannot send statement to the peer when sending statement about candidate");
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
@@ -1102,6 +1134,13 @@ async fn send_statements(
 	for statement in active_head.statements() {
 		let fingerprint = statement.fingerprint();
 		if !peer_data.can_send(&relay_parent, &fingerprint) {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				statement = ?statement.statement,
+				"Cannot send statement to the peer when sending all statements"
+			);
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
@@ -1462,6 +1501,9 @@ async fn update_peer_view_and_maybe_send_unlocked(
 	// Add entries for all relay-parents in the new view but not the old.
 	// Furthermore, send all statements we have for those relay parents.
 	let new_view = peer_data.view.difference(&old_view).copied().collect::<Vec<_>>();
+	if !lucky {
+		tracing::trace!(target: LOG_TARGET, ?peer, ?new_view, "Unlucky peer, skip sending unlocked view");
+	}
 	for new in new_view.iter().copied() {
 		peer_data.view_knowledge.insert(new, Default::default());
 		if !lucky {
