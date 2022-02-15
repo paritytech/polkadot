@@ -68,6 +68,7 @@ members = [
 	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
 	"node/core/parachains-inherent",
+	"node/core/prospective-parachains",
 	"node/core/provisioner",
 	"node/core/pvf",
 	"node/core/pvf-checker",

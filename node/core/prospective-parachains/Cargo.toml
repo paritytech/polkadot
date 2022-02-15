@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-core-fragment-manager"
+name = "polkadot-node-core-prospective-parachains"
 version = "0.9.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"

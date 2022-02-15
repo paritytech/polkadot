@@ -48,3 +48,43 @@
 //! scheduled to be assigned to a specific para in the near future.
 //! And as a result, they dig into the existing fragment-trees to
 //! re-back what already existed.
+
+use std::sync::Arc;
+
+use futures::prelude::*;
+
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_primitives::vstaging::{Block, BlockId};
+use polkadot_node_subsystem::{
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
+};
+
+const LOG_TARGET: &str = "parachain::prospective-parachains";
+
+/// The Prospective Parachains Subsystem.
+pub struct ProspectiveParachainsSubsystems {
+	metrics: Metrics,
+}
+
+// TODO [now]: add this enum to the broader subsystem types.
+pub enum ProspectiveParachainsMessage { }
+
+async fn run<Context>(
+	mut ctx: Context,
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>
+{
+	unimplemented!()
+}
+
+#[derive(Clone)]
+struct MetricsInner;
+
+/// Prospective parachain metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+// TODO [now]: impl metrics

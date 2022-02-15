@@ -6721,6 +6721,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-prospective-parachains"
+version = "0.9.16"
+dependencies = [
+ "futures 0.3.19",
+ "parity-scale-codec",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-provisioner"
 version = "0.9.17"
 dependencies = [
