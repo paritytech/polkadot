@@ -52,16 +52,21 @@
 // TODO [now]: remove
 #![allow(unused)]
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+};
 
 use futures::prelude::*;
 
 use polkadot_node_subsystem::{
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	inclusion_emulator::staging::{ConstraintModifications, Constraints, Fragment},
+	inclusion_emulator::staging::{
+		ConstraintModifications, Constraints, Fragment, RelayChainBlockInfo,
+	},
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Id as ParaId};
@@ -73,34 +78,17 @@ pub struct ProspectiveParachainsSubsystems {
 	metrics: Metrics,
 }
 
+// TODO [now]: error types, fatal & non-fatal.
+
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {}
 
-async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
-	loop {
-		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {
-				// TODO [now]: handle active leaves and obsolete leaves.
-			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Communication { msg } => match msg {
-				// TODO [now]: handle messages
-			},
-		}
-	}
-}
-
-struct FragmentTree {
+struct FragmentTrees {
 	para: ParaId,
 	// Fragment nodes based on fragment head-data
 	nodes: HashMap<Hash, (FragmentNode, usize)>,
-	// The root hash of this fragment-tree.
-	root: Hash,
+	// The root hashes of this fragment-tree by head-data.
+	roots: HashSet<Hash>,
 }
 
 struct FragmentNode {
@@ -110,6 +98,72 @@ struct FragmentNode {
 	// TODO [now]: make sure traversal detects loops.
 	children: Vec<Hash>,
 	fragment: Fragment,
+}
+
+// TODO [now] rename maybe
+struct RelevantParaFragments {
+	para: ParaId,
+	relay_parent: Hash,
+	constraints: Constraints,
+	relevant: HashSet<Hash>,
+}
+
+struct RelayBlockViewData {
+	// Relevant fragments for each parachain that is scheduled.
+	relevant_fragments: HashMap<ParaId, RelevantParaFragments>,
+	block_info: RelayChainBlockInfo,
+	base_constraints: Constraints,
+	// TODO [now]: other stuff
+}
+
+struct View {
+	// Active or recent relay-chain blocks by block hash.
+	active_or_recent: HashMap<Hash, RelayBlockViewData>,
+	fragment_trees: HashMap<ParaId, FragmentTrees>,
+}
+
+impl View {
+	fn new() -> Self {
+		View { active_or_recent: HashMap::new(), fragment_trees: HashMap::new() }
+	}
+}
+
+async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	let mut view = View::new();
+	loop {
+		match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				update_view(&mut view, &mut ctx, update).await?;
+			},
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOverseer::Communication { msg } => match msg {
+				// TODO [now]: handle messages
+			},
+		}
+	}
+}
+
+// TODO [now]; non-fatal error type.
+async fn update_view<Context>(
+	view: &mut View,
+	ctx: &mut Context,
+	update: ActiveLeavesUpdate,
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	// TODO [now]: get block info for all new blocks.
+	// update ref counts for anything still relevant
+	// clean up outgoing blocks
+	// clean up unreferenced fragments
+
+	unimplemented!()
 }
 
 #[derive(Clone)]
