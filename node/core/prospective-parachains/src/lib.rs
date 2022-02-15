@@ -49,6 +49,9 @@
 //! And as a result, they dig into the existing fragment-trees to
 //! re-back what already existed.
 
+// TODO [now]: remove
+#![allow(unused)]
+
 use std::sync::Arc;
 
 use futures::prelude::*;
@@ -77,7 +80,18 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>
 {
-	unimplemented!()
+	loop {
+		match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {
+				// TODO [now]: handle active leaves and obsolete leaves.
+			}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
+			FromOverseer::Communication { msg } => match msg {
+				// TODO [now]: handle messages
+			}
+		}
+	}
 }
 
 #[derive(Clone)]
