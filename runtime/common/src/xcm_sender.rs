@@ -17,9 +17,14 @@
 //! XCM sender for relay chain.
 
 use parity_scale_codec::Encode;
-use runtime_parachains::{configuration, dmp};
-use sp_std::marker::PhantomData;
-use xcm::latest::prelude::*;
+use primitives::v1::Id as ParaId;
+use runtime_parachains::{
+	configuration::{self, HostConfiguration},
+	dmp,
+};
+use sp_std::{marker::PhantomData, prelude::*};
+use xcm::prelude::*;
+use SendError::*;
 
 /// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
@@ -27,23 +32,35 @@ pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 	for ChildParachainRouter<T, W>
 {
-	fn send_xcm(dest: impl Into<MultiLocation>, msg: Xcm<()>) -> SendResult {
-		let dest = dest.into();
-		match dest {
-			MultiLocation { parents: 0, interior: X1(Parachain(id)) } => {
-				// Downward message passing.
-				let versioned_xcm =
-					W::wrap_version(&dest, msg).map_err(|()| SendError::DestinationUnsupported)?;
-				let config = <configuration::Pallet<T>>::config();
-				<dmp::Pallet<T>>::queue_downward_message(
-					&config,
-					id.into(),
-					versioned_xcm.encode(),
-				)
-				.map_err(Into::<SendError>::into)?;
-				Ok(())
-			},
-			dest => Err(SendError::CannotReachDestination(dest, msg)),
-		}
+	type Ticket = (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>);
+
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)> {
+		let d = dest.take().ok_or(MissingArgument)?;
+		let id = if let MultiLocation { parents: 0, interior: X1(Parachain(id)) } = &d {
+			*id
+		} else {
+			*dest = Some(d);
+			return Err(NotApplicable)
+		};
+
+		// Downward message passing.
+		let xcm = msg.take().ok_or(MissingArgument)?;
+		let config = <configuration::Pallet<T>>::config();
+		let para = id.into();
+		let blob = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?.encode();
+		<dmp::Pallet<T>>::can_queue_downward_message(&config, &para, &blob)
+			.map_err(Into::<SendError>::into)?;
+
+		Ok(((config, para, blob), MultiAssets::new()))
+	}
+
+	fn deliver(
+		(config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>),
+	) -> Result<(), SendError> {
+		<dmp::Pallet<T>>::queue_downward_message(&config, para, blob)
+			.map_err(|_| SendError::Transport(&"Error placing into DMP queue"))
 	}
 }

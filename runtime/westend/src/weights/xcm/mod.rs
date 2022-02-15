@@ -79,7 +79,12 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
 	}
-	fn query_response(_query_id: &u64, _response: &Response, _max_weight: &u64) -> Weight {
+	fn query_response(
+		_query_id: &u64,
+		_response: &Response,
+		_max_weight: &u64,
+		_querier: &Option<MultiLocation>,
+	) -> Weight {
 		XcmGeneric::<Runtime>::query_response()
 	}
 	fn transfer_asset(assets: &MultiAssets, _dest: &MultiLocation) -> Weight {
@@ -211,5 +216,11 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	}
 	fn clear_transact_status() -> Weight {
 		XcmGeneric::<Runtime>::clear_transact_status()
+	}
+	fn universal_origin(_: &Junction) -> Weight {
+		10_000_000_000
+	}
+	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
+		10_000_000_000
 	}
 }

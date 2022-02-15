@@ -156,15 +156,15 @@ pub mod pallet {
 		crate::paras_inherent::OnChainVotes::<T>::mutate(move |value| {
 			let disputes =
 				checked_disputes.into_iter().map(DisputeStatementSet::from).collect::<Vec<_>>();
-			if let Some(ref mut value) = value {
-				value.disputes = disputes;
-			} else {
-				*value = Some(ScrapedOnChainVotes::<T::Hash> {
-					backing_validators_per_candidate: Vec::new(),
-					disputes,
-					session,
-				});
-			}
+			let backing_validators_per_candidate = match value.take() {
+				Some(v) => v.backing_validators_per_candidate,
+				None => Vec::new(),
+			};
+			*value = Some(ScrapedOnChainVotes::<T::Hash> {
+				backing_validators_per_candidate,
+				disputes,
+				session,
+			});
 		})
 	}
 
@@ -177,16 +177,15 @@ pub mod pallet {
 		)>,
 	) {
 		crate::paras_inherent::OnChainVotes::<T>::mutate(move |value| {
-			if let Some(ref mut value) = value {
-				value.backing_validators_per_candidate.clear();
-				value.backing_validators_per_candidate.extend(backing_validators_per_candidate);
-			} else {
-				*value = Some(ScrapedOnChainVotes::<T::Hash> {
-					backing_validators_per_candidate,
-					disputes: MultiDisputeStatementSet::default(),
-					session,
-				});
-			}
+			let disputes = match value.take() {
+				Some(v) => v.disputes,
+				None => MultiDisputeStatementSet::default(),
+			};
+			*value = Some(ScrapedOnChainVotes::<T::Hash> {
+				backing_validators_per_candidate,
+				disputes,
+				session,
+			});
 		})
 	}
 
@@ -522,7 +521,6 @@ impl<T: Config> Pallet<T> {
 			backed_candidates,
 			scheduled,
 			<scheduler::Pallet<T>>::group_validators,
-			full_check,
 		)?;
 
 		METRICS.on_disputes_included(checked_disputes.len() as u64);
@@ -710,6 +708,7 @@ impl<T: Config> Pallet<T> {
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
 			let relay_parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
 
 			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
@@ -725,7 +724,7 @@ impl<T: Config> Pallet<T> {
 							// That way we avoid possible duplicate checks while assuring all
 							// backed candidates fine to pass on.
 							check_ctx
-								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
+								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
 								.is_err()
 				},
 				&scheduled[..],

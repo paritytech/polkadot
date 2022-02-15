@@ -25,7 +25,7 @@ use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
-	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
+	traits::{ConvertOrigin, FilterAssetLocation, OnResponse, TransactAsset, UniversalLocation},
 	Assets, Config,
 };
 

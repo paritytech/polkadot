@@ -160,11 +160,11 @@ impl metrics::Metrics for Metrics {
 						0.1,
 						0.5,
 						1.0,
+						2.0,
+						3.0,
 						10.0,
 						20.0,
 						30.0,
-						40.0,
-						50.0,
 						60.0,
 					]),
 				)?,
@@ -175,7 +175,19 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_pvf_execution_time",
 						"Time spent in executing PVFs",
-					)
+					).buckets(vec![
+						// This is synchronized with `APPROVAL_EXECUTION_TIMEOUT`  and
+						// `BACKING_EXECUTION_TIMEOUT` constants in `node/primitives/src/lib.rs`
+						0.1,
+						0.25,
+						0.5,
+						1.0,
+						2.0,
+						3.0,
+						4.0,
+						5.0,
+						6.0,
+					]),
 				)?,
 				registry,
 			)?,

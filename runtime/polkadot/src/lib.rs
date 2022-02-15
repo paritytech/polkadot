@@ -114,13 +114,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9140,
+	spec_version: 9170,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 9,
+	transaction_version: 10,
 	state_version: 0,
 };
 
@@ -491,6 +491,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type GovernanceFallback =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -541,6 +543,8 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	// 16
+	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -554,8 +558,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -1443,16 +1446,33 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SchedulerMigrationV3, FixCouncilDepositMigration),
+	(FixCouncilDepositMigration, CrowdloanIndexMigration),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+// Migration for crowdloan pallet to use fund index for account generation.
+pub struct CrowdloanIndexMigration;
+impl OnRuntimeUpgrade for CrowdloanIndexMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
+	}
+}
 
 /// A migration struct to fix some deposits in the council election pallet.
 ///
 /// See more details here: https://github.com/paritytech/polkadot/issues/4160
 pub struct FixCouncilDepositMigration;
-
 impl FixCouncilDepositMigration {
 	fn execute(check: bool) -> frame_support::weights::Weight {
 		let accounts = vec![
@@ -1627,7 +1647,7 @@ impl FixCouncilDepositMigration {
 
 impl OnRuntimeUpgrade for FixCouncilDepositMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		if VERSION.spec_version == 9150 {
+		if VERSION.spec_version == 9180 {
 			Self::execute(false)
 		} else {
 			log::warn!(target: "runtime::polkadot", "FixCouncilDepositMigration should be removed.");
@@ -1638,65 +1658,6 @@ impl OnRuntimeUpgrade for FixCouncilDepositMigration {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
 		let _ = Self::execute(true);
-		Ok(())
-	}
-}
-
-// Migration for scheduler pallet to move from a plain Call to a CallOrHash.
-pub struct SchedulerMigrationV3;
-
-impl OnRuntimeUpgrade for SchedulerMigrationV3 {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Scheduler::migrate_v2_to_v3()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		Scheduler::pre_migrate_to_v3()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		Scheduler::post_migrate_to_v3()
-	}
-}
-
-// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
-pub struct StakingBagsListMigrationV8;
-
-impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_staking::migrations::v8::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v8::post_migrate::<Runtime>()
-	}
-}
-
-/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
-pub struct SessionHistoricalPalletPrefixMigration;
-
-impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
 		Ok(())
 	}
 }
@@ -1722,6 +1683,7 @@ mod benches {
 		// Substrate
 		[pallet_bags_list, BagsList]
 		[pallet_balances, Balances]
+		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
@@ -2088,6 +2050,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
@@ -2108,10 +2071,12 @@ sp_api::impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
+			impl frame_benchmarking::baseline::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number

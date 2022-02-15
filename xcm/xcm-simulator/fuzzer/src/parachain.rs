@@ -104,7 +104,7 @@ parameter_types! {
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::parent();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
-	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
+	pub Ancestry: InteriorMultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
 }
 
 pub type LocationToAccountId = (
@@ -149,7 +149,10 @@ impl Config for XcmConfig {
 	type AssetClaims = ();
 	type SubscriptionService = ();
 	type PalletInstancesInfo = ();
+	type FeeManager = ();
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
 
 #[frame_support::pallet]

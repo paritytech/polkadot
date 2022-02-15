@@ -1548,3 +1548,112 @@ fn negative_issue_local_statement_only_triggers_import() {
 		})
 	});
 }
+
+#[test]
+fn empty_import_still_writes_candidate_receipt() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: Vec::new(),
+						pending_confirmation: tx,
+					},
+				})
+				.await;
+
+			rx.await.unwrap();
+
+			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+
+			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
+			assert_eq!(votes.invalid.len(), 0);
+			assert_eq!(votes.valid.len(), 0);
+			assert_eq!(votes.candidate_receipt, candidate_receipt);
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn redundant_votes_ignored() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			let valid_vote =
+				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
+
+			let valid_vote_2 =
+				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
+
+			assert!(valid_vote.validator_signature() != valid_vote_2.validator_signature());
+
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(valid_vote.clone(), ValidatorIndex(1))],
+						pending_confirmation: tx,
+					},
+				})
+				.await;
+
+			rx.await.unwrap();
+
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(valid_vote_2, ValidatorIndex(1))],
+						pending_confirmation: tx,
+					},
+				})
+				.await;
+
+			rx.await.unwrap();
+
+			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+
+			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
+			assert_eq!(votes.invalid.len(), 0);
+			assert_eq!(votes.valid.len(), 1);
+			assert_eq!(&votes.valid[0].2, valid_vote.validator_signature());
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}

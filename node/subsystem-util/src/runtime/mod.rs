@@ -117,8 +117,9 @@ impl RuntimeInfo {
 		}
 	}
 
-	/// Retrieve the current session index.
-	pub async fn get_session_index<Sender>(
+	/// Returns the session index expected at any child of the `parent` block.
+	/// This does not return the session index for the `parent` block.
+	pub async fn get_session_index_for_child<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		parent: Hash,
@@ -141,14 +142,14 @@ impl RuntimeInfo {
 	pub async fn get_session_info<'a, Sender>(
 		&'a mut self,
 		sender: &mut Sender,
-		parent: Hash,
+		relay_parent: Hash,
 	) -> Result<&'a ExtendedSessionInfo>
 	where
 		Sender: SubsystemSender,
 	{
-		let session_index = self.get_session_index(sender, parent).await?;
+		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
 
-		self.get_session_info_by_index(sender, parent, session_index).await
+		self.get_session_info_by_index(sender, relay_parent, session_index).await
 	}
 
 	/// Get `ExtendedSessionInfo` by session index.
@@ -185,7 +186,7 @@ impl RuntimeInfo {
 	pub async fn check_signature<Sender, Payload, RealPayload>(
 		&mut self,
 		sender: &mut Sender,
-		parent: Hash,
+		relay_parent: Hash,
 		signed: UncheckedSigned<Payload, RealPayload>,
 	) -> Result<
 		std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>,
@@ -195,9 +196,9 @@ impl RuntimeInfo {
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
-		let session_index = self.get_session_index(sender, parent).await?;
-		let info = self.get_session_info_by_index(sender, parent, session_index).await?;
-		Ok(check_signature(session_index, &info.session_info, parent, signed))
+		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
+		let info = self.get_session_info_by_index(sender, relay_parent, session_index).await?;
+		Ok(check_signature(session_index, &info.session_info, relay_parent, signed))
 	}
 
 	/// Build `ValidatorInfo` for the current session.

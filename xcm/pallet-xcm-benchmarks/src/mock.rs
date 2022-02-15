@@ -21,7 +21,11 @@ use xcm_executor::traits::FilterAssetLocation;
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
 impl xcm::opaque::latest::SendXcm for DevNull {
-	fn send_xcm(_: impl Into<MultiLocation>, _: Xcm<()>) -> SendResult {
+	type Ticket = ();
+	fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<()> {
+		Ok(((), MultiAssets::new()))
+	}
+	fn deliver(_: ()) -> Result<(), SendError> {
 		Ok(())
 	}
 }
@@ -57,7 +61,7 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 }
 
 parameter_types! {
-	pub Ancestry: MultiLocation = Junction::Parachain(101).into();
+	pub Ancestry: InteriorMultiLocation = Junction::Parachain(101).into();
 	pub UnitWeightCost: Weight = 10;
 	pub WeightPrice: (AssetId, u128) = (Concrete(Here.into()), 1_000_000);
 }

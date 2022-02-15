@@ -111,13 +111,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9140,
+	spec_version: 9170,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 8,
+	transaction_version: 9,
 	state_version: 0,
 };
 
@@ -399,6 +399,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type GovernanceFallback =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -442,6 +444,7 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -450,8 +453,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -1082,50 +1084,29 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
+	CrowdloanIndexMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-// Migration for scheduler pallet to move from a plain Call to a CallOrHash.
-pub struct SchedulerMigrationV3;
-
-impl OnRuntimeUpgrade for SchedulerMigrationV3 {
+// Migration for crowdloan pallet to use fund index for account generation.
+pub struct CrowdloanIndexMigration;
+impl OnRuntimeUpgrade for CrowdloanIndexMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Scheduler::migrate_v2_to_v3()
+		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		Scheduler::pre_migrate_to_v3()
+		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		Scheduler::post_migrate_to_v3()
+		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
 	}
 }
 
-/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
-pub struct SessionHistoricalPalletPrefixMigration;
-
-impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
-		Ok(())
-	}
-}
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
 extern crate frame_benchmarking;
@@ -1541,7 +1522,7 @@ sp_api::impl_runtime_apis! {
 				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
 				Response,
 			};
-			use xcm_config::{Westmint, WndLocation};
+			use xcm_config::{Westmint, TokenLocation};
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = xcm_config::XcmConfig;
@@ -1552,7 +1533,7 @@ sp_api::impl_runtime_apis! {
 				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
 					// Westend only knows about WND.
 					vec![MultiAsset{
-						id: Concrete(WndLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),
 					}].into()
 				}
@@ -1561,7 +1542,7 @@ sp_api::impl_runtime_apis! {
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 					Westmint::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(WndLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 			}
 
@@ -1573,7 +1554,7 @@ sp_api::impl_runtime_apis! {
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
-						id: Concrete(WndLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1 * UNITS),
 					}
 				}
@@ -1596,7 +1577,7 @@ sp_api::impl_runtime_apis! {
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 					let origin = Westmint::get();
-					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
+					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
 				}

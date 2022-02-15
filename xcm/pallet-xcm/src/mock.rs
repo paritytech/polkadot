@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{construct_runtime, parameter_types, traits::Everything, weights::Weight};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Everything, Nothing},
+	weights::Weight,
+};
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
@@ -80,7 +84,7 @@ pub mod pallet_test_notifier {
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let qid = crate::Pallet::<T>::new_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				querier,
 			);
@@ -100,7 +104,7 @@ pub mod pallet_test_notifier {
 			let call =
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = crate::Pallet::<T>::new_notify_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id },
 				<T as Config>::Call::from(call),
 				100u32.into(),
 				querier,
@@ -152,22 +156,37 @@ pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: impl Into<MultiLocation>, msg: Xcm<()>) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
+	type Ticket = (MultiLocation, Xcm<()>);
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
+		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, MultiAssets::new()))
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+		SENT_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(())
 	}
 }
 /// Sender that returns error if `X8` junction and stops routing
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
-	fn send_xcm(dest: impl Into<MultiLocation>, msg: Xcm<()>) -> SendResult {
-		let dest = dest.into();
+	type Ticket = (MultiLocation, Xcm<()>);
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
+		let (dest, msg) = (dest.take().unwrap(), msg.take().unwrap());
 		if dest.len() == 8 {
 			Err(SendError::Transport("Destination location full"))
 		} else {
-			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
-			Ok(())
+			Ok(((dest, msg), MultiAssets::new()))
 		}
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+		SENT_XCM.with(|q| q.borrow_mut().push(pair));
+		Ok(())
 	}
 }
 
@@ -221,9 +240,9 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-	pub const RelayLocation: MultiLocation = Here.into();
-	pub const AnyNetwork: NetworkId = NetworkId::Any;
-	pub Ancestry: MultiLocation = Here.into();
+	pub const RelayLocation: MultiLocation = Here.into_location();
+	pub const AnyNetwork: Option<NetworkId> = None;
+	pub Ancestry: InteriorMultiLocation = Here;
 	pub UnitWeightCost: Weight = 1_000;
 }
 
@@ -273,12 +292,15 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
 
 parameter_types! {
-	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 2;
+	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 3;
 }
 
 impl pallet_xcm::Config for Test {

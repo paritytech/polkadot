@@ -16,7 +16,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
-use xcm::latest::{MultiLocation, OriginKind};
+use xcm::latest::prelude::*;
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
 /// implementations of `From` and `Into` for the types you wish to convert between.
@@ -204,9 +204,25 @@ impl<O> ConvertOrigin<O> for Tuple {
 	}
 }
 
-/// Means of inverting a location: given a location which describes a `target` interpreted from the
-/// `source`, this will provide the corresponding location which describes the `source`.
-pub trait InvertLocation {
-	fn ancestry() -> MultiLocation;
-	fn invert_location(l: &MultiLocation) -> Result<MultiLocation, ()>;
+/// Means of wotking with a relative location.
+pub trait UniversalLocation {
+	/// Return the location of the local consensus system from the point of view of the location
+	/// `l`.
+	///
+	/// Given a target `location`, the result provides the location which represents the local
+	/// consensus system from the targets perspective.
+	fn invert_location(location: &MultiLocation) -> Result<MultiLocation, ()> {
+		let mut context = Self::universal_location();
+		let mut junctions = Here;
+		for _ in 0..location.parent_count() {
+			junctions = junctions
+				.pushed_with(context.take_first().unwrap_or(OnlyChild))
+				.map_err(|_| ())?;
+		}
+		let parents = location.interior().len() as u8;
+		Ok(MultiLocation::new(parents, junctions))
+	}
+
+	/// Return the location of the local consensus system within the known Universe.
+	fn universal_location() -> InteriorMultiLocation;
 }

@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-core-pvf-checker"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.21"
 thiserror = "1.0.30"
-tracing = "0.1.29"
+tracing = "0.1.30"
 
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }

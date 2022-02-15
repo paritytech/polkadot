@@ -14,11 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::Everything, weights::Weight};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, Nothing},
+	weights::Weight,
+};
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
-	traits::{InvertLocation, TransactAsset, WeightTrader},
+	traits::{TransactAsset, UniversalLocation, WeightTrader},
 	Assets,
 };
 
@@ -37,7 +41,11 @@ pub type LocalOriginToLocation = (
 
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
-	fn send_xcm(_dest: impl Into<MultiLocation>, _msg: Xcm<()>) -> SendResult {
+	type Ticket = ();
+	fn validate(_dest: &mut Option<MultiLocation>, _msg: &mut Option<Xcm<()>>) -> SendResult<()> {
+		Ok(((), MultiAssets::new()))
+	}
+	fn deliver(_: ()) -> Result<(), SendError> {
 		Ok(())
 	}
 }
@@ -68,12 +76,13 @@ impl WeightTrader for DummyWeightTrader {
 }
 
 pub struct InvertNothing;
-impl InvertLocation for InvertNothing {
+impl UniversalLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
 		Ok(Here.into())
 	}
-	fn ancestry() -> MultiLocation {
-		Here.into()
+
+	fn universal_location() -> InteriorMultiLocation {
+		Here
 	}
 }
 
@@ -95,4 +104,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = super::Xcm;
 	type PalletInstancesInfo = ();
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
