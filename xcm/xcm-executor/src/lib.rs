@@ -32,7 +32,7 @@ pub mod traits;
 use traits::{
 	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FeeReason,
 	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
-	VersionChangeNotifier, WeightBounds, WeightTrader,
+	VersionChangeNotifier, WeightBounds, WeightTrader, LockAsset, AssetExchange,
 };
 
 mod assets;
@@ -625,7 +625,31 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())
 			},
-			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
+			NoteAssetLocked { asset, owner } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				Config::AssetLock::note_asset_locked(origin, &asset, &owner)?;
+				Ok(())
+			},
+			UnlockAsset { asset, owner } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				Config::AssetLock::unlock_asset(origin, &asset, &owner)?;
+				Ok(())
+			},
+			ExchangeAsset { give, want, maximal } => {
+				let origin = self.origin.as_ref();
+				let give = self.holding.saturating_take(give);
+				let r = Config::AssetExchanger::exchange_asset(origin, give, &want, maximal);
+				let completed = r.is_ok();
+				let received = r.unwrap_or_else(|a| a);
+				for asset in received.into_assets_iter() {
+					self.holding.subsume(asset);
+				}
+				if completed {
+					Ok(())
+				} else {
+					Err(XcmError::NoDeal)
+				}
+			},
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),

@@ -223,4 +223,13 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
 		10_000_000_000
 	}
+	fn note_asset_locked(_: &MultiAsset, _: &MultiLocation) -> Weight {
+		10_000_000_000
+	}
+	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
+		10_000_000_000
+	}
+	fn exchange_asset(_: &MultiAssetFilter, _: &MultiAssets, _: &bool) -> Weight {
+		10_000_000_000
+	}
 }

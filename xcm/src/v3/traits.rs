@@ -114,6 +114,9 @@ pub enum Error {
 	/// `MultiLocation` value failed to be reanchored.
 	#[codec(index = 28)]
 	ReanchorFailed,
+	/// No deal is possible under the given constraints.
+	#[codec(index = 29)]
+	NoDeal,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.

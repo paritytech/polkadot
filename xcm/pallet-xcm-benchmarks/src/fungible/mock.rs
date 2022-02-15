@@ -144,6 +144,8 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = ();
+	type AssetLock = ();
+	type AssetExchanger = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
 	type PalletInstancesInfo = AllPalletsWithSystem;

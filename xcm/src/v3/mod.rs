@@ -352,7 +352,7 @@ pub enum Instruction<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets
 	/// under the ownership of `dest` within this consensus system (i.e. its sovereign account).
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the wantn
 	/// `xcm`.
 	///
 	/// - `assets`: The asset(s) to be withdrawn.
@@ -465,7 +465,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DescendOrigin(InteriorMultiLocation),
 
-	/// Immediately report the contents of the Error Register to the given destination via XCM.
+	/// Immediately report the contents of the Error Register to the wantn destination via XCM.
 	///
 	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to the described destination.
 	///
@@ -491,7 +491,7 @@ pub enum Instruction<Call> {
 	/// the ownership of `dest` within this consensus system (i.e. deposit them into its sovereign
 	/// account).
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the wantn `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
@@ -505,19 +505,22 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DepositReserveAsset { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
 
-	/// Remove the asset(s) (`give`) from the Holding Register and replace them with alternative
+	/// Remove the asset(s) (`want`) from the Holding Register and replace them with alternative
 	/// assets.
 	///
 	/// The minimum amount of assets to be received into the Holding Register for the order not to
 	/// fail may be stated.
 	///
-	/// - `give`: The asset(s) to remove from holding.
-	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for.
+	/// - `give`: The maximum amount of assets to remove from holding.
+	/// - `want`: The minimum amount of assets which `give` should be exchanged for.
+	/// - `maximal`: If `true`, then prefer to give as much as possible up to the limit of `give`
+	///   and receive accordingly more. If `false`, then prefer to give as little as possible in
+	///   order to receive as little as possible while receiving at least `want`.
 	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	ExchangeAsset { give: MultiAssetFilter, receive: MultiAssets },
+	ExchangeAsset { give: MultiAssetFilter, want: MultiAssets, maximal: bool },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `WithdrawAsset` XCM message to a
 	/// reserve location.
@@ -526,7 +529,7 @@ pub enum Instruction<Call> {
 	/// - `reserve`: A valid location that acts as a reserve for all asset(s) in `assets`. The
 	///   sovereign account of this consensus system *on the reserve location* will have appropriate
 	///   assets withdrawn and `effects` will be executed on them. There will typically be only one
-	///   valid location on any given asset/chain combination.
+	///   valid location on any wantn asset/chain combination.
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
@@ -551,7 +554,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
 
-	/// Report to a given destination the contents of the Holding Register.
+	/// Report to a wantn destination the contents of the Holding Register.
 	///
 	/// A `QueryResponse` message of type `Assets` is sent to the described destination.
 	///
@@ -670,7 +673,7 @@ pub enum Instruction<Call> {
 	/// Errors: *Fallible*
 	UnsubscribeVersion,
 
-	/// Reduce Holding by up to the given assets.
+	/// Reduce Holding by up to the wantn assets.
 	///
 	/// Holding is reduced by as much as possible up to the assets in the parameter. It is not an
 	/// error if the Holding does not contain the assets (to make this an error, use `ExpectAsset`
@@ -681,7 +684,7 @@ pub enum Instruction<Call> {
 	/// Errors: *Infallible*
 	BurnAsset(MultiAssets),
 
-	/// Throw an error if Holding does not contain at least the given assets.
+	/// Throw an error if Holding does not contain at least the wantn assets.
 	///
 	/// Kind: *Instruction*
 	///
@@ -689,7 +692,7 @@ pub enum Instruction<Call> {
 	/// - `ExpectationFalse`: If Holding Register does not contain the assets in the parameter.
 	ExpectAsset(MultiAssets),
 
-	/// Ensure that the Origin Register equals some given value and throw an error if not.
+	/// Ensure that the Origin Register equals some wantn value and throw an error if not.
 	///
 	/// Kind: *Instruction*
 	///
@@ -697,7 +700,7 @@ pub enum Instruction<Call> {
 	/// - `ExpectationFalse`: If Origin Register is not equal to the parameter.
 	ExpectOrigin(Option<MultiLocation>),
 
-	/// Ensure that the Error Register equals some given value and throw an error if not.
+	/// Ensure that the Error Register equals some wantn value and throw an error if not.
 	///
 	/// Kind: *Instruction*
 	///
@@ -803,6 +806,33 @@ pub enum Instruction<Call> {
 	///
 	/// Errors: *Fallible*.
 	ExportMessage { network: NetworkId, destination: InteriorMultiLocation, xcm: Xcm<()> },
+
+	/// Asset (`asset`) has been locked on the `origin` system and may not be transferred. It may
+	/// only be unlocked with the receipt of the `UnlockAsset`  instruction from this chain.
+	///
+	/// - `asset`: The asset(s) that has been locked.
+	/// - `owner`: The owner of the asset on the local chain.
+	///
+	/// Safety: `origin` must be trusted to have locked the corresponding `asset`
+	/// prior as a consequence of sending this message.
+	///
+	/// Kind: *Trusted Indication*.
+	///
+	/// Errors:
+	NoteAssetLocked { asset: MultiAsset, owner: MultiLocation },
+
+	/// Remove the lock over `asset` on this chain and (if nothing else is preventing it) allow the
+	/// asset to be transferred.
+	///
+	/// - `asset`: The asset to be unlocked.
+	/// - `owner`: The owner of the asset on the local chain.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	UnlockAsset { asset: MultiAsset, owner: MultiLocation },
 }
 
 impl<Call> Xcm<Call> {
@@ -839,7 +869,7 @@ impl<Call> Instruction<Call> {
 			ReportError(response_info) => ReportError(response_info),
 			DepositAsset { assets, beneficiary } => DepositAsset { assets, beneficiary },
 			DepositReserveAsset { assets, dest, xcm } => DepositReserveAsset { assets, dest, xcm },
-			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			ExchangeAsset { give, want, maximal } => ExchangeAsset { give, want, maximal },
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				InitiateReserveWithdraw { assets, reserve, xcm },
 			InitiateTeleport { assets, dest, xcm } => InitiateTeleport { assets, dest, xcm },
@@ -869,6 +899,8 @@ impl<Call> Instruction<Call> {
 			UniversalOrigin(j) => UniversalOrigin(j),
 			ExportMessage { network, destination, xcm } =>
 				ExportMessage { network, destination, xcm },
+			NoteAssetLocked { asset, owner } => NoteAssetLocked { asset, owner },
+			UnlockAsset { asset, owner } => UnlockAsset { asset, owner },
 		}
 	}
 }
@@ -899,7 +931,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			DepositAsset { assets, beneficiary } => W::deposit_asset(assets, beneficiary),
 			DepositReserveAsset { assets, dest, xcm } =>
 				W::deposit_reserve_asset(assets, dest, xcm),
-			ExchangeAsset { give, receive } => W::exchange_asset(give, receive),
+			ExchangeAsset { give, want, maximal } => W::exchange_asset(give, want, maximal),
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				W::initiate_reserve_withdraw(assets, reserve, xcm),
 			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
@@ -927,6 +959,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			UniversalOrigin(j) => W::universal_origin(j),
 			ExportMessage { network, destination, xcm } =>
 				W::export_message(network, destination, xcm),
+			NoteAssetLocked { asset, owner } => W::note_asset_locked(asset, owner),
+			UnlockAsset { asset, owner } => W::unlock_asset(asset, owner),
 		}
 	}
 }
@@ -1017,8 +1051,8 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			},
 			ExchangeAsset { give, receive } => {
 				let give = give.try_into()?;
-				let receive = receive.try_into()?;
-				Self::ExchangeAsset { give, receive }
+				let want = receive.try_into()?;
+				Self::ExchangeAsset { give, want, maximal: true }
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => Self::InitiateReserveWithdraw {
 				assets: assets.try_into()?,
