@@ -110,4 +110,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+	fn include_pvf_check_statement_finalize_upgrade_accept() -> u64 { Weight::MAX }
+	fn include_pvf_check_statement_finalize_upgrade_reject() -> u64 { Weight::MAX }
+	fn include_pvf_check_statement_finalize_onboarding_accept() -> u64 { Weight::MAX }
+	fn include_pvf_check_statement_finalize_onboarding_reject() -> u64 { Weight::MAX }
+	fn include_pvf_check_statement() -> u64 { Weight::MAX }
 }
