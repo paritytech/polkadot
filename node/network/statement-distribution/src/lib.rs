@@ -253,6 +253,7 @@ impl PeerRelayParentKnowledge {
 	/// candidate with the given hash.
 	fn send(
 		&mut self,
+		peer: &PeerId,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 		relay_parent: &Hash,
 	) -> bool {
@@ -278,6 +279,7 @@ impl PeerRelayParentKnowledge {
 			?validator_index,
 			?compact_statement,
 			?new_known,
+			?peer,
 			"Update peer relay parent knowledge with a sent statement"
 		);
 
@@ -461,23 +463,25 @@ impl PeerData {
 	/// candidate with the given hash.
 	fn send(
 		&mut self,
+		peer: &PeerId,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 	) -> bool {
 		debug_assert!(
-			self.can_send(relay_parent, fingerprint),
+			self.can_send(peer, relay_parent, fingerprint),
 			"send is only called after `can_send` returns true; qed",
 		);
 		self.view_knowledge
 			.get_mut(relay_parent)
 			.expect("send is only called after `can_send` returns true; qed")
-			.send(fingerprint, relay_parent)
+			.send(peer, fingerprint, relay_parent)
 	}
 
 	/// This returns `None` if the peer cannot accept this statement, without altering internal
 	/// state.
 	fn can_send(
 		&self,
+		peer: &PeerId,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 	) -> bool {
@@ -487,6 +491,7 @@ impl PeerData {
 					target: LOG_TARGET,
 					?relay_parent,
 					?fingerprint,
+					?peer,
 					"Cannot send statement: relay parent is not in the view knowledge"
 				);
 				false
@@ -498,6 +503,7 @@ impl PeerData {
 						target: LOG_TARGET,
 						?relay_parent,
 						?fingerprint,
+						?peer,
 						"Cannot send statement: {}",
 						reason
 					);
@@ -1025,7 +1031,7 @@ async fn circulate_statement<'a>(
 	let mut peers_to_send: Vec<PeerId> = peers
 		.iter()
 		.filter_map(|(peer, data)| {
-			if data.can_send(&relay_parent, &fingerprint) {
+			if data.can_send(peer, &relay_parent, &fingerprint) {
 				Some(peer.clone())
 			} else {
 				tracing::trace!(
@@ -1073,21 +1079,21 @@ async fn circulate_statement<'a>(
 			let new = peers
 				.get_mut(&peer_id)
 				.expect("a subset is taken above, so it exists; qed")
-				.send(&relay_parent, &fingerprint);
+				.send(&peer_id, &relay_parent, &fingerprint);
 			(peer_id, new)
 		})
 		.collect();
 
 	// Send all these peers the initial statement.
+	tracing::trace!(
+		target: LOG_TARGET,
+		?peers_to_send,
+		?relay_parent,
+		statement = ?stored.statement,
+		"Sending statement",
+	);
 	if !peers_to_send.is_empty() {
 		let payload = statement_message(relay_parent, stored.statement.clone());
-		tracing::trace!(
-			target: LOG_TARGET,
-			?peers_to_send,
-			?relay_parent,
-			statement = ?stored.statement,
-			"Sending statement",
-		);
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
@@ -1113,7 +1119,7 @@ async fn send_statements_about(
 ) {
 	for statement in active_head.statements_about(candidate_hash) {
 		let fingerprint = statement.fingerprint();
-		if !peer_data.can_send(&relay_parent, &fingerprint) {
+		if !peer_data.can_send(&peer, &relay_parent, &fingerprint) {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?peer,
@@ -1124,7 +1130,7 @@ async fn send_statements_about(
 			);
 			continue
 		}
-		peer_data.send(&relay_parent, &fingerprint);
+		peer_data.send(&peer, &relay_parent, &fingerprint);
 		let payload = statement_message(relay_parent, statement.statement.clone());
 
 		tracing::trace!(
@@ -1156,7 +1162,7 @@ async fn send_statements(
 ) {
 	for statement in active_head.statements() {
 		let fingerprint = statement.fingerprint();
-		if !peer_data.can_send(&relay_parent, &fingerprint) {
+		if !peer_data.can_send(&peer, &relay_parent, &fingerprint) {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?peer,
@@ -1166,7 +1172,7 @@ async fn send_statements(
 			);
 			continue
 		}
-		peer_data.send(&relay_parent, &fingerprint);
+		peer_data.send(&peer, &relay_parent, &fingerprint);
 		let payload = statement_message(relay_parent, statement.statement.clone());
 
 		tracing::trace!(

@@ -225,6 +225,7 @@ fn per_peer_relay_parent_knowledge_send() {
 
 	let hash_a = CandidateHash([1; 32].into());
 	let parent_hash: Hash = [1; 32].into();
+	let peer = PeerId::random();
 
 	// Sending an un-pinned statement should not work and should have no effect.
 	assert!(!(knowledge.can_send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))).0));
@@ -236,11 +237,11 @@ fn per_peer_relay_parent_knowledge_send() {
 
 	// Make the peer aware of the candidate.
 	assert_eq!(
-		knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), &parent_hash),
+		knowledge.send(&peer, &(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), &parent_hash),
 		true
 	);
 	assert_eq!(
-		knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(1)), &parent_hash),
+		knowledge.send(&peer, &(CompactStatement::Seconded(hash_a), ValidatorIndex(1)), &parent_hash),
 		false
 	);
 	assert!(knowledge.is_known_candidate(&hash_a));
@@ -251,7 +252,7 @@ fn per_peer_relay_parent_knowledge_send() {
 
 	// And now it should accept the dependent message.
 	assert_eq!(
-		knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), &parent_hash),
+		knowledge.send(&peer, &(CompactStatement::Valid(hash_a), ValidatorIndex(0)), &parent_hash),
 		false
 	);
 	assert!(knowledge.is_known_candidate(&hash_a));
