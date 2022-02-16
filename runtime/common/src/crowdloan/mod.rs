@@ -49,6 +49,8 @@
 //! the parachain remains active. Users can withdraw their funds once the slot is completed and funds are
 //! returned to the crowdloan account.
 
+pub mod migration;
+
 use crate::{
 	slot_range::SlotRange,
 	traits::{Auctioneer, Registrar},
@@ -87,7 +89,7 @@ type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::Acco
 type NegativeImbalanceOf<T> =
 	<CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-type TrieIndex = u32;
+type FundIndex = u32;
 
 pub trait WeightInfo {
 	fn create() -> Weight;
@@ -145,33 +147,33 @@ pub enum LastContribution<BlockNumber> {
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// The owning account who placed the deposit.
-	depositor: AccountId,
+	pub depositor: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
-	verifier: Option<MultiSigner>,
+	pub verifier: Option<MultiSigner>,
 	/// The amount of deposit placed.
-	deposit: Balance,
+	pub deposit: Balance,
 	/// The total amount raised.
-	raised: Balance,
+	pub raised: Balance,
 	/// Block number after which the funding must have succeeded. If not successful at this number
 	/// then everyone may withdraw their funds.
-	end: BlockNumber,
+	pub end: BlockNumber,
 	/// A hard-cap on the amount that may be contributed.
-	cap: Balance,
+	pub cap: Balance,
 	/// The most recent block that this had a contribution. Determines if we make a bid or not.
 	/// If this is `Never`, this fund has never received a contribution.
 	/// If this is `PreEnding(n)`, this fund received a contribution sometime in auction
 	/// number `n` before the ending period.
 	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
 	/// where `n` is how far into the ending period the contribution was made.
-	last_contribution: LastContribution<BlockNumber>,
+	pub last_contribution: LastContribution<BlockNumber>,
 	/// First lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
 	/// as `BlockNumber`.
-	first_period: LeasePeriod,
+	pub first_period: LeasePeriod,
 	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
 	/// as `BlockNumber`.
-	last_period: LeasePeriod,
-	/// Index used for the child trie of this fund
-	trie_index: TrieIndex,
+	pub last_period: LeasePeriod,
+	/// Unique index used to represent this fund.
+	pub fund_index: FundIndex,
 }
 
 #[frame_support::pallet]
@@ -244,10 +246,10 @@ pub mod pallet {
 	#[pallet::getter(fn endings_count)]
 	pub(super) type EndingsCount<T> = StorageValue<_, u32, ValueQuery>;
 
-	/// Tracker for the next available trie index
+	/// Tracker for the next available fund index
 	#[pallet::storage]
-	#[pallet::getter(fn next_trie_index)]
-	pub(super) type NextTrieIndex<T> = StorageValue<_, u32, ValueQuery>;
+	#[pallet::getter(fn next_fund_index)]
+	pub(super) type NextFundIndex<T> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -342,7 +344,7 @@ pub mod pallet {
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
 					let result = T::Auctioneer::place_bid(
-						Self::fund_account_id(para_id),
+						Self::fund_account_id(fund.fund_index),
 						para_id,
 						fund.first_period,
 						fund.last_period,
@@ -408,8 +410,8 @@ pub mod pallet {
 			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
 			ensure!(T::Registrar::is_registered(index), Error::<T>::InvalidParaId);
 
-			let trie_index = Self::next_trie_index();
-			let new_trie_index = trie_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
+			let fund_index = Self::next_fund_index();
+			let new_fund_index = fund_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
 
 			let deposit = T::SubmissionDeposit::get();
 
@@ -427,11 +429,11 @@ pub mod pallet {
 					last_contribution: LastContribution::Never,
 					first_period,
 					last_period,
-					trie_index,
+					fund_index,
 				},
 			);
 
-			NextTrieIndex::<T>::put(new_trie_index);
+			NextFundIndex::<T>::put(new_fund_index);
 			// Add a lock to the para so that the configuration cannot be changed.
 			T::Registrar::apply_lock(index);
 
@@ -479,15 +481,15 @@ pub mod pallet {
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			let fund_account = Self::fund_account_id(index);
+			let fund_account = Self::fund_account_id(fund.fund_index);
 			Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
 
-			let (balance, _) = Self::contribution_get(fund.trie_index, &who);
+			let (balance, _) = Self::contribution_get(fund.fund_index, &who);
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
 
-			Self::contribution_kill(fund.trie_index, &who);
+			Self::contribution_kill(fund.fund_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
 
 			Funds::<T>::insert(index, &fund);
@@ -510,12 +512,12 @@ pub mod pallet {
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			let fund_account = Self::fund_account_id(index);
+			let fund_account = Self::fund_account_id(fund.fund_index);
 			Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
 
 			let mut refund_count = 0u32;
 			// Try killing the crowdloan child trie
-			let contributions = Self::contribution_iterator(fund.trie_index);
+			let contributions = Self::contribution_iterator(fund.fund_index);
 			// Assume everyone will be refunded.
 			let mut all_refunded = true;
 			for (who, (balance, _)) in contributions {
@@ -525,7 +527,7 @@ pub mod pallet {
 					break
 				}
 				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
-				Self::contribution_kill(fund.trie_index, &who);
+				Self::contribution_kill(fund.fund_index, &who);
 				fund.raised = fund.raised.saturating_sub(balance);
 				refund_count += 1;
 			}
@@ -561,7 +563,7 @@ pub mod pallet {
 			// Assuming state is not corrupted, the child trie should already be cleaned up
 			// and all funds in the crowdloan account have been returned. If not, governance
 			// can take care of that.
-			debug_assert!(Self::contribution_iterator(fund.trie_index).count().is_zero());
+			debug_assert!(Self::contribution_iterator(fund.fund_index).count().is_zero());
 
 			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 			Funds::<T>::remove(index);
@@ -598,7 +600,7 @@ pub mod pallet {
 					last_contribution: fund.last_contribution,
 					first_period,
 					last_period,
-					trie_index: fund.trie_index,
+					fund_index: fund.fund_index,
 				},
 			);
 
@@ -616,10 +618,10 @@ pub mod pallet {
 			ensure!(memo.len() <= T::MaxMemoLength::get().into(), Error::<T>::MemoTooLarge);
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 
-			let (balance, _) = Self::contribution_get(fund.trie_index, &who);
+			let (balance, _) = Self::contribution_get(fund.fund_index, &who);
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
-			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
+			Self::contribution_put(fund.fund_index, &who, &balance, &memo);
 			Self::deposit_event(Event::<T>::MemoUpdated(who, index, memo));
 			Ok(())
 		}
@@ -658,11 +660,11 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
-	pub fn fund_account_id(index: ParaId) -> T::AccountId {
+	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
 		T::PalletId::get().into_sub_account(index)
 	}
 
-	pub fn id_from_index(index: TrieIndex) -> child::ChildInfo {
+	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdloan");
 		buf.extend_from_slice(&index.encode()[..]);
@@ -670,7 +672,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn contribution_put(
-		index: TrieIndex,
+		index: FundIndex,
 		who: &T::AccountId,
 		balance: &BalanceOf<T>,
 		memo: &[u8],
@@ -678,22 +680,22 @@ impl<T: Config> Pallet<T> {
 		who.using_encoded(|b| child::put(&Self::id_from_index(index), b, &(balance, memo)));
 	}
 
-	pub fn contribution_get(index: TrieIndex, who: &T::AccountId) -> (BalanceOf<T>, Vec<u8>) {
+	pub fn contribution_get(index: FundIndex, who: &T::AccountId) -> (BalanceOf<T>, Vec<u8>) {
 		who.using_encoded(|b| {
 			child::get_or_default::<(BalanceOf<T>, Vec<u8>)>(&Self::id_from_index(index), b)
 		})
 	}
 
-	pub fn contribution_kill(index: TrieIndex, who: &T::AccountId) {
+	pub fn contribution_kill(index: FundIndex, who: &T::AccountId) {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: TrieIndex) -> child::KillStorageResult {
+	pub fn crowdloan_kill(index: FundIndex) -> child::KillStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 
 	pub fn contribution_iterator(
-		index: TrieIndex,
+		index: FundIndex,
 	) -> ChildTriePrefixIterator<(T::AccountId, (BalanceOf<T>, Vec<u8>))> {
 		ChildTriePrefixIterator::<_>::with_prefix_over_key::<Identity>(
 			&Self::id_from_index(index),
@@ -752,7 +754,7 @@ impl<T: Config> Pallet<T> {
 		ensure!(current_lease_period <= fund.first_period, Error::<T>::ContributionPeriodOver);
 
 		// Make sure crowdloan has not already won.
-		let fund_account = Self::fund_account_id(index);
+		let fund_account = Self::fund_account_id(fund.fund_index);
 		ensure!(
 			!T::Auctioneer::has_won_an_auction(index, &fund_account),
 			Error::<T>::BidOrLeaseActive
@@ -762,7 +764,7 @@ impl<T: Config> Pallet<T> {
 		// contributions into the auction when it would not impact the outcome.
 		ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::VrfDelayInProgress);
 
-		let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
+		let (old_balance, memo) = Self::contribution_get(fund.fund_index, &who);
 
 		if let Some(ref verifier) = fund.verifier {
 			let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
@@ -776,7 +778,7 @@ impl<T: Config> Pallet<T> {
 		CurrencyOf::<T>::transfer(&who, &fund_account, value, existence)?;
 
 		let balance = old_balance.saturating_add(value);
-		Self::contribution_put(fund.trie_index, &who, &balance, &memo);
+		Self::contribution_put(fund.fund_index, &who, &balance, &memo);
 
 		if T::Auctioneer::auction_status(now).is_ending().is_some() {
 			match fund.last_contribution {
@@ -966,7 +968,8 @@ mod tests {
 	// Emulate what would happen if we won an auction:
 	// balance is reserved and a deposit_held is recorded
 	fn set_winner(para: ParaId, who: u64, winner: bool) {
-		let account_id = Crowdloan::fund_account_id(para);
+		let fund = Funds::<Test>::get(para).unwrap();
+		let account_id = Crowdloan::fund_account_id(fund.fund_index);
 		if winner {
 			let free_balance = Balances::free_balance(&account_id);
 			Balances::reserve(&account_id, free_balance)
@@ -1177,7 +1180,7 @@ mod tests {
 				last_contribution: LastContribution::Never,
 				first_period: 1,
 				last_period: 4,
-				trie_index: 0,
+				fund_index: 0,
 			};
 			assert_eq!(Crowdloan::funds(para), Some(fund_info));
 			// User has deposit removed from their free balance
@@ -1217,7 +1220,7 @@ mod tests {
 				last_contribution: LastContribution::Never,
 				first_period: 1,
 				last_period: 4,
-				trie_index: 0,
+				fund_index: 0,
 			};
 			assert_eq!(Crowdloan::funds(ParaId::from(0)), Some(fund_info));
 			// User has deposit removed from their free balance
@@ -1270,6 +1273,7 @@ mod tests {
 	fn contribute_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let index = NextFundIndex::<Test>::get();
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
@@ -1284,7 +1288,7 @@ mod tests {
 			// Contributions are stored in the trie
 			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1).0, 49);
 			// Contributions appear in free balance of crowdloan
-			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(para)), 49);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(index)), 49);
 			// Crowdloan is added to NewRaise
 			assert_eq!(Crowdloan::new_raise(), vec![para]);
 
@@ -1300,6 +1304,7 @@ mod tests {
 	fn contribute_with_verifier_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let index = NextFundIndex::<Test>::get();
 			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(
@@ -1364,7 +1369,7 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 10, Some(valid_signature_2)));
 
 			// Contributions appear in free balance of crowdloan
-			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(para)), 59);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(index)), 59);
 
 			// Contribution amount is correct
 			let fund = Crowdloan::funds(para).unwrap();
@@ -1409,9 +1414,10 @@ mod tests {
 
 			// If a crowdloan has already won, it should not allow contributions.
 			let para_2 = new_para();
+			let index = NextFundIndex::<Test>::get();
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
 			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
-			let crowdloan_account = Crowdloan::fund_account_id(para_2);
+			let crowdloan_account = Crowdloan::fund_account_id(index);
 			set_winner(para_2, crowdloan_account, true);
 			assert_noop!(
 				Crowdloan::contribute(Origin::signed(1), para_2, 49, None),
@@ -1478,6 +1484,7 @@ mod tests {
 	fn bidding_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let index = NextFundIndex::<Test>::get();
 			let first_period = 1;
 			let last_period = 4;
 
@@ -1493,7 +1500,7 @@ mod tests {
 				9,
 				None
 			));
-			let bidder = Crowdloan::fund_account_id(para);
+			let bidder = Crowdloan::fund_account_id(index);
 
 			// Fund crowdloan
 			run_to_block(1);
@@ -1524,6 +1531,7 @@ mod tests {
 	fn withdraw_from_failed_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let index = NextFundIndex::<Test>::get();
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
@@ -1531,7 +1539,7 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
 
 			run_to_block(10);
-			let account_id = Crowdloan::fund_account_id(para);
+			let account_id = Crowdloan::fund_account_id(index);
 			// para has no reserved funds, indicating it did not win the auction.
 			assert_eq!(Balances::reserved_balance(&account_id), 0);
 			// but there's still the funds in its balance.
@@ -1553,13 +1561,14 @@ mod tests {
 	fn withdraw_cannot_be_griefed() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let index = NextFundIndex::<Test>::get();
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 
 			run_to_block(10);
-			let account_id = Crowdloan::fund_account_id(para);
+			let account_id = Crowdloan::fund_account_id(index);
 
 			// user sends the crowdloan funds trying to make an accounting error
 			assert_ok!(Balances::transfer(Origin::signed(1), account_id, 10));
@@ -1583,7 +1592,8 @@ mod tests {
 	fn refund_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
-			let account_id = Crowdloan::fund_account_id(para);
+			let index = NextFundIndex::<Test>::get();
+			let account_id = Crowdloan::fund_account_id(index);
 
 			// Set up a crowdloan ending on 9
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
@@ -1617,7 +1627,8 @@ mod tests {
 	fn multiple_refund_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
-			let account_id = Crowdloan::fund_account_id(para);
+			let index = NextFundIndex::<Test>::get();
+			let account_id = Crowdloan::fund_account_id(index);
 
 			// Set up a crowdloan ending on 9
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 100000, 1, 1, 9, None));
@@ -1727,7 +1738,8 @@ mod tests {
 	fn withdraw_from_finished_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
-			let account_id = Crowdloan::fund_account_id(para);
+			let index = NextFundIndex::<Test>::get();
+			let account_id = Crowdloan::fund_account_id(index);
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
@@ -2079,7 +2091,7 @@ mod benchmarking {
 		verify {
 			let fund = Funds::<T>::get(fund_index).expect("fund was created...");
 			assert_eq!(
-				Crowdloan::<T>::contribution_get(fund.trie_index, &caller),
+				Crowdloan::<T>::contribution_get(fund.fund_index, &caller),
 				(T::MinContribution::get(), worst_memo),
 			);
 		}

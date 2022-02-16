@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-node-collation-generation"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.29"
+tracing = "0.1.30"
 polkadot-erasure-coding = { path = "../../erasure-coding" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }

@@ -155,7 +155,6 @@ where
 		client,
 		shared_authority_set,
 		shared_epoch_changes,
-		deny_unsafe,
 	)?));
 
 	let handler: beefy_gadget_rpc::BeefyRpcHandler<Block> = beefy_gadget_rpc::BeefyRpcHandler::new(
