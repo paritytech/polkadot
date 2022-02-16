@@ -62,7 +62,7 @@
 
 use crate::{
 	v2::{Instruction, Response as NewResponse, Xcm as NewXcm},
-	v3::NetworkId as NewNetworkId,
+	v3::{NetworkId as NewNetworkId, BodyId as NewBodyId, BodyPart as NewBodyPart},
 	DoubleEncoded,
 };
 use alloc::vec::Vec;
@@ -186,6 +186,21 @@ pub enum BodyId {
 	Judicial,
 }
 
+impl From<NewBodyId> for BodyId {
+	fn from(n: NewBodyId) -> Self {
+		use NewBodyId::*;
+		match n {
+			Unit => Self::Unit,
+			Moniker(n) => Self::Named(n[..].to_vec()),
+			Index(n) => Self::Index(n),
+			Executive => Self::Executive,
+			Technical => Self::Technical,
+			Legislative => Self::Legislative,
+			Judicial => Self::Judicial,
+		}
+	}
+}
+
 /// A part of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum BodyPart {
@@ -227,6 +242,19 @@ impl BodyPart {
 			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
 			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
 			_ => false,
+		}
+	}
+}
+
+impl From<NewBodyPart> for BodyPart {
+	fn from(n: NewBodyPart) -> Self {
+		use NewBodyPart::*;
+		match n {
+			Voice => Self::Voice,
+			Members { count } => Self::Members { count },
+			Fraction { nom, denom } => Self::Fraction { nom, denom },
+			AtLeastProportion { nom, denom } => Self::AtLeastProportion { nom, denom },
+			MoreThanProportion { nom, denom } => Self::MoreThanProportion { nom, denom },
 		}
 	}
 }

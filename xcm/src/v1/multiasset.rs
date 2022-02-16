@@ -123,7 +123,10 @@ impl TryFrom<NewAssetId> for AssetId {
 		use NewAssetId::*;
 		Ok(match old {
 			Concrete(l) => Self::Concrete(l.try_into()?),
-			Abstract(v) => Self::Abstract(v),
+			Abstract(v) => {
+				let zeroes = v.iter().rev().position(|n| *n != 0).unwrap_or(v.len());
+				Self::Abstract(v[0..(32 - zeroes)].to_vec())
+			},
 		})
 	}
 }

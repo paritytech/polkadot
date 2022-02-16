@@ -17,7 +17,7 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
-use crate::v3::Junction as NewJunction;
+use crate::v3::{Junction as NewJunction};
 use alloc::vec::Vec;
 use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode};
@@ -92,9 +92,9 @@ impl TryFrom<NewJunction> for Junction {
 				Self::AccountKey20 { network: network.try_into()?, key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(key) => Self::GeneralKey(key),
+			GeneralKey(key) => Self::GeneralKey(key[..].to_vec()),
 			OnlyChild => Self::OnlyChild,
-			Plurality { id, part } => Self::Plurality { id: id.into(), part },
+			Plurality { id, part } => Self::Plurality { id: id.into(), part: part.into() },
 			_ => return Err(()),
 		})
 	}

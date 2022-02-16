@@ -18,7 +18,7 @@
 
 use super::{Junction, MultiLocation, NetworkId};
 use core::{convert::TryFrom, mem, result};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// Maximum number of `Junction`s that a `Junctions` can contain.
@@ -29,7 +29,7 @@ pub(crate) const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,

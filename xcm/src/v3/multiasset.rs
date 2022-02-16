@@ -29,6 +29,7 @@ use crate::v2::{
 	MultiAssets as OldMultiAssets, WildMultiAsset as OldWildMultiAsset,
 };
 use alloc::{vec, vec::Vec};
+use codec::MaxEncodedLen;
 use core::{
 	cmp::Ordering,
 	convert::{TryFrom, TryInto},
@@ -39,10 +40,10 @@ use scale_info::TypeInfo;
 pub use crate::v2::{AssetInstance, Fungibility, WildFungibility};
 
 /// Classification of an asset being concrete or abstract.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum AssetId {
 	Concrete(MultiLocation),
-	Abstract(Vec<u8>),
+	Abstract([u8; 32]),
 }
 
 impl<T: Into<MultiLocation>> From<T> for AssetId {
@@ -51,8 +52,8 @@ impl<T: Into<MultiLocation>> From<T> for AssetId {
 	}
 }
 
-impl From<Vec<u8>> for AssetId {
-	fn from(x: Vec<u8>) -> Self {
+impl From<[u8; 32]> for AssetId {
+	fn from(x: [u8; 32]) -> Self {
 		Self::Abstract(x)
 	}
 }
@@ -63,7 +64,12 @@ impl TryFrom<OldAssetId> for AssetId {
 		use OldAssetId::*;
 		Ok(match old {
 			Concrete(l) => Self::Concrete(l.try_into()?),
-			Abstract(v) => Self::Abstract(v),
+			Abstract(v) if v.len() <= 32 => {
+				let mut r = [0u8; 32];
+				r.copy_from_slice(&v[..]);
+				Self::Abstract(r)
+			},
+			_ => return Err(()),
 		})
 	}
 }

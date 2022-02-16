@@ -34,7 +34,7 @@ mod multiasset;
 mod multilocation;
 mod traits;
 
-pub use junction::{Junction, NetworkId};
+pub use junction::{Junction, NetworkId, BodyId, BodyPart};
 pub use junctions::Junctions;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
@@ -48,7 +48,7 @@ pub use traits::{
 	SendResult, SendXcm, Unwrappable, Weight,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
-pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
+pub use super::v2::{OriginKind, WeightLimit};
 
 /// This module's XCM version.
 pub const VERSION: super::Version = 3;
