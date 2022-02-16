@@ -21,7 +21,7 @@ use frame_support::{
 	pallet_prelude::Get,
 	traits::fungible::{Inspect, Mutate},
 };
-use sp_runtime::traits::{Bounded, Zero};
+use sp_runtime::traits::{Bounded, SaturatedConversion, Zero};
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, TransactAsset};
@@ -111,8 +111,10 @@ benchmarks_instance_pallet! {
 		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
 			.ok_or(BenchmarkError::Skip)?;
 
-		if let Some(checked_account) = T::CheckedAccount::get() {
-			if T::TransactAsset::balance(&checked_account).is_zero() {
+		match (T::CheckedAccount::get(), transferable_reserve_asset.clone()) {
+			(Some(checked_account), MultiAsset { fun: Fungible(amount), .. })
+				if T::TransactAsset::balance(&checked_account).saturated_into::<u128>() < amount =>
+			{
 				T::TransactAsset::mint_into(
 					&checked_account,
 					<
@@ -122,6 +124,7 @@ benchmarks_instance_pallet! {
 					>::Balance::max_value() / 2u32.into(),
 				)?;
 			}
+			_ => (),
 		}
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
@@ -144,8 +147,10 @@ benchmarks_instance_pallet! {
 		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get()
 			.ok_or(BenchmarkError::Skip)?;
 
-		if let Some(checked_account) = T::CheckedAccount::get() {
-			if T::TransactAsset::balance(&checked_account).is_zero() {
+		match (T::CheckedAccount::get(), teleportable_asset.clone()) {
+			(Some(checked_account), MultiAsset { fun: Fungible(amount), .. })
+				if T::TransactAsset::balance(&checked_account).saturated_into::<u128>() < amount =>
+			{
 				T::TransactAsset::mint_into(
 					&checked_account,
 					<
@@ -155,6 +160,7 @@ benchmarks_instance_pallet! {
 					>::Balance::max_value() / 2u32.into(),
 				)?;
 			}
+			_ => (),
 		}
 
 		let assets: MultiAssets = vec![ teleportable_asset ].into();
