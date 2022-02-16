@@ -199,10 +199,24 @@ test-linux-stable:
   script:
     # Builds with the runtime benchmarks/metrics features are only to be used for testing.
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
+
+test-linux-stable-node-metrics:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *collect-artifacts
+  <<:                              *common-refs
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
     # We need to separately run the `polkadot-node-metrics` tests. More specifically, because the
     # `runtime_can_publish_metrics` test uses the `test-runtime` which doesn't support
     # the `runtime-benchmarks` feature.
     - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
+
 
 check-runtime-benchmarks:
   stage:                           test
@@ -283,10 +297,8 @@ build-malus:
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/* ./artifacts
 
-#### stage:                        build
-
 .check-dependent-project:          &check-dependent-project
-  stage:                           build
+  stage:                           test
   <<:                              *docker-env
   <<:                              *test-pr-refs
   script:
@@ -301,6 +313,15 @@ build-malus:
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
         "$CARGO_UPDATE_CRATES"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
+
+#### stage:                        build
+
 
 build-linux-stable:
   stage:                           test
@@ -331,12 +352,6 @@ build-linux-stable:
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/* ./artifacts
-
-check-dependent-cumulus:
-  <<: *check-dependent-project
-  variables:
-    DEPENDENT_REPO: cumulus
-    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
 
 check-transaction-versions:
   stage:                           build
