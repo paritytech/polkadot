@@ -80,6 +80,14 @@ default:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
+.common-refs:                      &common-refs
+  # these jobs run always*
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+
 .test-pr-refs:                     &test-pr-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
@@ -177,41 +185,24 @@ test-deterministic-wasm:
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
-test-build-linux-stable:
+test-linux-stable:
   stage:                           test
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *collect-artifacts
+  <<:                              *common-refs
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
-    - ./scripts/gitlab/test_linux_stable.sh
-    # we're using the bin built here, instead of having a parallel `build-linux-release`
-    - time cargo build --profile testnet --verbose --bin polkadot
-    - sccache -s
-    # pack artifacts
-    - mkdir -p ./artifacts
-    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-    - mv ./target/testnet/polkadot ./artifacts/.
-    - pushd artifacts
-    - sha256sum polkadot | tee polkadot.sha256
-    - shasum -c polkadot.sha256
-    - popd
-    - EXTRATAG="$(./artifacts/polkadot --version |
-        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
-    - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
-    - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
-    - echo -n ${VERSION} > ./artifacts/VERSION
-    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-    - cp -r scripts/* ./artifacts
+    # Builds with the runtime benchmarks/metrics features are only to be used for testing.
+    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
+    # We need to separately run the `polkadot-node-metrics` tests. More specifically, because the
+    # `runtime_can_publish_metrics` test uses the `test-runtime` which doesn't support
+    # the `runtime-benchmarks` feature.
+    - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
 
 check-runtime-benchmarks:
   stage:                           test
@@ -311,6 +302,36 @@ build-malus:
         "$GITHUB_PR_TOKEN"
         "$CARGO_UPDATE_CRATES"
 
+build-linux-stable:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *collect-artifacts
+  <<:                              *common-refs
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    - time cargo build --profile testnet --verbose --bin polkadot
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - mv ./target/testnet/polkadot ./artifacts/.
+    - pushd artifacts
+    - sha256sum polkadot | tee polkadot.sha256
+    - shasum -c polkadot.sha256
+    - popd
+    - EXTRATAG="$(./artifacts/polkadot --version |
+        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
+    - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
+    - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
+    - echo -n ${VERSION} > ./artifacts/VERSION
+    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+    - cp -r scripts/* ./artifacts
+
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
@@ -323,7 +344,7 @@ check-transaction-versions:
   <<:                              *docker-env
   image:                           node:15
   needs:
-    - job:                         test-build-linux-stable
+    - job:                         build-linux-stable
       artifacts:                   true
   before_script:
     - apt-get -y update; apt-get -y install jq lsof
@@ -419,7 +440,7 @@ publish-polkadot-image:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   needs:
-    - job:                         test-build-linux-stable
+    - job:                         build-linux-stable
       artifacts:                   true
   after_script:
     # pass artifacts to the zombienet-tests job
@@ -507,7 +528,7 @@ update_westend_weights:
 publish-s3-release:                &publish-s3
   stage:                           publish
   needs:
-    - job:                         test-build-linux-stable
+    - job:                         build-linux-stable
       artifacts:                   true
   <<:                              *kubernetes-env
   <<:                              *vault-secrets
