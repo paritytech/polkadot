@@ -15,7 +15,7 @@ proc-macro = true
 syn = { version = "1.0.86", features = ["full", "extra-traits"] }
 quote = "1.0.15"
 proc-macro2 = "1.0.36"
-proc-macro-crate = "1.1.0"
+proc-macro-crate = "1.1.1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
