@@ -72,7 +72,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Header, Id as ParaId};
 
-use crate::error::{Error, FatalResult, NonFatal, Result};
+use crate::error::{Error, FatalResult, NonFatal, Result, NonFatalResult};
 
 mod error;
 
@@ -177,7 +177,7 @@ impl View {
 	}
 }
 
-async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
+async fn run<Context>(mut ctx: Context) -> Result<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -202,7 +202,7 @@ async fn update_view<Context>(
 	view: &mut View,
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
-) -> SubsystemResult<()>
+) -> NonFatalResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -279,7 +279,7 @@ async fn get_base_constraints<Context>(
 	ctx: &mut Context,
 	relay_block: Hash,
 	para_id: ParaId,
-) -> SubsystemResult<Constraints>
+) -> NonFatalResult<Constraints>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -291,7 +291,7 @@ where
 async fn get_all_parachains<Context>(
 	ctx: &mut Context,
 	relay_block: Hash,
-) -> SubsystemResult<Vec<ParaId>>
+) -> NonFatalResult<Vec<ParaId>>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -303,7 +303,7 @@ where
 async fn find_all_relevant_blocks<Context>(
 	ctx: &mut Context,
 	active_leaves: &HashSet<Hash>,
-) -> SubsystemResult<HashMap<Hash, Header>>
+) -> NonFatalResult<HashMap<Hash, Header>>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
