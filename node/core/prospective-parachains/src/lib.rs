@@ -125,7 +125,6 @@ impl FragmentTrees {
 			}
 		};
 
-		// TODO [now]: verify that this means 'it was present'
 		if self.roots.remove(&fragment_hash) {
 			for child in node.children {
 				self.roots.insert(child);
@@ -274,7 +273,6 @@ where
 	unimplemented!()
 }
 
-// TODO [now]; non-fatal error type.
 async fn get_base_constraints<Context>(
 	ctx: &mut Context,
 	relay_block: Hash,
@@ -287,7 +285,6 @@ where
 	unimplemented!()
 }
 
-// TODO [now]; non-fatal error type.
 async fn get_all_parachains<Context>(
 	ctx: &mut Context,
 	relay_block: Hash,
@@ -299,7 +296,6 @@ where
 	unimplemented!()
 }
 
-// TODO [now]; non-fatal error type.
 async fn find_all_relevant_blocks<Context>(
 	ctx: &mut Context,
 	active_leaves: &HashSet<Hash>,
