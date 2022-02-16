@@ -159,12 +159,6 @@ where
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 			FetchOnChainVotes(relay_parent, scraped) =>
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
-			PvfsRequirePrecheck(relay_parent, pvfs) =>
-				self.requests_cache.cache_pvfs_require_precheck(relay_parent, pvfs),
-			SubmitPvfCheckStatement(_, _, _, ()) => {},
-			ValidationCodeHash(relay_parent, para_id, assumption, hash) => self
-				.requests_cache
-				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 		}
 	}
 
@@ -255,15 +249,6 @@ where
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::FetchOnChainVotes(sender) =>
 				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
-			Request::PvfsRequirePrecheck(sender) => query!(pvfs_require_precheck(), sender)
-				.map(|sender| Request::PvfsRequirePrecheck(sender)),
-			request @ Request::SubmitPvfCheckStatement(_, _, _) => {
-				// This request is side-effecting and thus cannot be cached.
-				Some(request)
-			},
-			Request::ValidationCodeHash(para, assumption, sender) =>
-				query!(validation_code_hash(para, assumption), sender)
-					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 		}
 	}
 
@@ -490,19 +475,6 @@ where
 			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender),
 		Request::FetchOnChainVotes(sender) =>
 			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender),
-		Request::SubmitPvfCheckStatement(stmt, signature, sender) => {
-			query!(
-				SubmitPvfCheckStatement,
-				submit_pvf_check_statement(stmt, signature),
-				ver = 2,
-				sender
-			)
-		},
-		Request::PvfsRequirePrecheck(sender) => {
-			query!(PvfsRequirePrecheck, pvfs_require_precheck(), ver = 2, sender)
-		},
-		Request::ValidationCodeHash(para, assumption, sender) =>
-			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 	}
 }
 
