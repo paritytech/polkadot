@@ -111,6 +111,17 @@ benchmarks_instance_pallet! {
 		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
 			.ok_or(BenchmarkError::Skip)?;
 
+		if let Some(checked_account) = T::CheckedAccount::get() {
+			T::TransactAsset::mint_into(
+				&checked_account,
+				<
+					T::TransactAsset
+					as
+					Inspect<T::AccountId>
+				>::Balance::max_value() / 3u32.into(),
+			)?;
+		}
+
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
 
 		let mut executor = new_executor::<T>(trusted_reserve);
@@ -138,7 +149,7 @@ benchmarks_instance_pallet! {
 					T::TransactAsset
 					as
 					Inspect<T::AccountId>
-				>::Balance::max_value() / 2u32.into(),
+				>::Balance::max_value() / 3u32.into(),
 			)?;
 		}
 
