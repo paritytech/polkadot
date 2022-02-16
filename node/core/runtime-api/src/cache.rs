@@ -300,10 +300,7 @@ impl RequestResultCache {
 		self.candidate_events.insert(relay_parent, ResidentSizeOf(events));
 	}
 
-	pub(crate) fn session_info(
-		&mut self,
-		key: (Hash, SessionIndex),
-	) -> Option<&SessionInfo> {
+	pub(crate) fn session_info(&mut self, key: (Hash, SessionIndex)) -> Option<&SessionInfo> {
 		self.session_info.get(&key.1).map(|v| &v.0)
 	}
 

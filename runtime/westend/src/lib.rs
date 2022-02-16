@@ -24,11 +24,11 @@ use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
 	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
+		self, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent,
+		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+		PersistedValidationData, ScrapedOnChainVotes, Signature, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex,
 	},
 	v2::SessionInfo,
 };
@@ -1293,15 +1293,13 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::on_chain_votes::<Runtime>()
 		}
 
-		fn submit_pvf_check_statement(
-			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
-		) {
-			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		fn submit_pvf_check_statement(stmt: primitives::v2::PvfCheckStatement, signature: v1::ValidatorSignature) {
+			// nop
 		}
 
-		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
-			parachains_runtime_api_impl::pvfs_require_precheck::<Runtime>()
+		fn pvfs_require_precheck() -> Vec<v1::ValidationCodeHash> {
+			// nop
+			vec![]
 		}
 	}
 

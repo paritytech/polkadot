@@ -37,10 +37,11 @@ use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInf
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
 	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
-		Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, Signature,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+		self, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent,
+		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage,
+		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+		ValidatorIndex, ValidatorSignature,
 	},
 	v2::{PvfCheckStatement, SessionInfo as SessionInfoData},
 };
@@ -1308,6 +1309,15 @@ sp_api::impl_runtime_apis! {
 
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			runtime_api_impl::on_chain_votes::<Runtime>()
+		}
+
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: v1::ValidatorSignature) {
+			// nop
+		}
+
+		fn pvfs_require_precheck() -> Vec<v1::ValidationCodeHash> {
+			// nop
+			vec![]
 		}
 	}
 

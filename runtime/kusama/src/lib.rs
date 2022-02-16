@@ -3164,11 +3164,12 @@ sp_api::impl_runtime_apis! {
 			stmt: primitives::v2::PvfCheckStatement,
 			signature: primitives::v1::ValidatorSignature,
 		) {
-			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+			// nop
 		}
 
 		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
-			parachains_runtime_api_impl::pvfs_require_precheck::<Runtime>()
+			vec![]
+			// nop
 		}
 	}
 

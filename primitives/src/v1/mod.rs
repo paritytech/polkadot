@@ -19,8 +19,7 @@
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::prelude::*;
-use sp_std::collections::btree_map::BTreeMap;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;

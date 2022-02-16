@@ -444,15 +444,15 @@ where
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
-				let res = api.session_info(&block_id, index)
+				let res = api
+					.session_info(&block_id, index)
 					.map_err(|e| RuntimeApiError(format!("runtime query SessionInfo: {:?}", e)));
 				metrics.on_request(res.is_ok());
 				res
 			} else {
 				#[allow(deprecated)]
-				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
-					RuntimeApiError(format!("runtime query SessionInfo: {:?}", e))
-				});
+				let res = api.session_info_before_version_2(&block_id, index)
+					.map_err(|e| RuntimeApiError(format!("runtime query SessionInfo: {:?}", e)));
 				metrics.on_request(res.is_ok());
 
 				res.map(|r| r.map(|old| old.into()))
