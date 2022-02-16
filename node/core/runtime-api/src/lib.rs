@@ -372,14 +372,14 @@ where
 
 			let res = if runtime_version >= $version {
 				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
-					.map_err(|e| RuntimeApiError::Execution {
-						runtime_api_name: stringify!($api_name),
-						source: std::sync::Arc::new(e),
+					.map_err(|e| {
+						tracing::debug!("runtime API error: {:?}", e);
+						RuntimeApiError(
+							stringify!($api_name) .to_string()
+						)
 					})
 			} else {
-				Err(RuntimeApiError::NotSupported {
-					runtime_api_name: stringify!($api_name),
-				})
+				Err(RuntimeApiError(format!("Nope, not suppported: {}", stringify!($api_name))))
 			};
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
@@ -444,20 +444,14 @@ where
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
-				let res =
-					api.session_info(&block_id, index).map_err(|e| RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					});
+				let res = api.session_info(&block_id, index)
+					.map_err(|e| RuntimeApiError(format!("runtime query SessionInfo: {:?}", e)));
 				metrics.on_request(res.is_ok());
 				res
 			} else {
 				#[allow(deprecated)]
 				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
-					RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					}
+					RuntimeApiError(format!("runtime query SessionInfo: {:?}", e))
 				});
 				metrics.on_request(res.is_ok());
 
