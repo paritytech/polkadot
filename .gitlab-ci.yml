@@ -372,6 +372,8 @@ generate-impl-guide:
   stage:                           build
   <<:                              *test-refs
   <<:                              *docker-env
+  needs:
+    - cargo-fmt
   image:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
