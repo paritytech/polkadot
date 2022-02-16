@@ -20,7 +20,7 @@ use crate::JaegerError;
 
 /// A description of an error causing the runtime API request to be unservable.
 #[derive(Debug, Clone)]
-pub struct RuntimeApiError(String);
+pub struct RuntimeApiError(pub String);
 
 impl From<String> for RuntimeApiError {
 	fn from(s: String) -> Self {

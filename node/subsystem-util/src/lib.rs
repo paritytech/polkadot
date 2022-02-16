@@ -24,6 +24,7 @@
 
 #![warn(missing_docs)]
 
+use polkadot_node_jaeger as jaeger;
 use polkadot_node_subsystem::{
 	errors::{RuntimeApiError, SubsystemError},
 	messages::{
