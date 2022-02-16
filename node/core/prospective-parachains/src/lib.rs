@@ -72,14 +72,16 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Header, Id as ParaId};
 
+use crate::error::{Error, FatalResult, NonFatal, Result};
+
+mod error;
+
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
 /// The Prospective Parachains Subsystem.
 pub struct ProspectiveParachainsSubsystems {
 	metrics: Metrics,
 }
-
-// TODO [now]: error types, fatal & non-fatal.
 
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {}
