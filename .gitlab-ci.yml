@@ -189,7 +189,6 @@ test-linux-stable:
   stage:                           test
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *collect-artifacts
   <<:                              *common-refs
   variables:
     RUST_TOOLCHAIN: stable
@@ -204,7 +203,6 @@ test-linux-stable-node-metrics:
   stage:                           test
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *collect-artifacts
   <<:                              *common-refs
   variables:
     RUST_TOOLCHAIN: stable
