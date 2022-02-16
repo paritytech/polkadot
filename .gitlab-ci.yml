@@ -382,6 +382,8 @@ build-rustdoc:
   stage:                           build
   <<:                              *docker-env
   <<:                              *test-refs
+  needs:
+    - test-deterministic-wasm
   variables:
     SKIP_WASM_BUILD:               1
   artifacts:
