@@ -251,9 +251,13 @@ impl PeerRelayParentKnowledge {
 	///
 	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
-	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+	fn send(
+		&mut self,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		relay_parent: &Hash,
+	) -> bool {
 		debug_assert!(
-			self.can_send(fingerprint),
+			self.can_send(fingerprint).0,
 			"send is only called after `can_send` returns true; qed",
 		);
 
@@ -270,6 +274,7 @@ impl PeerRelayParentKnowledge {
 
 		tracing::trace!(
 			target: LOG_TARGET,
+			?relay_parent,
 			?validator_index,
 			?compact_statement,
 			?new_known,
@@ -283,21 +288,21 @@ impl PeerRelayParentKnowledge {
 
 	/// This returns `true` if the peer cannot accept this statement, without altering internal
 	/// state, `false` otherwise.
-	fn can_send(&self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+	fn can_send(&self, fingerprint: &(CompactStatement, ValidatorIndex)) -> (bool, &'static str) {
 		let already_known = self.sent_statements.contains(fingerprint) ||
 			self.received_statements.contains(fingerprint);
 
 		if already_known {
-			return false
+			return (false, "already known")
 		}
 
 		match fingerprint.0 {
 			CompactStatement::Valid(ref h) => {
 				// The peer can only accept Valid and Invalid statements for which it is aware
 				// of the corresponding candidate.
-				self.is_known_candidate(h)
+				(self.is_known_candidate(h), "unknown valid candidate")
 			},
-			CompactStatement::Seconded(_) => true,
+			CompactStatement::Seconded(_) => (true, ""),
 		}
 	}
 
@@ -466,7 +471,7 @@ impl PeerData {
 		self.view_knowledge
 			.get_mut(relay_parent)
 			.expect("send is only called after `can_send` returns true; qed")
-			.send(fingerprint)
+			.send(fingerprint, relay_parent)
 	}
 
 	/// This returns `None` if the peer cannot accept this statement, without altering internal
@@ -476,26 +481,32 @@ impl PeerData {
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 	) -> bool {
-		self.view_knowledge.get(relay_parent).map_or_else(|| {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?relay_parent,
-				?fingerprint,
-				"Cannot send statement: relay parent is not in the view knowledge");
-			false
-		}, |k| {
-			if !k.can_send(fingerprint) {
+		self.view_knowledge.get(relay_parent).map_or_else(
+			|| {
 				tracing::trace!(
-				target: LOG_TARGET,
-				?relay_parent,
-				?fingerprint,
-				"Cannot send statement: already sent to the peer");
+					target: LOG_TARGET,
+					?relay_parent,
+					?fingerprint,
+					"Cannot send statement: relay parent is not in the view knowledge"
+				);
 				false
-			}
-			else {
-				true
-			}
-		})
+			},
+			|k| {
+				let (ret, reason) = k.can_send(fingerprint);
+				if !ret {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?relay_parent,
+						?fingerprint,
+						"Cannot send statement: {}",
+						reason
+					);
+					false
+				} else {
+					true
+				}
+			},
+		)
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -711,7 +722,11 @@ impl ActiveHeadData {
 	///
 	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted
 	/// and will return `NotedStatement::NotUseful`.
-	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
+	fn note_statement(
+		&mut self,
+		statement: SignedFullStatement,
+		relay_parent: &Hash,
+	) -> NotedStatement {
 		let validator_index = statement.validator_index();
 		let comparator = StoredStatementComparator {
 			compact: statement.payload().to_compact(),
@@ -727,6 +742,7 @@ impl ActiveHeadData {
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
+						?relay_parent,
 						"Extra statement is ignored"
 					);
 					return NotedStatement::NotUseful
@@ -738,6 +754,7 @@ impl ActiveHeadData {
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?old,
+						?relay_parent,
 						"Known statement"
 					);
 					NotedStatement::UsefulButKnown
@@ -748,6 +765,7 @@ impl ActiveHeadData {
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?self.statements.last().expect("Just inserted").1,
+						?relay_parent,
 						"Noted new statement"
 					);
 					// This will always return `Some` because it was just inserted.
@@ -765,6 +783,7 @@ impl ActiveHeadData {
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
+						?relay_parent,
 						"Statement for unknown candidate"
 					);
 					return NotedStatement::NotUseful
@@ -775,6 +794,7 @@ impl ActiveHeadData {
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?old,
+						?relay_parent,
 						"Known statement"
 					);
 					NotedStatement::UsefulButKnown
@@ -783,6 +803,7 @@ impl ActiveHeadData {
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?self.statements.last().expect("Just inserted").1,
+						?relay_parent,
 						"Noted new statement"
 					);
 					// This will always return `Some` because it was just inserted.
@@ -917,7 +938,7 @@ async fn circulate_statement_and_dependents(
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
-		match active_head.note_statement(statement) {
+		match active_head.note_statement(statement, &relay_parent) {
 			NotedStatement::Fresh(stored) => Some((
 				*stored.compact().candidate_hash(),
 				circulate_statement(gossip_peers, peers, ctx, relay_parent, stored, priority_peers)
@@ -1012,7 +1033,8 @@ async fn circulate_statement<'a>(
 					?peer,
 					?relay_parent,
 					?fingerprint,
-					"Cannot send statement to the peer when circulating statement");
+					"Cannot send statement to the peer when circulating statement"
+				);
 				None
 			}
 		})
@@ -1093,12 +1115,13 @@ async fn send_statements_about(
 		let fingerprint = statement.fingerprint();
 		if !peer_data.can_send(&relay_parent, &fingerprint) {
 			tracing::trace!(
-					target: LOG_TARGET,
-					?peer,
-					?relay_parent,
-					?fingerprint,
-					?candidate_hash,
-					"Cannot send statement to the peer when sending statement about candidate");
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				?fingerprint,
+				?candidate_hash,
+				"Cannot send statement to the peer when sending statement about candidate"
+			);
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
@@ -1452,7 +1475,7 @@ async fn handle_incoming_message<'a>(
 
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
-	match active_head.note_statement(statement) {
+	match active_head.note_statement(statement, &relay_parent) {
 		NotedStatement::NotUseful | NotedStatement::UsefulButKnown => {
 			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		},
@@ -1502,7 +1525,12 @@ async fn update_peer_view_and_maybe_send_unlocked(
 	// Furthermore, send all statements we have for those relay parents.
 	let new_view = peer_data.view.difference(&old_view).copied().collect::<Vec<_>>();
 	if !lucky {
-		tracing::trace!(target: LOG_TARGET, ?peer, ?new_view, "Unlucky peer, skip sending unlocked view");
+		tracing::trace!(
+			target: LOG_TARGET,
+			?peer,
+			?new_view,
+			"Unlucky peer, skip sending unlocked view"
+		);
 	}
 	for new in new_view.iter().copied() {
 		peer_data.view_knowledge.insert(new, Default::default());

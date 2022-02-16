@@ -106,7 +106,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.flatten()
 	.expect("should be signed");
 	assert!(head_data.check_useful_or_unknown(&a_seconded_val_0.clone().into()).is_ok());
-	let noted = head_data.note_statement(a_seconded_val_0.clone());
+	let noted = head_data.note_statement(a_seconded_val_0.clone(), &parent_hash);
 
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -115,7 +115,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 		head_data.check_useful_or_unknown(&a_seconded_val_0.clone().into()),
 		Err(DeniedStatement::UsefulButKnown),
 	);
-	let noted = head_data.note_statement(a_seconded_val_0);
+	let noted = head_data.note_statement(a_seconded_val_0, &parent_hash);
 
 	assert_matches!(noted, NotedStatement::UsefulButKnown);
 
@@ -131,7 +131,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.flatten()
 	.expect("should be signed");
 	assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
-	let noted = head_data.note_statement(statement);
+	let noted = head_data.note_statement(statement, &parent_hash);
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note C (beyond 2 - ignored)
@@ -149,7 +149,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 		head_data.check_useful_or_unknown(&statement.clone().into()),
 		Err(DeniedStatement::NotUseful),
 	);
-	let noted = head_data.note_statement(statement);
+	let noted = head_data.note_statement(statement, &parent_hash);
 	assert_matches!(noted, NotedStatement::NotUseful);
 
 	// note B (new validator)
@@ -164,7 +164,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.flatten()
 	.expect("should be signed");
 	assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
-	let noted = head_data.note_statement(statement);
+	let noted = head_data.note_statement(statement, &parent_hash);
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note C (new validator)
@@ -179,7 +179,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.flatten()
 	.expect("should be signed");
 	assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
-	let noted = head_data.note_statement(statement);
+	let noted = head_data.note_statement(statement, &parent_hash);
 	assert_matches!(noted, NotedStatement::Fresh(_));
 }
 
@@ -224,9 +224,10 @@ fn per_peer_relay_parent_knowledge_send() {
 	let mut knowledge = PeerRelayParentKnowledge::default();
 
 	let hash_a = CandidateHash([1; 32].into());
+	let parent_hash: Hash = [1; 32].into();
 
 	// Sending an un-pinned statement should not work and should have no effect.
-	assert!(!knowledge.can_send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))));
+	assert!(!(knowledge.can_send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))).0));
 	assert!(!knowledge.is_known_candidate(&hash_a));
 	assert!(knowledge.sent_statements.is_empty());
 	assert!(knowledge.received_statements.is_empty());
@@ -234,8 +235,14 @@ fn per_peer_relay_parent_knowledge_send() {
 	assert!(knowledge.received_message_count.is_empty());
 
 	// Make the peer aware of the candidate.
-	assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))), true);
-	assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(1))), false);
+	assert_eq!(
+		knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), &parent_hash),
+		true
+	);
+	assert_eq!(
+		knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(1)), &parent_hash),
+		false
+	);
 	assert!(knowledge.is_known_candidate(&hash_a));
 	assert_eq!(knowledge.sent_statements.len(), 2);
 	assert!(knowledge.received_statements.is_empty());
@@ -243,7 +250,10 @@ fn per_peer_relay_parent_knowledge_send() {
 	assert!(knowledge.received_message_count.get(&hash_a).is_none());
 
 	// And now it should accept the dependent message.
-	assert_eq!(knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))), false);
+	assert_eq!(
+		knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), &parent_hash),
+		false
+	);
 	assert!(knowledge.is_known_candidate(&hash_a));
 	assert_eq!(knowledge.sent_statements.len(), 3);
 	assert!(knowledge.received_statements.is_empty());
@@ -262,7 +272,7 @@ fn cant_send_after_receiving() {
 	assert!(knowledge
 		.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3)
 		.unwrap());
-	assert!(!knowledge.can_send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))));
+	assert!(!knowledge.can_send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))).0);
 }
 
 #[test]
@@ -429,7 +439,8 @@ fn peer_view_update_sends_messages() {
 		.flatten()
 		.expect("should be signed");
 		assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
-		let noted = data.note_statement(statement);
+		let parent_hash: Hash = [1; 32].into();
+		let noted = data.note_statement(statement, &parent_hash);
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -444,7 +455,7 @@ fn peer_view_update_sends_messages() {
 		.flatten()
 		.expect("should be signed");
 		assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
-		let noted = data.note_statement(statement);
+		let noted = data.note_statement(statement, &parent_hash);
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -459,7 +470,7 @@ fn peer_view_update_sends_messages() {
 		.flatten()
 		.expect("should be signed");
 		assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
-		let noted = data.note_statement(statement);
+		let noted = data.note_statement(statement, &parent_hash);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		data
