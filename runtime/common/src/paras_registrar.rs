@@ -160,6 +160,9 @@ pub mod pallet {
 		NotReserved,
 		/// Registering parachain with empty code is not allowed.
 		EmptyCode,
+		/// Cannot perform a parachain slot / lifecycle swap. Check that the state of both paras are
+		/// correct for the swap to work.
+		CannotSwap,
 	}
 
 	/// Pending swap operations.
@@ -271,31 +274,40 @@ pub mod pallet {
 		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 
-			if PendingSwap::<T>::get(other) == Some(id) {
-				if let Some(other_lifecycle) = paras::Pallet::<T>::lifecycle(other) {
-					if let Some(id_lifecycle) = paras::Pallet::<T>::lifecycle(id) {
-						// identify which is a parachain and which is a parathread
-						if id_lifecycle.is_parachain() && other_lifecycle.is_parathread() {
-							// We check that both paras are in an appropriate lifecycle for a swap,
-							// so these should never fail.
-							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
-							debug_assert!(res1.is_ok());
-							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
-							debug_assert!(res2.is_ok());
-							T::OnSwap::on_swap(id, other);
-						} else if id_lifecycle.is_parathread() && other_lifecycle.is_parachain() {
-							// We check that both paras are in an appropriate lifecycle for a swap,
-							// so these should never fail.
-							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
-							debug_assert!(res1.is_ok());
-							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
-							debug_assert!(res2.is_ok());
-							T::OnSwap::on_swap(id, other);
-						}
+			// If `id` and `other` is the same id, we treat this as a "clear" function, and exit
+			// early, since swapping the same id would otherwise be a noop.
+			if id == other {
+				PendingSwap::<T>::remove(id);
+				return Ok(())
+			}
 
-						PendingSwap::<T>::remove(other);
-					}
+			// Sanity check that `id` is even a para.
+			let id_lifecycle =
+				paras::Pallet::<T>::lifecycle(id).ok_or(Error::<T>::NotRegistered)?;
+
+			if PendingSwap::<T>::get(other) == Some(id) {
+				let other_lifecycle =
+					paras::Pallet::<T>::lifecycle(other).ok_or(Error::<T>::NotRegistered)?;
+				// identify which is a parachain and which is a parathread
+				if id_lifecycle == ParaLifecycle::Parachain &&
+					other_lifecycle == ParaLifecycle::Parathread
+				{
+					Self::do_thread_and_chain_swap(id, other);
+				} else if id_lifecycle == ParaLifecycle::Parathread &&
+					other_lifecycle == ParaLifecycle::Parachain
+				{
+					Self::do_thread_and_chain_swap(other, id);
+				} else if id_lifecycle == ParaLifecycle::Parachain &&
+					other_lifecycle == ParaLifecycle::Parachain
+				{
+					// If both chains are currently parachains, there is nothing funny we
+					// need to do for their lifecycle management, just swap the underlying
+					// data.
+					T::OnSwap::on_swap(id, other);
+				} else {
+					return Err(Error::<T>::CannotSwap.into())
 				}
+				PendingSwap::<T>::remove(other);
 			} else {
 				PendingSwap::<T>::insert(id, other);
 			}
@@ -564,6 +576,15 @@ impl<T: Config> Pallet<T> {
 
 		Ok((ParaGenesisArgs { genesis_head, validation_code, parachain }, deposit))
 	}
+
+	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.
+	fn do_thread_and_chain_swap(to_downgrade: ParaId, to_upgrade: ParaId) {
+		let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(to_downgrade);
+		debug_assert!(res1.is_ok());
+		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
+		debug_assert!(res2.is_ok());
+		T::OnSwap::on_swap(to_upgrade, to_downgrade);
+	}
 }
 
 #[cfg(test)]
@@ -587,6 +608,7 @@ mod tests {
 		transaction_validity::TransactionPriority,
 		Perbill,
 	};
+	use sp_std::collections::btree_map::BTreeMap;
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -696,7 +718,7 @@ mod tests {
 		type Event = Event;
 		type Origin = Origin;
 		type Currency = Balances;
-		type OnSwap = ();
+		type OnSwap = MockSwap;
 		type ParaDeposit = ParaDeposit;
 		type DataDepositPerByte = DataDepositPerByte;
 		type WeightInfo = TestWeightInfo;
@@ -722,6 +744,22 @@ mod tests {
 			.unwrap();
 
 		t.into()
+	}
+
+	parameter_types! {
+		pub static SwapData: BTreeMap<ParaId, u64> = BTreeMap::new();
+	}
+
+	pub struct MockSwap;
+	impl OnSwap for MockSwap {
+		fn on_swap(one: ParaId, other: ParaId) {
+			let mut swap_data = SwapData::get();
+			let one_data = swap_data.remove(&one).unwrap_or_default();
+			let other_data = swap_data.remove(&other).unwrap_or_default();
+			swap_data.insert(one, other_data);
+			swap_data.insert(other, one_data);
+			SwapData::set(swap_data);
+		}
 	}
 
 	const BLOCKS_PER_SESSION: u32 = 3;
@@ -997,8 +1035,14 @@ mod tests {
 			));
 			run_to_session(2);
 
-			// Upgrade 1023 into a parachain
+			// Upgrade para 1 into a parachain
 			assert_ok!(Registrar::make_parachain(para_1));
+
+			// Set some mock swap data.
+			let mut swap_data = SwapData::get();
+			swap_data.insert(para_1, 69);
+			swap_data.insert(para_2, 1337);
+			SwapData::set(swap_data);
 
 			run_to_session(4);
 
@@ -1014,20 +1058,15 @@ mod tests {
 
 			run_to_session(6);
 
-			// Deregister a parathread that was originally a parachain
-			assert_eq!(Parachains::lifecycle(para_1), Some(ParaLifecycle::Parathread));
-			assert_ok!(Registrar::deregister(
-				runtime_parachains::Origin::Parachain(para_1).into(),
-				para_1
-			));
-
-			run_to_block(21);
-
 			// Roles are swapped
 			assert!(!Parachains::is_parachain(para_1));
 			assert!(Parachains::is_parathread(para_1));
 			assert!(Parachains::is_parachain(para_2));
 			assert!(!Parachains::is_parathread(para_2));
+
+			// Data is swapped
+			assert_eq!(SwapData::get().get(&para_1).unwrap(), &1337);
+			assert_eq!(SwapData::get().get(&para_2).unwrap(), &69);
 		});
 	}
 
@@ -1057,6 +1096,121 @@ mod tests {
 
 			// Owner cannot call swap anymore
 			assert_noop!(Registrar::swap(Origin::signed(1), para_id, para_id + 2), BadOrigin);
+		});
+	}
+
+	#[test]
+	fn swap_handles_bad_states() {
+		new_test_ext().execute_with(|| {
+			let para_1 = LOWEST_PUBLIC_ID;
+			let para_2 = LOWEST_PUBLIC_ID + 1;
+			run_to_block(1);
+			// paras are not yet registered
+			assert!(!Parachains::is_parathread(para_1));
+			assert!(!Parachains::is_parathread(para_2));
+
+			// Cannot even start a swap
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_1, para_2),
+				Error::<Test>::NotRegistered
+			);
+
+			// We register Paras 1 and 2
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(Origin::signed(2)));
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				para_1,
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+			assert_ok!(Registrar::register(
+				Origin::signed(2),
+				para_2,
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
+
+			run_to_session(2);
+
+			// They are now a parathread.
+			assert!(Parachains::is_parathread(para_1));
+			assert!(Parachains::is_parathread(para_2));
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
+
+			// Some other external process will elevate one parathread to parachain
+			assert_ok!(Registrar::make_parachain(para_1));
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
+
+			run_to_session(3);
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
+
+			run_to_session(4);
+
+			// It is now a parachain.
+			assert!(Parachains::is_parachain(para_1));
+			assert!(Parachains::is_parathread(para_2));
+
+			// Swap works here.
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(Origin::root(), para_2, para_1));
+
+			run_to_session(5);
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
+
+			run_to_session(6);
+
+			// Swap worked!
+			assert!(Parachains::is_parachain(para_2));
+			assert!(Parachains::is_parathread(para_1));
+
+			// Something starts to downgrade a para
+			assert_ok!(Registrar::make_parathread(para_2));
+
+			run_to_session(7);
+
+			// Cannot swap
+			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_noop!(
+				Registrar::swap(Origin::root(), para_2, para_1),
+				Error::<Test>::CannotSwap
+			);
+
+			run_to_session(8);
+
+			assert!(Parachains::is_parathread(para_1));
+			assert!(Parachains::is_parathread(para_2));
 		});
 	}
 }

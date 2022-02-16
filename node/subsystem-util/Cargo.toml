@@ -1,19 +1,19 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1.52"
-futures = "0.3.19"
+futures = "0.3.21"
 itertools = "0.10"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 pin-project = "1.0.9"
-rand = "0.8.3"
+rand = "0.8.5"
 thiserror = "1.0.30"
-tracing = "0.1.29"
+tracing = "0.1.30"
 derive_more = "0.99.17"
 lru = "0.7.2"
 
@@ -33,7 +33,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 [dev-dependencies]
 assert_matches = "1.4.0"
 env_logger = "0.9.0"
-futures = { version = "0.3.19", features = ["thread-pool"] }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 log = "0.4.13"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 lazy_static = "1.4.0"

@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-node-core-chain-selection"
 description = "Chain Selection Subsystem"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3"
-tracing = "0.1.29"
+tracing = "0.1.30"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -20,6 +20,6 @@ parity-scale-codec = "2"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-parking_lot = "0.11"
+parking_lot = "0.12"
 assert_matches = "1"
 kvdb-memorydb = "0.10.0"

@@ -1,16 +1,16 @@
 [package]
 name = "polkadot-collator-protocol"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 always-assert = "0.1.2"
 derive_more = "0.99.17"
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3"
 thiserror = "1.0.30"
-tracing = "0.1.29"
+tracing = "0.1.30"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
