@@ -333,9 +333,6 @@ build-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
-    # ---------------- test -------------------
-    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
-    # -----------------------------------------
     - time cargo build --profile testnet --verbose --bin polkadot
     - sccache -s
     # pack artifacts
