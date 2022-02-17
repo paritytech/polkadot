@@ -53,8 +53,7 @@
 #![allow(unused)]
 
 use std::{
-	collections::{HashMap, HashSet},
-	collections::hash_map::Entry as HEntry,
+	collections::{hash_map::Entry as HEntry, HashMap, HashSet},
 	sync::Arc,
 };
 
@@ -70,9 +69,12 @@ use polkadot_node_subsystem_util::{
 	},
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::vstaging::{Block, BlockId, CandidateHash, Hash, Header, Id as ParaId};
+use polkadot_primitives::vstaging::{
+	Block, BlockId, BlockNumber, CandidateHash, GroupIndex, GroupRotationInfo, Hash, Header,
+	Id as ParaId, SessionIndex, ValidatorIndex,
+};
 
-use crate::error::{Error, FatalResult, NonFatal, Result, NonFatalResult};
+use crate::error::{Error, FatalResult, NonFatal, NonFatalResult, Result};
 
 mod error;
 
@@ -99,10 +101,7 @@ impl FragmentTrees {
 		self.nodes.is_empty()
 	}
 
-	fn determine_relevant_fragments(
-		&self,
-		constraints: &Constraints,
-	) -> Vec<Hash> {
+	fn determine_relevant_fragments(&self, constraints: &Constraints) -> Vec<Hash> {
 		unimplemented!()
 	}
 
@@ -115,14 +114,13 @@ impl FragmentTrees {
 	fn remove_refcount(&mut self, fragment_hash: Hash) {
 		let node = match self.nodes.entry(fragment_hash) {
 			HEntry::Vacant(_) => return,
-			HEntry::Occupied(mut entry) => {
+			HEntry::Occupied(mut entry) =>
 				if entry.get().1 == 1 {
 					entry.remove().0
 				} else {
 					entry.get_mut().1 -= 1;
-					return;
-				}
-			}
+					return
+				},
 		};
 
 		if self.roots.remove(&fragment_hash) {
@@ -142,16 +140,20 @@ struct FragmentNode {
 	fragment: Fragment,
 }
 
-// TODO [now] rename maybe
+impl FragmentNode {
+	fn relay_parent(&self) -> Hash {
+		self.fragment.relay_parent().hash
+	}
+}
+
 struct RelevantParaFragments {
 	para: ParaId,
 	base_constraints: Constraints,
-	relevant: HashSet<Hash>,
 }
 
 struct RelayBlockViewData {
 	// Relevant fragments for each parachain that is scheduled.
-	relevant_fragments: HashMap<ParaId, RelevantParaFragments>,
+	scheduling: HashMap<ParaId, RelevantParaFragments>,
 	block_info: RelayChainBlockInfo,
 	// TODO [now]: other stuff
 }
@@ -255,23 +257,27 @@ where
 				storage_root: new_header.state_root,
 			};
 
-			let all_parachains = get_all_parachains(ctx, *new_hash).await?;
+			let scheduling_info = get_scheduling_info(ctx, *new_hash).await?;
 
 			let mut relevant_fragments = HashMap::new();
-			for p in all_parachains {
-				let constraints = get_base_constraints(ctx, *new_hash, p).await?;
+			for core_info in scheduling_info.cores {
+				let constraints = get_base_constraints(ctx, *new_hash, core_info.para_id).await?;
 
 				// TODO [now]: determine relevant fragments according to constraints.
 				// TODO [now]: update ref counts in fragment trees
 			}
 
-			view.active_or_recent
-				.insert(*new_hash, RelayBlockViewData { relevant_fragments, block_info });
+			view.active_or_recent.insert(
+				*new_hash,
+				RelayBlockViewData { scheduling: relevant_fragments, block_info },
+			);
 		}
 	}
 
 	unimplemented!()
 }
+
+// TODO [now]: don't accept too many fragments per para per relay-parent
 
 async fn get_base_constraints<Context>(
 	ctx: &mut Context,
@@ -285,10 +291,29 @@ where
 	unimplemented!()
 }
 
-async fn get_all_parachains<Context>(
+// Scheduling info.
+// - group rotation info: validator groups, group rotation info
+// - information about parachains that are predictably going to be assigned
+//   to each core. For now that's just parachains, but it's worth noting that
+//   parathread claims are anchored to a specific core.
+struct SchedulingInfo {
+	validator_groups: Vec<Vec<ValidatorIndex>>,
+	group_rotation_info: GroupRotationInfo,
+	// One core per parachain. this should have same length as 'validator-groups'
+	cores: Vec<CoreInfo>,
+}
+
+struct CoreInfo {
+	para_id: ParaId,
+
+	// (candidate hash, hash, timeout_at) if any
+	pending_availability: Option<(CandidateHash, Hash, BlockNumber)>,
+}
+
+async fn get_scheduling_info<Context>(
 	ctx: &mut Context,
 	relay_block: Hash,
-) -> NonFatalResult<Vec<ParaId>>
+) -> NonFatalResult<SchedulingInfo>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,

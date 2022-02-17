@@ -106,8 +106,7 @@ impl NonFatal {
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) =>
-				tracing::debug!(target: LOG_TARGET, error = ?self),
+			Self::RuntimeApi(_) => tracing::debug!(target: LOG_TARGET, error = ?self),
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, error = ?self),
 		}
