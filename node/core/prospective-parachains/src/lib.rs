@@ -88,12 +88,12 @@ pub struct ProspectiveParachainsSubsystems {
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {}
 
+// TODO [now]: rename. more of a pile than a tree really.
+// We only use it as a tree when traversing to select what to build upon.
 struct FragmentTrees {
 	para: ParaId,
-	// Fragment nodes based on fragment head-data
-	nodes: HashMap<Hash, (FragmentNode, usize)>,
-	// The root hashes of this fragment-tree by head-data.
-	roots: HashSet<Hash>,
+	// Fragment nodes based on fragment head-data.
+	nodes: HashMap<Hash, FragmentNode>,
 }
 
 impl FragmentTrees {
@@ -105,29 +105,9 @@ impl FragmentTrees {
 		unimplemented!()
 	}
 
-	fn add_refcount(&mut self, fragment_hash: &Hash) {
-		if let Some(entry) = self.nodes.get_mut(fragment_hash) {
-			entry.1 += 1;
-		}
-	}
-
-	fn remove_refcount(&mut self, fragment_hash: Hash) {
-		let node = match self.nodes.entry(fragment_hash) {
-			HEntry::Vacant(_) => return,
-			HEntry::Occupied(mut entry) =>
-				if entry.get().1 == 1 {
-					entry.remove().0
-				} else {
-					entry.get_mut().1 -= 1;
-					return
-				},
-		};
-
-		if self.roots.remove(&fragment_hash) {
-			for child in node.children {
-				self.roots.insert(child);
-			}
-		}
+	// Retain fragments whose relay-parent passes the predicate.
+	fn retain(&mut self, pred: impl Fn(&Hash) -> bool) {
+		self.nodes.retain(|_, v| pred(&v.relay_parent()));
 	}
 }
 
@@ -193,6 +173,9 @@ where
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				// TODO [now]: handle messages
+				// 1. Notification of new fragment (orphaned?)
+				// 2. Notification of new fragment being backed
+				// 3. Request for backable candidates
 			},
 		}
 	}
@@ -224,8 +207,13 @@ where
 	// Find the set of blocks we care about.
 	let relevant_blocks = find_all_relevant_blocks(ctx, &view.active_leaves).await?;
 
-	// Prune everything that was relevant but isn't anymore.
+	let all_new: Vec<_> = relevant_blocks
+		.iter()
+		.filter(|(h, _hdr)| !view.active_or_recent.contains_key(h))
+		.collect();
+
 	{
+		// Prune everything that was relevant but isn't anymore.
 		let all_removed: Vec<_> = view
 			.active_or_recent
 			.keys()
@@ -234,22 +222,10 @@ where
 			.collect();
 
 		for removed in all_removed {
-			let view_data = view.active_or_recent.remove(&removed).expect(
-				"key was gathered from iterating over all present keys; therefore is present; qed",
-			);
-
-			// TODO [now]: update fragment trees accordingly
-			// TODO [now]: prune empty fragment trees
+			let _ = view.active_or_recent.remove(&removed);
 		}
-	}
 
-	// Add new blocks and get data if necessary.
-	{
-		let all_new: Vec<_> = relevant_blocks
-			.iter()
-			.filter(|(h, _hdr)| !view.active_or_recent.contains_key(h))
-			.collect();
-
+		// Add new blocks and get data if necessary. Dispatch work to backing subsystems.
 		for (new_hash, new_header) in all_new {
 			let block_info = RelayChainBlockInfo {
 				hash: *new_hash,
@@ -260,11 +236,9 @@ where
 			let scheduling_info = get_scheduling_info(ctx, *new_hash).await?;
 
 			let mut relevant_fragments = HashMap::new();
-			for core_info in scheduling_info.cores {
-				let constraints = get_base_constraints(ctx, *new_hash, core_info.para_id).await?;
 
-				// TODO [now]: determine relevant fragments according to constraints.
-				// TODO [now]: update ref counts in fragment trees
+			for core_info in scheduling_info.cores {
+				// TODO [now]: construct RelayBlockViewData appropriately
 			}
 
 			view.active_or_recent.insert(
@@ -272,12 +246,24 @@ where
 				RelayBlockViewData { scheduling: relevant_fragments, block_info },
 			);
 		}
+
+		// TODO [now]: GC fragment trees:
+		//   1. Keep only fragment trees for paras that are scheduled at any of our blocks.
+		//   2. Keep only fragments that are built on any of our blocks.
+
+
+		// TODO [now]: give all backing subsystems messages or signals.
+		// There are, annoyingly, going to be race conditions with networking.
+		// Move networking into a backing 'super-subsystem'?
+		//
+		// Which ones need to care about 'orphaned' fragments?
 	}
 
 	unimplemented!()
 }
 
 // TODO [now]: don't accept too many fragments per para per relay-parent
+// Well I guess we're bounded/protected here by backing (Seconded messages)
 
 async fn get_base_constraints<Context>(
 	ctx: &mut Context,
