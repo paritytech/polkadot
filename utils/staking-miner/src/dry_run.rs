@@ -22,6 +22,7 @@ use crate::{
 use codec::Encode;
 use frame_support::traits::Currency;
 use jsonrpsee::rpc_params;
+use sp_npos_elections::ElectionScore;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
@@ -63,10 +64,16 @@ async fn print_info<T: EPM::Config>(
 		let snapshot_size =
 			<EPM::Pallet<T>>::snapshot_metadata().expect("snapshot must exist by now; qed.");
 		let deposit = EPM::Pallet::<T>::deposit_for(raw_solution, snapshot_size);
+
+		let score = {
+			let ElectionScore { minimal_stake, sum_stake, sum_stake_squared } = raw_solution.score;
+			[Token::from(minimal_stake), Token::from(sum_stake), Token::from(sum_stake_squared)]
+		};
+
 		log::info!(
 			target: LOG_TARGET,
 			"solution score {:?} / deposit {:?} / length {:?}",
-			&raw_solution.score.iter().map(|x| Token::from(*x)).collect::<Vec<_>>(),
+			score,
 			Token::from(deposit),
 			raw_solution.encode().len(),
 		);

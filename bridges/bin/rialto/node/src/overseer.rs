@@ -33,7 +33,7 @@ use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, OverseerBuilder,
+	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, InitializedOverseerBuilder,
 	OverseerConnector, OverseerHandle,
 };
 use polkadot_primitives::v1::ParachainHost;
@@ -139,7 +139,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		disputes_enabled,
 	}: OverseerGenArgs<'_, Spawner, RuntimeClient>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
