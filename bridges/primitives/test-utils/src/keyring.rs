@@ -17,6 +17,7 @@
 //! Utilities for working with test accounts.
 
 use codec::Encode;
+use sp_application_crypto::ByteArray;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature};
 use finality_grandpa::voter_set::VoterSet;
 use sp_application_crypto::Public;
@@ -68,7 +69,7 @@ impl Account {
 
 impl From<Account> for AuthorityId {
 	fn from(p: Account) -> Self {
-		AuthorityId::from_slice(&p.public().to_bytes())
+		AuthorityId::from_slice(&p.public().to_bytes()).expect("Must have authority id. qed")
 	}
 }
 

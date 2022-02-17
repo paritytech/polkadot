@@ -25,6 +25,7 @@ use sp_application_crypto::AppKey;
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
+use sp_application_crypto::Pair;
 use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
 use polkadot_primitives::{
 	v1::{

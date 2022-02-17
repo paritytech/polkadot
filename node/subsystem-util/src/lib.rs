@@ -33,6 +33,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemSender,
 };
+use sp_application_crypto::ByteArray;
 
 pub use overseer::{
 	gen::{OverseerError, Timeout},

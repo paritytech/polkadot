@@ -49,7 +49,7 @@ use crate::{configuration, initializer::SessionChangeNotification, paras};
 pub use pallet::*;
 
 /// A queued parathread entry, pre-assigned to a core.
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct QueuedParathread {
 	claim: ParathreadEntry,
@@ -150,6 +150,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]

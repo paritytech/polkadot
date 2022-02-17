@@ -155,12 +155,13 @@ where
 		deny_unsafe,
 	)?));
 
-	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-		beefy_gadget_rpc::BeefyRpcHandler::new(
-			beefy.beefy_commitment_stream,
-			beefy.subscription_executor,
-		),
-	));
+	// io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
+	// 	beefy_gadget_rpc::BeefyRpcHandler::new(
+	// 			beefy.
+	// 		beefy.beefy_commitment_stream,
+	// 		beefy.subscription_executor,
+	// 	).expect("Must create BEEFY RPC. qed"),
+	// ));
 
 	Ok(io)
 }
