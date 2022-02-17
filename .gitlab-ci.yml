@@ -10,10 +10,10 @@
 # with it, as there's no default one.
 
 stages:
-  - test
-  - build
-  - publish
-  - deploy
+  - stage1
+  - stage2
+  - stage3
+  - stage4
 
 workflow:
   rules:
@@ -154,115 +154,10 @@ default:
       file:                        false
 
 
-#### stage:                        test
-
-check-runtime:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *test-refs
-  variables:
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
-  script:
-    - ./scripts/gitlab/check_runtime.sh
-  allow_failure:                   true
-
-cargo-fmt:
-  stage:                           test
-  <<:                              *docker-env
-  <<:                              *test-refs
-  script:
-    - cargo +nightly --version
-    - cargo +nightly fmt --all -- --check
-  allow_failure:                   true
-
-test-deterministic-wasm:
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
-
-test-linux-stable:
-  stage:                           test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  <<:                              *common-refs
-  variables:
-    RUST_TOOLCHAIN: stable
-    # Enable debug assertions since we are running optimized builds for testing
-    # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-  script:
-    # Builds with the runtime benchmarks/metrics features are only to be used for testing.
-    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
-
-test-linux-stable-node-metrics:
-  stage:                           test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  <<:                              *common-refs
-  variables:
-    RUST_TOOLCHAIN: stable
-    # Enable debug assertions since we are running optimized builds for testing
-    # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-  script:
-    # We need to separately run the `polkadot-node-metrics` tests. More specifically, because the
-    # `runtime_can_publish_metrics` test uses the `test-runtime` which doesn't support
-    # the `runtime-benchmarks` feature.
-    - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
-
-
-check-runtime-benchmarks:
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # Check that everything compiles with `runtime-benchmarks` feature flag.
-    - cargo check --features runtime-benchmarks --all
-    - sccache -s
-
-check-try-runtime:
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # Check that everything compiles with `try-runtime` feature flag.
-    - cargo check --features try-runtime --all
-    - sccache -s
-
-check-no-default-features:
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # Check that polkadot-cli will compile no default features.
-    - pushd node/service && cargo check --no-default-features && popd
-    - pushd cli && cargo check --no-default-features --features "service" && popd
-    - sccache -s
-
-spellcheck:
-  stage:                           test
-  <<:                              *docker-env
-  <<:                              *test-refs
-  script:
-    - cargo spellcheck --version
-    # compare with the commit parent to the PR, given it's from a default branch
-    - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
-    - echo "___Spellcheck is going to check your diff___"
-    - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
-    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
-        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
-  allow_failure:                   true
+#### stage:                        stage1
 
 build-adder-collator:
-  stage:                           test
+  stage:                           stage1
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -279,7 +174,7 @@ build-adder-collator:
     - cp -r scripts/* ./artifacts
 
 build-malus:
-  stage:                           test
+  stage:                           stage1
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -295,34 +190,8 @@ build-malus:
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/* ./artifacts
 
-.check-dependent-project:          &check-dependent-project
-  stage:                           test
-  <<:                              *docker-env
-  <<:                              *test-pr-refs
-  script:
-    - git clone
-        --depth=1
-        "--branch=$PIPELINE_SCRIPTS_TAG"
-        https://github.com/paritytech/pipeline-scripts
-    - ./pipeline-scripts/check_dependent_project.sh
-        paritytech
-        polkadot
-        --polkadot
-        "$DEPENDENT_REPO"
-        "$GITHUB_PR_TOKEN"
-        "$CARGO_UPDATE_CRATES"
-
-check-dependent-cumulus:
-  <<: *check-dependent-project
-  variables:
-    DEPENDENT_REPO: cumulus
-    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
-
-#### stage:                        build
-
-
 build-linux-stable:
-  stage:                           test
+  stage:                           stage1
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *collect-artifacts
@@ -351,8 +220,159 @@ build-linux-stable:
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/* ./artifacts
 
+check-runtime:
+  stage:                           stage3
+  image:                           paritytech/tools:latest
+  <<:                              *kubernetes-env
+  <<:                              *test-refs
+  needs:
+    - job:                         check-transaction-versions
+      artifacts:                   false
+  variables:
+    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+  script:
+    - ./scripts/gitlab/check_runtime.sh
+  allow_failure:                   true
+
+cargo-fmt:
+  stage:                           stage1
+  <<:                              *docker-env
+  <<:                              *test-refs
+  script:
+    - cargo +nightly --version
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
+test-deterministic-wasm:
+  stage:                           stage2
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  needs:
+    - job:                         test-linux-stable-node-metrics
+      artifacts:                   false
+  script:
+    - ./scripts/gitlab/test_deterministic_wasm.sh
+
+test-linux-stable:
+  stage:                           stage1
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *common-refs
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    # Builds with the runtime benchmarks/metrics features are only to be used for testing.
+    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
+
+test-linux-stable-node-metrics:
+  stage:                           stage1
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *common-refs
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    # We need to separately run the `polkadot-node-metrics` tests. More specifically, because the
+    # `runtime_can_publish_metrics` test uses the `test-runtime` which doesn't support
+    # the `runtime-benchmarks` feature.
+    - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
+
+
+check-runtime-benchmarks:
+  stage:                           stage1
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  script:
+    # Check that everything compiles with `runtime-benchmarks` feature flag.
+    - cargo check --features runtime-benchmarks --all
+    - sccache -s
+
+check-try-runtime:
+  stage:                           stage3
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  needs:
+    - job:                         check-no-default-features
+      artifacts:                   false
+  script:
+    # Check that everything compiles with `try-runtime` feature flag.
+    - cargo check --features try-runtime --all
+    - sccache -s
+
+check-no-default-features:
+  stage:                           stage2
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  needs:
+    - job:                         test-linux-stable-node-metrics
+      artifacts:                   false
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - pushd node/service && cargo check --no-default-features && popd
+    - pushd cli && cargo check --no-default-features --features "service" && popd
+    - sccache -s
+
+spellcheck:
+  stage:                           stage3
+  <<:                              *docker-env
+  <<:                              *test-refs
+  needs:
+    - job:                         check-transaction-versions
+      artifacts:                   false
+  script:
+    - cargo spellcheck --version
+    # compare with the commit parent to the PR, given it's from a default branch
+    - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - echo "___Spellcheck is going to check your diff___"
+    - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
+        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+  allow_failure:                   true
+
+
+
+.check-dependent-project:          &check-dependent-project
+  stage:                           stage2
+  <<:                              *docker-env
+  <<:                              *test-pr-refs
+  needs:
+    - job:                         check-runtime-benchmarks
+      artifacts:                   false
+  script:
+    - git clone
+        --depth=1
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+        paritytech
+        polkadot
+        --polkadot
+        "$DEPENDENT_REPO"
+        "$GITHUB_PR_TOKEN"
+        "$CARGO_UPDATE_CRATES"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
+
+#### stage:                        build
+
+
 check-transaction-versions:
-  stage:                           build
+  stage:                           stage2
   <<:                              *test-refs
   <<:                              *docker-env
   image:                           node:15
@@ -369,11 +389,12 @@ check-transaction-versions:
     - scripts/gitlab/check_extrinsics_ordering.sh
 
 generate-impl-guide:
-  stage:                           build
+  stage:                           stage4
   <<:                              *test-refs
   <<:                              *docker-env
   needs:
-    - cargo-fmt
+    - job:                         spellcheck
+      artifacts:                   false
   image:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
@@ -381,11 +402,12 @@ generate-impl-guide:
     - mdbook build roadmap/implementers-guide
 
 build-rustdoc:
-  stage:                           build
+  stage:                           stage3
   <<:                              *docker-env
   <<:                              *test-refs
   needs:
-    - test-deterministic-wasm
+    - job:                         publish-polkadot-image
+      artifacts:                   false
   variables:
     SKIP_WASM_BUILD:               1
   artifacts:
@@ -439,7 +461,7 @@ build-rustdoc:
     - buildah logout --all
 
 publish-polkadot-image:
-  stage:                           build
+  stage:                           stage2
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
@@ -471,7 +493,7 @@ publish-polkadot-image:
 
 publish-adder-collator-image:
   # service image for Simnet
-  stage:                           build
+  stage:                           stage2
   <<:                              *build-push-image
   <<:                              *zombienet-refs
   variables:
@@ -494,7 +516,7 @@ publish-adder-collator-image:
 
 publish-malus-image:
   # service image for Simnet
-  stage:                           build
+  stage:                           stage2
   <<:                              *build-push-image
   <<:                              *zombienet-refs
   variables:
@@ -516,7 +538,7 @@ publish-malus-image:
       dotenv: ./artifacts/malus.env
 
 update_polkadot_weights:           &update-weights
-  stage:                           build
+  stage:                           stage2
   when:                            manual
   variables:
     RUNTIME:                       polkadot
@@ -543,7 +565,7 @@ update_westend_weights:
 #### stage:                        publish
 
 publish-s3-release:                &publish-s3
-  stage:                           publish
+  stage:                           stage2
   needs:
     - job:                         build-linux-stable
       artifacts:                   true
@@ -584,7 +606,7 @@ publish-s3-release:                &publish-s3
         --recursive --human-readable --summarize
 
 publish-rustdoc:
-  stage:                           publish
+  stage:                           stage4
   <<:                              *kubernetes-env
   <<:                              *vault-secrets
   image:                           paritytech/tools:latest
@@ -635,7 +657,7 @@ publish-rustdoc:
 #### stage:                        deploy
 
 deploy-parity-testnet:
-  stage:                           deploy
+  stage:                           stage3
   <<:                              *publish-refs
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
@@ -644,7 +666,7 @@ deploy-parity-testnet:
   trigger:                         "parity/infrastructure/parity-testnet"
 
 zombienet-tests-parachains-smoke-test:
-  stage:                           deploy
+  stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
@@ -674,7 +696,7 @@ zombienet-tests-parachains-smoke-test:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-malus-dispute-valid:
-  stage:                           deploy
+  stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
