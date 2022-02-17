@@ -315,7 +315,7 @@ check-no-default-features:
   <<:                              *docker-env
   <<:                              *compiler-info
   needs:
-    - job:                         test-linux-stable-node-metrics
+    - job:                         cargo-fmt
       artifacts:                   false
   script:
     # Check that polkadot-cli will compile no default features.
