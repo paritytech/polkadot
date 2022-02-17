@@ -795,7 +795,7 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
-		const MAX_VESTING_SCHEDULES: u32 = 28;
+		type MaxVestingSchedules = frame_support::traits::ConstU32<28>;
 	}
 
 	parameter_types! {
