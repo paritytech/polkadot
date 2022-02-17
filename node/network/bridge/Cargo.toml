@@ -10,8 +10,8 @@ futures = "0.3.17"
 tracing = "0.1.29"
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-node-network-protocol = { path = "../protocol" }
@@ -21,6 +21,6 @@ parking_lot = "0.11.1"
 [dev-dependencies]
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 futures-timer = "3"

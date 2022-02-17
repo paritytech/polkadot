@@ -26,17 +26,17 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.15" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.16" }
 
 #[dev-dependencies]
 futures = "0.3.7"
