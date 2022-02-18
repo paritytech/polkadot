@@ -121,7 +121,10 @@ pub fn open_creating_rocksdb(
 
 /// Open a parity db database.
 #[cfg(feature = "full-node")]
-pub fn open_creating(root: PathBuf, _cache_sizes: CacheSizes) -> io::Result<Arc<dyn Database>> {
+pub fn open_creating_paritydb(
+	root: PathBuf,
+	_cache_sizes: CacheSizes,
+) -> io::Result<Arc<dyn Database>> {
 	let path = root.join("parachains");
 	let path_str = path
 		.to_str()

@@ -861,13 +861,13 @@ where
 			path.clone(),
 			crate::parachains_db::CacheSizes::default(),
 		)?,
-		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating(
+		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating_paritydb(
 			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 			crate::parachains_db::CacheSizes::default(),
 		)?,
 		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
 			if paritydb_path.is_dir() && paritydb_path.exists() {
-				crate::parachains_db::open_creating(
+				crate::parachains_db::open_creating_paritydb(
 					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 					crate::parachains_db::CacheSizes::default(),
 				)?

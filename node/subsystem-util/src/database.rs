@@ -37,17 +37,17 @@ pub mod kvdb_impl {
 	#[derive(Clone)]
 	pub struct DbAdapter<D> {
 		db: D,
-		allowed_iter: BTreeSet<u32>,
+		indexed_columns: BTreeSet<u32>,
 	}
 
 	impl<D: KeyValueDB> DbAdapter<D> {
 		/// Instantiate new subsystem database, with
-		/// definition of collections allowing iteration.
-		pub fn new(db: D, allowed_iter: &[u32]) -> Self {
-			DbAdapter { db, allowed_iter: allowed_iter.iter().cloned().collect() }
+		/// the columns that allow ordered iteration.
+		pub fn new(db: D, indexed_columns: &[u32]) -> Self {
+			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect() }
 		}
 
-		fn filter_iter(&self, col: u32) {
+		fn ensure_is_indexed(&self, col: u32) {
 			debug_assert!(
 				self.is_indexed_column(col),
 				"Invalid configuration of database, column {} is not ordered.",
@@ -55,21 +55,23 @@ pub mod kvdb_impl {
 			);
 		}
 
-		fn filter_tx(&self, transaction: &DBTransaction) {
-			debug_assert!({
+		fn ensure_ops_indexing(&self, transaction: &DBTransaction) {
+			debug_assert!(|| {
 				for op in &transaction.ops {
 					if let DBOp::DeletePrefix { col, .. } = op {
-						self.filter_iter(*col);
+						if !self.is_indexed_column(col) {
+							return false
+						}
 					}
 				}
 				true
-			})
+			}())
 		}
 	}
 
 	impl<D: KeyValueDB> Database for DbAdapter<D> {
 		fn is_indexed_column(&self, col: u32) -> bool {
-			self.allowed_iter.contains(&col)
+			self.indexed_columns.contains(&col)
 		}
 	}
 
@@ -83,17 +85,17 @@ pub mod kvdb_impl {
 		}
 
 		fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
-			self.filter_iter(col);
+			self.ensure_is_indexed(col);
 			self.db.get_by_prefix(col, prefix)
 		}
 
 		fn write(&self, transaction: DBTransaction) -> Result<()> {
-			self.filter_tx(&transaction);
+			self.ensure_ops_indexing(&transaction);
 			self.db.write(transaction)
 		}
 
 		fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-			self.filter_iter(col);
+			self.ensure_is_indexed(col);
 			self.db.iter(col)
 		}
 
@@ -102,7 +104,7 @@ pub mod kvdb_impl {
 			col: u32,
 			prefix: &'a [u8],
 		) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-			self.filter_iter(col);
+			self.ensure_is_indexed(col);
 			self.db.iter_with_prefix(col, prefix)
 		}
 
@@ -119,7 +121,7 @@ pub mod kvdb_impl {
 		}
 
 		fn has_prefix(&self, col: u32, prefix: &[u8]) -> bool {
-			self.filter_iter(col);
+			self.ensure_is_indexed(col);
 			self.db.has_prefix(col, prefix)
 		}
 	}
@@ -156,7 +158,7 @@ pub mod paritydb_impl {
 	/// Implementation of of `Database` for parity-db adapter.
 	pub struct DbAdapter {
 		db: Db,
-		allowed_iter: BTreeSet<u32>,
+		indexed_columns: BTreeSet<u32>,
 		write_lock: Arc<Mutex<()>>,
 	}
 
@@ -263,15 +265,15 @@ pub mod paritydb_impl {
 
 	impl Database for DbAdapter {
 		fn is_indexed_column(&self, col: u32) -> bool {
-			self.allowed_iter.contains(&col)
+			self.indexed_columns.contains(&col)
 		}
 	}
 
 	impl DbAdapter {
 		/// Implementation of of `Database` for parity-db adapter.
-		pub fn new(db: Db, allowed_iter: &[u32]) -> Self {
+		pub fn new(db: Db, indexed_columns: &[u32]) -> Self {
 			let write_lock = Arc::new(Mutex::new(()));
-			DbAdapter { db, allowed_iter: allowed_iter.iter().cloned().collect(), write_lock }
+			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect(), write_lock }
 		}
 	}
 
