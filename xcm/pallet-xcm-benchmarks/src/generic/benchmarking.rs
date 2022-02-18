@@ -415,7 +415,7 @@ benchmarks! {
 		let max_weight = Default::default();
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+		executor.transact_status = b"MyError".to_vec().into();
 
 		let instruction = Instruction::ReportTransactStatus(QueryResponseInfo {
 			query_id,

@@ -299,4 +299,16 @@ impl Junction {
 	pub const fn into_versioned(self) -> VersionedMultiLocation {
 		self.into_location().into_versioned()
 	}
+
+	/// Remove the `NetworkId` value.
+	pub fn remove_network_id(&mut self) {
+		use Junction::*;
+		match self {
+			AccountId32 { ref mut network, .. }
+			| AccountIndex64 { ref mut network, .. }
+			| AccountKey20 { ref mut network, .. }
+			=> *network = None,
+			_ => {},
+		}
+	}
 }

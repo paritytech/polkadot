@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
 use super::{mock::*, test_utils::*, *};
 use frame_support::{assert_err, traits::ConstU32, weights::constants::WEIGHT_PER_SECOND};
 use xcm_executor::{traits::*, Config, XcmExecutor};
@@ -846,7 +847,7 @@ fn pallet_query_should_work() {
 			Xcm::<()>(vec![QueryResponse {
 				query_id: 1,
 				max_weight: 50,
-				response: Response::PalletsInfo(vec![]),
+				response: Response::PalletsInfo(vec![].try_into().unwrap()),
 				querier: Some(Here.into()),
 			}]),
 		)]
@@ -879,14 +880,14 @@ fn pallet_query_with_results_should_work() {
 			Xcm::<()>(vec![QueryResponse {
 				query_id: 1,
 				max_weight: 50,
-				response: Response::PalletsInfo(vec![PalletInfo {
-					index: 1,
-					name: b"Balances".as_ref().into(),
-					module_name: b"pallet_balances".as_ref().into(),
-					major: 1,
-					minor: 42,
-					patch: 69,
-				},]),
+				response: Response::PalletsInfo(vec![PalletInfo::new(
+					1,
+					b"Balances".as_ref().into(),
+					b"pallet_balances".as_ref().into(),
+					1,
+					42,
+					69,
+				).unwrap(),].try_into().unwrap()),
 				querier: Some(Here.into()),
 			}]),
 		)]
@@ -998,28 +999,28 @@ fn max_assets_limit_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (vec![1], 1000));
-	add_asset(1001, (vec![2], 1000));
-	add_asset(1001, (vec![3], 1000));
-	add_asset(1001, (vec![4], 1000));
-	add_asset(1001, (vec![5], 1000));
-	add_asset(1001, (vec![6], 1000));
-	add_asset(1001, (vec![7], 1000));
-	add_asset(1001, (vec![8], 1000));
-	add_asset(1001, (vec![9], 1000));
+	add_asset(1001, ([1u8; 32], 1000));
+	add_asset(1001, ([2u8; 32], 1000));
+	add_asset(1001, ([3u8; 32], 1000));
+	add_asset(1001, ([4u8; 32], 1000));
+	add_asset(1001, ([5u8; 32], 1000));
+	add_asset(1001, ([6u8; 32], 1000));
+	add_asset(1001, ([7u8; 32], 1000));
+	add_asset(1001, ([8u8; 32], 1000));
+	add_asset(1001, ([9u8; 32], 1000));
 
 	// Attempt to withdraw 8 (=2x4)different assets. This will succeed.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
-			WithdrawAsset((vec![1], 100).into()),
-			WithdrawAsset((vec![2], 100).into()),
-			WithdrawAsset((vec![3], 100).into()),
-			WithdrawAsset((vec![4], 100).into()),
-			WithdrawAsset((vec![5], 100).into()),
-			WithdrawAsset((vec![6], 100).into()),
-			WithdrawAsset((vec![7], 100).into()),
-			WithdrawAsset((vec![8], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
+			WithdrawAsset(([2u8; 32], 100).into()),
+			WithdrawAsset(([3u8; 32], 100).into()),
+			WithdrawAsset(([4u8; 32], 100).into()),
+			WithdrawAsset(([5u8; 32], 100).into()),
+			WithdrawAsset(([6u8; 32], 100).into()),
+			WithdrawAsset(([7u8; 32], 100).into()),
+			WithdrawAsset(([8u8; 32], 100).into()),
 		]),
 		100,
 	);
@@ -1029,15 +1030,15 @@ fn max_assets_limit_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
-			WithdrawAsset((vec![1], 100).into()),
-			WithdrawAsset((vec![2], 100).into()),
-			WithdrawAsset((vec![3], 100).into()),
-			WithdrawAsset((vec![4], 100).into()),
-			WithdrawAsset((vec![5], 100).into()),
-			WithdrawAsset((vec![6], 100).into()),
-			WithdrawAsset((vec![7], 100).into()),
-			WithdrawAsset((vec![8], 100).into()),
-			WithdrawAsset((vec![9], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
+			WithdrawAsset(([2u8; 32], 100).into()),
+			WithdrawAsset(([3u8; 32], 100).into()),
+			WithdrawAsset(([4u8; 32], 100).into()),
+			WithdrawAsset(([5u8; 32], 100).into()),
+			WithdrawAsset(([6u8; 32], 100).into()),
+			WithdrawAsset(([7u8; 32], 100).into()),
+			WithdrawAsset(([8u8; 32], 100).into()),
+			WithdrawAsset(([9u8; 32], 100).into()),
 		]),
 		100,
 	);
@@ -1047,18 +1048,18 @@ fn max_assets_limit_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
-			WithdrawAsset((vec![1], 100).into()),
-			WithdrawAsset((vec![2], 100).into()),
-			WithdrawAsset((vec![3], 100).into()),
-			WithdrawAsset((vec![4], 100).into()),
-			WithdrawAsset((vec![1], 100).into()),
-			WithdrawAsset((vec![2], 100).into()),
-			WithdrawAsset((vec![3], 100).into()),
-			WithdrawAsset((vec![4], 100).into()),
-			WithdrawAsset((vec![5], 100).into()),
-			WithdrawAsset((vec![6], 100).into()),
-			WithdrawAsset((vec![7], 100).into()),
-			WithdrawAsset((vec![8], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
+			WithdrawAsset(([2u8; 32], 100).into()),
+			WithdrawAsset(([3u8; 32], 100).into()),
+			WithdrawAsset(([4u8; 32], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
+			WithdrawAsset(([2u8; 32], 100).into()),
+			WithdrawAsset(([3u8; 32], 100).into()),
+			WithdrawAsset(([4u8; 32], 100).into()),
+			WithdrawAsset(([5u8; 32], 100).into()),
+			WithdrawAsset(([6u8; 32], 100).into()),
+			WithdrawAsset(([7u8; 32], 100).into()),
+			WithdrawAsset(([8u8; 32], 100).into()),
 		]),
 		200,
 	);
@@ -1068,18 +1069,18 @@ fn max_assets_limit_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
-			WithdrawAsset((vec![1], 100).into()),
-			WithdrawAsset((vec![2], 100).into()),
-			WithdrawAsset((vec![3], 100).into()),
-			WithdrawAsset((vec![4], 100).into()),
-			WithdrawAsset((vec![5], 100).into()),
-			WithdrawAsset((vec![6], 100).into()),
-			WithdrawAsset((vec![7], 100).into()),
-			WithdrawAsset((vec![8], 100).into()),
-			WithdrawAsset((vec![1], 100).into()),
-			WithdrawAsset((vec![2], 100).into()),
-			WithdrawAsset((vec![3], 100).into()),
-			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
+			WithdrawAsset(([2u8; 32], 100).into()),
+			WithdrawAsset(([3u8; 32], 100).into()),
+			WithdrawAsset(([4u8; 32], 100).into()),
+			WithdrawAsset(([5u8; 32], 100).into()),
+			WithdrawAsset(([6u8; 32], 100).into()),
+			WithdrawAsset(([7u8; 32], 100).into()),
+			WithdrawAsset(([8u8; 32], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
+			WithdrawAsset(([2u8; 32], 100).into()),
+			WithdrawAsset(([3u8; 32], 100).into()),
+			WithdrawAsset(([4u8; 32], 100).into()),
 		]),
 		200,
 	);
@@ -1090,16 +1091,16 @@ fn max_assets_limit_should_work() {
 		Parachain(1),
 		Xcm(vec![
 			WithdrawAsset(MultiAssets::from(vec![
-				(vec![1], 100).into(),
-				(vec![2], 100).into(),
-				(vec![3], 100).into(),
-				(vec![4], 100).into(),
-				(vec![5], 100).into(),
-				(vec![6], 100).into(),
-				(vec![7], 100).into(),
-				(vec![8], 100).into(),
+				([1u8; 32], 100).into(),
+				([2u8; 32], 100).into(),
+				([3u8; 32], 100).into(),
+				([4u8; 32], 100).into(),
+				([5u8; 32], 100).into(),
+				([6u8; 32], 100).into(),
+				([7u8; 32], 100).into(),
+				([8u8; 32], 100).into(),
 			])),
-			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset(([1u8; 32], 100).into()),
 		]),
 		200,
 	);

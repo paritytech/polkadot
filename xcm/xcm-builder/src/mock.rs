@@ -372,7 +372,7 @@ pub type TestBarrier = (
 
 pub struct TestFeeManager;
 impl FeeManager for TestFeeManager {
-	fn is_waived(_: &Option<MultiLocation>, r: FeeReason) -> bool {
+	fn is_waived(_: Option<&MultiLocation>, r: FeeReason) -> bool {
 		!matches!(r, FeeReason::Export(_))
 	}
 	fn handle_fee(_: MultiAssets) {}

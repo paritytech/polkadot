@@ -126,6 +126,20 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 
 		vm.post_execute(xcm_weight)
 	}
+
+	fn charge_fees(
+		origin: impl Into<MultiLocation>,
+		fees: MultiAssets,
+	) -> XcmResult {
+		let origin = origin.into();
+		if !Config::FeeManager::is_waived(Some(&origin), FeeReason::ChargeFees) {
+			for asset in fees.inner() {
+				Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
+			}
+			Config::FeeManager::handle_fee(fees);
+		}
+		Ok(())
+	}
 }
 
 #[derive(Debug)]
@@ -231,7 +245,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		reason: FeeReason,
 	) -> Result<(), XcmError> {
 		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
-		if !Config::FeeManager::is_waived(&self.origin, reason) {
+		if !Config::FeeManager::is_waived(self.origin.as_ref(), reason) {
 			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
 			Config::FeeManager::handle_fee(paid.into());
 		}
@@ -375,7 +389,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						post_info.actual_weight
 					},
 					Err(error_and_info) => {
-						self.transact_status = MaybeErrorCode::Error(error_and_info.error.encode());
+						self.transact_status = error_and_info.error.encode().into();
 						error_and_info.post_info.actual_weight
 					},
 				};
@@ -557,17 +571,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let pallets = Config::PalletInstancesInfo::infos()
 					.into_iter()
 					.filter(|x| x.module_name.as_bytes() == &module_name[..])
-					.map(|x| PalletInfo {
-						index: x.index as u32,
-						name: x.name.as_bytes().into(),
-						module_name: x.module_name.as_bytes().into(),
-						major: x.crate_version.major as u32,
-						minor: x.crate_version.minor as u32,
-						patch: x.crate_version.patch as u32,
-					})
-					.collect::<Vec<_>>();
+					.map(|x| PalletInfo::new(
+						x.index as u32,
+						x.name.as_bytes().into(),
+						x.module_name.as_bytes().into(),
+						x.crate_version.major as u32,
+						x.crate_version.minor as u32,
+						x.crate_version.patch as u32,
+					))
+					.collect::<Result<Vec<_>, XcmError>>()?;
 				let QueryResponseInfo { destination, query_id, max_weight } = response_info;
-				let response = Response::PalletsInfo(pallets);
+				let response = Response::PalletsInfo(pallets.try_into()?);
 				let querier = Self::to_querier(self.origin.clone(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);
@@ -617,7 +631,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// generally have their own lanes.
 				let (ticket, fee) =
 					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
-				if !Config::FeeManager::is_waived(&self.origin, FeeReason::Export(network)) {
+				if !Config::FeeManager::is_waived(self.origin.as_ref(), FeeReason::Export(network)) {
 					let paid =
 						self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
 					Config::FeeManager::handle_fee(paid.into());
@@ -626,13 +640,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			NoteAssetLocked { asset, owner } => {
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::AssetLock::note_asset_locked(origin, &asset, &owner)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				Config::AssetLock::note_asset_locked(origin, asset, owner)?;
 				Ok(())
 			},
 			UnlockAsset { asset, owner } => {
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::AssetLock::unlock_asset(origin, &asset, &owner)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				Config::AssetLock::unlock_asset(origin, asset, owner)?;
 				Ok(())
 			},
 			ExchangeAsset { give, want, maximal } => {
@@ -685,7 +699,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
 		let (ticket, fee) = validate_send::<Config::XcmSender>(destination, message)?;
-		if !Config::FeeManager::is_waived(&self.origin, fee_reason) {
+		if !Config::FeeManager::is_waived(self.origin.as_ref(), fee_reason) {
 			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
 			Config::FeeManager::handle_fee(paid.into());
 		}

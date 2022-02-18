@@ -97,7 +97,6 @@ impl<'a> DoubleEndedIterator for JunctionsRefIterator<'a> {
 		self.junctions.at(index)
 	}
 }
-
 impl<'a> IntoIterator for &'a Junctions {
 	type Item = &'a Junction;
 	type IntoIter = JunctionsRefIterator<'a>;
@@ -127,6 +126,27 @@ impl Junctions {
 	/// Similar to `Self::into_location`, with the added ability to specify the number of parent junctions.
 	pub const fn into_exterior(self, n: u8) -> MultiLocation {
 		MultiLocation { parents: n, interior: self }
+	}
+
+	/// Remove the `NetworkId` value in any `Junction`s.
+	pub fn remove_network_id(&mut self) {
+		self.for_each_mut(Junction::remove_network_id);
+	}
+
+	/// Execute a function `f` on every junction. We use this since we cannot implement a mutable
+	/// `Iterator` without unsafe code.
+	pub fn for_each_mut(&mut self, mut x: impl FnMut(&mut Junction)) {
+		match self {
+			Junctions::Here => {},
+			Junctions::X1(a) => { x(a); },
+			Junctions::X2(a, b) => { x(a); x(b); },
+			Junctions::X3(a, b, c) => { x(a); x(b); x(c); },
+			Junctions::X4(a, b, c, d) => { x(a); x(b); x(c); x(d); },
+			Junctions::X5(a, b, c, d, e) => { x(a); x(b); x(c); x(d); x(e); },
+			Junctions::X6(a, b, c, d, e, f) => { x(a); x(b); x(c); x(d); x(e); x(f); },
+			Junctions::X7(a, b, c, d, e, f, g) => { x(a); x(b); x(c); x(d); x(e); x(f); x(g); },
+			Junctions::X8(a, b, c, d, e, f, g, h) => { x(a); x(b); x(c); x(d); x(e); x(f); x(g); x(h); },
+		}
 	}
 
 	/// Extract the network ID treating this value as a universal location.
@@ -393,7 +413,7 @@ impl Junctions {
 
 	/// Returns a mutable reference to the junction at index `i`, or `None` if the location doesn't contain that many
 	/// elements.
-	pub fn at_mut(&mut self, i: usize) -> Option<&mut Junction> {
+	pub fn at_mut<'a>(&'a mut self, i: usize) -> Option<&'a mut Junction> {
 		Some(match (i, self) {
 			(0, Junctions::X1(ref mut a)) => a,
 			(0, Junctions::X2(ref mut a, ..)) => a,
@@ -499,7 +519,6 @@ xcm_procedural::impl_conversion_functions_for_junctions_v3!();
 #[cfg(test)]
 mod tests {
 	use super::{super::prelude::*, *};
-	use alloc::vec;
 
 	#[test]
 	fn relative_to_works() {
@@ -549,9 +568,9 @@ mod tests {
 			(Parent, PalletInstance(2), [1u8; 32]).into()
 		);
 		assert_eq!(
-			X5(Kusama.into(), Parachain(1), PalletInstance(1), [1u8; 32].into(), vec![1].into())
+			X5(Kusama.into(), Parachain(1), PalletInstance(1), [1u8; 32].into(), 1u128.into())
 				.relative_to(&base),
-			([1u8; 32], vec![1]).into()
+			([1u8; 32], 1u128).into()
 		);
 	}
 

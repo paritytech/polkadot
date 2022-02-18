@@ -73,8 +73,8 @@ impl From<Error> for XcmError {
 ///
 /// /// Final currency adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
 /// pub type AssetTransactor = CurrencyAdapter<
-///     // Use this balance type:
-///     u128,
+///     // Use this `Currency` impl instance:
+///     Balances,
 ///     // The matcher: use the currency when the asset is a concrete asset in our relay chain.
 ///     IsConcrete<RelayChain>,
 ///     // The local converter: default account of the parent relay chain.
@@ -90,9 +90,9 @@ pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, Che
 );
 
 impl<
+		Currency: frame_support::traits::Currency<AccountId>,
 		Matcher: MatchesFungible<Currency::Balance>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
-		Currency: frame_support::traits::Currency<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckedAccount: Get<Option<AccountId>>,
 	> TransactAsset

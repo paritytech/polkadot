@@ -27,17 +27,142 @@ use super::MultiLocation;
 use crate::v2::{
 	AssetId as OldAssetId, MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
 	MultiAssets as OldMultiAssets, WildMultiAsset as OldWildMultiAsset,
+	AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
+	WildFungibility as OldWildFungibility,
 };
 use alloc::{vec, vec::Vec};
-use codec::MaxEncodedLen;
 use core::{
 	cmp::Ordering,
 	convert::{TryFrom, TryInto},
 };
-use parity_scale_codec::{self as codec, Decode, Encode};
+use parity_scale_codec::{self as codec, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
-pub use crate::v2::{AssetInstance, Fungibility, WildFungibility};
+/// A general identifier for an instance of a non-fungible asset class.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+pub enum AssetInstance {
+	/// Undefined - used if the non-fungible asset class has only one instance.
+	Undefined,
+
+	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
+	/// values up to `2**128 - 1`.
+	Index(#[codec(compact)] u128),
+
+	/// A 4-byte fixed-length datum.
+	Array4([u8; 4]),
+
+	/// An 8-byte fixed-length datum.
+	Array8([u8; 8]),
+
+	/// A 16-byte fixed-length datum.
+	Array16([u8; 16]),
+
+	/// A 32-byte fixed-length datum.
+	Array32([u8; 32]),
+}
+
+impl TryFrom<OldAssetInstance> for AssetInstance {
+	type Error = ();
+	fn try_from(value: OldAssetInstance) -> Result<Self, Self::Error> {
+		use OldAssetInstance::*;
+		Ok(match value {
+			Undefined => Self::Undefined,
+			Index(n) => Self::Index(n),
+			Array4(n) => Self::Array4(n),
+			Array8(n) => Self::Array8(n),
+			Array16(n) => Self::Array16(n),
+			Array32(n) => Self::Array32(n),
+			Blob(_) => return Err(())
+		})
+	}
+}
+
+impl From<()> for AssetInstance {
+	fn from(_: ()) -> Self {
+		Self::Undefined
+	}
+}
+
+impl From<[u8; 4]> for AssetInstance {
+	fn from(x: [u8; 4]) -> Self {
+		Self::Array4(x)
+	}
+}
+
+impl From<[u8; 8]> for AssetInstance {
+	fn from(x: [u8; 8]) -> Self {
+		Self::Array8(x)
+	}
+}
+
+impl From<[u8; 16]> for AssetInstance {
+	fn from(x: [u8; 16]) -> Self {
+		Self::Array16(x)
+	}
+}
+
+impl From<[u8; 32]> for AssetInstance {
+	fn from(x: [u8; 32]) -> Self {
+		Self::Array32(x)
+	}
+}
+
+/// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+pub enum Fungibility {
+	Fungible(#[codec(compact)] u128),
+	NonFungible(AssetInstance),
+}
+
+impl Fungibility {
+	pub fn is_kind(&self, w: WildFungibility) -> bool {
+		use Fungibility::*;
+		use WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible};
+		matches!((self, w), (Fungible(_), WildFungible) | (NonFungible(_), WildNonFungible))
+	}
+}
+
+impl From<u128> for Fungibility {
+	fn from(amount: u128) -> Fungibility {
+		debug_assert_ne!(amount, 0);
+		Fungibility::Fungible(amount)
+	}
+}
+
+impl<T: Into<AssetInstance>> From<T> for Fungibility {
+	fn from(instance: T) -> Fungibility {
+		Fungibility::NonFungible(instance.into())
+	}
+}
+
+impl TryFrom<OldFungibility> for Fungibility {
+	type Error = ();
+	fn try_from(value: OldFungibility) -> Result<Self, Self::Error> {
+		use OldFungibility::*;
+		Ok(match value {
+			Fungible(n) => Self::Fungible(n),
+			NonFungible(i) => Self::NonFungible(i.try_into()?),
+		})
+	}
+}
+
+/// Classification of whether an asset is fungible or not.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+pub enum WildFungibility {
+	Fungible,
+	NonFungible,
+}
+
+impl TryFrom<OldWildFungibility> for WildFungibility {
+	type Error = ();
+	fn try_from(value: OldWildFungibility) -> Result<Self, Self::Error> {
+		use OldWildFungibility::*;
+		Ok(match value {
+			Fungible => Self::Fungible,
+			NonFungible => Self::NonFungible,
+		})
+	}
+}
 
 /// Classification of an asset being concrete or abstract.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
@@ -104,7 +229,7 @@ impl AssetId {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub struct MultiAsset {
 	pub id: AssetId,
 	pub fun: Fungibility,
@@ -182,13 +307,24 @@ impl MultiAsset {
 impl TryFrom<OldMultiAsset> for MultiAsset {
 	type Error = ();
 	fn try_from(old: OldMultiAsset) -> Result<Self, ()> {
-		Ok(Self { id: old.id.try_into()?, fun: old.fun })
+		Ok(Self { id: old.id.try_into()?, fun: old.fun.try_into()? })
 	}
 }
 
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, Default)]
+// TODO: Change to a `BoundedVec`.
 pub struct MultiAssets(Vec<MultiAsset>);
+
+/// Maximum number of items we expect in a single `MultiAssets` value. Note this is not (yet)
+/// enforced, and just serves to provide a sensible `max_encoded_len` for `MultiAssets`.
+const MAX_ITEMS_IN_MULTIASSETS: usize = 20;
+
+impl MaxEncodedLen for MultiAssets {
+	fn max_encoded_len() -> usize {
+		MultiAsset::max_encoded_len() * MAX_ITEMS_IN_MULTIASSETS
+	}
+}
 
 impl Decode for MultiAssets {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
@@ -352,7 +488,7 @@ impl MultiAssets {
 }
 
 /// A wildcard representing a set of assets.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum WildMultiAsset {
 	/// All assets in Holding.
 	All,
@@ -376,7 +512,7 @@ impl TryFrom<OldWildMultiAsset> for WildMultiAsset {
 	fn try_from(old: OldWildMultiAsset) -> Result<WildMultiAsset, ()> {
 		use OldWildMultiAsset::*;
 		Ok(match old {
-			AllOf { id, fun } => Self::AllOf { id: id.try_into()?, fun },
+			AllOf { id, fun } => Self::AllOf { id: id.try_into()?, fun: fun.try_into()? },
 			All => Self::All,
 		})
 	}
@@ -388,7 +524,7 @@ impl TryFrom<(OldWildMultiAsset, u32)> for WildMultiAsset {
 		use OldWildMultiAsset::*;
 		let count = old.1;
 		Ok(match old.0 {
-			AllOf { id, fun } => Self::AllOfCounted { id: id.try_into()?, fun, count },
+			AllOf { id, fun } => Self::AllOfCounted { id: id.try_into()?, fun: fun.try_into()?, count },
 			All => Self::AllCounted(count),
 		})
 	}
@@ -461,7 +597,7 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 }
 
 /// `MultiAsset` collection, either `MultiAssets` or a single wildcard.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum MultiAssetFilter {
 	Definite(MultiAssets),
 	Wild(WildMultiAsset),

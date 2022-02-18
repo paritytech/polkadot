@@ -108,6 +108,11 @@ impl MultiLocation {
 		self.parents == 0 && self.interior.len() == 0
 	}
 
+	/// Remove the `NetworkId` value in any interior `Junction`s.
+	pub fn remove_network_id(&mut self) {
+		self.interior.remove_network_id();
+	}
+
 	/// Return a reference to the interior field.
 	pub fn interior(&self) -> &Junctions {
 		&self.interior
@@ -718,10 +723,10 @@ mod tests {
 			v1::MultiLocation::from((
 				v1::Parent,
 				v1::Parent,
-				v1::Junction::GeneralKey(b"foo".to_vec()),
+				v1::Junction::GeneralIndex(42u128),
 			))
 			.try_into(),
-			Ok(MultiLocation { parents: 2, interior: X1(GeneralKey(b"foo".to_vec())) }),
+			Ok(MultiLocation { parents: 2, interior: X1(GeneralIndex(42u128)) }),
 		);
 	}
 }

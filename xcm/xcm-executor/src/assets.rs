@@ -493,12 +493,12 @@ mod tests {
 	#[allow(non_snake_case)]
 	/// Abstract fungible constructor
 	fn AF(id: u8, amount: u128) -> MultiAsset {
-		(vec![id], amount).into()
+		([id; 32], amount).into()
 	}
 	#[allow(non_snake_case)]
 	/// Abstract non-fungible constructor
 	fn ANF(class: u8, instance_id: u8) -> MultiAsset {
-		(vec![class], vec![instance_id]).into()
+		([class; 32], [instance_id; 4]).into()
 	}
 	#[allow(non_snake_case)]
 	/// Concrete fungible constructor
@@ -617,8 +617,8 @@ mod tests {
 		assets.subsume(CF(3000));
 		assets.subsume(CNF(80));
 		assets.subsume(ANF(3, 10));
-		let fungible = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
-		let non_fungible = WildMultiAsset::from((vec![2], WildNonFungible)).counted(2).into();
+		let fungible = WildMultiAsset::from(([1u8; 32], WildFungible)).counted(2).into();
+		let non_fungible = WildMultiAsset::from(([2u8; 32], WildNonFungible)).counted(2).into();
 		let all = WildMultiAsset::AllCounted(6).into();
 
 		let fungible = assets.min(&fungible);
@@ -635,8 +635,8 @@ mod tests {
 	#[test]
 	fn min_all_abstract_works() {
 		let assets = test_assets();
-		let fungible = Wild((vec![1], WildFungible).into());
-		let non_fungible = Wild((vec![2], WildNonFungible).into());
+		let fungible = Wild(([1u8; 32], WildFungible).into());
+		let non_fungible = Wild(([2u8; 32], WildNonFungible).into());
 
 		let fungible = assets.min(&fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
@@ -696,8 +696,8 @@ mod tests {
 	#[test]
 	fn saturating_take_all_abstract_works() {
 		let mut assets = test_assets();
-		let fungible = Wild((vec![1], WildFungible).into());
-		let non_fungible = Wild((vec![2], WildNonFungible).into());
+		let fungible = Wild(([1u8; 32], WildFungible).into());
+		let non_fungible = Wild(([2u8; 32], WildNonFungible).into());
 
 		let fungible = assets.saturating_take(fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
@@ -782,7 +782,7 @@ mod tests {
 		assets.subsume(CF(3000));
 		assets.subsume(CNF(80));
 		assets.subsume(ANF(3, 10));
-		let mask = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
+		let mask = WildMultiAsset::from(([1u8; 32], WildFungible)).counted(2).into();
 		let taken = assets.try_take(mask).unwrap();
 		assert_eq!(MultiAssets::from(taken).inner(), &vec![AF(1, 100)]);
 		assert_eq!(
@@ -812,7 +812,7 @@ mod tests {
 		assets.subsume(CF(3000));
 		assets.subsume(CNF(80));
 		assets.subsume(ANF(3, 10));
-		let mask = WildMultiAsset::from((vec![2], WildNonFungible)).counted(2).into();
+		let mask = WildMultiAsset::from(([2u8; 32], WildNonFungible)).counted(2).into();
 		let taken = assets.try_take(mask).unwrap();
 		assert_eq!(MultiAssets::from(taken).inner(), &vec![ANF(2, 20), ANF(2, 30),]);
 		assert_eq!(

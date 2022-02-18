@@ -209,6 +209,8 @@ impl pallet_xcm::Config for Runtime {
 	type Origin = Origin;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type TrustedLockers = ();
+	type SovereignAccountOf = ();
 }
 
 impl origin::Config for Runtime {}
