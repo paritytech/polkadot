@@ -11,9 +11,9 @@ futures = "0.3.21"
 itertools = "0.10"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 pin-project = "1.0.9"
-rand = "0.8.3"
+rand = "0.8.5"
 thiserror = "1.0.30"
-tracing = "0.1.30"
+tracing = "0.1.31"
 derive_more = "0.99.17"
 lru = "0.7.2"
 

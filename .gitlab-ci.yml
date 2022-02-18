@@ -312,7 +312,7 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
-        $CARGO_UPDATE_CRATES
+        "$CARGO_UPDATE_CRATES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
