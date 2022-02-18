@@ -221,13 +221,10 @@ build-linux-stable:
     - cp -r scripts/* ./artifacts
 
 check-runtime:
-  stage:                           stage3
+  stage:                           stage1
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   <<:                              *test-refs
-  needs:
-    - job:                         check-transaction-versions
-      artifacts:                   false
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -250,7 +247,7 @@ test-deterministic-wasm:
   <<:                              *docker-env
   <<:                              *compiler-info
   needs:
-    - job:                         test-linux-stable-node-metrics
+    - job:                         spellcheck
       artifacts:                   false
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
@@ -269,11 +266,14 @@ test-linux-stable:
     # Builds with the runtime benchmarks/metrics features are only to be used for testing.
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
 
-test-linux-stable-node-metrics:
-  stage:                           stage1
+test-node-metrics:
+  stage:                           stage2
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *common-refs
+  needs:
+    - job:                         check-runtime
+      artifacts:                   false
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -287,10 +287,13 @@ test-linux-stable-node-metrics:
 
 
 check-runtime-benchmarks:
-  stage:                           stage1
+  stage:                           stage3
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
+  needs:
+    - job:                         test-node-metrics
+      artifacts:                   false
   script:
     # Check that everything compiles with `runtime-benchmarks` feature flag.
     - cargo check --features runtime-benchmarks --all
@@ -302,7 +305,7 @@ check-try-runtime:
   <<:                              *docker-env
   <<:                              *compiler-info
   needs:
-    - job:                         check-no-default-features
+    - job:                         test-node-metrics
       artifacts:                   false
   script:
     # Check that everything compiles with `try-runtime` feature flag.
@@ -310,12 +313,12 @@ check-try-runtime:
     - sccache -s
 
 check-no-default-features:
-  stage:                           stage2
+  stage:                           stage3
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
   needs:
-    - job:                         cargo-fmt
+    - job:                         test-deterministic-wasm
       artifacts:                   false
   script:
     # Check that polkadot-cli will compile no default features.
@@ -324,12 +327,9 @@ check-no-default-features:
     - sccache -s
 
 spellcheck:
-  stage:                           stage3
+  stage:                           stage1
   <<:                              *docker-env
   <<:                              *test-refs
-  needs:
-    - job:                         check-transaction-versions
-      artifacts:                   false
   script:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
@@ -347,7 +347,7 @@ spellcheck:
   <<:                              *docker-env
   <<:                              *test-pr-refs
   needs:
-    - job:                         check-runtime-benchmarks
+    - job:                         check-runtime
       artifacts:                   false
   script:
     - git clone
@@ -389,11 +389,11 @@ check-transaction-versions:
     - scripts/gitlab/check_extrinsics_ordering.sh
 
 generate-impl-guide:
-  stage:                           stage4
+  stage:                           stage3
   <<:                              *test-refs
   <<:                              *docker-env
   needs:
-    - job:                         spellcheck
+    - job:                         check-transaction-versions
       artifacts:                   false
   image:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
@@ -406,7 +406,7 @@ build-rustdoc:
   <<:                              *docker-env
   <<:                              *test-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         test-deterministic-wasm
       artifacts:                   false
   variables:
     SKIP_WASM_BUILD:               1
