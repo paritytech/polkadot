@@ -661,7 +661,7 @@ impl<T: Config> Pallet<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
-		T::PalletId::get().into_sub_account(index)
+		T::PalletId::get().into_sub_account_truncating(index)
 	}
 
 	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
