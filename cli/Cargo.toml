@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 clap = { version = "3.0", features = ["derive"], optional = true }
 log = "0.4.13"
 thiserror = "1.0.30"
-futures = "0.3.19"
+futures = "0.3.21"
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
