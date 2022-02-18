@@ -56,16 +56,18 @@ pub mod kvdb_impl {
 		}
 
 		fn ensure_ops_indexing(&self, transaction: &DBTransaction) {
-			debug_assert!(|| {
+			debug_assert!({
+				let mut pass = true;
 				for op in &transaction.ops {
 					if let DBOp::DeletePrefix { col, .. } = op {
-						if !self.is_indexed_column(col) {
-							return false
+						if !self.is_indexed_column(*col) {
+							pass = false;
+							break;
 						}
 					}
 				}
-				true
-			}())
+				pass
+			})
 		}
 	}
 
