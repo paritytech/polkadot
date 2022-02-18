@@ -62,7 +62,7 @@ pub mod kvdb_impl {
 					if let DBOp::DeletePrefix { col, .. } = op {
 						if !self.is_indexed_column(*col) {
 							pass = false;
-							break;
+							break
 						}
 					}
 				}
