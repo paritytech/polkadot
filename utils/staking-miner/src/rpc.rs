@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! RPC related types and helpers.
+//! JSON-RPC related types and helpers.
 
 use super::*;
 use jsonrpsee::{
@@ -95,7 +95,7 @@ pub trait RpcApi {
 	fn subscribe_finalized_heads(&self) -> RpcResult<()>;
 }
 
-/// Wraps a shared websocket JSON-RPC client that can be cloned.
+/// Wraps a shared web-socket JSON-RPC client that can be cloned.
 #[derive(Clone, Debug)]
 pub(crate) struct SharedRpcClient(Arc<WsClient>);
 
@@ -113,7 +113,7 @@ impl SharedRpcClient {
 		self.0
 	}
 
-	/// Create a new shared RPC client.
+	/// Create a new shared JSON-RPC web-socket client.
 	pub(crate) async fn new(uri: &str) -> Result<Self, RpcError> {
 		let client = WsClientBuilder::default()
 			.connection_timeout(MAX_CONNECTION_DURATION)
@@ -132,7 +132,7 @@ impl SharedRpcClient {
 	///
 	/// * `Ok(Some(val))` if successful.
 	/// * `Ok(None)` if the storage item was not found.
-	/// * `Err(e)` if the RPC call failed.
+	/// * `Err(e)` if the JSON-RPC call failed.
 	pub(crate) async fn get_storage_and_decode<'a, T: codec::Decode>(
 		&self,
 		key: &StorageKey,
@@ -156,7 +156,7 @@ impl SharedRpcClient {
 /// The function returns:
 ///
 /// * `Ok(val)` if successful.
-/// * `Err(RpcHelperError::JsonRpsee)` if the RPC call failed.
+/// * `Err(RpcHelperError::JsonRpsee)` if the JSON-RPC call failed.
 /// * `Err(RpcHelperError::Codec)` if `Bytes` could not be decoded.
 pub(crate) async fn await_request_and_decode<'a, Dec: codec::Decode>(
 	req: impl Future<Output = Result<Bytes, RpcError>>,
