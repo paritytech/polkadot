@@ -481,10 +481,10 @@ pub mod pallet {
 		/// The given para either initiated or subscribed to a PVF check for the given validation
 		/// code. `code_hash` `para_id`
 		PvfCheckStarted(ValidationCodeHash, ParaId),
-		/// The given validation code was rejected by the PVF pre-checking vote.
+		/// The given validation code was accepted by the PVF pre-checking vote.
 		/// `code_hash` `para_id`
 		PvfCheckAccepted(ValidationCodeHash, ParaId),
-		/// The given validation code was accepted by the PVF pre-checking vote.
+		/// The given validation code was rejected by the PVF pre-checking vote.
 		/// `code_hash` `para_id`
 		PvfCheckRejected(ValidationCodeHash, ParaId),
 	}
