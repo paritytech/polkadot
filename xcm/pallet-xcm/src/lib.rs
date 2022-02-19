@@ -997,33 +997,6 @@ pub mod pallet {
 				Some(weight_limit),
 			)
 		}
-
-		/// Lock asset owned by origin and send a `NoteAssetLocked` message to `unlocker` with
-		/// `asset` and `origin` (converted to a `MultiLocation`).
-		///
-		/// NOTE: This is a bit "dangerous" since of unlocker is not a chain which recognises the
-		/// `NodeAssetLocked` message and allows for the sending of an `UnlockAsset`, then the
-		/// assets may not be unlockable without governance intervention.
-		#[pallet::weight(1_000_000_000)]
-		pub fn lock_asset(
-			origin: OriginFor<T>,
-			asset: Box<VersionedMultiAsset>,
-			unlocker: Box<VersionedMultiLocation>,
-		) -> DispatchResult {
-			Self::do_lock_asset(origin, *asset, *unlocker)
-		}
-
-		/// Send an `UnlockAsset` instruction to a location who previously sent us a
-		/// `NoteAssetLocked` message. Given asset must have a remote-lock record here and
-		/// `users` of it must be zero.
-		#[pallet::weight(1_000_000_000)]
-		pub fn request_unlock_asset(
-			origin: OriginFor<T>,
-			asset: VersionedMultiAsset,
-			locker: VersionedMultiLocation,
-		) -> DispatchResult {
-			Self::do_request_unlock_asset(origin, asset, locker)
-		}
 	}
 }
 
@@ -1508,100 +1481,6 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	/// Fees are charged to the location whose sovereign account is the origin.
-	///
-	/// Lock, or extend the lock of, a known and lockable asset locally and send a `NoteAssetLocked`
-	/// message with the new amount that it is locked to some destination. If the same asset ID was
-	/// already locked for the `unlocker` but for a lesser quantity, then the lock is extended.
-	///
-	/// The `NoteAssetLocked` is sent even if no additional assets are locked for `unlocker` owing
-	/// to the assets already being locked to be a superset of `asset`.
-	fn do_lock_asset(
-		origin: OriginFor<T>,
-		asset: VersionedMultiAsset,
-		unlocker: VersionedMultiLocation,
-	) -> DispatchResult {
-		let origin = ensure_signed(origin)?;
-		let asset = MultiAsset::try_from(asset).map_err(|_| Error::<T>::BadVersion)?;
-		let unlocker = MultiLocation::try_from(unlocker).map_err(|_| Error::<T>::BadVersion)?;
-		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(Error::<T>::InvalidAsset)?;
-		ensure!(T::Currency::free_balance(&origin) >= amount, Error::<T>::LowBalance);
-		let mut locks = LockedFungibles::<T>::get(&origin).unwrap_or_default();
-		if let Some(x) = locks.iter_mut().find(|x| x.1.try_as::<_>() == Ok(&unlocker)) {
-			x.0 = x.0.max(amount);
-		} else {
-			locks.try_push((amount, unlocker.clone().into())).map_err(|()| Error::<T>::TooManyLocks)?;
-		}
-		let context = T::LocationInverter::universal_location().into();
-		let remote_asset = asset.reanchored(&unlocker, &context)
-			.map_err(|()| Error::<T>::CannotReanchor)?;
-		let owner = T::SovereignAccountOf::reverse_ref(&origin)
-			.map_err(|()| Error::<T>::AccountNotSovereign)?;
-		let msg = Xcm::<()>(vec![
-			NoteUnlockable { asset: remote_asset, owner: owner.clone() },
-		]);
-		let (ticket, price) = validate_send::<T::XcmRouter>(unlocker, msg)
-			.map_err(|_| Error::<T>::SendFailure)?;
-
-		Self::charge_fees(owner, price)?;
-
-		T::XcmRouter::deliver(ticket).map_err(|_| Error::<T>::SendFailure)?;
-		LockedFungibles::<T>::insert(&origin, locks);
-		T::Currency::extend_lock(*b"py/xcmlk", &origin, amount, WithdrawReasons::all());
-		Ok(())
-	}
-
-	/// Send an `UnlockAsset` instruction to a location who previously sent us a
-	/// `NoteAssetLocked` message. Given asset must have a remote-lock record here and
-	/// `users` of it must be zero.
-	fn do_request_unlock_asset(
-		origin: OriginFor<T>,
-		asset: VersionedMultiAsset,
-		locker: VersionedMultiLocation,
-	) -> DispatchResult {
-		let account = ensure_signed(origin)?;
-		let locker = MultiLocation::try_from(locker).map_err(|()| Error::<T>::BadVersion)?;
-		let asset = MultiAsset::try_from(asset).map_err(|()| Error::<T>::BadVersion)?;
-
-		let id: VersionedAssetId = asset.id.clone().into();
-		let amount = match asset.fun {
-			Fungible(a) => a,
-			NonFungible(_) => Err(Error::<T>::InvalidAsset)?,
-		};
-		let owner = T::SovereignAccountOf::reverse_ref(&account)
-			.map_err(|()| Error::<T>::AccountNotSovereign)?;
-		let key = (XCM_VERSION, account, id);
-
-		let mut record = RemoteLockedFungibles::<T>::get(&key).ok_or(Error::<T>::LockNotFound)?;
-		let l = MultiLocation::try_from(record.locker.clone())
-			.map_err(|()| Error::<T>::LockNotFound)?;
-		let o = MultiLocation::try_from(record.owner.clone())
-			.map_err(|()| Error::<T>::LockNotFound)?;
-		ensure!(l == locker && o == owner, Error::<T>::LockNotFound);
-		ensure!(record.users == 0, Error::<T>::InUse);
-		record.amount = record.amount.checked_sub(amount).ok_or(Error::<T>::LowBalance)?;
-
-		let context = T::LocationInverter::universal_location().into();
-		let remote_asset = asset.reanchored(&locker, &context)
-			.map_err(|()| Error::<T>::CannotReanchor)?;
-
-		let msg = Xcm::<()>(vec![
-			UnlockAsset { asset: remote_asset, target: owner.clone() },
-		]);
-		let (ticket, price) = validate_send::<T::XcmRouter>(locker, msg)
-			.map_err(|_| Error::<T>::SendFailure)?;
-
-		Self::charge_fees(owner, price)?;
-
-		T::XcmRouter::deliver(ticket).map_err(|_| Error::<T>::SendFailure)?;
-		if record.amount == 0 {
-			RemoteLockedFungibles::<T>::remove(&key);
-		} else {
-			RemoteLockedFungibles::<T>::insert(&key, &record);
-		}
-		Ok(())
-	}
-
 	/// Withdraw given `assets` from the given `location` and pay as XCM fees.
 	///
 	/// Fails if:
@@ -1628,6 +1507,7 @@ impl<T: Config> xcm_executor::traits::Enact for LockTicket<T> {
 		let mut locks = LockedFungibles::<T>::get(&self.sovereign_account).unwrap_or_default();
 		match self.item_index {
 			Some(index) => {
+				ensure!(locks.len() > index, UnexpectedState);
 				ensure!(locks[index].1.try_as::<_>() == Ok(&self.unlocker), UnexpectedState);
 				locks[index].0 = locks[index].0.max(self.amount);
 			}
@@ -1642,13 +1522,74 @@ impl<T: Config> xcm_executor::traits::Enact for LockTicket<T> {
 	}
 }
 
+pub struct UnlockTicket<T: Config> {
+	sovereign_account: T::AccountId,
+	amount: BalanceOf<T>,
+	unlocker: MultiLocation,
+}
+
+impl<T: Config> xcm_executor::traits::Enact for UnlockTicket<T> {
+	fn enact(self) -> Result<(), xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::UnexpectedState;
+		let mut locks = LockedFungibles::<T>::get(&self.sovereign_account).ok_or(UnexpectedState)?;
+		let mut maybe_remove_index = None;
+		let mut locked = BalanceOf::<T>::zero();
+		let mut found = false;
+		// We could just as well do with with an into_iter, filter_map and collect, however this way
+		// avoids making an allocation.
+		for (i, x) in locks.iter_mut().enumerate() {
+			if x.1.try_as::<_>().defensive() == Ok(&self.unlocker) {
+				x.0 = x.0.saturating_sub(self.amount);
+				if x.0.is_zero() {
+					maybe_remove_index = Some(i);
+				}
+				found = true;
+			}
+			locked = locked.max(x.0);
+		}
+		ensure!(found, UnexpectedState);
+		if let Some(remove_index) = maybe_remove_index {
+			locks.swap_remove(remove_index);
+		}
+		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
+		let reasons = WithdrawReasons::all();
+		T::Currency::set_lock(*b"py/xcmlk", &self.sovereign_account, locked, reasons);
+		Ok(())
+	}
+}
+
+pub struct ReduceTicket<T: Config> {
+	key: (u32, T::AccountId, VersionedAssetId),
+	amount: u128,
+	locker: VersionedMultiLocation,
+	owner: VersionedMultiLocation,
+}
+
+impl<T: Config> xcm_executor::traits::Enact for ReduceTicket<T> {
+	fn enact(self) -> Result<(), xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::UnexpectedState;
+		let mut record = RemoteLockedFungibles::<T>::get(&self.key).ok_or(UnexpectedState)?;
+		ensure!(self.locker == record.locker && self.owner == record.owner, UnexpectedState);
+		ensure!(record.users == 0, UnexpectedState);
+		record.amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
+		if record.amount == 0 {
+			RemoteLockedFungibles::<T>::remove(&self.key);
+		} else {
+			RemoteLockedFungibles::<T>::insert(&self.key, &record);
+		}
+		Ok(())
+	}
+}
+
 impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 	type LockTicket = LockTicket<T>;
+	type UnlockTicket = UnlockTicket<T>;
+	type ReduceTicket = ReduceTicket<T>;
 
 	fn prepare_lock(
-		owner: MultiLocation,
-		asset: MultiAsset,
 		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
 	) -> Result<LockTicket<T>, xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::*;
 		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
@@ -1658,6 +1599,21 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let item_index = locks.iter().position(|x| x.1.try_as::<_>() == Ok(&unlocker));
 		ensure!(item_index.is_some() || locks.len() < T::MaxLockers::get() as usize, NoResources);
 		Ok(LockTicket { sovereign_account, amount, unlocker, item_index })
+	}
+
+	fn prepare_unlock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<UnlockTicket<T>, xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::*;
+		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
+		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
+		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
+		let item_index = locks.iter().position(|x| x.1.try_as::<_>() == Ok(&unlocker)).ok_or(NotLocked)?;
+		ensure!(locks[item_index].0 >= amount, NotLocked);
+		Ok(UnlockTicket { sovereign_account, amount, unlocker })
 	}
 
 	fn note_unlockable(
@@ -1688,36 +1644,29 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		Ok(())
 	}
 
-	fn unlock_asset(
-		mut owner: MultiLocation,
+	fn prepare_reduce_unlockable(
+		locker: MultiLocation,
 		asset: MultiAsset,
-		unlocker: MultiLocation,
-	) -> Result<(), xcm_executor::traits::LockError> {
+		mut owner: MultiLocation,
+	) -> Result<Self::ReduceTicket, xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::*;
-		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
+		let amount = match asset.fun {
+			Fungible(a) => a,
+			NonFungible(_) => return Err(Unimplemented),
+		};
 		owner.remove_network_id();
-		let account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
-		let mut locks = LockedFungibles::<T>::get(&account).unwrap_or_default();
-		let mut maybe_remove_index = None;
-		let mut locked = BalanceOf::<T>::zero();
-		// We could just as well do with with an into_iter, filter_map and collect, however this way
-		// avoids making an allocation.
-		for (i, x) in locks.iter_mut().enumerate() {
-			if x.1.try_as::<_>().defensive() == Ok(&unlocker) {
-				x.0 = x.0.saturating_sub(amount);
-				if x.0.is_zero() {
-					maybe_remove_index = Some(i);
-				}
-			}
-			locked = locked.max(x.0);
-		}
-		if let Some(remove_index) = maybe_remove_index {
-			locks.swap_remove(remove_index);
-		}
-		LockedFungibles::<T>::insert(&account, locks);
+		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let locker = locker.into();
+		let owner = owner.into();
+		let id: VersionedAssetId = asset.id.into();
+		let key = (XCM_VERSION, sovereign_account, id);
 
-		T::Currency::set_lock(*b"py/xcmlk", &account, locked, WithdrawReasons::all());
-		Ok(())
+		let record = RemoteLockedFungibles::<T>::get(&key).ok_or(NotLocked)?;
+		// Make sure that the record contains what we expect and there's enough to unlock.
+		ensure!(locker == record.locker && owner == record.owner, WouldClobber);
+		ensure!(record.users == 0, InUse);
+		ensure!(record.amount >= amount, NotEnoughLocked);
+		Ok(ReduceTicket { key, amount, locker, owner })
 	}
 }
 

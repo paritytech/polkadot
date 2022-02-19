@@ -46,6 +46,8 @@ pub enum FeeReason {
 	ChargeFees,
 	/// When the `LockAsset` instruction is called.
 	LockAsset,
+	/// When the `RequestUnlock` instruction is called.
+	RequestUnlock,
 }
 
 impl FeeManager for () {

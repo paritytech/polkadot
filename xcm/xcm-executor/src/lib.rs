@@ -645,7 +645,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			LockAsset { asset, unlocker } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				let remote_asset = Self::try_reanchor(asset.clone(), &unlocker)?;
-				let lock_ticket = Config::AssetLocker::prepare_lock(origin.clone(), asset, unlocker.clone())?;
+				let lock_ticket = Config::AssetLocker::prepare_lock(unlocker.clone(), asset, origin.clone())?;
 				let msg = Xcm::<()>(vec![
 					NoteUnlockable { asset: remote_asset, owner: origin.clone() },
 				]);
@@ -655,14 +655,27 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::deliver(ticket)?;
 				Ok(())
 			},
+			UnlockAsset { asset, target } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				Config::AssetLocker::prepare_unlock(origin.clone(), asset, target)?.enact()?;
+				Ok(())
+			},
 			NoteUnlockable { asset, owner } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				Config::AssetLocker::note_unlockable(origin, asset, owner)?;
 				Ok(())
 			},
-			UnlockAsset { asset, target } => {
+			RequestUnlock { asset, locker } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
-				Config::AssetLocker::unlock_asset(origin, asset, target)?;
+				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?;
+				let reduce_ticket = Config::AssetLocker::prepare_reduce_unlockable(locker.clone(), asset, origin.clone())?;
+				let msg = Xcm::<()>(vec![
+					UnlockAsset { asset: remote_asset, target: origin.clone() },
+				]);
+				let (ticket, price) = validate_send::<Config::XcmSender>(locker, msg)?;
+				self.take_fee(price, FeeReason::RequestUnlock)?;
+				reduce_ticket.enact()?;
+				Config::XcmSender::deliver(ticket)?;
 				Ok(())
 			},
 			ExchangeAsset { give, want, maximal } => {

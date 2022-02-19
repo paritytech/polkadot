@@ -22,6 +22,7 @@ pub enum LockError {
 	WouldClobber,
 	BadOrigin,
 	NotLocked,
+	NotEnoughLocked,
 	Unimplemented,
 	NotTrusted,
 	BadOwner,
@@ -29,6 +30,7 @@ pub enum LockError {
 	AssetNotOwned,
 	NoResources,
 	UnexpectedState,
+	InUse,
 }
 
 impl From<LockError> for XcmError {
@@ -39,6 +41,7 @@ impl From<LockError> for XcmError {
 			BadOrigin => XcmError::BadOrigin,
 			WouldClobber
 			| NotLocked
+			| NotEnoughLocked
 			| Unimplemented
 			| NotTrusted
 			| BadOwner
@@ -46,6 +49,7 @@ impl From<LockError> for XcmError {
 			| AssetNotOwned
 			| NoResources
 			| UnexpectedState
+			| InUse
 			=> XcmError::LockError,
 		}
 	}
@@ -67,15 +71,35 @@ pub trait AssetLock {
 	/// lock.
 	type LockTicket: Enact;
 
+	/// `Enact` implementer for `prepare_unlock`. This type may be dropped safely to avoid doing the
+	/// unlock.
+	type UnlockTicket: Enact;
+
+	/// `Enact` implementer for `prepare_reduce_unlockable`. This type may be dropped safely to avoid doing the
+	/// unlock.
+	type ReduceTicket: Enact;
+
 	/// Prepare to lock an asset. On success, a `Self::LockTicket` it returned, which can be used
 	/// to actually enact the lock.
 	///
-	/// WARNING: Never call this with an undropped instance of `Self::LockTicket`.
+	/// WARNING: Don't call this with an undropped instance of `Self::LockTicket` or
+	/// `Self::UnlockTicket`.
 	fn prepare_lock(
-		owner: MultiLocation,
-		asset: MultiAsset,
 		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
 	) -> Result<Self::LockTicket, LockError>;
+
+	/// Prepare to unlock an asset. On success, a `Self::UnlockTicket` it returned, which can be
+	/// used to actually enact the lock.
+	///
+	/// WARNING: Don't call this with an undropped instance of `Self::LockTicket` or
+	/// `Self::UnlockTicket`.
+	fn prepare_unlock(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<Self::UnlockTicket, LockError>;
 
 	/// Handler for when a location reports to us that an asset has been locked for us to unlock
 	/// at a later stage.
@@ -84,21 +108,33 @@ pub trait AssetLock {
 	/// sending chain can ensure the lock does not remain.
 	///
 	/// We should only act upon this message if we believe that the `origin` is honest.
-	fn note_unlockable(host: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
+	fn note_unlockable(locker: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
 
-	/// Handler for unlocking an asset.
-	fn unlock_asset(owner: MultiLocation, asset: MultiAsset, unlocker: MultiLocation) -> Result<(), LockError>;
+	fn prepare_reduce_unlockable(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<Self::ReduceTicket, LockError>;
 }
 
 impl AssetLock for () {
 	type LockTicket = Infallible;
+	type UnlockTicket = Infallible;
+	type ReduceTicket = Infallible;
 	fn prepare_lock(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<Self::LockTicket, LockError> {
+		Err(LockError::NotApplicable)
+	}
+	fn prepare_unlock(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<Self::UnlockTicket, LockError> {
 		Err(LockError::NotApplicable)
 	}
 	fn note_unlockable(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<(), LockError> {
 		Err(LockError::NotApplicable)
 	}
-	fn unlock_asset(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<(), LockError> {
+	fn prepare_reduce_unlockable(
+		_: MultiLocation,
+		_: MultiAsset,
+		_: MultiLocation,
+	) -> Result<Self::ReduceTicket, LockError> {
 		Err(LockError::NotApplicable)
 	}
 }

@@ -894,6 +894,19 @@ pub enum Instruction<Call> {
 	/// Errors:
 	LockAsset { asset: MultiAsset, unlocker: MultiLocation },
 
+	/// Remove the lock over `asset` on this chain and (if nothing else is preventing it) allow the
+	/// asset to be transferred.
+	///
+	/// - `asset`: The asset to be unlocked.
+	/// - `owner`: The owner of the asset on the local chain.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	UnlockAsset { asset: MultiAsset, target: MultiLocation },
+
 	/// Asset (`asset`) has been locked on the `origin` system and may not be transferred. It may
 	/// only be unlocked with the receipt of the `UnlockAsset`  instruction from this chain.
 	///
@@ -909,18 +922,19 @@ pub enum Instruction<Call> {
 	/// Errors:
 	NoteUnlockable { asset: MultiAsset, owner: MultiLocation },
 
-	/// Remove the lock over `asset` on this chain and (if nothing else is preventing it) allow the
-	/// asset to be transferred.
+	/// Send an `UnlockAsset` instruction to the `locker` for the given `asset`.
 	///
-	/// - `asset`: The asset to be unlocked.
-	/// - `owner`: The owner of the asset on the local chain.
+	/// This may fail if the local system is making use of the fact that the asset is locked or,
+	/// of course, if there is no record that the asset actually is locked.
 	///
-	/// Safety: No concerns.
+	/// - `asset`: The asset(s) to be unlocked.
+	/// - `locker`: The location from which a previous `NoteUnlockable` was sent and to which
+	///   an `UnlockAsset` should be sent.
 	///
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	UnlockAsset { asset: MultiAsset, target: MultiLocation },
+	RequestUnlock { asset: MultiAsset, locker: MultiLocation },
 
 	/// Sets the Fees Mode Register.
 	///
@@ -998,8 +1012,9 @@ impl<Call> Instruction<Call> {
 			ExportMessage { network, destination, xcm } =>
 				ExportMessage { network, destination, xcm },
 			LockAsset { asset, unlocker } => LockAsset { asset, unlocker },
-			NoteUnlockable { asset, owner } => NoteUnlockable { asset, owner },
 			UnlockAsset { asset, target } => UnlockAsset { asset, target },
+			NoteUnlockable { asset, owner } => NoteUnlockable { asset, owner },
+			RequestUnlock { asset, locker } => RequestUnlock { asset, locker },
 			SetFeesMode { jit_withdraw } => SetFeesMode { jit_withdraw },
 		}
 	}
@@ -1060,8 +1075,9 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExportMessage { network, destination, xcm } =>
 				W::export_message(network, destination, xcm),
 			LockAsset { asset, unlocker } => W::lock_asset(asset, unlocker),
-			NoteUnlockable { asset, owner } => W::note_unlockable(asset, owner),
 			UnlockAsset { asset, target } => W::unlock_asset(asset, target),
+			NoteUnlockable { asset, owner } => W::note_unlockable(asset, owner),
+			RequestUnlock { asset, locker } => W::request_unlock(asset, locker),
 			SetFeesMode { jit_withdraw } => W::set_fees_mode(jit_withdraw),
 		}
 	}
