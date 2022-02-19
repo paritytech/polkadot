@@ -23,7 +23,7 @@ pub use conversion::{
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
 mod asset_lock;
-pub use asset_lock::{LockAsset, LockError};
+pub use asset_lock::{AssetLock, Enact, LockError};
 mod asset_exchange;
 pub use asset_exchange::AssetExchange;
 mod export;

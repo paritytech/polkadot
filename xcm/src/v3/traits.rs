@@ -120,6 +120,9 @@ pub enum Error {
 	/// Fees were required which the origin could not pay.
 	#[codec(index = 30)]
 	FeesNotMet,
+	/// Some other error with locking.
+	#[codec(index = 31)]
+	LockError,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.

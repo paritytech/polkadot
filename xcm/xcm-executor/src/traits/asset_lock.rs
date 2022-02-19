@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use sp_std::convert::Infallible;
 use xcm::prelude::*;
 
 pub enum LockError {
@@ -25,6 +26,9 @@ pub enum LockError {
 	NotTrusted,
 	BadOwner,
 	UnknownAsset,
+	AssetNotOwned,
+	NoResources,
+	UnexpectedState,
 }
 
 impl From<LockError> for XcmError {
@@ -33,18 +37,46 @@ impl From<LockError> for XcmError {
 		match e {
 			NotApplicable => XcmError::AssetNotFound,
 			BadOrigin => XcmError::BadOrigin,
-			WouldClobber => todo!(),
-			NotLocked => todo!(),
-			Unimplemented => todo!(),
-			NotTrusted => todo!(),
-			BadOwner => todo!(),
-			UnknownAsset => todo!(),
+			WouldClobber
+			| NotLocked
+			| Unimplemented
+			| NotTrusted
+			| BadOwner
+			| UnknownAsset
+			| AssetNotOwned
+			| NoResources
+			| UnexpectedState
+			=> XcmError::LockError,
 		}
 	}
 }
 
+pub trait Enact {
+	/// Enact a lock. This should generally be infallible if called immediately after being
+	/// received.
+	fn enact(self) -> Result<(), LockError>;
+}
+
+impl Enact for Infallible {
+	fn enact(self) -> Result<(), LockError> { unreachable!() }
+}
+
 /// Define a handler for notification of an asset being locked and for the unlock instruction.
-pub trait LockAsset {
+pub trait AssetLock {
+	/// `Enact` implementer for `prepare_lock`. This type may be dropped safely to avoid doing the
+	/// lock.
+	type LockTicket: Enact;
+
+	/// Prepare to lock an asset. On success, a `Self::LockTicket` it returned, which can be used
+	/// to actually enact the lock.
+	///
+	/// WARNING: Never call this with an undropped instance of `Self::LockTicket`.
+	fn prepare_lock(
+		owner: MultiLocation,
+		asset: MultiAsset,
+		unlocker: MultiLocation,
+	) -> Result<Self::LockTicket, LockError>;
+
 	/// Handler for when a location reports to us that an asset has been locked for us to unlock
 	/// at a later stage.
 	///
@@ -52,14 +84,18 @@ pub trait LockAsset {
 	/// sending chain can ensure the lock does not remain.
 	///
 	/// We should only act upon this message if we believe that the `origin` is honest.
-	fn note_asset_locked(origin: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
+	fn note_unlockable(host: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
 
 	/// Handler for unlocking an asset.
-	fn unlock_asset(origin: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
+	fn unlock_asset(owner: MultiLocation, asset: MultiAsset, unlocker: MultiLocation) -> Result<(), LockError>;
 }
 
-impl LockAsset for () {
-	fn note_asset_locked(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<(), LockError> {
+impl AssetLock for () {
+	type LockTicket = Infallible;
+	fn prepare_lock(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<Self::LockTicket, LockError> {
+		Err(LockError::NotApplicable)
+	}
+	fn note_unlockable(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<(), LockError> {
 		Err(LockError::NotApplicable)
 	}
 	fn unlock_asset(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<(), LockError> {

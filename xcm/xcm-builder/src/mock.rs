@@ -392,7 +392,7 @@ impl Config for TestConfig {
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 	type AssetTrap = TestAssetTrap;
-	type AssetLock = ();
+	type AssetLocker = ();
 	type AssetExchanger = ();
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;

@@ -112,7 +112,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
-	type AssetLock = ();
+	type AssetLocker = ();
 	type AssetExchanger = ();
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;

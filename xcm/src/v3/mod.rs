@@ -878,11 +878,28 @@ pub enum Instruction<Call> {
 	/// Errors: *Fallible*.
 	ExportMessage { network: NetworkId, destination: InteriorMultiLocation, xcm: Xcm<()> },
 
+	/// Lock the locally held asset and prevent further transfer or withdrawal.
+	///
+	/// This restriction may be removed by the `UnlockAsset` instruction being called with an
+	/// Origin of `unlocker` and a `target` equal to the current `Origin`.
+	///
+	/// If the locking is successful, then a `NoteAssetLocked` instruction is sent to `unlocker`.
+	///
+	/// - `asset`: The asset(s) which should be locked.
+	/// - `unlocker`: The value which the Origin must be for a corresponding `UnlockAsset`
+	///   instruction to work.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	LockAsset { asset: MultiAsset, unlocker: MultiLocation },
+
 	/// Asset (`asset`) has been locked on the `origin` system and may not be transferred. It may
 	/// only be unlocked with the receipt of the `UnlockAsset`  instruction from this chain.
 	///
-	/// - `asset`: The asset(s) that has been locked.
-	/// - `owner`: The owner of the asset on the local chain.
+	/// - `asset`: The asset(s) which are now unlockable from this origin.
+	/// - `owner`: The owner of the asset on the chain in which it was locked. This may be a
+	///   location specific to the origin network.
 	///
 	/// Safety: `origin` must be trusted to have locked the corresponding `asset`
 	/// prior as a consequence of sending this message.
@@ -890,7 +907,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	NoteAssetLocked { asset: MultiAsset, owner: MultiLocation },
+	NoteUnlockable { asset: MultiAsset, owner: MultiLocation },
 
 	/// Remove the lock over `asset` on this chain and (if nothing else is preventing it) allow the
 	/// asset to be transferred.
@@ -903,7 +920,17 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	UnlockAsset { asset: MultiAsset, owner: MultiLocation },
+	UnlockAsset { asset: MultiAsset, target: MultiLocation },
+
+	/// Sets the Fees Mode Register.
+	///
+	/// - `jit_withdraw`: The fees mode item; if set to `true` then fees for any instructions
+	///   are withdrawn as needed using the same mechanism as `WithdrawAssets`.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	SetFeesMode { jit_withdraw: bool },
 }
 
 impl<Call> Xcm<Call> {
@@ -970,8 +997,10 @@ impl<Call> Instruction<Call> {
 			UniversalOrigin(j) => UniversalOrigin(j),
 			ExportMessage { network, destination, xcm } =>
 				ExportMessage { network, destination, xcm },
-			NoteAssetLocked { asset, owner } => NoteAssetLocked { asset, owner },
-			UnlockAsset { asset, owner } => UnlockAsset { asset, owner },
+			LockAsset { asset, unlocker } => LockAsset { asset, unlocker },
+			NoteUnlockable { asset, owner } => NoteUnlockable { asset, owner },
+			UnlockAsset { asset, target } => UnlockAsset { asset, target },
+			SetFeesMode { jit_withdraw } => SetFeesMode { jit_withdraw },
 		}
 	}
 }
@@ -1030,8 +1059,10 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			UniversalOrigin(j) => W::universal_origin(j),
 			ExportMessage { network, destination, xcm } =>
 				W::export_message(network, destination, xcm),
-			NoteAssetLocked { asset, owner } => W::note_asset_locked(asset, owner),
-			UnlockAsset { asset, owner } => W::unlock_asset(asset, owner),
+			LockAsset { asset, unlocker } => W::lock_asset(asset, unlocker),
+			NoteUnlockable { asset, owner } => W::note_unlockable(asset, owner),
+			UnlockAsset { asset, target } => W::unlock_asset(asset, target),
+			SetFeesMode { jit_withdraw } => W::set_fees_mode(jit_withdraw),
 		}
 	}
 }

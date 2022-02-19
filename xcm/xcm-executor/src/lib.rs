@@ -32,7 +32,7 @@ pub mod traits;
 use traits::{
 	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FeeReason,
 	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
-	VersionChangeNotifier, WeightBounds, WeightTrader, LockAsset, AssetExchange,
+	VersionChangeNotifier, WeightBounds, WeightTrader, AssetLock, Enact, AssetExchange,
 };
 
 mod assets;
@@ -40,27 +40,33 @@ pub use assets::Assets;
 mod config;
 pub use config::Config;
 
+#[derive(Copy, Clone)]
+struct FeesMode {
+	pub jit_withdraw: bool,
+}
+
 /// The XCM executor.
 pub struct XcmExecutor<Config: config::Config> {
-	pub holding: Assets,
-	pub holding_limit: usize,
-	pub origin: Option<MultiLocation>,
-	pub original_origin: MultiLocation,
-	pub trader: Config::Trader,
+	holding: Assets,
+	holding_limit: usize,
+	origin: Option<MultiLocation>,
+	original_origin: MultiLocation,
+	trader: Config::Trader,
 	/// The most recent error result and instruction index into the fragment in which it occurred,
 	/// if any.
-	pub error: Option<(u32, XcmError)>,
+	error: Option<(u32, XcmError)>,
 	/// The surplus weight, defined as the amount by which `max_weight` is
 	/// an over-estimate of the actual weight consumed. We do it this way to avoid needing the
 	/// execution engine to keep track of all instructions' weights (it only needs to care about
 	/// the weight of dynamically determined instructions such as `Transact`).
-	pub total_surplus: u64,
-	pub total_refunded: u64,
-	pub error_handler: Xcm<Config::Call>,
-	pub error_handler_weight: u64,
-	pub appendix: Xcm<Config::Call>,
-	pub appendix_weight: u64,
-	pub transact_status: MaybeErrorCode,
+	total_surplus: u64,
+	total_refunded: u64,
+	error_handler: Xcm<Config::Call>,
+	error_handler_weight: u64,
+	appendix: Xcm<Config::Call>,
+	appendix_weight: u64,
+	transact_status: MaybeErrorCode,
+	fees_mode: FeesMode,
 	_config: PhantomData<Config>,
 }
 
@@ -179,6 +185,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			appendix: Xcm(vec![]),
 			appendix_weight: 0,
 			transact_status: Default::default(),
+			fees_mode: FeesMode { jit_withdraw: false },
 			_config: PhantomData,
 		}
 	}
@@ -631,22 +638,31 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// generally have their own lanes.
 				let (ticket, fee) =
 					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
-				if !Config::FeeManager::is_waived(self.origin.as_ref(), FeeReason::Export(network)) {
-					let paid =
-						self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-					Config::FeeManager::handle_fee(paid.into());
-				}
+				self.take_fee(fee, FeeReason::LockAsset)?;
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())
 			},
-			NoteAssetLocked { asset, owner } => {
+			LockAsset { asset, unlocker } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
-				Config::AssetLock::note_asset_locked(origin, asset, owner)?;
+				let remote_asset = Self::try_reanchor(asset.clone(), &unlocker)?;
+				let lock_ticket = Config::AssetLocker::prepare_lock(origin.clone(), asset, unlocker.clone())?;
+				let msg = Xcm::<()>(vec![
+					NoteUnlockable { asset: remote_asset, owner: origin.clone() },
+				]);
+				let (ticket, price) = validate_send::<Config::XcmSender>(unlocker, msg)?;
+				self.take_fee(price, FeeReason::LockAsset)?;
+				lock_ticket.enact()?;
+				Config::XcmSender::deliver(ticket)?;
 				Ok(())
 			},
-			UnlockAsset { asset, owner } => {
+			NoteUnlockable { asset, owner } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
-				Config::AssetLock::unlock_asset(origin, asset, owner)?;
+				Config::AssetLocker::note_unlockable(origin, asset, owner)?;
+				Ok(())
+			},
+			UnlockAsset { asset, target } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				Config::AssetLocker::unlock_asset(origin, asset, target)?;
 				Ok(())
 			},
 			ExchangeAsset { give, want, maximal } => {
@@ -664,10 +680,31 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Err(XcmError::NoDeal)
 				}
 			},
+			SetFeesMode { jit_withdraw } => {
+				self.fees_mode = FeesMode { jit_withdraw };
+				Ok(())
+			}
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
 		}
+	}
+
+	fn take_fee(&mut self, fee: MultiAssets, reason: FeeReason) -> XcmResult {
+		if Config::FeeManager::is_waived(self.origin.as_ref(), reason) {
+			return Ok(())
+		}
+		let paid = if self.fees_mode.jit_withdraw {
+			let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+			for asset in fee.inner() {
+				Config::AssetTransactor::withdraw_asset(&asset, origin)?;
+			}
+			fee
+		} else {
+			self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?.into()
+		};
+		Config::FeeManager::handle_fee(paid);
+		Ok(())
 	}
 
 	/// Calculates what `local_querier` would be from the perspective of `destination`.
@@ -705,6 +742,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 		Config::XcmSender::deliver(ticket)?;
 		Ok(())
+	}
+
+	fn try_reanchor(asset: MultiAsset, destination: &MultiLocation) -> Result<MultiAsset, XcmError> {
+		let context = Config::LocationInverter::universal_location().into();
+		asset.reanchored(&destination, &context).map_err(|()| XcmError::ReanchorFailed)
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

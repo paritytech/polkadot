@@ -44,6 +44,8 @@ pub enum FeeReason {
 	Export(NetworkId),
 	/// The `charge_fees` API.
 	ChargeFees,
+	/// When the `LockAsset` instruction is called.
+	LockAsset,
 }
 
 impl FeeManager for () {

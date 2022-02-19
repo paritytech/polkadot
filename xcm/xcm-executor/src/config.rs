@@ -17,7 +17,7 @@
 use crate::traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FilterAssetLocation, OnResponse,
 	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	WeightTrader, LockAsset, AssetExchange,
+	WeightTrader, AssetLock, AssetExchange,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -66,7 +66,7 @@ pub trait Config {
 	type AssetTrap: DropAssets;
 
 	/// Handler for asset locking.
-	type AssetLock: LockAsset;
+	type AssetLocker: AssetLock;
 
 	/// Handler for exchanging assets.
 	type AssetExchanger: AssetExchange;

@@ -288,7 +288,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
-	type AssetLock = ();
+	type AssetLocker = ();
 	type AssetExchanger = ();
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
