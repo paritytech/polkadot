@@ -1527,16 +1527,12 @@ impl<T: Config> Pallet<T> {
 		let unlocker = MultiLocation::try_from(unlocker).map_err(|_| Error::<T>::BadVersion)?;
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(Error::<T>::InvalidAsset)?;
 		ensure!(T::Currency::free_balance(&owner) >= amount, Error::<T>::LowBalance);
-		let locks = LockedFungibles::<T>::get(&owner).unwrap_or_default();
-		let mut locks = locks.into_inner();	// < TODO: REMOVE
+		let mut locks = LockedFungibles::<T>::get(&owner).unwrap_or_default();
 		if let Some(x) = locks.iter_mut().find(|x| x.1.try_as::<_>() == Ok(&unlocker)) {
 			x.0 = x.0.max(amount);
 		} else {
-//			locks.try_push((amount, unlocker.clone().into())).map_err(|()| Error::<T>::TooManyLocks)?;
-			locks.push((amount, unlocker.clone().into()));	// < TODO: REMOVE
+			locks.try_push((amount, unlocker.clone().into())).map_err(|()| Error::<T>::TooManyLocks)?;
 		}
-		let locks: BoundedVec<_, _> = locks.try_into()
-			.map_err(|()| Error::<T>::TooManyLocks)?;	// < TODO: REMOVE
 		let context = T::LocationInverter::universal_location().into();
 		let remote_asset = asset.reanchored(&unlocker, &context)
 			.map_err(|()| Error::<T>::CannotReanchor)?;
@@ -1656,14 +1652,13 @@ impl<T: Config> xcm_executor::traits::LockAsset for Pallet<T> {
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
 		owner.remove_network_id();
 		let account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
-		let locks = LockedFungibles::<T>::get(&account).unwrap_or_default();
+		let mut locks = LockedFungibles::<T>::get(&account).unwrap_or_default();
 		let mut maybe_remove_index = None;
 		let mut locked = BalanceOf::<T>::zero();
 		// We could just as well do with with an into_iter, filter_map and collect, however it's
 		// a pain to do the collect with BoundedVec, since you lose the semantic knowledge that
 		// we're strictly only as big as a previous BoundedVec's contents and it's a heavily
 		// operation with a reconstruction of the vec resulting in a new allocation.
-		let mut locks = locks.into_inner();	//< TODO: REMOVE
 		for (i, x) in locks.iter_mut().enumerate() {
 			if x.1.try_as::<_>().defensive() == Ok(&unlocker) {
 				x.0 = x.0.saturating_sub(amount);
@@ -1673,7 +1668,6 @@ impl<T: Config> xcm_executor::traits::LockAsset for Pallet<T> {
 			}
 			locked = locked.max(x.0);
 		}
-		let mut locks: BoundedVec<_, _> = locks.try_into().unwrap();	//< TODO: REMOVE
 		if let Some(remove_index) = maybe_remove_index {
 			locks.swap_remove(remove_index);
 		}
