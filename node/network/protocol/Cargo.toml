@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-network-protocol"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Primitives types for the Node-side"
@@ -15,5 +15,5 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.23", features = ["derive"] }
 derive_more = "0.99.17"
-futures = "0.3.19"
+futures = "0.3.21"
 thiserror = "1.0.30"

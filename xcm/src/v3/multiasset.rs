@@ -24,16 +24,326 @@
 //!   account.
 
 use super::MultiLocation;
-use crate::v2::{MultiAssetFilter as OldMultiAssetFilter, WildMultiAsset as OldWildMultiAsset};
+use crate::v2::{
+	AssetId as OldAssetId, MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
+	MultiAssets as OldMultiAssets, WildMultiAsset as OldWildMultiAsset,
+};
 use alloc::{vec, vec::Vec};
-use core::convert::TryFrom;
-use parity_scale_codec::{Decode, Encode};
+use core::{
+	cmp::Ordering,
+	convert::{TryFrom, TryInto},
+};
+use parity_scale_codec::{self as codec, Decode, Encode};
 use scale_info::TypeInfo;
 
-/// These are unchanged from XCM version 2 to version 3.
-pub use crate::v2::{
-	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssets, WildFungibility,
-};
+pub use crate::v2::{AssetInstance, Fungibility, WildFungibility};
+
+/// Classification of an asset being concrete or abstract.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+pub enum AssetId {
+	Concrete(MultiLocation),
+	Abstract(Vec<u8>),
+}
+
+impl<T: Into<MultiLocation>> From<T> for AssetId {
+	fn from(x: T) -> Self {
+		Self::Concrete(x.into())
+	}
+}
+
+impl From<Vec<u8>> for AssetId {
+	fn from(x: Vec<u8>) -> Self {
+		Self::Abstract(x)
+	}
+}
+
+impl TryFrom<OldAssetId> for AssetId {
+	type Error = ();
+	fn try_from(old: OldAssetId) -> Result<Self, ()> {
+		use OldAssetId::*;
+		Ok(match old {
+			Concrete(l) => Self::Concrete(l.try_into()?),
+			Abstract(v) => Self::Abstract(v),
+		})
+	}
+}
+
+impl AssetId {
+	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
+	pub fn prepend_with(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+		if let AssetId::Concrete(ref mut l) = self {
+			l.prepend_with(prepend.clone()).map_err(|_| ())?;
+		}
+		Ok(())
+	}
+
+	/// Mutate the asset to represent the same value from the perspective of a new `target`
+	/// location. The local chain's location is provided in `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+		if let AssetId::Concrete(ref mut l) = self {
+			l.reanchor(target, context)?;
+		}
+		Ok(())
+	}
+
+	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `MultiAsset` value.
+	pub fn into_multiasset(self, fun: Fungibility) -> MultiAsset {
+		MultiAsset { fun, id: self }
+	}
+
+	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
+	/// wildcard (`AllOf`) value.
+	pub fn into_wild(self, fun: WildFungibility) -> WildMultiAsset {
+		WildMultiAsset::AllOf { fun, id: self }
+	}
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+pub struct MultiAsset {
+	pub id: AssetId,
+	pub fun: Fungibility,
+}
+
+impl PartialOrd for MultiAsset {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for MultiAsset {
+	fn cmp(&self, other: &Self) -> Ordering {
+		match (&self.fun, &other.fun) {
+			(Fungibility::Fungible(..), Fungibility::NonFungible(..)) => Ordering::Less,
+			(Fungibility::NonFungible(..), Fungibility::Fungible(..)) => Ordering::Greater,
+			_ => (&self.id, &self.fun).cmp(&(&other.id, &other.fun)),
+		}
+	}
+}
+
+impl<A: Into<AssetId>, B: Into<Fungibility>> From<(A, B)> for MultiAsset {
+	fn from((id, fun): (A, B)) -> MultiAsset {
+		MultiAsset { fun: fun.into(), id: id.into() }
+	}
+}
+
+impl MultiAsset {
+	pub fn is_fungible(&self, maybe_id: Option<AssetId>) -> bool {
+		use Fungibility::*;
+		matches!(self.fun, Fungible(..)) && maybe_id.map_or(true, |i| i == self.id)
+	}
+
+	pub fn is_non_fungible(&self, maybe_id: Option<AssetId>) -> bool {
+		use Fungibility::*;
+		matches!(self.fun, NonFungible(..)) && maybe_id.map_or(true, |i| i == self.id)
+	}
+
+	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
+	pub fn prepend_with(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+		self.id.prepend_with(prepend)
+	}
+
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+		self.id.reanchor(target, context)
+	}
+
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		context: &MultiLocation,
+	) -> Result<Self, ()> {
+		self.id.reanchor(target, context)?;
+		Ok(self)
+	}
+
+	/// Returns true if `self` is a super-set of the given `inner`.
+	pub fn contains(&self, inner: &MultiAsset) -> bool {
+		use Fungibility::*;
+		if self.id == inner.id {
+			match (&self.fun, &inner.fun) {
+				(Fungible(a), Fungible(i)) if a >= i => return true,
+				(NonFungible(a), NonFungible(i)) if a == i => return true,
+				_ => (),
+			}
+		}
+		false
+	}
+}
+
+impl TryFrom<OldMultiAsset> for MultiAsset {
+	type Error = ();
+	fn try_from(old: OldMultiAsset) -> Result<Self, ()> {
+		Ok(Self { id: old.id.try_into()?, fun: old.fun })
+	}
+}
+
+/// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, Default)]
+pub struct MultiAssets(Vec<MultiAsset>);
+
+impl Decode for MultiAssets {
+	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+		Self::from_sorted_and_deduplicated(Vec::<MultiAsset>::decode(input)?)
+			.map_err(|()| "Out of order".into())
+	}
+}
+
+impl TryFrom<OldMultiAssets> for MultiAssets {
+	type Error = ();
+	fn try_from(old: OldMultiAssets) -> Result<Self, ()> {
+		let v = old
+			.drain()
+			.into_iter()
+			.map(MultiAsset::try_from)
+			.collect::<Result<Vec<_>, ()>>()?;
+		Ok(MultiAssets(v))
+	}
+}
+
+impl From<Vec<MultiAsset>> for MultiAssets {
+	fn from(mut assets: Vec<MultiAsset>) -> Self {
+		let mut res = Vec::with_capacity(assets.len());
+		if !assets.is_empty() {
+			assets.sort();
+			let mut iter = assets.into_iter();
+			if let Some(first) = iter.next() {
+				let last = iter.fold(first, |a, b| -> MultiAsset {
+					match (a, b) {
+						(
+							MultiAsset { fun: Fungibility::Fungible(a_amount), id: a_id },
+							MultiAsset { fun: Fungibility::Fungible(b_amount), id: b_id },
+						) if a_id == b_id => MultiAsset {
+							id: a_id,
+							fun: Fungibility::Fungible(a_amount.saturating_add(b_amount)),
+						},
+						(
+							MultiAsset { fun: Fungibility::NonFungible(a_instance), id: a_id },
+							MultiAsset { fun: Fungibility::NonFungible(b_instance), id: b_id },
+						) if a_id == b_id && a_instance == b_instance =>
+							MultiAsset { fun: Fungibility::NonFungible(a_instance), id: a_id },
+						(to_push, to_remember) => {
+							res.push(to_push);
+							to_remember
+						},
+					}
+				});
+				res.push(last);
+			}
+		}
+		Self(res)
+	}
+}
+
+impl<T: Into<MultiAsset>> From<T> for MultiAssets {
+	fn from(x: T) -> Self {
+		Self(vec![x.into()])
+	}
+}
+
+impl MultiAssets {
+	/// A new (empty) value.
+	pub fn new() -> Self {
+		Self(Vec::new())
+	}
+
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
+	/// which contain no duplicates.
+	///
+	/// Returns `Ok` if the operation succeeds and `Err` if `r` is out of order or had duplicates. If you can't
+	/// guarantee that `r` is sorted and deduplicated, then use `From::<Vec<MultiAsset>>::from` which is infallible.
+	pub fn from_sorted_and_deduplicated(r: Vec<MultiAsset>) -> Result<Self, ()> {
+		if r.is_empty() {
+			return Ok(Self(Vec::new()))
+		}
+		r.iter().skip(1).try_fold(&r[0], |a, b| -> Result<&MultiAsset, ()> {
+			if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
+				Ok(b)
+			} else {
+				Err(())
+			}
+		})?;
+		Ok(Self(r))
+	}
+
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
+	/// which contain no duplicates.
+	///
+	/// In release mode, this skips any checks to ensure that `r` is correct, making it a negligible-cost operation.
+	/// Generally though you should avoid using it unless you have a strict proof that `r` is valid.
+	#[cfg(test)]
+	pub fn from_sorted_and_deduplicated_skip_checks(r: Vec<MultiAsset>) -> Self {
+		Self::from_sorted_and_deduplicated(r).expect("Invalid input r is not sorted/deduped")
+	}
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
+	/// which contain no duplicates.
+	///
+	/// In release mode, this skips any checks to ensure that `r` is correct, making it a negligible-cost operation.
+	/// Generally though you should avoid using it unless you have a strict proof that `r` is valid.
+	///
+	/// In test mode, this checks anyway and panics on fail.
+	#[cfg(not(test))]
+	pub fn from_sorted_and_deduplicated_skip_checks(r: Vec<MultiAsset>) -> Self {
+		Self(r)
+	}
+
+	/// Add some asset onto the list, saturating. This is quite a laborious operation since it maintains the ordering.
+	pub fn push(&mut self, a: MultiAsset) {
+		if let Fungibility::Fungible(ref amount) = a.fun {
+			for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
+				if let Fungibility::Fungible(ref mut balance) = asset.fun {
+					*balance = balance.saturating_add(*amount);
+					return
+				}
+			}
+		}
+		self.0.push(a);
+		self.0.sort();
+	}
+
+	/// Returns `true` if this definitely represents no asset.
+	pub fn is_none(&self) -> bool {
+		self.0.is_empty()
+	}
+
+	/// Returns true if `self` is a super-set of the given `inner`.
+	pub fn contains(&self, inner: &MultiAsset) -> bool {
+		self.0.iter().any(|i| i.contains(inner))
+	}
+
+	/// Consume `self` and return the inner vec.
+	pub fn drain(self) -> Vec<MultiAsset> {
+		self.0
+	}
+
+	/// Return a reference to the inner vec.
+	pub fn inner(&self) -> &Vec<MultiAsset> {
+		&self.0
+	}
+
+	/// Return the number of distinct asset instances contained.
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
+	/// Prepend a `MultiLocation` to any concrete asset items, giving it a new root location.
+	pub fn prepend_with(&mut self, prefix: &MultiLocation) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.prepend_with(prefix))
+	}
+
+	/// Mutate the location of the asset identifier if concrete, giving it the same location
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context))
+	}
+
+	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
+	pub fn get(&self, index: usize) -> Option<&MultiAsset> {
+		self.0.get(index)
+	}
+}
 
 /// A wildcard representing a set of assets.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
@@ -55,33 +365,35 @@ pub enum WildMultiAsset {
 	},
 }
 
-impl From<OldWildMultiAsset> for WildMultiAsset {
-	fn from(old: OldWildMultiAsset) -> WildMultiAsset {
+impl TryFrom<OldWildMultiAsset> for WildMultiAsset {
+	type Error = ();
+	fn try_from(old: OldWildMultiAsset) -> Result<WildMultiAsset, ()> {
 		use OldWildMultiAsset::*;
-		match old {
-			AllOf { id, fun } => Self::AllOf { id, fun },
+		Ok(match old {
+			AllOf { id, fun } => Self::AllOf { id: id.try_into()?, fun },
 			All => Self::All,
-		}
+		})
 	}
 }
 
-impl From<(OldWildMultiAsset, u32)> for WildMultiAsset {
-	fn from(old: (OldWildMultiAsset, u32)) -> WildMultiAsset {
+impl TryFrom<(OldWildMultiAsset, u32)> for WildMultiAsset {
+	type Error = ();
+	fn try_from(old: (OldWildMultiAsset, u32)) -> Result<WildMultiAsset, ()> {
 		use OldWildMultiAsset::*;
 		let count = old.1;
-		match old.0 {
-			AllOf { id, fun } => Self::AllOfCounted { id, fun, count },
+		Ok(match old.0 {
+			AllOf { id, fun } => Self::AllOfCounted { id: id.try_into()?, fun, count },
 			All => Self::AllCounted(count),
-		}
+		})
 	}
 }
 
 impl WildMultiAsset {
-	/// Returns true if the wild element of `self` matches `inner`.
+	/// Returns true if `self` is a super-set of the given `inner`.
 	///
-	/// Note that for `Counted` variants of wildcards, then it will disregard the count except for
-	/// always returning `false` when equal to 0.
-	pub fn matches(&self, inner: &MultiAsset) -> bool {
+	/// Typically, any wildcard is never contained in anything else, and a wildcard can contain any other non-wildcard.
+	/// For more details, see the implementation and tests.
+	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use WildMultiAsset::*;
 		match self {
 			AllOfCounted { count: 0, .. } | AllCounted(0) => false,
@@ -91,13 +403,22 @@ impl WildMultiAsset {
 		}
 	}
 
+	/// Returns true if the wild element of `self` matches `inner`.
+	///
+	/// Note that for `Counted` variants of wildcards, then it will disregard the count except for
+	/// always returning `false` when equal to 0.
+	#[deprecated = "Use `contains` instead"]
+	pub fn matches(&self, inner: &MultiAsset) -> bool {
+		self.contains(inner)
+	}
+
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
-	/// location. The local chain's location is provided in `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+	/// location. The local chain's location is provided in `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
-				id.reanchor(target, ancestry),
+				id.reanchor(target, context),
 			All | AllCounted(_) => Ok(()),
 		}
 	}
@@ -172,16 +493,16 @@ impl MultiAssetFilter {
 	pub fn matches(&self, inner: &MultiAsset) -> bool {
 		match self {
 			MultiAssetFilter::Definite(ref assets) => assets.contains(inner),
-			MultiAssetFilter::Wild(ref wild) => wild.matches(inner),
+			MultiAssetFilter::Wild(ref wild) => wild.contains(inner),
 		}
 	}
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `ancestry`.
-	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+	/// relative to a `target` context. The local context is provided as `context`.
+	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
 		match self {
-			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, ancestry),
-			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, ancestry),
+			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, context),
+			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, context),
 		}
 	}
 
@@ -204,12 +525,13 @@ impl MultiAssetFilter {
 	}
 }
 
-impl From<OldMultiAssetFilter> for MultiAssetFilter {
-	fn from(old: OldMultiAssetFilter) -> MultiAssetFilter {
-		match old {
-			OldMultiAssetFilter::Definite(x) => Self::Definite(x.into()),
-			OldMultiAssetFilter::Wild(x) => Self::Wild(x.into()),
-		}
+impl TryFrom<OldMultiAssetFilter> for MultiAssetFilter {
+	type Error = ();
+	fn try_from(old: OldMultiAssetFilter) -> Result<MultiAssetFilter, ()> {
+		Ok(match old {
+			OldMultiAssetFilter::Definite(x) => Self::Definite(x.try_into()?),
+			OldMultiAssetFilter::Wild(x) => Self::Wild(x.try_into()?),
+		})
 	}
 }
 
@@ -218,9 +540,17 @@ impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
 	fn try_from(old: (OldMultiAssetFilter, u32)) -> Result<MultiAssetFilter, ()> {
 		let count = old.1;
 		Ok(match old.0 {
-			OldMultiAssetFilter::Definite(x) if count >= x.len() as u32 => Self::Definite(x.into()),
-			OldMultiAssetFilter::Wild(x) => Self::Wild((x, count).into()),
+			OldMultiAssetFilter::Definite(x) if count >= x.len() as u32 =>
+				Self::Definite(x.try_into()?),
+			OldMultiAssetFilter::Wild(x) => Self::Wild((x, count).try_into()?),
 			_ => return Err(()),
 		})
 	}
+}
+
+#[test]
+fn conversion_works() {
+	use super::prelude::*;
+
+	let _: MultiAssets = (Here, 1).into();
 }

@@ -51,9 +51,18 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg.clone())));
-		Ok(VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256))
+	type Ticket = (MultiLocation, Xcm<()>);
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
+		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, MultiAssets::new()))
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
+		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
+		SENT_XCM.with(|q| q.borrow_mut().push(pair));
+		Ok(hash)
 	}
 }
 
@@ -120,7 +129,7 @@ impl configuration::Config for Runtime {
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::here();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub Ancestry: MultiLocation = Here.into();
+	pub Ancestry: InteriorMultiLocation = Here;
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -155,8 +164,8 @@ pub type Barrier = (
 );
 
 parameter_types! {
-	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
-		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Parachain(1000)).into());
+	pub KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { id: Concrete(Here.into()), fun: WildFungible }), Parachain(1000).into());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 4;
 }
@@ -180,6 +189,9 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

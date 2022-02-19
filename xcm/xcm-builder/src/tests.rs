@@ -15,8 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, test_utils::*, *};
-use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
-use xcm::latest::{prelude::*, MaybeErrorCode, PalletInfo, QueryResponseInfo};
+use frame_support::{assert_err, traits::ConstU32, weights::constants::WEIGHT_PER_SECOND};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -28,19 +27,19 @@ fn basic_setup_works() {
 		XcmContext::with_message_hash([0; 32]),
 	));
 
-	assert_eq!(to_account(X1(Parachain(1)).into()), Ok(1001));
-	assert_eq!(to_account(X1(Parachain(50)).into()), Ok(1050));
-	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(1)))), Ok(2001));
-	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(50)))), Ok(2050));
+	assert_eq!(to_account(Parachain(1)), Ok(1001));
+	assert_eq!(to_account(Parachain(50)), Ok(1050));
+	assert_eq!(to_account((Parent, Parachain(1))), Ok(2001));
+	assert_eq!(to_account((Parent, Parachain(50))), Ok(2050));
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: Any }))),
+		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: None }))),
 		Ok(1),
 	);
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: Any }))),
+		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: None }))),
 		Ok(42),
 	);
-	assert_eq!(to_account(Here.into()), Ok(3000));
+	assert_eq!(to_account(Here), Ok(3000));
 }
 
 #[test]
@@ -58,13 +57,66 @@ fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
-	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
+	let r = TakeWeightCredit::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		10,
+		&mut weight_credit,
+	);
 	assert_eq!(r, Ok(()));
 	assert_eq!(weight_credit, 0);
 
-	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
+	let r = TakeWeightCredit::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		10,
+		&mut weight_credit,
+	);
 	assert_eq!(r, Err(()));
 	assert_eq!(weight_credit, 0);
+}
+
+#[test]
+fn computed_origin_should_work() {
+	let mut message = Xcm::<()>(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		DescendOrigin(Parachain(100).into()),
+		DescendOrigin(PalletInstance(69).into()),
+		WithdrawAsset((Parent, 100).into()),
+		BuyExecution { fees: (Parent, 100).into(), weight_limit: Limited(100) },
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+
+	AllowPaidFrom::set(vec![(
+		Parent,
+		Parent,
+		GlobalConsensus(Kusama),
+		Parachain(100),
+		PalletInstance(69),
+	)
+		.into()]);
+
+	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		100,
+		&mut 0,
+	);
+	assert_eq!(r, Err(()));
+
+	let r = WithComputedOrigin::<
+		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
+		ExecutorUniversalLocation,
+		ConstU32<2>,
+	>::should_execute(&Parent.into(), message.inner_mut(), 100, &mut 0);
+	assert_eq!(r, Err(()));
+
+	let r = WithComputedOrigin::<
+		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
+		ExecutorUniversalLocation,
+		ConstU32<5>,
+	>::should_execute(&Parent.into(), message.inner_mut(), 100, &mut 0);
+	assert_eq!(r, Ok(()));
 }
 
 #[test]
@@ -76,7 +128,7 @@ fn allow_unpaid_should_work() {
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		&mut message,
+		message.inner_mut(),
 		10,
 		&mut 0,
 	);
@@ -84,7 +136,7 @@ fn allow_unpaid_should_work() {
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parent.into(),
-		&mut message,
+		message.inner_mut(),
 		10,
 		&mut 0,
 	);
@@ -100,7 +152,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		&mut message,
+		message.inner_mut(),
 		10,
 		&mut 0,
 	);
@@ -115,7 +167,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
-		&mut underpaying_message,
+		underpaying_message.inner_mut(),
 		30,
 		&mut 0,
 	);
@@ -130,7 +182,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		&mut paying_message,
+		paying_message.inner_mut(),
 		30,
 		&mut 0,
 	);
@@ -138,7 +190,7 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
-		&mut paying_message,
+		paying_message.inner_mut(),
 		30,
 		&mut 0,
 	);
@@ -174,7 +226,7 @@ fn transfer_should_work() {
 		Parachain(1),
 		Xcm(vec![TransferAsset {
 			assets: (Here, 100).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		}]),
 		50,
 	);
@@ -182,6 +234,65 @@ fn transfer_should_work() {
 	assert_eq!(assets(3), vec![(Here, 100).into()]);
 	assert_eq!(assets(1001), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn universal_origin_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
+	clear_universal_aliases();
+	// Parachain 1 may represent Kusama to us
+	add_universal_alias(Parachain(1), Kusama);
+	// Parachain 2 may represent Polkadot to us
+	add_universal_alias(Parachain(2), Polkadot);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		Xcm(vec![
+			UniversalOrigin(GlobalConsensus(Kusama)),
+			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::InvalidLocation));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			UniversalOrigin(GlobalConsensus(Kusama)),
+			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
+
+	add_asset(4000, (Parent, 100));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			UniversalOrigin(GlobalConsensus(Kusama)),
+			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(assets(4000), vec![]);
+}
+
+#[test]
+fn export_message_should_work() {
+	// Bridge chain (assumed to be Relay) lets Parachain #1 have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
+	// Polkadot parachain #2.
+	let message =
+		Xcm(vec![TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() }]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, message)]);
 }
 
 #[test]
@@ -193,12 +304,12 @@ fn basic_asset_trap_should_work() {
 	add_asset(1001, (Here, 1000));
 	// They want to transfer 100 of them to their sibling parachain #2 but have a problem
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm(vec![
 			WithdrawAsset((Here, 100).into()),
 			DepositAsset {
 				assets: Wild(AllCounted(0)), // <<< 0 is an error.
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -210,12 +321,12 @@ fn basic_asset_trap_should_work() {
 	// Incorrect ticket doesn't work.
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -228,12 +339,12 @@ fn basic_asset_trap_should_work() {
 	// Incorrect origin doesn't work.
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(2).into(),
+		Parachain(2),
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -246,12 +357,12 @@ fn basic_asset_trap_should_work() {
 	// Incorrect assets doesn't work.
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -262,12 +373,12 @@ fn basic_asset_trap_should_work() {
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -278,12 +389,12 @@ fn basic_asset_trap_should_work() {
 
 	// Same again doesn't work :-)
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -301,42 +412,42 @@ fn errors_should_return_unused_weight() {
 		// First xfer results in an error on the last message only
 		TransferAsset {
 			assets: (Here, 1).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error third message and after
 		TransferAsset {
 			assets: (Here, 2).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Third xfer results in error second message and after
 		TransferAsset {
 			assets: (Here, 4).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 	]);
 	// Weight limit of 70 is needed.
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
 	assert_eq!(limit, 30);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Complete(30));
 	assert_eq!(assets(3), vec![(Here, 7).into()]);
 	assert_eq!(assets(3000), vec![(Here, 4).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Incomplete(30, XcmError::NotWithdrawable));
 	assert_eq!(assets(3), vec![(Here, 10).into()]);
 	assert_eq!(assets(3000), vec![(Here, 1).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 	assert_eq!(assets(3), vec![(Here, 11).into()]);
 	assert_eq!(assets(3000), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message, limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotWithdrawable));
 	assert_eq!(assets(3), vec![(Here, 11).into()]);
 	assert_eq!(assets(3000), vec![]);
@@ -379,7 +490,7 @@ fn code_registers_should_work() {
 		SetErrorHandler(Xcm(vec![
 			TransferAsset {
 				assets: (Here, 2).into(),
-				beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+				beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 			},
 			// It was handled fine.
 			ClearError,
@@ -387,30 +498,30 @@ fn code_registers_should_work() {
 		// Set the appendix - this will always fire.
 		SetAppendix(Xcm(vec![TransferAsset {
 			assets: (Here, 4).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		}])),
 		// First xfer always works ok
 		TransferAsset {
 			assets: (Here, 1).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error on the second message - our error handler will fire.
 		TransferAsset {
 			assets: (Here, 8).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 	]);
 	// Weight limit of 70 is needed.
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
 	assert_eq!(limit, 70);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.
 	assert_eq!(assets(3), vec![(Here, 13).into()]);
 	assert_eq!(assets(3000), vec![(Here, 8).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message, limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
 	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
 	assert_eq!(assets(3), vec![(Here, 20).into()]);
 	assert_eq!(assets(3000), vec![(Here, 1).into()]);
@@ -423,7 +534,7 @@ fn reserve_transfer_should_work() {
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(1001, (Here, 1000));
 	// The remote account owned by gav.
-	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: Any }).into();
+	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: None }).into();
 
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
@@ -459,7 +570,7 @@ fn reserve_transfer_should_work() {
 fn simple_version_subscriptions_should_work() {
 	AllowSubsFrom::set(vec![Parent.into()]);
 
-	let origin = Parachain(1000).into();
+	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![
 		SetAppendix(Xcm(vec![])),
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
@@ -468,7 +579,7 @@ fn simple_version_subscriptions_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
-	let origin = Parachain(1000).into();
+	let origin = Parachain(1000);
 	let message =
 		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: 5000 }]);
 	let weight_limit = 10;
@@ -483,9 +594,9 @@ fn simple_version_subscriptions_should_work() {
 
 #[test]
 fn version_subscription_instruction_should_work() {
-	let origin = Parachain(1000).into();
+	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![
-		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
 	let weight_limit = 20;
@@ -516,13 +627,13 @@ fn version_subscription_instruction_should_work() {
 fn simple_version_unsubscriptions_should_work() {
 	AllowSubsFrom::set(vec![Parent.into()]);
 
-	let origin = Parachain(1000).into();
+	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
 	let weight_limit = 20;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
-	let origin = Parachain(1000).into();
+	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![UnsubscribeVersion]);
 	let weight_limit = 10;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
@@ -537,11 +648,11 @@ fn simple_version_unsubscriptions_should_work() {
 
 #[test]
 fn version_unsubscription_instruction_should_work() {
-	let origin = Parachain(1000).into();
+	let origin = Parachain(1000);
 
 	// Not allowed to do it when origin has been changed.
 	let message = Xcm::<TestCall>(vec![
-		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
 		UnsubscribeVersion,
 	]);
 	let weight_limit = 20;
@@ -611,7 +722,7 @@ fn transacting_should_refund_weight() {
 
 #[test]
 fn paid_transacting_should_refund_payment_for_unused_weight() {
-	let one: MultiLocation = X1(AccountIndex64 { index: 1, network: Any }).into();
+	let one: MultiLocation = AccountIndex64 { index: 1, network: None }.into();
 	AllowPaidFrom::set(vec![one.clone()]);
 	add_asset(1, (Parent, 100));
 	WeightPrice::set((Parent.into(), 1_000_000_000_000));
@@ -647,7 +758,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 		query_id,
 		response: the_response.clone(),
 		max_weight: 10,
-		querier: Some(Here.into().into()),
+		querier: Some(Here.into()),
 	}]);
 	let weight_limit = 10;
 
@@ -667,19 +778,19 @@ fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
 
 #[test]
 fn weight_trader_tuple_should_work() {
-	pub const PARA_1: MultiLocation = X1(Parachain(1)).into();
-	pub const PARA_2: MultiLocation = X1(Parachain(2)).into();
+	let para_1: MultiLocation = Parachain(1).into();
+	let para_2: MultiLocation = Parachain(2).into();
 
 	parameter_types! {
-		pub static HereWeightPrice: (AssetId, u128) = (Here.into().into(), WEIGHT_PER_SECOND.into());
-		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.into());
+		pub static HereWeightPrice: (AssetId, u128) = (Here.into(), WEIGHT_PER_SECOND.into());
+		pub static Para1WeightPrice: (AssetId, u128) = (Parachain(1).into(), WEIGHT_PER_SECOND.into());
 	}
 
 	type Traders = (
 		// trader one
 		FixedRateOfFungible<HereWeightPrice, ()>,
 		// trader two
-		FixedRateOfFungible<PARA1WeightPrice, ()>,
+		FixedRateOfFungible<Para1WeightPrice, ()>,
 	);
 
 	let mut traders = Traders::new();
@@ -694,16 +805,16 @@ fn weight_trader_tuple_should_work() {
 	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
 	assert_eq!(
-		traders.buy_weight(5, fungible_multi_asset(PARA_1, 10).into()),
-		Ok(fungible_multi_asset(PARA_1, 5).into()),
+		traders.buy_weight(5, fungible_multi_asset(para_1.clone(), 10).into()),
+		Ok(fungible_multi_asset(para_1.clone(), 5).into()),
 	);
 	// trader two refunds
-	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(PARA_1, 2)));
+	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(para_1, 2)));
 
 	let mut traders = Traders::new();
 	// all traders fails
 	assert_err!(
-		traders.buy_weight(5, fungible_multi_asset(PARA_2, 10).into()),
+		traders.buy_weight(5, fungible_multi_asset(para_2, 10).into()),
 		XcmError::TooExpensive,
 	);
 	// and no refund

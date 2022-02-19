@@ -18,7 +18,10 @@
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_benchmarking::BenchmarkError;
-use frame_support::{parameter_types, traits::Everything};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, Nothing},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -145,6 +148,9 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = ();
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
 }
 
 impl crate::Config for Test {
@@ -152,7 +158,7 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
-			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
+			X1(AccountId32 { network: None, id: [0u8; 32] }).into();
 
 		Ok(valid_destination)
 	}
@@ -168,13 +174,13 @@ pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
-	pub const ChildTeleporter: MultiLocation = Parachain(1000).into();
+	pub const ChildTeleporter: MultiLocation = Parachain(1000).into_location();
 	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 		ChildTeleporter::get(),
-		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
+		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
 	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
+		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
 }
 
 impl xcm_balances_benchmark::Config for Test {

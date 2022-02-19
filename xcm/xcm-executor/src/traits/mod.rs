@@ -17,9 +17,15 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, InvertLocation, JustTry};
+pub use conversion::{
+	Convert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, UniversalLocation,
+};
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
+mod export;
+pub use export::{export_xcm, validate_export, ExportXcm};
+mod fee_manager;
+pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod matches_fungible;

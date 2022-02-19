@@ -108,8 +108,11 @@ pub enum Error {
 	/// The given operation would lead to an overflow of the Holding Register.
 	#[codec(index = 26)]
 	HoldingWouldOverflow,
-	/// `MultiLocation` value failed to be reanchored.
+	/// The message was unable to be exported.
 	#[codec(index = 27)]
+	ExportError,
+	/// `MultiLocation` value failed to be reanchored.
+	#[codec(index = 28)]
 	ReanchorFailed,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
@@ -164,7 +167,8 @@ impl TryFrom<OldError> for Error {
 impl From<SendError> for Error {
 	fn from(e: SendError) -> Self {
 		match e {
-			SendError::CannotReachDestination(..) | SendError::Unroutable => Error::Unroutable,
+			SendError::NotApplicable | SendError::Unroutable | SendError::MissingArgument =>
+				Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
@@ -213,8 +217,20 @@ impl Outcome {
 	}
 }
 
+pub trait PreparedMessage {
+	fn weight_of(&self) -> Weight;
+}
+
 /// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
+	type Prepared: PreparedMessage;
+	fn prepare(message: Xcm<Call>) -> result::Result<Self::Prepared, Xcm<Call>>;
+	fn execute(
+		origin: impl Into<MultiLocation>,
+		pre: Self::Prepared,
+		weight_credit: Weight,
+	) -> Outcome;
+
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
@@ -243,17 +259,33 @@ pub trait ExecuteXcm<Call> {
 		message: Xcm<Call>,
 		weight_limit: Weight,
 		weight_credit: Weight,
-	) -> Outcome;
+	) -> Outcome {
+		let pre = match Self::prepare(message) {
+			Ok(x) => x,
+			Err(_) => return Outcome::Error(Error::WeightNotComputable),
+		};
+		let xcm_weight = pre.weight_of();
+		if xcm_weight > weight_limit {
+			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
+		}
+		Self::execute(origin, pre, weight_credit)
+	}
+}
+
+pub enum Weightless {}
+impl PreparedMessage for Weightless {
+	fn weight_of(&self) -> Weight {
+		unreachable!()
+	}
 }
 
 impl<C> ExecuteXcm<C> for () {
-	fn execute_xcm_in_credit(
-		_origin: impl Into<MultiLocation>,
-		_message: Xcm<C>,
-		_weight_limit: Weight,
-		_weight_credit: Weight,
-	) -> Outcome {
-		Outcome::Error(Error::Unimplemented)
+	type Prepared = Weightless;
+	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> {
+		Err(message)
+	}
+	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: Weight) -> Outcome {
+		unreachable!()
 	}
 }
 
@@ -263,8 +295,8 @@ pub enum SendError {
 	/// The message and destination combination was not recognized as being reachable.
 	///
 	/// This is not considered fatal: if there are alternative transport routes available, then
-	/// they may be attempted. For this reason, the destination and message are contained.
-	CannotReachDestination(MultiLocation, Xcm<()>),
+	/// they may be attempted.
+	NotApplicable,
 	/// Destination is routable, but there is some issue with the transport mechanism. This is
 	/// considered fatal.
 	/// A human-readable explanation of the specific issue is provided.
@@ -277,18 +309,40 @@ pub enum SendError {
 	/// Message could not be sent due to its size exceeding the maximum allowed by the transport
 	/// layer.
 	ExceedsMaxMessageSize,
+	/// A needed argument is `None` when it should be `Some`.
+	MissingArgument,
 }
 
 /// A hash type for identifying messages.
 pub type XcmHash = [u8; 32];
 
 /// Result value when attempting to send an XCM message.
-pub type SendResult = result::Result<XcmHash, SendError>;
+pub type SendResult<T> = result::Result<(T, MultiAssets), SendError>;
+
+pub trait Unwrappable {
+	type Inner;
+	fn none() -> Self;
+	fn some(i: Self::Inner) -> Self;
+	fn take(self) -> Option<Self::Inner>;
+}
+
+impl<T> Unwrappable for Option<T> {
+	type Inner = T;
+	fn none() -> Self {
+		None
+	}
+	fn some(i: Self::Inner) -> Self {
+		Some(i)
+	}
+	fn take(self) -> Option<Self::Inner> {
+		self
+	}
+}
 
 /// Utility for sending an XCM message.
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
-/// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
+/// `NotApplicable` to pass the execution to the next sender item. Note that each `NotApplicable`
 /// might alter the destination and the XCM message for to the next router.
 ///
 ///
@@ -296,39 +350,47 @@ pub type SendResult = result::Result<XcmHash, SendError>;
 /// ```rust
 /// # use xcm::v3::prelude::*;
 /// # use xcm::VersionedXcm;
-/// # use parity_scale_codec::Encode;
-/// # use sp_io::hashing::blake2_256;
+/// # use std::convert::Infallible;
 ///
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         return Err(SendError::CannotReachDestination(destination.into(), message))
+///     type Ticket = Infallible;
+///     fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<Infallible> {
+///         Err(SendError::NotApplicable)
+///     }
+///     fn deliver(_: Infallible) -> Result<XcmHash, SendError> {
+///         unreachable!()
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = destination.into() {
-///             Ok(VersionedXcm::from(message).using_encoded(blake2_256))
-///         } else {
-///             Err(SendError::Unroutable)
+///     type Ticket = ();
+///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
+///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
+///             MultiLocation { parents: 0, interior: X2(j1, j2) } => Ok(((), MultiAssets::new())),
+///             _ => Err(SendError::Unroutable),
 ///         }
+///     }
+///     fn deliver(_: ()) -> Result<XcmHash, SendError> {
+///         Ok([0; 32])
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message from a parent, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         let destination = destination.into();
-///         match destination {
-///             MultiLocation { parents: 1, interior: Here }
-///             => Ok(VersionedXcm::from(message).using_encoded(blake2_256)),
-///             _ => Err(SendError::CannotReachDestination(destination, message)),
+///     type Ticket = ();
+///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
+///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
+///             MultiLocation { parents: 1, interior: Here } => Ok(((), MultiAssets::new())),
+///             _ => Err(SendError::NotApplicable),
 ///         }
+///     }
+///     fn deliver(_: ()) -> Result<(), SendError> {
+///         Ok([0; 32])
 ///     }
 /// }
 ///
@@ -342,36 +404,95 @@ pub type SendResult = result::Result<XcmHash, SendError>;
 /// }]);
 /// let message_hash = message.using_encoded(blake2_256);
 ///
-/// assert!(
-///     // Sender2 will block this.
-///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(Parent, message.clone()).is_err()
-/// );
+/// // Sender2 will block this.
+/// assert!(send_xcm::<(Sender1, Sender2, Sender3)>(Parent.into(), message.clone()).is_err());
 ///
-/// assert!(
-///     // Sender3 will catch this.
-///     <(Sender1, Sender3) as SendXcm>::send_xcm(Parent, message.clone()).is_ok()
-/// );
+/// // Sender3 will catch this.
+/// assert!(send_xcm::<(Sender1, Sender3)>(Parent.into(), message.clone()).is_ok());
 /// # }
 /// ```
 pub trait SendXcm {
-	/// Send an XCM `message` to a given `destination`.
+	type Ticket;
+
+	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
+	/// determine the cost which will be paid by this chain to do so, returning a `Validated` token
+	/// which can be used to enact delivery.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
-	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
-	/// trying other type fields.
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult;
+	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
+	/// may only be consumed if the `Err` is not `NotApplicable`.
+	///
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then this *MUST* return `NotApplicable`. Any other error will cause the tuple
+	/// implementation to exit early without trying other type fields.
+	fn validate(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult<Self::Ticket>;
+
+	/// Actually carry out the delivery operation for a previously validated message sending.
+	fn deliver(ticket: Self::Ticket) -> result::Result<XcmHash, SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-		for_tuples!( #(
-			// we shadow `destination` and `message` in each expansion for the next one.
-			let (destination, message) = match Tuple::send_xcm(destination, message) {
-				Err(SendError::CannotReachDestination(d, m)) => (d, m),
-				o @ _ => return o,
-			};
-		)* );
-		Err(SendError::CannotReachDestination(destination.into(), message))
+	for_tuples! { type Ticket = (#( Option<Tuple::Ticket> ),* ); }
+
+	fn validate(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult<Self::Ticket> {
+		let mut maybe_cost: Option<MultiAssets> = None;
+		let one_ticket: Self::Ticket = (for_tuples! { #(
+			if maybe_cost.is_some() {
+				None
+			} else {
+				match Tuple::validate(destination, message) {
+					Err(SendError::NotApplicable) => None,
+					Err(e) => { return Err(e) },
+					Ok((v, c)) => {
+						maybe_cost = Some(c);
+						Some(v)
+					},
+				}
+			}
+		),* });
+		if let Some(cost) = maybe_cost {
+			Ok((one_ticket, cost))
+		} else {
+			Err(SendError::NotApplicable)
+		}
 	}
+
+	fn deliver(one_ticket: Self::Ticket) -> result::Result<XcmHash, SendError> {
+		for_tuples!( #(
+			if let Some(validated) = one_ticket.Tuple {
+				return Tuple::deliver(validated);
+			}
+		)* );
+		Err(SendError::Unroutable)
+	}
+}
+
+/// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
+/// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+pub fn validate_send<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResult<T::Ticket> {
+	T::validate(&mut Some(dest), &mut Some(msg))
+}
+
+/// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
+/// both in `Some` before passing them as as mutable references into `T::send_xcm`.
+///
+/// Returns either `Ok` with the price of the delivery, or `Err` with the reason why the message
+/// could not be sent.
+///
+/// Generally you'll want to validate and get the price first to ensure that the sender can pay it
+/// before actually doing the delivery.
+pub fn send_xcm<T: SendXcm>(
+	dest: MultiLocation,
+	msg: Xcm<()>,
+) -> result::Result<(XcmHash, MultiAssets), SendError> {
+	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg.clone()))?;
+	T::deliver(ticket)?;
+	let hash = crate::VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256);
+	Ok((hash, price))
 }

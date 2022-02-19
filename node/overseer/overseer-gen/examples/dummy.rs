@@ -2,6 +2,7 @@
 
 use polkadot_node_network_protocol::WrongVariant;
 use polkadot_overseer_gen::*;
+use std::collections::HashMap;
 
 /// Concrete subsystem implementation for `MsgStrukt` msg type.
 #[derive(Default)]
@@ -88,7 +89,7 @@ impl NetworkMsg {
 }
 
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
-struct Xxx {
+struct Xxx<T> {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
@@ -96,6 +97,8 @@ struct Xxx {
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,
+	i_like_generic: T,
+	i_like_hash: HashMap<f64, f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,12 +128,16 @@ impl SpawnNamed for DummySpawner {
 struct DummyCtx;
 
 fn main() {
-	let (overseer, _handle): (Xxx<_>, _) = Xxx::builder()
+	let (overseer, _handle): (Xxx<_, f64>, _) = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
 		.plinkos(GoblinTower::default())
 		.i_like_pi(::std::f64::consts::PI)
+		.i_like_generic(42.0)
+		.i_like_hash(HashMap::new())
 		.spawner(DummySpawner)
 		.build()
 		.unwrap();
 	assert_eq!(overseer.i_like_pi.floor() as i8, 3);
+	assert_eq!(overseer.i_like_generic.floor() as i8, 42);
+	assert_eq!(overseer.i_like_hash.len() as i8, 0);
 }

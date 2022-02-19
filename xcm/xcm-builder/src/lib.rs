@@ -21,6 +21,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
+mod bridging_tests;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;
@@ -45,7 +47,7 @@ pub use origin_conversion::{
 mod barriers;
 pub use barriers::{
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit,
+	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;
@@ -69,3 +71,9 @@ pub use matches_fungible::{IsAbstract, IsConcrete};
 
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
+
+mod universal_exports;
+pub use universal_exports::{
+	ExporterFor, LocalUnpaidExporter, NetworkExportTable, SovereignPaidRemoteExporter,
+	UnpaidRemoteExporter,
+};

@@ -17,9 +17,9 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
-use crate::v0::Junction as Junction0;
+use crate::v3::Junction as NewJunction;
 use alloc::vec::Vec;
-use core::convert::TryFrom;
+use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -78,23 +78,25 @@ pub enum Junction {
 	Plurality { id: BodyId, part: BodyPart },
 }
 
-impl TryFrom<Junction0> for Junction {
+impl TryFrom<NewJunction> for Junction {
 	type Error = ();
 
-	fn try_from(value: Junction0) -> Result<Self, Self::Error> {
-		match value {
-			Junction0::Parent => Err(()),
-			Junction0::Parachain(id) => Ok(Self::Parachain(id)),
-			Junction0::AccountId32 { network, id } => Ok(Self::AccountId32 { network, id }),
-			Junction0::AccountIndex64 { network, index } =>
-				Ok(Self::AccountIndex64 { network, index }),
-			Junction0::AccountKey20 { network, key } => Ok(Self::AccountKey20 { network, key }),
-			Junction0::PalletInstance(index) => Ok(Self::PalletInstance(index)),
-			Junction0::GeneralIndex(id) => Ok(Self::GeneralIndex(id)),
-			Junction0::GeneralKey(key) => Ok(Self::GeneralKey(key)),
-			Junction0::OnlyChild => Ok(Self::OnlyChild),
-			Junction0::Plurality { id, part } => Ok(Self::Plurality { id: id.into(), part }),
-		}
+	fn try_from(value: NewJunction) -> Result<Self, Self::Error> {
+		use NewJunction::*;
+		Ok(match value {
+			Parachain(id) => Self::Parachain(id),
+			AccountId32 { network, id } => Self::AccountId32 { network: network.try_into()?, id },
+			AccountIndex64 { network, index } =>
+				Self::AccountIndex64 { network: network.try_into()?, index },
+			AccountKey20 { network, key } =>
+				Self::AccountKey20 { network: network.try_into()?, key },
+			PalletInstance(index) => Self::PalletInstance(index),
+			GeneralIndex(id) => Self::GeneralIndex(id),
+			GeneralKey(key) => Self::GeneralKey(key),
+			OnlyChild => Self::OnlyChild,
+			Plurality { id, part } => Self::Plurality { id: id.into(), part },
+			_ => return Err(()),
+		})
 	}
 }
 

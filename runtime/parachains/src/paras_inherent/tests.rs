@@ -127,6 +127,115 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				2
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
+		});
+	}
+
+	#[test]
+	fn test_session_is_tracked_in_on_chain_scraping() {
+		use crate::disputes::run_to_block;
+		use primitives::v1::{
+			DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+			InvalidDisputeStatementKind, ValidDisputeStatementKind,
+		};
+		use sp_core::{crypto::CryptoType, Pair};
+
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(6, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let generate_votes = |session: u32, candidate_hash: CandidateHash| {
+				// v0 votes for 3
+				vec![DisputeStatementSet {
+					candidate_hash: candidate_hash.clone(),
+					session,
+					statements: vec![
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							v0.sign(
+								&ExplicitDisputeStatement {
+									valid: false,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
+							),
+						),
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(1),
+							v1.sign(
+								&ExplicitDisputeStatement {
+									valid: false,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
+							),
+						),
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(1),
+							v1.sign(
+								&ExplicitDisputeStatement {
+									valid: true,
+									candidate_hash: candidate_hash.clone(),
+									session,
+								}
+								.signing_payload(),
+							),
+						),
+					],
+				}]
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect::<Vec<CheckedDisputeStatementSet>>()
+			};
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+			let statements = generate_votes(3, candidate_hash.clone());
+			set_scrapable_on_chain_disputes::<Test>(3, statements);
+			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
+				session,
+				..
+			} ) => {
+				assert_eq!(session, 3);
+			});
+			run_to_block(7, |b| {
+				// a new session at each block
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			});
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(2));
+			let statements = generate_votes(7, candidate_hash.clone());
+			set_scrapable_on_chain_disputes::<Test>(7, statements);
+			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
+				session,
+				..
+			} ) => {
+				assert_eq!(session, 7);
+			});
 		});
 	}
 
@@ -194,6 +303,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -258,6 +373,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -300,6 +421,9 @@ mod enter {
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
 			), Err(e) => { dbg!(e) });
+
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -377,6 +501,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0,
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -425,12 +555,8 @@ mod enter {
 				dbg!(e)
 			});
 
-			assert_eq!(
-				// The length of this vec is equal to the number of candidates, so we know
-				// all of our candidates got filtered out
-				Pallet::<Test>::on_chain_votes(),
-				None,
-			);
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -513,6 +639,12 @@ mod enter {
 				// all of our candidates got filtered out
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				0,
+			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
 			);
 		});
 	}
@@ -674,6 +806,12 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
 				1
 			);
+
+			assert_eq!(
+				// The session of the on chain votes should equal the current session, which is 2
+				Pallet::<Test>::on_chain_votes().unwrap().session,
+				2
+			);
 		});
 	}
 
@@ -717,6 +855,7 @@ mod enter {
 				expected_para_inherent_data,
 			), Err(e) => { dbg!(e) });
 
+			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
 			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
 	}

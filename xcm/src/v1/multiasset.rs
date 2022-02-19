@@ -24,12 +24,14 @@
 //!   account.
 
 use super::MultiLocation;
-use crate::v3::{MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset};
+use crate::v3::{
+	AssetId as NewAssetId, MultiAsset as NewMultiAsset, MultiAssetFilter as NewMultiAssetFilter,
+	MultiAssets as NewMultiAssets, WildMultiAsset as NewWildMultiAsset,
+};
 use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,
 	convert::{TryFrom, TryInto},
-	result,
 };
 use parity_scale_codec::{self as codec, Decode, Encode};
 use scale_info::TypeInfo;
@@ -112,6 +114,17 @@ impl<T: Into<MultiLocation>> From<T> for AssetId {
 impl From<Vec<u8>> for AssetId {
 	fn from(x: Vec<u8>) -> Self {
 		Self::Abstract(x)
+	}
+}
+
+impl TryFrom<NewAssetId> for AssetId {
+	type Error = ();
+	fn try_from(old: NewAssetId) -> Result<Self, ()> {
+		use NewAssetId::*;
+		Ok(match old {
+			Concrete(l) => Self::Concrete(l.try_into()?),
+			Abstract(v) => Self::Abstract(v),
+		})
 	}
 }
 
@@ -248,42 +261,10 @@ impl MultiAsset {
 	}
 }
 
-impl TryFrom<super::super::v0::MultiAsset> for MultiAsset {
+impl TryFrom<NewMultiAsset> for MultiAsset {
 	type Error = ();
-	fn try_from(old: super::super::v0::MultiAsset) -> result::Result<MultiAsset, ()> {
-		use super::super::v0::MultiAsset as V0;
-		use AssetId::*;
-		use Fungibility::*;
-		let (id, fun) = match old {
-			V0::ConcreteFungible { id, amount } => (Concrete(id.try_into()?), Fungible(amount)),
-			V0::ConcreteNonFungible { class, instance } =>
-				(Concrete(class.try_into()?), NonFungible(instance)),
-			V0::AbstractFungible { id, amount } => (Abstract(id), Fungible(amount)),
-			V0::AbstractNonFungible { class, instance } => (Abstract(class), NonFungible(instance)),
-			_ => return Err(()),
-		};
-		Ok(MultiAsset { id, fun })
-	}
-}
-
-impl TryFrom<super::super::v0::MultiAsset> for Option<MultiAsset> {
-	type Error = ();
-	fn try_from(old: super::super::v0::MultiAsset) -> result::Result<Option<MultiAsset>, ()> {
-		match old {
-			super::super::v0::MultiAsset::None => return Ok(None),
-			x => return Ok(Some(x.try_into()?)),
-		}
-	}
-}
-
-impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAsset {
-	type Error = ();
-	fn try_from(mut old: Vec<super::super::v0::MultiAsset>) -> result::Result<MultiAsset, ()> {
-		if old.len() == 1 {
-			old.remove(0).try_into()
-		} else {
-			Err(())
-		}
+	fn try_from(new: NewMultiAsset) -> Result<Self, ()> {
+		Ok(Self { id: new.id.try_into()?, fun: new.fun })
 	}
 }
 
@@ -298,15 +279,15 @@ impl Decode for MultiAssets {
 	}
 }
 
-impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssets {
+impl TryFrom<NewMultiAssets> for MultiAssets {
 	type Error = ();
-	fn try_from(old: Vec<super::super::v0::MultiAsset>) -> result::Result<MultiAssets, ()> {
-		let v = old
+	fn try_from(new: NewMultiAssets) -> Result<Self, ()> {
+		let v = new
+			.drain()
 			.into_iter()
-			.map(Option::<MultiAsset>::try_from)
-			.filter_map(|x| x.transpose())
-			.collect::<result::Result<Vec<MultiAsset>, ()>>()?;
-		Ok(v.into())
+			.map(MultiAsset::try_from)
+			.collect::<Result<Vec<_>, ()>>()?;
+		Ok(MultiAssets(v))
 	}
 }
 
@@ -451,6 +432,7 @@ impl MultiAssets {
 		self.0.get(index)
 	}
 }
+
 /// Classification of whether an asset is fungible or not.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum WildFungibility {
@@ -467,35 +449,6 @@ pub enum WildMultiAsset {
 	/// All assets in the holding register of a given fungibility and ID. If operating on non-fungibles, then a limit
 	/// is provided for the maximum amount of matching instances.
 	AllOf { id: AssetId, fun: WildFungibility },
-}
-
-impl TryFrom<super::super::v0::MultiAsset> for WildMultiAsset {
-	type Error = ();
-	fn try_from(old: super::super::v0::MultiAsset) -> result::Result<WildMultiAsset, ()> {
-		use super::super::v0::MultiAsset as V0;
-		use AssetId::*;
-		use WildFungibility::*;
-		let (id, fun) = match old {
-			V0::All => return Ok(WildMultiAsset::All),
-			V0::AllConcreteFungible { id } => (Concrete(id.try_into()?), Fungible),
-			V0::AllConcreteNonFungible { class } => (Concrete(class.try_into()?), NonFungible),
-			V0::AllAbstractFungible { id } => (Abstract(id), Fungible),
-			V0::AllAbstractNonFungible { class } => (Abstract(class), NonFungible),
-			_ => return Err(()),
-		};
-		Ok(WildMultiAsset::AllOf { id, fun })
-	}
-}
-
-impl TryFrom<Vec<super::super::v0::MultiAsset>> for WildMultiAsset {
-	type Error = ();
-	fn try_from(mut old: Vec<super::super::v0::MultiAsset>) -> result::Result<WildMultiAsset, ()> {
-		if old.len() == 1 {
-			old.remove(0).try_into()
-		} else {
-			Err(())
-		}
-	}
 }
 
 impl WildMultiAsset {
@@ -584,35 +537,25 @@ impl MultiAssetFilter {
 	}
 }
 
-impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssetFilter {
+impl TryFrom<NewWildMultiAsset> for WildMultiAsset {
 	type Error = ();
-	fn try_from(
-		mut old: Vec<super::super::v0::MultiAsset>,
-	) -> result::Result<MultiAssetFilter, ()> {
-		if old.len() == 1 && old[0].is_wildcard() {
-			Ok(MultiAssetFilter::Wild(old.remove(0).try_into()?))
-		} else {
-			Ok(MultiAssetFilter::Definite(old.try_into()?))
-		}
-	}
-}
-
-impl From<NewWildMultiAsset> for WildMultiAsset {
-	fn from(old: NewWildMultiAsset) -> Self {
+	fn try_from(new: NewWildMultiAsset) -> Result<Self, ()> {
 		use NewWildMultiAsset::*;
-		match old {
-			AllOf { id, fun } | AllOfCounted { id, fun, .. } => Self::AllOf { id, fun },
+		Ok(match new {
+			AllOf { id, fun } | AllOfCounted { id, fun, .. } =>
+				Self::AllOf { id: id.try_into()?, fun },
 			All | AllCounted(_) => Self::All,
-		}
+		})
 	}
 }
 
-impl From<NewMultiAssetFilter> for MultiAssetFilter {
-	fn from(old: NewMultiAssetFilter) -> Self {
+impl TryFrom<NewMultiAssetFilter> for MultiAssetFilter {
+	type Error = ();
+	fn try_from(old: NewMultiAssetFilter) -> Result<Self, ()> {
 		use NewMultiAssetFilter::*;
-		match old {
-			Definite(x) => Self::Definite(x),
-			Wild(x) => Self::Wild(x.into()),
-		}
+		Ok(match old {
+			Definite(x) => Self::Definite(x.try_into()?),
+			Wild(x) => Self::Wild(x.try_into()?),
+		})
 	}
 }

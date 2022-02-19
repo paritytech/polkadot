@@ -20,7 +20,7 @@ pub use codec::Encode;
 pub use paste;
 
 pub use frame_support::{traits::Get, weights::Weight};
-pub use sp_io::TestExternalities;
+pub use sp_io::{self, TestExternalities};
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
@@ -210,6 +210,7 @@ macro_rules! decl_test_network {
 			parachains = vec![ $( ($para_id:expr, $parachain:ty), )* ],
 		}
 	) => {
+		use $crate::Encode;
 		pub struct $name;
 
 		impl $name {
@@ -296,45 +297,65 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
-				use $crate::{UmpSink, XcmpMessageHandlerT, Encode};
+			type Ticket = ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>);
+			fn validate(
+				destination: &mut Option<$crate::MultiLocation>,
+				message: &mut Option<$crate::Xcm<()>>,
+			) -> $crate::SendResult<($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>)> {
+				use $crate::{UmpSink, XcmpMessageHandlerT};
 
-				let destination = destination.into();
-				match destination.interior() {
-					$crate::Junctions::Here if destination.parent_count() == 1 => {
-						$crate::PARA_MESSAGE_BUS.with(
-							|b| b.borrow_mut().push_back((T::get(), destination, message.clone())));
-						Ok(message.using_encoded(sp_io::hashing::blake2_256))
-					},
+				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
+				match (d.interior(), d.parent_count()) {
+					($crate::Junctions::Here, 1) => {},
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
-							$crate::PARA_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((T::get(), destination, message.clone())));
-							Ok(message.using_encoded(sp_io::hashing::blake2_256))
-						},
+						($crate::X1($crate::Parachain(id)), 1) if id == &$para_id => {}
 					)*
-					_ => Err($crate::SendError::CannotReachDestination(destination, message)),
+					_ => {
+						*destination = Some(d);
+						return Err($crate::SendError::NotApplicable)
+					},
 				}
+				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
+				Ok(((T::get(), d, m), $crate::MultiAssets::new()))
+			}
+			fn deliver(
+				triple: ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>),
+			) -> Result<$crate::XcmHash, $crate::SendError> {
+				let hash = $crate::VersionedXcm::from(triple.2.clone()).using_encoded($crate::sp_io::hashing::blake2_256);
+				$crate::PARA_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(triple));
+				Ok(hash)
 			}
 		}
 
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
-				use $crate::{DmpMessageHandlerT, Encode};
+			type Ticket = ($crate::MultiLocation, $crate::Xcm<()>);
+			fn validate(
+				destination: &mut Option<$crate::MultiLocation>,
+				message: &mut Option<$crate::Xcm<()>>,
+			) -> $crate::SendResult<($crate::MultiLocation, $crate::Xcm<()>)> {
+				use $crate::DmpMessageHandlerT;
 
-				let destination = destination.into();
-				match destination.interior() {
+				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
+				match (d.interior(), d.parent_count()) {
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
-							$crate::RELAY_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((destination, message.clone())));
-							Ok(message.using_encoded(sp_io::hashing::blake2_256))
-						},
+						($crate::X1($crate::Parachain(id)), 0) if id == &$para_id => {},
 					)*
-					_ => Err($crate::SendError::Unroutable),
+					_ => {
+						*destination = Some(d);
+						return Err($crate::SendError::NotApplicable)
+					},
 				}
+				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
+				Ok(((d, m), $crate::MultiAssets::new()))
+			}
+			fn deliver(
+				pair: ($crate::MultiLocation, $crate::Xcm<()>),
+			) -> Result<$crate::XcmHash, $crate::SendError> {
+				let hash = $crate::VersionedXcm::from(pair.1.clone()).using_encoded($crate::sp_io::hashing::blake2_256);
+				$crate::RELAY_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(pair));
+				Ok(hash)
 			}
 		}
 	};

@@ -1,15 +1,15 @@
 [package]
 name = "polkadot-availability-recovery"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 lru = "0.7.2"
-rand = "0.8.3"
+rand = "0.8.5"
 thiserror = "1.0.30"
-tracing = "0.1.29"
+tracing = "0.1.30"
 
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-primitives = { path = "../../../primitives" }

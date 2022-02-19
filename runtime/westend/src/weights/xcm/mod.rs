@@ -217,6 +217,12 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn clear_transact_status() -> Weight {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
+	fn universal_origin(_: &Junction) -> Weight {
+		10_000_000_000
+	}
+	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
+		10_000_000_000
+	}
 	fn set_topic(_topic: &[u8; 32]) -> Weight {
 		XcmGeneric::<Runtime>::set_topic()
 	}
