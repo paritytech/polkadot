@@ -9,7 +9,7 @@ description = "Channels with attached Meters"
 futures = "0.3.21"
 futures-timer = "3.0.2"
 derive_more = "0.99"
-tracing = "0.1.30"
+tracing = "0.1.31"
 thiserror = "1.0.30"
 
 [dev-dependencies]
@@ -17,4 +17,4 @@ futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.5"
 env_logger = "0.9"
 log = "0.4"
-tracing = { version = "0.1.30", features = ["log"] }
+tracing = { version = "0.1.31", features = ["log"] }
