@@ -110,6 +110,12 @@ pub trait AssetLock {
 	/// We should only act upon this message if we believe that the `origin` is honest.
 	fn note_unlockable(locker: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
 
+	/// Handler for when an owner wishes to unlock an asset on a remote chain.
+	///
+	/// Returns a ticket which can be used to actually note the reduction in unlockable assets that
+	/// `owner` commands on `locker`.
+	///
+	/// WARNING: Don't call this with an undropped instance of `Self::ReduceTicket`.
 	fn prepare_reduce_unlockable(
 		locker: MultiLocation,
 		asset: MultiAsset,
