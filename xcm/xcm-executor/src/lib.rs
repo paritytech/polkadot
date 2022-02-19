@@ -338,14 +338,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// check whether we trust origin to be our reserve location for this asset.
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				for asset in assets.drain().into_iter() {
-					let context = XcmContext {
-						origin: Some(origin.clone()),
-						message_hash,
-						topic: self.topic,
-					};
 					// Must ensure that we recognise the asset as being managed by the origin.
 					ensure!(
-						Config::IsReserve::filter_asset_location(&asset, &origin, context),
+						Config::IsReserve::filter_asset_location(&asset, &origin),
 						XcmError::UntrustedReserveLocation
 					);
 					self.subsume_asset(asset)?;
@@ -392,11 +387,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(
-						Config::IsTeleporter::filter_asset_location(
-							asset,
-							&origin,
-							context.clone()
-						),
+						Config::IsTeleporter::filter_asset_location(asset, &origin),
 						XcmError::UntrustedTeleportLocation
 					);
 					// We should check that the asset can actually be teleported in (for this to be in error, there
