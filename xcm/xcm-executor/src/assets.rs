@@ -440,12 +440,12 @@ impl Assets {
 	/// ```
 	/// use xcm_executor::Assets;
 	/// use xcm::latest::prelude::*;
-	/// let assets_i_have: Assets = vec![ (Here, 100).into(), (vec![0], 100).into() ].into();
-	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), (vec![0], 50).into() ].into();
+	/// let assets_i_have: Assets = vec![ (Here, 100).into(), ([0; 32], 100).into() ].into();
+	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), ([0; 32], 50).into() ].into();
 	///
 	/// let assets_we_can_trade: Assets = assets_i_have.min(&assets_they_want);
 	/// assert_eq!(assets_we_can_trade.into_assets_iter().collect::<Vec<_>>(), vec![
-	/// 	(Here, 100).into(), (vec![0], 50).into(),
+	/// 	(Here, 100).into(), ([0; 32], 50).into(),
 	/// ]);
 	/// ```
 	pub fn min(&self, mask: &MultiAssetFilter) -> Assets {
