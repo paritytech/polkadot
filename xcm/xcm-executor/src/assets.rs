@@ -245,6 +245,29 @@ impl Assets {
 			.collect();
 	}
 
+	/// Returns `true` if `asset` is contained within `self`.
+	pub fn contains_asset(&self, asset: &MultiAsset) -> bool {
+		match asset {
+			MultiAsset { fun: Fungible(ref amount), ref id } => {
+				self.fungible.get(id).map_or(false, |a| a >= amount)
+			},
+			MultiAsset { fun: NonFungible(ref instance), ref id } => {
+				self.non_fungible.contains(&(id.clone(), instance.clone()))
+			},
+		}
+	}
+
+	/// Returns `true` if all `assets` are contained within `self`.
+	pub fn contains_assets(&self, assets: &MultiAssets) -> bool {
+		assets.inner().iter().all(|a| self.contains_asset(a))
+	}
+
+	/// Returns `true` if all `assets` are contained within `self`.
+	pub fn contains(&self, assets: &Assets) -> bool {
+		assets.fungible.iter().all(|(k, v)| self.fungible.get(k).map_or(false, |a| a >= v))
+		&& self.non_fungible.is_superset(&assets.non_fungible)
+	}
+
 	/// Returns an error unless all `assets` are contained in `self`. In the case of an error, the first asset in
 	/// `assets` which is not wholly in `self` is returned.
 	pub fn ensure_contains(&self, assets: &MultiAssets) -> Result<(), TakeError> {

@@ -25,17 +25,70 @@ fn exchange_asset_should_work() {
 		Parent,
 		Xcm(vec![
 			WithdrawAsset((Parent, 100).into()),
+			SetAppendix(vec![
+				DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }
+			].into()),
 			ExchangeAsset {
 				give: Definite((Parent, 50).into()),
 				want: (Here, 50).into(),
 				maximal: true,
 			},
-			DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() },
 		]),
 		50,
 	);
-	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(assets(Parent), vec![(Here, 100).into(), (Parent, 950).into()]);
+	assert_eq!(exchange_assets(), vec![(Parent, 50).into()].into());
+}
+
+#[test]
+fn exchange_asset_without_maximal_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+	add_asset(Parent, (Parent, 1000));
+	set_exchange_assets(vec![(Here, 100).into()]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parent,
+		Xcm(vec![
+			WithdrawAsset((Parent, 100).into()),
+			SetAppendix(vec![
+				DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }
+			].into()),
+			ExchangeAsset {
+				give: Definite((Parent, 50).into()),
+				want: (Here, 50).into(),
+				maximal: false,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(40));
+	assert_eq!(assets(Parent), vec![(Here, 50).into(), (Parent, 950).into()]);
+	assert_eq!(exchange_assets(), vec![(Here, 50).into(), (Parent, 50).into()].into());
+}
+
+#[test]
+fn exchange_asset_should_fail_when_no_deal_possible() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+	add_asset(Parent, (Parent, 1000));
+	set_exchange_assets(vec![(Here, 100).into()]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parent,
+		Xcm(vec![
+			WithdrawAsset((Parent, 150).into()),
+			SetAppendix(vec![
+				DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }
+			].into()),
+			ExchangeAsset {
+				give: Definite((Parent, 150).into()),
+				want: (Here, 150).into(),
+				maximal: false,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(40, XcmError::NoDeal));
+	assert_eq!(assets(Parent), vec![(Parent, 1000).into()]);
+	assert_eq!(exchange_assets(), vec![(Here, 100).into()].into());
 }
 
 #[test]

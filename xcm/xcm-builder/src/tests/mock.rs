@@ -523,13 +523,13 @@ impl AssetLock for TestAssetLock {
 }
 
 thread_local! {
-	pub static EXCHANGE_ASSETS: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
+	pub static EXCHANGE_ASSETS: RefCell<Assets> = RefCell::new(Assets::new());
 }
 pub fn set_exchange_assets(assets: impl Into<MultiAssets>) {
-	EXCHANGE_ASSETS.with(|a| a.replace(assets.into()));
+	EXCHANGE_ASSETS.with(|a| a.replace(assets.into().into()));
 }
 pub fn exchange_assets() -> MultiAssets {
-	EXCHANGE_ASSETS.with(|a| a.borrow().clone())
+	EXCHANGE_ASSETS.with(|a| a.borrow().clone().into())
 }
 pub struct TestAssetExchange;
 impl AssetExchange for TestAssetExchange {
@@ -539,14 +539,16 @@ impl AssetExchange for TestAssetExchange {
 		want: &MultiAssets,
 		maximal: bool,
 	) -> Result<Assets, Assets> {
-		let have = EXCHANGE_ASSETS.with(|l| l.borrow().clone());
-		for asset in want.inner() {
-			if !have.contains(asset) {
-				return Err(give)
-			}
-		}
-		EXCHANGE_ASSETS.with(|l| *l.borrow_mut() = give.into());
-		Ok(if maximal { have } else { want.clone() }.into())
+		let mut have = EXCHANGE_ASSETS.with(|l| l.borrow().clone());
+		ensure!(have.contains_assets(want), give);
+		let get = if maximal {
+			std::mem::replace(&mut have, Assets::new())
+		} else {
+			have.saturating_take(want.clone().into())
+		};
+		have.subsume_assets(give);
+		EXCHANGE_ASSETS.with(|l| l.replace(have));
+		Ok(get)
 	}
 }
 
