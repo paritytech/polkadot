@@ -14,22 +14,5 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use core::convert::TryInto;
-use super::{test_utils::*, *};
-use frame_support::{assert_err, traits::ConstU32, weights::constants::WEIGHT_PER_SECOND};
-use xcm_executor::{traits::*, Config, XcmExecutor};
+use super::*;
 
-mod mock;
-use mock::*;
-
-mod assets;
-mod barriers;
-mod basic;
-mod bridging;
-mod expecting;
-mod locking;
-mod origins;
-mod querying;
-mod transacting;
-mod version_subscriptions;
-mod weight;

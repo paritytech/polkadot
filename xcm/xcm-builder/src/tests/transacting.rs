@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies query_id: (), max_response_weight: ()  query_id: (), max_response_weight: ()  (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -62,7 +62,7 @@ fn transacting_should_refund_weight() {
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one: MultiLocation = AccountIndex64 { index: 1, network: None }.into();
 	AllowPaidFrom::set(vec![one.clone()]);
-	add_asset(1, (Parent, 100));
+	add_asset(AccountIndex64{index: 1, network: None}, (Parent, 100));
 	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	let origin = one.clone();
@@ -82,7 +82,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(60));
-	assert_eq!(assets(1), vec![(Parent, 40).into()]);
+	assert_eq!(assets(AccountIndex64{index: 1, network: None}), vec![(Parent, 40).into()]);
 }
 
 #[test]

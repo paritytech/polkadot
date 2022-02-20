@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies query_id: (), max_response_weight: ()  query_id: (), max_response_weight: ()  (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -47,4 +47,53 @@ fn weigher_should_work() {
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
+}
+
+#[test]
+fn code_registers_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![Here.into()]);
+	// We own 1000 of our tokens.
+	add_asset(Here, (Here, 21));
+	let mut message = Xcm(vec![
+		// Set our error handler - this will fire only on the second message, when there's an error
+		SetErrorHandler(Xcm(vec![
+			TransferAsset {
+				assets: (Here, 2).into(),
+				beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+			},
+			// It was handled fine.
+			ClearError,
+		])),
+		// Set the appendix - this will always fire.
+		SetAppendix(Xcm(vec![TransferAsset {
+			assets: (Here, 4).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+		}])),
+		// First xfer always works ok
+		TransferAsset {
+			assets: (Here, 1).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+		},
+		// Second xfer results in error on the second message - our error handler will fire.
+		TransferAsset {
+			assets: (Here, 8).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+		},
+	]);
+	// Weight limit of 70 is needed.
+	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
+	assert_eq!(limit, 70);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
+	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 13).into()]);
+	assert_eq!(assets(Here), vec![(Here, 8).into()]);
+	assert_eq!(sent_xcm(), vec![]);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
+	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 20).into()]);
+	assert_eq!(assets(Here), vec![(Here, 1).into()]);
+	assert_eq!(sent_xcm(), vec![]);
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies query_id: (), max_response_weight: ()  query_id: (), max_response_weight: ()  (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,6 +17,28 @@
 use super::*;
 
 #[test]
+fn exchange_asset_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+	add_asset(Parent, (Parent, 1000));
+	set_exchange_assets(vec![(Here, 100).into()]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parent,
+		Xcm(vec![
+			WithdrawAsset((Parent, 100).into()),
+			ExchangeAsset {
+				give: Definite((Parent, 50).into()),
+				want: (Here, 50).into(),
+				maximal: true,
+			},
+			DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(assets(Parent), vec![(Here, 100).into(), (Parent, 950).into()]);
+}
+
+#[test]
 fn paying_reserve_deposit_should_work() {
 	AllowPaidFrom::set(vec![Parent.into()]);
 	add_reserve(Parent.into(), (Parent, WildFungible).into());
@@ -31,7 +53,7 @@ fn paying_reserve_deposit_should_work() {
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(3000), vec![(Parent, 70).into()]);
+	assert_eq!(assets(Here), vec![(Parent, 70).into()]);
 }
 
 #[test]
@@ -39,7 +61,7 @@ fn transfer_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000));
+	add_asset(Parachain(1), (Here, 1000));
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
@@ -50,8 +72,8 @@ fn transfer_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(assets(3), vec![(Here, 100).into()]);
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }
 
@@ -61,7 +83,7 @@ fn basic_asset_trap_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
 
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000));
+	add_asset(Parachain(1), (Here, 1000));
 	// They want to transfer 100 of them to their sibling parachain #2 but have a problem
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
@@ -75,8 +97,8 @@ fn basic_asset_trap_should_work() {
 		20,
 	);
 	assert_eq!(r, Outcome::Complete(25));
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
-	assert_eq!(assets(3), vec![]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
 
 	// Incorrect ticket doesn't work.
 	let old_trapped_assets = TrappedAssets::get();
@@ -92,8 +114,8 @@ fn basic_asset_trap_should_work() {
 		20,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
-	assert_eq!(assets(3), vec![]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	// Incorrect origin doesn't work.
@@ -110,8 +132,8 @@ fn basic_asset_trap_should_work() {
 		20,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
-	assert_eq!(assets(3), vec![]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	// Incorrect assets doesn't work.
@@ -128,8 +150,8 @@ fn basic_asset_trap_should_work() {
 		20,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
-	assert_eq!(assets(3), vec![]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -144,8 +166,8 @@ fn basic_asset_trap_should_work() {
 		20,
 	);
 	assert_eq!(r, Outcome::Complete(20));
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
-	assert_eq!(assets(3), vec![(Here, 100).into()]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
 
 	// Same again doesn't work :-)
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -166,7 +188,7 @@ fn basic_asset_trap_should_work() {
 fn reserve_transfer_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000));
+	add_asset(Parachain(1), (Here, 1000));
 	// The remote account owned by gav.
 	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: None }).into();
 
@@ -186,7 +208,7 @@ fn reserve_transfer_should_work() {
 	);
 	assert_eq!(r, Outcome::Complete(10));
 
-	assert_eq!(assets(1002), vec![(Here, 100).into()]);
+	assert_eq!(assets(Parachain(2)), vec![(Here, 100).into()]);
 	assert_eq!(
 		sent_xcm(),
 		vec![(
@@ -205,7 +227,7 @@ fn burn_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000));
+	add_asset(Parachain(1), (Here, 1000));
 	// They want to burn 100 of them
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
@@ -217,7 +239,7 @@ fn burn_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	// Now they want to burn 1000 of them, which will actually only burn 900.
@@ -231,7 +253,7 @@ fn burn_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(1001), vec![]);
+	assert_eq!(assets(Parachain(1)), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
 }
 
@@ -240,15 +262,15 @@ fn max_assets_limit_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, ([1u8; 32], 1000));
-	add_asset(1001, ([2u8; 32], 1000));
-	add_asset(1001, ([3u8; 32], 1000));
-	add_asset(1001, ([4u8; 32], 1000));
-	add_asset(1001, ([5u8; 32], 1000));
-	add_asset(1001, ([6u8; 32], 1000));
-	add_asset(1001, ([7u8; 32], 1000));
-	add_asset(1001, ([8u8; 32], 1000));
-	add_asset(1001, ([9u8; 32], 1000));
+	add_asset(Parachain(1), ([1u8; 32], 1000));
+	add_asset(Parachain(1), ([2u8; 32], 1000));
+	add_asset(Parachain(1), ([3u8; 32], 1000));
+	add_asset(Parachain(1), ([4u8; 32], 1000));
+	add_asset(Parachain(1), ([5u8; 32], 1000));
+	add_asset(Parachain(1), ([6u8; 32], 1000));
+	add_asset(Parachain(1), ([7u8; 32], 1000));
+	add_asset(Parachain(1), ([8u8; 32], 1000));
+	add_asset(Parachain(1), ([9u8; 32], 1000));
 
 	// Attempt to withdraw 8 (=2x4)different assets. This will succeed.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(

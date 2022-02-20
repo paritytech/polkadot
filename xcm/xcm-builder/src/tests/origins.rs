@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies query_id: (), max_response_weight: ()  query_id: (), max_response_weight: ()  (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -45,7 +45,7 @@ fn universal_origin_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 
-	add_asset(4000, (Parent, 100));
+	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
@@ -55,7 +55,7 @@ fn universal_origin_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(20));
-	assert_eq!(assets(4000), vec![]);
+	assert_eq!(assets((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
 }
 
 #[test]

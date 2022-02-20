@@ -183,28 +183,26 @@ impl ExportXcm for TestMessageExporter {
 }
 
 thread_local! {
-	pub static ASSETS: RefCell<BTreeMap<u64, Assets>> = RefCell::new(BTreeMap::new());
+	pub static ASSETS: RefCell<BTreeMap<MultiLocation, Assets>> = RefCell::new(BTreeMap::new());
 }
-pub fn assets(who: u64) -> Vec<MultiAsset> {
-	ASSETS.with(|a| a.borrow().get(&who).map_or(vec![], |a| a.clone().into()))
+pub fn assets(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
+	ASSETS.with(|a| a.borrow().get(&who.into()).map_or(vec![], |a| a.clone().into()))
 }
-pub fn add_asset<AssetArg: Into<MultiAsset>>(who: u64, what: AssetArg) {
-	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).subsume(what.into()));
+pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
+	ASSETS.with(|a| a.borrow_mut().entry(who.into()).or_insert(Assets::new()).subsume(what.into()));
 }
 
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
-		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
-		add_asset(who, what.clone());
+		add_asset(who.clone(), what.clone());
 		Ok(())
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
-		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		ASSETS.with(|a| {
 			a.borrow_mut()
-				.get_mut(&who)
+				.get_mut(who)
 				.ok_or(XcmError::NotWithdrawable)?
 				.try_take(what.clone().into())
 				.map_err(|_| XcmError::NotWithdrawable)
@@ -527,8 +525,11 @@ impl AssetLock for TestAssetLock {
 thread_local! {
 	pub static EXCHANGE_ASSETS: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
 }
-pub fn set_exchange_assets(assets: MultiAssets) {
-	EXCHANGE_ASSETS.with(|a| a.replace(assets));
+pub fn set_exchange_assets(assets: impl Into<MultiAssets>) {
+	EXCHANGE_ASSETS.with(|a| a.replace(assets.into()));
+}
+pub fn exchange_assets() -> MultiAssets {
+	EXCHANGE_ASSETS.with(|a| a.borrow().clone())
 }
 pub struct TestAssetExchange;
 impl AssetExchange for TestAssetExchange {
