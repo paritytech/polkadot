@@ -140,7 +140,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
-	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets) -> Weight {
+	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
 		Weight::MAX // todo fix
 	}
 	fn initiate_reserve_withdraw(
@@ -218,21 +218,24 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
 	fn universal_origin(_: &Junction) -> Weight {
-		10_000_000_000
+		Weight::MAX // todo fix
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
-		10_000_000_000
+		Weight::MAX // todo fix
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		10_000_000_000
+		Weight::MAX // todo fix
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		10_000_000_000
+		Weight::MAX // todo fix
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		10_000_000_000
+		Weight::MAX // todo fix
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		10_000_000_000
+		Weight::MAX // todo fix
+	}
+	fn set_fees_mode(_: &bool) -> Weight {
+		Weight::MAX // todo fix
 	}
 }

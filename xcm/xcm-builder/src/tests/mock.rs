@@ -378,6 +378,7 @@ pub type TestBarrier = (
 thread_local! {
 	pub static IS_WAIVED: RefCell<Vec<FeeReason>> = RefCell::new(vec![]);
 }
+#[allow(dead_code)]
 pub fn set_fee_waiver(waived: Vec<FeeReason>) {
 	IS_WAIVED.with(|l| l.replace(waived));
 }

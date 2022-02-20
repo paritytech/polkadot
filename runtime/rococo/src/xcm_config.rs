@@ -43,7 +43,7 @@ parameter_types! {
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
-pub type SovereignAccountOf =
+pub type LocationConverter =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
@@ -52,7 +52,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency when it is a fungible asset matching the given location or name:
 	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
-	SovereignAccountOf,
+	LocationConverter,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// It's a native asset so we keep track of the teleports to maintain total issuance.
@@ -60,7 +60,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 >;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<LocationConverter, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	SignedAccountId32AsNative<ThisNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,

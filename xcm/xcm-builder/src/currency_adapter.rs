@@ -71,10 +71,13 @@ impl From<Error> for XcmError {
 /// /// messages from the parent (relay chain).
 /// pub type LocationConverter = (ParentIsPreset<AccountId>);
 ///
+/// /// Just a dummy implementation of `Currency`. Normally this would be `Balances`.
+/// pub type CurrencyImpl = ();
+///
 /// /// Final currency adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
 /// pub type AssetTransactor = CurrencyAdapter<
 ///     // Use this `Currency` impl instance:
-///     Balances,
+///     CurrencyImpl,
 ///     // The matcher: use the currency when the asset is a concrete asset in our relay chain.
 ///     IsConcrete<RelayChain>,
 ///     // The local converter: default account of the parent relay chain.

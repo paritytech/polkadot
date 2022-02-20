@@ -23,17 +23,23 @@ fn lock_roundtrip_should_work() {
 	AllowUnpaidFrom::set(vec![(3u64,).into(), (Parent, Parachain(1)).into()]);
 	// Account #3 owns 1000 native parent tokens.
 	add_asset((3u64,), (Parent, 1000));
+	// Sending a message costs 10 parent-tokens.
+	set_send_price((Parent, 10));
 
 	// They want to lock 100 of the native parent tokens to be unlocked only by Parachain #1.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![LockAsset {
-			asset: (Parent, 100).into(),
-			unlocker: (Parent, Parachain(1)).into(),
-		}]),
+		Xcm(vec![
+			WithdrawAsset((Parent, 100).into()),
+			SetAppendix(vec![
+				DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }
+			].into()),
+			LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
+		]),
 		50,
 	);
-	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(r, Outcome::Complete(40));
+	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 
 	assert_eq!(
 		sent_xcm(),
@@ -60,6 +66,28 @@ fn lock_roundtrip_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
+}
+
+#[test]
+fn auto_fee_paying_should_work() {
+	// Account #3 and Parachain #1 can execute for free
+	AllowUnpaidFrom::set(vec![(3u64,).into()]);
+	// Account #3 owns 1000 native parent tokens.
+	add_asset((3u64,), (Parent, 1000));
+	// Sending a message costs 10 parent-tokens.
+	set_send_price((Parent, 10));
+
+	// They want to lock 100 of the native parent tokens to be unlocked only by Parachain #1.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		(3u64,),
+		Xcm(vec![
+			SetFeesMode { jit_withdraw: true },
+			LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 }
 
 #[test]
@@ -107,6 +135,8 @@ fn remote_unlock_roundtrip_should_work() {
 	AllowUnpaidFrom::set(vec![(3u64,).into(), (Parent, Parachain(1)).into()]);
 	// Account #3 owns 1000 native parent tokens.
 	add_asset((3u64,), (Parent, 1000));
+	// Sending a message costs 10 parent-tokens.
+	set_send_price((Parent, 10));
 
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -127,13 +157,17 @@ fn remote_unlock_roundtrip_should_work() {
 	// Let's request those funds be unlocked.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![RequestUnlock {
-			asset: (Parent, 100).into(),
-			locker: (Parent, Parachain(1)).into(),
-		}]),
+		Xcm(vec![
+			WithdrawAsset((Parent, 100).into()),
+			SetAppendix(vec![
+				DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }
+			].into()),
+			RequestUnlock { asset: (Parent, 100).into(), locker: (Parent, Parachain(1)).into() }
+		]),
 		50,
 	);
-	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(r, Outcome::Complete(40));
+	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 
 	assert_eq!(
 		sent_xcm(),
