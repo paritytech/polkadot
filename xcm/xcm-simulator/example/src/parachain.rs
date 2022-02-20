@@ -40,9 +40,11 @@ use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
 	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,
 	NativeAsset, ParentIsPreset, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation,
+	SignedToAccountId32, SovereignSignedViaLocation, NonFungiblesAdapter, ConvertedConcreteAssetId, AsPrefixedGeneralIndex,
 };
-use xcm_executor::{Config, XcmExecutor};
+use xcm_executor::{Config, XcmExecutor, traits::JustTry};
+
+use crate::relay_chain::SovereignAccountOf;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
@@ -96,6 +98,23 @@ impl pallet_balances::Config for Runtime {
 	type ReserveIdentifier = [u8; 8];
 }
 
+impl pallet_uniques::Config for Runtime {
+	type Event = Event;
+	type ClassId = u32;
+	type InstanceId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	type ClassDeposit = frame_support::traits::ConstU128<1_000>;
+	type InstanceDeposit = frame_support::traits::ConstU128<1_000>;
+	type MetadataDepositBase = frame_support::traits::ConstU128<1_000>;
+	type AttributeDepositBase = frame_support::traits::ConstU128<1_000>;
+	type DepositPerByte = frame_support::traits::ConstU128<1>;
+	type StringLimit = frame_support::traits::ConstU32<64>;
+	type KeyLimit = frame_support::traits::ConstU32<64>;
+	type ValueLimit = frame_support::traits::ConstU32<128>;
+	type WeightInfo = ();
+}
+
 parameter_types! {
 	pub const ReservedXcmpWeight: Weight = WEIGHT_PER_SECOND / 4;
 	pub const ReservedDmpWeight: Weight = WEIGHT_PER_SECOND / 4;
@@ -126,8 +145,17 @@ parameter_types! {
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>;
+pub type LocalAssetTransactor = (
+	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>,
+	NonFungiblesAdapter<
+		Uniques,
+		ConvertedConcreteAssetId<u32, u32, AsPrefixedGeneralIndex<(), u32, JustTry>, JustTry>,
+		SovereignAccountOf,
+		AccountId,
+		Nothing,
+		(),
+	>,
+);
 
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
 pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
@@ -338,5 +366,6 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
+		Uniques: pallet_uniques::{Pallet, Call, Storage, Event<T>},
 	}
 );

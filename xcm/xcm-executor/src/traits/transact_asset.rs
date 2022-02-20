@@ -95,7 +95,7 @@ pub trait TransactAsset {
 		to: &MultiLocation,
 	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to) {
-			Err(XcmError::Unimplemented) => {
+			Err(XcmError::AssetNotFound | XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from)?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to)?;

@@ -32,8 +32,9 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	NonFungiblesAdapter, AsPrefixedGeneralIndex, ConvertedConcreteAssetId,
 };
-use xcm_executor::{Config, XcmExecutor};
+use xcm_executor::{Config, XcmExecutor, traits::JustTry};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
@@ -87,6 +88,23 @@ impl pallet_balances::Config for Runtime {
 	type ReserveIdentifier = [u8; 8];
 }
 
+impl pallet_uniques::Config for Runtime {
+	type Event = Event;
+	type ClassId = u32;
+	type InstanceId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	type ClassDeposit = frame_support::traits::ConstU128<1_000>;
+	type InstanceDeposit = frame_support::traits::ConstU128<1_000>;
+	type MetadataDepositBase = frame_support::traits::ConstU128<1_000>;
+	type AttributeDepositBase = frame_support::traits::ConstU128<1_000>;
+	type DepositPerByte = frame_support::traits::ConstU128<1>;
+	type StringLimit = frame_support::traits::ConstU32<64>;
+	type KeyLimit = frame_support::traits::ConstU32<64>;
+	type ValueLimit = frame_support::traits::ConstU32<128>;
+	type WeightInfo = ();
+}
+
 impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {
@@ -104,8 +122,17 @@ parameter_types! {
 pub type SovereignAccountOf =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<RelayNetwork, AccountId>);
 
-pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<Balances, IsConcrete<TokenLocation>, SovereignAccountOf, AccountId, ()>;
+pub type LocalAssetTransactor = (
+	XcmCurrencyAdapter<Balances, IsConcrete<TokenLocation>, SovereignAccountOf, AccountId, ()>,
+	NonFungiblesAdapter<
+		Uniques,
+		ConvertedConcreteAssetId<u32, u32, AsPrefixedGeneralIndex<(), u32, JustTry>, JustTry>,
+		SovereignAccountOf,
+		AccountId,
+		Nothing,
+		(),
+	>,
+);
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
@@ -116,7 +143,7 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
-	pub KsmPerSecond: (AssetId, u128) = (Concrete(TokenLocation::get()), 1);
+	pub TokensPerSecond: (AssetId, u128) = (Concrete(TokenLocation::get()), 1_000_000_000_000);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
@@ -135,7 +162,7 @@ impl Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<TokensPerSecond, ()>;
 	type ResponseHandler = ();
 	type AssetTrap = ();
 	type AssetLocker = ();
@@ -201,5 +228,6 @@ construct_runtime!(
 		ParasOrigin: origin::{Pallet, Origin},
 		ParasUmp: ump::{Pallet, Call, Storage, Event},
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
+		Uniques: pallet_uniques::{Pallet, Call, Storage, Event<T>},
 	}
 );

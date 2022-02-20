@@ -82,7 +82,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 }
 
 pub fn relay_ext() -> sp_io::TestExternalities {
-	use relay_chain::{Runtime, System};
+	use relay_chain::{Runtime, System, Uniques, Origin};
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
@@ -93,7 +93,11 @@ pub fn relay_ext() -> sp_io::TestExternalities {
 	.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
-	ext.execute_with(|| System::set_block_number(1));
+	ext.execute_with(|| {
+		System::set_block_number(1);
+		assert_eq!(Uniques::force_create(Origin::root(), 1, ALICE, true), Ok(()));
+		assert_eq!(Uniques::mint(Origin::signed(ALICE), 1, 42, para_account_id(1)), Ok(()));
+	});
 	ext
 }
 
@@ -223,6 +227,35 @@ mod tests {
 				pallet_balances::Pallet::<parachain::Runtime>::free_balance(&ALICE),
 				INITIAL_BALANCE + withdraw_amount
 			);
+		});
+	}
+
+	/// Scenario:
+	/// A parachain transfers an NFT resident on the relay chain to another parachain account.
+	///
+	/// Asserts that the parachain accounts are updated as expected.
+	#[test]
+	fn withdraw_and_deposit_nft() {
+		MockNet::reset();
+
+
+		Relay::execute_with(|| {
+			assert_eq!(relay_chain::Uniques::owner(1, 42), Some(para_account_id(1)));
+		});
+
+		let nft = Wild(AllOfCounted { id: GeneralIndex(1).into(), fun: WildNonFungible, count: 1 });
+
+		ParaA::execute_with(|| {
+			let message = Xcm(vec![
+				WithdrawAsset((GeneralIndex(1), 42u32).into()),
+				DepositAsset { assets: nft, beneficiary: Parachain(2).into() },
+			]);
+			// Send withdraw and deposit
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone()));
+		});
+
+		Relay::execute_with(|| {
+			assert_eq!(relay_chain::Uniques::owner(1, 42), Some(para_account_id(2)));
 		});
 	}
 

@@ -107,6 +107,130 @@ impl From<[u8; 32]> for AssetInstance {
 	}
 }
 
+impl From<u8> for AssetInstance {
+	fn from(x: u8) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl From<u16> for AssetInstance {
+	fn from(x: u16) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl From<u32> for AssetInstance {
+	fn from(x: u32) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl From<u64> for AssetInstance {
+	fn from(x: u64) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl TryFrom<AssetInstance> for () {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Undefined => Ok(()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 4] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array4(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 8] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array8(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 16] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array16(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 32] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array32(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u8 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u16 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u32 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u64 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u128 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum Fungibility {
