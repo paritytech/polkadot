@@ -138,6 +138,8 @@ impl Config for XcmConfig {
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 	type AssetTrap = ();
+	type AssetLocker = ();
+	type AssetExchanger = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
 	type PalletInstancesInfo = ();
@@ -165,6 +167,11 @@ impl pallet_xcm::Config for Runtime {
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type Currency = Balances;
+	type CurrencyMatcher = ();
+	type TrustedLockers = ();
+	type SovereignAccountOf = SovereignAccountOf;
+	type MaxLockers = frame_support::traits::ConstU32<8>;
 }
 
 parameter_types! {

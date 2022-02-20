@@ -100,6 +100,8 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
 	type AssetTrap = super::Xcm;
+	type AssetLocker = ();
+	type AssetExchanger = ();
 	type AssetClaims = super::Xcm;
 	type SubscriptionService = super::Xcm;
 	type PalletInstancesInfo = ();

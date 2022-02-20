@@ -5605,6 +5605,7 @@ version = "0.9.17"
 dependencies = [
  "frame-support",
  "frame-system",
+ "impl-trait-for-tuples",
  "log",
  "pallet-balances",
  "parity-scale-codec",
