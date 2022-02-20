@@ -301,22 +301,22 @@ pub mod pallet {
 		///
 		/// \[ origin location, id, expected querier, maybe actual querier \]
 		InvalidQuerier(MultiLocation, QueryId, MultiLocation, Option<MultiLocation>),
-		/// A remote has requested XCM version change notification from us and we have honoured it.
+		/// A remote has requested XCM version change notification from us and we have honored it.
 		/// A version information message is sent to them and its cost is included.
 		///
-		/// \[ destination_location, cost \]
+		/// \[ destination location, cost \]
 		VersionNotifyStarted(MultiLocation, MultiAssets),
 		/// We have requested that a remote chain sends us XCM version change notifications.
 		///
-		/// \[ destination_location, cost \]
+		/// \[ destination location, cost \]
 		VersionNotifyRequested(MultiLocation, MultiAssets),
 		/// We have requested that a remote chain stops sending us XCM version change notifications.
 		///
-		/// \[ destination_location, cost \]
+		/// \[ destination location, cost \]
 		VersionNotifyUnrequested(MultiLocation, MultiAssets),
 		/// Fees were paid from a location for an operation (often for using `SendXcm`).
 		///
-		/// \[ paying_location, fees \]
+		/// \[ paying location, fees \]
 		FeesPaid(MultiLocation, MultiAssets),
 	}
 

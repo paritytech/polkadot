@@ -508,8 +508,8 @@ impl WrapVersion for AlwaysV3 {
 /// before wrapping it.
 pub type AlwaysLatest = AlwaysV3;
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to the most recent LTS
-/// version before wrapping it.
+/// `WrapVersion` implementation which attempts to always convert the XCM to the most recent Long-
+/// Term-Support version before wrapping it.
 pub type AlwaysLts = AlwaysV3;
 
 pub mod prelude {
