@@ -29,6 +29,7 @@ pub use frame_support::{
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
+use sp_runtime::traits::Saturating;
 pub use sp_std::{
 	cell::RefCell,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -39,7 +40,7 @@ pub use xcm::latest::prelude::*;
 pub use xcm_executor::{
 	traits::{
 		ConvertOrigin, ExportXcm, FeeManager, FeeReason, FilterAssetLocation, OnResponse,
-		TransactAsset, UniversalLocation,
+		TransactAsset, UniversalLocation, AssetLock, AssetExchange, LockError, Enact,
 	},
 	Assets, Config,
 };
@@ -378,6 +379,176 @@ impl FeeManager for TestFeeManager {
 	fn handle_fee(_: MultiAssets) {}
 }
 
+pub enum LockTraceItem {
+	Lock {
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+		id: u32,
+		done: bool,
+	},
+	Unlock {
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+		id: u32,
+		done: bool,
+	},
+	Note {
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	},
+	Reduce {
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+		id: u32,
+		done: bool,
+	},
+}
+thread_local! {
+	pub static NEXT_INDEX: RefCell<u32> = RefCell::new(0);
+	pub static LOCK_TRACE: RefCell<Vec<LockTraceItem>> = RefCell::new(Vec::new());
+}
+
+pub fn take_lock_trace() -> Vec<LockTraceItem> {
+	LOCK_TRACE.with(|l| l.replace(vec![]))
+}
+
+pub struct TestLockTicket(u32);
+impl Enact for TestLockTicket {
+	fn enact(self) -> Result<(), LockError> {
+		LOCK_TRACE.with(|l| for item in l.borrow_mut().iter_mut() {
+			match item {
+				LockTraceItem::Lock { id, done, .. } if !*done && *id == self.0 => {
+					*done = true;
+					return
+				},
+				_ => {},
+			}
+		});
+		Ok(())
+	}
+}
+pub struct TestUnlockTicket(u32);
+impl Enact for TestUnlockTicket {
+	fn enact(self) -> Result<(), LockError> {
+		LOCK_TRACE.with(|l| for item in l.borrow_mut().iter_mut() {
+			match item {
+				LockTraceItem::Unlock { id, done, .. } if !*done && *id == self.0 => {
+					*done = true;
+					return
+				},
+				_ => {},
+			}
+		});
+		Ok(())
+	}
+}
+pub struct TestReduceTicket(u32);
+impl Enact for TestReduceTicket {
+	fn enact(self) -> Result<(), LockError> {
+		LOCK_TRACE.with(|l| for item in l.borrow_mut().iter_mut() {
+			match item {
+				LockTraceItem::Reduce { id, done, .. } if !*done && *id == self.0 => {
+					*done = true;
+					return
+				},
+				_ => {},
+			}
+		});
+		Ok(())
+	}
+}
+
+pub struct TestAssetLock;
+impl AssetLock for TestAssetLock {
+	type LockTicket = TestLockTicket;
+	type UnlockTicket = TestUnlockTicket;
+	type ReduceTicket = TestReduceTicket;
+
+	fn prepare_lock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<Self::LockTicket, LockError> {
+		if unlocker.is_here() {
+			return Err(LockError::NotApplicable)
+		}
+		let id = NEXT_INDEX.with(|x| { x.borrow_mut().saturating_accrue(1); *x.borrow() - 1 });
+		let item = LockTraceItem::Lock { unlocker, asset, owner, id, done: false };
+		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
+		Ok(TestLockTicket(id))
+	}
+
+	fn prepare_unlock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<Self::UnlockTicket, LockError> {
+		if unlocker.is_here() {
+			return Err(LockError::NotApplicable)
+		}
+		let id = NEXT_INDEX.with(|x| { x.borrow_mut().saturating_accrue(1); *x.borrow() - 1 });
+		let item = LockTraceItem::Unlock { unlocker, asset, owner, id, done: false };
+		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
+		Ok(TestUnlockTicket(id))
+	}
+
+	fn note_unlockable(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<(), LockError> {
+		if locker.is_here() {
+			return Err(LockError::NotApplicable)
+		}
+		let item = LockTraceItem::Note { locker, asset, owner };
+		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
+		Ok(())
+	}
+
+	fn prepare_reduce_unlockable(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<Self::ReduceTicket, xcm_executor::traits::LockError> {
+		if locker.is_here() {
+			return Err(LockError::NotApplicable)
+		}
+		let id = NEXT_INDEX.with(|x| { x.borrow_mut().saturating_accrue(1); *x.borrow() - 1 });
+		let item = LockTraceItem::Reduce { locker, asset, owner, id, done: false };
+		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
+		Ok(TestReduceTicket(id))
+	}
+}
+
+thread_local! {
+	pub static EXCHANGE_ASSETS: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
+}
+pub fn set_exchange_assets(assets: MultiAssets) {
+	EXCHANGE_ASSETS.with(|a| a.replace(assets));
+}
+pub struct TestAssetExchange;
+impl AssetExchange for TestAssetExchange {
+	fn exchange_asset(
+		_origin: Option<&MultiLocation>,
+		give: Assets,
+		want: &MultiAssets,
+		maximal: bool,
+	) -> Result<Assets, Assets> {
+		let have = EXCHANGE_ASSETS.with(|l| l.borrow().clone());
+		for asset in want.inner() {
+			if !have.contains(asset) {
+				return Err(give)
+			}
+		}
+		EXCHANGE_ASSETS.with(|l| *l.borrow_mut() = give.into());
+		Ok(if maximal { have } else { want.clone() }.into())
+	}
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type Call = TestCall;
@@ -392,8 +563,8 @@ impl Config for TestConfig {
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 	type AssetTrap = TestAssetTrap;
-	type AssetLocker = ();
-	type AssetExchanger = ();
+	type AssetLocker = TestAssetLock;
+	type AssetExchanger = TestAssetExchange;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
 	type PalletInstancesInfo = TestPalletsInfo;
@@ -401,4 +572,8 @@ impl Config for TestConfig {
 	type FeeManager = TestFeeManager;
 	type UniversalAliases = TestUniversalAliases;
 	type MessageExporter = TestMessageExporter;
+}
+
+pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
+	(AssetId::from(location), Fungibility::Fungible(amount)).into()
 }

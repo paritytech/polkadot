@@ -638,7 +638,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// generally have their own lanes.
 				let (ticket, fee) =
 					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
-				self.take_fee(fee, FeeReason::LockAsset)?;
+				self.take_fee(fee, FeeReason::Export(network))?;
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())
 			},
