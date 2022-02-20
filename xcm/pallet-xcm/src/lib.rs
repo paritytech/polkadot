@@ -24,7 +24,9 @@ mod mock;
 mod tests;
 
 use codec::{Decode, Encode, EncodeLike};
-use frame_support::traits::{Currency, LockableCurrency, Contains, EnsureOrigin, Get, OriginTrait, Defensive};
+use frame_support::traits::{
+	Contains, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
+};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{BadOrigin, Saturating, Zero},
@@ -39,21 +41,21 @@ use sp_std::{
 	vec,
 };
 use xcm::{latest::QueryResponseInfo, prelude::*};
-use xcm_executor::traits::{ConvertOrigin, Convert};
+use xcm_executor::traits::{Convert, ConvertOrigin};
 
-use frame_support::PalletId;
-pub use pallet::*;
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo},
 	pallet_prelude::*,
 	traits::WithdrawReasons,
+	PalletId,
 };
 use frame_system::pallet_prelude::*;
+pub use pallet::*;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, OnResponse, UniversalLocation, VersionChangeNotifier,
-		WeightBounds, MatchesFungible,
+		ClaimAssets, DropAssets, MatchesFungible, OnResponse, UniversalLocation,
+		VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -67,7 +69,7 @@ pub mod pallet {
 	};
 	use frame_system::Config as SysConfig;
 	use sp_core::H256;
-	use xcm_executor::traits::{UniversalLocation, WeightBounds, MatchesFungible};
+	use xcm_executor::traits::{MatchesFungible, UniversalLocation, WeightBounds};
 
 	parameter_types! {
 		/// An implementation of `Get<u32>` which just returns the latest XCM version which we can
@@ -695,8 +697,7 @@ pub mod pallet {
 			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
-			Self::send_xcm(interior, dest.clone(), message.clone())
-				.map_err(Error::<T>::from)?;
+			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(Error::<T>::from)?;
 			Self::deposit_event(Event::Sent(origin_location, dest, message));
 			Ok(())
 		}
@@ -1131,10 +1132,8 @@ impl<T: Config> Pallet<T> {
 		let todo_sv_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
 		let todo_vn_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
 		let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().read;
-		let todo_vnt_notify_weight: Weight =
-			T::DbWeight::get().read + T::DbWeight::get().write * 3;
-		let todo_vnt_migrate_weight: Weight =
-			T::DbWeight::get().read + T::DbWeight::get().write;
+		let todo_vnt_notify_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write * 3;
+		let todo_vnt_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
 		let todo_vnt_migrate_fail_weight: Weight =
 			T::DbWeight::get().read + T::DbWeight::get().write;
 		let todo_vnt_notify_migrate_weight: Weight =
@@ -1221,9 +1220,7 @@ impl<T: Config> Pallet<T> {
 					let new_key = match MultiLocation::try_from(old_key.clone()) {
 						Ok(k) => k,
 						Err(()) => {
-							Self::deposit_event(Event::NotifyTargetMigrationFail(
-								old_key, value.0,
-							));
+							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
 							weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
 							if weight_used >= weight_cutoff {
 								return (weight_used, Some(stage))
@@ -1441,10 +1438,9 @@ impl<T: Config> Pallet<T> {
 		timeout: T::BlockNumber,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
-		let notify =
-			notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
-				"decode input is output of Call encode; Call guaranteed to have two enums; qed",
-			);
+		let notify = notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
+			"decode input is output of Call encode; Call guaranteed to have two enums; qed",
+		);
 		Self::do_new_query(responder, Some(notify), timeout, match_querier)
 	}
 
@@ -1510,14 +1506,20 @@ impl<T: Config> xcm_executor::traits::Enact for LockTicket<T> {
 				ensure!(locks.len() > index, UnexpectedState);
 				ensure!(locks[index].1.try_as::<_>() == Ok(&self.unlocker), UnexpectedState);
 				locks[index].0 = locks[index].0.max(self.amount);
-			}
+			},
 			None => {
-				locks.try_push((self.amount, self.unlocker.clone().into()))
+				locks
+					.try_push((self.amount, self.unlocker.clone().into()))
 					.map_err(|()| UnexpectedState)?;
-			}
+			},
 		}
 		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
-		T::Currency::extend_lock(*b"py/xcmlk", &self.sovereign_account, self.amount, WithdrawReasons::all());
+		T::Currency::extend_lock(
+			*b"py/xcmlk",
+			&self.sovereign_account,
+			self.amount,
+			WithdrawReasons::all(),
+		);
 		Ok(())
 	}
 }
@@ -1531,7 +1533,8 @@ pub struct UnlockTicket<T: Config> {
 impl<T: Config> xcm_executor::traits::Enact for UnlockTicket<T> {
 	fn enact(self) -> Result<(), xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::UnexpectedState;
-		let mut locks = LockedFungibles::<T>::get(&self.sovereign_account).ok_or(UnexpectedState)?;
+		let mut locks =
+			LockedFungibles::<T>::get(&self.sovereign_account).ok_or(UnexpectedState)?;
 		let mut maybe_remove_index = None;
 		let mut locked = BalanceOf::<T>::zero();
 		let mut found = false;
@@ -1611,7 +1614,8 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
 		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
 		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
-		let item_index = locks.iter().position(|x| x.1.try_as::<_>() == Ok(&unlocker)).ok_or(NotLocked)?;
+		let item_index =
+			locks.iter().position(|x| x.1.try_as::<_>() == Ok(&unlocker)).ok_or(NotLocked)?;
 		ensure!(locks[item_index].0 >= amount, NotLocked);
 		Ok(UnlockTicket { sovereign_account, amount, unlocker })
 	}
@@ -1746,11 +1750,7 @@ impl<T: Config> DropAssets for Pallet<T> {
 }
 
 impl<T: Config> ClaimAssets for Pallet<T> {
-	fn claim_assets(
-		origin: &MultiLocation,
-		ticket: &MultiLocation,
-		assets: &MultiAssets,
-	) -> bool {
+	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, assets: &MultiAssets) -> bool {
 		let mut versioned = VersionedMultiAssets::from(assets.clone());
 		match (ticket.parents, &ticket.interior) {
 			(0, X1(GeneralIndex(i))) =>
@@ -1844,9 +1844,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 			},
 			(
 				response,
-				Some(QueryStatus::Pending {
-					responder, maybe_notify, maybe_match_querier, ..
-				}),
+				Some(QueryStatus::Pending { responder, maybe_notify, maybe_match_querier, .. }),
 			) => {
 				if let Some(match_querier) = maybe_match_querier {
 					let match_querier = match MultiLocation::try_from(match_querier) {
@@ -1893,8 +1891,8 @@ impl<T: Config> OnResponse for Pallet<T> {
 						// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 						// So we just encode that and then re-encode to a real Call.
 						let bare = (pallet_index, call_index, query_id, response);
-						if let Ok(call) = bare
-							.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
+						if let Ok(call) =
+							bare.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
 						{
 							Queries::<T>::remove(query_id);
 							let weight = call.get_dispatch_info().weight;
@@ -1930,8 +1928,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 							}
 							.unwrap_or(weight)
 						} else {
-							let e =
-								Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
+							let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
 							Self::deposit_event(e);
 							0
 						}

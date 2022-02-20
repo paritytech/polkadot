@@ -30,7 +30,9 @@ use scale_info::TypeInfo;
 ///
 /// Maintenance note: Networks with global consensus and which are practically bridgeable within the
 /// Polkadot ecosystem are given preference over explicit naming in this enumeration.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 pub enum NetworkId {
 	/// Network specified by the first 32 bytes of its genesis block.
 	ByGenesis([u8; 32]),
@@ -95,13 +97,14 @@ impl TryFrom<OldBodyId> for BodyId {
 		use OldBodyId::*;
 		Ok(match value {
 			Unit => Self::Unit,
-			Named(n) => if n.len() == 4 {
-				let mut r = [0u8; 4];
-				r.copy_from_slice(&n[..]);
-				Self::Moniker(r)
-			} else {
-				return Err(())
-			},
+			Named(n) =>
+				if n.len() == 4 {
+					let mut r = [0u8; 4];
+					r.copy_from_slice(&n[..]);
+					Self::Moniker(r)
+				} else {
+					return Err(())
+				},
 			Index(n) => Self::Index(n),
 			Executive => Self::Executive,
 			Technical => Self::Technical,
@@ -265,15 +268,15 @@ impl TryFrom<OldJunction> for Junction {
 		Ok(match value {
 			Parachain(id) => Self::Parachain(id),
 			AccountId32 { network, id } => Self::AccountId32 { network: network.into(), id },
-			AccountIndex64 { network, index }
-			=> Self::AccountIndex64 { network: network.into(), index },
+			AccountIndex64 { network, index } =>
+				Self::AccountIndex64 { network: network.into(), index },
 			AccountKey20 { network, key } => Self::AccountKey20 { network: network.into(), key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
 			GeneralKey(_key) => return Err(()),
 			OnlyChild => Self::OnlyChild,
-			Plurality { id, part }
-			=> Self::Plurality { id: id.try_into()?, part: part.try_into()? },
+			Plurality { id, part } =>
+				Self::Plurality { id: id.try_into()?, part: part.try_into()? },
 		})
 	}
 }
@@ -304,10 +307,9 @@ impl Junction {
 	pub fn remove_network_id(&mut self) {
 		use Junction::*;
 		match self {
-			AccountId32 { ref mut network, .. }
-			| AccountIndex64 { ref mut network, .. }
-			| AccountKey20 { ref mut network, .. }
-			=> *network = None,
+			AccountId32 { ref mut network, .. } |
+			AccountIndex64 { ref mut network, .. } |
+			AccountKey20 { ref mut network, .. } => *network = None,
 			_ => {},
 		}
 	}

@@ -75,14 +75,19 @@ fn pallet_query_with_results_should_work() {
 			Xcm::<()>(vec![QueryResponse {
 				query_id: 1,
 				max_weight: 50,
-				response: Response::PalletsInfo(vec![PalletInfo::new(
-					1,
-					b"Balances".as_ref().into(),
-					b"pallet_balances".as_ref().into(),
-					1,
-					42,
-					69,
-				).unwrap(),].try_into().unwrap()),
+				response: Response::PalletsInfo(
+					vec![PalletInfo::new(
+						1,
+						b"Balances".as_ref().into(),
+						b"pallet_balances".as_ref().into(),
+						1,
+						42,
+						69,
+					)
+					.unwrap(),]
+					.try_into()
+					.unwrap()
+				),
 				querier: Some(Here.into()),
 			}]),
 		)]

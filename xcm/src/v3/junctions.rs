@@ -138,14 +138,58 @@ impl Junctions {
 	pub fn for_each_mut(&mut self, mut x: impl FnMut(&mut Junction)) {
 		match self {
 			Junctions::Here => {},
-			Junctions::X1(a) => { x(a); },
-			Junctions::X2(a, b) => { x(a); x(b); },
-			Junctions::X3(a, b, c) => { x(a); x(b); x(c); },
-			Junctions::X4(a, b, c, d) => { x(a); x(b); x(c); x(d); },
-			Junctions::X5(a, b, c, d, e) => { x(a); x(b); x(c); x(d); x(e); },
-			Junctions::X6(a, b, c, d, e, f) => { x(a); x(b); x(c); x(d); x(e); x(f); },
-			Junctions::X7(a, b, c, d, e, f, g) => { x(a); x(b); x(c); x(d); x(e); x(f); x(g); },
-			Junctions::X8(a, b, c, d, e, f, g, h) => { x(a); x(b); x(c); x(d); x(e); x(f); x(g); x(h); },
+			Junctions::X1(a) => {
+				x(a);
+			},
+			Junctions::X2(a, b) => {
+				x(a);
+				x(b);
+			},
+			Junctions::X3(a, b, c) => {
+				x(a);
+				x(b);
+				x(c);
+			},
+			Junctions::X4(a, b, c, d) => {
+				x(a);
+				x(b);
+				x(c);
+				x(d);
+			},
+			Junctions::X5(a, b, c, d, e) => {
+				x(a);
+				x(b);
+				x(c);
+				x(d);
+				x(e);
+			},
+			Junctions::X6(a, b, c, d, e, f) => {
+				x(a);
+				x(b);
+				x(c);
+				x(d);
+				x(e);
+				x(f);
+			},
+			Junctions::X7(a, b, c, d, e, f, g) => {
+				x(a);
+				x(b);
+				x(c);
+				x(d);
+				x(e);
+				x(f);
+				x(g);
+			},
+			Junctions::X8(a, b, c, d, e, f, g, h) => {
+				x(a);
+				x(b);
+				x(c);
+				x(d);
+				x(e);
+				x(f);
+				x(g);
+				x(h);
+			},
 		}
 	}
 

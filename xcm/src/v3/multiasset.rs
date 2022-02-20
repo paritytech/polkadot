@@ -25,10 +25,10 @@
 
 use super::MultiLocation;
 use crate::v2::{
-	AssetId as OldAssetId, MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
-	MultiAssets as OldMultiAssets, WildMultiAsset as OldWildMultiAsset,
-	AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
-	WildFungibility as OldWildFungibility,
+	AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
+	MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
+	MultiAssets as OldMultiAssets, WildFungibility as OldWildFungibility,
+	WildMultiAsset as OldWildMultiAsset,
 };
 use alloc::{vec, vec::Vec};
 use core::{
@@ -72,7 +72,7 @@ impl TryFrom<OldAssetInstance> for AssetInstance {
 			Array8(n) => Self::Array8(n),
 			Array16(n) => Self::Array16(n),
 			Array32(n) => Self::Array32(n),
-			Blob(_) => return Err(())
+			Blob(_) => return Err(()),
 		})
 	}
 }
@@ -147,7 +147,9 @@ impl TryFrom<OldFungibility> for Fungibility {
 }
 
 /// Classification of whether an asset is fungible or not.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen,
+)]
 pub enum WildFungibility {
 	Fungible,
 	NonFungible,
@@ -530,7 +532,8 @@ impl TryFrom<(OldWildMultiAsset, u32)> for WildMultiAsset {
 		use OldWildMultiAsset::*;
 		let count = old.1;
 		Ok(match old.0 {
-			AllOf { id, fun } => Self::AllOfCounted { id: id.try_into()?, fun: fun.try_into()?, count },
+			AllOf { id, fun } =>
+				Self::AllOfCounted { id: id.try_into()?, fun: fun.try_into()?, count },
 			All => Self::AllCounted(count),
 		})
 	}

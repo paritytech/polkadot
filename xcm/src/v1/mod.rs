@@ -62,7 +62,7 @@
 
 use crate::{
 	v2::{Instruction, Response as NewResponse, Xcm as NewXcm},
-	v3::{NetworkId as NewNetworkId, BodyId as NewBodyId, BodyPart as NewBodyPart},
+	v3::{BodyId as NewBodyId, BodyPart as NewBodyPart, NetworkId as NewNetworkId},
 	DoubleEncoded,
 };
 use alloc::vec::Vec;

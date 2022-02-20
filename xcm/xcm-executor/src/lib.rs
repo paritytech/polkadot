@@ -30,9 +30,9 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	validate_export, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FeeReason,
-	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
-	VersionChangeNotifier, WeightBounds, WeightTrader, AssetLock, Enact, AssetExchange,
+	validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
+	ExportXcm, FeeManager, FeeReason, FilterAssetLocation, OnResponse, ShouldExecute,
+	TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -72,34 +72,90 @@ pub struct XcmExecutor<Config: config::Config> {
 
 #[cfg(feature = "runtime-benchmarks")]
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn holding(&self) -> &Assets { &self.holding }
-	pub fn set_holding(&mut self, v: Assets) { self.holding = v }
-	pub fn holding_limit(&self) -> &usize { &self.holding_limit }
-	pub fn set_holding_limit(&mut self, v: usize) { self.holding_limit = v }
-	pub fn origin(&self) -> &Option<MultiLocation> { &self.origin }
-	pub fn set_origin(&mut self, v: Option<MultiLocation>) { self.origin = v }
-	pub fn original_origin(&self) -> &MultiLocation { &self.original_origin }
-	pub fn set_original_origin(&mut self, v: MultiLocation) { self.original_origin = v }
-	pub fn trader(&self) -> &Config::Trader { &self.trader }
-	pub fn set_trader(&mut self, v: Config::Trader) { self.trader = v }
-	pub fn error(&self) -> &Option<(u32, XcmError)> { &self.error }
-	pub fn set_error(&mut self, v: Option<(u32, XcmError)>) { self.error = v }
-	pub fn total_surplus(&self) -> &u64 { &self.total_surplus }
-	pub fn set_total_surplus(&mut self, v: u64) { self.total_surplus = v }
-	pub fn total_refunded(&self) -> &u64 { &self.total_refunded }
-	pub fn set_total_refunded(&mut self, v: u64) { self.total_refunded = v }
-	pub fn error_handler(&self) -> &Xcm<Config::Call> { &self.error_handler }
-	pub fn set_error_handler(&mut self, v: Xcm<Config::Call>) { self.error_handler = v }
-	pub fn error_handler_weight(&self) -> &u64 { &self.error_handler_weight }
-	pub fn set_error_handler_weight(&mut self, v: u64) { self.error_handler_weight = v }
-	pub fn appendix(&self) -> &Xcm<Config::Call> { &self.appendix }
-	pub fn set_appendix(&mut self, v: Xcm<Config::Call>) { self.appendix = v }
-	pub fn appendix_weight(&self) -> &u64 { &self.appendix_weight }
-	pub fn set_appendix_weight(&mut self, v: u64) { self.appendix_weight = v }
-	pub fn transact_status(&self) -> &MaybeErrorCode { &self.transact_status }
-	pub fn set_transact_status(&mut self, v: MaybeErrorCode) { self.transact_status = v }
-	pub fn fees_mode(&self) -> &FeesMode { &self.fees_mode }
-	pub fn set_fees_mode(&mut self, v: FeesMode) { self.fees_mode = v }
+	pub fn holding(&self) -> &Assets {
+		&self.holding
+	}
+	pub fn set_holding(&mut self, v: Assets) {
+		self.holding = v
+	}
+	pub fn holding_limit(&self) -> &usize {
+		&self.holding_limit
+	}
+	pub fn set_holding_limit(&mut self, v: usize) {
+		self.holding_limit = v
+	}
+	pub fn origin(&self) -> &Option<MultiLocation> {
+		&self.origin
+	}
+	pub fn set_origin(&mut self, v: Option<MultiLocation>) {
+		self.origin = v
+	}
+	pub fn original_origin(&self) -> &MultiLocation {
+		&self.original_origin
+	}
+	pub fn set_original_origin(&mut self, v: MultiLocation) {
+		self.original_origin = v
+	}
+	pub fn trader(&self) -> &Config::Trader {
+		&self.trader
+	}
+	pub fn set_trader(&mut self, v: Config::Trader) {
+		self.trader = v
+	}
+	pub fn error(&self) -> &Option<(u32, XcmError)> {
+		&self.error
+	}
+	pub fn set_error(&mut self, v: Option<(u32, XcmError)>) {
+		self.error = v
+	}
+	pub fn total_surplus(&self) -> &u64 {
+		&self.total_surplus
+	}
+	pub fn set_total_surplus(&mut self, v: u64) {
+		self.total_surplus = v
+	}
+	pub fn total_refunded(&self) -> &u64 {
+		&self.total_refunded
+	}
+	pub fn set_total_refunded(&mut self, v: u64) {
+		self.total_refunded = v
+	}
+	pub fn error_handler(&self) -> &Xcm<Config::Call> {
+		&self.error_handler
+	}
+	pub fn set_error_handler(&mut self, v: Xcm<Config::Call>) {
+		self.error_handler = v
+	}
+	pub fn error_handler_weight(&self) -> &u64 {
+		&self.error_handler_weight
+	}
+	pub fn set_error_handler_weight(&mut self, v: u64) {
+		self.error_handler_weight = v
+	}
+	pub fn appendix(&self) -> &Xcm<Config::Call> {
+		&self.appendix
+	}
+	pub fn set_appendix(&mut self, v: Xcm<Config::Call>) {
+		self.appendix = v
+	}
+	pub fn appendix_weight(&self) -> &u64 {
+		&self.appendix_weight
+	}
+	pub fn set_appendix_weight(&mut self, v: u64) {
+		self.appendix_weight = v
+	}
+	pub fn transact_status(&self) -> &MaybeErrorCode {
+		&self.transact_status
+	}
+	pub fn set_transact_status(&mut self, v: MaybeErrorCode) {
+		self.transact_status = v
+	}
+	pub fn fees_mode(&self) -> &FeesMode {
+		&self.fees_mode
+	}
+	pub fn set_fees_mode(&mut self, v: FeesMode) {
+		self.fees_mode = v
+	}
 }
 
 pub struct WeighedMessage<Call>(Weight, Xcm<Call>);
@@ -165,10 +221,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		vm.post_execute(xcm_weight)
 	}
 
-	fn charge_fees(
-		origin: impl Into<MultiLocation>,
-		fees: MultiAssets,
-	) -> XcmResult {
+	fn charge_fees(origin: impl Into<MultiLocation>, fees: MultiAssets) -> XcmResult {
 		let origin = origin.into();
 		if !Config::FeeManager::is_waived(Some(&origin), FeeReason::ChargeFees) {
 			for asset in fees.inner() {
@@ -610,14 +663,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let pallets = Config::PalletInstancesInfo::infos()
 					.into_iter()
 					.filter(|x| x.module_name.as_bytes() == &module_name[..])
-					.map(|x| PalletInfo::new(
-						x.index as u32,
-						x.name.as_bytes().into(),
-						x.module_name.as_bytes().into(),
-						x.crate_version.major as u32,
-						x.crate_version.minor as u32,
-						x.crate_version.patch as u32,
-					))
+					.map(|x| {
+						PalletInfo::new(
+							x.index as u32,
+							x.name.as_bytes().into(),
+							x.module_name.as_bytes().into(),
+							x.crate_version.major as u32,
+							x.crate_version.minor as u32,
+							x.crate_version.patch as u32,
+						)
+					})
 					.collect::<Result<Vec<_>, XcmError>>()?;
 				let QueryResponseInfo { destination, query_id, max_weight } = response_info;
 				let response = Response::PalletsInfo(pallets.try_into()?);
@@ -677,10 +732,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			LockAsset { asset, unlocker } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				let remote_asset = Self::try_reanchor(asset.clone(), &unlocker)?;
-				let lock_ticket = Config::AssetLocker::prepare_lock(unlocker.clone(), asset, origin.clone())?;
-				let msg = Xcm::<()>(vec![
-					NoteUnlockable { asset: remote_asset, owner: origin.clone() },
-				]);
+				let lock_ticket =
+					Config::AssetLocker::prepare_lock(unlocker.clone(), asset, origin.clone())?;
+				let msg =
+					Xcm::<()>(vec![NoteUnlockable { asset: remote_asset, owner: origin.clone() }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(unlocker, msg)?;
 				self.take_fee(price, FeeReason::LockAsset)?;
 				lock_ticket.enact()?;
@@ -700,10 +755,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			RequestUnlock { asset, locker } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?;
-				let reduce_ticket = Config::AssetLocker::prepare_reduce_unlockable(locker.clone(), asset, origin.clone())?;
-				let msg = Xcm::<()>(vec![
-					UnlockAsset { asset: remote_asset, target: origin.clone() },
-				]);
+				let reduce_ticket = Config::AssetLocker::prepare_reduce_unlockable(
+					locker.clone(),
+					asset,
+					origin.clone(),
+				)?;
+				let msg =
+					Xcm::<()>(vec![UnlockAsset { asset: remote_asset, target: origin.clone() }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(locker, msg)?;
 				self.take_fee(price, FeeReason::RequestUnlock)?;
 				reduce_ticket.enact()?;
@@ -728,7 +786,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			SetFeesMode { jit_withdraw } => {
 				self.fees_mode = FeesMode { jit_withdraw };
 				Ok(())
-			}
+			},
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
@@ -789,7 +847,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(())
 	}
 
-	fn try_reanchor(asset: MultiAsset, destination: &MultiLocation) -> Result<MultiAsset, XcmError> {
+	fn try_reanchor(
+		asset: MultiAsset,
+		destination: &MultiLocation,
+	) -> Result<MultiAsset, XcmError> {
 		let context = Config::LocationInverter::universal_location().into();
 		asset.reanchored(&destination, &context).map_err(|()| XcmError::ReanchorFailed)
 	}

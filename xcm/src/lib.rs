@@ -368,7 +368,7 @@ versioned_type! {
 	}
 }
 
-versioned_type!{
+versioned_type! {
 	/// A single `MultiAsset` value, together with its version code.
 	pub enum VersionedMultiAsset {
 		V1(v1::MultiAsset),
@@ -514,8 +514,8 @@ pub type AlwaysLts = AlwaysV3;
 
 pub mod prelude {
 	pub use super::{
-		latest::prelude::*, AlwaysLatest, AlwaysLts, AlwaysV2, AlwaysV3, IntoVersion,
-		Unsupported, Version as XcmVersion, VersionedAssetId, VersionedInteriorMultiLocation,
+		latest::prelude::*, AlwaysLatest, AlwaysLts, AlwaysV2, AlwaysV3, IntoVersion, Unsupported,
+		Version as XcmVersion, VersionedAssetId, VersionedInteriorMultiLocation,
 		VersionedMultiAsset, VersionedMultiAssets, VersionedMultiLocation, VersionedResponse,
 		VersionedXcm, WrapVersion,
 	};

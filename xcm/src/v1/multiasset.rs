@@ -25,10 +25,10 @@
 
 use super::MultiLocation;
 use crate::v3::{
-	AssetId as NewAssetId, MultiAsset as NewMultiAsset, MultiAssetFilter as NewMultiAssetFilter,
-	MultiAssets as NewMultiAssets, WildMultiAsset as NewWildMultiAsset,
-	AssetInstance as NewAssetInstance, Fungibility as NewFungibility,
-	WildFungibility as NewWildFungibility,
+	AssetId as NewAssetId, AssetInstance as NewAssetInstance, Fungibility as NewFungibility,
+	MultiAsset as NewMultiAsset, MultiAssetFilter as NewMultiAssetFilter,
+	MultiAssets as NewMultiAssets, WildFungibility as NewWildFungibility,
+	WildMultiAsset as NewWildMultiAsset,
 };
 use alloc::{vec, vec::Vec};
 use core::{

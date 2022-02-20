@@ -720,12 +720,8 @@ mod tests {
 		);
 		assert_eq!(v1::MultiLocation::from(v1::Parent).try_into(), Ok(MultiLocation::parent()));
 		assert_eq!(
-			v1::MultiLocation::from((
-				v1::Parent,
-				v1::Parent,
-				v1::Junction::GeneralIndex(42u128),
-			))
-			.try_into(),
+			v1::MultiLocation::from((v1::Parent, v1::Parent, v1::Junction::GeneralIndex(42u128),))
+				.try_into(),
 			Ok(MultiLocation { parents: 2, interior: X1(GeneralIndex(42u128)) }),
 		);
 	}

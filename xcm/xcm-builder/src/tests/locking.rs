@@ -31,9 +31,10 @@ fn lock_roundtrip_should_work() {
 		(3u64,),
 		Xcm(vec![
 			WithdrawAsset((Parent, 100).into()),
-			SetAppendix(vec![
-				DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }
-			].into()),
+			SetAppendix(
+				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
+					.into(),
+			),
 			LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
 		]),
 		50,
@@ -45,24 +46,22 @@ fn lock_roundtrip_should_work() {
 		sent_xcm(),
 		vec![(
 			(Parent, Parachain(1)).into(),
-			Xcm::<()>(vec![
-				NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100).into() },
-			]),
+			Xcm::<()>(vec![NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100).into() },]),
 		)]
 	);
-	assert_eq!(take_lock_trace(), vec![Lock {
-		asset: (Parent, 100).into(),
-		owner: (3u64,).into(),
-		unlocker: (Parent, Parachain(1)).into(),
-	}]);
+	assert_eq!(
+		take_lock_trace(),
+		vec![Lock {
+			asset: (Parent, 100).into(),
+			owner: (3u64,).into(),
+			unlocker: (Parent, Parachain(1)).into(),
+		}]
+	);
 
 	// Now we'll unlock it.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(Parent, Parachain(1)),
-		Xcm(vec![UnlockAsset {
-			asset: (Parent, 100).into(),
-			target: (3u64,).into(),
-		}]),
+		Xcm(vec![UnlockAsset { asset: (Parent, 100).into(), target: (3u64,).into() }]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -141,28 +140,29 @@ fn remote_unlock_roundtrip_should_work() {
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(Parent, Parachain(1)),
-		Xcm(vec![NoteUnlockable {
-			asset: (Parent, 100).into(),
-			owner: (3u64,).into(),
-		}]),
+		Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(take_lock_trace(), vec![Note {
-		asset: (Parent, 100).into(),
-		owner: (3u64,).into(),
-		locker: (Parent, Parachain(1)).into(),
-	}]);
+	assert_eq!(
+		take_lock_trace(),
+		vec![Note {
+			asset: (Parent, 100).into(),
+			owner: (3u64,).into(),
+			locker: (Parent, Parachain(1)).into(),
+		}]
+	);
 
 	// Let's request those funds be unlocked.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
 		Xcm(vec![
 			WithdrawAsset((Parent, 100).into()),
-			SetAppendix(vec![
-				DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }
-			].into()),
-			RequestUnlock { asset: (Parent, 100).into(), locker: (Parent, Parachain(1)).into() }
+			SetAppendix(
+				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
+					.into(),
+			),
+			RequestUnlock { asset: (Parent, 100).into(), locker: (Parent, Parachain(1)).into() },
 		]),
 		50,
 	);
@@ -173,16 +173,17 @@ fn remote_unlock_roundtrip_should_work() {
 		sent_xcm(),
 		vec![(
 			(Parent, Parachain(1)).into(),
-			Xcm::<()>(vec![
-				UnlockAsset { target: (3u64,).into(), asset: (Parent, 100).into() },
-			]),
+			Xcm::<()>(vec![UnlockAsset { target: (3u64,).into(), asset: (Parent, 100).into() },]),
 		)]
 	);
-	assert_eq!(take_lock_trace(), vec![Reduce {
-		asset: (Parent, 100).into(),
-		owner: (3u64,).into(),
-		locker: (Parent, Parachain(1)).into(),
-	}]);
+	assert_eq!(
+		take_lock_trace(),
+		vec![Reduce {
+			asset: (Parent, 100).into(),
+			owner: (3u64,).into(),
+			locker: (Parent, Parachain(1)).into(),
+		}]
+	);
 }
 
 #[test]
@@ -210,10 +211,7 @@ fn remote_unlock_should_fail_correctly() {
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(Parent, Parachain(1)),
-		Xcm(vec![NoteUnlockable {
-			asset: (Parent, 100).into(),
-			owner: (3u64,).into(),
-		}]),
+		Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));

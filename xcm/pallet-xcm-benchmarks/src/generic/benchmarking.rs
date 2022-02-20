@@ -19,8 +19,8 @@ use crate::{new_executor, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
-use sp_std::vec;
 use sp_io::hashing::blake2_256;
+use sp_std::vec;
 use xcm::{
 	latest::{prelude::*, MaybeErrorCode, MultiAssets},
 	DoubleEncoded,

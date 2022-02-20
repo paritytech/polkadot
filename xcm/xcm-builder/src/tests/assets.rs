@@ -25,9 +25,10 @@ fn exchange_asset_should_work() {
 		Parent,
 		Xcm(vec![
 			WithdrawAsset((Parent, 100).into()),
-			SetAppendix(vec![
-				DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }
-			].into()),
+			SetAppendix(
+				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }]
+					.into(),
+			),
 			ExchangeAsset {
 				give: Definite((Parent, 50).into()),
 				want: (Here, 50).into(),
@@ -50,9 +51,10 @@ fn exchange_asset_without_maximal_should_work() {
 		Parent,
 		Xcm(vec![
 			WithdrawAsset((Parent, 100).into()),
-			SetAppendix(vec![
-				DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }
-			].into()),
+			SetAppendix(
+				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }]
+					.into(),
+			),
 			ExchangeAsset {
 				give: Definite((Parent, 50).into()),
 				want: (Here, 50).into(),
@@ -75,9 +77,10 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 		Parent,
 		Xcm(vec![
 			WithdrawAsset((Parent, 150).into()),
-			SetAppendix(vec![
-				DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }
-			].into()),
+			SetAppendix(
+				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: Parent.into() }]
+					.into(),
+			),
 			ExchangeAsset {
 				give: Definite((Parent, 150).into()),
 				want: (Here, 150).into(),
@@ -125,7 +128,7 @@ fn transfer_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 100).into()]);
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }
@@ -224,7 +227,7 @@ fn basic_asset_trap_should_work() {
 	);
 	assert_eq!(r, Outcome::Complete(25));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
 
 	// Incorrect ticket doesn't work.
 	let old_trapped_assets = TrappedAssets::get();
@@ -241,7 +244,7 @@ fn basic_asset_trap_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	// Incorrect origin doesn't work.
@@ -259,7 +262,7 @@ fn basic_asset_trap_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	// Incorrect assets doesn't work.
@@ -277,7 +280,7 @@ fn basic_asset_trap_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -293,7 +296,7 @@ fn basic_asset_trap_should_work() {
 	);
 	assert_eq!(r, Outcome::Complete(20));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 100).into()]);
 
 	// Same again doesn't work :-)
 	let r = XcmExecutor::<TestConfig>::execute_xcm(

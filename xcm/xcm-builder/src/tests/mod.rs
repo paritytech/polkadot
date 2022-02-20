@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use core::convert::TryInto;
 use super::{test_utils::*, *};
+use core::convert::TryInto;
 use frame_support::{assert_err, traits::ConstU32, weights::constants::WEIGHT_PER_SECOND};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 

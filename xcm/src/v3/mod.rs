@@ -34,7 +34,7 @@ mod multiasset;
 mod multilocation;
 mod traits;
 
-pub use junction::{Junction, NetworkId, BodyId, BodyPart};
+pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use junctions::Junctions;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
@@ -263,7 +263,6 @@ impl From<Vec<u8>> for MaybeErrorCode {
 			v.truncate(MAX_DISPATCH_ERROR_LEN);
 			MaybeErrorCode::TruncatedError(v)
 		}
-
 	}
 }
 

@@ -39,18 +39,9 @@ impl From<LockError> for XcmError {
 		match e {
 			NotApplicable => XcmError::AssetNotFound,
 			BadOrigin => XcmError::BadOrigin,
-			WouldClobber
-			| NotLocked
-			| NotEnoughLocked
-			| Unimplemented
-			| NotTrusted
-			| BadOwner
-			| UnknownAsset
-			| AssetNotOwned
-			| NoResources
-			| UnexpectedState
-			| InUse
-			=> XcmError::LockError,
+			WouldClobber | NotLocked | NotEnoughLocked | Unimplemented | NotTrusted |
+			BadOwner | UnknownAsset | AssetNotOwned | NoResources | UnexpectedState | InUse =>
+				XcmError::LockError,
 		}
 	}
 }
@@ -62,7 +53,9 @@ pub trait Enact {
 }
 
 impl Enact for Infallible {
-	fn enact(self) -> Result<(), LockError> { unreachable!() }
+	fn enact(self) -> Result<(), LockError> {
+		unreachable!()
+	}
 }
 
 /// Define a handler for notification of an asset being locked and for the unlock instruction.
@@ -108,7 +101,11 @@ pub trait AssetLock {
 	/// sending chain can ensure the lock does not remain.
 	///
 	/// We should only act upon this message if we believe that the `origin` is honest.
-	fn note_unlockable(locker: MultiLocation, asset: MultiAsset, owner: MultiLocation) -> Result<(), LockError>;
+	fn note_unlockable(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<(), LockError>;
 
 	/// Handler for when an owner wishes to unlock an asset on a remote chain.
 	///
@@ -127,10 +124,18 @@ impl AssetLock for () {
 	type LockTicket = Infallible;
 	type UnlockTicket = Infallible;
 	type ReduceTicket = Infallible;
-	fn prepare_lock(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<Self::LockTicket, LockError> {
+	fn prepare_lock(
+		_: MultiLocation,
+		_: MultiAsset,
+		_: MultiLocation,
+	) -> Result<Self::LockTicket, LockError> {
 		Err(LockError::NotApplicable)
 	}
-	fn prepare_unlock(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<Self::UnlockTicket, LockError> {
+	fn prepare_unlock(
+		_: MultiLocation,
+		_: MultiAsset,
+		_: MultiLocation,
+	) -> Result<Self::UnlockTicket, LockError> {
 		Err(LockError::NotApplicable)
 	}
 	fn note_unlockable(_: MultiLocation, _: MultiAsset, _: MultiLocation) -> Result<(), LockError> {
