@@ -180,6 +180,8 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
+	type AssetLocker = ();
+	type AssetExchanger = ();
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
@@ -207,6 +209,11 @@ impl pallet_xcm::Config for Runtime {
 	type Origin = Origin;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type TrustedLockers = ();
+	type SovereignAccountOf = ();
+	type Currency = Balances;
+	type CurrencyMatcher = IsConcrete<KsmLocation>;
+	type MaxLockers = frame_support::traits::ConstU32<8>;
 }
 
 impl origin::Config for Runtime {}

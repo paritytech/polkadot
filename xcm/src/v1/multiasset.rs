@@ -25,8 +25,10 @@
 
 use super::MultiLocation;
 use crate::v3::{
-	AssetId as NewAssetId, MultiAsset as NewMultiAsset, MultiAssetFilter as NewMultiAssetFilter,
-	MultiAssets as NewMultiAssets, WildMultiAsset as NewWildMultiAsset,
+	AssetId as NewAssetId, AssetInstance as NewAssetInstance, Fungibility as NewFungibility,
+	MultiAsset as NewMultiAsset, MultiAssetFilter as NewMultiAssetFilter,
+	MultiAssets as NewMultiAssets, WildFungibility as NewWildFungibility,
+	WildMultiAsset as NewWildMultiAsset,
 };
 use alloc::{vec, vec::Vec};
 use core::{
@@ -98,6 +100,21 @@ impl From<Vec<u8>> for AssetInstance {
 	}
 }
 
+impl TryFrom<NewAssetInstance> for AssetInstance {
+	type Error = ();
+	fn try_from(value: NewAssetInstance) -> Result<Self, Self::Error> {
+		use NewAssetInstance::*;
+		Ok(match value {
+			Undefined => Self::Undefined,
+			Index(n) => Self::Index(n),
+			Array4(n) => Self::Array4(n),
+			Array8(n) => Self::Array8(n),
+			Array16(n) => Self::Array16(n),
+			Array32(n) => Self::Array32(n),
+		})
+	}
+}
+
 /// Classification of an asset being concrete or abstract.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum AssetId {
@@ -123,7 +140,10 @@ impl TryFrom<NewAssetId> for AssetId {
 		use NewAssetId::*;
 		Ok(match old {
 			Concrete(l) => Self::Concrete(l.try_into()?),
-			Abstract(v) => Self::Abstract(v),
+			Abstract(v) => {
+				let zeroes = v.iter().rev().position(|n| *n != 0).unwrap_or(v.len());
+				Self::Abstract(v[0..(32 - zeroes)].to_vec())
+			},
 		})
 	}
 }
@@ -183,6 +203,17 @@ impl From<u128> for Fungibility {
 impl<T: Into<AssetInstance>> From<T> for Fungibility {
 	fn from(instance: T) -> Fungibility {
 		Fungibility::NonFungible(instance.into())
+	}
+}
+
+impl TryFrom<NewFungibility> for Fungibility {
+	type Error = ();
+	fn try_from(value: NewFungibility) -> Result<Self, Self::Error> {
+		use NewFungibility::*;
+		Ok(match value {
+			Fungible(n) => Self::Fungible(n),
+			NonFungible(i) => Self::NonFungible(i.try_into()?),
+		})
 	}
 }
 
@@ -264,7 +295,7 @@ impl MultiAsset {
 impl TryFrom<NewMultiAsset> for MultiAsset {
 	type Error = ();
 	fn try_from(new: NewMultiAsset) -> Result<Self, ()> {
-		Ok(Self { id: new.id.try_into()?, fun: new.fun })
+		Ok(Self { id: new.id.try_into()?, fun: new.fun.try_into()? })
 	}
 }
 
@@ -283,7 +314,7 @@ impl TryFrom<NewMultiAssets> for MultiAssets {
 	type Error = ();
 	fn try_from(new: NewMultiAssets) -> Result<Self, ()> {
 		let v = new
-			.drain()
+			.into_inner()
 			.into_iter()
 			.map(MultiAsset::try_from)
 			.collect::<Result<Vec<_>, ()>>()?;
@@ -440,6 +471,17 @@ pub enum WildFungibility {
 	NonFungible,
 }
 
+impl TryFrom<NewWildFungibility> for WildFungibility {
+	type Error = ();
+	fn try_from(value: NewWildFungibility) -> Result<Self, Self::Error> {
+		use NewWildFungibility::*;
+		Ok(match value {
+			Fungible => Self::Fungible,
+			NonFungible => Self::NonFungible,
+		})
+	}
+}
+
 /// A wildcard representing a set of assets.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum WildMultiAsset {
@@ -543,7 +585,7 @@ impl TryFrom<NewWildMultiAsset> for WildMultiAsset {
 		use NewWildMultiAsset::*;
 		Ok(match new {
 			AllOf { id, fun } | AllOfCounted { id, fun, .. } =>
-				Self::AllOf { id: id.try_into()?, fun },
+				Self::AllOf { id: id.try_into()?, fun: fun.try_into()? },
 			All | AllCounted(_) => Self::All,
 		})
 	}

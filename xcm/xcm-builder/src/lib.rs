@@ -21,10 +21,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
-mod bridging_tests;
-#[cfg(test)]
-mod mock;
-#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "std")]
@@ -60,8 +56,6 @@ pub use fungibles_adapter::{
 };
 
 mod weight;
-#[allow(deprecated)]
-pub use weight::FixedRateOfConcreteFungible;
 pub use weight::{
 	FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents, WeightInfoBounds,
 };

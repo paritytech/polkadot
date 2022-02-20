@@ -19,6 +19,7 @@ use crate::{new_executor, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
+use sp_io::hashing::blake2_256;
 use sp_std::vec;
 use xcm::{
 	latest::{prelude::*, MaybeErrorCode, MultiAssets},
@@ -31,7 +32,7 @@ benchmarks! {
 		let holding = T::worst_case_holding(0);
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.clone().into();
+		executor.set_holding(holding.clone().into());
 
 		let instruction = Instruction::<XcmCallOf<T>>::ReportHolding {
 			response_info: QueryResponseInfo {
@@ -57,7 +58,7 @@ benchmarks! {
 		let holding = T::worst_case_holding(0).into();
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
+		executor.set_holding(holding);
 
 		let fee_asset = Concrete(Here.into());
 
@@ -79,7 +80,7 @@ benchmarks! {
 		const MAX_ASSETS: u32 = 100; // TODO when executor has a built in limit, use it here. #4426
 		let mut executor = new_executor::<T>(Default::default());
 		let assets = (0..MAX_ASSETS).map(|i| MultiAsset {
-			id: Abstract(i.encode()),
+			id: Abstract(i.using_encoded(blake2_256)),
 			fun: Fungible(i as u128),
 
 		}).collect::<vec::Vec<_>>();
@@ -90,7 +91,7 @@ benchmarks! {
 	}: {
 		executor.execute(xcm).map_err(|_| BenchmarkError::Skip)?;
 	} verify {
-		assert_eq!(executor.holding, multiassets.into());
+		assert_eq!(executor.holding(), &multiassets.into());
 	}
 
 	query_response {
@@ -136,17 +137,17 @@ benchmarks! {
 	refund_surplus {
 		let holding = T::worst_case_holding(0).into();
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding;
-		executor.total_surplus = 1337;
-		executor.total_refunded = 0;
+		executor.set_holding(holding);
+		executor.set_total_surplus(1337);
+		executor.set_total_refunded(0);
 
 		let instruction = Instruction::<XcmCallOf<T>>::RefundSurplus;
 		let xcm = Xcm(vec![instruction]);
 	} : {
 		let result = executor.execute(xcm)?;
 	} verify {
-		assert_eq!(executor.total_surplus, 1337);
-		assert_eq!(executor.total_refunded, 1337);
+		assert_eq!(executor.total_surplus(), &1337);
+		assert_eq!(executor.total_refunded(), &1337);
 	}
 
 	set_error_handler {
@@ -156,7 +157,7 @@ benchmarks! {
 	} : {
 		executor.execute(xcm)?;
 	} verify {
-		assert_eq!(executor.error_handler, Xcm(vec![]));
+		assert_eq!(executor.error_handler(), &Xcm(vec![]));
 	}
 
 	set_appendix {
@@ -167,18 +168,18 @@ benchmarks! {
 	} : {
 		executor.execute(xcm)?;
 	} verify {
-		assert_eq!(executor.appendix, Xcm(vec![]));
+		assert_eq!(executor.appendix(), &Xcm(vec![]));
 	}
 
 	clear_error {
 		let mut executor = new_executor::<T>(Default::default());
-		executor.error = Some((5u32, XcmError::Overflow));
+		executor.set_error(Some((5u32, XcmError::Overflow)));
 		let instruction = Instruction::<XcmCallOf<T>>::ClearError;
 		let xcm = Xcm(vec![instruction]);
 	} : {
 		executor.execute(xcm)?;
 	} verify {
-		assert!(executor.error.is_none())
+		assert!(executor.error().is_none())
 	}
 
 	descend_origin {
@@ -190,8 +191,8 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 		assert_eq!(
-			executor.origin,
-			Some(MultiLocation {
+			executor.origin(),
+			&Some(MultiLocation {
 				parents: 0,
 				interior: who,
 			}),
@@ -205,12 +206,12 @@ benchmarks! {
 	} : {
 		executor.execute(xcm)?;
 	} verify {
-		assert_eq!(executor.origin, None);
+		assert_eq!(executor.origin(), &None);
 	}
 
 	report_error {
 		let mut executor = new_executor::<T>(Default::default());
-		executor.error = Some((0u32, XcmError::Unimplemented));
+		executor.set_error(Some((0u32, XcmError::Unimplemented)));
 		let query_id = Default::default();
 		let destination = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
 		let max_weight = Default::default();
@@ -244,7 +245,7 @@ benchmarks! {
 	} :{
 		executor.execute(xcm)?;
 	} verify {
-		assert!(executor.holding.ensure_contains(&assets).is_ok());
+		assert!(executor.holding().ensure_contains(&assets).is_ok());
 	}
 
 	trap {
@@ -303,7 +304,7 @@ benchmarks! {
 		let assets_filter = MultiAssetFilter::Definite(holding.clone());
 		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.set_holding(holding.into());
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
 	}: {
@@ -318,14 +319,14 @@ benchmarks! {
 		let assets = holding.clone();
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.set_holding(holding.into());
 
 		let instruction = Instruction::BurnAsset(assets.into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.execute(xcm)?;
 	} verify {
-		assert!(executor.holding.is_empty());
+		assert!(executor.holding().is_empty());
 	}
 
 	expect_asset {
@@ -333,7 +334,7 @@ benchmarks! {
 		let assets = holding.clone();
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.set_holding(holding.into());
 
 		let instruction = Instruction::ExpectAsset(assets.into());
 		let xcm = Xcm(vec![instruction]);
@@ -361,7 +362,7 @@ benchmarks! {
 
 	expect_error {
 		let mut executor = new_executor::<T>(Default::default());
-		executor.error = Some((3u32, XcmError::Overflow));
+		executor.set_error(Some((3u32, XcmError::Overflow)));
 
 		let instruction = Instruction::ExpectError(None);
 		let xcm = Xcm(vec![instruction]);
@@ -415,7 +416,7 @@ benchmarks! {
 		let max_weight = Default::default();
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+		executor.set_transact_status(b"MyError".to_vec().into());
 
 		let instruction = Instruction::ReportTransactStatus(QueryResponseInfo {
 			query_id,
@@ -431,14 +432,14 @@ benchmarks! {
 
 	clear_transact_status {
 		let mut executor = new_executor::<T>(Default::default());
-		executor.transact_status = MaybeErrorCode::Error(b"MyError".to_vec());
+		executor.set_transact_status(MaybeErrorCode::Error(b"MyError".to_vec()));
 
 		let instruction = Instruction::ClearTransactStatus;
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.execute(xcm)?;
 	} verify {
-		assert_eq!(executor.transact_status, MaybeErrorCode::Success);
+		assert_eq!(executor.transact_status(), &MaybeErrorCode::Success);
 	}
 
 	impl_benchmark_test_suite!(

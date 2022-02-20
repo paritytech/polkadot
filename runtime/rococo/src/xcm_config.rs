@@ -43,7 +43,7 @@ parameter_types! {
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
-pub type SovereignAccountOf =
+pub type LocationConverter =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
@@ -52,7 +52,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency when it is a fungible asset matching the given location or name:
 	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
-	SovereignAccountOf,
+	LocationConverter,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// It's a native asset so we keep track of the teleports to maintain total issuance.
@@ -60,7 +60,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 >;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<LocationConverter, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	SignedAccountId32AsNative<ThisNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
@@ -135,6 +135,8 @@ impl xcm_executor::Config for XcmConfig {
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
+	type AssetLocker = ();
+	type AssetExchanger = ();
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
@@ -175,4 +177,9 @@ impl pallet_xcm::Config for Runtime {
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type Currency = Balances;
+	type CurrencyMatcher = IsConcrete<TokenLocation>;
+	type TrustedLockers = ();
+	type SovereignAccountOf = LocationConverter;
+	type MaxLockers = frame_support::traits::ConstU32<8>;
 }
