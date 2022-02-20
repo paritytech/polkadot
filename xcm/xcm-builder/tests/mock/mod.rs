@@ -211,6 +211,9 @@ impl pallet_xcm::Config for Runtime {
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 	type TrustedLockers = ();
 	type SovereignAccountOf = ();
+	type Currency = Balances;
+	type CurrencyMatcher = IsConcrete<KsmLocation>;
+	type MaxLockers = frame_support::traits::ConstU32<8>;
 }
 
 impl origin::Config for Runtime {}

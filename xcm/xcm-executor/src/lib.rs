@@ -41,7 +41,7 @@ mod config;
 pub use config::Config;
 
 #[derive(Copy, Clone)]
-struct FeesMode {
+pub struct FeesMode {
 	pub jit_withdraw: bool,
 }
 
@@ -68,6 +68,38 @@ pub struct XcmExecutor<Config: config::Config> {
 	transact_status: MaybeErrorCode,
 	fees_mode: FeesMode,
 	_config: PhantomData<Config>,
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+impl<Config: config::Config> XcmExecutor<Config> {
+	pub fn holding(&self) -> &Assets { &self.holding }
+	pub fn set_holding(&mut self, v: Assets) { self.holding = v }
+	pub fn holding_limit(&self) -> &usize { &self.holding_limit }
+	pub fn set_holding_limit(&mut self, v: usize) { self.holding_limit = v }
+	pub fn origin(&self) -> &Option<MultiLocation> { &self.origin }
+	pub fn set_origin(&mut self, v: Option<MultiLocation>) { self.origin = v }
+	pub fn original_origin(&self) -> &MultiLocation { &self.original_origin }
+	pub fn set_original_origin(&mut self, v: MultiLocation) { self.original_origin = v }
+	pub fn trader(&self) -> &Config::Trader { &self.trader }
+	pub fn set_trader(&mut self, v: Config::Trader) { self.trader = v }
+	pub fn error(&self) -> &Option<(u32, XcmError)> { &self.error }
+	pub fn set_error(&mut self, v: Option<(u32, XcmError)>) { self.error = v }
+	pub fn total_surplus(&self) -> &u64 { &self.total_surplus }
+	pub fn set_total_surplus(&mut self, v: u64) { self.total_surplus = v }
+	pub fn total_refunded(&self) -> &u64 { &self.total_refunded }
+	pub fn set_total_refunded(&mut self, v: u64) { self.total_refunded = v }
+	pub fn error_handler(&self) -> &Xcm<Config::Call> { &self.error_handler }
+	pub fn set_error_handler(&mut self, v: Xcm<Config::Call>) { self.error_handler = v }
+	pub fn error_handler_weight(&self) -> &u64 { &self.error_handler_weight }
+	pub fn set_error_handler_weight(&mut self, v: u64) { self.error_handler_weight = v }
+	pub fn appendix(&self) -> &Xcm<Config::Call> { &self.appendix }
+	pub fn set_appendix(&mut self, v: Xcm<Config::Call>) { self.appendix = v }
+	pub fn appendix_weight(&self) -> &u64 { &self.appendix_weight }
+	pub fn set_appendix_weight(&mut self, v: u64) { self.appendix_weight = v }
+	pub fn transact_status(&self) -> &MaybeErrorCode { &self.transact_status }
+	pub fn set_transact_status(&mut self, v: MaybeErrorCode) { self.transact_status = v }
+	pub fn fees_mode(&self) -> &FeesMode { &self.fees_mode }
+	pub fn set_fees_mode(&mut self, v: FeesMode) { self.fees_mode = v }
 }
 
 pub struct WeighedMessage<Call>(Weight, Xcm<Call>);
