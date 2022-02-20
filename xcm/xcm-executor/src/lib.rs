@@ -319,7 +319,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
-				for asset in assets.drain().into_iter() {
+				for asset in assets.into_inner().into_iter() {
 					Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
 					self.subsume_asset(asset)?;
 				}
@@ -328,7 +328,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReserveAssetDeposited(assets) => {
 				// check whether we trust origin to be our reserve location for this asset.
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
-				for asset in assets.drain().into_iter() {
+				for asset in assets.into_inner().into_iter() {
 					// Must ensure that we recognise the asset as being managed by the origin.
 					ensure!(
 						Config::IsReserve::filter_asset_location(&asset, &origin),
@@ -374,7 +374,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// don't want to punish a possibly innocent chain/user).
 					Config::AssetTransactor::can_check_in(&origin, asset)?;
 				}
-				for asset in assets.drain().into_iter() {
+				for asset in assets.into_inner().into_iter() {
 					Config::AssetTransactor::check_in(&origin, &asset);
 					self.subsume_asset(asset)?;
 				}
@@ -542,7 +542,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				let ok = Config::AssetClaims::claim_assets(origin, &ticket, &assets);
 				ensure!(ok, XcmError::UnknownClaim);
-				for asset in assets.drain().into_iter() {
+				for asset in assets.into_inner().into_iter() {
 					self.subsume_asset(asset)?;
 				}
 				Ok(())

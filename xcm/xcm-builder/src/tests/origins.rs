@@ -55,7 +55,7 @@ fn universal_origin_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(20));
-	assert_eq!(assets((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
+	assert_eq!(asset_list((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
 }
 
 #[test]

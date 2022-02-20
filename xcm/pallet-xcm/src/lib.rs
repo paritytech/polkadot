@@ -1019,7 +1019,7 @@ impl<T: Config> Pallet<T> {
 		let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 		ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-		let value = (origin_location, assets.drain());
+		let value = (origin_location, assets.into_inner());
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		let (origin_location, assets) = value;
 		let ancestry = T::LocationInverter::universal_location().into();
@@ -1076,7 +1076,7 @@ impl<T: Config> Pallet<T> {
 		let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 		ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-		let value = (origin_location, assets.drain());
+		let value = (origin_location, assets.into_inner());
 		ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 		let (origin_location, assets) = value;
 		let ancestry = T::LocationInverter::universal_location().into();

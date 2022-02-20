@@ -456,7 +456,13 @@ impl MultiAssets {
 	}
 
 	/// Consume `self` and return the inner vec.
+	#[deprecated = "Use `into_inner()` instead"]
 	pub fn drain(self) -> Vec<MultiAsset> {
+		self.0
+	}
+
+	/// Consume `self` and return the inner vec.
+	pub fn into_inner(self) -> Vec<MultiAsset> {
 		self.0
 	}
 

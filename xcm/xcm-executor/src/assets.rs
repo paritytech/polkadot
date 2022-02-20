@@ -60,7 +60,7 @@ impl From<Vec<MultiAsset>> for Assets {
 
 impl From<MultiAssets> for Assets {
 	fn from(assets: MultiAssets) -> Assets {
-		assets.drain().into()
+		assets.into_inner().into()
 	}
 }
 
@@ -354,7 +354,7 @@ impl Assets {
 				if !saturate {
 					self.ensure_contains(&assets)?;
 				}
-				for asset in assets.drain().into_iter() {
+				for asset in assets.into_inner().into_iter() {
 					match asset {
 						MultiAsset { fun: Fungible(amount), id } => {
 							let (remove, amount) = match self.fungible.get_mut(&id) {

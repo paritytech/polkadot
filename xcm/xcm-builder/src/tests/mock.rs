@@ -29,7 +29,6 @@ pub use frame_support::{
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
-use sp_runtime::traits::Saturating;
 pub use sp_std::{
 	cell::RefCell,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -111,9 +110,13 @@ thread_local! {
 		fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
 		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<(), SendError>,
 	)>> = RefCell::new(None);
+	pub static SEND_PRICE: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
+pub fn set_send_price(p: impl Into<MultiAsset>) {
+	SEND_PRICE.with(|l| l.replace(p.into().into()));
 }
 pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
@@ -136,7 +139,7 @@ impl SendXcm for TestMessageSender {
 		msg: &mut Option<Xcm<()>>,
 	) -> SendResult<(MultiLocation, Xcm<()>)> {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
-		Ok((pair, MultiAssets::new()))
+		Ok((pair, SEND_PRICE.with(|l| l.borrow().clone())))
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
@@ -185,8 +188,11 @@ impl ExportXcm for TestMessageExporter {
 thread_local! {
 	pub static ASSETS: RefCell<BTreeMap<MultiLocation, Assets>> = RefCell::new(BTreeMap::new());
 }
-pub fn assets(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
-	ASSETS.with(|a| a.borrow().get(&who.into()).map_or(vec![], |a| a.clone().into()))
+pub fn assets(who: impl Into<MultiLocation>) -> Assets {
+	ASSETS.with(|a| a.borrow().get(&who.into()).cloned()).unwrap_or_default()
+}
+pub fn asset_list(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
+	MultiAssets::from(assets(who)).into_inner()
 }
 pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
 	ASSETS.with(|a| a.borrow_mut().entry(who.into()).or_insert(Assets::new()).subsume(what.into()));
@@ -369,28 +375,32 @@ pub type TestBarrier = (
 	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );
 
+thread_local! {
+	pub static IS_WAIVED: RefCell<Vec<FeeReason>> = RefCell::new(vec![]);
+}
+pub fn set_fee_waiver(waived: Vec<FeeReason>) {
+	IS_WAIVED.with(|l| l.replace(waived));
+}
+
 pub struct TestFeeManager;
 impl FeeManager for TestFeeManager {
 	fn is_waived(_: Option<&MultiLocation>, r: FeeReason) -> bool {
-		!matches!(r, FeeReason::Export(_))
+		IS_WAIVED.with(|l| l.borrow().contains(&r))
 	}
 	fn handle_fee(_: MultiAssets) {}
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum LockTraceItem {
 	Lock {
 		unlocker: MultiLocation,
 		asset: MultiAsset,
 		owner: MultiLocation,
-		id: u32,
-		done: bool,
 	},
 	Unlock {
 		unlocker: MultiLocation,
 		asset: MultiAsset,
 		owner: MultiLocation,
-		id: u32,
-		done: bool,
 	},
 	Note {
 		locker: MultiLocation,
@@ -401,83 +411,70 @@ pub enum LockTraceItem {
 		locker: MultiLocation,
 		asset: MultiAsset,
 		owner: MultiLocation,
-		id: u32,
-		done: bool,
 	},
 }
 thread_local! {
 	pub static NEXT_INDEX: RefCell<u32> = RefCell::new(0);
 	pub static LOCK_TRACE: RefCell<Vec<LockTraceItem>> = RefCell::new(Vec::new());
+	pub static ALLOWED_UNLOCKS: RefCell<BTreeMap<(MultiLocation, MultiLocation), Assets>> = RefCell::new(BTreeMap::new());
+	pub static ALLOWED_REQUEST_UNLOCKS: RefCell<BTreeMap<(MultiLocation, MultiLocation), Assets>> = RefCell::new(BTreeMap::new());
 }
 
 pub fn take_lock_trace() -> Vec<LockTraceItem> {
-	LOCK_TRACE.with(|l| l.replace(vec![]))
+	LOCK_TRACE.with(|l| l.replace(Vec::new()))
+}
+pub fn allow_unlock(unlocker: impl Into<MultiLocation>, asset: impl Into<MultiAsset>, owner: impl Into<MultiLocation>) {
+	ALLOWED_UNLOCKS.with(|l| l.borrow_mut().entry((owner.into(), unlocker.into())).or_default().subsume(asset.into()));
+}
+pub fn disallow_unlock(unlocker: impl Into<MultiLocation>, asset: impl Into<MultiAsset>, owner: impl Into<MultiLocation>) {
+	ALLOWED_UNLOCKS.with(|l| l.borrow_mut().entry((owner.into(), unlocker.into())).or_default().saturating_take(asset.into().into()));
+}
+pub fn unlock_allowed(unlocker: &MultiLocation, asset: &MultiAsset, owner: &MultiLocation) -> bool {
+	ALLOWED_UNLOCKS.with(|l| l.borrow_mut().get(&(owner.clone(), unlocker.clone())).map_or(false, |x| x.contains_asset(asset)))
+}
+pub fn allow_request_unlock(locker: impl Into<MultiLocation>, asset: impl Into<MultiAsset>, owner: impl Into<MultiLocation>) {
+	ALLOWED_REQUEST_UNLOCKS.with(|l| l.borrow_mut().entry((owner.into(), locker.into())).or_default().subsume(asset.into()));
+}
+pub fn disallow_request_unlock(locker: impl Into<MultiLocation>, asset: impl Into<MultiAsset>, owner: impl Into<MultiLocation>) {
+	ALLOWED_REQUEST_UNLOCKS.with(|l| l.borrow_mut().entry((owner.into(), locker.into())).or_default().saturating_take(asset.into().into()));
+}
+pub fn request_unlock_allowed(locker: &MultiLocation, asset: &MultiAsset, owner: &MultiLocation) -> bool {
+	ALLOWED_REQUEST_UNLOCKS.with(|l| l.borrow_mut().get(&(owner.clone(), locker.clone())).map_or(false, |x| x.contains_asset(asset)))
 }
 
-pub struct TestLockTicket(u32);
-impl Enact for TestLockTicket {
+pub struct TestTicket(LockTraceItem);
+impl Enact for TestTicket {
 	fn enact(self) -> Result<(), LockError> {
-		LOCK_TRACE.with(|l| for item in l.borrow_mut().iter_mut() {
-			match item {
-				LockTraceItem::Lock { id, done, .. } if !*done && *id == self.0 => {
-					*done = true;
-					return
-				},
-				_ => {},
+		match &self.0 {
+			LockTraceItem::Lock { unlocker, asset, owner } => {
+				allow_unlock(unlocker.clone(), asset.clone(), owner.clone())
 			}
-		});
-		Ok(())
-	}
-}
-pub struct TestUnlockTicket(u32);
-impl Enact for TestUnlockTicket {
-	fn enact(self) -> Result<(), LockError> {
-		LOCK_TRACE.with(|l| for item in l.borrow_mut().iter_mut() {
-			match item {
-				LockTraceItem::Unlock { id, done, .. } if !*done && *id == self.0 => {
-					*done = true;
-					return
-				},
-				_ => {},
+			LockTraceItem::Unlock { unlocker, asset, owner } => {
+				disallow_unlock(unlocker.clone(), asset.clone(), owner.clone())
 			}
-		});
-		Ok(())
-	}
-}
-pub struct TestReduceTicket(u32);
-impl Enact for TestReduceTicket {
-	fn enact(self) -> Result<(), LockError> {
-		LOCK_TRACE.with(|l| for item in l.borrow_mut().iter_mut() {
-			match item {
-				LockTraceItem::Reduce { id, done, .. } if !*done && *id == self.0 => {
-					*done = true;
-					return
-				},
-				_ => {},
+			LockTraceItem::Reduce { locker, asset, owner } => {
+				disallow_request_unlock(locker.clone(), asset.clone(), owner.clone())
 			}
-		});
+			_ => {},
+		}
+		LOCK_TRACE.with(move |l| l.borrow_mut().push(self.0));
 		Ok(())
 	}
 }
 
 pub struct TestAssetLock;
 impl AssetLock for TestAssetLock {
-	type LockTicket = TestLockTicket;
-	type UnlockTicket = TestUnlockTicket;
-	type ReduceTicket = TestReduceTicket;
+	type LockTicket = TestTicket;
+	type UnlockTicket = TestTicket;
+	type ReduceTicket = TestTicket;
 
 	fn prepare_lock(
 		unlocker: MultiLocation,
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<Self::LockTicket, LockError> {
-		if unlocker.is_here() {
-			return Err(LockError::NotApplicable)
-		}
-		let id = NEXT_INDEX.with(|x| { x.borrow_mut().saturating_accrue(1); *x.borrow() - 1 });
-		let item = LockTraceItem::Lock { unlocker, asset, owner, id, done: false };
-		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
-		Ok(TestLockTicket(id))
+		ensure!(assets(owner.clone()).contains_asset(&asset), LockError::AssetNotOwned);
+		Ok(TestTicket(LockTraceItem::Lock { unlocker, asset, owner }))
 	}
 
 	fn prepare_unlock(
@@ -485,13 +482,8 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<Self::UnlockTicket, LockError> {
-		if unlocker.is_here() {
-			return Err(LockError::NotApplicable)
-		}
-		let id = NEXT_INDEX.with(|x| { x.borrow_mut().saturating_accrue(1); *x.borrow() - 1 });
-		let item = LockTraceItem::Unlock { unlocker, asset, owner, id, done: false };
-		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
-		Ok(TestUnlockTicket(id))
+		ensure!(unlock_allowed(&unlocker, &asset, &owner), LockError::NotLocked);
+		Ok(TestTicket(LockTraceItem::Unlock { unlocker, asset, owner }))
 	}
 
 	fn note_unlockable(
@@ -499,9 +491,7 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<(), LockError> {
-		if locker.is_here() {
-			return Err(LockError::NotApplicable)
-		}
+		allow_request_unlock(locker.clone(), asset.clone(), owner.clone());
 		let item = LockTraceItem::Note { locker, asset, owner };
 		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
 		Ok(())
@@ -512,13 +502,8 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<Self::ReduceTicket, xcm_executor::traits::LockError> {
-		if locker.is_here() {
-			return Err(LockError::NotApplicable)
-		}
-		let id = NEXT_INDEX.with(|x| { x.borrow_mut().saturating_accrue(1); *x.borrow() - 1 });
-		let item = LockTraceItem::Reduce { locker, asset, owner, id, done: false };
-		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
-		Ok(TestReduceTicket(id))
+		ensure!(request_unlock_allowed(&locker, &asset, &owner), LockError::NotLocked);
+		Ok(TestTicket(LockTraceItem::Reduce { locker, asset, owner }))
 	}
 }
 

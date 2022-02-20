@@ -314,7 +314,7 @@ impl TryFrom<NewMultiAssets> for MultiAssets {
 	type Error = ();
 	fn try_from(new: NewMultiAssets) -> Result<Self, ()> {
 		let v = new
-			.drain()
+			.into_inner()
 			.into_iter()
 			.map(MultiAsset::try_from)
 			.collect::<Result<Vec<_>, ()>>()?;

@@ -87,13 +87,13 @@ fn code_registers_should_work() {
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 13).into()]);
-	assert_eq!(assets(Here), vec![(Here, 8).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![(Here, 13).into()]);
+	assert_eq!(asset_list(Here), vec![(Here, 8).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
 	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 20).into()]);
-	assert_eq!(assets(Here), vec![(Here, 1).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![(Here, 20).into()]);
+	assert_eq!(asset_list(Here), vec![(Here, 1).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }

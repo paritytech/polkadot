@@ -27,6 +27,7 @@ pub trait FeeManager {
 }
 
 /// Context under which a fee is paid.
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum FeeReason {
 	/// When a reporting instruction is called.
 	Report,

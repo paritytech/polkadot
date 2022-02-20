@@ -37,7 +37,7 @@ fn exchange_asset_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(40));
-	assert_eq!(assets(Parent), vec![(Here, 100).into(), (Parent, 950).into()]);
+	assert_eq!(asset_list(Parent), vec![(Here, 100).into(), (Parent, 950).into()]);
 	assert_eq!(exchange_assets(), vec![(Parent, 50).into()].into());
 }
 
@@ -62,7 +62,7 @@ fn exchange_asset_without_maximal_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(40));
-	assert_eq!(assets(Parent), vec![(Here, 50).into(), (Parent, 950).into()]);
+	assert_eq!(asset_list(Parent), vec![(Here, 50).into(), (Parent, 950).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 50).into(), (Parent, 50).into()].into());
 }
 
@@ -87,7 +87,7 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(40, XcmError::NoDeal));
-	assert_eq!(assets(Parent), vec![(Parent, 1000).into()]);
+	assert_eq!(asset_list(Parent), vec![(Parent, 1000).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 100).into()].into());
 }
 
@@ -106,7 +106,7 @@ fn paying_reserve_deposit_should_work() {
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(Here), vec![(Parent, 70).into()]);
+	assert_eq!(asset_list(Here), vec![(Parent, 70).into()]);
 }
 
 #[test]
@@ -125,116 +125,9 @@ fn transfer_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
-}
-
-#[test]
-fn basic_asset_trap_should_work() {
-	// we'll let them have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
-
-	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(Parachain(1), (Here, 1000));
-	// They want to transfer 100 of them to their sibling parachain #2 but have a problem
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			WithdrawAsset((Here, 100).into()),
-			DepositAsset {
-				assets: Wild(AllCounted(0)), // <<< 0 is an error.
-				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
-			},
-		]),
-		20,
-	);
-	assert_eq!(r, Outcome::Complete(25));
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
-
-	// Incorrect ticket doesn't work.
-	let old_trapped_assets = TrappedAssets::get();
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
-			DepositAsset {
-				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
-			},
-		]),
-		20,
-	);
-	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
-	assert_eq!(old_trapped_assets, TrappedAssets::get());
-
-	// Incorrect origin doesn't work.
-	let old_trapped_assets = TrappedAssets::get();
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(2),
-		Xcm(vec![
-			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
-			DepositAsset {
-				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
-			},
-		]),
-		20,
-	);
-	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
-	assert_eq!(old_trapped_assets, TrappedAssets::get());
-
-	// Incorrect assets doesn't work.
-	let old_trapped_assets = TrappedAssets::get();
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
-			DepositAsset {
-				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
-			},
-		]),
-		20,
-	);
-	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![]);
-	assert_eq!(old_trapped_assets, TrappedAssets::get());
-
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
-			DepositAsset {
-				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
-			},
-		]),
-		20,
-	);
-	assert_eq!(r, Outcome::Complete(20));
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
-	assert_eq!(assets(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
-
-	// Same again doesn't work :-)
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
-			DepositAsset {
-				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
-			},
-		]),
-		20,
-	);
-	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 }
 
 #[test]
@@ -261,7 +154,7 @@ fn reserve_transfer_should_work() {
 	);
 	assert_eq!(r, Outcome::Complete(10));
 
-	assert_eq!(assets(Parachain(2)), vec![(Here, 100).into()]);
+	assert_eq!(asset_list(Parachain(2)), vec![(Here, 100).into()]);
 	assert_eq!(
 		sent_xcm(),
 		vec![(
@@ -292,7 +185,7 @@ fn burn_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	// Now they want to burn 1000 of them, which will actually only burn 900.
@@ -306,8 +199,115 @@ fn burn_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(Parachain(1)), vec![]);
+	assert_eq!(asset_list(Parachain(1)), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn basic_asset_trap_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
+
+	// Child parachain #1 owns 1000 tokens held by us in reserve.
+	add_asset(Parachain(1), (Here, 1000));
+	// They want to transfer 100 of them to their sibling parachain #2 but have a problem
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((Here, 100).into()),
+			DepositAsset {
+				assets: Wild(AllCounted(0)), // <<< 0 is an error.
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Complete(25));
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+
+	// Incorrect ticket doesn't work.
+	let old_trapped_assets = TrappedAssets::get();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
+			DepositAsset {
+				assets: Wild(AllCounted(1)),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(old_trapped_assets, TrappedAssets::get());
+
+	// Incorrect origin doesn't work.
+	let old_trapped_assets = TrappedAssets::get();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(AllCounted(1)),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(old_trapped_assets, TrappedAssets::get());
+
+	// Incorrect assets doesn't work.
+	let old_trapped_assets = TrappedAssets::get();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(AllCounted(1)),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![]);
+	assert_eq!(old_trapped_assets, TrappedAssets::get());
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(AllCounted(1)),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
+	assert_eq!(asset_list(AccountIndex64{index: 3, network: None}), vec![(Here, 100).into()]);
+
+	// Same again doesn't work :-)
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(AllCounted(1)),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 }
 
 #[test]

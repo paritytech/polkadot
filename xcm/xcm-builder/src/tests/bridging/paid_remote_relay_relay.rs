@@ -81,7 +81,7 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(assets(Parachain(100)), vec![(Here, 850).into()]);
+	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850).into()]);
 }
 
 /// ```nocompile
@@ -119,5 +119,5 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	assert_eq!(take_received_remote_messages(), expected);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(assets(Parachain(100)), vec![(Here, 850).into()]);
+	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850).into()]);
 }
