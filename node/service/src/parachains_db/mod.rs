@@ -84,6 +84,13 @@ pub(crate) fn other_io_error(err: String) -> io::Error {
 	io::Error::new(io::ErrorKind::Other, err)
 }
 
+/// Path to the parachain rocksdb directory.
+/// `root` is the rocskdb default directory.
+#[cfg(feature = "full-node")]
+pub fn rocksdb_parachain_path(root: &PathBuf) -> PathBuf {
+	root.join("parachains").join("db")
+}
+
 /// Open the database on disk, creating it if it doesn't exist.
 #[cfg(feature = "full-node")]
 pub fn open_creating_rocksdb(
@@ -92,7 +99,7 @@ pub fn open_creating_rocksdb(
 ) -> io::Result<Arc<dyn Database>> {
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
-	let path = root.join("parachains").join("db");
+	let path = rocksdb_parachain_path(&root);
 
 	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
 
