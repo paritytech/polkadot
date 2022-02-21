@@ -28,8 +28,6 @@ use sp_runtime::Perbill;
 use tokio::sync::mpsc;
 use EPM::signed::{SignedSubmissionOf, SubmissionIndicesOf};
 
-const EPM_MODULE_PREFIX: &[u8] = b"ElectionProviderMultiPhase";
-
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
 	rpc: &SharedRpcClient,
@@ -50,15 +48,20 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
 }
 
 /// Ensure that our current `us` have not submitted anything previously.
-async fn ensure_no_previous_solution<
-	T: EPM::Config + frame_system::Config<AccountId = AccountId, Hash = Hash>,
-	B: BlockT,
->(
+async fn ensure_no_previous_solution<T, B>(
 	rpc: &SharedRpcClient,
 	at: Hash,
 	us: &AccountId,
-) -> Result<(), Error<T>> {
-	let indices_key = storage_value(EPM_MODULE_PREFIX, b"SignedSubmissionIndices");
+) -> Result<(), Error<T>>
+where
+	T: EPM::Config + frame_system::Config<AccountId = AccountId, Hash = Hash>,
+	B: BlockT,
+{
+	let name =
+		<<T as frame_system::Config>::PalletInfo as frame_support::traits::PalletInfo>::name::<T>()
+			.expect("pallet has a name; qed");
+
+	let indices_key = storage_value(name, b"SignedSubmissionIndices");
 
 	let indices: SubmissionIndicesOf<T> = rpc
 		.get_storage_and_decode(&indices_key, Some(at))
@@ -67,8 +70,8 @@ async fn ensure_no_previous_solution<
 		.unwrap_or_default();
 
 	for (_score, id) in indices {
-		let key = storage_value_by_key::<Twox64Concat>(
-			EPM_MODULE_PREFIX,
+		let key = storage_value_by_key::<Twox64Concat, _, _, _>(
+			name,
 			b"SignedSubmissionsMap",
 			&id.encode(),
 		);
@@ -79,7 +82,7 @@ async fn ensure_no_previous_solution<
 			.map_err::<Error<T>, _>(Into::into)?
 		{
 			if &submission.who == us {
-				return Err(Error::AlreadySubmitted)
+				return Err(Error::AlreadySubmitted);
 			}
 		}
 	}
@@ -358,9 +361,13 @@ monitor_cmd_for!(polkadot);
 monitor_cmd_for!(kusama);
 monitor_cmd_for!(westend);
 
-fn storage_prefix(m: &[u8], s: &[u8]) -> Vec<u8> {
-	let k1 = sp_core::hashing::twox_128(m);
-	let k2 = sp_core::hashing::twox_128(s);
+fn storage_prefix<M, S>(m: M, s: S) -> Vec<u8>
+where
+	M: AsRef<[u8]>,
+	S: AsRef<[u8]>,
+{
+	let k1 = sp_core::hashing::twox_128(m.as_ref());
+	let k2 = sp_core::hashing::twox_128(s.as_ref());
 	let mut key = Vec::with_capacity(k1.len() + k2.len());
 	key.extend_from_slice(&k1);
 	key.extend_from_slice(&k2);
@@ -368,14 +375,24 @@ fn storage_prefix(m: &[u8], s: &[u8]) -> Vec<u8> {
 }
 
 /// Get storage value.
-fn storage_value(m: &[u8], s: &[u8]) -> StorageKey {
+fn storage_value<M, S>(m: M, s: S) -> StorageKey
+where
+	M: AsRef<[u8]>,
+	S: AsRef<[u8]>,
+{
 	StorageKey(storage_prefix(m, s))
 }
 
 /// Get storage value at given key.
-fn storage_value_by_key<H: StorageHasher>(m: &[u8], s: &[u8], encoded_key: &[u8]) -> StorageKey {
+fn storage_value_by_key<H, M, S, E>(m: M, s: S, encoded_key: E) -> StorageKey
+where
+	H: StorageHasher,
+	M: AsRef<[u8]>,
+	S: AsRef<[u8]>,
+	E: AsRef<[u8]>,
+{
 	let k1 = storage_prefix(m, s);
-	let k2 = H::hash(encoded_key);
+	let k2 = H::hash(encoded_key.as_ref());
 	let mut key = Vec::with_capacity(k1.len() + k2.as_ref().len());
 	key.extend_from_slice(&k1);
 	key.extend_from_slice(k2.as_ref());
