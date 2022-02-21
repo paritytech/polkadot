@@ -19,6 +19,19 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+/// The minimum supported version of the primitives by this implementation.
+pub const MIN_SUPPORTED_VERSION: u32 = 1;
+/// The maximum supported version of the primitives by this implementation.
+pub const MAX_SUPPORTED_VERSION: u32 = 2;
+
+/// The STAGING version.
+pub const STAGING_VERSION: u32 = u32::MAX;
+
 pub mod v0;
 pub mod v1;
 pub mod v2;
+
+// The 'staging' version is special - while other versions are set in stone,
+// the staging version is malleable. Once it's released, it gets the next
+// version number.
+pub mod vstaging;
