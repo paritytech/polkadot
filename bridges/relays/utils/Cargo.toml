@@ -28,4 +28,4 @@ bp-runtime = { path = "../../primitives/runtime" }
 
 # Substrate dependencies
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }

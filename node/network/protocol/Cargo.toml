@@ -11,8 +11,8 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
 strum = { version = "0.23", features = ["derive"] }
 derive_more = "0.99.17"
 futures = "0.3.21"

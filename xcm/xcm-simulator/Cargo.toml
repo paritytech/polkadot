@@ -9,9 +9,9 @@ edition = "2018"
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 paste = "1.0.6"
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
 
 xcm = { path = "../" }
 xcm-executor = { path = "../xcm-executor" }

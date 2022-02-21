@@ -26,20 +26,20 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
 
 #[dev-dependencies]
 futures = "0.3.7"

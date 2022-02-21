@@ -12,10 +12,10 @@ polkadot-runtime-constants = { version = "0.9.17", path = "../../../runtime/polk
 kusama-runtime-constants = { version = "0.9.17", path = "../../../runtime/kusama/constants" }
 westend-runtime-constants = { version = "0.9.17", path = "../../../runtime/westend/constants" }
 
-pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
 
 clap = { version = "3.0", features = ["derive"] }
 log = "0.4.14"
