@@ -10403,7 +10403,6 @@ name = "staking-miner"
 version = "0.9.17"
 dependencies = [
  "clap 3.0.14",
- "env_logger 0.9.0",
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
