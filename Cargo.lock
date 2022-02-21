@@ -9480,6 +9480,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha-1"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "028f48d513f9678cda28f6e4064755b3fbb2af6acd672f2c209b62323f7aea0f"
+dependencies = [
+ "cfg-if 1.0.0",
+ "cpufeatures 0.2.1",
+ "digest 0.10.2",
+]
+
+[[package]]
 name = "sha2"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10981,9 +10992,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.16.1"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e80b39df6afcc12cdf752398ade96a6b9e99c903dfdc36e53ad10b9c366bca72"
+checksum = "545bc3ea3a139f54a5338bcfcfe75105a45b952b477def251a957c96de5be43d"
 dependencies = [
  "futures-util",
  "log",
@@ -11245,9 +11256,9 @@ checksum = "5e66dcbec4290c69dd03c57e76c2469ea5c7ce109c6dd4351c13055cf71ea055"
 
 [[package]]
 name = "tungstenite"
-version = "0.16.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ad3713a14ae247f22a728a0456a545df14acf3867f905adff84be99e23b3ad1"
+checksum = "9a5198d211a468fa9573edf4919aa88a17515723c766b3a6b3a10536eb7e1ee0"
 dependencies = [
  "base64",
  "byteorder",
@@ -11256,7 +11267,7 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.8.5",
- "sha-1 0.9.8",
+ "sha-1 0.10.0",
  "thiserror",
  "url 2.2.2",
  "utf-8",
