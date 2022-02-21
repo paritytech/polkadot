@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 clap = { version = "3.0", features = ["derive", "env"] }
-codec = { package = "parity-scale-codec", version = "2.0.0" }
+codec = { package = "parity-scale-codec", version = "3.0.0" }
 tracing-subscriber = { version = "0.3.9", features = ["env-filter"]   }
 jsonrpsee = { version = "0.8", features = ["ws-client", "macros"] }
 log = "0.4.11"

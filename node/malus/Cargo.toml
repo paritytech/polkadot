@@ -23,7 +23,7 @@ polkadot-node-core-backing = { path = "../core/backing" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-core-pvf = { path = "../core/pvf" }
-parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
+parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
 color-eyre = { version = "0.6.0", default-features = false }
 assert_matches = "1.5"
 async-trait = "0.1.52"
