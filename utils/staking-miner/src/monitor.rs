@@ -20,13 +20,12 @@ use crate::{
 	prelude::*, rpc::*, signer::Signer, Error, MonitorConfig, SharedRpcClient, SubmissionStrategy,
 };
 use codec::Encode;
-use frame_support::{StorageHasher, Twox64Concat};
 use jsonrpsee::core::Error as RpcError;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
 use sp_runtime::Perbill;
 use tokio::sync::mpsc;
-use EPM::signed::{SignedSubmissionOf, SubmissionIndicesOf};
+use EPM::{signed::SubmissionIndicesOf, SignedSubmissionOf};
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
@@ -57,11 +56,7 @@ where
 	T: EPM::Config + frame_system::Config<AccountId = AccountId, Hash = Hash>,
 	B: BlockT,
 {
-	let name =
-		<<T as frame_system::Config>::PalletInfo as frame_support::traits::PalletInfo>::name::<T>()
-			.expect("pallet has a name; qed");
-
-	let indices_key = storage_value(name, b"SignedSubmissionIndices");
+	let indices_key = StorageKey(EPM::SignedSubmissionIndices::<T>::hashed_key().to_vec());
 
 	let indices: SubmissionIndicesOf<T> = rpc
 		.get_storage_and_decode(&indices_key, Some(at))
@@ -69,12 +64,8 @@ where
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
-	for (_score, id) in indices {
-		let key = storage_value_by_key::<Twox64Concat, _, _, _>(
-			name,
-			b"SignedSubmissionsMap",
-			&id.encode(),
-		);
+	for (_score, idx) in indices {
+		let key = StorageKey(EPM::SignedSubmissionsMap::<T>::hashed_key_for(idx));
 
 		if let Some(submission) = rpc
 			.get_storage_and_decode::<SignedSubmissionOf<T>>(&key, Some(at))
@@ -82,7 +73,7 @@ where
 			.map_err::<Error<T>, _>(Into::into)?
 		{
 			if &submission.who == us {
-				return Err(Error::AlreadySubmitted);
+				return Err(Error::AlreadySubmitted)
 			}
 		}
 	}
@@ -99,11 +90,37 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	strategy: SubmissionStrategy,
 ) -> Result<(), Error<T>> {
 	let epsilon = match strategy {
+		// don't care about current scores.
 		SubmissionStrategy::Always => return Ok(()),
 		SubmissionStrategy::IfLeading => Perbill::zero(),
 		SubmissionStrategy::ClaimBetterThan(epsilon) => epsilon,
 	};
 
+	let indices_key = StorageKey(EPM::SignedSubmissionIndices::<T>::hashed_key().to_vec());
+
+	let indices: SubmissionIndicesOf<T> = rpc
+		.get_storage_and_decode(&indices_key, Some(at))
+		.await
+		.map_err::<Error<T>, _>(Into::into)?
+		.unwrap_or_default();
+
+	// BTreeMap is ordered, take last to get the max score.
+	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
+		if !score.strict_threshold_better(curr_max_score, epsilon) {
+			return Err(Error::AlreadyExistSolutionWithBetterScore)
+		}
+	}
+
+	Ok(())
+}
+
+/// Queries the chain for the best solution and checks whether the computed score
+/// is better than best known.
+async fn ensure_no_better_signed_solution<T: EPM::Config, B: BlockT>(
+	rpc: &SharedRpcClient,
+	at: Hash,
+	score: sp_npos_elections::ElectionScore,
+) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());
 	let best_score = rpc
 		.get_storage_and_decode::<EPM::ReadySolution<AccountId>>(&key, Some(at))
@@ -111,7 +128,7 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.map(|s| s.score)
 		.unwrap_or_default();
-	if score.strict_threshold_better(best_score, epsilon) {
+	if score.strict_threshold_better(best_score, Perbill::zero()) {
 		Ok(())
 	} else {
 		Err(Error::AlreadyExistSolutionWithBetterScore)
@@ -192,20 +209,20 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let hash = at.hash();
 			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
-			// if the runtime version has changed, terminate.
-			if let Err(err) = crate::check_versions::<Runtime>(&rpc).await {
-				let _ = tx.send(err.into());
-				return;
-			}
-
-			// we prefer doing this check before fetching anything into a remote-ext.
-			if ensure_signed_phase::<Runtime, Block>(&rpc, hash).await.is_err() {
-				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
-				return;
-			}
-
-			if ensure_no_previous_solution::<Runtime, Block>(&rpc, hash, &signer.account).await.is_err() {
-				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+			// This is just concurrent => on the same thread
+			if let Err(err) = tokio::try_join!(
+				ensure_signed_phase::<Runtime, Block>(&rpc, hash),
+				ensure_no_previous_solution::<Runtime, Block>(&rpc, hash, &signer.account),
+				crate::check_versions::<Runtime>(&rpc),
+			) {
+				match err {
+					Error::VersionMismatch => {
+						let _ = tx.send(Error::VersionMismatch.into());
+					}
+					Error::IncorrectPhase => log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all."),
+					Error::AlreadySubmitted => log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping."),
+					err => log::debug!(target: LOG_TARGET, "Error: {:?} when performed initial checks", err),
+				}
 				return;
 			}
 
@@ -259,7 +276,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
-			if ensure_no_better_solution::<Runtime, Block>(&rpc, hash, score, config.submission_strategy).await.is_err() {
+			// This is just concurrent => on the same thread
+			if tokio::try_join!(
+				ensure_no_better_solution::<Runtime, Block>(&rpc, hash, score, config.submission_strategy),
+				ensure_no_better_signed_solution::<Runtime, Block>(&rpc, hash, score)
+			).is_err() {
 				return;
 			}
 
@@ -360,41 +381,3 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 monitor_cmd_for!(polkadot);
 monitor_cmd_for!(kusama);
 monitor_cmd_for!(westend);
-
-fn storage_prefix<M, S>(m: M, s: S) -> Vec<u8>
-where
-	M: AsRef<[u8]>,
-	S: AsRef<[u8]>,
-{
-	let k1 = sp_core::hashing::twox_128(m.as_ref());
-	let k2 = sp_core::hashing::twox_128(s.as_ref());
-	let mut key = Vec::with_capacity(k1.len() + k2.len());
-	key.extend_from_slice(&k1);
-	key.extend_from_slice(&k2);
-	key
-}
-
-/// Get storage value.
-fn storage_value<M, S>(m: M, s: S) -> StorageKey
-where
-	M: AsRef<[u8]>,
-	S: AsRef<[u8]>,
-{
-	StorageKey(storage_prefix(m, s))
-}
-
-/// Get storage value at given key.
-fn storage_value_by_key<H, M, S, E>(m: M, s: S, encoded_key: E) -> StorageKey
-where
-	H: StorageHasher,
-	M: AsRef<[u8]>,
-	S: AsRef<[u8]>,
-	E: AsRef<[u8]>,
-{
-	let k1 = storage_prefix(m, s);
-	let k2 = H::hash(encoded_key.as_ref());
-	let mut key = Vec::with_capacity(k1.len() + k2.as_ref().len());
-	key.extend_from_slice(&k1);
-	key.extend_from_slice(k2.as_ref());
-	StorageKey(key)
-}
