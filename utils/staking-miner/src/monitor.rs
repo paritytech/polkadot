@@ -96,9 +96,9 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	strategy: SubmissionStrategy,
 ) -> Result<(), Error<T>> {
 	let epsilon = match strategy {
-		SubmissionStrategy::AlwaysSubmit => return Ok(()),
-		SubmissionStrategy::OnlySubmitIfLeading => Perbill::zero(),
-		SubmissionStrategy::SubmitIfClaimBetterThan(epsilon) => epsilon,
+		SubmissionStrategy::Always => return Ok(()),
+		SubmissionStrategy::IfLeading => Perbill::zero(),
+		SubmissionStrategy::ClaimBetterThan(epsilon) => epsilon,
 	};
 
 	let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());

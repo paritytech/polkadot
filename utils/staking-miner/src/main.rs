@@ -304,24 +304,34 @@ enum Solvers {
 #[derive(Debug, Copy, Clone)]
 enum SubmissionStrategy {
 	// Only submit if at the time, we are the best.
-	OnlySubmitIfLeading,
+	IfLeading,
 	// Always submit.
-	AlwaysSubmit,
+	Always,
 	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
 	// better than us. This helps detect obviously fake solutions and still combat them.
-	SubmitIfClaimBetterThan(Perbill),
+	ClaimBetterThan(Perbill),
 }
 
+/// Custom `impl` to parse `SubmissionStrategy` from CLI.
+///
+/// Possible options:
+/// * --submission-strategy if-leading: only submit if leading
+/// * --submission-strategy always: always submit
+/// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better. (n > 100 has not effect)
+///
 impl FromStr for SubmissionStrategy {
-	type Err = std::num::ParseFloatError;
+	type Err = String;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let res = if s == "only-submit-if-leading" {
-			Self::OnlySubmitIfLeading
-		} else if s == "always-submit" {
-			Self::AlwaysSubmit
+		let res = if s == "if-leading" {
+			Self::IfLeading
+		} else if s == "always" {
+			Self::Always
+		} else if s.starts_with("percent-better ") {
+			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
+			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			Self::SubmitIfClaimBetterThan(Perbill::from_float(s.parse()?))
+			return Err(s.into())
 		};
 		Ok(res)
 	}
@@ -349,7 +359,7 @@ struct MonitorConfig {
 	solver: Solvers,
 
 	/// Submission strategy to use.
-	#[clap(long, parse(try_from_str), default_value = "only-submit-if-leading")]
+	#[clap(long, parse(try_from_str), default_value = "if-leading")]
 	submission_strategy: SubmissionStrategy,
 }
 
