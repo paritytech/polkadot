@@ -16,21 +16,23 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use super::{BodyId, BodyPart, Junctions, MultiLocation};
+use super::{Junctions, MultiLocation};
 use crate::{
+	v1::{BodyId as OldBodyId, BodyPart as OldBodyPart},
 	v2::{Junction as OldJunction, NetworkId as OldNetworkId},
 	VersionedMultiLocation,
 };
-use alloc::vec::Vec;
-use core::convert::TryFrom;
-use parity_scale_codec::{self, Decode, Encode};
+use core::convert::{TryFrom, TryInto};
+use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// A global identifier of a data structure existing within consensus.
 ///
 /// Maintenance note: Networks with global consensus and which are practically bridgeable within the
 /// Polkadot ecosystem are given preference over explicit naming in this enumeration.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 pub enum NetworkId {
 	/// Network specified by the first 32 bytes of its genesis block.
 	ByGenesis([u8; 32]),
@@ -68,10 +70,113 @@ impl From<OldNetworkId> for Option<NetworkId> {
 	}
 }
 
+/// An identifier of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+pub enum BodyId {
+	/// The only body in its context.
+	Unit,
+	/// A named body.
+	Moniker([u8; 4]),
+	/// An indexed body.
+	Index(#[codec(compact)] u32),
+	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
+	Executive,
+	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
+	Technical,
+	/// The unambiguous legislative body (for Polkadot, this could be considered the opinion of a majority of
+	/// lock-voters).
+	Legislative,
+	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
+	/// may be considered as that).
+	Judicial,
+}
+
+impl TryFrom<OldBodyId> for BodyId {
+	type Error = ();
+	fn try_from(value: OldBodyId) -> Result<Self, ()> {
+		use OldBodyId::*;
+		Ok(match value {
+			Unit => Self::Unit,
+			Named(n) =>
+				if n.len() == 4 {
+					let mut r = [0u8; 4];
+					r.copy_from_slice(&n[..]);
+					Self::Moniker(r)
+				} else {
+					return Err(())
+				},
+			Index(n) => Self::Index(n),
+			Executive => Self::Executive,
+			Technical => Self::Technical,
+			Legislative => Self::Legislative,
+			Judicial => Self::Judicial,
+		})
+	}
+}
+
+/// A part of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+pub enum BodyPart {
+	/// The body's declaration, under whatever means it decides.
+	Voice,
+	/// A given number of members of the body.
+	Members {
+		#[codec(compact)]
+		count: u32,
+	},
+	/// A given number of members of the body, out of some larger caucus.
+	Fraction {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+	/// No less than the given proportion of members of the body.
+	AtLeastProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+	/// More than than the given proportion of members of the body.
+	MoreThanProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+}
+
+impl BodyPart {
+	/// Returns `true` if the part represents a strict majority (> 50%) of the body in question.
+	pub fn is_majority(&self) -> bool {
+		match self {
+			BodyPart::Fraction { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
+			_ => false,
+		}
+	}
+}
+
+impl TryFrom<OldBodyPart> for BodyPart {
+	type Error = ();
+	fn try_from(value: OldBodyPart) -> Result<Self, ()> {
+		use OldBodyPart::*;
+		Ok(match value {
+			Voice => Self::Voice,
+			Members { count } => Self::Members { count },
+			Fraction { nom, denom } => Self::Fraction { nom, denom },
+			AtLeastProportion { nom, denom } => Self::AtLeastProportion { nom, denom },
+			MoreThanProportion { nom, denom } => Self::MoreThanProportion { nom, denom },
+		})
+	}
+}
+
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
@@ -106,12 +211,12 @@ pub enum Junction {
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
 	GeneralIndex(#[codec(compact)] u128),
-	/// A nondescript datum acting as a key within the context location.
+	/// A nondescript 128-byte datum acting as a key within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralKey(Vec<u8>),
+	GeneralKey([u8; 32]),
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving context.
@@ -156,12 +261,6 @@ impl From<u128> for Junction {
 	}
 }
 
-impl From<Vec<u8>> for Junction {
-	fn from(id: Vec<u8>) -> Self {
-		Self::GeneralKey(id)
-	}
-}
-
 impl TryFrom<OldJunction> for Junction {
 	type Error = ();
 	fn try_from(value: OldJunction) -> Result<Self, ()> {
@@ -174,9 +273,10 @@ impl TryFrom<OldJunction> for Junction {
 			AccountKey20 { network, key } => Self::AccountKey20 { network: network.into(), key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(key) => Self::GeneralKey(key),
+			GeneralKey(_key) => return Err(()),
 			OnlyChild => Self::OnlyChild,
-			Plurality { id, part } => Self::Plurality { id: id.into(), part },
+			Plurality { id, part } =>
+				Self::Plurality { id: id.try_into()?, part: part.try_into()? },
 		})
 	}
 }
@@ -201,5 +301,16 @@ impl Junction {
 	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
 	pub const fn into_versioned(self) -> VersionedMultiLocation {
 		self.into_location().into_versioned()
+	}
+
+	/// Remove the `NetworkId` value.
+	pub fn remove_network_id(&mut self) {
+		use Junction::*;
+		match self {
+			AccountId32 { ref mut network, .. } |
+			AccountIndex64 { ref mut network, .. } |
+			AccountKey20 { ref mut network, .. } => *network = None,
+			_ => {},
+		}
 	}
 }

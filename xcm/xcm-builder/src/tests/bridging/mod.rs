@@ -16,10 +16,10 @@
 
 //! Tests specific to the bridging primitives
 
-use crate::{mock::*, universal_exports::*};
+use super::mock::*;
+use crate::universal_exports::*;
 use frame_support::{parameter_types, traits::Get};
 use std::{cell::RefCell, marker::PhantomData};
-use xcm::prelude::*;
 use xcm_executor::{
 	traits::{export_xcm, validate_export},
 	XcmExecutor,

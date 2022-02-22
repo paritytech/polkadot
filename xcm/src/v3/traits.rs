@@ -18,7 +18,7 @@
 
 use crate::v2::Error as OldError;
 use core::result;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 use super::*;
@@ -114,6 +114,15 @@ pub enum Error {
 	/// `MultiLocation` value failed to be reanchored.
 	#[codec(index = 28)]
 	ReanchorFailed,
+	/// No deal is possible under the given constraints.
+	#[codec(index = 29)]
+	NoDeal,
+	/// Fees were required which the origin could not pay.
+	#[codec(index = 30)]
+	FeesNotMet,
+	/// Some other error with locking.
+	#[codec(index = 31)]
+	LockError,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -130,6 +139,14 @@ pub enum Error {
 	Barrier,
 	/// The weight of an XCM message is not computable ahead of execution.
 	WeightNotComputable,
+}
+
+impl MaxEncodedLen for Error {
+	fn max_encoded_len() -> usize {
+		// TODO: max_encoded_len doesn't quite work here as it tries to take notice of the fields
+		// marked `codec(skip)`. We can hard-code it with the right answer for now.
+		1
+	}
 }
 
 impl TryFrom<OldError> for Error {
@@ -172,6 +189,7 @@ impl From<SendError> for Error {
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
+			SendError::Fees => Error::FeesNotMet,
 		}
 	}
 }
@@ -270,6 +288,14 @@ pub trait ExecuteXcm<Call> {
 		}
 		Self::execute(origin, pre, weight_credit)
 	}
+
+	/// Deduct some `fees` to the sovereign account of the given `location` and place them as per
+	/// the convention for fees.
+	fn charge_fees(
+		location: impl Into<MultiLocation>,
+		fees: MultiAssets,
+		context: XcmContext,
+	) -> Result;
 }
 
 pub enum Weightless {}
@@ -286,6 +312,13 @@ impl<C> ExecuteXcm<C> for () {
 	}
 	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: Weight) -> Outcome {
 		unreachable!()
+	}
+	fn charge_fees(
+		_location: impl Into<MultiLocation>,
+		_fees: MultiAssets,
+		_context: XcmContext,
+	) -> Result {
+		Err(Error::Unimplemented)
 	}
 }
 
@@ -311,6 +344,8 @@ pub enum SendError {
 	ExceedsMaxMessageSize,
 	/// A needed argument is `None` when it should be `Some`.
 	MissingArgument,
+	/// Fees needed to be paid in order to send the message and they were unavailable.
+	Fees,
 }
 
 /// A hash type for identifying messages.

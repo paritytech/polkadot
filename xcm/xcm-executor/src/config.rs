@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager, FilterAssetLocation, OnResponse,
-	ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds,
-	WeightTrader,
+	AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager,
+	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -64,6 +64,12 @@ pub trait Config {
 	/// The general asset trap - handler for when assets are left in the Holding Register at the
 	/// end of execution.
 	type AssetTrap: DropAssets;
+
+	/// Handler for asset locking.
+	type AssetLocker: AssetLock;
+
+	/// Handler for exchanging assets.
+	type AssetExchanger: AssetExchange;
 
 	/// The handler for when there is an instruction to claim assets.
 	type AssetClaims: ClaimAssets;

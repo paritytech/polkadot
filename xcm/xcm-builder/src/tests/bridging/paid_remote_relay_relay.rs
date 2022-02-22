@@ -63,7 +63,7 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
+	add_asset(Parachain(100), (Here, 1000));
 
 	let msg = Xcm(vec![Trap(1)]);
 	let hash = VersionedXcm::from(msg.clone()).using_encoded(sp_io::hashing::blake2_256);
@@ -82,7 +82,7 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 850).into()]);
+	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850).into()]);
 }
 
 /// ```nocompile
@@ -105,7 +105,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	);
 
 	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(to_account(Parachain(100)).unwrap(), (Here, 1000));
+	add_asset(Parachain(100), (Here, 1000));
 
 	let msg = Xcm(vec![Trap(1)]);
 	let hash = VersionedXcm::from(msg.clone()).using_encoded(sp_io::hashing::blake2_256);
@@ -122,5 +122,5 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	assert_eq!(take_received_remote_messages(), expected);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(assets(to_account(Parachain(100)).unwrap()), vec![(Here, 850).into()]);
+	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850).into()]);
 }

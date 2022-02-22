@@ -22,6 +22,10 @@ pub use conversion::{
 };
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
+mod asset_lock;
+pub use asset_lock::{AssetLock, Enact, LockError};
+mod asset_exchange;
+pub use asset_exchange::AssetExchange;
 mod export;
 pub use export::{export_xcm, validate_export, ExportXcm};
 mod fee_manager;

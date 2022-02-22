@@ -57,7 +57,7 @@ benchmarks_instance_pallet! {
 		assert!(!T::TransactAsset::balance(&sender_account).is_zero());
 
 		let mut executor = new_executor::<T>(sender_location);
-		executor.holding = worst_case_holding.into();
+		executor.set_holding(worst_case_holding.into());
 		let instruction = Instruction::<XcmCallOf<T>>::WithdrawAsset(vec![asset.clone()].into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
@@ -65,7 +65,7 @@ benchmarks_instance_pallet! {
 	} verify {
 		// check one of the assets of origin.
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
-		assert!(executor.holding.ensure_contains(&vec![asset].into()).is_ok());
+		assert!(executor.holding().ensure_contains(&vec![asset].into()).is_ok());
 	}
 
 	transfer_asset {
@@ -159,7 +159,7 @@ benchmarks_instance_pallet! {
 			)
 		})?;
 	} verify {
-		assert!(executor.holding.ensure_contains(&assets).is_ok());
+		assert!(executor.holding().ensure_contains(&assets).is_ok());
 	}
 
 	deposit_asset {
@@ -175,7 +175,7 @@ benchmarks_instance_pallet! {
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.set_holding(holding.into());
 		let instruction = Instruction::<XcmCallOf<T>>::DepositAsset {
 			assets: asset.into(),
 			beneficiary: dest_location,
@@ -201,7 +201,7 @@ benchmarks_instance_pallet! {
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.set_holding(holding.into());
 		let instruction = Instruction::<XcmCallOf<T>>::DepositReserveAsset {
 			assets: asset.into(),
 			dest: dest_location,
@@ -226,7 +226,7 @@ benchmarks_instance_pallet! {
 		assert!(T::CheckedAccount::get().map_or(true, |c| T::TransactAsset::balance(&c).is_zero()));
 
 		let mut executor = new_executor::<T>(Default::default());
-		executor.holding = holding.into();
+		executor.set_holding(holding.into());
 		let instruction = Instruction::<XcmCallOf<T>>::InitiateTeleport {
 			assets: asset.into(),
 			dest: T::valid_destination()?,

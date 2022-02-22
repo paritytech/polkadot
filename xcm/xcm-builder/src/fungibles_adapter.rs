@@ -90,7 +90,7 @@ pub struct ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBal
 impl<
 		AssetId: Clone,
 		Balance: Clone,
-		ConvertAssetId: Convert<Vec<u8>, AssetId>,
+		ConvertAssetId: Convert<[u8; 32], AssetId>,
 		ConvertBalance: Convert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>

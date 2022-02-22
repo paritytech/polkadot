@@ -92,9 +92,9 @@ impl TryFrom<NewJunction> for Junction {
 				Self::AccountKey20 { network: network.try_into()?, key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(key) => Self::GeneralKey(key),
+			GeneralKey(key) => Self::GeneralKey(key[..].to_vec()),
 			OnlyChild => Self::OnlyChild,
-			Plurality { id, part } => Self::Plurality { id: id.into(), part },
+			Plurality { id, part } => Self::Plurality { id: id.into(), part: part.into() },
 			_ => return Err(()),
 		})
 	}

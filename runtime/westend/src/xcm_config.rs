@@ -114,6 +114,8 @@ impl xcm_executor::Config for XcmConfig {
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
+	type AssetLocker = ();
+	type AssetExchanger = ();
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
@@ -147,4 +149,9 @@ impl pallet_xcm::Config for Runtime {
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type Currency = Balances;
+	type CurrencyMatcher = IsConcrete<TokenLocation>;
+	type TrustedLockers = ();
+	type SovereignAccountOf = LocationConverter;
+	type MaxLockers = frame_support::traits::ConstU32<8>;
 }

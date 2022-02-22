@@ -971,9 +971,9 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 				let assets = assets.try_into()?;
 				Self::DepositReserveAsset { assets, max_assets, dest, xcm }
 			},
-			ExchangeAsset { give, receive } => {
+			ExchangeAsset { give, want, .. } => {
 				let give = give.try_into()?;
-				let receive = receive.try_into()?;
+				let receive = want.try_into()?;
 				Self::ExchangeAsset { give, receive }
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {

@@ -67,17 +67,17 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// use xcm_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
-/// 	pub TargetLocation: &'static [u8] = &[7u8];
+/// 	pub TargetLocation: [u8; 32] = [7u8; 32];
 /// }
 ///
 /// # fn main() {
-/// let asset = (vec![7u8], 999).into();
+/// let asset = ([7u8; 32], 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsAbstract<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }
 /// ```
 pub struct IsAbstract<T>(PhantomData<T>);
-impl<T: Get<&'static [u8]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
+impl<T: Get<[u8; 32]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match (&a.id, &a.fun) {
 			(Abstract(ref id), Fungible(ref amount)) if id == &T::get() =>
