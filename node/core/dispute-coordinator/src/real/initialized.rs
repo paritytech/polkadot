@@ -244,8 +244,10 @@ impl Initialized {
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
-				confirm_write()?;
 			}
+			// even if the changeset was empty,
+			// otherwise the caller will error.
+			confirm_write()?;
 		}
 	}
 
@@ -882,7 +884,8 @@ impl Initialized {
 
 		// Whether or not we know already that this is a good dispute:
 		//
-		// Note we can only know for sure whether we reached the `byzantine_threshold`  after updating candidate votes above, therefore the spam checking is afterwards:
+		// Note we can only know for sure whether we reached the `byzantine_threshold`  after
+		// updating candidate votes above, therefore the spam checking is afterwards:
 		let is_confirmed = is_included ||
 			was_confirmed ||
 			is_local || votes.voted_indices().len() >
@@ -890,13 +893,19 @@ impl Initialized {
 
 		// Potential spam:
 		if !is_confirmed {
-			let mut free_spam_slots = statements.is_empty();
+			let mut free_spam_slots_available = true;
+			// Only allow import if all validators voting invalid, have not exceeded
+			// their spam slots:
 			for (statement, index) in statements.iter() {
-				free_spam_slots |= statement.statement().is_backing() ||
+				// Disputes can only be triggered via an invalidity stating vote, thus we only
+				// need to increase spam slots on invalid votes. (If we did not, we would also
+				// increase spam slots for backing validators for example - as validators have to
+				// provide some opposing vote for dispute-distribution).
+				free_spam_slots_available &= statement.statement().indicates_validity() ||
 					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
 			}
-			// No reporting validator had a free spam slot:
-			if !free_spam_slots {
+			// Only validity stating votes or validator had free spam slot?
+			if !free_spam_slots_available {
 				tracing::debug!(
 					target: LOG_TARGET,
 					?candidate_hash,
