@@ -239,6 +239,10 @@ struct PeerRelayParentKnowledge {
 	/// connecting again with new peer ids, but we assume that the resulting effective bandwidth
 	/// for such an attack would be too low.
 	large_statement_count: usize,
+
+	/// We have seen a message that come out of view from this peer, so note this fact
+	/// and stop subsequent logging and peer reputation flood
+	seen_out_of_view: bool,
 }
 
 impl PeerRelayParentKnowledge {
@@ -500,6 +504,19 @@ impl PeerData {
 			.get(relay_parent)
 			.ok_or(COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
 			.check_can_receive(fingerprint, max_message_count)
+	}
+
+	/// Receive a notice about out of view statement and returns the value of the old flag
+	fn receive_out_of_view_statement(&mut self, relay_parent: &Hash) -> bool {
+		self.view_knowledge
+			.get_mut(relay_parent)
+			.map_or(false, |relay_parent_peer_knowledge| {
+				let old = relay_parent_peer_knowledge.seen_out_of_view;
+				if !old {
+					relay_parent_peer_knowledge.seen_out_of_view = true;
+				}
+				old
+			})
 	}
 
 	/// Basic flood protection for large statements.
@@ -1330,6 +1347,17 @@ async fn handle_incoming_message<'a>(
 	// perform only basic checks before verifying the signature
 	// as it's more computationally heavy
 	if let Err(rep) = peer_data.check_can_receive(&relay_parent, &fingerprint, max_message_count) {
+		// This situation can happen when a peer's Seconded message was lost
+		// but we have received the Valid statement.
+		// So we check it once and then ignore repeated violation to avoid
+		// reputation change flood.
+		let mut need_report_peer = true;
+
+		if rep == COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE {
+			// Report merely when we have not see other out of view statement
+			need_report_peer = !peer_data.receive_out_of_view_statement(&relay_parent);
+		}
+
 		tracing::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
@@ -1338,8 +1366,13 @@ async fn handle_incoming_message<'a>(
 			?rep,
 			"Error inserting received statement"
 		);
+
 		metrics.on_out_of_view_statement();
-		report_peer(ctx, peer, rep).await;
+
+		if need_report_peer {
+			report_peer(ctx, peer, rep).await;
+		}
+
 		return None
 	}
 
