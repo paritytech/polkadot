@@ -386,6 +386,7 @@ impl<T> Unwrappable for Option<T> {
 ///
 /// # Example
 /// ```rust
+/// # use parity_scale_codec::Encode;
 /// # use xcm::v3::prelude::*;
 /// # use xcm::VersionedXcm;
 /// # use std::convert::Infallible;
@@ -427,7 +428,7 @@ impl<T> Unwrappable for Option<T> {
 ///             _ => Err(SendError::NotApplicable),
 ///         }
 ///     }
-///     fn deliver(_: ()) -> Result<(), SendError> {
+///     fn deliver(_: ()) -> Result<XcmHash, SendError> {
 ///         Ok([0; 32])
 ///     }
 /// }
@@ -440,7 +441,7 @@ impl<T> Unwrappable for Option<T> {
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);
-/// let message_hash = message.using_encoded(blake2_256);
+/// let message_hash = message.using_encoded(sp_io::hashing::blake2_256);
 ///
 /// // Sender2 will block this.
 /// assert!(send_xcm::<(Sender1, Sender2, Sender3)>(Parent.into(), message.clone()).is_err());
