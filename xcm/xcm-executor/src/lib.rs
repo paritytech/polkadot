@@ -26,7 +26,7 @@ use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_128;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, VersionedXcm};
 
 pub mod traits;
 use traits::{
@@ -183,6 +183,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute(
 		origin: impl Into<MultiLocation>,
 		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::Call>,
+		message_hash: XcmHash,
 		mut weight_credit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
@@ -211,10 +212,6 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		}
 
 		let mut vm = Self::new(origin);
-
-		// We hash the message here instead of inside the loop, because `message` may have been
-		// reassigned due to the existence of the error handler or the appendix.
-		let message_hash = message.using_encoded(sp_io::hashing::blake2_256);
 
 		while !message.0.is_empty() {
 			let result = vm.execute_with_hash(message, message_hash);
@@ -290,14 +287,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
 	pub fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
-		let message_hash = xcm.using_encoded(sp_io::hashing::blake2_256);
+		let message_hash =
+			VersionedXcm::from(xcm.clone()).using_encoded(sp_io::hashing::blake2_256);
 		self.execute_with_hash(xcm, message_hash)
 	}
 
 	fn execute_with_hash(
 		&mut self,
 		xcm: Xcm<Config::Call>,
-		message_hash: [u8; 32],
+		message_hash: XcmHash,
 	) -> Result<(), ExecutorError> {
 		log::trace!(
 			target: "xcm::execute",
@@ -429,7 +427,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn process_instruction(
 		&mut self,
 		instr: Instruction<Config::Call>,
-		message_hash: [u8; 32],
+		message_hash: XcmHash,
 	) -> Result<(), XcmError> {
 		match instr {
 			WithdrawAsset(assets) => {

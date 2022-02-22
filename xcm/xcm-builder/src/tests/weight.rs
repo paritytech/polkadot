@@ -43,25 +43,27 @@ fn errors_should_return_unused_weight() {
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
 	assert_eq!(limit, 30);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
 	assert_eq!(r, Outcome::Complete(30));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 7).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 4).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
 	assert_eq!(r, Outcome::Incomplete(30, XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 10).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 1).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 11).into()]);
 	assert_eq!(asset_list(Here), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, hash, limit);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 11).into()]);
 	assert_eq!(asset_list(Here), vec![]);

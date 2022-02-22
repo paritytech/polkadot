@@ -25,18 +25,20 @@ fn simple_version_subscriptions_should_work() {
 		SetAppendix(Xcm(vec![])),
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let weight_limit = 20;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let origin = Parachain(1000);
 	let message =
 		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: 5000 }]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let weight_limit = 10;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(10));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, 5000)))]);
@@ -49,10 +51,12 @@ fn version_subscription_instruction_should_work() {
 		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let weight_limit = 20;
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
 		origin.clone(),
-		message.clone(),
+		message,
+		hash,
 		weight_limit,
 		weight_limit,
 	);
@@ -62,9 +66,11 @@ fn version_subscription_instruction_should_work() {
 		SetAppendix(Xcm(vec![])),
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
 		origin,
-		message.clone(),
+		message,
+		hash,
 		weight_limit,
 		weight_limit,
 	);
@@ -79,17 +85,19 @@ fn simple_version_unsubscriptions_should_work() {
 
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let weight_limit = 20;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![UnsubscribeVersion]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let weight_limit = 10;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(10));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), None)]);
@@ -105,10 +113,12 @@ fn version_unsubscription_instruction_should_work() {
 		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
 		UnsubscribeVersion,
 	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let weight_limit = 20;
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
 		origin.clone(),
-		message.clone(),
+		message,
+		hash,
 		weight_limit,
 		weight_limit,
 	);
@@ -116,9 +126,11 @@ fn version_unsubscription_instruction_should_work() {
 
 	// Fine to do it when origin is untouched.
 	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
 		origin,
-		message.clone(),
+		message,
+		hash,
 		weight_limit,
 		weight_limit,
 	);

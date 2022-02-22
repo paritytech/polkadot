@@ -25,33 +25,39 @@ fn universal_origin_should_work() {
 	// Parachain 2 may represent Polkadot to us
 	add_universal_alias(Parachain(2), Polkadot);
 
+	let message = Xcm(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(2),
-		Xcm(vec![
-			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
-		]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::InvalidLocation));
 
+	let message = Xcm(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
-		]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 
 	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
+	let message = Xcm(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
-		]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(20));
@@ -66,9 +72,12 @@ fn export_message_should_work() {
 	// Polkadot parachain #2.
 	let message =
 		Xcm(vec![TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() }]);
+	let exported_msg =
+		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]);
+	let hash = VersionedXcm::from(exported_msg.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]),
+		exported_msg, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));

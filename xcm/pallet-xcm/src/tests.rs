@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use codec::Encode;
 use crate::{
 	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
 	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
@@ -77,14 +78,16 @@ fn report_outcome_notify_works() {
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
+		let message = Xcm(vec![QueryResponse {
+			query_id: 0,
+			response: Response::ExecutionResult(None),
+			max_weight: 1_000_000,
+			querier: Some(querier),
+		}]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID),
-			Xcm(vec![QueryResponse {
-				query_id: 0,
-				response: Response::ExecutionResult(None),
-				max_weight: 1_000_000,
-				querier: Some(querier),
-			}]),
+			message, hash,
 			1_000_000_000,
 		);
 		assert_eq!(r, Outcome::Complete(1_000));
@@ -134,14 +137,16 @@ fn report_outcome_works() {
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
+		let message = Xcm(vec![QueryResponse {
+			query_id: 0,
+			response: Response::ExecutionResult(None),
+			max_weight: 0,
+			querier: Some(querier),
+		}]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID),
-			Xcm(vec![QueryResponse {
-				query_id: 0,
-				response: Response::ExecutionResult(None),
-				max_weight: 0,
-				querier: Some(querier),
-			}]),
+			message, hash,
 			1_000_000_000,
 		);
 		assert_eq!(r, Outcome::Complete(1_000));
@@ -174,14 +179,16 @@ fn custom_querier_works() {
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
 		// Supplying no querier when one is expected will fail
+		let message = Xcm(vec![QueryResponse {
+			query_id: 0,
+			response: Response::ExecutionResult(None),
+			max_weight: 0,
+			querier: None,
+		}]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: None, id: ALICE.into() },
-			Xcm(vec![QueryResponse {
-				query_id: 0,
-				response: Response::ExecutionResult(None),
-				max_weight: 0,
-				querier: None,
-			}]),
+			message, hash,
 			1_000_000_000,
 			1_000,
 		);
@@ -197,14 +204,16 @@ fn custom_querier_works() {
 		);
 
 		// Supplying the wrong querier will also fail
+		let message = Xcm(vec![QueryResponse {
+			query_id: 0,
+			response: Response::ExecutionResult(None),
+			max_weight: 0,
+			querier: Some(MultiLocation::here()),
+		}]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: None, id: ALICE.into() },
-			Xcm(vec![QueryResponse {
-				query_id: 0,
-				response: Response::ExecutionResult(None),
-				max_weight: 0,
-				querier: Some(MultiLocation::here()),
-			}]),
+			message, hash,
 			1_000_000_000,
 			1_000,
 		);
@@ -220,14 +229,16 @@ fn custom_querier_works() {
 		);
 
 		// Multiple failures should not have changed the query state
+		let message = Xcm(vec![QueryResponse {
+			query_id: 0,
+			response: Response::ExecutionResult(None),
+			max_weight: 0,
+			querier: Some(querier),
+		}]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			AccountId32 { network: None, id: ALICE.into() },
-			Xcm(vec![QueryResponse {
-				query_id: 0,
-				response: Response::ExecutionResult(None),
-				max_weight: 0,
-				querier: Some(querier),
-			}]),
+			message, hash,
 			1_000_000_000,
 		);
 		assert_eq!(r, Outcome::Complete(1_000));
@@ -815,7 +826,8 @@ fn subscription_side_works() {
 		let remote: MultiLocation = Parachain(1000).into();
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
 		let instr = QueryResponse {
@@ -949,7 +961,8 @@ fn subscriber_side_subscription_works() {
 				querier: None,
 			},
 		]);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(take_sent_xcm(), vec![]);
 
@@ -966,7 +979,8 @@ fn subscriber_side_subscription_works() {
 				querier: None,
 			},
 		]);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
 		// This message can now be sent to remote as it's v2.
@@ -1026,7 +1040,8 @@ fn auto_subscription_works() {
 				querier: None,
 			},
 		]);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, weight);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
 		// This message can now be sent to remote0 as it's v2.
@@ -1056,7 +1071,8 @@ fn auto_subscription_works() {
 				querier: None,
 			},
 		]);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, weight);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
 		// v2 messages cannot be sent to remote1...

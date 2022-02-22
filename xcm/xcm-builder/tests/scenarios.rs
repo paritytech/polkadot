@@ -19,9 +19,10 @@ mod mock;
 use mock::{
 	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
 };
+use parity_scale_codec::Encode;
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -46,18 +47,16 @@ fn withdraw_and_deposit_works() {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let weight = 3 * BaseXcmWeight::get();
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			Xcm(vec![
-				WithdrawAsset((Here, amount).into()),
-				buy_execution(),
-				DepositAsset {
-					assets: AllCounted(1).into(),
-					beneficiary: Parachain(other_para_id).into(),
-				},
-			]),
-			weight,
-		);
+		let message = Xcm(vec![
+			WithdrawAsset((Here, amount).into()),
+			buy_execution(),
+			DepositAsset {
+				assets: AllCounted(1).into(),
+				beneficiary: Parachain(other_para_id).into(),
+			},
+		]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
@@ -87,20 +86,18 @@ fn report_holding_works() {
 			query_id: 1234,
 			max_weight: 1_000_000_000,
 		};
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			Xcm(vec![
-				WithdrawAsset((Here, amount).into()),
-				buy_execution(),
-				DepositAsset {
-					assets: AllCounted(1).into(),
-					beneficiary: OnlyChild.into(), // invalid destination
-				},
-				// is not triggered becasue the deposit fails
-				ReportHolding { response_info: response_info.clone(), assets: All.into() },
-			]),
-			weight,
-		);
+		let message = Xcm(vec![
+			WithdrawAsset((Here, amount).into()),
+			buy_execution(),
+			DepositAsset {
+				assets: AllCounted(1).into(),
+				beneficiary: OnlyChild.into(), // invalid destination
+			},
+			// is not triggered becasue the deposit fails
+			ReportHolding { response_info: response_info.clone(), assets: All.into() },
+		]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(
 			r,
 			Outcome::Incomplete(
@@ -113,23 +110,18 @@ fn report_holding_works() {
 		assert_eq!(Balances::free_balance(para_acc.clone()), INITIAL_BALANCE - amount);
 
 		// now do a successful transfer
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			Xcm(vec![
-				WithdrawAsset((Here, amount).into()),
-				buy_execution(),
-				DepositAsset {
-					assets: AllCounted(1).into(),
-					beneficiary: Parachain(other_para_id).into(),
-				},
-				// used to get a notification in case of success
-				ReportHolding {
-					response_info: response_info.clone(),
-					assets: AllCounted(1).into(),
-				},
-			]),
-			weight,
-		);
+		let message = Xcm(vec![
+			WithdrawAsset((Here, amount).into()),
+			buy_execution(),
+			DepositAsset {
+				assets: AllCounted(1).into(),
+				beneficiary: Parachain(other_para_id).into(),
+			},
+			// used to get a notification in case of success
+			ReportHolding { response_info: response_info.clone(), assets: AllCounted(1).into() },
+		]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
@@ -176,19 +168,17 @@ fn teleport_to_statemine_works() {
 		let weight = 3 * BaseXcmWeight::get();
 
 		// teleports are allowed to community chains, even in the absence of trust from their side.
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			Xcm(vec![
-				WithdrawAsset((Here, amount).into()),
-				buy_execution(),
-				InitiateTeleport {
-					assets: All.into(),
-					dest: Parachain(other_para_id).into(),
-					xcm: Xcm(teleport_effects.clone()),
-				},
-			]),
-			weight,
-		);
+		let message = Xcm(vec![
+			WithdrawAsset((Here, amount).into()),
+			buy_execution(),
+			InitiateTeleport {
+				assets: All.into(),
+				dest: Parachain(other_para_id).into(),
+				xcm: Xcm(teleport_effects.clone()),
+			},
+		]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(
 			mock::sent_xcm(),
@@ -202,19 +192,17 @@ fn teleport_to_statemine_works() {
 		);
 
 		// teleports are allowed from statemine to kusama.
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			Xcm(vec![
-				WithdrawAsset((Here, amount).into()),
-				buy_execution(),
-				InitiateTeleport {
-					assets: All.into(),
-					dest: Parachain(statemine_id).into(),
-					xcm: Xcm(teleport_effects.clone()),
-				},
-			]),
-			weight,
-		);
+		let message = Xcm(vec![
+			WithdrawAsset((Here, amount).into()),
+			buy_execution(),
+			InitiateTeleport {
+				assets: All.into(),
+				dest: Parachain(statemine_id).into(),
+				xcm: Xcm(teleport_effects.clone()),
+			},
+		]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		// 2 * amount because of the other teleport above
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
@@ -261,20 +249,18 @@ fn reserve_based_transfer_works() {
 				beneficiary: (Parent, Parachain(PARA_ID)).into(),
 			},
 		];
+		let message = Xcm(vec![
+			WithdrawAsset((Here, amount).into()),
+			buy_execution(),
+			DepositReserveAsset {
+				assets: AllCounted(1).into(),
+				dest: Parachain(other_para_id).into(),
+				xcm: Xcm(transfer_effects.clone()),
+			},
+		]);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let weight = 3 * BaseXcmWeight::get();
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			Xcm(vec![
-				WithdrawAsset((Here, amount).into()),
-				buy_execution(),
-				DepositReserveAsset {
-					assets: AllCounted(1).into(),
-					dest: Parachain(other_para_id).into(),
-					xcm: Xcm(transfer_effects.clone()),
-				},
-			]),
-			weight,
-		);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(

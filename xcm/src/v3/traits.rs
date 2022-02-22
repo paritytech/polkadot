@@ -246,15 +246,17 @@ pub trait ExecuteXcm<Call> {
 	fn execute(
 		origin: impl Into<MultiLocation>,
 		pre: Self::Prepared,
+		hash: XcmHash,
 		weight_credit: Weight,
 	) -> Outcome;
 
-	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
-	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
-	/// other aspects.
+	/// Execute some XCM `message` with the versioned `hash` from `origin` using no more than `weight_limit` weight.
+	/// The weight limit is a basic hard-limit and the implementation may place further restrictions or requirements
+	/// on weight and other aspects.
 	fn execute_xcm(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
+		hash: XcmHash,
 		weight_limit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
@@ -265,16 +267,17 @@ pub trait ExecuteXcm<Call> {
 			message,
 			weight_limit,
 		);
-		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
+		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, 0)
 	}
 
-	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the versioned `hash` from `origin` using no more than `weight_limit` weight.
 	///
 	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
 	/// execution without associated payment.
 	fn execute_xcm_in_credit(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
+		hash: XcmHash,
 		weight_limit: Weight,
 		weight_credit: Weight,
 	) -> Outcome {
@@ -286,7 +289,7 @@ pub trait ExecuteXcm<Call> {
 		if xcm_weight > weight_limit {
 			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
 		}
-		Self::execute(origin, pre, weight_credit)
+		Self::execute(origin, pre, hash, weight_credit)
 	}
 
 	/// Deduct some `fees` to the sovereign account of the given `location` and place them as per
@@ -310,7 +313,7 @@ impl<C> ExecuteXcm<C> for () {
 	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> {
 		Err(message)
 	}
-	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: Weight) -> Outcome {
+	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: XcmHash, _: Weight) -> Outcome {
 		unreachable!()
 	}
 	fn charge_fees(

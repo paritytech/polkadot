@@ -27,16 +27,18 @@ fn lock_roundtrip_should_work() {
 	set_send_price((Parent, 10));
 
 	// They want to lock 100 of the native parent tokens to be unlocked only by Parachain #1.
+	let message = Xcm(vec![
+		WithdrawAsset((Parent, 100).into()),
+		SetAppendix(
+			vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
+				.into(),
+		),
+		LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
+	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![
-			WithdrawAsset((Parent, 100).into()),
-			SetAppendix(
-				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
-					.into(),
-			),
-			LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
-		]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(40));
@@ -59,9 +61,11 @@ fn lock_roundtrip_should_work() {
 	);
 
 	// Now we'll unlock it.
+	let message = Xcm(vec![UnlockAsset { asset: (Parent, 100).into(), target: (3u64,).into() }]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(Parent, Parachain(1)),
-		Xcm(vec![UnlockAsset { asset: (Parent, 100).into(), target: (3u64,).into() }]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -77,12 +81,14 @@ fn auto_fee_paying_should_work() {
 	set_send_price((Parent, 10));
 
 	// They want to lock 100 of the native parent tokens to be unlocked only by Parachain #1.
+	let message = Xcm(vec![
+		SetFeesMode { jit_withdraw: true },
+		LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
+	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![
-			SetFeesMode { jit_withdraw: true },
-			LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
-		]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(20));
@@ -96,12 +102,14 @@ fn lock_should_fail_correctly() {
 
 	// #3 wants to lock 100 of the native parent tokens to be unlocked only by parachain ../#1,
 	// but they don't have any.
+	let message = Xcm(vec![LockAsset {
+		asset: (Parent, 100).into(),
+		unlocker: (Parent, Parachain(1)).into(),
+	}]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![LockAsset {
-			asset: (Parent, 100).into(),
-			unlocker: (Parent, Parachain(1)).into(),
-		}]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::LockError));
@@ -115,12 +123,14 @@ fn lock_should_fail_correctly() {
 
 	// #3 wants to lock 100 of the native parent tokens to be unlocked only by parachain ../#1,
 	// but there's nothing to pay the fees for sending the notification message.
+	let message = Xcm(vec![LockAsset {
+		asset: (Parent, 100).into(),
+		unlocker: (Parent, Parachain(1)).into(),
+	}]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![LockAsset {
-			asset: (Parent, 100).into(),
-			unlocker: (Parent, Parachain(1)).into(),
-		}]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotHoldingFees));
@@ -138,9 +148,11 @@ fn remote_unlock_roundtrip_should_work() {
 	set_send_price((Parent, 10));
 
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
+	let message = Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(Parent, Parachain(1)),
-		Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -154,16 +166,18 @@ fn remote_unlock_roundtrip_should_work() {
 	);
 
 	// Let's request those funds be unlocked.
+	let message = Xcm(vec![
+		WithdrawAsset((Parent, 100).into()),
+		SetAppendix(
+			vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
+				.into(),
+		),
+		RequestUnlock { asset: (Parent, 100).into(), locker: (Parent, Parachain(1)).into() },
+	]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![
-			WithdrawAsset((Parent, 100).into()),
-			SetAppendix(
-				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
-					.into(),
-			),
-			RequestUnlock { asset: (Parent, 100).into(), locker: (Parent, Parachain(1)).into() },
-		]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(40));
@@ -196,12 +210,14 @@ fn remote_unlock_should_fail_correctly() {
 	// We want to unlock 100 of the native parent tokens which were locked for us on parachain.
 	// This won't work as we don't have any record of them being locked for us.
 	// No message will be sent and no lock records changed.
+	let message = Xcm(vec![RequestUnlock {
+		asset: (Parent, 100).into(),
+		locker: (Parent, Parachain(1)).into(),
+	}]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![RequestUnlock {
-			asset: (Parent, 100).into(),
-			locker: (Parent, Parachain(1)).into(),
-		}]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::LockError));
@@ -209,9 +225,11 @@ fn remote_unlock_should_fail_correctly() {
 	assert_eq!(take_lock_trace(), vec![]);
 
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
+	let message = Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(Parent, Parachain(1)),
-		Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -220,12 +238,14 @@ fn remote_unlock_should_fail_correctly() {
 	// We want to unlock 100 of the native parent tokens which were locked for us on parachain.
 	// This won't work now as we don't have the funds to send the onward message.
 	// No message will be sent and no lock records changed.
+	let message = Xcm(vec![RequestUnlock {
+		asset: (Parent, 100).into(),
+		locker: (Parent, Parachain(1)).into(),
+	}]);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		(3u64,),
-		Xcm(vec![RequestUnlock {
-			asset: (Parent, 100).into(),
-			locker: (Parent, Parachain(1)).into(),
-		}]),
+		message, hash,
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotHoldingFees));

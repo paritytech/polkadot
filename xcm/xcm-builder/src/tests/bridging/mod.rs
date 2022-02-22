@@ -130,14 +130,15 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		AllowUnpaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
 			origin,
-			message.clone().into(),
+			message.into(),
+			hash,
 			2_000_000_000_000,
 		);
 		match outcome {
-			Outcome::Complete(..) =>
-				Ok(VersionedXcm::from(message).using_encoded(sp_io::hashing::blake2_256)),
+			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),
 		}
@@ -174,14 +175,15 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		AllowPaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
+		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
 			origin,
-			message.clone().into(),
+			message.into(),
+			hash,
 			2_000_000_000_000,
 		);
 		match outcome {
-			Outcome::Complete(..) =>
-				Ok(VersionedXcm::from(message).using_encoded(sp_io::hashing::blake2_256)),
+			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),
 		}
