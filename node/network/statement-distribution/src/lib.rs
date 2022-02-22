@@ -1338,6 +1338,7 @@ async fn handle_incoming_message<'a>(
 			?rep,
 			"Error inserting received statement"
 		);
+		metrics.on_out_of_view_statement();
 		report_peer(ctx, peer, rep).await;
 		return None
 	}
@@ -1928,6 +1929,7 @@ struct MetricsInner {
 	active_leaves_update: prometheus::Histogram,
 	share: prometheus::Histogram,
 	network_bridge_update_v1: prometheus::Histogram,
+	statements_out_view: prometheus::Counter<prometheus::U64>,
 }
 
 /// Statement Distribution metrics.
@@ -1969,6 +1971,12 @@ impl Metrics {
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
+	}
+
+	fn on_out_of_view_statement(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.statements_out_view.inc();
+		}
 	}
 }
 
@@ -2020,6 +2028,13 @@ impl metrics::Metrics for Metrics {
 					"polkadot_parachain_statement_distribution_network_bridge_update_v1",
 					"Time spent within `statement_distribution::network_bridge_update_v1`",
 				))?,
+				registry,
+			)?,
+			statements_out_view: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_statement_distribution_statements_out_view",
+					"Number of statements received out of the current node view.",
+				)?,
 				registry,
 			)?,
 		};
