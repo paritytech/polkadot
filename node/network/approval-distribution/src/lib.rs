@@ -92,6 +92,7 @@ struct State {
 	gossip_peers: HashSet<PeerId>,
 }
 
+/// A short description of a validator's assignment or approval.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum MessageFingerprint {
 	Assignment(Hash, CandidateIndex, ValidatorIndex),
@@ -113,8 +114,11 @@ impl Knowledge {
 	}
 }
 
+/// The difference of our knowledge and peer's knowledge
+/// that is used to send the missing information.
 type MissingKnowledge = HashSet<MessageFingerprint>;
 
+/// Information that has been circulated to and from a peer.
 #[derive(Debug, Clone, Default)]
 struct PeerKnowledge {
 	/// The knowledge we've sent to the peer.
@@ -1084,7 +1088,7 @@ impl State {
 									?block,
 									?validator_index,
 									?candidate_index,
-									"Skipping sending this known assignment",
+									"Skipping sending known assignment",
 								);
 								continue
 							}
@@ -1124,7 +1128,7 @@ impl State {
 									?block,
 									?validator_index,
 									?candidate_index,
-									"Skipping sending this known assignment",
+									"Skipping sending known assignment",
 								);
 							}
 							if missing.contains(&fingerprint) {
@@ -1143,7 +1147,7 @@ impl State {
 									?block,
 									?validator_index,
 									?candidate_index,
-									"Skipping sending this known approval",
+									"Skipping sending known approval",
 								);
 							}
 						},
