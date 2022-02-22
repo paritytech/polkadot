@@ -292,22 +292,14 @@ pub fn clear_universal_aliases() {
 
 pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
-	fn filter_asset_location(
-		asset: &MultiAsset,
-		origin: &MultiLocation,
-		_context: XcmContext,
-	) -> bool {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_RESERVE
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
 }
 pub struct TestIsTeleporter;
 impl FilterAssetLocation for TestIsTeleporter {
-	fn filter_asset_location(
-		asset: &MultiAsset,
-		origin: &MultiLocation,
-		_context: XcmContext,
-	) -> bool {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_TELEPORTER
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
