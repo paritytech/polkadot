@@ -17,8 +17,8 @@ millau-runtime = { path = "../../bin/millau/runtime" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

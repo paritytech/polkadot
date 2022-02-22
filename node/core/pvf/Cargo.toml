@@ -23,15 +23,15 @@ parity-scale-codec = { version = "2.3.1", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

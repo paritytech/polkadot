@@ -12,15 +12,15 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

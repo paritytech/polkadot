@@ -15,18 +15,18 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
 lru = "0.7.2"
 
 [dev-dependencies]
 async-trait = "0.1.52"
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 lazy_static = "1.4.0"

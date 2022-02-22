@@ -10,19 +10,19 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-epm-pub" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-epm-pub" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-epm-pub" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-epm-pub" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-epm-pub" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 xcm-builder = { path = "../xcm-builder" }
 polkadot-parachain = { path = "../../parachain" }
 

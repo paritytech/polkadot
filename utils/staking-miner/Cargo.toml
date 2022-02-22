@@ -16,22 +16,22 @@ serde_json = "1.0"
 thiserror = "1.0.30"
 tokio = { version = "1.16", features = ["macros", "rt-multi-thread", "sync"] }
 
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 
@@ -43,4 +43,4 @@ westend-runtime = { path = "../../runtime/westend" }
 sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
 
 [dev-dependencies]
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }

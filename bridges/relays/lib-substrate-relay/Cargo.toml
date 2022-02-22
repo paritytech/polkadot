@@ -34,10 +34,10 @@ bp-messages = { path = "../../primitives/messages" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 bp-millau = { path = "../../primitives/chain-millau" }

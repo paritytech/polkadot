@@ -5,31 +5,31 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-epm-pub" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "na-epm-pub" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
