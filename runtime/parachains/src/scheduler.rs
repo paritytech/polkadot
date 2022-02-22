@@ -127,8 +127,6 @@ pub struct CoreAssignment {
 	pub para_id: ParaId,
 	/// The kind of the assignment.
 	pub kind: AssignmentKind,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
 }
 
 impl CoreAssignment {
@@ -420,10 +418,7 @@ impl<T: Config> Pallet<T> {
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
-	pub(crate) fn schedule(
-		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
-		now: T::BlockNumber,
-	) {
+	pub(crate) fn schedule(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
 		Self::free_cores(just_freed_cores);
 
 		let cores = AvailabilityCores::<T>::get();
@@ -484,10 +479,6 @@ impl<T: Config> Pallet<T> {
 						kind: AssignmentKind::Parachain,
 						para_id: parachains[core_index],
 						core: core.clone(),
-						group_idx: Self::group_assigned_to_core(core, now).expect(
-							"core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed",
-						),
 					})
 				} else {
 					// parathread core offset, rel. to beginning.
@@ -497,10 +488,6 @@ impl<T: Config> Pallet<T> {
 						kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
 						para_id: entry.claim.0,
 						core: core.clone(),
-						group_idx: Self::group_assigned_to_core(core, now).expect(
-							"core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed",
-						),
 					})
 				};
 
@@ -761,5 +748,10 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 		});
+	}
+
+	#[cfg(test)]
+	pub(crate) fn set_validator_groups(validator_groups: Vec<Vec<ValidatorIndex>>) {
+		<Self as Store>::ValidatorGroups::set(validator_groups);
 	}
 }

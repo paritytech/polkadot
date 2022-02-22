@@ -23,7 +23,7 @@
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
 	paras_inherent::{AllowedRelayParentsTracker, DisputedBitfield},
-	scheduler::CoreAssignment,
+	scheduler::{self, CoreAssignment},
 	shared, ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -196,6 +196,7 @@ pub mod pallet {
 		+ ump::Config
 		+ hrmp::Config
 		+ configuration::Config
+		+ scheduler::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
@@ -569,7 +570,16 @@ impl<T: Config> Pallet<T> {
 						// account for already skipped, and then skip this one.
 						skip = i + skip + 1;
 
-						let group_vals = group_validators(assignment.group_idx)
+						let group_idx = <scheduler::Pallet<T>>::group_assigned_to_core(
+							assignment.core,
+							relay_parent_number,
+						)
+						.expect(
+							"allowed relay parents are cleared on session change, thus the
+							the block is within the session; core is ensured to be in
+							bounds by scheduler::schedule; qed",
+						);
+						let group_vals = group_validators(group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
 						// check the signatures in the backing and that it is a majority.
@@ -623,7 +633,7 @@ impl<T: Config> Pallet<T> {
 						core_indices_and_backers.push((
 							assignment.core,
 							backers,
-							assignment.group_idx,
+							group_idx,
 							relay_parent_number,
 						));
 						continue 'next_backed_candidate

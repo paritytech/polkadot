@@ -1170,7 +1170,6 @@ mod sanitizers {
 			.map(|idx| {
 				let ca = CoreAssignment {
 					kind: scheduler::AssignmentKind::Parachain,
-					group_idx: GroupIndex::from(idx as u32),
 					para_id: ParaId::from(1_u32 + idx as u32),
 					core: CoreIndex::from(idx as u32),
 				};

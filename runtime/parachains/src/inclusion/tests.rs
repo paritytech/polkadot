@@ -19,8 +19,8 @@ use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, ParaInclusion, Paras, ParasShared, System,
-		Test,
+		new_test_ext, Configuration, MockGenesisConfig, ParaInclusion, Paras, ParasShared,
+		Scheduler, System, Test,
 	},
 	paras::ParaGenesisArgs,
 	paras_inherent::{AllowedRelayParentsTracker, DisputedBitfield},
@@ -50,6 +50,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
 	config.parathread_cores = 1;
 	config.max_code_size = 3;
+	config.group_rotation_frequency = u32::MAX;
 	config
 }
 
@@ -954,27 +955,32 @@ fn candidate_checks() {
 			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+		Scheduler::set_validator_groups(validator_groups);
+
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2),
 		};
 
 		let allowed_relay_parents = default_allowed_relay_parent_tracker();
@@ -1521,6 +1527,14 @@ fn backing_works() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+		Scheduler::set_validator_groups(validator_groups);
+
 		let allowed_relay_parents = default_allowed_relay_parent_tracker();
 
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
@@ -1529,21 +1543,18 @@ fn backing_works() {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {
@@ -1801,13 +1812,22 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![vec![
+			ValidatorIndex(0),
+			ValidatorIndex(1),
+			ValidatorIndex(2),
+			ValidatorIndex(3),
+			ValidatorIndex(4),
+		]];
+		Scheduler::set_validator_groups(validator_groups);
+
 		let allowed_relay_parents = default_allowed_relay_parent_tracker();
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {
@@ -1910,6 +1930,14 @@ fn check_allowed_relay_parents() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+		Scheduler::set_validator_groups(validator_groups);
+
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
 		// Base each candidate on one of allowed relay parents.
@@ -1928,21 +1956,18 @@ fn check_allowed_relay_parents() {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {

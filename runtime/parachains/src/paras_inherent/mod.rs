@@ -590,7 +590,7 @@ impl<T: Config> Pallet<T> {
 		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 		<scheduler::Pallet<T>>::clear();
-		<scheduler::Pallet<T>>::schedule(freed, now);
+		<scheduler::Pallet<T>>::schedule(freed);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
@@ -813,8 +813,7 @@ impl<T: Config> Pallet<T> {
 			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 			<scheduler::Pallet<T>>::clear();
-			let now = <frame_system::Pallet<T>>::block_number();
-			<scheduler::Pallet<T>>::schedule(freed, now);
+			<scheduler::Pallet<T>>::schedule(freed);
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
