@@ -24,11 +24,7 @@ use xcm_executor::traits::FilterAssetLocation;
 /// Accepts an asset iff it is a native asset.
 pub struct NativeAsset;
 impl FilterAssetLocation for NativeAsset {
-	fn filter_asset_location(
-		asset: &MultiAsset,
-		origin: &MultiLocation,
-		_context: XcmContext,
-	) -> bool {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		log::trace!(target: "xcm::filter_asset_location", "NativeAsset asset: {:?}, origin: {:?}", asset, origin);
 		matches!(asset.id, Concrete(ref id) if id == origin)
 	}
@@ -37,11 +33,7 @@ impl FilterAssetLocation for NativeAsset {
 /// Accepts an asset if it is contained in the given `T`'s `Get` implementation.
 pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAssetFilter, MultiLocation)>> FilterAssetLocation for Case<T> {
-	fn filter_asset_location(
-		asset: &MultiAsset,
-		origin: &MultiLocation,
-		_context: XcmContext,
-	) -> bool {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		log::trace!(target: "xcm::filter_asset_location", "Case asset: {:?}, origin: {:?}", asset, origin);
 		let (a, o) = T::get();
 		a.matches(asset) && &o == origin
