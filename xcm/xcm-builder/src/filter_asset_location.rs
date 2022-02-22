@@ -18,7 +18,7 @@
 
 use frame_support::traits::Get;
 use sp_std::marker::PhantomData;
-use xcm::latest::{AssetId::Concrete, MultiAsset, MultiAssetFilter, MultiLocation, XcmContext};
+use xcm::latest::{AssetId::Concrete, MultiAsset, MultiAssetFilter, MultiLocation};
 use xcm_executor::traits::FilterAssetLocation;
 
 /// Accepts an asset iff it is a native asset.
