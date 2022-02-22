@@ -865,30 +865,18 @@ where
 			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 			crate::parachains_db::CacheSizes::default(),
 		)?,
-		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } => {
-			let paritydb_path_parent: std::path::PathBuf =
-				paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into();
-			if paritydb_path_parent.is_dir() && paritydb_path_parent.exists() {
-				let hybrid_parachains_path =
-					crate::parachains_db::rocksdb_parachain_path(paritydb_path);
-				if hybrid_parachains_path.is_dir() && hybrid_parachains_path.exists() {
-					crate::parachains_db::open_creating_rocksdb(
-						paritydb_path.clone(),
-						crate::parachains_db::CacheSizes::default(),
-					)?
-				} else {
-					crate::parachains_db::open_creating_paritydb(
-						paritydb_path_parent,
-						crate::parachains_db::CacheSizes::default(),
-					)?
-				}
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+			if paritydb_path.is_dir() && paritydb_path.exists() {
+				crate::parachains_db::open_creating_paritydb(
+					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+					crate::parachains_db::CacheSizes::default(),
+				)?
 			} else {
 				crate::parachains_db::open_creating_rocksdb(
 					rocksdb_path.clone(),
 					crate::parachains_db::CacheSizes::default(),
 				)?
-			}
-		},
+			},
 		DatabaseSource::Custom { .. } => {
 			unimplemented!("No polkadot subsystem db for custom source.");
 		},
