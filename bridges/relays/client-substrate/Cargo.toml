@@ -14,7 +14,7 @@ jsonrpsee-ws-client = "0.3.1"
 log = "0.4.11"
 num-traits = "0.2"
 rand = "0.7"
-tokio = "1.17.0"
+tokio = "1.8"
 thiserror = "1.0.26"
 
 # Bridge dependencies
