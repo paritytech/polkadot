@@ -462,7 +462,6 @@ where
 	let (block_import, babe_link) =
 		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
 
-	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
@@ -471,14 +470,7 @@ where
 		select_chain.clone(),
 		move |_, ()| async move {
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-					*timestamp,
-					slot_duration,
-				);
-
-			Ok((timestamp, slot))
+			Ok((timestamp,))
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
@@ -1043,7 +1035,6 @@ where
 		let client_clone = client.clone();
 		let overseer_handle =
 			overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
-		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
@@ -1070,13 +1061,7 @@ where
 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
-
-					Ok((timestamp, slot, uncles, parachain))
+					Ok((timestamp, uncles, parachain))
 				}
 			},
 			force_authoring,
