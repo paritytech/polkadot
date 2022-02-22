@@ -236,7 +236,7 @@ dependencies = [
  "parking",
  "polling",
  "slab",
- "socket2 0.4.2",
+ "socket2 0.4.4",
  "waker-fn",
  "winapi 0.3.9",
 ]
@@ -2680,7 +2680,7 @@ dependencies = [
  "httpdate",
  "itoa 1.0.1",
  "pin-project-lite 0.2.7",
- "socket2 0.4.2",
+ "socket2 0.4.4",
  "tokio",
  "tower-service",
  "tracing",
@@ -3398,9 +3398,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.112"
+version = "0.2.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b03d17f364a3a042d5e5d46b053bbbf82c92c9430c592dd4c064dc6ee997125"
+checksum = "1bf2e165bb3457c8e098ea76f3e3bc9db55f87aa90d52d0e6be741470916aaa4"
 
 [[package]]
 name = "libgit2-sys"
@@ -3644,7 +3644,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "smallvec",
- "socket2 0.4.2",
+ "socket2 0.4.4",
  "void",
 ]
 
@@ -3852,7 +3852,7 @@ dependencies = [
  "libc",
  "libp2p-core",
  "log",
- "socket2 0.4.2",
+ "socket2 0.4.4",
 ]
 
 [[package]]
@@ -4284,9 +4284,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.7.14"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8067b404fe97c70829f082dec8bcf4f71225d7eaea1d8645349cb76fa06205cc"
+checksum = "ba272f85fa0b41fc91872be579b3bbe0f56b792aa361a380eb669469f68dafb2"
 dependencies = [
  "libc",
  "log",
@@ -9658,9 +9658,9 @@ dependencies = [
 
 [[package]]
 name = "socket2"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dc90fe6c7be1a323296982db1836d1ea9e47b6839496dde9a541bc496df3516"
+checksum = "66d72b759436ae32898a2af0a14218dbf55efde3feeb170eb623637db85ee1e0"
 dependencies = [
  "libc",
  "winapi 0.3.9",
@@ -10908,19 +10908,20 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.16.1"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c27a64b625de6d309e8c57716ba93021dccf1b3b5c97edd6d3dd2d2135afc0a"
+checksum = "2af73ac49756f3f7c01172e34a23e5d0216f6c32333757c2c61feb2bbff5a5ee"
 dependencies = [
  "bytes 1.1.0",
  "libc",
  "memchr",
- "mio 0.7.14",
+ "mio 0.8.0",
  "num_cpus",
  "once_cell",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "pin-project-lite 0.2.7",
  "signal-hook-registry",
+ "socket2 0.4.4",
  "tokio-macros",
  "winapi 0.3.9",
 ]
