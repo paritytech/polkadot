@@ -70,7 +70,7 @@ parameter_types! {
 
 pub struct AllAssetLocationsPass;
 impl FilterAssetLocation for AllAssetLocationsPass {
-	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation, _: XcmContext) -> bool {
+	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation) -> bool {
 		true
 	}
 }
