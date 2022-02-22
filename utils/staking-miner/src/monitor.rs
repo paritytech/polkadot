@@ -16,28 +16,21 @@
 
 //! The monitor command.
 
-use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig};
+use crate::{prelude::*, rpc::*, signer::Signer, Error, MonitorConfig, SharedRpcClient};
 use codec::Encode;
-use jsonrpsee::{
-	core::{
-		client::{Subscription, SubscriptionClientT},
-		Error as RpcError,
-	},
-	rpc_params,
-	ws_client::WsClient,
-};
+use jsonrpsee::core::Error as RpcError;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
-async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
-	client: &WsClient,
+async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
+	rpc: &SharedRpcClient,
 	at: B::Hash,
 ) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
-	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, rpc_params! {key, at})
+	let phase = rpc
+		.get_storage_and_decode::<EPM::Phase<BlockNumber>>(&key, Some(at))
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
@@ -71,23 +64,21 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
-		client: WsClient,
-		shared: SharedConfig,
+		rpc: SharedRpcClient,
 		config: MonitorConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		type StakingMinerError = Error<$crate::[<$runtime _runtime_exports>]::Runtime>;
 
-		let (sub, unsub) = if config.listen == "head" {
-			("chain_subscribeNewHeads", "chain_unsubscribeNewHeads")
-		} else {
-			("chain_subscribeFinalizedHeads", "chain_unsubscribeFinalizedHeads")
-		};
+		let heads_subscription = ||
+			if config.listen == "head" {
+				rpc.subscribe_new_heads()
+			} else {
+				rpc.subscribe_finalized_heads()
+			};
 
-		let mut subscription: Subscription<Header> = client.subscribe(&sub, None, &unsub).await?;
-
-		let client = Arc::new(client);
+		let mut subscription = heads_subscription().await?;
 		let (tx, mut rx) = mpsc::unbounded_channel::<StakingMinerError>();
 
 		loop {
@@ -97,8 +88,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						Some(Ok(r)) => r,
 						// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
 						Some(Err(RpcError::SubscriptionClosed(reason))) => {
-							log::warn!(target: LOG_TARGET, "subscription to {} terminated: {:?}. Retrying..", sub, reason);
-							subscription = client.subscribe(&sub, None, &unsub).await?;
+							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated: {:?}. Retrying..", reason);
+							subscription = heads_subscription().await?;
 							continue;
 						}
 						Some(Err(e)) => {
@@ -109,8 +100,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						//	- the connection was closed.
 						//	- the subscription could not keep up with the server.
 						None => {
-							log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
-							subscription = client.subscribe(&sub, None, &unsub).await?;
+							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated. Retrying..");
+							subscription = heads_subscription().await?;
 							continue
 						}
 					}
@@ -126,17 +117,17 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			// Spawn task and non-recoverable errors are sent back to the main task
 			// such as if the connection has been closed.
 			tokio::spawn(
-				send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), shared.clone(), config.clone())
+				send_and_watch_extrinsic(rpc.clone(), tx.clone(), at, signer.clone(), config.clone())
 			);
+
 		}
 
 		/// Construct extrinsic at given block and watch it.
 		async fn send_and_watch_extrinsic(
-			client: Arc<WsClient>,
+			rpc: SharedRpcClient,
 			tx: mpsc::UnboundedSender<StakingMinerError>,
 			at: Header,
 			signer: Signer,
-			shared: SharedConfig,
 			config: MonitorConfig,
 		) {
 
@@ -144,20 +135,20 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
 			// if the runtime version has changed, terminate.
-			if let Err(err) = crate::check_versions::<Runtime>(&*client).await {
+			if let Err(err) = crate::check_versions::<Runtime>(&rpc).await {
 				let _ = tx.send(err.into());
 				return;
 			}
 
 			// we prefer doing this check before fetching anything into a remote-ext.
-			if ensure_signed_phase::<Runtime, Block>(&*client, hash).await.is_err() {
+			if ensure_signed_phase::<Runtime, Block>(&rpc, hash).await.is_err() {
 				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
 				return;
 			}
 
 			// grab an externalities without staking, just the election snapshot.
 			let mut ext = match crate::create_election_ext::<Runtime, Block>(
-				shared.uri.clone(),
+				rpc.clone(),
 				Some(hash),
 				vec![],
 			).await {
@@ -184,7 +175,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let nonce = match crate::get_account_info::<Runtime>(&*client, &signer.account, Some(hash)).await {
+			let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(hash)).await {
 				Ok(maybe_account) => {
 					let acc = maybe_account.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
 					acc.nonce
@@ -209,13 +200,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
-			let mut tx_subscription: Subscription<
-					TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
-			> = match client.subscribe(
-				"author_submitAndWatchExtrinsic",
-				rpc_params! { bytes },
-				"author_unwatchExtrinsic"
-			).await {
+			let mut tx_subscription = match rpc.watch_extrinsic(&bytes).await {
 				Ok(sub) => sub,
 				Err(RpcError::RestartNeeded(e)) => {
 					let _ = tx.send(RpcError::RestartNeeded(e).into());
@@ -267,11 +252,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						let key = StorageKey(
 							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
 						);
-						let key2 = key.clone();
 
-						let events = match get_storage::<
+						let events = match rpc.get_storage_and_decode::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
-						>(&*client, rpc_params! { key, hash })
+						>(&key, Some(hash))
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),
 							Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {
@@ -281,7 +265,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 							// Decoding or other RPC error => just terminate the task.
 							Err(e) => {
 								log::warn!(target: LOG_TARGET, "get_storage [key: {:?}, hash: {:?}] failed: {:?}; skip block: {}",
-									key2, hash, e, at.number
+									key, hash, e, at.number
 								);
 								return;
 							}
