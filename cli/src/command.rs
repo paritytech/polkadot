@@ -316,7 +316,7 @@ pub fn run() -> Result<()> {
 			"http://".to_owned() + address.to_string().as_str(),
 			"polkadot".to_owned(),
 		)
-		.sample_rate(100)
+		.sample_rate(113)
 		.build()?;
 		agent.start();
 		Some(agent)
