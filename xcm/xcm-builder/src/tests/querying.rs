@@ -30,11 +30,7 @@ fn pallet_query_should_work() {
 		},
 	}]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
 	assert_eq!(
@@ -65,11 +61,7 @@ fn pallet_query_with_results_should_work() {
 		},
 	}]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
 	assert_eq!(

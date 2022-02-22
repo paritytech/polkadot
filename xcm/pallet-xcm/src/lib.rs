@@ -1324,11 +1324,7 @@ impl<T: Config> Pallet<T> {
 			VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let (ticket, price) = validate_send::<T::XcmRouter>(dest, message)?;
 		if let Some(fee_payer) = maybe_fee_payer {
-			let context = XcmContext {
-				origin: Some(fee_payer.clone()),
-				message_hash,
-				topic: None,
-			};
+			let context = XcmContext { origin: Some(fee_payer.clone()), message_hash, topic: None };
 			Self::charge_fees(fee_payer, price, context).map_err(|_| SendError::Fees)?;
 		}
 		T::XcmRouter::deliver(ticket)
@@ -1590,8 +1586,8 @@ impl<T: Config> xcm_executor::traits::Enact for ReduceTicket<T> {
 		ensure!(self.locker == record.locker && self.owner == record.owner, UnexpectedState);
 		ensure!(record.users == 0, UnexpectedState);
 		record.amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
-		if record.amount == 0 
-{			RemoteLockedFungibles::<T>::remove(&self.key);
+		if record.amount == 0 {
+			RemoteLockedFungibles::<T>::remove(&self.key);
 		} else {
 			RemoteLockedFungibles::<T>::insert(&self.key, &record);
 		}

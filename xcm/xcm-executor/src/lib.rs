@@ -229,7 +229,11 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		vm.post_execute(xcm_weight, message_hash)
 	}
 
-	fn charge_fees(origin: impl Into<MultiLocation>, fees: MultiAssets, context: XcmContext) -> XcmResult {
+	fn charge_fees(
+		origin: impl Into<MultiLocation>,
+		fees: MultiAssets,
+		context: XcmContext,
+	) -> XcmResult {
 		let origin = origin.into();
 		if !Config::FeeManager::is_waived(Some(&origin), FeeReason::ChargeFees) {
 			for asset in fees.inner() {

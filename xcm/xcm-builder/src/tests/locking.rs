@@ -30,17 +30,12 @@ fn lock_roundtrip_should_work() {
 	let message = Xcm(vec![
 		WithdrawAsset((Parent, 100).into()),
 		SetAppendix(
-			vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
-				.into(),
+			vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }].into(),
 		),
 		LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
 	]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 
@@ -63,11 +58,7 @@ fn lock_roundtrip_should_work() {
 	// Now we'll unlock it.
 	let message = Xcm(vec![UnlockAsset { asset: (Parent, 100).into(), target: (3u64,).into() }]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(Parent, Parachain(1)),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((Parent, Parachain(1)), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 }
 
@@ -86,11 +77,7 @@ fn auto_fee_paying_should_work() {
 		LockAsset { asset: (Parent, 100).into(), unlocker: (Parent, Parachain(1)).into() },
 	]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(20));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 }
@@ -107,11 +94,7 @@ fn lock_should_fail_correctly() {
 		unlocker: (Parent, Parachain(1)).into(),
 	}]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::LockError));
 	assert_eq!(sent_xcm(), vec![]);
 	assert_eq!(take_lock_trace(), vec![]);
@@ -128,11 +111,7 @@ fn lock_should_fail_correctly() {
 		unlocker: (Parent, Parachain(1)).into(),
 	}]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotHoldingFees));
 	assert_eq!(sent_xcm(), vec![]);
 	assert_eq!(take_lock_trace(), vec![]);
@@ -150,11 +129,7 @@ fn remote_unlock_roundtrip_should_work() {
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
 	let message = Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(Parent, Parachain(1)),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((Parent, Parachain(1)), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 	assert_eq!(
 		take_lock_trace(),
@@ -169,17 +144,12 @@ fn remote_unlock_roundtrip_should_work() {
 	let message = Xcm(vec![
 		WithdrawAsset((Parent, 100).into()),
 		SetAppendix(
-			vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
-				.into(),
+			vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }].into(),
 		),
 		RequestUnlock { asset: (Parent, 100).into(), locker: (Parent, Parachain(1)).into() },
 	]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 
@@ -215,11 +185,7 @@ fn remote_unlock_should_fail_correctly() {
 		locker: (Parent, Parachain(1)).into(),
 	}]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::LockError));
 	assert_eq!(sent_xcm(), vec![]);
 	assert_eq!(take_lock_trace(), vec![]);
@@ -227,11 +193,7 @@ fn remote_unlock_should_fail_correctly() {
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
 	let message = Xcm(vec![NoteUnlockable { asset: (Parent, 100).into(), owner: (3u64,).into() }]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(Parent, Parachain(1)),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((Parent, Parachain(1)), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 	let _discard = take_lock_trace();
 
@@ -243,11 +205,7 @@ fn remote_unlock_should_fail_correctly() {
 		locker: (Parent, Parachain(1)).into(),
 	}]);
 	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		(3u64,),
-		message, hash,
-		50,
-	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm((3u64,), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotHoldingFees));
 
 	assert_eq!(sent_xcm(), vec![]);

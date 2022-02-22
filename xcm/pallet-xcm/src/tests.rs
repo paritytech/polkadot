@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use codec::Encode;
 use crate::{
 	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
 	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
 };
+use codec::Encode;
 use frame_support::{
 	assert_noop, assert_ok,
 	traits::{Currency, Hooks},
@@ -85,11 +85,8 @@ fn report_outcome_notify_works() {
 			querier: Some(querier),
 		}]);
 		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			message, hash,
-			1_000_000_000,
-		);
+		let r =
+			XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, 1_000_000_000);
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_events(2),
@@ -144,11 +141,8 @@ fn report_outcome_works() {
 			querier: Some(querier),
 		}]);
 		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID),
-			message, hash,
-			1_000_000_000,
-		);
+		let r =
+			XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, 1_000_000_000);
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
@@ -188,7 +182,8 @@ fn custom_querier_works() {
 		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: None, id: ALICE.into() },
-			message, hash,
+			message,
+			hash,
 			1_000_000_000,
 			1_000,
 		);
@@ -213,7 +208,8 @@ fn custom_querier_works() {
 		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: None, id: ALICE.into() },
-			message, hash,
+			message,
+			hash,
 			1_000_000_000,
 			1_000,
 		);
@@ -238,7 +234,8 @@ fn custom_querier_works() {
 		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			AccountId32 { network: None, id: ALICE.into() },
-			message, hash,
+			message,
+			hash,
 			1_000_000_000,
 		);
 		assert_eq!(r, Outcome::Complete(1_000));
