@@ -1,6 +1,6 @@
 [package]
 name = "test-parachain-adder-collator"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
 edition = "2018"
@@ -44,4 +44,4 @@ substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-tokio = { version = "1.15", features = ["macros"] }
+tokio = { version = "1.17.0", features = ["macros"] }
