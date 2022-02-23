@@ -14,10 +14,11 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-clap = { version = "3.0", features = ["derive"], optional = true }
+clap = { version = "3.1", features = ["derive"], optional = true }
 log = "0.4.13"
 thiserror = "1.0.30"
 futures = "0.3.21"
+pyro = { package = "pyroscope", version = "0.3.1", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
@@ -57,6 +58,7 @@ trie-memory-tracker = ["sp-trie/memory-tracker"]
 full-node = ["service/full-node"]
 try-runtime = ["service/try-runtime"]
 fast-runtime = ["service/fast-runtime"]
+pyroscope = ["pyro"]
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #
