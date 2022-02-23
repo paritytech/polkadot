@@ -303,7 +303,8 @@ where
 /// Manage pending imports in a way that preserves invariants.
 struct PendingImports {
 	/// Futures in flight.
-	futures: FuturesUnordered<BoxFuture<'static, (PeerId, JfyiErrorResult<ImportStatementsResult>)>>,
+	futures:
+		FuturesUnordered<BoxFuture<'static, (PeerId, JfyiErrorResult<ImportStatementsResult>)>>,
 	/// Peers whose requests are currently in flight.
 	peers: HashSet<PeerId>,
 }

@@ -243,7 +243,8 @@ impl DisputeSender {
 
 		let (valid_vote, invalid_vote) = if let Some(our_valid_vote) = our_valid_vote {
 			// Get some invalid vote as well:
-			let invalid_vote = votes.invalid.get(0).ok_or(JfyiError::MissingVotesFromCoordinator)?;
+			let invalid_vote =
+				votes.invalid.get(0).ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(our_valid_vote, invalid_vote)
 		} else if let Some(our_invalid_vote) = our_invalid_vote {
 			// Get some valid vote as well:

@@ -33,7 +33,6 @@ pub type FatalResult<T> = std::result::Result<T, FatalError>;
 
 use fatality::Nested;
 
-
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {

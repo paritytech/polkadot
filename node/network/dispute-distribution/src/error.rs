@@ -24,7 +24,6 @@ use crate::{sender, LOG_TARGET};
 
 use fatality::Nested;
 
-
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
