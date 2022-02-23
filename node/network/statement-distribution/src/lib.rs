@@ -241,7 +241,7 @@ struct PeerRelayParentKnowledge {
 	large_statement_count: usize,
 
 	/// We have seen a message that come out of view from this peer, so note this fact
-	/// and stop subsequent logging and peer reputation flood
+	/// and stop subsequent logging and peer reputation flood.
 	seen_out_of_view: bool,
 }
 
@@ -511,11 +511,7 @@ impl PeerData {
 		self.view_knowledge
 			.get_mut(relay_parent)
 			.map_or(false, |relay_parent_peer_knowledge| {
-				let old = relay_parent_peer_knowledge.seen_out_of_view;
-				if !old {
-					relay_parent_peer_knowledge.seen_out_of_view = true;
-				}
-				old
+				std::mem::replace(&mut relay_parent_peer_knowledge.seen_out_of_view, true)
 			})
 	}
 
@@ -1351,11 +1347,11 @@ async fn handle_incoming_message<'a>(
 		// but we have received the Valid statement.
 		// So we check it once and then ignore repeated violation to avoid
 		// reputation change flood.
-		let mut need_report_peer = true;
+		let mut repeated_out_of_view = false;
 
 		if rep == COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE {
 			// Report merely when we have not see other out of view statement
-			need_report_peer = !peer_data.receive_out_of_view_statement(&relay_parent);
+			repeated_out_of_view = peer_data.receive_out_of_view_statement(&relay_parent);
 		}
 
 		tracing::debug!(
@@ -1364,13 +1360,15 @@ async fn handle_incoming_message<'a>(
 			?peer,
 			?message,
 			?rep,
-			?need_report_peer,
+			?repeated_out_of_view,
 			"Error inserting received statement"
 		);
 
 		metrics.on_out_of_view_statement();
 
-		if need_report_peer {
+		// Report peer merely if this is not a duplicate out-of-view statement that
+		// was caused by a missing Seconded statement from this peer
+		if !repeated_out_of_view {
 			report_peer(ctx, peer, rep).await;
 		}
 
@@ -1971,18 +1969,21 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	/// Update statements distributed counter
 	fn on_statement_distributed(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.statements_distributed.inc();
 		}
 	}
 
+	/// Update sent requests counter
 	fn on_sent_request(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.sent_requests.inc();
 		}
 	}
 
+	/// Update counters for the received responses with `succeeded` or `failed` labels
 	fn on_received_response(&self, success: bool) {
 		if let Some(metrics) = &self.0 {
 			let label = if success { "succeeded" } else { "failed" };
@@ -2007,6 +2008,7 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
 	}
 
+	/// Update the out-of-view statements counter
 	fn on_out_of_view_statement(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.statements_out_view.inc();
