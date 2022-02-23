@@ -28,7 +28,7 @@ color-eyre = { version = "0.6.0", default-features = false }
 assert_matches = "1.5"
 async-trait = "0.1.52"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-clap = { version = "3.0", features = ["derive"] }
+clap = { version = "3.1", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 tracing = "0.1.31"

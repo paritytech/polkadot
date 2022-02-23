@@ -16,7 +16,7 @@
 
 //! Polkadot CLI library.
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
@@ -43,11 +43,11 @@ pub enum Subcommand {
 	Revert(sc_cli::RevertCmd),
 
 	#[allow(missing_docs)]
-	#[clap(name = "prepare-worker", setting = AppSettings::Hidden)]
+	#[clap(name = "prepare-worker", hide = true)]
 	PvfPrepareWorker(ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
-	#[clap(name = "execute-worker", setting = AppSettings::Hidden)]
+	#[clap(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(ValidationWorkerCommand),
 
 	/// The custom benchmark subcommand benchmarking runtime pallets.

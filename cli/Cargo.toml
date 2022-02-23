@@ -14,7 +14,7 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-clap = { version = "3.0", features = ["derive"], optional = true }
+clap = { version = "3.1", features = ["derive"], optional = true }
 log = "0.4.13"
 thiserror = "1.0.30"
 futures = "0.3.21"
