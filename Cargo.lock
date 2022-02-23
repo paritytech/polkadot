@@ -627,6 +627,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake3"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a08e53fc5a564bb15bfe6fae56bd71522205f1f91893f9c0116edad6496c183f"
+dependencies = [
+ "arrayref",
+ "arrayvec 0.7.2",
+ "cc",
+ "cfg-if 1.0.0",
+ "constant_time_eq",
+ "digest 0.10.2",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1759,6 +1773,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e43f2f1833d64e33f15592464d6fdd70f349dda7b1a53088eb83cd94014008c5"
 dependencies = [
  "futures 0.3.21",
+]
+
+[[package]]
+name = "expander"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a718c0675c555c5f976fff4ea9e2c150fa06cefa201cadef87cfbf9324075881"
+dependencies = [
+ "blake3 1.3.1",
+ "fs-err",
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]
@@ -4392,7 +4418,7 @@ checksum = "4dac63698b887d2d929306ea48b63760431ff8a24fac40ddb22f9c7f49fb7cab"
 dependencies = [
  "blake2b_simd",
  "blake2s_simd",
- "blake3",
+ "blake3 0.3.8",
  "digest 0.9.0",
  "generic-array 0.14.4",
  "multihash-derive",
@@ -6846,6 +6872,7 @@ name = "polkadot-overseer-gen-proc-macro"
 version = "0.9.17"
 dependencies = [
  "assert_matches",
+ "expander",
  "proc-macro-crate 1.1.2",
  "proc-macro2",
  "quote",
