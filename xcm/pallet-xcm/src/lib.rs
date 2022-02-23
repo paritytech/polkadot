@@ -1313,19 +1313,16 @@ impl<T: Config> Pallet<T> {
 	) -> Result<XcmHash, SendError> {
 		let interior = interior.into();
 		let dest = dest.into();
-		let maybe_fee_payer: Option<MultiLocation> = if interior != Junctions::Here {
+		let maybe_fee_payer = if interior != Junctions::Here {
 			message.0.insert(0, DescendOrigin(interior.clone()));
 			Some(interior.into())
 		} else {
 			None
 		};
 		log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
-		let message_hash =
-			VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
 		let (ticket, price) = validate_send::<T::XcmRouter>(dest, message)?;
 		if let Some(fee_payer) = maybe_fee_payer {
-			let context = XcmContext { origin: Some(fee_payer.clone()), message_hash, topic: None };
-			Self::charge_fees(fee_payer, price, context).map_err(|_| SendError::Fees)?;
+			Self::charge_fees(fee_payer, price).map_err(|_| SendError::Fees)?;
 		}
 		T::XcmRouter::deliver(ticket)
 	}
@@ -1483,18 +1480,13 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	/// Withdraw given `assets` from the given `location` with the given `context` and pay as XCM
-	/// fees.
+	/// Withdraw given `assets` from the given `location` and pay as XCM fees.
 	///
 	/// Fails if:
 	/// - the `assets` are not known on this chain;
 	/// - the `assets` cannot be withdrawn with that location as the Origin.
-	fn charge_fees(
-		location: MultiLocation,
-		assets: MultiAssets,
-		context: XcmContext,
-	) -> DispatchResult {
-		T::XcmExecutor::charge_fees(location.clone(), assets.clone(), context)
+	fn charge_fees(location: MultiLocation, assets: MultiAssets) -> DispatchResult {
+		T::XcmExecutor::charge_fees(location.clone(), assets.clone())
 			.map_err(|_| Error::<T>::FeesNotMet)?;
 		Self::deposit_event(Event::FeesPaid(location, assets));
 		Ok(())

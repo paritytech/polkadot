@@ -234,7 +234,7 @@ impl<
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		_context: XcmContext,
+		_context: Option<XcmContext>,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
@@ -316,7 +316,7 @@ impl<
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		context: XcmContext,
+		context: Option<XcmContext>,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		FungiblesMutateAdapter::<
 			Assets,

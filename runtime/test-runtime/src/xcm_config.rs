@@ -61,7 +61,7 @@ impl TransactAsset for DummyAssetTransactor {
 	fn withdraw_asset(
 		_what: &MultiAsset,
 		_who: &MultiLocation,
-		_context: XcmContext,
+		_context: Option<XcmContext>,
 	) -> Result<Assets, XcmError> {
 		let asset: MultiAsset = (Parent, 100_000).into();
 		Ok(asset.into())

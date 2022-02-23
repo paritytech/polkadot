@@ -78,7 +78,7 @@ pub trait TransactAsset {
 	fn withdraw_asset(
 		_what: &MultiAsset,
 		_who: &MultiLocation,
-		_context: XcmContext,
+		_context: Option<XcmContext>,
 	) -> Result<Assets, XcmError> {
 		Err(XcmError::Unimplemented)
 	}
@@ -106,7 +106,7 @@ pub trait TransactAsset {
 	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to, context.clone()) {
 			Err(XcmError::Unimplemented) => {
-				let assets = Self::withdraw_asset(asset, from, context.clone())?;
+				let assets = Self::withdraw_asset(asset, from, Some(context.clone()))?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to, context)?;
 				Ok(assets)
@@ -167,7 +167,7 @@ impl TransactAsset for Tuple {
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		context: XcmContext,
+		context: Option<XcmContext>,
 	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::withdraw_asset(what, who, context.clone()) {
@@ -238,7 +238,7 @@ mod tests {
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: XcmContext,
+			_context: Option<XcmContext>,
 		) -> Result<Assets, XcmError> {
 			Err(XcmError::AssetNotFound)
 		}
@@ -274,7 +274,7 @@ mod tests {
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: XcmContext,
+			_context: Option<XcmContext>,
 		) -> Result<Assets, XcmError> {
 			Err(XcmError::Overflow)
 		}
@@ -310,7 +310,7 @@ mod tests {
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: XcmContext,
+			_context: Option<XcmContext>,
 		) -> Result<Assets, XcmError> {
 			Ok(Assets::default())
 		}

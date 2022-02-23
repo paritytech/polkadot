@@ -217,7 +217,7 @@ impl TransactAsset for TestAssetTransactor {
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		_context: XcmContext,
+		_context: Option<XcmContext>,
 	) -> Result<Assets, XcmError> {
 		ASSETS.with(|a| {
 			a.borrow_mut()
