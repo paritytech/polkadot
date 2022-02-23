@@ -16,7 +16,7 @@
 
 //! Various implementations of `FilterAssetLocation`.
 
-use frame_support::traits::{Get, ContainsPair};
+use frame_support::traits::{ContainsPair, Get};
 use sp_std::marker::PhantomData;
 use xcm::latest::{AssetId::Concrete, MultiAsset, MultiAssetFilter, MultiLocation};
 
@@ -31,7 +31,9 @@ impl ContainsPair<MultiAsset, MultiLocation> for NativeAsset {
 
 /// Accepts an asset if it is contained in the given `T`'s `Get` implementation.
 pub struct Case<T>(PhantomData<T>);
-impl<T: Get<(MultiAssetFilter, MultiLocation)>> ContainsPair<MultiAsset, MultiLocation> for Case<T> {
+impl<T: Get<(MultiAssetFilter, MultiLocation)>> ContainsPair<MultiAsset, MultiLocation>
+	for Case<T>
+{
 	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		log::trace!(target: "xcm::contains", "Case asset: {:?}, origin: {:?}", asset, origin);
 		let (a, o) = T::get();

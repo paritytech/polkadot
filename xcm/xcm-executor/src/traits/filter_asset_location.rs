@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::latest::{MultiAsset, MultiLocation};
 use frame_support::traits::ContainsPair;
+use xcm::latest::{MultiAsset, MultiLocation};
 
 /// Filters assets/location pairs.
 ///

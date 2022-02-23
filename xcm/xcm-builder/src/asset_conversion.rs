@@ -19,9 +19,7 @@
 use frame_support::traits::Get;
 use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{
-	Convert, Error as MatchError, MatchesFungibles, MatchesNonFungibles,
-};
+use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a

@@ -1220,8 +1220,10 @@ mod tests {
 
 	#[test]
 	fn basic_roundtrip_works() {
-		let xcm =
-			Xcm::<()>(vec![TransferAsset { assets: (Here, 1u128).into(), beneficiary: Here.into() }]);
+		let xcm = Xcm::<()>(vec![TransferAsset {
+			assets: (Here, 1u128).into(),
+			beneficiary: Here.into(),
+		}]);
 		let old_xcm = OldXcm::<()>(vec![OldInstruction::TransferAsset {
 			assets: (OldHere, 1).into(),
 			beneficiary: OldHere.into(),

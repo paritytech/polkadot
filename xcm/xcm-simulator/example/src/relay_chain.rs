@@ -18,7 +18,7 @@
 
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing, AsEnsureOriginWithArg},
+	traits::{AsEnsureOriginWithArg, Everything, Nothing},
 	weights::Weight,
 };
 use sp_core::H256;
@@ -28,13 +28,13 @@ use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared, ump};
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
-	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	NonFungiblesAdapter, AsPrefixedGeneralIndex, ConvertedConcreteId, Account32Hash,
+	Account32Hash, AccountId32Aliases, AllowUnpaidExecutionFrom, AsPrefixedGeneralIndex,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	ConvertedConcreteId, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
+	FixedWeightBounds, IsConcrete, LocationInverter, NonFungiblesAdapter,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 };
-use xcm_executor::{Config, XcmExecutor, traits::JustTry};
+use xcm_executor::{traits::JustTry, Config, XcmExecutor};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;

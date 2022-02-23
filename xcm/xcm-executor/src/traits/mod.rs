@@ -34,7 +34,9 @@ mod filter_asset_location;
 #[allow(deprecated)]
 pub use filter_asset_location::FilterAssetLocation;
 mod token_matching;
-pub use token_matching::{Error, MatchesFungibles, MatchesFungible, MatchesNonFungibles, MatchesNonFungible};
+pub use token_matching::{
+	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
+};
 mod on_response;
 pub use on_response::{OnResponse, VersionChangeNotifier};
 mod should_execute;

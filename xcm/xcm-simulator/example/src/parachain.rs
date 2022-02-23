@@ -19,10 +19,7 @@
 use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Everything, EverythingBut, Nothing, EnsureOriginWithArg,
-		EnsureOrigin,
-	},
+	traits::{EnsureOrigin, EnsureOriginWithArg, Everything, EverythingBut, Nothing},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
@@ -40,13 +37,16 @@ use polkadot_parachain::primitives::{
 };
 use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
-	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,
-	NativeAsset, ParentIsPreset, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, NonFungiblesAdapter, ConvertedConcreteId,
-	Account32Hash,
+	Account32Hash, AccountId32Aliases, AllowUnpaidExecutionFrom, ConvertedConcreteId,
+	CurrencyAdapter as XcmCurrencyAdapter, EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds,
+	IsConcrete, LocationInverter, NativeAsset, NonFungiblesAdapter, ParentIsPreset,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation,
 };
-use xcm_executor::{Config, XcmExecutor, traits::{JustTry, Convert}};
+use xcm_executor::{
+	traits::{Convert, JustTry},
+	Config, XcmExecutor,
+};
 
 pub type SovereignAccountOf = (
 	SiblingParachainConvertsVia<ParaId, AccountId>,
@@ -110,8 +110,12 @@ impl pallet_balances::Config for Runtime {
 pub struct UniquesHelper;
 #[cfg(feature = "runtime-benchmarks")]
 impl pallet_uniques::BenchmarkHelper<MultiLocation, AssetInstance> for UniquesHelper {
-	fn class(i: u16) -> MultiLocation { GeneralIndex(i as u128).into() }
-	fn instance(i: u16) -> AssetInstance { AssetInstance::Index(i as u128) }
+	fn class(i: u16) -> MultiLocation {
+		GeneralIndex(i as u128).into()
+	}
+	fn instance(i: u16) -> AssetInstance {
+		AssetInstance::Index(i as u128)
+	}
 }
 
 impl pallet_uniques::Config for Runtime {
@@ -142,7 +146,9 @@ impl EnsureOriginWithArg<Origin, MultiLocation> for ForeignCreators {
 
 	fn try_origin(o: Origin, a: &MultiLocation) -> sp_std::result::Result<Self::Success, Origin> {
 		let origin_location = pallet_xcm::EnsureXcm::<Everything>::try_origin(o.clone())?;
-		if !a.starts_with(&origin_location) { return Err(o) }
+		if !a.starts_with(&origin_location) {
+			return Err(o)
+		}
 		SovereignAccountOf::convert(origin_location).map_err(|_| o)
 	}
 
@@ -151,7 +157,6 @@ impl EnsureOriginWithArg<Origin, MultiLocation> for ForeignCreators {
 		pallet_xcm::Origin::Xcm(a.clone()).into()
 	}
 }
-
 
 parameter_types! {
 	pub const ReservedXcmpWeight: Weight = WEIGHT_PER_SECOND / 4;

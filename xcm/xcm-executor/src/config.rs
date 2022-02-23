@@ -16,8 +16,8 @@
 
 use crate::traits::{
 	AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager,
-	OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
-	VersionChangeNotifier, WeightBounds, WeightTrader,
+	OnResponse, ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier,
+	WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},

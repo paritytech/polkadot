@@ -51,7 +51,9 @@ use scale_info::TypeInfo;
 /// that a value is strictly an interior location, in those cases, `Junctions` may be used.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen,
+)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,

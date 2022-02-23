@@ -19,9 +19,7 @@
 use frame_support::traits::{tokens::fungibles, Contains, Get};
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{
-	Convert, Error as MatchError, MatchesFungibles, TransactAsset,
-};
+use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, TransactAsset};
 
 pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,

@@ -31,8 +31,8 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
-	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute,
-	TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;

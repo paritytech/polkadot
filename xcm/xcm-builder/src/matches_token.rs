@@ -17,12 +17,15 @@
 //! Various implementations for the `MatchesFungible` trait.
 
 use frame_support::traits::Get;
-use sp_std::{convert::{TryFrom, TryInto}, marker::PhantomData};
+use sp_std::{
+	convert::{TryFrom, TryInto},
+	marker::PhantomData,
+};
 use xcm::latest::{
 	AssetId::{Abstract, Concrete},
-	Fungibility::Fungible,
-	Fungibility::NonFungible,
-	AssetInstance, MultiAsset, MultiLocation,
+	AssetInstance,
+	Fungibility::{Fungible, NonFungible},
+	MultiAsset, MultiLocation,
 };
 use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 

@@ -25,7 +25,7 @@ mod tests;
 
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{
-	Contains, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait, ContainsPair,
+	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{

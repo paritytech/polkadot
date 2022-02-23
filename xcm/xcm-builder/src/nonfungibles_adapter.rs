@@ -16,11 +16,13 @@
 
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
-use frame_support::traits::{tokens::nonfungibles, Contains, Get};
+use frame_support::{
+	ensure,
+	traits::{tokens::nonfungibles, Contains, Get},
+};
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
-use frame_support::ensure;
 
 pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,

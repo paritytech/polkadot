@@ -17,10 +17,10 @@
 mod parachain;
 mod relay_chain;
 
-use xcm_executor::traits::Convert;
-use xcm::prelude::*;
-use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
 use frame_support::sp_tracing;
+use xcm::prelude::*;
+use xcm_executor::traits::Convert;
+use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
@@ -86,7 +86,6 @@ pub fn parent_account_account_id(who: sp_runtime::AccountId32) -> parachain::Acc
 	parachain::LocationToAccountId::convert(location.into()).unwrap()
 }
 
-
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 	use parachain::{MsgQueue, Runtime, System};
 
@@ -95,8 +94,8 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 	pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![(ALICE, INITIAL_BALANCE), (parent_account_id(), INITIAL_BALANCE)],
 	}
-		.assimilate_storage(&mut t)
-		.unwrap();
+	.assimilate_storage(&mut t)
+	.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| {
@@ -108,7 +107,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 }
 
 pub fn relay_ext() -> sp_io::TestExternalities {
-	use relay_chain::{Runtime, System, Uniques, Origin};
+	use relay_chain::{Origin, Runtime, System, Uniques};
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
@@ -276,12 +275,10 @@ mod tests {
 		});
 
 		ParaA::execute_with(|| {
-			let message = Xcm(vec![
-				TransferAsset {
-					assets: (GeneralIndex(1), 42u32).into(),
-					beneficiary: Parachain(2).into(),
-				},
-			]);
+			let message = Xcm(vec![TransferAsset {
+				assets: (GeneralIndex(1), 42u32).into(),
+				beneficiary: Parachain(2).into(),
+			}]);
 			// Send withdraw and deposit
 			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message));
 		});
@@ -309,7 +306,10 @@ mod tests {
 			));
 			// The parachain#1 alias of Alice is what must hold it on the Relay-chain for it to be
 			// withdrawable by Alice on the parachain.
-			assert_eq!(relay_chain::Uniques::owner(1, 69), Some(child_account_account_id(1, ALICE)));
+			assert_eq!(
+				relay_chain::Uniques::owner(1, 69),
+				Some(child_account_account_id(1, ALICE))
+			);
 		});
 		ParaA::execute_with(|| {
 			assert_ok!(parachain::ForeignUniques::force_create(
@@ -331,12 +331,10 @@ mod tests {
 				InitiateTeleport {
 					assets: AllCounted(1).into(),
 					dest: Parachain(1).into(),
-					xcm: Xcm(vec![
-						DepositAsset {
-							assets: AllCounted(1).into(),
-							beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
-						}
-					]),
+					xcm: Xcm(vec![DepositAsset {
+						assets: AllCounted(1).into(),
+						beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
+					}]),
 				},
 			]);
 			// Send teleport
@@ -366,14 +364,22 @@ mod tests {
 		MockNet::reset();
 
 		Relay::execute_with(|| {
-			assert_ok!(relay_chain::Uniques::force_create(relay_chain::Origin::root(), 2, ALICE, false));
+			assert_ok!(relay_chain::Uniques::force_create(
+				relay_chain::Origin::root(),
+				2,
+				ALICE,
+				false
+			));
 			assert_ok!(relay_chain::Uniques::mint(
 				relay_chain::Origin::signed(ALICE),
 				2,
 				69,
 				child_account_account_id(1, ALICE)
 			));
-			assert_eq!(relay_chain::Uniques::owner(2, 69), Some(child_account_account_id(1, ALICE)));
+			assert_eq!(
+				relay_chain::Uniques::owner(2, 69),
+				Some(child_account_account_id(1, ALICE))
+			);
 		});
 		ParaA::execute_with(|| {
 			assert_ok!(parachain::ForeignUniques::force_create(
@@ -393,12 +399,10 @@ mod tests {
 				DepositReserveAsset {
 					assets: AllCounted(1).into(),
 					dest: Parachain(1).into(),
-					xcm: Xcm(vec![
-						DepositAsset {
-							assets: AllCounted(1).into(),
-							beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
-						}
-					]),
+					xcm: Xcm(vec![DepositAsset {
+						assets: AllCounted(1).into(),
+						beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
+					}]),
 				},
 			]);
 			// Send transfer
@@ -429,25 +433,33 @@ mod tests {
 		MockNet::reset();
 
 		Relay::execute_with(|| {
-			assert_ok!(relay_chain::Uniques::force_create(relay_chain::Origin::root(), 2, ALICE, false));
+			assert_ok!(relay_chain::Uniques::force_create(
+				relay_chain::Origin::root(),
+				2,
+				ALICE,
+				false
+			));
 			assert_ok!(relay_chain::Uniques::mint(
 				relay_chain::Origin::signed(ALICE),
 				2,
 				69,
 				child_account_account_id(1, ALICE)
 			));
-			assert_eq!(relay_chain::Uniques::owner(2, 69), Some(child_account_account_id(1, ALICE)));
+			assert_eq!(
+				relay_chain::Uniques::owner(2, 69),
+				Some(child_account_account_id(1, ALICE))
+			);
 
-			let message = Xcm(vec![
-				Transact {
-					origin_kind: OriginKind::Xcm,
-					require_weight_at_most: 1_000_000_000,
-					call: parachain::Call::from(pallet_uniques::Call::<parachain::Runtime>::create {
-						class: (Parent, 2u64).into(),
-						admin: parent_account_id(),
-					}).encode().into(),
-				},
-			]);
+			let message = Xcm(vec![Transact {
+				origin_kind: OriginKind::Xcm,
+				require_weight_at_most: 1_000_000_000,
+				call: parachain::Call::from(pallet_uniques::Call::<parachain::Runtime>::create {
+					class: (Parent, 2u64).into(),
+					admin: parent_account_id(),
+				})
+				.encode()
+				.into(),
+			}]);
 			// Send creation.
 			assert_ok!(RelayChainPalletXcm::send_xcm(Here, Parachain(1), message));
 		});
@@ -458,12 +470,10 @@ mod tests {
 				DepositReserveAsset {
 					assets: AllCounted(1).into(),
 					dest: Parachain(1).into(),
-					xcm: Xcm(vec![
-						DepositAsset {
-							assets: AllCounted(1).into(),
-							beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
-						}
-					]),
+					xcm: Xcm(vec![DepositAsset {
+						assets: AllCounted(1).into(),
+						beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
+					}]),
 				},
 			]);
 			let alice = AccountId32 { id: ALICE.into(), network: None };
@@ -471,7 +481,10 @@ mod tests {
 		});
 		ParaA::execute_with(|| {
 			assert_eq!(parachain::Balances::reserved_balance(&parent_account_id()), 1000);
-			assert_eq!(parachain::ForeignUniques::class_owner((Parent, 2u64).into()), Some(parent_account_id()));
+			assert_eq!(
+				parachain::ForeignUniques::class_owner((Parent, 2u64).into()),
+				Some(parent_account_id())
+			);
 		});
 	}
 
