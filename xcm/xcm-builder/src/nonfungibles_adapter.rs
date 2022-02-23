@@ -104,7 +104,7 @@ impl<
 		);
 		if let Ok((class, instance)) = Matcher::matches_nonfungibles(what) {
 			if CheckAsset::contains(&class) {
-				let ok = Assets::burn_from(&class, &instance).is_ok();
+				let ok = Assets::burn(&class, &instance, None).is_ok();
 				debug_assert!(
 					ok,
 					"`can_check_in` must have returned `true` immediately prior; qed"
@@ -153,8 +153,10 @@ impl<
 			what, who,
 		);
 		// Check we handle this asset.
+		let who = AccountIdConverter::convert_ref(who)
+			.map_err(|()| MatchError::AccountIdConversionFailed)?;
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
-		Assets::burn_from(&class, &instance)
+		Assets::burn(&class, &instance, Some(&who))
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
 	}

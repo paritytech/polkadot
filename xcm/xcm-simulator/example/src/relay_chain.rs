@@ -18,7 +18,7 @@
 
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{Everything, Nothing, AsEnsureOriginWithArg},
 	weights::Weight,
 };
 use sp_core::H256;
@@ -32,7 +32,7 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	NonFungiblesAdapter, AsPrefixedGeneralIndex, ConvertedConcreteAssetId,
+	NonFungiblesAdapter, AsPrefixedGeneralIndex, ConvertedConcreteId, Account32Hash,
 };
 use xcm_executor::{Config, XcmExecutor, traits::JustTry};
 
@@ -93,6 +93,7 @@ impl pallet_uniques::Config for Runtime {
 	type ClassId = u32;
 	type InstanceId = u32;
 	type Currency = Balances;
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<AccountId>>;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
 	type ClassDeposit = frame_support::traits::ConstU128<1_000>;
 	type InstanceDeposit = frame_support::traits::ConstU128<1_000>;
@@ -103,6 +104,8 @@ impl pallet_uniques::Config for Runtime {
 	type KeyLimit = frame_support::traits::ConstU32<64>;
 	type ValueLimit = frame_support::traits::ConstU32<128>;
 	type WeightInfo = ();
+	#[cfg(feature = "runtime-benchmarks")]
+	type Helper = ();
 }
 
 impl shared::Config for Runtime {}
@@ -119,15 +122,18 @@ parameter_types! {
 	pub UnitWeightCost: Weight = 1_000;
 }
 
-pub type SovereignAccountOf =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<RelayNetwork, AccountId>);
+pub type LocationToAccountId = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RelayNetwork, AccountId>,
+	Account32Hash<(), AccountId>,
+);
 
 pub type LocalAssetTransactor = (
-	XcmCurrencyAdapter<Balances, IsConcrete<TokenLocation>, SovereignAccountOf, AccountId, ()>,
+	XcmCurrencyAdapter<Balances, IsConcrete<TokenLocation>, LocationToAccountId, AccountId, ()>,
 	NonFungiblesAdapter<
 		Uniques,
-		ConvertedConcreteAssetId<u32, u32, AsPrefixedGeneralIndex<(), u32, JustTry>, JustTry>,
-		SovereignAccountOf,
+		ConvertedConcreteId<u32, u32, AsPrefixedGeneralIndex<(), u32, JustTry>, JustTry>,
+		LocationToAccountId,
 		AccountId,
 		Nothing,
 		(),
@@ -135,7 +141,7 @@ pub type LocalAssetTransactor = (
 );
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<LocationToAccountId, Origin>,
 	ChildParachainAsNative<origin::Origin, Origin>,
 	SignedAccountId32AsNative<RelayNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
@@ -197,7 +203,7 @@ impl pallet_xcm::Config for Runtime {
 	type Currency = Balances;
 	type CurrencyMatcher = ();
 	type TrustedLockers = ();
-	type SovereignAccountOf = SovereignAccountOf;
+	type SovereignAccountOf = LocationToAccountId;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 }
 

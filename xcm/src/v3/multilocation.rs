@@ -51,7 +51,7 @@ use scale_info::TypeInfo;
 /// that a value is strictly an interior location, in those cases, `Junctions` may be used.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -266,6 +266,10 @@ impl MultiLocation {
 			return None
 		}
 		self.interior.match_and_split(&prefix.interior)
+	}
+
+	pub fn starts_with(&self, prefix: &MultiLocation) -> bool {
+		self.parents == prefix.parents && self.interior.starts_with(&prefix.interior)
 	}
 
 	/// Mutate `self` so that it is suffixed with `suffix`.

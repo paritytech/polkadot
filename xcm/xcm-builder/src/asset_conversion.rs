@@ -57,7 +57,7 @@ impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, A
 	}
 }
 
-pub struct ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertOther>(
+pub struct ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertOther>(
 	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertOther)>,
 );
 impl<
@@ -66,7 +66,7 @@ impl<
 		ConvertAssetId: Convert<MultiLocation, AssetId>,
 		ConvertBalance: Convert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
-	for ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
+	for ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (amount, id) = match (&a.fun, &a.id) {
@@ -86,7 +86,7 @@ impl<
 		ConvertClassId: Convert<MultiLocation, ClassId>,
 		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
-	for ConvertedConcreteAssetId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
+	for ConvertedConcreteId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
 {
 	fn matches_nonfungibles(a: &MultiAsset) -> result::Result<(ClassId, InstanceId), MatchError> {
 		let (instance, class) = match (&a.fun, &a.id) {
@@ -101,7 +101,7 @@ impl<
 	}
 }
 
-pub struct ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertOther>(
+pub struct ConvertedAbstractId<AssetId, Balance, ConvertAssetId, ConvertOther>(
 	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertOther)>,
 );
 impl<
@@ -110,7 +110,7 @@ impl<
 		ConvertAssetId: Convert<[u8; 32], AssetId>,
 		ConvertBalance: Convert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
-	for ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
+	for ConvertedAbstractId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (amount, id) = match (&a.fun, &a.id) {
@@ -130,7 +130,7 @@ impl<
 		ConvertClassId: Convert<[u8; 32], ClassId>,
 		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
-	for ConvertedAbstractAssetId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
+	for ConvertedAbstractId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
 {
 	fn matches_nonfungibles(a: &MultiAsset) -> result::Result<(ClassId, InstanceId), MatchError> {
 		let (instance, class) = match (&a.fun, &a.id) {
@@ -144,3 +144,8 @@ impl<
 		Ok((what, instance))
 	}
 }
+
+#[deprecated = "Use `ConvertedConcreteId` instead"]
+pub type ConvertedConcreteAssetId<A, B, C, O> = ConvertedConcreteId<A, B, C, O>;
+#[deprecated = "Use `ConvertedAbstractId` instead"]
+pub type ConvertedAbstractAssetId<A, B, C, O> = ConvertedAbstractId<A, B, C, O>;

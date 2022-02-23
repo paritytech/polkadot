@@ -19,7 +19,7 @@ use super::*;
 #[test]
 fn basic_setup_works() {
 	add_reserve(Parent.into(), Wild((Parent, WildFungible).into()));
-	assert!(<TestConfig as Config>::IsReserve::filter_asset_location(
+	assert!(<TestConfig as Config>::IsReserve::contains(
 		&(Parent, 100).into(),
 		&Parent.into(),
 	));
@@ -72,7 +72,7 @@ fn code_registers_should_work() {
 		}])),
 		// First xfer always works ok
 		TransferAsset {
-			assets: (Here, 1).into(),
+			assets: (Here, 1u128).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error on the second message - our error handler will fire.
@@ -94,6 +94,6 @@ fn code_registers_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
 	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 20).into()]);
-	assert_eq!(asset_list(Here), vec![(Here, 1).into()]);
+	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }

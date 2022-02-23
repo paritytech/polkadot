@@ -42,8 +42,11 @@ pub use origin_conversion::{
 
 mod asset_conversion;
 pub use asset_conversion::{
-	AsPrefixedGeneralIndex, ConvertedAbstractAssetId, ConvertedConcreteAssetId,
+	AsPrefixedGeneralIndex, ConvertedAbstractId, ConvertedConcreteId,
 };
+#[allow(deprecated)]
+pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
+
 
 mod barriers;
 pub use barriers::{

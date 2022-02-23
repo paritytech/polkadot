@@ -31,6 +31,7 @@ pub use export::{export_xcm, validate_export, ExportXcm};
 mod fee_manager;
 pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;
+#[allow(deprecated)]
 pub use filter_asset_location::FilterAssetLocation;
 mod token_matching;
 pub use token_matching::{Error, MatchesFungibles, MatchesFungible, MatchesNonFungibles, MatchesNonFungible};

@@ -19,7 +19,10 @@
 use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{
+		Everything, EverythingBut, Nothing, EnsureOriginWithArg,
+		EnsureOrigin,
+	},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
@@ -40,11 +43,16 @@ use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
 	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,
 	NativeAsset, ParentIsPreset, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, NonFungiblesAdapter, ConvertedConcreteAssetId, AsPrefixedGeneralIndex,
+	SignedToAccountId32, SovereignSignedViaLocation, NonFungiblesAdapter, ConvertedConcreteId,
+	Account32Hash,
 };
-use xcm_executor::{Config, XcmExecutor, traits::JustTry};
+use xcm_executor::{Config, XcmExecutor, traits::{JustTry, Convert}};
 
-use crate::relay_chain::SovereignAccountOf;
+pub type SovereignAccountOf = (
+	SiblingParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RelayNetwork, AccountId>,
+	ParentIsPreset<AccountId>,
+);
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
@@ -98,11 +106,20 @@ impl pallet_balances::Config for Runtime {
 	type ReserveIdentifier = [u8; 8];
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+pub struct UniquesHelper;
+#[cfg(feature = "runtime-benchmarks")]
+impl pallet_uniques::BenchmarkHelper<MultiLocation, AssetInstance> for UniquesHelper {
+	fn class(i: u16) -> MultiLocation { GeneralIndex(i as u128).into() }
+	fn instance(i: u16) -> AssetInstance { AssetInstance::Index(i as u128) }
+}
+
 impl pallet_uniques::Config for Runtime {
 	type Event = Event;
-	type ClassId = u32;
-	type InstanceId = u32;
+	type ClassId = MultiLocation;
+	type InstanceId = AssetInstance;
 	type Currency = Balances;
+	type CreateOrigin = ForeignCreators;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
 	type ClassDeposit = frame_support::traits::ConstU128<1_000>;
 	type InstanceDeposit = frame_support::traits::ConstU128<1_000>;
@@ -113,7 +130,28 @@ impl pallet_uniques::Config for Runtime {
 	type KeyLimit = frame_support::traits::ConstU32<64>;
 	type ValueLimit = frame_support::traits::ConstU32<128>;
 	type WeightInfo = ();
+	#[cfg(feature = "runtime-benchmarks")]
+	type Helper = UniquesHelper;
 }
+
+// `EnsureOriginWithArg` impl for `CreateOrigin` which allows only XCM origins
+// which are locations containing the class location.
+pub struct ForeignCreators;
+impl EnsureOriginWithArg<Origin, MultiLocation> for ForeignCreators {
+	type Success = AccountId;
+
+	fn try_origin(o: Origin, a: &MultiLocation) -> sp_std::result::Result<Self::Success, Origin> {
+		let origin_location = pallet_xcm::EnsureXcm::<Everything>::try_origin(o.clone())?;
+		if !a.starts_with(&origin_location) { return Err(o) }
+		SovereignAccountOf::convert(origin_location).map_err(|_| o)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin(a: &MultiLocation) -> Origin {
+		pallet_xcm::Origin::Xcm(a.clone()).into()
+	}
+}
+
 
 parameter_types! {
 	pub const ReservedXcmpWeight: Weight = WEIGHT_PER_SECOND / 4;
@@ -130,6 +168,7 @@ pub type LocationToAccountId = (
 	ParentIsPreset<AccountId>,
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
+	Account32Hash<(), AccountId>,
 );
 
 pub type XcmOriginToCallOrigin = (
@@ -143,13 +182,14 @@ parameter_types! {
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
+	pub ForeignPrefix: MultiLocation = (Parent,).into();
 }
 
 pub type LocalAssetTransactor = (
 	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>,
 	NonFungiblesAdapter<
-		Uniques,
-		ConvertedConcreteAssetId<u32, u32, AsPrefixedGeneralIndex<(), u32, JustTry>, JustTry>,
+		ForeignUniques,
+		ConvertedConcreteId<MultiLocation, AssetInstance, JustTry, JustTry>,
 		SovereignAccountOf,
 		AccountId,
 		Nothing,
@@ -160,14 +200,23 @@ pub type LocalAssetTransactor = (
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
 pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
 
+parameter_types! {
+	pub NftCollectionOne: MultiAssetFilter
+		= Wild(AllOf { fun: WildNonFungible, id: Concrete((Parent, GeneralIndex(1)).into()) });
+	pub NftCollectionOneForRelay: (MultiAssetFilter, MultiLocation)
+		= (NftCollectionOne::get(), (Parent,).into());
+}
+pub type TrustedTeleporters = xcm_builder::Case<NftCollectionOneForRelay>;
+pub type TrustedReserves = EverythingBut<xcm_builder::Case<NftCollectionOneForRelay>>;
+
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = XcmOriginToCallOrigin;
-	type IsReserve = NativeAsset;
-	type IsTeleporter = ();
+	type IsReserve = (NativeAsset, TrustedReserves);
+	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
@@ -366,6 +415,6 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
-		Uniques: pallet_uniques::{Pallet, Call, Storage, Event<T>},
+		ForeignUniques: pallet_uniques::{Pallet, Call, Storage, Event<T>},
 	}
 );

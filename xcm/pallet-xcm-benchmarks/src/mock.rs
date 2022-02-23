@@ -68,7 +68,7 @@ parameter_types! {
 
 pub struct AllAssetLocationsPass;
 impl FilterAssetLocation for AllAssetLocationsPass {
-	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation) -> bool {
+	fn contains(_: &MultiAsset, _: &MultiLocation) -> bool {
 		true
 	}
 }

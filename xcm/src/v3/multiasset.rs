@@ -39,7 +39,7 @@ use parity_scale_codec::{self as codec, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum AssetInstance {
 	/// Undefined - used if the non-fungible asset class has only one instance.
 	Undefined,
@@ -291,7 +291,7 @@ impl TryFrom<OldWildFungibility> for WildFungibility {
 }
 
 /// Classification of an asset being concrete or abstract.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract([u8; 32]),
@@ -827,5 +827,5 @@ impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
 fn conversion_works() {
 	use super::prelude::*;
 
-	let _: MultiAssets = (Here, 1).into();
+	let _: MultiAssets = (Here, 1u128).into();
 }

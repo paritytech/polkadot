@@ -25,7 +25,7 @@ fn errors_should_return_unused_weight() {
 	let mut message = Xcm(vec![
 		// First xfer results in an error on the last message only
 		TransferAsset {
-			assets: (Here, 1).into(),
+			assets: (Here, 1u128).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error third message and after
@@ -52,7 +52,7 @@ fn errors_should_return_unused_weight() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Incomplete(30, XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 10).into()]);
-	assert_eq!(asset_list(Here), vec![(Here, 1).into()]);
+	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
