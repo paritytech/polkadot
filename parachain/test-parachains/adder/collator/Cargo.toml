@@ -3,7 +3,7 @@ name = "test-parachain-adder-collator"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "adder-collator"

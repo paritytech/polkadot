@@ -2,7 +2,7 @@
 name = "polkadot-runtime-parachains"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
