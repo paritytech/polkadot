@@ -1910,20 +1910,20 @@ dependencies = [
 
 [[package]]
 name = "fatality"
-version = "0.1.0"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77822520fa5ebfc7154d95a6f12974dfdfe68328eca5f3654be7fd1b563d53a0"
 dependencies = [
- "assert_matches",
  "fatality-proc-macro",
- "log",
  "thiserror",
- "trybuild",
 ]
 
 [[package]]
 name = "fatality-proc-macro"
-version = "0.1.0"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dc2ec812add05d0265993aea87b2e360eb033c018f3317d066cc8c38b17b9df"
 dependencies = [
- "assert_matches",
  "expander 0.0.3",
  "indexmap",
  "proc-macro-crate 1.1.3",

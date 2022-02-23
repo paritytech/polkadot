@@ -25,7 +25,7 @@ polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered-channel = { path = "../metered-channel" }
-fatality = { path = "../fatality" }
+fatality = "0.0.3"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
