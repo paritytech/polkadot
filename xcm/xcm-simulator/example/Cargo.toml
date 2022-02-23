@@ -30,10 +30,16 @@ polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 polkadot-parachain = { path = "../../../parachain" }
 
 [features]
-default = ["runtime-benchmarks"]
+default = []
 runtime-benchmarks = [
-    "frame-support/runtime-benchmarks",
-    "pallet-uniques/runtime-benchmarks",
-    "pallet-xcm/runtime-benchmarks",
-    "xcm-builder/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-uniques/runtime-benchmarks",
+	"pallet-xcm/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+	"xcm-executor/runtime-benchmarks",
+	"xcm/runtime-benchmarks",
+	"polkadot-runtime-parachains/runtime-benchmarks",
+	"polkadot-parachain/runtime-benchmarks",
 ]
