@@ -43,10 +43,10 @@ impl From<runtime::Error> for Error {
 }
 
 impl From<incoming::Error> for Error {
-	fn from(o: incoming::Error) -> Self {
-		match o {
-			incoming::Error::Fatal(f) => Self::Fatal(Fatal::IncomingRequest(f)),
-			incoming::Error::NonFatal(f) => Self::NonFatal(NonFatal::IncomingRequest(f)),
+	fn from(err: incoming::Error) -> Self {
+		match err.split() {
+			Err(fatal) => Self::Fatal(Fatal::IncomingRequest(fatal)),
+			Ok(jfyi) => Self::NonFatal(NonFatal::IncomingRequest(jfyi)),
 		}
 	}
 }
@@ -60,7 +60,7 @@ pub enum Fatal {
 
 	/// Errors coming from receiving incoming requests.
 	#[error("Retrieving next incoming request failed.")]
-	IncomingRequest(#[from] incoming::Fatal),
+	IncomingRequest(#[from] incoming::FatalError),
 }
 
 /// Non-fatal errors of this subsystem.
@@ -92,7 +92,7 @@ pub enum NonFatal {
 
 	/// Errors coming from receiving incoming requests.
 	#[error("Retrieving next incoming request failed.")]
-	IncomingRequest(#[from] incoming::NonFatal),
+	IncomingRequest(#[from] incoming::JfyiError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

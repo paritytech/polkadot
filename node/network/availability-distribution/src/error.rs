@@ -17,9 +17,9 @@
 
 //! Error handling related code and Error/Result definitions.
 
+use fatality::Nested;
 use polkadot_node_network_protocol::request_response::outgoing::RequestError;
 use polkadot_primitives::v1::SessionIndex;
-use fatality::Nested;
 
 use futures::channel::oneshot;
 

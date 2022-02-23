@@ -20,8 +20,9 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 
+use fatality::Nested;
 use polkadot_node_network_protocol::{
-	request_response::{incoming, v1, IncomingRequest, IncomingRequestReceiver},
+	request_response::{v1, IncomingRequest, IncomingRequestReceiver},
 	UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
@@ -45,20 +46,20 @@ pub async fn run_pov_receiver<Sender>(
 	Sender: SubsystemSender,
 {
 	loop {
-		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
-			Ok(msg) => {
+		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(msg)) => {
 				answer_pov_request_log(&mut sender, msg, &metrics).await;
 			},
-			Err(incoming::Error::Fatal(f)) => {
+			Err(fatal) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					error = ?f,
+					error = ?fatal,
 					"Shutting down POV receiver."
 				);
 				return
 			},
-			Err(incoming::Error::NonFatal(error)) => {
-				tracing::debug!(target: LOG_TARGET, ?error, "Error decoding incoming PoV request.");
+			Ok(Err(jfyi)) => {
+				tracing::debug!(target: LOG_TARGET, error = ?jfyi, "Error decoding incoming PoV request.");
 			},
 		}
 	}
@@ -73,22 +74,22 @@ pub async fn run_chunk_receiver<Sender>(
 	Sender: SubsystemSender,
 {
 	loop {
-		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
-			Ok(msg) => {
+		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(msg)) => {
 				answer_chunk_request_log(&mut sender, msg, &metrics).await;
 			},
-			Err(incoming::Error::Fatal(f)) => {
+			Err(fatal) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					error = ?f,
+					error = ?fatal,
 					"Shutting down chunk receiver."
 				);
 				return
 			},
-			Err(incoming::Error::NonFatal(error)) => {
+			Ok(Err(jfyi)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					?error,
+					error = ?jfyi,
 					"Error decoding incoming chunk request."
 				);
 			},
