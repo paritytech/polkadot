@@ -439,7 +439,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						message_hash,
 						topic: self.topic,
 					};
-					Config::AssetTransactor::withdraw_asset(&asset, &origin, context)?;
+					Config::AssetTransactor::withdraw_asset(&asset, &origin, Some(context))?;
 					self.subsume_asset(asset)?;
 				}
 				Ok(())
@@ -880,7 +880,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let paid = if self.fees_mode.jit_withdraw {
 			let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 			for asset in fee.inner() {
-				Config::AssetTransactor::withdraw_asset(&asset, origin, context.clone())?;
+				Config::AssetTransactor::withdraw_asset(&asset, origin, Some(context.clone()))?;
 			}
 			fee
 		} else {

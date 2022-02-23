@@ -294,11 +294,7 @@ pub trait ExecuteXcm<Call> {
 
 	/// Deduct some `fees` to the sovereign account of the given `location` and place them as per
 	/// the convention for fees.
-	fn charge_fees(
-		location: impl Into<MultiLocation>,
-		fees: MultiAssets,
-		context: XcmContext,
-	) -> Result;
+	fn charge_fees(location: impl Into<MultiLocation>, fees: MultiAssets) -> Result;
 }
 
 pub enum Weightless {}
