@@ -85,7 +85,7 @@ pub enum Error {
 	InvalidValidatorIndex,
 }
 
-/// General result type for fatal/JfyiError errors.
+/// General result abbreviation type alias.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Utility for eating top level errors and log them.
