@@ -119,7 +119,7 @@ pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {
 }
 
 impl JfyiError {
-	/// Log a `NonFatal`.
+	/// Log a `JfyiError`.
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors

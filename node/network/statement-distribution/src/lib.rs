@@ -22,7 +22,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use error::{log_error, FatalResult, NonFatalResult};
+use error::{log_error, FatalResult, JfyiErrorResult};
 use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
@@ -62,8 +62,10 @@ use util::runtime::RuntimeInfo;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
+use fatality::Nested;
+
 mod error;
-pub use error::{Error, Fatal, NonFatal, Result};
+pub use error::{Error, FatalError, JfyiError, Result};
 
 /// Background task logic for requesting of large statements.
 mod requester;
@@ -608,7 +610,7 @@ impl MuxedMessage {
 		let from_responder = from_responder.next();
 		futures::pin_mut!(from_overseer, from_requester, from_responder);
 		futures::select! {
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 			msg = from_requester => MuxedMessage::Requester(msg),
 			msg = from_responder => MuxedMessage::Responder(msg),
 		}
@@ -1548,7 +1550,7 @@ impl StatementDistributionSubsystem {
 		mut self,
 		mut ctx: (impl SubsystemContext<Message = StatementDistributionMessage>
 		     + overseer::SubsystemContext<Message = StatementDistributionMessage>),
-	) -> std::result::Result<(), Fatal> {
+	) -> std::result::Result<(), FatalError> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
@@ -1569,7 +1571,7 @@ impl StatementDistributionSubsystem {
 			)
 			.boxed(),
 		)
-		.map_err(Fatal::SpawnTask)?;
+		.map_err(FatalError::SpawnTask)?;
 
 		loop {
 			let message =
@@ -1588,11 +1590,10 @@ impl StatementDistributionSubsystem {
 							result?,
 						)
 						.await;
-					match result {
+					match result.into_nested()? {
 						Ok(true) => break,
 						Ok(false) => {},
-						Err(Error::Fatal(f)) => return Err(f),
-						Err(Error::NonFatal(error)) => tracing::debug!(target: LOG_TARGET, ?error),
+						Err(jfyi) => tracing::debug!(target: LOG_TARGET, error = ?jfyi),
 					}
 				},
 				MuxedMessage::Requester(result) => {
@@ -1603,7 +1604,7 @@ impl StatementDistributionSubsystem {
 							&mut peers,
 							&mut active_heads,
 							&req_sender,
-							result.ok_or(Fatal::RequesterReceiverFinished)?,
+							result.ok_or(FatalError::RequesterReceiverFinished)?,
 						)
 						.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
@@ -1613,7 +1614,7 @@ impl StatementDistributionSubsystem {
 						.handle_responder_message(
 							&peers,
 							&mut active_heads,
-							result.ok_or(Fatal::ResponderReceiverFinished)?,
+							result.ok_or(FatalError::ResponderReceiverFinished)?,
 						)
 						.await;
 					log_error(result.map_err(From::from), "handle_responder_message")?;
@@ -1629,7 +1630,7 @@ impl StatementDistributionSubsystem {
 		peers: &HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		message: ResponderMessage,
-	) -> NonFatalResult<()> {
+	) -> JfyiErrorResult<()> {
 		match message {
 			ResponderMessage::GetData { requesting_peer, relay_parent, candidate_hash, tx } => {
 				if !requesting_peer_knows_about_candidate(
@@ -1638,25 +1639,25 @@ impl StatementDistributionSubsystem {
 					&relay_parent,
 					&candidate_hash,
 				)? {
-					return Err(NonFatal::RequestedUnannouncedCandidate(
+					return Err(JfyiError::RequestedUnannouncedCandidate(
 						requesting_peer,
 						candidate_hash,
 					))
 				}
 
 				let active_head =
-					active_heads.get(&relay_parent).ok_or(NonFatal::NoSuchHead(relay_parent))?;
+					active_heads.get(&relay_parent).ok_or(JfyiError::NoSuchHead(relay_parent))?;
 
 				let committed = match active_head.waiting_large_statements.get(&candidate_hash) {
 					Some(LargeStatementStatus::FetchedOrShared(committed)) => committed.clone(),
 					_ =>
-						return Err(NonFatal::NoSuchFetchedLargeStatement(
+						return Err(JfyiError::NoSuchFetchedLargeStatement(
 							relay_parent,
 							candidate_hash,
 						)),
 				};
 
-				tx.send(committed).map_err(|_| NonFatal::ResponderGetDataCanceled)?;
+				tx.send(committed).map_err(|_| JfyiError::ResponderGetDataCanceled)?;
 			},
 		}
 		Ok(())
@@ -1670,7 +1671,7 @@ impl StatementDistributionSubsystem {
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: RequesterMessage,
-	) -> NonFatalResult<()> {
+	) -> JfyiErrorResult<()> {
 		match message {
 			RequesterMessage::Finished {
 				relay_parent,
@@ -1686,7 +1687,7 @@ impl StatementDistributionSubsystem {
 
 				let active_head = active_heads
 					.get_mut(&relay_parent)
-					.ok_or(NonFatal::NoSuchHead(relay_parent))?;
+					.ok_or(JfyiError::NoSuchHead(relay_parent))?;
 
 				let status = active_head.waiting_large_statements.remove(&candidate_hash);
 
@@ -1697,7 +1698,7 @@ impl StatementDistributionSubsystem {
 						return Ok(())
 					},
 					None =>
-						return Err(NonFatal::NoSuchLargeStatementStatus(
+						return Err(JfyiError::NoSuchLargeStatementStatus(
 							relay_parent,
 							candidate_hash,
 						)),
@@ -1734,7 +1735,7 @@ impl StatementDistributionSubsystem {
 			RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx } => {
 				let active_head = active_heads
 					.get_mut(&relay_parent)
-					.ok_or(NonFatal::NoSuchHead(relay_parent))?;
+					.ok_or(JfyiError::NoSuchHead(relay_parent))?;
 
 				let status = active_head.waiting_large_statements.get_mut(&candidate_hash);
 
@@ -1746,7 +1747,7 @@ impl StatementDistributionSubsystem {
 						return Ok(())
 					},
 					None =>
-						return Err(NonFatal::NoSuchLargeStatementStatus(
+						return Err(JfyiError::NoSuchLargeStatementStatus(
 							relay_parent,
 							candidate_hash,
 						)),
@@ -1836,7 +1837,7 @@ impl StatementDistributionSubsystem {
 								.get_mut(&relay_parent)
 								// This should never be out-of-sync with our view if the view
 								// updates correspond to actual `StartWork` messages.
-								.ok_or(NonFatal::NoSuchHead(relay_parent))?;
+								.ok_or(JfyiError::NoSuchHead(relay_parent))?;
 							active_head.waiting_large_statements.insert(
 								statement.payload().candidate_hash(),
 								LargeStatementStatus::FetchedOrShared(committed.clone()),
@@ -1909,14 +1910,14 @@ fn requesting_peer_knows_about_candidate(
 	requesting_peer: &PeerId,
 	relay_parent: &Hash,
 	candidate_hash: &CandidateHash,
-) -> NonFatalResult<bool> {
+) -> JfyiErrorResult<bool> {
 	let peer_data = peers
 		.get(requesting_peer)
-		.ok_or_else(|| NonFatal::NoSuchPeer(*requesting_peer))?;
+		.ok_or_else(|| JfyiError::NoSuchPeer(*requesting_peer))?;
 	let knowledge = peer_data
 		.view_knowledge
 		.get(relay_parent)
-		.ok_or_else(|| NonFatal::NoSuchHead(*relay_parent))?;
+		.ok_or_else(|| JfyiError::NoSuchHead(*relay_parent))?;
 	Ok(knowledge.sent_candidates.get(&candidate_hash).is_some())
 }
 

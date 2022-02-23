@@ -7446,7 +7446,6 @@ dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
  "derive_more",
- "fatality",
  "futures 0.3.21",
  "futures-timer",
  "indexmap",
