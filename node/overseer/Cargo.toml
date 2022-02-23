@@ -30,3 +30,4 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 
 [features]
 default = []
+expand = ["polkadot-overseer-gen/expand"]
