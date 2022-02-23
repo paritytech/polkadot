@@ -191,7 +191,7 @@ pub struct MessageDetails<OutboundMessageFee> {
 }
 
 /// Bit vector of message dispatch results.
-pub type DispatchResultsBitVec = BitVec<Msb0, u8>;
+pub type DispatchResultsBitVec = BitVec<u8, Msb0>;
 
 /// Unrewarded relayer entry stored in the inbound lane data.
 ///
@@ -225,7 +225,7 @@ impl DeliveredMessages {
 		DeliveredMessages {
 			begin: nonce,
 			end: nonce,
-			dispatch_results: bitvec![Msb0, u8; if dispatch_result { 1 } else { 0 }],
+			dispatch_results: if dispatch_result { bitvec![u8, Msb0; 1] } else { bitvec![u8, Msb0; 0] },
 		}
 	}
 
@@ -391,7 +391,7 @@ mod tests {
 	#[test]
 	fn message_dispatch_result_works() {
 		let delivered_messages =
-			DeliveredMessages { begin: 100, end: 150, dispatch_results: bitvec![Msb0, u8; 1; 151] };
+			DeliveredMessages { begin: 100, end: 150, dispatch_results: bitvec![u8, Msb0; 1; 151] };
 
 		assert!(!delivered_messages.contains_message(99));
 		assert!(delivered_messages.contains_message(100));

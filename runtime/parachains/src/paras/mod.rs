@@ -339,8 +339,8 @@ struct PvfCheckActiveVoteState<BlockNumber> {
 	// makes a vote. Once a 1 is set for either of the vectors, that validator cannot vote anymore.
 	// Since the active validator set changes each session, the bit vectors are reinitialized as
 	// well: zeroed and resized so that each validator gets its own bit.
-	votes_accept: BitVec<BitOrderLsb0, u8>,
-	votes_reject: BitVec<BitOrderLsb0, u8>,
+	votes_accept: BitVec<u8, BitOrderLsb0>,
+	votes_reject: BitVec<u8, BitOrderLsb0>,
 
 	/// The number of session changes this PVF vote has observed. Therefore, this number is
 	/// increased at each session boundary. When created, it is initialized with 0.
@@ -359,8 +359,8 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 		causes.push(cause);
 		Self {
 			created_at: now,
-			votes_accept: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
-			votes_reject: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			votes_accept: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
+			votes_reject: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 			age: 0,
 			causes,
 		}
