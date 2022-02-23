@@ -100,7 +100,7 @@ pub(crate) fn impl_overseer_gen(
 
 	let ts = expander::Expander::new("overlord-expansion")
 		.add_comment("Generated overseer code by `#[overlord(..)]`".to_owned())
-		.dry(!cfg!(feature = "expansion"))
+		.dry(!cfg!(feature = "expand"))
 		.verbose(false)
 		.fmt(expander::Edition::_2018)
 		.write_to_out_dir(additive)
