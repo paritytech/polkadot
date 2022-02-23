@@ -1855,9 +1855,9 @@ dependencies = [
 
 [[package]]
 name = "expander"
-version = "0.0.3"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03128f3bd743c0ca59c812b79fac476c161e70bb4850e4c0b846b3e7229babb2"
+checksum = "a718c0675c555c5f976fff4ea9e2c150fa06cefa201cadef87cfbf9324075881"
 dependencies = [
  "blake3 1.3.1",
  "fs-err",
@@ -1910,9 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "fatality"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77822520fa5ebfc7154d95a6f12974dfdfe68328eca5f3654be7fd1b563d53a0"
+version = "0.0.4"
 dependencies = [
  "fatality-proc-macro",
  "thiserror",
@@ -1920,9 +1918,7 @@ dependencies = [
 
 [[package]]
 name = "fatality-proc-macro"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dc2ec812add05d0265993aea87b2e360eb033c018f3317d066cc8c38b17b9df"
+version = "0.0.4"
 dependencies = [
  "expander 0.0.3",
  "indexmap",

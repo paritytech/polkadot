@@ -29,7 +29,7 @@ use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemSender};
 
 use crate::{
-	error::{NonFatal, NonFatalResult, Result},
+	error::{Error, Result},
 	metrics::{Metrics, FAILED, NOT_FOUND, SUCCEEDED},
 	LOG_TARGET,
 };
@@ -169,7 +169,7 @@ where
 		},
 	};
 
-	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
+	req.send_response(response).map_err(|_| Error::SendResponse)?;
 	Ok(result)
 }
 
@@ -205,7 +205,7 @@ where
 		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
 	};
 
-	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
+	req.send_response(response).map_err(|_| Error::SendResponse)?;
 	Ok(result)
 }
 
@@ -214,7 +214,7 @@ async fn query_chunk<Sender>(
 	sender: &mut Sender,
 	candidate_hash: CandidateHash,
 	validator_index: ValidatorIndex,
-) -> NonFatalResult<Option<ErasureChunk>>
+) -> Result<Option<ErasureChunk>>
 where
 	Sender: SubsystemSender,
 {
@@ -233,7 +233,7 @@ where
 			error = ?e,
 			"Error retrieving chunk",
 		);
-		NonFatal::QueryChunkResponseChannel(e)
+		Error::QueryChunkResponseChannel(e)
 	})?;
 	Ok(result)
 }
@@ -242,7 +242,7 @@ where
 async fn query_available_data<Sender>(
 	sender: &mut Sender,
 	candidate_hash: CandidateHash,
-) -> NonFatalResult<Option<AvailableData>>
+) -> Result<Option<AvailableData>>
 where
 	Sender: SubsystemSender,
 {
@@ -251,6 +251,6 @@ where
 		.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx).into())
 		.await;
 
-	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;
+	let result = rx.await.map_err(|e| Error::QueryAvailableDataResponseChannel(e))?;
 	Ok(result)
 }

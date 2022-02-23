@@ -40,7 +40,7 @@ use polkadot_subsystem::{
 };
 
 use super::{Metrics, Result, LOG_TARGET};
-use crate::error::Fatal;
+use crate::error::Error;
 
 #[cfg(test)]
 mod tests;
@@ -324,6 +324,6 @@ where
 	})
 	.await;
 
-	let ancestors = rx.await.map_err(Fatal::ChainApiSenderDropped)?.map_err(Fatal::ChainApi)?;
+	let ancestors = rx.await.map_err(Error::ChainApiSenderDropped)?.map_err(Error::ChainApi)?;
 	Ok(ancestors)
 }
