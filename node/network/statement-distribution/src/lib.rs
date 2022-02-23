@@ -240,9 +240,9 @@ struct PeerRelayParentKnowledge {
 	/// for such an attack would be too low.
 	large_statement_count: usize,
 
-	/// We have seen a message that come out of view from this peer, so note this fact
+	/// We have seen a message that that is unexpected from this peer, so note this fact
 	/// and stop subsequent logging and peer reputation flood.
-	seen_out_of_view: bool,
+	unexpected_count: usize,
 }
 
 impl PeerRelayParentKnowledge {
@@ -507,11 +507,13 @@ impl PeerData {
 	}
 
 	/// Receive a notice about out of view statement and returns the value of the old flag
-	fn receive_out_of_view_statement(&mut self, relay_parent: &Hash) -> bool {
+	fn receive_unexpected(&mut self, relay_parent: &Hash) -> usize {
 		self.view_knowledge
 			.get_mut(relay_parent)
-			.map_or(false, |relay_parent_peer_knowledge| {
-				std::mem::replace(&mut relay_parent_peer_knowledge.seen_out_of_view, true)
+			.map_or(0_usize, |relay_parent_peer_knowledge| {
+				let old = relay_parent_peer_knowledge.unexpected_count;
+				relay_parent_peer_knowledge.unexpected_count += 1_usize;
+				old
 			})
 	}
 
@@ -1347,12 +1349,7 @@ async fn handle_incoming_message<'a>(
 		// but we have received the Valid statement.
 		// So we check it once and then ignore repeated violation to avoid
 		// reputation change flood.
-		let mut repeated_out_of_view = false;
-
-		if rep == COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE {
-			// Report merely when we have not see other out of view statement
-			repeated_out_of_view = peer_data.receive_out_of_view_statement(&relay_parent);
-		}
+		let unexpected_count = peer_data.receive_unexpected(&relay_parent);
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -1360,16 +1357,21 @@ async fn handle_incoming_message<'a>(
 			?peer,
 			?message,
 			?rep,
-			?repeated_out_of_view,
+			?unexpected_count,
 			"Error inserting received statement"
 		);
 
-		metrics.on_out_of_view_statement();
+		match rep {
+			COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE => {
+				metrics.on_out_of_view_statement();
 
-		// Report peer merely if this is not a duplicate out-of-view statement that
-		// was caused by a missing Seconded statement from this peer
-		if !repeated_out_of_view {
-			report_peer(ctx, peer, rep).await;
+				// Report peer merely if this is not a duplicate out-of-view statement that
+				// was caused by a missing Seconded statement from this peer
+				if unexpected_count == 0_usize {
+					report_peer(ctx, peer, rep).await;
+				}
+			}
+			_ => report_peer(ctx, peer, rep).await,
 		}
 
 		return None
@@ -1977,6 +1979,8 @@ impl Metrics {
 	}
 
 	/// Update sent requests counter
+	/// This counter is updated merely for the statements sent via request/response method,
+	/// meaning that it counts large statements only
 	fn on_sent_request(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.sent_requests.inc();
@@ -1984,6 +1988,8 @@ impl Metrics {
 	}
 
 	/// Update counters for the received responses with `succeeded` or `failed` labels
+	/// These counters are updated merely for the statements received via request/response method,
+	/// meaning that they count large statements only
 	fn on_received_response(&self, success: bool) {
 		if let Some(metrics) = &self.0 {
 			let label = if success { "succeeded" } else { "failed" };
