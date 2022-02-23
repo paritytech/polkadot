@@ -41,13 +41,6 @@ default_command = "polkadot"
   name = "eve"
   extra_args = [ "--eve", "-lparachain=debug"]
 
-  [[relaychain.nodes]]
-  name = "one"
-  extra_args = [ "--one", "-lparachain=debug" ]
-
-  [[relaychain.nodes]]
-  name = "two"
-  extra_args = [ "--two", "-lparachain=debug"]
 
 [[parachains]]
 id = 2000
@@ -71,27 +64,6 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size=1000
   command = "undying-collator"
   args = ["-lparachain=debug", "--pov-size=100000", "--parachain-id=2001", "--pvf-complexity=2"]
 
-[[parachains]]
-id = 2002
-addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=10"
-
-  [parachains.collator]
-  image = "{{COL_IMAGE}}"
-  name = "collator03"
-  command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000", "--parachain-id=2002", "--pvf-complexity=10"]
-
-[[parachains]]
-id = 2003
-addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=20000 --pvf-complexity=1000"
-
-  [parachains.collator]
-  image = "{{COL_IMAGE}}"
-  name = "collator04"
-  command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2003", "--pvf-complexity=1000"]
 
 [types.Header]
 number = "u64"
