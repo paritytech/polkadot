@@ -1362,16 +1362,23 @@ async fn handle_incoming_message<'a>(
 		);
 
 		match rep {
+			// This happens when a Valid statement has been received but there is no corresponding Seconded
 			COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE => {
-				metrics.on_out_of_view_statement();
-
+				metrics.on_unexpected_statement(UnexpectedStatementLabel::Valid);
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
 					report_peer(ctx, peer, rep).await;
 				}
-			}
-			_ => report_peer(ctx, peer, rep).await,
+			},
+			// This happens when we have an unexpected remote peer that announced Seconded
+			COST_UNEXPECTED_STATEMENT_REMOTE => {
+				metrics.on_unexpected_statement(UnexpectedStatementLabel::Seconded);
+				report_peer(ctx, peer, rep).await;
+			},
+			_ => {
+				report_peer(ctx, peer, rep).await;
+			},
 		}
 
 		return None
@@ -1963,7 +1970,24 @@ struct MetricsInner {
 	active_leaves_update: prometheus::Histogram,
 	share: prometheus::Histogram,
 	network_bridge_update_v1: prometheus::Histogram,
-	statements_out_view: prometheus::Counter<prometheus::U64>,
+	statements_unexpected: prometheus::CounterVec<prometheus::U64>,
+}
+
+// Used to distinguish different unexpected statements in the metrics
+enum UnexpectedStatementLabel {
+	Seconded,
+	Valid,
+	Large,
+}
+
+impl From<UnexpectedStatementLabel> for &'static str {
+	fn from(label: UnexpectedStatementLabel) -> Self {
+		match label {
+			UnexpectedStatementLabel::Seconded => "seconded",
+			UnexpectedStatementLabel::Valid => "valid",
+			UnexpectedStatementLabel::Large => "large",
+		}
+	}
 }
 
 /// Statement Distribution metrics.
@@ -2015,9 +2039,9 @@ impl Metrics {
 	}
 
 	/// Update the out-of-view statements counter
-	fn on_out_of_view_statement(&self) {
+	fn on_unexpected_statement(&self, label: UnexpectedStatementLabel) {
 		if let Some(metrics) = &self.0 {
-			metrics.statements_out_view.inc();
+			metrics.statements_unexpected.with_label_values(&[label.into()]).inc();
 		}
 	}
 }
@@ -2072,10 +2096,17 @@ impl metrics::Metrics for Metrics {
 				))?,
 				registry,
 			)?,
-			statements_out_view: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_statement_distribution_statements_out_view",
-					"Number of statements received out of the current node view.",
+			statements_unexpected: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_statement_distribution_statements_out_view",
+						"Number of statements received out of the current node view.",
+					),
+					&[
+						UnexpectedStatementLabel::Seconded.into(),
+						UnexpectedStatementLabel::Valid.into(),
+						UnexpectedStatementLabel::Large.into(),
+					],
 				)?,
 				registry,
 			)?,
