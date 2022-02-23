@@ -1909,31 +1909,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fatality"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58675291e8db1344987a8d79b828ff72d434c40ef2a01240d19f7220adf68aa1"
-dependencies = [
- "fatality-proc-macro",
- "thiserror",
-]
-
-[[package]]
-name = "fatality-proc-macro"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9787a7b1e92e2e9c9a7973307c2ffe7c0223ff33be0ad9d9b6a2d19f8fa1598f"
-dependencies = [
- "expander 0.0.3",
- "indexmap",
- "proc-macro-crate 1.1.3",
- "proc-macro2",
- "quote",
- "syn",
- "thiserror",
-]
-
-[[package]]
 name = "fdlimit"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

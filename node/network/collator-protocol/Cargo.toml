@@ -19,7 +19,7 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-fatality = { version = "0.0.4", features = ["expand"] }
+fatality = "0.0.6"
 thiserror = "1.0.30"
 
 [dev-dependencies]
