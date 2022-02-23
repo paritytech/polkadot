@@ -312,11 +312,7 @@ impl<C> ExecuteXcm<C> for () {
 	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: XcmHash, _: Weight) -> Outcome {
 		unreachable!()
 	}
-	fn charge_fees(
-		_location: impl Into<MultiLocation>,
-		_fees: MultiAssets,
-		_context: XcmContext,
-	) -> Result {
+	fn charge_fees(_location: impl Into<MultiLocation>, _fees: MultiAssets) -> Result {
 		Err(Error::Unimplemented)
 	}
 }
