@@ -81,7 +81,7 @@ A task spawner and subsystem context are required to be defined with `SpawnNamed
 
 As always, debugging is notoriously annoying with bugged proc-macros.
 
-Therefor [`expander`](https://github.com/drahnr/expander) is employed to yield better
+Therefore [`expander`](https://github.com/drahnr/expander) is employed to yield better
 error messages. Enable with `--feature=polkadot-overseer-gen/expand` or
 `--feature=polkadot-overseer/expand` from the root of the project or
 make `"expand"` part of the default feature set.
