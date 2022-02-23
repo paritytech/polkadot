@@ -225,7 +225,11 @@ impl DeliveredMessages {
 		DeliveredMessages {
 			begin: nonce,
 			end: nonce,
-			dispatch_results: if dispatch_result { bitvec![u8, Msb0; 1] } else { bitvec![u8, Msb0; 0] },
+			dispatch_results: if dispatch_result {
+				bitvec![u8, Msb0; 1]
+			} else {
+				bitvec![u8, Msb0; 0]
+			},
 		}
 	}
 

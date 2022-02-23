@@ -671,10 +671,10 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 					.collect()
 			},
 			(false, true) => {
-				let prev_participants = {
-					// all participants, which are not new participants
-					(self.state.validators_for.clone() | self.state.validators_against.clone()) & !self.new_participants.clone();
-				};
+				// all participants, which are not new participants
+				let prev_participants = (self.state.validators_for.clone() |
+					self.state.validators_against.clone()) &
+					!self.new_participants.clone();
 
 				prev_participants
 					.iter_ones()
