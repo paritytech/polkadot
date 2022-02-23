@@ -1364,6 +1364,7 @@ async fn handle_incoming_message<'a>(
 			?peer,
 			?message,
 			?rep,
+			?need_report_peer,
 			"Error inserting received statement"
 		);
 
