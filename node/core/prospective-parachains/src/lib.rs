@@ -27,27 +27,6 @@
 //! This also handles concerns such as the relay-chain being forkful,
 //! session changes, predicting validator group assignments, and
 //! the re-backing of parachain blocks as a result of these changes.
-//!
-//! ## Re-backing
-//!
-//! Since this subsystems deals in enabling the collation and extension
-//! of parachains in advance of actually being recorded on the relay-chain,
-//! it is possible for the validator-group that initially backed the parablock
-//! to be no longer assigned at the point that the parablock is submitted
-//! to the relay-chain.
-//!
-//! This presents an issue, because the relay-chain only accepts blocks
-//! which are backed by the currently-assigned group of validators, not
-//! by the group of validators previously assigned to the parachain.
-//!
-//! In order to avoid wasting work at group rotation boundaries, we must
-//! allow validators to re-validate the work of the preceding group.
-//! This process is known as re-backing.
-//!
-//! What happens in practice is that validators observe that they are
-//! scheduled to be assigned to a specific para in the near future.
-//! And as a result, they dig into the existing fragment-trees to
-//! re-back what already existed.
 
 // TODO [now]: remove
 #![allow(unused)]
@@ -70,8 +49,8 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::vstaging::{
-	Block, BlockId, BlockNumber, CandidateHash, GroupIndex, GroupRotationInfo, Hash, Header,
-	Id as ParaId, SessionIndex, ValidatorIndex,
+	Block, BlockId, BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, SessionIndex, ValidatorIndex,
 };
 
 use crate::error::{Error, FatalResult, NonFatal, NonFatalResult, Result};
@@ -79,6 +58,15 @@ use crate::error::{Error, FatalResult, NonFatal, NonFatalResult, Result};
 mod error;
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
+
+// The maximum depth the subsystem will allow. 'depth' is defined as the
+// amount of blocks between the para head in a relay-chain block's state
+// and a candidate with a particular relay-parent.
+//
+// This value is chosen mostly for reasons of resource-limitation.
+// Without it, a malicious validator group could create arbitrarily long,
+// useless prospective parachains and DoS honest nodes.
+const MAX_DEPTH: usize = 4;
 
 /// The Prospective Parachains Subsystem.
 pub struct ProspectiveParachainsSubsystems {
@@ -88,52 +76,77 @@ pub struct ProspectiveParachainsSubsystems {
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {}
 
-// TODO [now]: rename. more of a pile than a tree really.
-// We only use it as a tree when traversing to select what to build upon.
-struct FragmentTrees {
+struct Fragments {
 	para: ParaId,
 	// Fragment nodes based on fragment head-data.
 	nodes: HashMap<Hash, FragmentNode>,
 }
 
-impl FragmentTrees {
+impl Fragments {
 	fn is_empty(&self) -> bool {
 		self.nodes.is_empty()
 	}
 
-	fn determine_relevant_fragments(&self, constraints: &Constraints) -> Vec<Hash> {
-		unimplemented!()
-	}
+	// TODO [now]: pruning
+}
 
-	// Retain fragments whose relay-parent passes the predicate.
-	fn retain(&mut self, pred: impl Fn(&Hash) -> bool) {
-		self.nodes.retain(|_, v| pred(&v.relay_parent()));
-	}
+enum FragmentState {
+	// The fragment has been seconded.
+	Seconded,
+	// The fragment has been completely backed by the group.
+	Backed,
 }
 
 struct FragmentNode {
 	// Head-data of the parent node.
-	parent: Hash,
-	// Head-data of children.
-	// TODO [now]: make sure traversal detects loops.
-	children: Vec<Hash>,
+	parent_fragment: CandidateHash,
+	// Candidate hashes of children.
+	children: Vec<CandidateHash>,
 	fragment: Fragment,
+	erasure_root: Hash,
+	state: FragmentState,
+	depth: usize,
 }
 
 impl FragmentNode {
 	fn relay_parent(&self) -> Hash {
 		self.fragment.relay_parent().hash
 	}
+
+	fn depth(&self) -> usize {
+		self.depth
+	}
+
+	/// Produce a candidate receipt from this fragment node.
+	fn produce_candidate_receipt(&self, para_id: ParaId) -> CommittedCandidateReceipt {
+		let candidate = self.fragment.candidate();
+
+		CommittedCandidateReceipt {
+			commitments: candidate.commitments.clone(),
+			descriptor: CandidateDescriptor {
+				para_id,
+				relay_parent: self.relay_parent(),
+				collator: candidate.collator.clone(),
+				signature: candidate.collator_signature.clone(),
+				persisted_validation_data_hash: candidate.persisted_validation_data.hash(),
+				pov_hash: candidate.pov_hash,
+				erasure_root: self.erasure_root,
+				para_head: candidate.commitments.head_data.hash(),
+				validation_code_hash: candidate.validation_code_hash.clone(),
+			},
+		}
+	}
 }
 
-struct RelevantParaFragments {
+struct ScheduledPara {
 	para: ParaId,
 	base_constraints: Constraints,
+	validator_group: GroupIndex,
 }
 
 struct RelayBlockViewData {
-	// Relevant fragments for each parachain that is scheduled.
-	scheduling: HashMap<ParaId, RelevantParaFragments>,
+	// Scheduling info for paras and upcoming paras.
+	scheduling: HashMap<ParaId, ScheduledPara>,
 	block_info: RelayChainBlockInfo,
 	// TODO [now]: other stuff
 }
@@ -145,7 +158,7 @@ struct View {
 
 	// Fragment trees, one for each parachain.
 	// TODO [now]: handle cleanup when these go obsolete.
-	fragment_trees: HashMap<ParaId, FragmentTrees>,
+	fragments: HashMap<ParaId, Fragments>,
 }
 
 impl View {
@@ -153,7 +166,7 @@ impl View {
 		View {
 			active_leaves: HashSet::new(),
 			active_or_recent: HashMap::new(),
-			fragment_trees: HashMap::new(),
+			fragments: HashMap::new(),
 		}
 	}
 }
@@ -251,7 +264,6 @@ where
 		//   1. Keep only fragment trees for paras that are scheduled at any of our blocks.
 		//   2. Keep only fragments that are built on any of our blocks.
 
-
 		// TODO [now]: give all backing subsystems messages or signals.
 		// There are, annoyingly, going to be race conditions with networking.
 		// Move networking into a backing 'super-subsystem'?
@@ -290,10 +302,8 @@ struct SchedulingInfo {
 }
 
 struct CoreInfo {
-	para_id: ParaId,
-
-	// (candidate hash, hash, timeout_at) if any
-	pending_availability: Option<(CandidateHash, Hash, BlockNumber)>,
+	// all para-ids that the core could accept blocks for in the near future.
+	near_future: Vec<ParaId>,
 }
 
 async fn get_scheduling_info<Context>(
@@ -315,7 +325,6 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
-	const LOOKBACK: usize = 2;
 	unimplemented!()
 }
 
