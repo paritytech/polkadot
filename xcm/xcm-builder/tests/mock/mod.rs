@@ -51,17 +51,18 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	type Ticket = (MultiLocation, Xcm<()>);
+	type Ticket = (MultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(MultiLocation, Xcm<()>)> {
-		let pair = (dest.take().unwrap(), msg.take().unwrap());
-		Ok((pair, MultiAssets::new()))
+	) -> SendResult<(MultiLocation, Xcm<()>, XcmHash)> {
+		let msg = msg.take().unwrap();
+		let hash = VersionedXcm::from(msg.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let triplet = (dest.take().unwrap(), msg, hash);
+		Ok((triplet, MultiAssets::new()))
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
-		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
-		let triplet = (pair.0, pair.1, hash);
+	fn deliver(triplet: (MultiLocation, Xcm<()>, XcmHash)) -> Result<XcmHash, SendError> {
+		let hash = triplet.2;
 		SENT_XCM.with(|q| q.borrow_mut().push(triplet));
 		Ok(hash)
 	}
