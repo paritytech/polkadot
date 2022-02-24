@@ -25,8 +25,7 @@
 //! [`polkadot_node_subsystem_util::inclusion_emulator::staging`].
 //!
 //! This also handles concerns such as the relay-chain being forkful,
-//! session changes, predicting validator group assignments, and
-//! the re-backing of parachain blocks as a result of these changes.
+//! session changes, predicting validator group assignments.
 
 // TODO [now]: remove
 #![allow(unused)]
@@ -54,8 +53,10 @@ use polkadot_primitives::vstaging::{
 };
 
 use crate::error::{Error, FatalResult, NonFatal, NonFatalResult, Result};
+use crate::fragment_graph::FragmentGraph;
 
 mod error;
+mod fragment_graph;
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
@@ -76,68 +77,6 @@ pub struct ProspectiveParachainsSubsystems {
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {}
 
-struct Fragments {
-	para: ParaId,
-	// Fragment nodes based on fragment head-data.
-	nodes: HashMap<Hash, FragmentNode>,
-}
-
-impl Fragments {
-	fn is_empty(&self) -> bool {
-		self.nodes.is_empty()
-	}
-
-	// TODO [now]: pruning
-}
-
-enum FragmentState {
-	// The fragment has been seconded.
-	Seconded,
-	// The fragment has been completely backed by the group.
-	Backed,
-}
-
-struct FragmentNode {
-	// Head-data of the parent node.
-	parent_fragment: CandidateHash,
-	// Candidate hashes of children.
-	children: Vec<CandidateHash>,
-	fragment: Fragment,
-	erasure_root: Hash,
-	state: FragmentState,
-	depth: usize,
-}
-
-impl FragmentNode {
-	fn relay_parent(&self) -> Hash {
-		self.fragment.relay_parent().hash
-	}
-
-	fn depth(&self) -> usize {
-		self.depth
-	}
-
-	/// Produce a candidate receipt from this fragment node.
-	fn produce_candidate_receipt(&self, para_id: ParaId) -> CommittedCandidateReceipt {
-		let candidate = self.fragment.candidate();
-
-		CommittedCandidateReceipt {
-			commitments: candidate.commitments.clone(),
-			descriptor: CandidateDescriptor {
-				para_id,
-				relay_parent: self.relay_parent(),
-				collator: candidate.collator.clone(),
-				signature: candidate.collator_signature.clone(),
-				persisted_validation_data_hash: candidate.persisted_validation_data.hash(),
-				pov_hash: candidate.pov_hash,
-				erasure_root: self.erasure_root,
-				para_head: candidate.commitments.head_data.hash(),
-				validation_code_hash: candidate.validation_code_hash.clone(),
-			},
-		}
-	}
-}
-
 struct ScheduledPara {
 	para: ParaId,
 	base_constraints: Constraints,
@@ -156,9 +95,9 @@ struct View {
 	active_leaves: HashSet<Hash>,
 	active_or_recent: HashMap<Hash, RelayBlockViewData>,
 
-	// Fragment trees, one for each parachain.
+	// Fragment graphs, one for each parachain.
 	// TODO [now]: handle cleanup when these go obsolete.
-	fragments: HashMap<ParaId, Fragments>,
+	fragments: HashMap<ParaId, FragmentGraph>,
 }
 
 impl View {

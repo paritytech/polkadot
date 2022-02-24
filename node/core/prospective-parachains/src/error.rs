@@ -28,6 +28,8 @@ use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, 
 use crate::LOG_TARGET;
 use parity_scale_codec::Error as CodecError;
 
+// TODO [now]: update to use fatality (thanks Bernhard)
+
 /// Errors for this subsystem.
 #[derive(Debug, Error)]
 #[error(transparent)]
