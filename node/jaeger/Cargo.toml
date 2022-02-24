@@ -2,7 +2,7 @@
 name = "polkadot-node-jaeger"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Polkadot Jaeger primitives"
 
 [dependencies]

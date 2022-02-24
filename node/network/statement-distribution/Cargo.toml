@@ -3,7 +3,7 @@ name = "polkadot-statement-distribution"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 futures = "0.3.21"

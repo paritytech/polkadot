@@ -2,7 +2,7 @@
 name = "remote-ext-tests-bags-list"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 polkadot-runtime = { version = "0.9.17", path = "../../../runtime/polkadot" }

@@ -2,7 +2,7 @@
 name = "polkadot-runtime-common"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"

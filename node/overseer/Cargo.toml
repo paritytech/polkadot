@@ -2,7 +2,7 @@
 name = "polkadot-overseer"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -30,3 +30,4 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 
 [features]
 default = []
+expand = ["polkadot-overseer-gen/expand"]

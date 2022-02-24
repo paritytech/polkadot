@@ -3,7 +3,7 @@ name = "polkadot-parachain"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 # note: special care is taken to avoid inclusion of `sp-io` externals when compiling

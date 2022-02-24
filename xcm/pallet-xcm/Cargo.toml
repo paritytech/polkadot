@@ -1,6 +1,6 @@
 [package]
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 name = "pallet-xcm"
 version = "0.9.17"
 
