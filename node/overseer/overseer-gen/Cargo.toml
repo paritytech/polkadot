@@ -2,7 +2,7 @@
 name = "polkadot-overseer-gen"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Generate an overseer including builder pattern and message wrapper from a single struct."
 
 [dependencies]

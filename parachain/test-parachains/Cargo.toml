@@ -3,7 +3,7 @@ name = "test-parachains"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Integration tests using the test-parachains"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 tiny-keccak = "2.0.2"
