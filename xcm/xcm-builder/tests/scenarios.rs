@@ -136,11 +136,7 @@ fn report_holding_works() {
 		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
-			vec![(
-				Parachain(PARA_ID).into(),
-				expected_msg,
-				expected_hash,
-			)]
+			vec![(Parachain(PARA_ID).into(), expected_msg, expected_hash,)]
 		);
 	});
 }
@@ -184,18 +180,14 @@ fn teleport_to_statemine_works() {
 		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
-		let expected_msg = Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
+		let expected_msg = Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin]
 			.into_iter()
 			.chain(teleport_effects.clone().into_iter())
 			.collect());
 		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
-			vec![(
-				Parachain(other_para_id).into(),
-				expected_msg,
-				expected_hash,
-			)]
+			vec![(Parachain(other_para_id).into(), expected_msg, expected_hash,)]
 		);
 
 		// teleports are allowed from statemine to kusama.
@@ -213,7 +205,7 @@ fn teleport_to_statemine_works() {
 		assert_eq!(r, Outcome::Complete(weight));
 		// 2 * amount because of the other teleport above
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
-		let expected_msg = Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
+		let expected_msg = Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin]
 			.into_iter()
 			.chain(teleport_effects.clone().into_iter())
 			.collect());
@@ -221,16 +213,8 @@ fn teleport_to_statemine_works() {
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![
-				(
-					Parachain(other_para_id).into(),
-					expected_msg.clone(),
-					expected_hash,
-				),
-				(
-					Parachain(statemine_id).into(),
-					expected_msg,
-					expected_hash,
-				)
+				(Parachain(other_para_id).into(), expected_msg.clone(), expected_hash,),
+				(Parachain(statemine_id).into(), expected_msg, expected_hash,)
 			]
 		);
 	});
@@ -271,18 +255,14 @@ fn reserve_based_transfer_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
-		let expected_msg = Xcm(vec![ReserveAssetDeposited((Parent, amount).into()), ClearOrigin,]
+		let expected_msg = Xcm(vec![ReserveAssetDeposited((Parent, amount).into()), ClearOrigin]
 			.into_iter()
 			.chain(transfer_effects.into_iter())
 			.collect());
 		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
-			vec![(
-				Parachain(other_para_id).into(),
-				expected_msg,
-				expected_hash,
-			)]
+			vec![(Parachain(other_para_id).into(), expected_msg, expected_hash,)]
 		);
 	});
 }
