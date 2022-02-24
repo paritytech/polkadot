@@ -9,7 +9,7 @@ on:
         required: true
       date:
         description: release date of version
-        default: 2022-02-23T19:11:58Z
+        default: "2022-02-23T19:11:58Z"
         required: true
 
 jobs:
