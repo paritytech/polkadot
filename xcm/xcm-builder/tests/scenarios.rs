@@ -21,6 +21,7 @@ use mock::{
 };
 use parity_scale_codec::Encode;
 use polkadot_parachain::primitives::Id as ParaId;
+use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_executor::XcmExecutor;
@@ -55,7 +56,7 @@ fn withdraw_and_deposit_works() {
 				beneficiary: Parachain(other_para_id).into(),
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
@@ -96,7 +97,7 @@ fn report_holding_works() {
 			// is not triggered becasue the deposit fails
 			ReportHolding { response_info: response_info.clone(), assets: All.into() },
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(
 			r,
@@ -120,22 +121,25 @@ fn report_holding_works() {
 			// used to get a notification in case of success
 			ReportHolding { response_info: response_info.clone(), assets: AllCounted(1).into() },
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
+		let expected_msg = Xcm(vec![QueryResponse {
+			query_id: response_info.query_id,
+			response: Response::Assets(vec![].into()),
+			max_weight: response_info.max_weight,
+			querier: Some(Here.into()),
+		}]);
+		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm(vec![QueryResponse {
-					query_id: response_info.query_id,
-					response: Response::Assets(vec![].into()),
-					max_weight: response_info.max_weight,
-					querier: Some(Here.into()),
-				}]),
+				expected_msg,
+				expected_hash,
 			)]
 		);
 	});
@@ -177,17 +181,20 @@ fn teleport_to_statemine_works() {
 				xcm: Xcm(teleport_effects.clone()),
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
+		let expected_msg = Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
+			.into_iter()
+			.chain(teleport_effects.clone().into_iter())
+			.collect());
+		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
-					.into_iter()
-					.chain(teleport_effects.clone().into_iter())
-					.collect())
+				expected_msg,
+				expected_hash,
 			)]
 		);
 
@@ -201,27 +208,28 @@ fn teleport_to_statemine_works() {
 				xcm: Xcm(teleport_effects.clone()),
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		// 2 * amount because of the other teleport above
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
+		let expected_msg = Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
+			.into_iter()
+			.chain(teleport_effects.clone().into_iter())
+			.collect());
+		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![
 				(
 					Parachain(other_para_id).into(),
-					Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
-						.into_iter()
-						.chain(teleport_effects.clone().into_iter())
-						.collect()),
+					expected_msg.clone(),
+					expected_hash,
 				),
 				(
 					Parachain(statemine_id).into(),
-					Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
-						.into_iter()
-						.chain(teleport_effects.clone().into_iter())
-						.collect()),
+					expected_msg,
+					expected_hash,
 				)
 			]
 		);
@@ -258,19 +266,22 @@ fn reserve_based_transfer_works() {
 				xcm: Xcm(transfer_effects.clone()),
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
+		let expected_msg = Xcm(vec![ReserveAssetDeposited((Parent, amount).into()), ClearOrigin,]
+			.into_iter()
+			.chain(transfer_effects.into_iter())
+			.collect());
+		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(vec![ReserveAssetDeposited((Parent, amount).into()), ClearOrigin,]
-					.into_iter()
-					.chain(transfer_effects.into_iter())
-					.collect())
+				expected_msg,
+				expected_hash,
 			)]
 		);
 	});

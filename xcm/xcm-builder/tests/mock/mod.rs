@@ -44,9 +44,9 @@ pub type AccountId = AccountId32;
 pub type Balance = u128;
 
 thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm, XcmHash)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 pub struct TestSendXcm;
@@ -61,7 +61,8 @@ impl SendXcm for TestSendXcm {
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
 		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
-		SENT_XCM.with(|q| q.borrow_mut().push(pair));
+		let triplet = (pair.0, pair.1, hash);
+		SENT_XCM.with(|q| q.borrow_mut().push(triplet));
 		Ok(hash)
 	}
 }
