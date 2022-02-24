@@ -25,15 +25,15 @@ RUN apt-get update && \
 		libssl1.1 \
 		ca-certificates \
 		gnupg && \
-	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot
+	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 # add repo's gpg keys and install the published polkadot binary
-RUN gpg --keyserver ${GPG_KEYSERVER} --recv-keys ${POLKADOT_GPGKEY} && \
+	gpg --keyserver ${GPG_KEYSERVER} --recv-keys ${POLKADOT_GPGKEY} && \
 	gpg --export ${POLKADOT_GPGKEY} > /usr/share/keyrings/parity.gpg && \
 	echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' > /etc/apt/sources.list.d/parity.list && \
 	apt-get update && \
-	apt-get install -y --no-install-recommends polkadot=${POLKADOT_VERSION#?}
+	apt-get install -y --no-install-recommends polkadot=${POLKADOT_VERSION#?} && \
 # apt cleanup
-RUN apt-get autoremove -y && \
+	apt-get autoremove -y && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists/* ; \
 	mkdir -p /data /polkadot/.local/share && \
