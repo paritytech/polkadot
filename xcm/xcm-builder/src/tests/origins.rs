@@ -63,7 +63,8 @@ fn export_message_should_work() {
 	let exported_msg =
 		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]);
 	let hash = VersionedXcm::from(exported_msg.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let expected_hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), exported_msg, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, message)]);
+	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, message, expected_hash)]);
 }

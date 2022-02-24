@@ -109,18 +109,14 @@ fn report_successful_transact_status_should_work() {
 	let weight_limit = 70;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(70));
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parent.into(),
-			Xcm(vec![QueryResponse {
-				response: Response::DispatchResult(MaybeErrorCode::Success),
-				query_id: 42,
-				max_weight: 5000,
-				querier: Some(Here.into()),
-			}])
-		)]
-	);
+	let expected_msg = Xcm(vec![QueryResponse {
+		response: Response::DispatchResult(MaybeErrorCode::Success),
+		query_id: 42,
+		max_weight: 5000,
+		querier: Some(Here.into()),
+	}]);
+	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	assert_eq!(sent_xcm(), vec![(Parent.into(), expected_msg, expected_hash)]);
 }
 
 #[test]
@@ -143,18 +139,14 @@ fn report_failed_transact_status_should_work() {
 	let weight_limit = 70;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(70));
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parent.into(),
-			Xcm(vec![QueryResponse {
-				response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
-				query_id: 42,
-				max_weight: 5000,
-				querier: Some(Here.into()),
-			}])
-		)]
-	);
+	let expected_msg = Xcm(vec![QueryResponse {
+		response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
+		query_id: 42,
+		max_weight: 5000,
+		querier: Some(Here.into()),
+	}]);
+	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	assert_eq!(sent_xcm(), vec![(Parent.into(), expected_msg, expected_hash)]);
 }
 
 #[test]
@@ -178,16 +170,12 @@ fn clear_transact_status_should_work() {
 	let weight_limit = 80;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(80));
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parent.into(),
-			Xcm(vec![QueryResponse {
-				response: Response::DispatchResult(MaybeErrorCode::Success),
-				query_id: 42,
-				max_weight: 5000,
-				querier: Some(Here.into()),
-			}])
-		)]
-	);
+	let expected_msg = Xcm(vec![QueryResponse {
+		response: Response::DispatchResult(MaybeErrorCode::Success),
+		query_id: 42,
+		max_weight: 5000,
+		querier: Some(Here.into()),
+	}]);
+	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	assert_eq!(sent_xcm(), vec![(Parent.into(), expected_msg, expected_hash)]);
 }

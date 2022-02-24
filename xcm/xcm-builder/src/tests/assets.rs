@@ -32,7 +32,7 @@ fn exchange_asset_should_work() {
 			maximal: true,
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, 50);
 	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(asset_list(Parent), vec![(Here, 100).into(), (Parent, 950).into()]);
@@ -55,7 +55,7 @@ fn exchange_asset_without_maximal_should_work() {
 			maximal: false,
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, 50);
 	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(asset_list(Parent), vec![(Here, 50).into(), (Parent, 950).into()]);
@@ -78,7 +78,7 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 			maximal: false,
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(40, XcmError::NoDeal));
 	assert_eq!(asset_list(Parent), vec![(Parent, 1000).into()]);
@@ -97,7 +97,7 @@ fn paying_reserve_deposit_should_work() {
 		BuyExecution { fees, weight_limit: Limited(30) },
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
@@ -115,7 +115,7 @@ fn transfer_should_work() {
 		assets: (Here, 100).into(),
 		beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 100).into()]);
@@ -141,22 +141,18 @@ fn reserve_transfer_should_work() {
 			beneficiary: three.clone(),
 		}]),
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
+	let expected_msg = Xcm::<()>(vec![
+		ReserveAssetDeposited((Parent, 100).into()),
+		ClearOrigin,
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: three },
+	]);
+	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
 	assert_eq!(asset_list(Parachain(2)), vec![(Here, 100).into()]);
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parachain(2).into(),
-			Xcm::<()>(vec![
-				ReserveAssetDeposited((Parent, 100).into()),
-				ClearOrigin,
-				DepositAsset { assets: AllCounted(1).into(), beneficiary: three },
-			]),
-		)]
-	);
+	assert_eq!(sent_xcm(), vec![(Parachain(2).into(), expected_msg, expected_hash)]);
 }
 
 #[test]
@@ -171,7 +167,7 @@ fn burn_should_work() {
 		BurnAsset((Here, 100).into()),
 		DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(30));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
@@ -183,7 +179,7 @@ fn burn_should_work() {
 		BurnAsset((Here, 1000).into()),
 		DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(30));
 	assert_eq!(asset_list(Parachain(1)), vec![]);
@@ -205,7 +201,7 @@ fn basic_asset_trap_should_work() {
 			beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 20);
 	assert_eq!(r, Outcome::Complete(25));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
@@ -219,7 +215,7 @@ fn basic_asset_trap_should_work() {
 			beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 20);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
@@ -235,7 +231,7 @@ fn basic_asset_trap_should_work() {
 			beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message, hash, 20);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
@@ -251,7 +247,7 @@ fn basic_asset_trap_should_work() {
 			beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 20);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
@@ -266,7 +262,7 @@ fn basic_asset_trap_should_work() {
 			beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 20);
 	assert_eq!(r, Outcome::Complete(20));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900).into()]);
@@ -280,7 +276,7 @@ fn basic_asset_trap_should_work() {
 			beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 		},
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 20);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 }
@@ -311,7 +307,7 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([7u8; 32], 100).into()),
 		WithdrawAsset(([8u8; 32], 100).into()),
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 100);
 	assert_eq!(r, Outcome::Complete(85));
 
@@ -327,7 +323,7 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([8u8; 32], 100).into()),
 		WithdrawAsset(([9u8; 32], 100).into()),
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 100);
 	assert_eq!(r, Outcome::Incomplete(95, XcmError::HoldingWouldOverflow));
 
@@ -346,7 +342,7 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([7u8; 32], 100).into()),
 		WithdrawAsset(([8u8; 32], 100).into()),
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 200);
 	assert_eq!(r, Outcome::Complete(125));
 
@@ -365,7 +361,7 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([3u8; 32], 100).into()),
 		WithdrawAsset(([4u8; 32], 100).into()),
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 200);
 	assert_eq!(r, Outcome::Incomplete(95, XcmError::HoldingWouldOverflow));
 
@@ -383,7 +379,7 @@ fn max_assets_limit_should_work() {
 		])),
 		WithdrawAsset(([1u8; 32], 100).into()),
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 200);
 	assert_eq!(r, Outcome::Incomplete(25, XcmError::HoldingWouldOverflow));
 }

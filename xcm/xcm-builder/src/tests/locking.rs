@@ -39,13 +39,10 @@ fn lock_roundtrip_should_work() {
 	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			(Parent, Parachain(1)).into(),
-			Xcm::<()>(vec![NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100).into() },]),
-		)]
-	);
+	let expected_msg =
+		Xcm::<()>(vec![NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100).into() }]);
+	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	assert_eq!(sent_xcm(), vec![((Parent, Parachain(1)).into(), expected_msg, expected_hash)]);
 	assert_eq!(
 		take_lock_trace(),
 		vec![Lock {
@@ -153,13 +150,10 @@ fn remote_unlock_roundtrip_should_work() {
 	assert_eq!(r, Outcome::Complete(40));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990).into()]);
 
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			(Parent, Parachain(1)).into(),
-			Xcm::<()>(vec![UnlockAsset { target: (3u64,).into(), asset: (Parent, 100).into() },]),
-		)]
-	);
+	let expected_msg =
+		Xcm::<()>(vec![UnlockAsset { target: (3u64,).into(), asset: (Parent, 100).into() }]);
+	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	assert_eq!(sent_xcm(), vec![((Parent, Parachain(1)).into(), expected_msg, expected_hash)]);
 	assert_eq!(
 		take_lock_trace(),
 		vec![Reduce {

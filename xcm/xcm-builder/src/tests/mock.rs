@@ -29,6 +29,7 @@ pub use frame_support::{
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
+pub use sp_io::hashing::blake2_256;
 pub use sp_std::{
 	cell::RefCell,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -104,21 +105,21 @@ impl GetDispatchInfo for TestCall {
 }
 
 thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
-	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>, XcmHash)>> = RefCell::new(Vec::new());
+	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash)>> = RefCell::new(Vec::new());
 	pub static EXPORTER_OVERRIDE: RefCell<Option<(
 		fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
 		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<XcmHash, SendError>,
 	)>> = RefCell::new(None);
 	pub static SEND_PRICE: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_send_price(p: impl Into<MultiAsset>) {
 	SEND_PRICE.with(|l| l.replace(p.into().into()));
 }
-pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)> {
+pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm, XcmHash)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_exporter_override(
@@ -133,29 +134,31 @@ pub fn clear_exporter_override() {
 }
 pub struct TestMessageSender;
 impl SendXcm for TestMessageSender {
-	type Ticket = (MultiLocation, Xcm<()>);
+	type Ticket = (MultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(MultiLocation, Xcm<()>)> {
-		let pair = (dest.take().unwrap(), msg.take().unwrap());
-		Ok((pair, SEND_PRICE.with(|l| l.borrow().clone())))
+	) -> SendResult<(MultiLocation, Xcm<()>, XcmHash)> {
+		let msg = msg.take().unwrap();
+		let hash = VersionedXcm::from(msg.clone()).using_encoded(blake2_256);
+		let triplet = (dest.take().unwrap(), msg, hash);
+		Ok((triplet, SEND_PRICE.with(|l| l.borrow().clone())))
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
-		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
-		SENT_XCM.with(|q| q.borrow_mut().push(pair));
+	fn deliver(triplet: (MultiLocation, Xcm<()>, XcmHash)) -> Result<XcmHash, SendError> {
+		let hash = triplet.2;
+		SENT_XCM.with(|q| q.borrow_mut().push(triplet));
 		Ok(hash)
 	}
 }
 pub struct TestMessageExporter;
 impl ExportXcm for TestMessageExporter {
-	type Ticket = (NetworkId, u32, InteriorMultiLocation, Xcm<()>);
+	type Ticket = (NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		network: NetworkId,
 		channel: u32,
 		dest: &mut Option<InteriorMultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)> {
+	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash)> {
 		let (d, m) = (dest.take().unwrap(), msg.take().unwrap());
 		let r: Result<MultiAssets, SendError> = EXPORTER_OVERRIDE.with(|e| {
 			if let Some((ref f, _)) = &*e.borrow() {
@@ -164,8 +167,9 @@ impl ExportXcm for TestMessageExporter {
 				Ok(MultiAssets::new())
 			}
 		});
+		let h = VersionedXcm::from(m.clone()).using_encoded(blake2_256);
 		match r {
-			Ok(price) => Ok(((network, channel, d, m), price)),
+			Ok(price) => Ok(((network, channel, d, m, h), price)),
 			Err(e) => {
 				*dest = Some(d);
 				*msg = Some(m);
@@ -174,15 +178,14 @@ impl ExportXcm for TestMessageExporter {
 		}
 	}
 	fn deliver(
-		tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>),
+		tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash),
 	) -> Result<XcmHash, SendError> {
 		EXPORTER_OVERRIDE.with(|e| {
 			if let Some((_, ref f)) = &*e.borrow() {
-				let (network, channel, dest, msg) = tuple;
+				let (network, channel, dest, msg, _hash) = tuple;
 				f(network, channel, dest, msg)
 			} else {
-				let hash =
-					VersionedXcm::from(tuple.3.clone()).using_encoded(sp_io::hashing::blake2_256);
+				let hash = tuple.4;
 				EXPORTED_XCM.with(|q| q.borrow_mut().push(tuple));
 				Ok(hash)
 			}
