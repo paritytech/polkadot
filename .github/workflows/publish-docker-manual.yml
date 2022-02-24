@@ -45,7 +45,6 @@ jobs:
             POLKADOT_VERSION=${{ github.event.inputs.version }}
             VCS_REF=${{ github.ref }}
             BUILD_DATE=${{ github.event.inputs.date }}
-            GPG_KEYSERVER="hkps://keyserver.ubuntu.com"
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Image digest
