@@ -20,13 +20,13 @@ default_command = "polkadot"
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "bob"
-  default_command = "malus dispute-ancestor"
+  command = "malus dispute-ancestor"
   extra_args = [ "--bob", "-lparachain=debug"]
   
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "charlie"
-  default_command = "malus dispute-ancestor"
+  command = "malus dispute-ancestor"
   extra_args = [ "--charlie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
