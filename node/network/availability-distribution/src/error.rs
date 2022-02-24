@@ -64,7 +64,6 @@ pub enum Error {
 	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
 
 	// We tried accessing a session that was not cached.
-	#[fatal(false)]
 	#[error("Session {missing_session} is not cached, cached sessions: {available_sessions:?}.")]
 	NoSuchCachedSession { available_sessions: Vec<SessionIndex>, missing_session: SessionIndex },
 
