@@ -369,7 +369,7 @@ mod tests {
 							messages: DeliveredMessages::new(i as _, true),
 						};
 						entry.messages.dispatch_results = bitvec![
-							Msb0, u8;
+							u8, Msb0;
 							1;
 							(messages_count / relayer_entries) as _
 						];
