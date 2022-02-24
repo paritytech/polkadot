@@ -2102,11 +2102,7 @@ impl metrics::Metrics for Metrics {
 						"polkadot_parachain_statement_distribution_statements_out_view",
 						"Number of statements received out of the current node view.",
 					),
-					&[
-						UnexpectedStatementLabel::Seconded.into(),
-						UnexpectedStatementLabel::Valid.into(),
-						UnexpectedStatementLabel::Large.into(),
-					],
+					&["source"],
 				)?,
 				registry,
 			)?,
