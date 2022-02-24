@@ -129,4 +129,5 @@ std = [
 	"runtime-common/std",
 	"log/std",
 	"frame-election-provider-support/std",
+	"pallet-sudo/std",
 ]
