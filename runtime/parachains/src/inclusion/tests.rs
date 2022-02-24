@@ -1433,6 +1433,8 @@ fn candidate_checks() {
 	});
 }
 
+// TODO: those are the actual tests that import blocks in the runtime
+
 #[test]
 fn backing_works() {
 	let chain_a = ParaId::from(1);

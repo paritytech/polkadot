@@ -53,8 +53,8 @@ use std::sync::Arc;
 /// or disputes.
 ///
 /// This is a safety net that should be removed at some point in the future.
-// Until it's not, make sure to also update `MAX_HEADS_LOOK_BACK` in `approval-voting`
-// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator` when changing its value.
+/// Until it's not, make sure to also update `MAX_HEADS_LOOK_BACK` in `approval-voting`
+/// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator` when changing its value.
 const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 500;
 
 const LOG_TARGET: &str = "parachain::chain-selection";

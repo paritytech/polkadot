@@ -799,10 +799,14 @@ impl<T: Config> Pallet<T> {
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
-				if <Included<T>>::contains_key(&session_index, &candidate_hash) {
+				if let Some(revert_to) = <Included<T>>::get(session_index, candidate_hash) {
 					// Local disputes don't count towards spam.
 
 					weight += T::DbWeight::get().reads_writes(1, 1);
+					// If it is local dispute that didn't get resolved in time, we should
+					// revert, as it is a possible attack vector. For more details, please
+					// read security issue 126
+					Self::revert_and_freeze(revert_to);
 					continue
 				}
 
@@ -1148,6 +1152,9 @@ impl<T: Config> Pallet<T> {
 			));
 		}
 
+		// If new flags contains DisputeStateFlags::FOR_SUPERMAJORITY
+		// or DisputeStateFlags::AGAINST_SUPERMAJORITY,
+		// deposit event DisputeConcluded with a respecting result
 		{
 			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
 				Self::deposit_event(Event::DisputeConcluded(candidate_hash, DisputeResult::Valid));
