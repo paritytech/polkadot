@@ -41,7 +41,12 @@
 //! have different depths in different parts of the tree.
 //!
 //! We also need to handle cycles, including nodes for candidates which produce a header
-//! which is the same as its parent's. Within a [`Fragment]
+//! which is the same as its parent's. Within a [`FragmentTree`], cycles are bounded by the
+//! maximum depth allowed by the tree.
+//!
+//! As long as the [`CandidateStorage`] has bounded input on the number of candidates supplied,
+//! [`FragmentTree`] complexity is bounded. This means that higher-level code needs to be selective
+//! about limiting the amount of candidates that are considered.
 // TODO [now]: review & update.
 
 use std::{
