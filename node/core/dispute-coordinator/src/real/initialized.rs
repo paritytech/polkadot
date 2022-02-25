@@ -831,6 +831,9 @@ impl Initialized {
 			.find(|(_, index)| controlled_indices.contains(index))
 			.is_some();
 
+		// Indexes of the validators issued 'invalid' statements. Will be used to populate spam slots.
+		let mut fresh_invalid_statement_issuers = Vec::new();
+
 		// Update candidate votes.
 		for (statement, val_index) in &statements {
 			if validators
@@ -876,6 +879,7 @@ impl Initialized {
 						continue
 					}
 
+					fresh_invalid_statement_issuers.push(*val_index);
 					votes_changed = true;
 					self.metrics.on_invalid_vote();
 				},
@@ -892,17 +896,17 @@ impl Initialized {
 			byzantine_threshold(n_validators);
 
 		// Potential spam:
-		if !is_confirmed {
+		if !is_confirmed && !fresh_invalid_statement_issuers.is_empty() {
 			let mut free_spam_slots_available = true;
 			// Only allow import if all validators voting invalid, have not exceeded
 			// their spam slots:
-			for (statement, index) in statements.iter() {
+			for index in fresh_invalid_statement_issuers {
 				// Disputes can only be triggered via an invalidity stating vote, thus we only
 				// need to increase spam slots on invalid votes. (If we did not, we would also
 				// increase spam slots for backing validators for example - as validators have to
 				// provide some opposing vote for dispute-distribution).
-				free_spam_slots_available &= statement.statement().indicates_validity() ||
-					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+				free_spam_slots_available &=
+					self.spam_slots.add_unconfirmed(session, candidate_hash, index);
 			}
 			// Only validity stating votes or validator had free spam slot?
 			if !free_spam_slots_available {

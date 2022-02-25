@@ -7,8 +7,8 @@ edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive"] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
 
 # Bridge Dependencies
 

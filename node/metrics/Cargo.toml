@@ -2,7 +2,7 @@
 name = "polkadot-node-metrics"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Subsystem metric helpers"
 
 [dependencies]
@@ -18,7 +18,7 @@ sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-codec = { package = "parity-scale-codec", version = "2.2.0" }
+codec = { package = "parity-scale-codec", version = "3.0.0" }
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
 log = "0.4.13"
@@ -28,7 +28,7 @@ assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
 hyper = { version = "0.14.17", default-features = false, features = ["http1", "tcp"] }
-tokio = "1.16"
+tokio = "1.17.0"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }

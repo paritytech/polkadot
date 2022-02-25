@@ -17,8 +17,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // RuntimeApi generated functions
 #![allow(clippy::too_many_arguments)]
-// Runtime-generated DecodeLimit::decode_all_with_depth_limit
-#![allow(clippy::unnecessary_mut_passed)]
 
 use bp_messages::{LaneId, MessageDetails, MessageNonce, UnrewardedRelayersState};
 use frame_support::weights::{
