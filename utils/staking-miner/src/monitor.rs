@@ -240,7 +240,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				crate::create_election_ext::<Runtime, Block>(rpc4, Some(hash), vec![]).await
 			});
 
-			// Run the calls concurrently and return once all has completed or any failed.
+			// Run the calls in parallel and return once all has completed or any failed.
 			let res = tokio::try_join!(
 				flatten(signed_phase_fut),
 				flatten(no_prev_sol_fut),
