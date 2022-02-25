@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A tree utility for managing unbacked parachain fragments.
+//! A tree utility for managing parachain fragments unreferenced by the relay-chain.
 //!
 //! This module exposes two main types: [`FragmentTree`] and [`CandidateStorage`]
 //! which are meant to be used in close conjunction. Each tree is associated with a particular
 //! relay-parent, and it's expected that higher-level code will have a tree for each
 //! relay-chain block which might reasonably have blocks built upon it.
 //!
-//! Trees only store references into the [`CandidateStorage`] and the storage is meant to
+//! Trees only store indices into the [`CandidateStorage`] and the storage is meant to
 //! be pruned when trees are dropped by higher-level code.
 //!
 //! Each node in the tree represents a candidate. Nodes do not uniquely refer to a parachain
@@ -34,15 +34,15 @@
 //!
 //! The implication is that when we receive a candidate receipt, there are actually multiple
 //! possibilities for any candidates between the para-head recorded in the relay parent's state
-//! and the candidate we're examining.
+//! and the candidate in question.
 //!
 //! This means that our nodes need to handle multiple parents and that depth is an
 //! attribute of a node in a tree, not a candidate. Put another way, the same candidate might
 //! have different depths in different parts of the tree.
 //!
-//! We also need to handle cycles, including nodes for candidates which produce a header
-//! which is the same as its parent's. Within a [`FragmentTree`], cycles are bounded by the
-//! maximum depth allowed by the tree.
+//! As an extreme example, a candidate which produces head-data which is the same as its parent
+//! can correspond to multiple nodes within the same [`FragmentTree`]. Such cycles are bounded
+//! by the maximum depth allowed by the tree.
 //!
 //! As long as the [`CandidateStorage`] has bounded input on the number of candidates supplied,
 //! [`FragmentTree`] complexity is bounded. This means that higher-level code needs to be selective
@@ -50,7 +50,7 @@
 // TODO [now]: review & update.
 
 use std::{
-	collections::{hash_map::Entry as HEntry, HashMap, HashSet},
+	collections::{hash_map::Entry as HEntry, HashMap, HashSet, BTreeMap},
 	sync::Arc,
 };
 
@@ -151,22 +151,90 @@ struct CandidateEntry {
 	erasure_root: Hash,
 }
 
-/// This is a graph of candidates associated
-// TODO [now]: API for selecting backed candidates
-pub(crate) struct FragmentTree {
+/// The scope of a [`FragmentTree`].
+pub(crate) struct Scope {
 	para: ParaId,
 	relay_parent: RelayChainBlockInfo,
-	ancestors: Vec<RelayChainBlockInfo>,
+	ancestors: BTreeMap<BlockNumber, RelayChainBlockInfo>,
+	ancestors_by_hash: HashSet<Hash>,
 	base_constraints: Constraints,
 	max_depth: usize,
 }
 
+/// An error variant indicating that ancestors provided to a scope
+/// had unexpected order.
+#[derive(Debug)]
+pub struct UnexpectedAncestor;
+
+impl Scope {
+	/// Define a new [`Scope`].
+	///
+	/// All arguments are straightforward except the ancestors.
+	///
+	/// Ancestors should be in reverse order, starting with the parent
+	/// of the `relay_parent`, and proceeding backwards in block number
+	/// increments of 1. Ancestors not following these conditions will be
+	/// rejected.
+	///
+	/// Only ancestors whose children have the same session as the relay-parent's
+	/// children should be provided.
+	///
+	/// It is allowed to provide zero ancestors.
+	pub fn with_ancestors(
+		para: ParaId,
+		relay_parent: RelayChainBlockInfo,
+		base_constraints: Constraints,
+		max_depth: usize,
+		ancestors: impl IntoIterator<Item=RelayChainBlockInfo>,
+	) -> Result<Self, UnexpectedAncestor> {
+		let mut ancestors_map = BTreeMap::new();
+		let mut ancestors_by_hash = HashSet::new();
+		{
+			let mut prev = relay_parent.number;
+			for ancestor in ancestors {
+				if prev == 0 {
+					return Err(UnexpectedAncestor);
+				} else if ancestor.number != prev - 1 {
+					return Err(UnexpectedAncestor);
+				} else {
+					prev = ancestor.number;
+					ancestors_by_hash.insert(ancestor.hash);
+					ancestors_map.insert(ancestor.number, ancestor);
+				}
+			}
+		}
+
+		Ok(Scope {
+			para,
+			relay_parent,
+			base_constraints,
+			max_depth,
+			ancestors: ancestors_map,
+			ancestors_by_hash,
+		})
+	}
+}
+
+/// This is a tree of candidates based on some underlying storage of candidates
+/// and a scope.
+pub(crate) struct FragmentTree {
+	scope: Scope,
+	// TODO [now]: actual tree
+}
+
 impl FragmentTree {
-	// TODO [now]: populate from existing candidate storage.
+	/// Create a new [`FragmentTree`] with given scope, and populated from
+	/// the provided node storage.
+	pub fn new(scope: Scope, storage: &CandidateStorage) -> Self {
+		FragmentTree {
+			scope,
+			// TODO [now]: populate
+		}
+	}
 
 	// TODO [now]: add new candidate and recursively populate as necessary.
 
-	// TODO [now]: alternatively, always compute paths ad-hoc.
+	// TODO [now]: API for selecting backed candidates
 }
 
 struct FragmentNode {
