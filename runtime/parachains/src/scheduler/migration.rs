@@ -60,6 +60,7 @@ mod v0 {
 /// candidates processing.
 mod v1 {
 	use super::*;
+	use sp_std::vec::Vec;
 
 	pub fn migrate<T: Config>() -> Weight {
 		let _ = <Pallet<T> as Store>::Scheduled::translate(
