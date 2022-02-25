@@ -29,7 +29,7 @@ use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
 use crate::{
-	error::{Fatal, FatalResult, Result},
+	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
 
@@ -182,7 +182,7 @@ impl OrderingProvider {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<()> {
+	) -> crate::error::Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
 			// Fetch last finalized block.
 			let ancestors = match get_finalized_block_number(sender).await {
@@ -299,7 +299,9 @@ impl OrderingProvider {
 					)
 					.await;
 
-				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
+				rx.await
+					.or(Err(FatalError::ChainApiSenderDropped))?
+					.map_err(FatalError::ChainApiAncestors)?
 			};
 
 			let earliest_block_number = match head_number.checked_sub(hashes.len() as u32) {
@@ -356,8 +358,8 @@ where
 
 	receiver
 		.await
-		.map_err(|_| Fatal::ChainApiSenderDropped)?
-		.map_err(Fatal::ChainApi)
+		.map_err(|_| FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApiAncestors)
 }
 
 async fn get_block_number(

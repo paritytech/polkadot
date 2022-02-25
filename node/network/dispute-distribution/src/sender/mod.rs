@@ -37,9 +37,9 @@ pub use send_task::TaskFinish;
 
 /// Error and [`Result`] type for sender
 mod error;
-pub use error::{Error, Fatal, NonFatal, Result};
+pub use error::{Error, FatalError, JfyiError, Result};
 
-use self::error::NonFatalResult;
+use self::error::JfyiErrorResult;
 use crate::{Metrics, LOG_TARGET};
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
@@ -208,7 +208,7 @@ impl DisputeSender {
 					None
 				}
 			})
-			.ok_or(NonFatal::NoActiveHeads)?;
+			.ok_or(JfyiError::NoActiveHeads)?;
 
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), *ref_head, session_index)
@@ -243,11 +243,12 @@ impl DisputeSender {
 
 		let (valid_vote, invalid_vote) = if let Some(our_valid_vote) = our_valid_vote {
 			// Get some invalid vote as well:
-			let invalid_vote = votes.invalid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
+			let invalid_vote =
+				votes.invalid.get(0).ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(our_valid_vote, invalid_vote)
 		} else if let Some(our_invalid_vote) = our_invalid_vote {
 			// Get some valid vote as well:
-			let valid_vote = votes.valid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
+			let valid_vote = votes.valid.get(0).ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(valid_vote, our_invalid_vote)
 		} else {
 			// There is no vote from us yet - nothing to do.
@@ -258,7 +259,7 @@ impl DisputeSender {
 			.session_info
 			.validators
 			.get(valid_index.0 as usize)
-			.ok_or(NonFatal::InvalidStatementFromCoordinator)?;
+			.ok_or(JfyiError::InvalidStatementFromCoordinator)?;
 		let valid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Valid(kind.clone()),
 			candidate_hash,
@@ -266,14 +267,14 @@ impl DisputeSender {
 			valid_public.clone(),
 			signature.clone(),
 		)
-		.map_err(|()| NonFatal::InvalidStatementFromCoordinator)?;
+		.map_err(|()| JfyiError::InvalidStatementFromCoordinator)?;
 
 		let (kind, invalid_index, signature) = invalid_vote;
 		let invalid_public = info
 			.session_info
 			.validators
 			.get(invalid_index.0 as usize)
-			.ok_or(NonFatal::InvalidValidatorIndexFromCoordinator)?;
+			.ok_or(JfyiError::InvalidValidatorIndexFromCoordinator)?;
 		let invalid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Invalid(kind.clone()),
 			candidate_hash,
@@ -281,7 +282,7 @@ impl DisputeSender {
 			invalid_public.clone(),
 			signature.clone(),
 		)
-		.map_err(|()| NonFatal::InvalidValidatorIndexFromCoordinator)?;
+		.map_err(|()| JfyiError::InvalidValidatorIndexFromCoordinator)?;
 
 		// Reconstructing the checked signed dispute statements is hardly useful here and wasteful,
 		// but I don't want to enable a bypass for the below smart constructor and this code path
@@ -297,7 +298,7 @@ impl DisputeSender {
 			votes.candidate_receipt,
 			&info.session_info,
 		)
-		.map_err(NonFatal::InvalidDisputeFromCoordinator)?;
+		.map_err(JfyiError::InvalidDisputeFromCoordinator)?;
 
 		// Finally, get the party started:
 		self.start_sender(ctx, runtime, message).await
@@ -341,13 +342,13 @@ async fn get_active_session_indices<Context: SubsystemContext>(
 /// Retrieve Set of active disputes from the dispute coordinator.
 async fn get_active_disputes<Context: SubsystemContext>(
 	ctx: &mut Context,
-) -> NonFatalResult<Vec<(SessionIndex, CandidateHash)>> {
+) -> JfyiErrorResult<Vec<(SessionIndex, CandidateHash)>> {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(
 		tx,
 	)))
 	.await;
-	rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)
+	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
 }
 
 /// Get all locally available dispute votes for a given dispute.
@@ -355,7 +356,7 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	ctx: &mut Context,
 	session_index: SessionIndex,
 	candidate_hash: CandidateHash,
-) -> NonFatalResult<Option<CandidateVotes>> {
+) -> JfyiErrorResult<Option<CandidateVotes>> {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(
 		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
@@ -363,5 +364,5 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	.await;
 	rx.await
 		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
-		.map_err(|_| NonFatal::AskCandidateVotesCanceled)
+		.map_err(|_| JfyiError::AskCandidateVotesCanceled)
 }

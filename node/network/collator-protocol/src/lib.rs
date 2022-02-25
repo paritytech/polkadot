@@ -17,7 +17,8 @@
 //! The Collator Protocol allows collators and validators talk to each other.
 //! This subsystem implements both sides of the collator protocol.
 
-#![deny(missing_docs, unused_crate_dependencies)]
+#![deny(missing_docs)]
+#![deny(unused_crate_dependencies)]
 #![recursion_limit = "256"]
 
 use std::time::Duration;
@@ -39,7 +40,6 @@ use polkadot_subsystem::{
 };
 
 mod error;
-use error::{FatalResult, Result};
 
 mod collator_side;
 mod validator_side;
@@ -58,7 +58,7 @@ pub struct CollatorEvictionPolicy {
 impl Default for CollatorEvictionPolicy {
 	fn default() -> Self {
 		CollatorEvictionPolicy {
-			inactive_collator: Duration::from_secs(5),
+			inactive_collator: Duration::from_secs(24),
 			undeclared: Duration::from_secs(1),
 		}
 	}
@@ -98,7 +98,7 @@ impl CollatorProtocolSubsystem {
 		Self { protocol_side }
 	}
 
-	async fn run<Context>(self, ctx: Context) -> FatalResult<()>
+	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError>
 	where
 		Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,

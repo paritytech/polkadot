@@ -530,7 +530,7 @@ pub fn unrewarded_relayer(
 			begin,
 			end,
 			dispatch_results: if end >= begin {
-				bitvec![Msb0, u8; 1; (end - begin + 1) as _]
+				bitvec![u8, Msb0; 1; (end - begin + 1) as _]
 			} else {
 				Default::default()
 			},

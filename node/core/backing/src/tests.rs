@@ -752,7 +752,7 @@ fn backing_works_while_validation_ongoing() {
 			.contains(&ValidityAttestation::Explicit(signed_c.signature().clone())));
 		assert_eq!(
 			candidates[0].validator_indices,
-			bitvec::bitvec![bitvec::order::Lsb0, u8; 1, 0, 1, 1],
+			bitvec::bitvec![u8, bitvec::order::Lsb0; 1, 0, 1, 1],
 		);
 
 		virtual_overseer
@@ -1484,7 +1484,7 @@ fn candidate_backing_reorders_votes() {
 	let backed = table_attested_to_backed(attested, &table_context).unwrap();
 
 	let expected_bitvec = {
-		let mut validator_indices = BitVec::<bitvec::order::Lsb0, u8>::with_capacity(6);
+		let mut validator_indices = BitVec::<u8, bitvec::order::Lsb0>::with_capacity(6);
 		validator_indices.resize(6, false);
 
 		validator_indices.set(1, true);
