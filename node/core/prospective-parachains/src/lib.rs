@@ -52,11 +52,13 @@ use polkadot_primitives::vstaging::{
 	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, SessionIndex, ValidatorIndex,
 };
 
-use crate::error::{Error, FatalResult, NonFatal, NonFatalResult, Result};
-use crate::fragment_graph::FragmentGraph;
+use crate::{
+	error::{Error, FatalResult, NonFatal, NonFatalResult, Result},
+	fragment_tree::FragmentTree,
+};
 
 mod error;
-mod fragment_graph;
+mod fragment_tree;
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
@@ -96,8 +98,9 @@ struct View {
 	active_or_recent: HashMap<Hash, RelayBlockViewData>,
 
 	// Fragment graphs, one for each parachain.
-	// TODO [now]: handle cleanup when these go obsolete.
-	fragments: HashMap<ParaId, FragmentGraph>,
+	// TODO [now]: make this per-para per active-leaf
+	// TODO [now]: have global candidate storage per para id
+	fragments: HashMap<ParaId, FragmentTree>,
 }
 
 impl View {
