@@ -22,9 +22,10 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{AllowedRelayParentsTracker, DisputedBitfield},
+	paras_inherent::DisputedBitfield,
 	scheduler::{self, CoreAssignment},
-	shared, ump,
+	shared::{self, AllowedRelayParentsTracker},
+	ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;

@@ -23,8 +23,9 @@ use crate::{
 		Scheduler, System, Test,
 	},
 	paras::ParaGenesisArgs,
-	paras_inherent::{AllowedRelayParentsTracker, DisputedBitfield},
+	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
+	shared::AllowedRelayParentsTracker,
 };
 use assert_matches::assert_matches;
 use frame_support::assert_noop;

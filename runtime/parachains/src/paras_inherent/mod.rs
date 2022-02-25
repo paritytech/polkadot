@@ -30,7 +30,8 @@ use crate::{
 	metrics::METRICS,
 	paras,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump, ParaId,
+	shared::{self, ALLOWED_RELAY_PARENT_LOOKBACK},
+	ump, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -51,10 +52,10 @@ use primitives::v1::{
 use rand::{seq::SliceRandom, SeedableRng};
 
 use scale_info::TypeInfo;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Header as HeaderT, One};
+use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
 	cmp::Ordering,
-	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	prelude::*,
 	vec::Vec,
 };
@@ -95,80 +96,6 @@ impl DisputedBitfield {
 	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
 		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
-	}
-}
-
-/// The maximum amount of relay-parent lookback.
-// TODO [now]: put this in the configuration module (https://github.com/paritytech/polkadot/issues/4841).
-pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 4;
-
-/// Information about past relay-parents.
-#[derive(Encode, Decode, Default, TypeInfo)]
-pub struct AllowedRelayParentsTracker<Hash, BlockNumber> {
-	// The past relay parents, paired with state roots, that are viable to build upon.
-	//
-	// They are in ascending chronologic order, so the newest relay parents are at
-	// the back of the deque.
-	//
-	// (relay_parent, state_root)
-	buffer: VecDeque<(Hash, Hash)>,
-
-	// The number of the most recent relay-parent, if any.
-	// If the buffer is empty, this value has no meaning and may
-	// be nonsensical.
-	latest_number: BlockNumber,
-}
-
-impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
-	AllowedRelayParentsTracker<Hash, BlockNumber>
-{
-	/// Add a new relay-parent to the allowed relay parents, along with info about the header.
-	/// Provide a maximum length for the buffer, which will cause old relay-parents to be pruned.
-	pub(crate) fn update(
-		&mut self,
-		relay_parent: Hash,
-		state_root: Hash,
-		number: BlockNumber,
-		max_len: usize,
-	) {
-		self.buffer.push_back((relay_parent, state_root));
-		self.latest_number = number;
-		while self.buffer.len() > max_len {
-			let _ = self.buffer.pop_front();
-		}
-
-		// if max_len == 0, then latest_number is nonsensical. Otherwise, it's fine.
-
-		// We don't disallow relay-parents from previous sessions. But we do
-		// require that blocks be backed by the _current_ assignees of any parachain.
-		// Off-chain, this implies that some degree of 're-backing' is expected, where
-		// a new group of validators assigned to a parachain picks up candidates that were
-		// backed by a previous group, possibly from the previous session.
-	}
-
-	/// Attempt to acquire the state root and block number to be used when building
-	/// upon the given relay-parent.
-	///
-	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
-	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent is
-	/// more recent than the previous.
-	pub(crate) fn acquire_info(
-		&self,
-		relay_parent: Hash,
-		prev: Option<BlockNumber>,
-	) -> Option<(Hash, BlockNumber)> {
-		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
-
-		if let Some(prev) = prev {
-			if prev >= self.latest_number {
-				return None
-			}
-		}
-
-		let age = (self.buffer.len() - 1) - pos;
-		let number = self.latest_number.clone() - BlockNumber::from(age as u32);
-
-		Some((self.buffer[pos].1, number))
 	}
 }
 
@@ -222,11 +149,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn on_chain_votes)]
 	pub(crate) type OnChainVotes<T: Config> = StorageValue<_, ScrapedOnChainVotes<T::Hash>>;
-
-	/// All allowed relay-parents.
-	#[pallet::storage]
-	pub(crate) type AllowedRelayParents<T: Config> =
-		StorageValue<_, AllowedRelayParentsTracker<T::Hash, T::BlockNumber>, ValueQuery>;
 
 	/// Update the disputes statements set part of the on-chain votes.
 	pub(crate) fn set_scrapable_on_chain_disputes<T: Config>(
@@ -416,7 +338,7 @@ impl<T: Config> Pallet<T> {
 			let parent_number = now - One::one();
 			let parent_storage_root = parent_header.state_root().clone();
 
-			AllowedRelayParents::<T>::mutate(|tracker| {
+			shared::AllowedRelayParents::<T>::mutate(|tracker| {
 				tracker.update(
 					parent_hash,
 					parent_storage_root,
@@ -425,7 +347,7 @@ impl<T: Config> Pallet<T> {
 				);
 			});
 		}
-		let allowed_relay_parents = AllowedRelayParents::<T>::get();
+		let allowed_relay_parents = <shared::Pallet<T>>::allowed_relay_parents();
 
 		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
@@ -686,7 +608,7 @@ impl<T: Config> Pallet<T> {
 		let allowed_relay_parents = {
 			let parent_number = now - One::one();
 			let parent_storage_root = parent_header.state_root().clone();
-			let mut tracker = AllowedRelayParents::<T>::get();
+			let mut tracker = <shared::Pallet<T>>::allowed_relay_parents();
 
 			tracker.update(
 				parent_hash,
