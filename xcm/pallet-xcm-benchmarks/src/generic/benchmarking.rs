@@ -63,7 +63,7 @@ benchmarks! {
 		let fee_asset = Concrete(Here.into());
 
 		let instruction = Instruction::<XcmCallOf<T>>::BuyExecution {
-			fees: (fee_asset, 100_000_000).into(), // should be something inside of holding
+			fees: (fee_asset, 100_000_000u128).into(), // should be something inside of holding
 			weight_limit: WeightLimit::Unlimited,
 		};
 

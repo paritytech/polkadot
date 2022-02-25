@@ -29,7 +29,7 @@ fn universal_origin_should_work() {
 		Parachain(2),
 		Xcm(vec![
 			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+			TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
 		]),
 		50,
 	);
@@ -39,18 +39,18 @@ fn universal_origin_should_work() {
 		Parachain(1),
 		Xcm(vec![
 			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+			TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
 		]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 
-	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
+	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100u128));
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
 			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+			TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
 		]),
 		50,
 	);
@@ -65,7 +65,7 @@ fn export_message_should_work() {
 	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
 	// Polkadot parachain #2.
 	let message =
-		Xcm(vec![TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() }]);
+		Xcm(vec![TransferAsset { assets: (Here, 100u128).into(), beneficiary: Parachain(2).into() }]);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]),

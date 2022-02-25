@@ -45,3 +45,13 @@ mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;
 pub use weight::{WeightBounds, WeightTrader};
+
+pub mod prelude {
+	pub use super::{
+		Convert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, UniversalLocation,
+		ClaimAssets, DropAssets, AssetLock, Enact, LockError,
+		AssetExchange, export_xcm, validate_export, ExportXcm, FeeManager, FeeReason,
+		Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
+		OnResponse, VersionChangeNotifier, ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
+	};
+}

@@ -248,6 +248,13 @@ impl Fungibility {
 	}
 }
 
+impl From<i32> for Fungibility {
+	fn from(amount: i32) -> Fungibility {
+		debug_assert_ne!(amount, 0);
+		Fungibility::Fungible(amount as u128)
+	}
+}
+
 impl From<u128> for Fungibility {
 	fn from(amount: u128) -> Fungibility {
 		debug_assert_ne!(amount, 0);

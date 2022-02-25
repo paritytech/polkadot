@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Various implementations of `FilterAssetLocation`.
+//! Various implementations of `ContainsPair<MultiAsset, MultiLocation>`.
 
 use frame_support::traits::{ContainsPair, Get};
 use sp_std::marker::PhantomData;
