@@ -13,7 +13,7 @@ name = "malus"
 path = "src/malus.rs"
 
 [dependencies]
-polkadot-cli = { path = "../../cli", default-features = false, features = ["cli", "malus", "polkadot-native"] }
+polkadot-cli = { path = "../../cli", features = [ "malus", "rococo-native", "kusama-native", "westend-native", "polkadot-native" ] }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
