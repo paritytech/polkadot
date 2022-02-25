@@ -7,13 +7,13 @@ edition = "2021"
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["bit-vec", "derive"] }
 tracing = "0.1.31"
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 lru = "0.7"
 merlin = "2.0"
 schnorrkel = "0.9.1"
-kvdb = "0.10.0"
+kvdb = "0.11.0"
 derive_more = "0.99.17"
 
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -38,5 +38,5 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-kvdb-memorydb = "0.10.0"
+kvdb-memorydb = "0.11.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
