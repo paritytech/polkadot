@@ -7904,8 +7904,7 @@ dependencies = [
 [[package]]
 name = "pyroscope"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e63f9bc346cdc6ad86ca90062248a1a7ce08fa44ad438637148359d1140733c"
+source = "git+https://github.com/drahnr/pyroscope-rs.git?branch=porky#47d2b4c97ee11722f608ca2edb680a7bf29b181e"
 dependencies = [
  "libc",
  "log",

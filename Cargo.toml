@@ -177,3 +177,7 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"
+
+
+[patch.crates-io]
+pyroscope = { git = "https://github.com/drahnr/pyroscope-rs.git", branch = "porky" }
