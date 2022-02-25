@@ -304,7 +304,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_no_ready_solution::<Runtime, Block>(&rpc2, hash, score).await
 			});
 
-			// Run the calls concurrently and return once all has completed or any failed.
+			// Run the calls in parallel and return once all has completed or any failed.
 			if tokio::try_join!(
 				flatten(ensure_no_better_fut),
 				flatten(ensure_no_signed_fut),
