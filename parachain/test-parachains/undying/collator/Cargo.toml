@@ -1,9 +1,9 @@
 [package]
 name = "test-parachain-undying-collator"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the undying test parachain"
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "undying-collator"

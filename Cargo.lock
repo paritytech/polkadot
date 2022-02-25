@@ -10877,7 +10877,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-undying"
-version = "0.9.13"
+version = "0.9.17"
 dependencies = [
  "dlmalloc",
  "log",
@@ -10891,7 +10891,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-undying-collator"
-version = "0.9.13"
+version = "0.9.17"
 dependencies = [
  "clap",
  "futures 0.3.21",

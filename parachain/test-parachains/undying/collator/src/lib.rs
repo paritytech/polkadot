@@ -23,7 +23,7 @@ use polkadot_node_primitives::{
 	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, CollatorFn,
 	MaybeCompressedPoV, PoV, Statement,
 };
-use polkadot_primitives::v1::{CollatorId, CollatorPair};
+use polkadot_primitives::v1::{CollatorId, CollatorPair, Hash};
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
@@ -58,7 +58,7 @@ fn calculate_head_and_state_for_number(
 
 	let mut state = GraveyardState { index, graveyard, zombies, seal };
 	let mut head =
-		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
+		HeadData { number: 0, parent_hash: Hash::default().into(), post_state: hash_state(&state) };
 
 	while head.number < number {
 		let block = BlockData { state, tombstones: 1_000, iterations: pvf_complexity };
@@ -175,7 +175,7 @@ impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
 	pub fn new(pov_size: usize, pvf_complexity: u32) -> Self {
-		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt() as usize;
+		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt().ceil() as usize;
 
 		log::info!(
 			"PoV target size: {} bytes. Graveyard size: ({} x {})",

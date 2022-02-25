@@ -85,11 +85,11 @@ pub struct Cli {
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {
-		"Parity Polkadot".into()
+		"Parity Zombienet/Undying".into()
 	}
 
 	fn impl_version() -> String {
-		"0.0.0".into()
+		env!("CARGO_PKG_VERSION").into()
 	}
 
 	fn description() -> String {
