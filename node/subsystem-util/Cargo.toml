@@ -2,14 +2,14 @@
 name = "polkadot-node-subsystem-util"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3.21"
 itertools = "0.10"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
 pin-project = "1.0.9"
 rand = "0.8.5"
 thiserror = "1.0.30"

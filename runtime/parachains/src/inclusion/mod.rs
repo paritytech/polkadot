@@ -78,9 +78,9 @@ pub struct CandidatePendingAvailability<H, N> {
 	/// The candidate descriptor.
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
-	availability_votes: BitVec<BitOrderLsb0, u8>,
+	availability_votes: BitVec<u8, BitOrderLsb0>,
 	/// The backers of the candidate pending availability.
-	backers: BitVec<BitOrderLsb0, u8>,
+	backers: BitVec<u8, BitOrderLsb0>,
 	/// The block number of the relay-parent of the receipt.
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
@@ -91,7 +91,7 @@ pub struct CandidatePendingAvailability<H, N> {
 
 impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the availability votes on the candidate.
-	pub(crate) fn availability_votes(&self) -> &BitVec<BitOrderLsb0, u8> {
+	pub(crate) fn availability_votes(&self) -> &BitVec<u8, BitOrderLsb0> {
 		&self.availability_votes
 	}
 
@@ -120,8 +120,8 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		core: CoreIndex,
 		hash: CandidateHash,
 		descriptor: CandidateDescriptor<H>,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
-		backers: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
+		backers: BitVec<u8, BitOrderLsb0>,
 		relay_parent_number: N,
 		backed_in_number: N,
 		backing_group: GroupIndex,
@@ -544,7 +544,7 @@ impl<T: Config> Pallet<T> {
 				}
 
 				let para_id = backed_candidate.descriptor().para_id;
-				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -649,8 +649,8 @@ impl<T: Config> Pallet<T> {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.
-			let availability_votes: BitVec<BitOrderLsb0, u8> =
-				bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+			let availability_votes: BitVec<u8, BitOrderLsb0> =
+				bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
@@ -721,8 +721,8 @@ impl<T: Config> Pallet<T> {
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
-		backers: BitVec<BitOrderLsb0, u8>,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		backers: BitVec<u8, BitOrderLsb0>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 		core_index: CoreIndex,
 		backing_group: GroupIndex,
 	) -> Weight {

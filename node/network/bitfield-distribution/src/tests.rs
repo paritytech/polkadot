@@ -124,7 +124,7 @@ fn receive_invalid_signature() {
 	let validator_1 = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 		.expect("key created");
 
-	let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let invalid_signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload.clone(),
@@ -236,7 +236,7 @@ fn receive_invalid_validator_index() {
 
 	state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
-	let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
@@ -294,7 +294,7 @@ fn receive_duplicate_messages() {
 		state_with_view(our_view![hash_a, hash_b], hash_a.clone());
 
 	// create a signed message by validator 0
-	let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
@@ -403,7 +403,7 @@ fn do_not_relay_message_twice() {
 		state_with_view(our_view![hash], hash.clone());
 
 	// create a signed message by validator 0
-	let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
@@ -507,7 +507,7 @@ fn changing_view() {
 		state_with_view(our_view![hash_a, hash_b], hash_a.clone());
 
 	// create a signed message by validator 0
-	let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
@@ -655,7 +655,7 @@ fn do_not_send_message_back_to_origin() {
 	let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
 
 	// create a signed message by validator 0
-	let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,

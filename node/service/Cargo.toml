@@ -2,7 +2,7 @@
 name = "polkadot-service"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 # Substrate Client
@@ -66,8 +66,8 @@ hex-literal = "0.3.4"
 tracing = "0.1.31"
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
-kvdb = "0.10.0"
-kvdb-rocksdb = { version = "0.14.0", optional = true }
+kvdb = "0.11.0"
+kvdb-rocksdb = { version = "0.15.1", optional = true }
 async-trait = "0.1.52"
 lru = "0.7"
 
