@@ -1866,18 +1866,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "expander"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a718c0675c555c5f976fff4ea9e2c150fa06cefa201cadef87cfbf9324075881"
-dependencies = [
- "blake3 1.3.1",
- "fs-err",
- "proc-macro2",
- "quote",
-]
-
-[[package]]
 name = "eyre"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1906,6 +1894,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b394ed3d285a429378d3b384b9eb1285267e7df4b166df24b7a6939a04dc392e"
 dependencies = [
  "instant",
+]
+
+[[package]]
+name = "fatality"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ad875162843b0d046276327afe0136e9ed3a23d5a754210fb6f1f33610d39ab"
+dependencies = [
+ "fatality-proc-macro",
+ "thiserror",
+]
+
+[[package]]
+name = "fatality-proc-macro"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5aa1e3ae159e592ad222dc90c5acbad632b527779ba88486abe92782ab268bd"
+dependencies = [
+ "expander",
+ "indexmap",
+ "proc-macro-crate 1.1.3",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "thiserror",
 ]
 
 [[package]]
@@ -6267,6 +6280,7 @@ version = "0.9.17"
 dependencies = [
  "assert_matches",
  "env_logger 0.9.0",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "log",
@@ -6853,7 +6867,7 @@ name = "polkadot-node-network-protocol"
 version = "0.9.17"
 dependencies = [
  "async-trait",
- "derive_more",
+ "fatality",
  "futures 0.3.21",
  "parity-scale-codec",
  "polkadot-node-jaeger",
@@ -7013,7 +7027,7 @@ name = "polkadot-overseer-gen-proc-macro"
 version = "0.9.17"
 dependencies = [
  "assert_matches",
- "expander 0.0.4",
+ "expander",
  "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
@@ -7445,7 +7459,7 @@ version = "0.9.17"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
- "derive_more",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "indexmap",
@@ -11574,7 +11588,7 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "digest 0.10.2",
  "rand 0.8.5",
  "static_assertions",
