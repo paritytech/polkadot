@@ -530,11 +530,7 @@ impl DisputeStateFlags {
 		let supermajority_threshold = supermajority_threshold(n);
 
 		let mut flags = DisputeStateFlags::default();
-		let all_participants = {
-			let mut a = state.validators_for.clone();
-			*a |= state.validators_against.iter().by_val();
-			a
-		};
+		let all_participants = state.validators_for.clone() | state.validators_against.clone();
 		if all_participants.count_ones() > byzantine_threshold {
 			flags |= DisputeStateFlags::CONFIRMED;
 		}
@@ -567,7 +563,7 @@ struct ImportSummary<BlockNumber> {
 	// Validators to slash for being (wrongly) on the FOR side.
 	slash_for: Vec<ValidatorIndex>,
 	// New participants in the dispute.
-	new_participants: bitvec::vec::BitVec<BitOrderLsb0, u8>,
+	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	// Difference in state flags from previous.
 	new_flags: DisputeStateFlags,
 }
@@ -597,14 +593,14 @@ struct ImportUndo {
 struct DisputeStateImporter<BlockNumber> {
 	state: DisputeState<BlockNumber>,
 	now: BlockNumber,
-	new_participants: bitvec::vec::BitVec<BitOrderLsb0, u8>,
+	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	pre_flags: DisputeStateFlags,
 }
 
 impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 	fn new(state: DisputeState<BlockNumber>, now: BlockNumber) -> Self {
 		let pre_flags = DisputeStateFlags::from_state(&state);
-		let new_participants = bitvec::bitvec![BitOrderLsb0, u8; 0; state.validators_for.len()];
+		let new_participants = bitvec::bitvec![u8, BitOrderLsb0; 0; state.validators_for.len()];
 
 		DisputeStateImporter { state, now, new_participants, pre_flags }
 	}
@@ -675,16 +671,10 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 					.collect()
 			},
 			(false, true) => {
-				let prev_participants = {
-					// all participants
-					let mut a = self.state.validators_for.clone();
-					*a |= self.state.validators_against.iter().by_val();
-
-					// which are not new participants
-					*a &= self.new_participants.iter().by_val().map(|b| !b);
-
-					a
-				};
+				// all participants, which are not new participants
+				let prev_participants = (self.state.validators_for.clone() |
+					self.state.validators_against.clone()) &
+					!self.new_participants.clone();
 
 				prev_participants
 					.iter_ones()
@@ -942,8 +932,8 @@ impl<T: Config> Pallet<T> {
 				dispute_state
 			} else {
 				DisputeState {
-					validators_for: bitvec![BitOrderLsb0, u8; 0; n_validators],
-					validators_against: bitvec![BitOrderLsb0, u8; 0; n_validators],
+					validators_for: bitvec![u8, BitOrderLsb0; 0; n_validators],
+					validators_against: bitvec![u8, BitOrderLsb0; 0; n_validators],
 					start: now,
 					concluded_at: None,
 				}
@@ -1106,8 +1096,8 @@ impl<T: Config> Pallet<T> {
 				(
 					true,
 					DisputeState {
-						validators_for: bitvec![BitOrderLsb0, u8; 0; n_validators],
-						validators_against: bitvec![BitOrderLsb0, u8; 0; n_validators],
+						validators_for: bitvec![u8, BitOrderLsb0; 0; n_validators],
+						validators_against: bitvec![u8, BitOrderLsb0; 0; n_validators],
 						start: now,
 						concluded_at: None,
 					},
@@ -1271,10 +1261,10 @@ fn has_supermajority_against<BlockNumber>(dispute: &DisputeState<BlockNumber>) -
 fn decrement_spam<BlockNumber>(
 	spam_slots: &mut [u32],
 	dispute: &DisputeState<BlockNumber>,
-) -> bitvec::vec::BitVec<BitOrderLsb0, u8> {
+) -> bitvec::vec::BitVec<u8, BitOrderLsb0> {
 	let byzantine_threshold = byzantine_threshold(spam_slots.len());
 
-	let participating = dispute.validators_for.clone() | dispute.validators_against.iter().by_val();
+	let participating = dispute.validators_for.clone() | dispute.validators_against.clone();
 	let decrement_spam = participating.count_ones() <= byzantine_threshold;
 	for validator_index in participating.iter_ones() {
 		if decrement_spam {

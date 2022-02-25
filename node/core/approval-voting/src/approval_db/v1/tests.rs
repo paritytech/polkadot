@@ -37,8 +37,8 @@ fn make_db() -> (DbBackend, Arc<dyn KeyValueDB>) {
 	(DbBackend::new(db_writer.clone(), TEST_CONFIG), db_writer)
 }
 
-fn make_bitvec(len: usize) -> BitVec<BitOrderLsb0, u8> {
-	bitvec::bitvec![BitOrderLsb0, u8; 0; len]
+fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
+	bitvec::bitvec![u8, BitOrderLsb0; 0; len]
 }
 
 fn make_block_entry(
