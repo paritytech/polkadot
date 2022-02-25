@@ -13,6 +13,7 @@ parity-scale-codec = { version = "3.0.0", default-features = false, features = [
 pin-project = "1.0.9"
 rand = "0.8.5"
 thiserror = "1.0.30"
+fatality = "0.0.6"
 tracing = "0.1.31"
 derive_more = "0.99.17"
 lru = "0.7.2"
@@ -25,7 +26,6 @@ polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered-channel = { path = "../metered-channel" }
-fatality = "0.0.6"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

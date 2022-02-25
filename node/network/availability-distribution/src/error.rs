@@ -92,10 +92,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), FatalError> {
-	match result.into_nested() {
-		Err(fatal) => Err(fatal),
-		Ok(Ok(())) => Ok(()),
-		Ok(Err(jfyi)) => {
+	match result.into_nested()? {
+		Ok(()) => Ok(()),
+		Err(jfyi) => {
 			match jfyi {
 				JfyiError::UnexpectedPoV |
 				JfyiError::InvalidValidatorIndex |

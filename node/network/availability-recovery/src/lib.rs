@@ -993,8 +993,8 @@ impl AvailabilityRecoverySubsystem {
 					}
 				}
 				in_req = recv_req => {
-					match in_req.into_nested() {
-						Ok(Ok(req)) => {
+					match in_req.into_nested().map_err(|fatal| SubsystemError::with_origin("availability-recovery", fatal))? {
+						Ok(req) => {
 							match query_full_data(&mut ctx, req.payload.candidate_hash).await {
 								Ok(res) => {
 									let _ = req.send_response(res.into());
@@ -1010,8 +1010,7 @@ impl AvailabilityRecoverySubsystem {
 								}
 							}
 						}
-						Err(fatal) => return Err(SubsystemError::with_origin("availability-recovery", fatal)),
-						Ok(Err(jfyi)) => {
+						Err(jfyi) => {
 							tracing::debug!(
 								target: LOG_TARGET,
 								error = ?jfyi,

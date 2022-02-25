@@ -84,7 +84,7 @@ where
 	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> Result<Self> {
+	) -> std::result::Result<Self, JfyiError> {
 		let sc_network::config::IncomingRequest { payload, peer, pending_response } = raw;
 		let payload = match Req::decode(&mut payload.as_ref()) {
 			Ok(payload) => payload,
@@ -98,9 +98,9 @@ where
 				};
 
 				if let Err(_) = pending_response.send(response) {
-					return Err(Error::DecodingErrorNoReputationChange(peer, err))
+					return Err(JfyiError::DecodingErrorNoReputationChange(peer, err))
 				}
-				return Err(Error::DecodingError(peer, err))
+				return Err(JfyiError::DecodingError(peer, err))
 			},
 		};
 		Ok(Self::new(peer, payload, pending_response))
@@ -224,7 +224,7 @@ where
 		F: FnOnce() -> Vec<UnifiedReputationChange>,
 	{
 		let req = match self.raw.next().await {
-			None => return Err(Error::RequestChannelExhausted.into()),
+			None => return Err(FatalError::RequestChannelExhausted.into()),
 			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes())?,
 		};
 		Ok(req)

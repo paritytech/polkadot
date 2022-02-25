@@ -53,10 +53,9 @@ pub enum Error {
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them.
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), FatalError> {
-	match result.into_nested() {
-		Ok(Ok(())) => Ok(()),
-		Err(fatal) => Err(fatal),
-		Ok(Err(jfyi)) => {
+	match result.into_nested()? {
+		Ok(()) => Ok(()),
+		Err(jfyi) => {
 			tracing::warn!(target: LOG_TARGET, error = ?jfyi, ctx);
 			Ok(())
 		},

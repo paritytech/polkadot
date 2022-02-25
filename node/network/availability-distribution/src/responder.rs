@@ -30,7 +30,7 @@ use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemSender};
 
 use crate::{
-	error::{Error, Result},
+	error::{JfyiError, Result},
 	metrics::{Metrics, FAILED, NOT_FOUND, SUCCEEDED},
 	LOG_TARGET,
 };
@@ -170,7 +170,7 @@ where
 		},
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	req.send_response(response).map_err(|_| JfyiError::SendResponse)?;
 	Ok(result)
 }
 
@@ -206,7 +206,7 @@ where
 		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	req.send_response(response).map_err(|_| JfyiError::SendResponse)?;
 	Ok(result)
 }
 
@@ -215,7 +215,7 @@ async fn query_chunk<Sender>(
 	sender: &mut Sender,
 	candidate_hash: CandidateHash,
 	validator_index: ValidatorIndex,
-) -> Result<Option<ErasureChunk>>
+) -> std::result::Result<Option<ErasureChunk>, JfyiError>
 where
 	Sender: SubsystemSender,
 {
@@ -234,7 +234,7 @@ where
 			error = ?e,
 			"Error retrieving chunk",
 		);
-		Error::QueryChunkResponseChannel(e)
+		JfyiError::QueryChunkResponseChannel(e)
 	})?;
 	Ok(result)
 }
@@ -252,6 +252,6 @@ where
 		.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx).into())
 		.await;
 
-	let result = rx.await.map_err(|e| Error::QueryAvailableDataResponseChannel(e))?;
+	let result = rx.await.map_err(JfyiError::QueryAvailableDataResponseChannel)?;
 	Ok(result)
 }

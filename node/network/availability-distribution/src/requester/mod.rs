@@ -39,8 +39,7 @@ use polkadot_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
 };
 
-use super::{Metrics, Result, LOG_TARGET};
-use crate::error::Error;
+use super::{FatalError, Metrics, Result, LOG_TARGET};
 
 #[cfg(test)]
 mod tests;
@@ -324,6 +323,9 @@ where
 	})
 	.await;
 
-	let ancestors = rx.await.map_err(Error::ChainApiSenderDropped)?.map_err(Error::ChainApi)?;
+	let ancestors = rx
+		.await
+		.map_err(FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApi)?;
 	Ok(ancestors)
 }

@@ -32,7 +32,6 @@ use crate::{
 	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
-use fatality::Split;
 
 #[cfg(test)]
 mod tests;
@@ -230,14 +229,7 @@ impl OrderingProvider {
 			for (block_num, block_hash) in block_numbers.zip(block_hashes) {
 				// Get included events:
 				let included = get_candidate_events(sender, block_hash)
-					.await
-					.map_err(|err| -> crate::error::Error {
-						match err.split() {
-							// will be remedied as soon as `split` is comatibe with `defer` in `fatality`.
-							Ok(jfyi) => crate::error::JfyiError::Runtime(jfyi).into(),
-							Err(fatal) => crate::error::FatalError::RuntimeApi(fatal).into(),
-						}
-					})?
+					.await?
 					.into_iter()
 					.filter_map(|ev| match ev {
 						CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),

@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 };
 
 use crate::{
-	error::{Error, Result},
+	error::{Error, FatalError, JfyiError, Result},
 	metrics::{FAILED, NOT_FOUND, SUCCEEDED},
 	Metrics, LOG_TARGET,
 };
@@ -56,7 +56,7 @@ where
 	let authority_id = info
 		.discovery_keys
 		.get(from_validator.0 as usize)
-		.ok_or(Error::InvalidValidatorIndex)?
+		.ok_or(JfyiError::InvalidValidatorIndex)?
 		.clone();
 	let (req, pending_response) = OutgoingRequest::new(
 		Recipient::Authority(authority_id.clone()),
@@ -77,7 +77,7 @@ where
 		"pov-fetcher",
 		fetch_pov_job(pov_hash, authority_id, pending_response.boxed(), span, tx, metrics).boxed(),
 	)
-	.map_err(|e| Error::SpawnTask(e))?;
+	.map_err(|e| FatalError::SpawnTask(e))?;
 	Ok(())
 }
 

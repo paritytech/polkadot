@@ -30,11 +30,6 @@ pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
-	/// Errors coming from runtime::Runtime.
-	#[fatal]
-	#[error("Error while accessing runtime information {0}")]
-	RuntimeApi(#[from] runtime::FatalError),
-
 	/// We received a legacy `SubystemError::Context` error which is considered fatal.
 	#[fatal]
 	#[error("SubsystemError::Context error: {0}")]
@@ -74,6 +69,10 @@ pub enum Error {
 	#[error("Chain API dropped response channel sender")]
 	ChainApiSenderDropped,
 
+	#[fatal(forward)]
+	#[error("Error while accessing runtime information {0}")]
+	Runtime(#[from] runtime::Error),
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
@@ -95,10 +94,6 @@ pub enum Error {
 	/// `RollingSessionWindow` was not able to retrieve `SessionInfo`s.
 	#[error("Sessions unavailable in `RollingSessionWindow`: {0}")]
 	RollingSessionWindow(#[from] SessionsUnavailable),
-
-	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information: {0}")]
-	Runtime(#[from] runtime::JfyiError),
 
 	#[error(transparent)]
 	QueueError(#[from] participation::QueueError),
