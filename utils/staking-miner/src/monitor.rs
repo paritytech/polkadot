@@ -81,7 +81,7 @@ where
 	Ok(())
 }
 
-/// Reads all current solutions and then takes action according to the `SubmissionStrategy`.
+/// Reads all current solutions and checks according to the `SubmissionStrategy`.
 async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
@@ -106,7 +106,7 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	// BTreeMap is ordered, take last to get the max score.
 	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
 		if !score.strict_threshold_better(curr_max_score, epsilon) {
-			return Err(Error::AlreadyExistSolutionWithBetterScore)
+			return Err(Error::BetterScoreExist)
 		}
 	}
 
@@ -114,6 +114,7 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 }
 
 /// Checks whether it exist a ready solution.
+/// This will be set in the end of signed phase.
 async fn ensure_no_ready_solution<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
@@ -129,7 +130,7 @@ async fn ensure_no_ready_solution<T: EPM::Config, B: BlockT>(
 	if score.strict_threshold_better(best_score, Perbill::zero()) {
 		Ok(())
 	} else {
-		Err(Error::AlreadyExistSolutionWithBetterScore)
+		Err(Error::BetterScoreExist)
 	}
 }
 
@@ -204,7 +205,9 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			config: MonitorConfig,
 		) {
 
-			async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, StakingMinerError>>) -> Result<T, StakingMinerError> {
+			async fn flatten<T>(
+				handle: tokio::task::JoinHandle<Result<T, StakingMinerError>>
+			) -> Result<T, StakingMinerError> {
 				match handle.await {
 					Ok(Ok(result)) => Ok(result),
 					Ok(Err(err)) => Err(err),
@@ -218,6 +221,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 			let rpc3 = rpc.clone();
+			let rpc4 = rpc.clone();
 			let account = signer.account.clone();
 
 			let signed_phase_fut = tokio::spawn(async move {
@@ -232,40 +236,22 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				crate::check_versions::<Runtime>(&rpc3).await
 			});
 
-			// Run the calls concurrently.
+			let ext_fut = tokio::spawn(async move {
+				crate::create_election_ext::<Runtime, Block>(rpc4, Some(hash), vec![]).await
+			});
+
+			// Run the calls concurrently and return once all has completed or any failed.
 			let res = tokio::try_join!(
 				flatten(signed_phase_fut),
 				flatten(no_prev_sol_fut),
 				flatten(check_version_fut),
+				flatten(ext_fut),
 			);
 
-			if let Err(err) = res {
-				match err {
-					Error::VersionMismatch => {
-						let _ = tx.send(Error::VersionMismatch.into());
-					}
-					Error::IncorrectPhase => {
-						log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
-					}
-					Error::AlreadySubmitted => {
-						log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
-					}
-					err => {
-						log::debug!(target: LOG_TARGET, "Error: {:?} when performed initial checks", err);
-					}
-				}
-				return;
-			}
-
-			// grab an externalities without staking, just the election snapshot.
-			let mut ext = match crate::create_election_ext::<Runtime, Block>(
-				rpc.clone(),
-				Some(hash),
-				vec![],
-			).await {
-				Ok(ext) => ext,
+			let mut ext = match res {
+				Ok((_, _, _, ext)) => ext,
 				Err(err) => {
-					let _ = tx.send(err);
+					log::debug!(target: LOG_TARGET, "Skipping block {}; error: {}", at.number, err);
 					return;
 				}
 			};
@@ -307,7 +293,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
-
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 
@@ -319,7 +304,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_no_ready_solution::<Runtime, Block>(&rpc2, hash, score).await
 			});
 
-			// Run the calls concurrently.
+			// Run the calls concurrently and return once all has completed or any failed.
 			if tokio::try_join!(
 				flatten(ensure_no_better_fut),
 				flatten(ensure_no_signed_fut),

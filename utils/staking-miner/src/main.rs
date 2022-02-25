@@ -246,7 +246,7 @@ enum Error<T: EPM::Config> {
 	IncorrectPhase,
 	AlreadySubmitted,
 	VersionMismatch,
-	AlreadyExistSolutionWithBetterScore,
+	BetterScoreExist,
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
