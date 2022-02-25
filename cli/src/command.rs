@@ -475,6 +475,22 @@ pub fn run() -> Result<()> {
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
+		Some(Subcommand::BenchmarkStorage(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+			set_default_ss58_version(chain_spec);
+
+			Ok(runner.async_run(|mut config| {
+				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+				let db = backend.expose_db();
+				let storage = backend.expose_storage();
+
+				Ok((
+					cmd.run(config, client, db, storage).map_err(Error::SubstrateCli),
+					task_manager,
+				))
+			})?)
+		},
 		Some(Subcommand::HostPerfCheck) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(true);
