@@ -81,8 +81,7 @@ where
 	Ok(())
 }
 
-/// Queries the chain for the best solution and checks whether the computed score
-/// is better than best known.
+/// Reads all current solutions and then takes action according to the `SubmissionStrategy`.
 async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
@@ -114,9 +113,8 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	Ok(())
 }
 
-/// Queries the chain for the best solution and checks whether the computed score
-/// is better than best known.
-async fn ensure_no_better_signed_solution<T: EPM::Config, B: BlockT>(
+/// Checks whether it exist a ready solution.
+async fn ensure_no_ready_solution<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
 	score: sp_npos_elections::ElectionScore,
@@ -206,22 +204,55 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			config: MonitorConfig,
 		) {
 
+			async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, StakingMinerError>>) -> Result<T, StakingMinerError> {
+				match handle.await {
+					Ok(Ok(result)) => Ok(result),
+					Ok(Err(err)) => Err(err),
+					Err(err) => panic!("tokio spawn task failed; kill task: {:?}", err),
+				}
+			}
+
 			let hash = at.hash();
 			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
-			// This is just concurrent => on the same thread
-			if let Err(err) = tokio::try_join!(
-				ensure_signed_phase::<Runtime, Block>(&rpc, hash),
-				ensure_no_previous_solution::<Runtime, Block>(&rpc, hash, &signer.account),
-				crate::check_versions::<Runtime>(&rpc),
-			) {
+			let rpc1 = rpc.clone();
+			let rpc2 = rpc.clone();
+			let rpc3 = rpc.clone();
+			let account = signer.account.clone();
+
+			let signed_phase_fut = tokio::spawn(async move {
+				ensure_signed_phase::<Runtime, Block>(&rpc1, hash).await
+			});
+
+			let no_prev_sol_fut = tokio::spawn(async move {
+				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
+			});
+
+			let check_version_fut = tokio::spawn(async move {
+				crate::check_versions::<Runtime>(&rpc3).await
+			});
+
+			// Run the calls concurrently.
+			let res = tokio::try_join!(
+				flatten(signed_phase_fut),
+				flatten(no_prev_sol_fut),
+				flatten(check_version_fut),
+			);
+
+			if let Err(err) = res {
 				match err {
 					Error::VersionMismatch => {
 						let _ = tx.send(Error::VersionMismatch.into());
 					}
-					Error::IncorrectPhase => log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all."),
-					Error::AlreadySubmitted => log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping."),
-					err => log::debug!(target: LOG_TARGET, "Error: {:?} when performed initial checks", err),
+					Error::IncorrectPhase => {
+						log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
+					}
+					Error::AlreadySubmitted => {
+						log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+					}
+					err => {
+						log::debug!(target: LOG_TARGET, "Error: {:?} when performed initial checks", err);
+					}
 				}
 				return;
 			}
@@ -276,10 +307,22 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
-			// This is just concurrent => on the same thread
+
+			let rpc1 = rpc.clone();
+			let rpc2 = rpc.clone();
+
+			let ensure_no_better_fut = tokio::spawn(async move {
+				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy).await
+			});
+
+			let ensure_no_signed_fut = tokio::spawn(async move {
+				ensure_no_ready_solution::<Runtime, Block>(&rpc2, hash, score).await
+			});
+
+			// Run the calls concurrently.
 			if tokio::try_join!(
-				ensure_no_better_solution::<Runtime, Block>(&rpc, hash, score, config.submission_strategy),
-				ensure_no_better_signed_solution::<Runtime, Block>(&rpc, hash, score)
+				flatten(ensure_no_better_fut),
+				flatten(ensure_no_signed_fut),
 			).is_err() {
 				return;
 			}
