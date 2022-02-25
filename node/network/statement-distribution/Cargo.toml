@@ -18,8 +18,8 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
 indexmap = "1.8.0"
 parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
-derive_more = "0.99.17"
 thiserror = "1.0.30"
+fatality = "0.0.6"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

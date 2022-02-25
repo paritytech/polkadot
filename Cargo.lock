@@ -1897,6 +1897,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "fatality"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ad875162843b0d046276327afe0136e9ed3a23d5a754210fb6f1f33610d39ab"
+dependencies = [
+ "fatality-proc-macro",
+ "thiserror",
+]
+
+[[package]]
+name = "fatality-proc-macro"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5aa1e3ae159e592ad222dc90c5acbad632b527779ba88486abe92782ab268bd"
+dependencies = [
+ "expander",
+ "indexmap",
+ "proc-macro-crate 1.1.3",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "thiserror",
+]
+
+[[package]]
 name = "fdlimit"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6226,6 +6251,7 @@ version = "0.9.17"
 dependencies = [
  "assert_matches",
  "derive_more",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "lru 0.7.2",
@@ -6254,6 +6280,7 @@ version = "0.9.17"
 dependencies = [
  "assert_matches",
  "env_logger 0.9.0",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "log",
@@ -6337,8 +6364,8 @@ version = "0.9.17"
 dependencies = [
  "always-assert",
  "assert_matches",
- "derive_more",
  "env_logger 0.9.0",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "log",
@@ -6378,6 +6405,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "derive_more",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "lazy_static",
@@ -6656,6 +6684,7 @@ name = "polkadot-node-core-dispute-coordinator"
 version = "0.9.17"
 dependencies = [
  "assert_matches",
+ "fatality",
  "futures 0.3.21",
  "kvdb",
  "kvdb-memorydb",
@@ -6838,7 +6867,7 @@ name = "polkadot-node-network-protocol"
 version = "0.9.17"
 dependencies = [
  "async-trait",
- "derive_more",
+ "fatality",
  "futures 0.3.21",
  "parity-scale-codec",
  "polkadot-node-jaeger",
@@ -6925,6 +6954,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "env_logger 0.9.0",
+ "fatality",
  "futures 0.3.21",
  "itertools",
  "lazy_static",
@@ -7429,7 +7459,7 @@ version = "0.9.17"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
- "derive_more",
+ "fatality",
  "futures 0.3.21",
  "futures-timer",
  "indexmap",
@@ -11558,7 +11588,7 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "digest 0.10.2",
  "rand 0.8.5",
  "static_assertions",
