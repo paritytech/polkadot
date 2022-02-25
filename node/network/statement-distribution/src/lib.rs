@@ -72,7 +72,7 @@ use responder::{respond, ResponderMessage};
 
 /// Metrics for the statement distribution
 pub(crate) mod metrics;
-use metrics::{Metrics, UNEXPECTED_STATEMENT_SECONDED_LABEL, UNEXPECTED_STATEMENT_VALID_LABEL};
+use metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -1365,7 +1365,7 @@ async fn handle_incoming_message<'a>(
 		match rep {
 			// This happens when a Valid statement has been received but there is no corresponding Seconded
 			COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE => {
-				metrics.on_unexpected_statement(UNEXPECTED_STATEMENT_VALID_LABEL);
+				metrics.on_unexpected_statement_valid();
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
@@ -1374,7 +1374,7 @@ async fn handle_incoming_message<'a>(
 			},
 			// This happens when we have an unexpected remote peer that announced Seconded
 			COST_UNEXPECTED_STATEMENT_REMOTE => {
-				metrics.on_unexpected_statement(UNEXPECTED_STATEMENT_SECONDED_LABEL);
+				metrics.on_unexpected_statement_seconded();
 				report_peer(ctx, peer, rep).await;
 			},
 			_ => {

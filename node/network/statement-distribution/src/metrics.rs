@@ -16,11 +16,6 @@
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
-/// Labels for unexpected statements metrics
-pub const UNEXPECTED_STATEMENT_VALID_LABEL: &str = "valid";
-pub const UNEXPECTED_STATEMENT_SECONDED_LABEL: &str = "seconded";
-pub const UNEXPECTED_STATEMENT_LARGE_LABEL: &str = "large";
-
 #[derive(Clone)]
 struct MetricsInner {
 	statements_distributed: prometheus::Counter<prometheus::U64>,
@@ -82,10 +77,24 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
 	}
 
-	/// Update the out-of-view statements counter
-	pub fn on_unexpected_statement(&self, label: &'static str) {
+	/// Update the out-of-view statements counter for unexpected valid statements
+	pub fn on_unexpected_statement_valid(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.statements_unexpected.with_label_values(&[label]).inc();
+			metrics.statements_unexpected.with_label_values(&["valid"]).inc();
+		}
+	}
+
+	/// Update the out-of-view statements counter for unexpected seconded statements
+	pub fn on_unexpected_statement_seconded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.statements_unexpected.with_label_values(&["seconded"]).inc();
+		}
+	}
+
+	/// Update the out-of-view statements counter for unexpected large statements
+	pub fn on_unexpected_statement_large(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.statements_unexpected.with_label_values(&["large"]).inc();
 		}
 	}
 }
