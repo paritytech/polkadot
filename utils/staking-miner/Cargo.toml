@@ -2,10 +2,10 @@
 name = "staking-miner"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-clap = { version = "3.0", features = ["derive", "env"] }
+clap = { version = "3.1", features = ["derive", "env"] }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 tracing-subscriber = { version = "0.3.9", features = ["env-filter"]   }
 jsonrpsee = { version = "0.8", features = ["ws-client", "macros"] }

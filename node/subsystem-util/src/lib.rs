@@ -250,8 +250,6 @@ pub async fn sign(
 	key: &ValidatorId,
 	data: &[u8],
 ) -> Result<Option<ValidatorSignature>, KeystoreError> {
-	use std::convert::TryInto;
-
 	let signature =
 		CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
 
