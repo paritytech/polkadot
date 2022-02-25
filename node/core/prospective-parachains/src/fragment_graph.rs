@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A graph utility for managing fragments
+//! A graph utility for managing unbacked parachain fragments.
 //!
 //! Each node in the graph represents a candidate. Nodes do not uniquely refer to a parachain
 //! block for two reasons.
@@ -32,7 +32,10 @@
 //! attribute of a path, not a candidate.
 //!
 //! We also need to handle cycles, including nodes for candidates which produce a header
-//! which is the same as the parent's.
+//! which is the same as its parent's.
+//!
+//! The graph exposes a 'frontier' of nodes which appear to be the best to build upon
+//! and is the primary means for higher-level code to select candidates to build upon.
 
 use std::{
 	collections::{hash_map::Entry as HEntry, HashMap, HashSet},
@@ -54,18 +57,19 @@ use polkadot_primitives::vstaging::{
 	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, SessionIndex, ValidatorIndex,
 };
 
+// TODO [now]: separate graph per relay-parent (constraints)?
+// TODO [now]: keep nodes and graphs separate? recompute / prune graphs
+//             on every new relay parent?
+// TODO [now]: API for selecting backed candidates
 pub(crate) struct FragmentGraph {
 	para: ParaId,
-	// Fragment nodes based on fragment head-data.
-	nodes: HashMap<Hash, FragmentNode>,
+	relay_parent: RelayChainBlockInfo,
+	base_constraints: Constraints,
 }
 
-impl FragmentGraph {
-	fn is_empty(&self) -> bool {
-		self.nodes.is_empty()
-	}
-
-	// TODO [now]: pruning
+struct CandidateGraph {
+	// TODO [now]: semi-ordered pile of candidates.
+	// we'll need to support some kinds of traversal and insertions
 }
 
 enum FragmentState {
@@ -76,14 +80,13 @@ enum FragmentState {
 }
 
 struct FragmentNode {
-	// Head-data of the parent node.
-	parent_fragment: CandidateHash,
+	// The hash of the head-data of the parent node
+	parent: Hash,
 	// Candidate hashes of children.
 	children: Vec<CandidateHash>,
 	fragment: Fragment,
 	erasure_root: Hash,
 	state: FragmentState,
-	depth: usize,
 }
 
 impl FragmentNode {
@@ -91,9 +94,7 @@ impl FragmentNode {
 		self.fragment.relay_parent().hash
 	}
 
-	fn depth(&self) -> usize {
-		self.depth
-	}
+
 
 	/// Produce a candidate receipt from this fragment node.
 	fn produce_candidate_receipt(&self, para_id: ParaId) -> CommittedCandidateReceipt {
