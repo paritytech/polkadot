@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 parking_lot = "0.11.1"
@@ -22,7 +22,7 @@ parity-util-mem = { version = ">= 0.10.1", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.1.1"
 assert_matches = "1.4.0"

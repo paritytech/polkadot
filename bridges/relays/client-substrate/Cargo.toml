@@ -26,20 +26,20 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.17" }
 
 #[dev-dependencies]
 futures = "0.3.7"
