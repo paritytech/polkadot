@@ -82,7 +82,10 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(60));
-	assert_eq!(asset_list(AccountIndex64 { index: 1, network: None }), vec![(Parent, 40u128).into()]);
+	assert_eq!(
+		asset_list(AccountIndex64 { index: 1, network: None }),
+		vec![(Parent, 40u128).into()]
+	);
 }
 
 #[test]

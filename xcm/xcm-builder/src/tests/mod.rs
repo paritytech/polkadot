@@ -16,7 +16,11 @@
 
 use super::{test_utils::*, *};
 use core::convert::TryInto;
-use frame_support::{assert_err, traits::{ConstU32, ContainsPair}, weights::constants::WEIGHT_PER_SECOND};
+use frame_support::{
+	assert_err,
+	traits::{ConstU32, ContainsPair},
+	weights::constants::WEIGHT_PER_SECOND,
+};
 use xcm_executor::{traits::prelude::*, Config, XcmExecutor};
 
 mod mock;

@@ -19,7 +19,9 @@ use super::*;
 #[test]
 fn basic_setup_works() {
 	add_reserve(Parent.into(), Wild((Parent, WildFungible).into()));
-	assert!(<TestConfig as Config>::IsReserve::contains(&(Parent, 100u128).into(), &Parent.into(),));
+	assert!(
+		<TestConfig as Config>::IsReserve::contains(&(Parent, 100u128).into(), &Parent.into(),)
+	);
 
 	assert_eq!(to_account(Parachain(1)), Ok(1001));
 	assert_eq!(to_account(Parachain(50)), Ok(1050));

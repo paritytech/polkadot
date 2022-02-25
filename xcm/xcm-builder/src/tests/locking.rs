@@ -46,7 +46,10 @@ fn lock_roundtrip_should_work() {
 		sent_xcm(),
 		vec![(
 			(Parent, Parachain(1)).into(),
-			Xcm::<()>(vec![NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100u128).into() },]),
+			Xcm::<()>(vec![NoteUnlockable {
+				owner: (3u64,).into(),
+				asset: (Parent, 100u128).into()
+			},]),
 		)]
 	);
 	assert_eq!(
@@ -162,7 +165,10 @@ fn remote_unlock_roundtrip_should_work() {
 				vec![DepositAsset { assets: AllCounted(2).into(), beneficiary: (3u64,).into() }]
 					.into(),
 			),
-			RequestUnlock { asset: (Parent, 100u128).into(), locker: (Parent, Parachain(1)).into() },
+			RequestUnlock {
+				asset: (Parent, 100u128).into(),
+				locker: (Parent, Parachain(1)).into(),
+			},
 		]),
 		50,
 	);
@@ -173,7 +179,10 @@ fn remote_unlock_roundtrip_should_work() {
 		sent_xcm(),
 		vec![(
 			(Parent, Parachain(1)).into(),
-			Xcm::<()>(vec![UnlockAsset { target: (3u64,).into(), asset: (Parent, 100u128).into() },]),
+			Xcm::<()>(vec![UnlockAsset {
+				target: (3u64,).into(),
+				asset: (Parent, 100u128).into()
+			},]),
 		)]
 	);
 	assert_eq!(

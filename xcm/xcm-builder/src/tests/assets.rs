@@ -128,7 +128,10 @@ fn transfer_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 100u128).into()]);
+	assert_eq!(
+		asset_list(AccountIndex64 { index: 3, network: None }),
+		vec![(Here, 100u128).into()]
+	);
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }
@@ -296,7 +299,10 @@ fn basic_asset_trap_should_work() {
 	);
 	assert_eq!(r, Outcome::Complete(20));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
-	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 100u128).into()]);
+	assert_eq!(
+		asset_list(AccountIndex64 { index: 3, network: None }),
+		vec![(Here, 100u128).into()]
+	);
 
 	// Same again doesn't work :-)
 	let r = XcmExecutor::<TestConfig>::execute_xcm(

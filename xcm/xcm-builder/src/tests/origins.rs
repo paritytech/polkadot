@@ -64,8 +64,10 @@ fn export_message_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
 	// Polkadot parachain #2.
-	let message =
-		Xcm(vec![TransferAsset { assets: (Here, 100u128).into(), beneficiary: Parachain(2).into() }]);
+	let message = Xcm(vec![TransferAsset {
+		assets: (Here, 100u128).into(),
+		beneficiary: Parachain(2).into(),
+	}]);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]),

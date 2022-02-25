@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::*;
-use frame_support::{parameter_types, weights::Weight, traits::ContainsPair};
+use frame_support::{parameter_types, traits::ContainsPair, weights::Weight};
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
