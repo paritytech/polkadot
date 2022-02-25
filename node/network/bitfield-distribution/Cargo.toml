@@ -14,7 +14,7 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -10,7 +10,7 @@ pub fn occupied_core(para_id: u32) -> CoreState {
 		occupied_since: 100_u32,
 		time_out_at: 200_u32,
 		next_up_on_time_out: None,
-		availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
+		availability: bitvec![u8, bitvec::order::Lsb0; 0; 32],
 		candidate_descriptor: dummy_candidate_descriptor(dummy_hash()),
 		candidate_hash: Default::default(),
 	})
@@ -31,7 +31,7 @@ where
 }
 
 pub fn default_bitvec(n_cores: usize) -> CoreAvailability {
-	bitvec![bitvec::order::Lsb0, u8; 0; n_cores]
+	bitvec![u8, bitvec::order::Lsb0; 0; n_cores]
 }
 
 pub fn scheduled_core(id: u32) -> ScheduledCore {

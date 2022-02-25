@@ -291,7 +291,7 @@ impl ProvisionerJob {
 	}
 }
 
-type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
+type CoreAvailability = BitVec<u8, bitvec::order::Lsb0>;
 
 /// The provisioner is the subsystem best suited to choosing which specific
 /// backed candidates and availability bitfields should be assembled into the
