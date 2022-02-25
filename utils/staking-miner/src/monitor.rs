@@ -81,7 +81,7 @@ where
 	Ok(())
 }
 
-/// Reads all current solutions and checks according to the `SubmissionStrategy`.
+/// Reads all current solutions and checks the scores according to the `SubmissionStrategy`.
 async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
@@ -113,21 +113,25 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	Ok(())
 }
 
-/// Checks whether it exist a ready solution.
-/// This will be set in the end of signed phase.
-async fn ensure_no_ready_solution<T: EPM::Config, B: BlockT>(
+/// Checks whether the score is better than checked solution on chain.
+/// The actual execution strategy is ignored because this is checked.
+///
+/// The checked score is set in the end of the signed phase.
+async fn ensure_better_than_ready_solution<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
 	score: sp_npos_elections::ElectionScore,
 ) -> Result<(), Error<T>> {
 	let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());
-	let best_score = rpc
+	let score_is_better = rpc
 		.get_storage_and_decode::<EPM::ReadySolution<AccountId>>(&key, Some(at))
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
-		.map(|s| s.score)
-		.unwrap_or_default();
-	if score.strict_threshold_better(best_score, Perbill::zero()) {
+		.map_or(true, |ready_solution| {
+			score.strict_threshold_better(ready_solution.score, Perbill::zero())
+		});
+
+	if score_is_better {
 		Ok(())
 	} else {
 		Err(Error::BetterScoreExist)
@@ -301,7 +305,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			});
 
 			let ensure_no_signed_fut = tokio::spawn(async move {
-				ensure_no_ready_solution::<Runtime, Block>(&rpc2, hash, score).await
+				ensure_better_than_ready_solution::<Runtime, Block>(&rpc2, hash, score).await
 			});
 
 			// Run the calls concurrently and return once all has completed or any failed.

@@ -317,7 +317,7 @@ enum SubmissionStrategy {
 /// Possible options:
 /// * --submission-strategy if-leading: only submit if leading
 /// * --submission-strategy always: always submit
-/// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better. (n > 100 has not effect)
+/// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better.
 ///
 impl FromStr for SubmissionStrategy {
 	type Err = String;
