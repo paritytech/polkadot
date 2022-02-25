@@ -2099,10 +2099,10 @@ impl metrics::Metrics for Metrics {
 			statements_unexpected: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"polkadot_parachain_statement_distribution_statements_out_view",
-						"Number of statements received out of the current node view.",
+						"polkadot_parachain_statement_distribution_statements_unexpected",
+						"Number of statements that were not expected to be received.",
 					),
-					&["source"],
+					&["type"],
 				)?,
 				registry,
 			)?,
