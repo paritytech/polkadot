@@ -6,6 +6,11 @@ Rococo is a testnet runtime with no stability guarantees.
 
 > TODO: figure out how to run this properly.
 
+```
+cargo run --release -- --alice --tmp --validator --chain rococo-local &
+cargo run --release -- --bob --tmp --validator --chain rococo-local
+```
+
 ### Alice
 
 `cargo run --release -- --alice --tmp --validator --chain rococo-local`
