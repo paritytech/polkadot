@@ -32,11 +32,8 @@ use polkadot_node_network_protocol::{
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	MIN_GOSSIP_PEERS,
-};
+use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
+
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -72,6 +69,10 @@ use requester::{fetch, RequesterMessage};
 /// Background task logic for responding for large statements.
 mod responder;
 use responder::{respond, ResponderMessage};
+
+/// Metrics for the statement distribution
+pub(crate) mod metrics;
+use metrics::{Metrics, UNEXPECTED_STATEMENT_SECONDED_LABEL, UNEXPECTED_STATEMENT_VALID_LABEL};
 
 #[cfg(test)]
 mod tests;
@@ -116,7 +117,7 @@ pub struct StatementDistributionSubsystem {
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
 	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
-	// Prometheus metrics
+	/// Prometheus metrics
 	metrics: Metrics,
 }
 
@@ -1364,7 +1365,7 @@ async fn handle_incoming_message<'a>(
 		match rep {
 			// This happens when a Valid statement has been received but there is no corresponding Seconded
 			COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE => {
-				metrics.on_unexpected_statement(UnexpectedStatementLabel::Valid);
+				metrics.on_unexpected_statement(UNEXPECTED_STATEMENT_VALID_LABEL);
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
@@ -1373,7 +1374,7 @@ async fn handle_incoming_message<'a>(
 			},
 			// This happens when we have an unexpected remote peer that announced Seconded
 			COST_UNEXPECTED_STATEMENT_REMOTE => {
-				metrics.on_unexpected_statement(UnexpectedStatementLabel::Seconded);
+				metrics.on_unexpected_statement(UNEXPECTED_STATEMENT_SECONDED_LABEL);
 				report_peer(ctx, peer, rep).await;
 			},
 			_ => {
@@ -1960,153 +1961,4 @@ fn requesting_peer_knows_about_candidate(
 		.get(relay_parent)
 		.ok_or_else(|| NonFatal::NoSuchHead(*relay_parent))?;
 	Ok(knowledge.sent_candidates.get(&candidate_hash).is_some())
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	statements_distributed: prometheus::Counter<prometheus::U64>,
-	sent_requests: prometheus::Counter<prometheus::U64>,
-	received_responses: prometheus::CounterVec<prometheus::U64>,
-	active_leaves_update: prometheus::Histogram,
-	share: prometheus::Histogram,
-	network_bridge_update_v1: prometheus::Histogram,
-	statements_unexpected: prometheus::CounterVec<prometheus::U64>,
-}
-
-// Used to distinguish different unexpected statements in the metrics
-enum UnexpectedStatementLabel {
-	Seconded,
-	Valid,
-	Large,
-}
-
-impl From<UnexpectedStatementLabel> for &'static str {
-	fn from(label: UnexpectedStatementLabel) -> Self {
-		match label {
-			UnexpectedStatementLabel::Seconded => "seconded",
-			UnexpectedStatementLabel::Valid => "valid",
-			UnexpectedStatementLabel::Large => "large",
-		}
-	}
-}
-
-/// Statement Distribution metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	/// Update statements distributed counter
-	fn on_statement_distributed(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.statements_distributed.inc();
-		}
-	}
-
-	/// Update sent requests counter
-	/// This counter is updated merely for the statements sent via request/response method,
-	/// meaning that it counts large statements only
-	fn on_sent_request(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.sent_requests.inc();
-		}
-	}
-
-	/// Update counters for the received responses with `succeeded` or `failed` labels
-	/// These counters are updated merely for the statements received via request/response method,
-	/// meaning that they count large statements only
-	fn on_received_response(&self, success: bool) {
-		if let Some(metrics) = &self.0 {
-			let label = if success { "succeeded" } else { "failed" };
-			metrics.received_responses.with_label_values(&[label]).inc();
-		}
-	}
-
-	/// Provide a timer for `active_leaves_update` which observes on drop.
-	fn time_active_leaves_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.active_leaves_update.start_timer())
-	}
-
-	/// Provide a timer for `share` which observes on drop.
-	fn time_share(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.share.start_timer())
-	}
-
-	/// Provide a timer for `network_bridge_update_v1` which observes on drop.
-	fn time_network_bridge_update_v1(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
-	}
-
-	/// Update the out-of-view statements counter
-	fn on_unexpected_statement(&self, label: UnexpectedStatementLabel) {
-		if let Some(metrics) = &self.0 {
-			metrics.statements_unexpected.with_label_values(&[label.into()]).inc();
-		}
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(
-		registry: &prometheus::Registry,
-	) -> std::result::Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			statements_distributed: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_statements_distributed_total",
-					"Number of candidate validity statements distributed to other peers.",
-				)?,
-				registry,
-			)?,
-			sent_requests: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_statement_distribution_sent_requests_total",
-					"Number of large statement fetching requests sent.",
-				)?,
-				registry,
-			)?,
-			received_responses: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_statement_distribution_received_responses_total",
-						"Number of received responses for large statement data.",
-					),
-					&["success"],
-				)?,
-				registry,
-			)?,
-			active_leaves_update: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_statement_distribution_active_leaves_update",
-					"Time spent within `statement_distribution::active_leaves_update`",
-				))?,
-				registry,
-			)?,
-			share: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_statement_distribution_share",
-					"Time spent within `statement_distribution::share`",
-				))?,
-				registry,
-			)?,
-			network_bridge_update_v1: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_statement_distribution_network_bridge_update_v1",
-					"Time spent within `statement_distribution::network_bridge_update_v1`",
-				))?,
-				registry,
-			)?,
-			statements_unexpected: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_statement_distribution_statements_unexpected",
-						"Number of statements that were not expected to be received.",
-					),
-					&["type"],
-				)?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
 }
