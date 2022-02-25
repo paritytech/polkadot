@@ -222,10 +222,16 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let hash = at.hash();
 			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
+			// block on this because if this fails there is no way to recover from
+			// that error i.e, upgrade/downgrade required.
+			if let Err(err) = crate::check_versions::<Runtime>(&rpc).await {
+				let _ = tx.send(err.into());
+				return;
+			}
+
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 			let rpc3 = rpc.clone();
-			let rpc4 = rpc.clone();
 			let account = signer.account.clone();
 
 			let signed_phase_fut = tokio::spawn(async move {
@@ -236,26 +242,21 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
 			});
 
-			let check_version_fut = tokio::spawn(async move {
-				crate::check_versions::<Runtime>(&rpc3).await
-			});
-
 			let ext_fut = tokio::spawn(async move {
-				crate::create_election_ext::<Runtime, Block>(rpc4, Some(hash), vec![]).await
+				crate::create_election_ext::<Runtime, Block>(rpc3, Some(hash), vec![]).await
 			});
 
 			// Run the calls in parallel and return once all has completed or any failed.
 			let res = tokio::try_join!(
 				flatten(signed_phase_fut),
 				flatten(no_prev_sol_fut),
-				flatten(check_version_fut),
 				flatten(ext_fut),
 			);
 
 			let mut ext = match res {
-				Ok((_, _, _, ext)) => ext,
+				Ok((_, _, ext)) => ext,
 				Err(err) => {
-					log::debug!(target: LOG_TARGET, "Skipping block {}; error: {}", at.number, err);
+					log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
 					return;
 				}
 			};
