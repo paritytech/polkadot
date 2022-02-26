@@ -603,7 +603,7 @@ deploy-parity-testnet:
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
-  allow_failure:                   true
+  allow_failure:                   false
   trigger:                         "parity/infrastructure/parity-testnet"
 
 zombienet-tests-parachains-smoke-test:
@@ -631,7 +631,7 @@ zombienet-tests-parachains-smoke-test:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-smoke-test.feature"
-  allow_failure:                   true
+  allow_failure:                   false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
@@ -661,7 +661,7 @@ zombienet-tests-malus-dispute-valid:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-dispute-valid-block.feature"
-  allow_failure:                   true
+  allow_failure:                   false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
