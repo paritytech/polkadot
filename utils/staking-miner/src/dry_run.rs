@@ -115,13 +115,23 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-		let mut ext = crate::create_election_ext::<Runtime, Block>(
-			rpc.clone(),
-			config.at,
-			vec!["Staking".to_string(), "System".to_string()],
-		).await?;
-		force_create_snapshot::<Runtime>(&mut ext)?;
+		let mut ext = if config.force_snapshot {
+			let mut ext = crate::create_election_ext::<Runtime, Block>(
+				rpc.clone(),
+				config.at,
+				vec!["Staking".to_string(), "BagsList".to_string()],
+			).await?;
+			force_create_snapshot::<Runtime>(&mut ext)?;
+			ext
+		} else {
+			crate::create_election_ext::<Runtime, Block>(
+				rpc.clone(),
+				config.at,
+				vec![],
+			).await?
+		};
 
+		log::debug!(target: LOG_TARGET, "+ solving with {:?}", config.solver);
 		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		let nonce = crate::get_account_info::<Runtime>(&rpc, &signer.account, config.at)

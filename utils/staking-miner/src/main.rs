@@ -343,6 +343,10 @@ struct DryRunConfig {
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
 	solver: Solvers,
+
+	/// Force create a new snapshot, else expect one to exist onchain.
+	#[clap(long)]
+	force_snapshot: bool,
 }
 
 #[derive(Debug, Clone, Parser)]
