@@ -355,7 +355,10 @@ struct SharedConfig {
 	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
 
-	/// The seed of a funded account in hex.
+	/// The path to a file containing the seed of the account. If the file is not found, the seed is
+	/// used as-is.
+	///
+	/// Can also be provided via the `SEED` environment variable.
 	///
 	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
