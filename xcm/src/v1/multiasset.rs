@@ -32,12 +32,12 @@ use core::{
 };
 use parity_scale_codec::{self as codec, Decode, Encode};
 use scale_info::TypeInfo;
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 /// A general identifier for an instance of a non-fungible asset class.
-#[derive(
-	Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum AssetInstance {
 	/// Undefined - used if the non-fungible asset class has only one instance.
 	Undefined,
@@ -99,9 +99,8 @@ impl From<Vec<u8>> for AssetInstance {
 }
 
 /// Classification of an asset being concrete or abstract.
-#[derive(
-	Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract(Vec<u8>),
@@ -150,9 +149,8 @@ impl AssetId {
 }
 
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
-#[derive(
-	Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Fungibility {
 	Fungible(#[codec(compact)] u128),
 	NonFungible(AssetInstance),
@@ -179,7 +177,8 @@ impl<T: Into<AssetInstance>> From<T> for Fungibility {
 	}
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct MultiAsset {
 	pub id: AssetId,
 	pub fun: Fungibility,

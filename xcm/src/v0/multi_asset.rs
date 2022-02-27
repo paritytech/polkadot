@@ -25,6 +25,7 @@ use core::{
 };
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 pub use crate::v1::AssetInstance;
@@ -84,9 +85,8 @@ pub use crate::v1::AssetInstance;
 /// - `<chain>/AccountId32` for an ERC-20-style single-asset smart-contract on a Frame-based contracts chain.
 /// - `<chain>/AccountKey20` for an ERC-20-style single-asset smart-contract on an Ethereum-like chain.
 ///
-#[derive(
-	Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum MultiAsset {
 	/// No assets. Rarely used.
 	None,

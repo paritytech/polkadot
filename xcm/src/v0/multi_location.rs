@@ -19,6 +19,7 @@
 use super::Junction;
 use core::{mem, result};
 use parity_scale_codec::{self, Decode, Encode};
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 /// A relative path between state-bearing consensus systems.
@@ -43,19 +44,8 @@ use serde::{Deserialize, Serialize};
 /// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(
-	Serialize,
-	Deserialize,
-	Clone,
-	Eq,
-	PartialEq,
-	Ord,
-	PartialOrd,
-	Encode,
-	Decode,
-	Debug,
-	scale_info::TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum MultiLocation {
 	/// The interpreting consensus system.
 	Null,

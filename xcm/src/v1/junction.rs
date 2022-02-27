@@ -22,14 +22,14 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-#[derive(
-	Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///

@@ -20,6 +20,7 @@ use super::Junction;
 use core::{convert::TryFrom, mem, result};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 /// A relative path between state-bearing consensus systems.
@@ -48,9 +49,8 @@ use serde::{Deserialize, Serialize};
 /// that a value is strictly an interior location, in those cases, `Junctions` may be used.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(
-	Serialize, Deserialize, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo,
-)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -428,9 +428,8 @@ const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(
-	Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo,
-)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,
