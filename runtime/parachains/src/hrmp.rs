@@ -492,6 +492,29 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Sudo call to establish a channel from the sender to the recipient.
+		///
+		/// This is equivalent to sending an `hrmp_init_open_channel` extrinsic followed by
+		/// `hrmp_accept_open_channel`.
+		#[pallet::weight(<T as Config>::WeightInfo::hrmp_init_open_channel() + <T as Config>::WeightInfo::hrmp_accept_open_channel())]
+		pub fn sudo_establish_hrmp_channel(
+			origin: OriginFor<T>,
+			sender: ParaId,
+			recipient: ParaId,
+			proposed_max_capacity: u32,
+			proposed_max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::init_open_channel(
+				sender,
+				recipient,
+				proposed_max_capacity,
+				proposed_max_message_size,
+			)?;
+			Self::accept_open_channel(recipient, sender)?;
+			Ok(())
+		}
+
 		/// Initiate unilateral closing of a channel. The origin must be either the sender or the
 		/// recipient in the channel being closed.
 		///
