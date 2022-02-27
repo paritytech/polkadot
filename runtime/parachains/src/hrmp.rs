@@ -513,8 +513,7 @@ pub mod pallet {
 				proposed_max_capacity,
 				proposed_max_message_size,
 			)?;
-			Self::accept_open_channel(recipient, sender)?;
-			Ok(())
+			Self::accept_open_channel(recipient, sender)
 		}
 
 		/// Initiate unilateral closing of a channel. The origin must be either the sender or the
