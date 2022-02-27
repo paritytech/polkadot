@@ -492,12 +492,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Sudo call to establish a channel from the sender to the recipient.
+		/// Call to establish a channel from the sender to the recipient.
 		///
 		/// This is equivalent to sending an `hrmp_init_open_channel` extrinsic followed by
 		/// `hrmp_accept_open_channel`.
+		///
+		/// Origin must be Root.
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_init_open_channel() + <T as Config>::WeightInfo::hrmp_accept_open_channel())]
-		pub fn sudo_establish_hrmp_channel(
+		pub fn force_establish_hrmp_channel(
 			origin: OriginFor<T>,
 			sender: ParaId,
 			recipient: ParaId,
