@@ -1914,8 +1914,10 @@ fn check_allowed_relay_parents() {
 		.unwrap();
 	}
 	let validator_public = validator_pubkeys(&validators);
+	let mut config = genesis_config(paras);
+	config.configuration.config.group_rotation_frequency = 1;
 
-	new_test_ext(genesis_config(paras)).execute_with(|| {
+	new_test_ext(config).execute_with(|| {
 		shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
 		shared::Pallet::<Test>::set_session_index(5);
 
@@ -1942,6 +1944,16 @@ fn check_allowed_relay_parents() {
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
 		// Base each candidate on one of allowed relay parents.
+		//
+		// Note that the group rotation frequency is set to 1 above,
+		// which means groups shift at each relay parent.
+		//
+		// For example, candidate `a` is based on block 1,
+		// thus it will be included in block 2, its group index is
+		// core = 0 shifted 2 times: one for group rotation and one for
+		// fetching the group assigned to the next block.
+		//
+		// Candidates `b` and `c` are constructed accordingly.
 
 		let relay_parent_a = (1, Hash::repeat_byte(0x1));
 		let relay_parent_b = (2, Hash::repeat_byte(0x2));
@@ -2022,7 +2034,7 @@ fn check_allowed_relay_parents() {
 		let backed_a = block_on(back_candidate(
 			candidate_a.clone(),
 			&validators,
-			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+			group_validators(GroupIndex::from(2)).unwrap().as_ref(),
 			&keystore,
 			&signing_context_a,
 			BackingKind::Threshold,
@@ -2040,7 +2052,7 @@ fn check_allowed_relay_parents() {
 		let backed_c = block_on(back_candidate(
 			candidate_c.clone(),
 			&validators,
-			group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 			&keystore,
 			&signing_context_c,
 			BackingKind::Threshold,
