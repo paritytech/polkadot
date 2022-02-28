@@ -250,8 +250,7 @@ test-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
-    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
-
+    - time cargo test --workspace --profile testnet --verbose --features=runtime-benchmarks,runtime-metrics
 
 
 spellcheck:
@@ -347,7 +346,7 @@ test-node-metrics:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
-    - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
+    - time cargo test  --profile testnet --verbose --features=runtime-metrics -p polkadot-node-metrics
 
 test-deterministic-wasm:
   stage:                           stage2
