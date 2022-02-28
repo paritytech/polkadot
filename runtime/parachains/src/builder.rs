@@ -257,7 +257,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		group_idx: GroupIndex,
 		core_idx: CoreIndex,
 		candidate_hash: CandidateHash,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
 			core_idx,                          // core
@@ -280,7 +280,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		para_id: ParaId,
 		core_idx: CoreIndex,
 		group_idx: GroupIndex,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 		candidate_hash: CandidateHash,
 	) {
 		let candidate_availability = Self::candidate_availability_mock(
@@ -304,7 +304,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create an `AvailabilityBitfield` where `concluding` is a map where each key is a core index
 	/// that is concluding and `cores` is the total number of cores in the system.
 	fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
-		let mut bitfields = bitvec::bitvec![bitvec::order::Lsb0, u8; 0; 0];
+		let mut bitfields = bitvec::bitvec![u8, bitvec::order::Lsb0; 0; 0];
 		for i in 0..cores {
 			if concluding.get(&(i as u32)).is_some() {
 				bitfields.push(true);
@@ -373,9 +373,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Create a bitvec of `validators` length with all yes votes.
-	fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
+	fn validator_availability_votes_yes(validators: usize) -> BitVec<u8, bitvec::order::Lsb0> {
 		// every validator confirms availability.
-		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; validators as usize]
+		bitvec::bitvec![u8, bitvec::order::Lsb0; 1; validators as usize]
 	}
 
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
@@ -565,7 +565,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				BackedCandidate::<T::Hash> {
 					candidate,
 					validity_votes,
-					validator_indices: bitvec::bitvec![bitvec::order::Lsb0, u8; 1; group_validators.len()],
+					validator_indices: bitvec::bitvec![u8, bitvec::order::Lsb0; 1; group_validators.len()],
 				}
 			})
 			.collect()
