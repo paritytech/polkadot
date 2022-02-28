@@ -105,6 +105,8 @@ members = [
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
 	"parachain/test-parachains/halt",
+	"parachain/test-parachains/undying",
+	"parachain/test-parachains/undying/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",

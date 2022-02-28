@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -33,7 +33,20 @@ pub enum Subcommand {
 
 /// Command for exporting the genesis state of the parachain
 #[derive(Debug, Parser)]
-pub struct ExportGenesisStateCommand {}
+pub struct ExportGenesisStateCommand {
+	/// Id of the parachain this collator collates for.
+	#[clap(long, default_value = "100")]
+	pub parachain_id: u32,
+
+	/// The target raw PoV size in bytes. Minimum value is 64.
+	#[clap(long, default_value = "1024")]
+	pub pov_size: usize,
+
+	/// The PVF execution complexity. Actually specifies how  many iterations/signatures
+	/// we compute per block.
+	#[clap(long, default_value = "1")]
+	pub pvf_complexity: u32,
+}
 
 /// Command for exporting the genesis wasm file.
 #[derive(Debug, Parser)]
@@ -47,8 +60,17 @@ pub struct RunCmd {
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[clap(long)]
-	pub parachain_id: Option<u32>,
+	#[clap(long, default_value = "2000")]
+	pub parachain_id: u32,
+
+	/// The target raw PoV size in bytes. Minimum value is 64.
+	#[clap(long, default_value = "1024")]
+	pub pov_size: usize,
+
+	/// The PVF execution complexity. Actually specifies how many iterations/signatures
+	/// we compute per block.
+	#[clap(long, default_value = "1")]
+	pub pvf_complexity: u32,
 }
 
 #[allow(missing_docs)]
@@ -63,11 +85,11 @@ pub struct Cli {
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {
-		"Parity Polkadot".into()
+		"Parity Zombienet/Undying".into()
 	}
 
 	fn impl_version() -> String {
-		"0.0.0".into()
+		env!("CARGO_PKG_VERSION").into()
 	}
 
 	fn description() -> String {
@@ -83,11 +105,11 @@ impl SubstrateCli for Cli {
 	}
 
 	fn copyright_start_year() -> i32 {
-		2017
+		2022
 	}
 
 	fn executable_name() -> String {
-		"adder-collator".into()
+		"undying-collator".into()
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
