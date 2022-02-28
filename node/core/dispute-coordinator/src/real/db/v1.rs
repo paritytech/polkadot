@@ -28,13 +28,12 @@ use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{
-	error::{Fatal, FatalResult},
+	error::{FatalError, FatalResult},
+	real::{
+		backend::{Backend, BackendWriteOp, OverlayedBackend},
+		DISPUTE_WINDOW,
+	},
 	status::DisputeStatus,
-};
-
-use crate::real::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
-	DISPUTE_WINDOW,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -100,7 +99,7 @@ impl Backend for DbBackend {
 			}
 		}
 
-		self.inner.write(tx).map_err(Fatal::DbWriteFailed)
+		self.inner.write(tx).map_err(FatalError::DbWriteFailed)
 	}
 }
 
@@ -168,8 +167,8 @@ pub enum Error {
 impl From<Error> for crate::error::Error {
 	fn from(err: Error) -> Self {
 		match err {
-			Error::Io(io) => Self::NonFatal(crate::error::NonFatal::Io(io)),
-			Error::Codec(e) => Self::NonFatal(crate::error::NonFatal::Codec(e)),
+			Error::Io(io) => Self::Io(io),
+			Error::Codec(e) => Self::Codec(e),
 		}
 	}
 }

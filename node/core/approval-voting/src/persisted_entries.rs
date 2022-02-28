@@ -80,7 +80,7 @@ pub struct ApprovalEntry {
 	our_assignment: Option<OurAssignment>,
 	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	assignments: BitVec<BitOrderLsb0, u8>,
+	assignments: BitVec<u8, BitOrderLsb0>,
 	approved: bool,
 }
 
@@ -92,7 +92,7 @@ impl ApprovalEntry {
 		our_assignment: Option<OurAssignment>,
 		our_approval_sig: Option<ValidatorSignature>,
 		// `n_validators` bits.
-		assignments: BitVec<BitOrderLsb0, u8>,
+		assignments: BitVec<u8, BitOrderLsb0>,
 		approved: bool,
 	) -> Self {
 		Self { tranches, backing_group, our_assignment, our_approval_sig, assignments, approved }
@@ -163,9 +163,9 @@ impl ApprovalEntry {
 
 	// Produce a bitvec indicating the assignments of all validators up to and
 	// including `tranche`.
-	pub fn assignments_up_to(&self, tranche: DelayTranche) -> BitVec<BitOrderLsb0, u8> {
+	pub fn assignments_up_to(&self, tranche: DelayTranche) -> BitVec<u8, BitOrderLsb0> {
 		self.tranches.iter().take_while(|e| e.tranche <= tranche).fold(
-			bitvec::bitvec![BitOrderLsb0, u8; 0; self.assignments.len()],
+			bitvec::bitvec![u8, BitOrderLsb0; 0; self.assignments.len()],
 			|mut a, e| {
 				for &(v, _) in &e.assignments {
 					a.set(v.0 as _, true);
@@ -253,12 +253,12 @@ pub struct CandidateEntry {
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
 	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	pub approvals: BitVec<BitOrderLsb0, u8>,
+	pub approvals: BitVec<u8, BitOrderLsb0>,
 }
 
 impl CandidateEntry {
 	/// Access the bit-vec of approvals.
-	pub fn approvals(&self) -> &BitSlice<BitOrderLsb0, u8> {
+	pub fn approvals(&self) -> &BitSlice<u8, BitOrderLsb0> {
 		&self.approvals
 	}
 
@@ -336,7 +336,7 @@ pub struct BlockEntry {
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	pub approved_bitfield: BitVec<BitOrderLsb0, u8>,
+	pub approved_bitfield: BitVec<u8, BitOrderLsb0>,
 	pub children: Vec<Hash>,
 }
 

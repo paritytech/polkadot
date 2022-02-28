@@ -53,7 +53,7 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	error::{log_error, Error, Fatal, FatalResult, NonFatal, NonFatalResult, Result},
+	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	metrics::Metrics,
 	real::{ordering::get_finalized_block_number, DisputeCoordinatorSubsystem},
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
@@ -244,8 +244,10 @@ impl Initialized {
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
-				confirm_write()?;
 			}
+			// even if the changeset was empty,
+			// otherwise the caller will error.
+			confirm_write()?;
 		}
 	}
 
@@ -608,7 +610,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
-	) -> Result<Box<dyn FnOnce() -> NonFatalResult<()>>> {
+	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -631,7 +633,7 @@ impl Initialized {
 				let report = move || {
 					pending_confirmation
 						.send(outcome)
-						.map_err(|_| NonFatal::DisputeImportOneshotSend)
+						.map_err(|_| JfyiError::DisputeImportOneshotSend)
 				};
 				match outcome {
 					ImportStatementsResult::InvalidImport => {
@@ -731,7 +733,7 @@ impl Initialized {
 	// Helper function for checking subsystem errors in message processing.
 	fn ensure_available_session_info(&self) -> Result<()> {
 		if let Some(subsystem_error) = self.error.clone() {
-			return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+			return Err(Error::RollingSessionWindow(subsystem_error))
 		}
 
 		Ok(())
@@ -829,6 +831,9 @@ impl Initialized {
 			.find(|(_, index)| controlled_indices.contains(index))
 			.is_some();
 
+		// Indexes of the validators issued 'invalid' statements. Will be used to populate spam slots.
+		let mut fresh_invalid_statement_issuers = Vec::new();
+
 		// Update candidate votes.
 		for (statement, val_index) in &statements {
 			if validators
@@ -874,6 +879,7 @@ impl Initialized {
 						continue
 					}
 
+					fresh_invalid_statement_issuers.push(*val_index);
 					votes_changed = true;
 					self.metrics.on_invalid_vote();
 				},
@@ -882,21 +888,28 @@ impl Initialized {
 
 		// Whether or not we know already that this is a good dispute:
 		//
-		// Note we can only know for sure whether we reached the `byzantine_threshold`  after updating candidate votes above, therefore the spam checking is afterwards:
+		// Note we can only know for sure whether we reached the `byzantine_threshold`  after
+		// updating candidate votes above, therefore the spam checking is afterwards:
 		let is_confirmed = is_included ||
 			was_confirmed ||
 			is_local || votes.voted_indices().len() >
 			byzantine_threshold(n_validators);
 
 		// Potential spam:
-		if !is_confirmed {
-			let mut free_spam_slots = statements.is_empty();
-			for (statement, index) in statements.iter() {
-				free_spam_slots |= statement.statement().is_backing() ||
-					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+		if !is_confirmed && !fresh_invalid_statement_issuers.is_empty() {
+			let mut free_spam_slots_available = true;
+			// Only allow import if all validators voting invalid, have not exceeded
+			// their spam slots:
+			for index in fresh_invalid_statement_issuers {
+				// Disputes can only be triggered via an invalidity stating vote, thus we only
+				// need to increase spam slots on invalid votes. (If we did not, we would also
+				// increase spam slots for backing validators for example - as validators have to
+				// provide some opposing vote for dispute-distribution).
+				free_spam_slots_available &=
+					self.spam_slots.add_unconfirmed(session, candidate_hash, index);
 			}
-			// No reporting validator had a free spam slot:
-			if !free_spam_slots {
+			// Only validity stating votes or validator had free spam slot?
+			if !free_spam_slots_available {
 				tracing::debug!(
 					target: LOG_TARGET,
 					?candidate_hash,
@@ -1161,8 +1174,8 @@ impl MuxedMessage {
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
-			msg = from_overseer => Ok(Self::Subsystem(msg.map_err(Fatal::SubsystemReceive)?)),
-			msg = from_sender.next() => Ok(Self::Participation(msg.ok_or(Fatal::ParticipationWorkerReceiverExhausted)?)),
+			msg = from_overseer => Ok(Self::Subsystem(msg.map_err(FatalError::SubsystemReceive)?)),
+			msg = from_sender.next() => Ok(Self::Participation(msg.ok_or(FatalError::ParticipationWorkerReceiverExhausted)?)),
 		)
 	}
 }
