@@ -1020,6 +1020,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 
 	let a = ParaId::from(111);
 	let b = ParaId::from(222);
+	let existing_code: ValidationCode = vec![1, 2, 3].into();
 	let validation_code: ValidationCode = vec![3, 2, 1].into();
 
 	let paras = vec![(
@@ -1027,7 +1028,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		ParaGenesisArgs {
 			parachain: true,
 			genesis_head: Default::default(),
-			validation_code: ValidationCode(vec![]), // valid since in genesis
+			validation_code: existing_code,
 		},
 	)];
 
@@ -1159,6 +1160,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 #[test]
 fn pvf_check_upgrade_reject() {
 	let a = ParaId::from(111);
+	let old_code: ValidationCode = vec![1, 2, 3].into();
 	let new_code: ValidationCode = vec![3, 2, 1].into();
 
 	let paras = vec![(
@@ -1166,7 +1168,7 @@ fn pvf_check_upgrade_reject() {
 		ParaGenesisArgs {
 			parachain: false,
 			genesis_head: Default::default(),
-			validation_code: ValidationCode(vec![]), // valid since in genesis
+			validation_code: old_code,
 		},
 	)];
 
