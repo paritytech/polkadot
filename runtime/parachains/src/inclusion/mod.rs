@@ -37,7 +37,7 @@ use primitives::v1::{
 	ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::DispatchError;
+use sp_runtime::{traits::One, DispatchError};
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 pub use pallet::*;
@@ -571,9 +571,12 @@ impl<T: Config> Pallet<T> {
 						// account for already skipped, and then skip this one.
 						skip = i + skip + 1;
 
+						// The candidate based upon relay parent `N` should be backed by a group
+						// assigned to core at block `N + 1`. Thus, `relay_parent_number + 1`
+						// will always land in the current session.
 						let group_idx = <scheduler::Pallet<T>>::group_assigned_to_core(
 							assignment.core,
-							relay_parent_number,
+							relay_parent_number + One::one(),
 						)
 						.expect(
 							"allowed relay parents are cleared on session change, thus the
