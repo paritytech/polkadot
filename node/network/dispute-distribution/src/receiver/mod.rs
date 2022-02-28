@@ -206,12 +206,7 @@ where
 				})
 				.map_err(|_| JfyiError::SendResponse(peer))?;
 
-			tracing::debug!(
-				target: LOG_TARGET,
-				?peer,
-				"Dropping message from peer (unknown authority id)"
-			);
-			return Ok(())
+			return Err(JfyiError::NotAValidator(peer).into())
 		}
 
 		// Immediately drop requests from peers that already have requests in flight or have

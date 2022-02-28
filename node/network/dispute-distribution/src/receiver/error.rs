@@ -65,6 +65,14 @@ pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {
 			tracing::debug!(target: LOG_TARGET, error = ?error);
 			Ok(())
 		},
+		Err(JfyiError::NotAValidator(peer)) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				"Dropping message from peer (unknown authority id)"
+			);
+			Ok(())
+		},
 		Err(error) => {
 			tracing::warn!(target: LOG_TARGET, error = ?error);
 			Ok(())
