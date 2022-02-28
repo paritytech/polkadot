@@ -612,7 +612,7 @@ zombienet-tests-parachains-smoke-test:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
   variables:
@@ -642,7 +642,7 @@ zombienet-tests-malus-dispute-valid:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
   variables:
