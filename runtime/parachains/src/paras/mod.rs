@@ -2003,10 +2003,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Heads::<T>::insert(&id, &genesis_data.genesis_head);
-		MostRecentContext::<T>::insert(
-			&id,
-			T::BlockNumber::from(0u32),
-		);
+		MostRecentContext::<T>::insert(&id, T::BlockNumber::from(0u32));
 	}
 }
 
