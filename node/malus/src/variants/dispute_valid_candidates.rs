@@ -102,7 +102,7 @@ where
 pub(crate) struct DisputeValidCandidates {
 	/// Backing configuration.
 	fake_backing_validation: Option<FakeCandidateValidation>,
-	/// Approval voting configuraiton (applies to disputes as well).
+	/// Approval voting configuration (applies to disputes as well).
 	fake_approval_validation: Option<FakeCandidateValidation>,
 }
 
