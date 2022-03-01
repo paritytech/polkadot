@@ -252,6 +252,9 @@ pub mod pallet {
 		/// The candidate's relay-parent was not allowed. Either it was
 		/// not recent enough or it didn't advance based on the last parachain block.
 		DisallowedRelayParent,
+		/// Failed to compute group index for the core: either it's out of bounds
+		/// or the relay parent doesn't belong to the current session.
+		InvalidAssignment,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
 		/// Insufficient (non-majority) backing.
@@ -579,11 +582,14 @@ impl<T: Config> Pallet<T> {
 							assignment.core,
 							relay_parent_number + One::one(),
 						)
-						.expect(
-							"allowed relay parents are cleared on session change, thus the
-							the block is within the session; core is ensured to be in
-							bounds by scheduler::schedule; qed",
-						);
+						.ok_or_else(|| {
+							log::warn!(
+								target: LOG_TARGET,
+								"Failed to compute group index for candidate {}",
+								candidate_idx
+							);
+							Error::<T>::InvalidAssignment
+						})?;
 						let group_vals = group_validators(group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
