@@ -273,3 +273,14 @@ impl FragmentNode {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	// TODO [now]: scope rejects ancestors that skip blocks
+
+	// TODO [now]: scope rejects ancestor of 0
+
+	// TODO [now]: storage sets up links correctly.
+
+	// TODO [now]: storage pruning.
+}
