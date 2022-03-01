@@ -246,7 +246,7 @@ enum Error<T: EPM::Config> {
 	IncorrectPhase,
 	AlreadySubmitted,
 	VersionMismatch,
-	BetterScoreExist,
+	StrategyNotSatisfied,
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
@@ -629,7 +629,7 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&rpc).await.expect("Runtime version is invalid, terminating")
+		check_versions::<Runtime>(&rpc).await
 	};
 
 	let signer_account = any_runtime! {

@@ -106,36 +106,11 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	// BTreeMap is ordered, take last to get the max score.
 	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
 		if !score.strict_threshold_better(curr_max_score, epsilon) {
-			return Err(Error::BetterScoreExist)
+			return Err(Error::StrategyNotSatisfied)
 		}
 	}
 
 	Ok(())
-}
-
-/// Checks whether the score is better than checked solution on chain.
-/// The actual execution strategy is ignored because this is checked.
-///
-/// The checked score is set in the end of the signed phase.
-async fn ensure_better_than_ready_solution<T: EPM::Config, B: BlockT>(
-	rpc: &SharedRpcClient,
-	at: Hash,
-	score: sp_npos_elections::ElectionScore,
-) -> Result<(), Error<T>> {
-	let key = StorageKey(EPM::QueuedSolution::<T>::hashed_key().to_vec());
-	let score_is_better = rpc
-		.get_storage_and_decode::<EPM::ReadySolution<AccountId>>(&key, Some(at))
-		.await
-		.map_err::<Error<T>, _>(Into::into)?
-		.map_or(true, |ready_solution| {
-			score.strict_threshold_better(ready_solution.score, Perbill::zero())
-		});
-
-	if score_is_better {
-		Ok(())
-	} else {
-		Err(Error::BetterScoreExist)
-	}
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
@@ -305,14 +280,14 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy).await
 			});
 
-			let ensure_no_signed_fut = tokio::spawn(async move {
-				ensure_better_than_ready_solution::<Runtime, Block>(&rpc2, hash, score).await
+			let ensure_signed_phase_fut = tokio::spawn(async move {
+				ensure_signed_phase::<Runtime, Block>(&rpc2, hash).await
 			});
 
 			// Run the calls in parallel and return once all has completed or any failed.
 			if tokio::try_join!(
 				flatten(ensure_no_better_fut),
-				flatten(ensure_no_signed_fut),
+				flatten(ensure_signed_phase_fut),
 			).is_err() {
 				return;
 			}
