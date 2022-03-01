@@ -225,7 +225,8 @@ impl Constraints {
 		&self,
 		modifications: &ConstraintModifications,
 	) -> Result<(), ModificationError> {
-		if let Some(hrmp_watermark) = modifications.hrmp_watermark {
+		if let Some(HrmpWatermarkUpdate::Trunk(hrmp_watermark)) = modifications.hrmp_watermark {
+			// head updates are always valid.
 			if self
 				.hrmp_inbound
 				.valid_watermarks
@@ -300,12 +301,22 @@ impl Constraints {
 			new.required_parent = required_parent.clone();
 		}
 
-		if let Some(hrmp_watermark) = modifications.hrmp_watermark {
-			match new.hrmp_inbound.valid_watermarks.iter().position(|w| w == &hrmp_watermark) {
-				Some(pos) => {
+		if let Some(ref hrmp_watermark) = modifications.hrmp_watermark {
+			match new.hrmp_inbound.valid_watermarks.binary_search(&hrmp_watermark.watermark()) {
+				Ok(pos) => {
+					// Exact match, so this is OK in all cases.
 					let _ = new.hrmp_inbound.valid_watermarks.drain(..pos + 1);
+				}
+				Err(pos) => match hrmp_watermark {
+					HrmpWatermarkUpdate::Head(_) => {
+						// Updates to Head are always OK.
+						let _ = new.hrmp_inbound.valid_watermarks.drain(..pos);
+					}
+					HrmpWatermarkUpdate::Trunk(n) => {
+						// Trunk update landing on disallowed watermark is not OK.
+						return Err(ModificationError::DisallowedHrmpWatermark(*n))
+					}
 				},
-				None => return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark)),
 			}
 		}
 
@@ -388,13 +399,33 @@ pub struct OutboundHrmpChannelModification {
 	pub messages_submitted: usize,
 }
 
+/// An update to the HRMP Watermark.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HrmpWatermarkUpdate {
+	/// This is an update placing the watermark at the head of the chain,
+	/// which is always legal.
+	Head(BlockNumber),
+	/// This is an update placing the watermark behind the head of the
+	/// chain, which is only legal if it lands on a block where messages
+	/// were queued.
+	Trunk(BlockNumber),
+}
+
+impl HrmpWatermarkUpdate {
+	fn watermark(&self) -> BlockNumber {
+		match *self {
+			HrmpWatermarkUpdate::Head(n) | HrmpWatermarkUpdate::Trunk(n) => n,
+		}
+	}
+}
+
 /// Modifications to constraints as a result of prospective candidates.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConstraintModifications {
 	/// The required parent head to build upon.
 	pub required_parent: Option<HeadData>,
 	/// The new HRMP watermark
-	pub hrmp_watermark: Option<BlockNumber>,
+	pub hrmp_watermark: Option<HrmpWatermarkUpdate>,
 	/// Outbound HRMP channel modifications.
 	pub outbound_hrmp: HashMap<ParaId, OutboundHrmpChannelModification>,
 	/// The amount of UMP messages sent.
@@ -546,7 +577,13 @@ impl Fragment {
 			let commitments = &candidate.commitments;
 			ConstraintModifications {
 				required_parent: Some(commitments.head_data.clone()),
-				hrmp_watermark: Some(commitments.hrmp_watermark),
+				hrmp_watermark: Some({
+					if commitments.hrmp_watermark == relay_parent.number {
+						HrmpWatermarkUpdate::Head(commitments.hrmp_watermark)
+					} else {
+						HrmpWatermarkUpdate::Trunk(commitments.hrmp_watermark)
+					}
+				}),
 				outbound_hrmp: {
 					let mut outbound_hrmp = HashMap::<_, OutboundHrmpChannelModification>::new();
 
@@ -843,10 +880,10 @@ mod tests {
 	}
 
 	#[test]
-	fn constraints_disallowed_watermark() {
+	fn constraints_disallowed_trunk_watermark() {
 		let constraints = make_constraints();
 		let mut modifications = ConstraintModifications::identity();
-		modifications.hrmp_watermark = Some(7);
+		modifications.hrmp_watermark = Some(HrmpWatermarkUpdate::Trunk(7));
 
 		assert_eq!(
 			constraints.check_modifications(&modifications),
@@ -857,6 +894,18 @@ mod tests {
 			constraints.apply_modifications(&modifications),
 			Err(ModificationError::DisallowedHrmpWatermark(7)),
 		);
+	}
+
+	#[test]
+	fn constraints_always_allow_head_watermark() {
+		let constraints = make_constraints();
+		let mut modifications = ConstraintModifications::identity();
+		modifications.hrmp_watermark = Some(HrmpWatermarkUpdate::Head(7));
+
+		assert!(constraints.check_modifications(&modifications).is_ok());
+
+		let new_constraints = constraints.apply_modifications(&modifications).unwrap();
+		assert_eq!(new_constraints.hrmp_inbound.valid_watermarks, vec![8]);
 	}
 
 	#[test]
