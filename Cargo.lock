@@ -1866,6 +1866,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "expander"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "309f21c39e8e38e4b6eda07e155bd7a4e5fc4d707cefd0402cc82a8b6bb65aaa"
+dependencies = [
+ "blake2 0.10.2",
+ "fs-err",
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1912,7 +1924,7 @@ version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5aa1e3ae159e592ad222dc90c5acbad632b527779ba88486abe92782ab268bd"
 dependencies = [
- "expander",
+ "expander 0.0.4",
  "indexmap",
  "proc-macro-crate 1.1.3",
  "proc-macro2",
@@ -7041,7 +7053,7 @@ name = "polkadot-overseer-gen-proc-macro"
 version = "0.9.17"
 dependencies = [
  "assert_matches",
- "expander",
+ "expander 0.0.5",
  "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
