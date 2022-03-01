@@ -155,7 +155,7 @@ struct CandidateEntry {
 pub(crate) struct Scope {
 	para: ParaId,
 	relay_parent: RelayChainBlockInfo,
-	ancestors: BTreeMap<BlockNumber, RelayChainBlockInfo>,
+	ancestors: BTreeMap<BlockNumber, (RelayChainBlockInfo, Constraints)>,
 	ancestors_by_hash: HashSet<Hash>,
 	base_constraints: Constraints,
 	max_depth: usize,
@@ -176,6 +176,9 @@ impl Scope {
 	/// increments of 1. Ancestors not following these conditions will be
 	/// rejected.
 	///
+	/// This function will only consume ancestors up to the `min_relay_parent_number` of
+	/// the `base_constraints`.
+	///
 	/// Only ancestors whose children have the same session as the relay-parent's
 	/// children should be provided.
 	///
@@ -185,21 +188,23 @@ impl Scope {
 		relay_parent: RelayChainBlockInfo,
 		base_constraints: Constraints,
 		max_depth: usize,
-		ancestors: impl IntoIterator<Item=RelayChainBlockInfo>,
+		ancestors: impl IntoIterator<Item=(RelayChainBlockInfo, Constraints)>,
 	) -> Result<Self, UnexpectedAncestor> {
 		let mut ancestors_map = BTreeMap::new();
 		let mut ancestors_by_hash = HashSet::new();
 		{
 			let mut prev = relay_parent.number;
-			for ancestor in ancestors {
+			for (ancestor, constraints) in ancestors {
 				if prev == 0 {
 					return Err(UnexpectedAncestor);
 				} else if ancestor.number != prev - 1 {
 					return Err(UnexpectedAncestor);
+				} else if prev == base_constraints.min_relay_parent_number {
+					break
 				} else {
 					prev = ancestor.number;
 					ancestors_by_hash.insert(ancestor.hash);
-					ancestors_map.insert(ancestor.number, ancestor);
+					ancestors_map.insert(ancestor.number, (ancestor, constraints));
 				}
 			}
 		}
