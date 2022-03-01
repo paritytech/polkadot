@@ -35,11 +35,13 @@ RUN apt-get update && \
 
 # add adder-collator binary to docker image
 COPY ./adder-collator /usr/local/bin
+COPY ./undying-collator /usr/local/bin
 
 USER adder-collator
 
 # check if executable works in this container
 RUN /usr/local/bin/adder-collator --version
+RUN /usr/local/bin/undying-collator --version
 
 EXPOSE 30333 9933 9944
 VOLUME ["/adder-collator"]

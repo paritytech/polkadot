@@ -40,13 +40,13 @@ use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
 use crate::{
-	error::{Error, FatalResult, NonFatal, Result},
+	error::{FatalResult, JfyiError, Result},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
-
 use backend::{Backend, OverlayedBackend};
 use db::v1::DbBackend;
+use fatality::Split;
 
 use self::{
 	ordering::CandidateComparator,
@@ -196,9 +196,8 @@ impl DisputeCoordinatorSubsystem {
 					tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 					return Ok(None)
 				},
-				Err(Error::Fatal(f)) => return Err(f),
-				Err(Error::NonFatal(e)) => {
-					e.log();
+				Err(e) => {
+					e.split()?.log();
 					continue
 				},
 			};
@@ -219,9 +218,8 @@ impl DisputeCoordinatorSubsystem {
 				.await
 			{
 				Ok(v) => v,
-				Err(Error::Fatal(f)) => return Err(f),
-				Err(Error::NonFatal(e)) => {
-					e.log();
+				Err(e) => {
+					e.split()?.log();
 					continue
 				},
 			};
@@ -371,7 +369,7 @@ where
 			leaf.clone(),
 			RollingSessionWindow::new(ctx, DISPUTE_WINDOW, leaf.hash)
 				.await
-				.map_err(NonFatal::RollingSessionWindow)?,
+				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
 	} else {
 		Ok(None)
@@ -401,11 +399,13 @@ where
 			// available). So instead of telling subsystems, everything is fine, because of an
 			// hour old database state, we should rather cancel contained oneshots and delay
 			// finality until we are fully functional.
+			{
 				tracing::warn!(
 					target: LOG_TARGET,
 					?msg,
 					"Received msg before first active leaves update. This is not expected - message will be dropped."
-				),
+				)
+			},
 		}
 	}
 }

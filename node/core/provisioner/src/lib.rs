@@ -291,7 +291,7 @@ impl ProvisionerJob {
 	}
 }
 
-type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
+type CoreAvailability = BitVec<u8, bitvec::order::Lsb0>;
 
 /// The provisioner is the subsystem best suited to choosing which specific
 /// backed candidates and availability bitfields should be assembled into the
@@ -655,7 +655,7 @@ async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
-	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
+	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute

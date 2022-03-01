@@ -20,9 +20,10 @@ use futures::{
 	SinkExt, StreamExt,
 };
 
+use fatality::Nested;
 use polkadot_node_network_protocol::{
 	request_response::{
-		incoming::{self, OutgoingResponse},
+		incoming::OutgoingResponse,
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		IncomingRequestReceiver, MAX_PARALLEL_STATEMENT_REQUESTS,
 	},
@@ -74,16 +75,16 @@ pub async fn respond(
 			pending_out.next().await;
 		}
 
-		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
-			Err(incoming::Error::Fatal(f)) => {
-				tracing::debug!(target: LOG_TARGET, error = ?f, "Shutting down request responder");
+		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(v)) => v,
+			Err(fatal) => {
+				tracing::debug!(target: LOG_TARGET, error = ?fatal, "Shutting down request responder");
 				return
 			},
-			Err(incoming::Error::NonFatal(err)) => {
-				tracing::debug!(target: LOG_TARGET, ?err, "Decoding request failed");
+			Ok(Err(jfyi)) => {
+				tracing::debug!(target: LOG_TARGET, error = ?jfyi, "Decoding request failed");
 				continue
 			},
-			Ok(v) => v,
 		};
 
 		let (tx, rx) = oneshot::channel();

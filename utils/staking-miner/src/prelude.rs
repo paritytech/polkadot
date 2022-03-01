@@ -30,11 +30,13 @@ pub type Balance = core_primitives::Balance;
 pub type Index = core_primitives::AccountIndex;
 /// The hash type. We re-export it here, but we can easily get it from block as well.
 pub type Hash = core_primitives::Hash;
+/// The header type. We re-export it here, but we can easily get it from block as well.
+pub type Header = core_primitives::Header;
 
 pub use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 
 /// Default URI to connect to.
-pub const DEFAULT_URI: &str = "wss://rpc.polkadot.io";
+pub const DEFAULT_URI: &str = "wss://rpc.polkadot.io:443";
 /// The logging target.
 pub const LOG_TARGET: &str = "staking-miner";
 

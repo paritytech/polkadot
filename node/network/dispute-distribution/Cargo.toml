@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-dispute-distribution"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.19"
-tracing = "0.1.29"
+futures = "0.3.21"
+tracing = "0.1.31"
 derive_more = "0.99.17"
-parity-scale-codec = { version = "2.3.1", features = ["std"] }
+parity-scale-codec = { version = "3.0.0", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -19,6 +19,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
+fatality = "0.0.6"
 lru = "0.7.2"
 
 [dev-dependencies]

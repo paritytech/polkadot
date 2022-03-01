@@ -113,7 +113,7 @@ pub(crate) async fn back_candidate(
 	signing_context: &SigningContext,
 	kind: BackingKind,
 ) -> BackedCandidate {
-	let mut validator_indices = bitvec::bitvec![BitOrderLsb0, u8; 0; group.len()];
+	let mut validator_indices = bitvec::bitvec![u8, BitOrderLsb0; 0; group.len()];
 	let threshold = minimum_backing_votes(group.len());
 
 	let signing = match kind {
@@ -201,18 +201,18 @@ pub(crate) fn expected_bits() -> usize {
 }
 
 fn default_bitfield() -> AvailabilityBitfield {
-	AvailabilityBitfield(bitvec::bitvec![BitOrderLsb0, u8; 0; expected_bits()])
+	AvailabilityBitfield(bitvec::bitvec![u8, BitOrderLsb0; 0; expected_bits()])
 }
 
-fn default_availability_votes() -> BitVec<BitOrderLsb0, u8> {
-	bitvec::bitvec![BitOrderLsb0, u8; 0; ParasShared::active_validator_keys().len()]
+fn default_availability_votes() -> BitVec<u8, BitOrderLsb0> {
+	bitvec::bitvec![u8, BitOrderLsb0; 0; ParasShared::active_validator_keys().len()]
 }
 
-fn default_backing_bitfield() -> BitVec<BitOrderLsb0, u8> {
-	bitvec::bitvec![BitOrderLsb0, u8; 0; ParasShared::active_validator_keys().len()]
+fn default_backing_bitfield() -> BitVec<u8, BitOrderLsb0> {
+	bitvec::bitvec![u8, BitOrderLsb0; 0; ParasShared::active_validator_keys().len()]
 }
 
-fn backing_bitfield(v: &[usize]) -> BitVec<BitOrderLsb0, u8> {
+fn backing_bitfield(v: &[usize]) -> BitVec<u8, BitOrderLsb0> {
 	let mut b = default_backing_bitfield();
 	for i in v {
 		b.set(*i, true);
