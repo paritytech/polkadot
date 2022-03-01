@@ -359,6 +359,14 @@ struct MonitorConfig {
 	solver: Solvers,
 
 	/// Submission strategy to use.
+	///
+	/// Possible options:
+	///
+	/// `--submission-strategy if-leading`: only submit if leading.
+	///
+	/// `--submission-strategy always`: always submit.
+	///
+	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
 	#[clap(long, parse(try_from_str), default_value = "if-leading")]
 	submission_strategy: SubmissionStrategy,
 }
