@@ -31,8 +31,9 @@ use polkadot_cli::{
 };
 
 // Filter wrapping related types.
-use crate::{interceptor::*, shared::MALUS, FakeCandidateValidation};
-use polkadot_node_primitives::{InvalidCandidate, ValidationResult};
+use crate::{
+	interceptor::*, shared::MALUS, variants::ReplaceValidationResult, FakeCandidateValidation,
+};
 
 // Import extra types relevant to the particular
 // subsystem.
@@ -40,8 +41,7 @@ use polkadot_node_core_backing::CandidateBackingSubsystem;
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 
 use polkadot_node_subsystem::messages::{
-	ApprovalDistributionMessage, CandidateBackingMessage, CandidateValidationMessage,
-	DisputeCoordinatorMessage,
+	ApprovalDistributionMessage, CandidateBackingMessage, DisputeCoordinatorMessage,
 };
 use sp_keystore::SyncCryptoStorePtr;
 
@@ -50,9 +50,6 @@ use std::sync::Arc;
 /// Replace outgoing approval messages with disputes.
 #[derive(Clone, Debug)]
 struct ReplaceApprovalsWithDisputes;
-
-#[derive(Clone, Debug)]
-struct ReplaceValidationResult(FakeCandidateValidation);
 
 impl<Sender> MessageInterceptor<Sender> for ReplaceApprovalsWithDisputes
 where
@@ -102,83 +99,25 @@ where
 		}
 	}
 }
-
-impl<Sender> MessageInterceptor<Sender> for ReplaceValidationResult
-where
-	Sender: overseer::SubsystemSender<CandidateValidationMessage> + Clone + Send + 'static,
-{
-	type Message = CandidateValidationMessage;
-
-	// Capture all candidate validation requests and fail them.
-	// MaybeTODO: add option to configure the failure reason.
-	fn intercept_incoming(
-		&self,
-		_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
-		if self.0 == FakeCandidateValidation::None {
-			return Some(msg)
-		}
-
-		match msg {
-			FromOverseer::Communication {
-				msg:
-					CandidateValidationMessage::ValidateFromExhaustive(_, _, descriptor, _, _, sender),
-			} => {
-				let validation_result = ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
-
-				tracing::info!(
-					target = MALUS,
-					para_id = ?descriptor.para_id,
-					candidate_hash = ?descriptor.para_head,
-					"ValidateFromExhaustive result: {:?}",
-					&validation_result
-				);
-
-				// We're not even checking the candidate, this makes us appear faster than honest validators.
-				sender.send(Ok(validation_result)).unwrap();
-				None
-			},
-			FromOverseer::Communication {
-				msg: CandidateValidationMessage::ValidateFromChainState(descriptor, _, _, sender),
-			} => {
-				let validation_result = ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
-
-				tracing::info!(
-					target = MALUS,
-					para_id = ?descriptor.para_id,
-					candidate_hash = ?descriptor.para_head,
-					"ValidateFromChainState result: {:?}",
-					&validation_result
-				);
-
-				// We're not even checking the candidate, this makes us appear faster than honest validators.
-				sender.send(Ok(validation_result)).unwrap();
-				None
-			},
-			msg => Some(msg),
-		}
-	}
-
-	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
-		Some(msg)
-	}
-}
-
-/// Generates an overseer that disputes instead of approving valid candidates.
 pub(crate) struct DisputeValidCandidates {
-	fake_candidate_validation: FakeCandidateValidation,
+	/// Backing configuration.
+	fake_backing_validation: Option<FakeCandidateValidation>,
+	/// Approval voting configuraiton (applies to disputes as well).
+	fake_approval_validation: Option<FakeCandidateValidation>,
 }
 
 impl Default for DisputeValidCandidates {
 	fn default() -> Self {
-		Self { fake_candidate_validation: FakeCandidateValidation::None }
+		Self { fake_backing_validation: None, fake_approval_validation: None }
 	}
 }
 
 impl DisputeValidCandidates {
-	pub fn new(fake_candidate_validation: FakeCandidateValidation) -> Self {
-		Self { fake_candidate_validation }
+	pub fn new(
+		fake_backing_validation: Option<FakeCandidateValidation>,
+		fake_approval_validation: Option<FakeCandidateValidation>,
+	) -> Self {
+		Self { fake_backing_validation, fake_approval_validation }
 	}
 }
 
@@ -196,7 +135,10 @@ impl OverseerGen for DisputeValidCandidates {
 		let spawner = args.spawner.clone();
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 		let backing_filter = ReplaceApprovalsWithDisputes;
-		let validation_filter = ReplaceValidationResult(self.fake_candidate_validation.clone());
+		let validation_filter = ReplaceValidationResult::new(
+			self.fake_backing_validation.clone(),
+			self.fake_approval_validation.clone(),
+		);
 		let candidate_validation_config = args.candidate_validation_config.clone();
 
 		prepared_overseer_builder(args)?

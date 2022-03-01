@@ -17,6 +17,7 @@
 //! Collection of behavior variants.
 
 mod back_garbage_candidate;
+mod common;
 mod dispute_valid_candidates;
 mod suggest_garbage_candidate;
 
@@ -24,3 +25,4 @@ pub(crate) use self::{
 	back_garbage_candidate::BackGarbageCandidate, dispute_valid_candidates::DisputeValidCandidates,
 	suggest_garbage_candidate::SuggestGarbageCandidate,
 };
+pub(crate) use common::ReplaceValidationResult;

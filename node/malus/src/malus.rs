@@ -16,7 +16,7 @@
 
 //! A malus or nemesis node launch code.
 
-use clap::{AppSettings, ArgEnum, Parser};
+use clap::{ArgEnum, Parser};
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
 
@@ -54,10 +54,9 @@ enum NemesisVariant {
 	version
 )]
 #[clap(rename_all = "kebab-case")]
-pub(crate) enum FakeCandidateValidation {
-	None,
+pub enum FakeCandidateValidation {
 	Invalid,
-	// TODO: impl valid.
+	// TODO: impl Valid.
 }
 
 #[derive(Debug, Parser)]
@@ -66,8 +65,11 @@ struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
 
-	#[clap(long, arg_enum, ignore_case = true, default_value = "None")]
-	pub fake_validation: FakeCandidateValidation,
+	#[clap(long, arg_enum, ignore_case = true)]
+	pub fake_backing_validation: Option<FakeCandidateValidation>,
+
+	#[clap(long, arg_enum, ignore_case = true)]
+	pub fake_approval_validation: Option<FakeCandidateValidation>,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -84,7 +86,10 @@ impl MalusCli {
 				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
 			NemesisVariant::DisputeAncestor(cmd) => polkadot_cli::run_node(
 				run_cmd(cmd),
-				DisputeValidCandidates::new(self.fake_validation),
+				DisputeValidCandidates::new(
+					self.fake_backing_validation,
+					self.fake_approval_validation,
+				),
 			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
