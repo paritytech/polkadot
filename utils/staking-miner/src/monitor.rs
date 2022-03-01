@@ -206,7 +206,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
-			let rpc3 = rpc.clone();
 			let account = signer.account.clone();
 
 			let signed_phase_fut = tokio::spawn(async move {
@@ -217,19 +216,14 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
 			});
 
-			let ext_fut = tokio::spawn(async move {
-				crate::create_election_ext::<Runtime, Block>(rpc3, Some(hash), vec![]).await
-			});
-
 			// Run the calls in parallel and return once all has completed or any failed.
-			let res = tokio::try_join!(
-				flatten(signed_phase_fut),
-				flatten(no_prev_sol_fut),
-				flatten(ext_fut),
-			);
+			if let Err(err) = tokio::try_join!(flatten(signed_phase_fut), flatten(no_prev_sol_fut)) {
+				log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
+				return;
+			}
 
-			let mut ext = match res {
-				Ok((_, _, ext)) => ext,
+			let mut ext = match crate::create_election_ext::<Runtime, Block>(rpc.clone(), Some(hash), vec![]).await {
+				Ok(ext) => ext,
 				Err(err) => {
 					log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
 					return;
