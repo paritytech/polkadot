@@ -165,7 +165,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			}
 
 			// mine a solution, and run feasibility check on it as well.
-			let (raw_solution, witness) = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
+			let raw_solution = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
 				Ok(r) => r,
 				Err(err) => {
 					let _ = tx.send(err.into());
@@ -197,7 +197,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				era.death(current_block.into()),
 			);
 
-			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
 			let mut tx_subscription = match rpc.watch_extrinsic(&bytes).await {
