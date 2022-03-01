@@ -78,7 +78,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. sorts remaining candidates with respect to the core index assigned to them.
 
 * `process_candidates(allowed_relay_parents, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
-    > For details on `AllowedRelayParentsTracker` see documentation for [ParaInherent](./parainherent.md) module.
+    > For details on `AllowedRelayParentsTracker` see documentation for [Shared](./shared.md) module.
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
   1. check that the relay-parent from each candidate receipt is one of the allowed relay-parents.
@@ -87,7 +87,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_cooldown` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. Check the collator's signature on the candidate data.
-  1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
+  1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup, while group indices are computed by `Scheduler` according to group rotation info. 
   1. call `Ump::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.
   1. call `Dmp::check_processed_downward_messages(para, commitments.processed_downward_messages)` to check that the DMQ is properly drained.
   1. call `Hrmp::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.

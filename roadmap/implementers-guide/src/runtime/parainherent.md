@@ -13,27 +13,6 @@ There are a couple of important notes to the operations in this inherent as they
 
 ## Storage
 
-Helper structs:
-
-```rust
-struct AllowedRelayParentsTracker<Hash, BlockNumber> {
-  // The past relay parents, paired with state roots, that are viable to build upon.
-  //
-  // They are in ascending chronologic order, so the newest relay parents are at
-  // the back of the deque.
-  //
-  // (relay_parent, state_root)
-  //
-  // NOTE: the size limit of look-back is currently defined as a constant in Runtime.
-  buffer: VecDeque<(Hash, Hash)>,
-
-  // The number of the most recent relay-parent, if any.
-  latest_number: BlockNumber,
-}
-```
-
-Storage Layout:
-
 ```rust
 /// Whether the para inherent was included or not.
 Included: Option<()>,
@@ -42,11 +21,6 @@ Included: Option<()>,
 ```rust
 /// Scraped on chain votes to be used in disputes off-chain.
 OnChainVotes: Option<ScrapedOnChainVotes>,
-```
-
-```rust
-/// Relay-parents allowed to build candidates upon.
-AllowedRelayParents: AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
 ```
 
 ## Finalization
@@ -61,7 +35,7 @@ AllowedRelayParents: AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
     1. Set `Included` as `Some`.
     1. Unpack `ParachainsInherentData` into `signed_bitfields`, `backed_candidates`, `parent_header`, and `disputes`.
     1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module).
-    1. Add a previous block to the `AllowedRelayParents` before anything else and read the resulting value from storage.
+    1. Add a previous block to the `AllowedRelayParents` before anything else and read the resulting value from `shared` storage.
     1. Calculate the `candidate_weight`, `bitfields_weight`, and `disputes_weight`.
     1. If the sum of `candidate_weight`, `bitfields_weight`, and `disputes_weight` is greater than the max block weight we do the following with the goal of prioritizing the inclusion of disputes without making it game-able by block authors:
       1. clear `bitfields` and set `bitfields_weight` equal to 0.
@@ -94,7 +68,7 @@ AllowedRelayParents: AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
 * `create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>>`
   1. Unpack `InherentData` into its parts, `bitfields`, `backed_candidates`, `disputes` and the `parent_header`. If data cannot be unpacked return `None`.
   1. Hash the `parent_header` and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module).
-  1. Read `AllowedRelayParents` from storage and add a previous block to this value so that we operate with the same look-back as in `enter`.
+  1. Read `AllowedRelayParents` from `shared` storage and add a previous block to this value so that we operate with the same look-back as in `enter`.
   1. Invoke `Disputes::filter_multi_dispute_data` to remove duplicates et al from `disputes`.
   1. Run the following within a  `with_transaction` closure to avoid side effects (we are essentially replicating the logic that would otherwise happen within `enter` so we can get the filtered bitfields and the `concluded_invalid_disputes` + `scheduled` to use in filtering the `backed_candidates`.):
     1. Invoke `Disputes::provide_multi_dispute_data`.
