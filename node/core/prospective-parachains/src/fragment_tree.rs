@@ -69,6 +69,7 @@ use polkadot_primitives::vstaging::{
 	GroupIndex, GroupRotationInfo, Hash, HeadData, Header, Id as ParaId, PersistedValidationData,
 	SessionIndex, ValidatorIndex,
 };
+use super::LOG_TARGET;
 
 /// An error indicating that a supplied candidate didn't match the persisted
 /// validation data provided alongside it.
@@ -220,21 +221,37 @@ impl Scope {
 	}
 }
 
+// We use indices into a flat vector to refer to nodes in the tree.
+type NodePointer = usize;
+
 /// This is a tree of candidates based on some underlying storage of candidates
 /// and a scope.
 pub(crate) struct FragmentTree {
 	scope: Scope,
-	// TODO [now]: actual tree
+	nodes: Vec<FragmentNode>,
 }
 
 impl FragmentTree {
 	/// Create a new [`FragmentTree`] with given scope, and populated from
 	/// the provided node storage.
 	pub fn new(scope: Scope, storage: &CandidateStorage) -> Self {
-		FragmentTree {
+		let mut tree = FragmentTree {
 			scope,
-			// TODO [now]: populate
-		}
+			nodes: Vec::new(),
+		};
+
+		tracing::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?tree.scope.relay_parent.hash,
+			relay_parent_num = tree.scope.relay_parent.number,
+			para_id = ?tree.scope.para,
+			ancestors = tree.scope.ancestors.len(),
+			"Instantiating Fragment Tree",
+		);
+
+		// populate.
+
+		tree
 	}
 
 	// TODO [now]: add new candidate and recursively populate as necessary.
@@ -243,8 +260,9 @@ impl FragmentTree {
 }
 
 struct FragmentNode {
-	// The hash of the head-data of the parent node
-	parent: Hash,
+	// A pointer to the parent node. `None` indicates that this is a root
+	// node.
+	parent: Option<NodePointer>,
 	fragment: Fragment,
 	erasure_root: Hash,
 }
