@@ -2,7 +2,7 @@
 name = "metered-channel"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Channels with attached Meters"
 
 [dependencies]
