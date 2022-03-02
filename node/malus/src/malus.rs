@@ -49,10 +49,6 @@ enum NemesisVariant {
 }
 
 #[derive(ArgEnum, Clone, Debug, PartialEq)]
-#[clap(
-	about = "Fake candidate validation - forces all `ValidateCandidate*` calls to return a configured result.",
-	version
-)]
 #[clap(rename_all = "kebab-case")]
 pub enum FakeCandidateValidation {
 	Invalid,
