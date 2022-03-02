@@ -118,7 +118,7 @@ benchmarks_instance_pallet! {
 					T::TransactAsset
 					as
 					Inspect<T::AccountId>
-				>::Balance::max_value() / 3u32.into(),
+				>::Balance::max_value() / 10u32.into(),
 			)?;
 		}
 
@@ -149,7 +149,7 @@ benchmarks_instance_pallet! {
 					T::TransactAsset
 					as
 					Inspect<T::AccountId>
-				>::Balance::max_value() / 3u32.into(),
+				>::Balance::max_value() / 10u32.into(),
 			)?;
 		}
 
