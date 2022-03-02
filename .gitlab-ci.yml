@@ -9,6 +9,11 @@
 # And "kubernetes-env" for everything else. Please mention "image:" container name to be used
 # with it, as there's no default one.
 
+# All jobs are sorted according to their duration using DAG mechanism
+# Currently, test-linux-stable job is the longest one and other jobs are
+# sorted in order to complete during this job and occupy less runners in one
+# moment of time.
+
 stages:
   - stage1
   - stage2
