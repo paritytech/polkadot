@@ -8,7 +8,7 @@ timeout = 1000
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
-chain_spec_command = "../polkadot/target/testnet/polkadot build-spec --chain rococo-local --disable-default-bootnode"
+chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
 
   [[relaychain.node_groups]]
   name = "malus-validator"
@@ -25,7 +25,7 @@ chain_spec_command = "../polkadot/target/testnet/polkadot build-spec --chain roc
 [[parachains]]
 id = {{id}}
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/testnet/undying-collator export-genesis-state --pov-size={{(id - 1999)*1000}} --pvf-complexity={{(id - 1999)*10}}"
+genesis_state_generator = "undying-collator export-genesis-state --pov-size={{(id - 1999)*1000}} --pvf-complexity={{(id - 1999)*10}}"
 
   [parachains.collator]
   name = "collator"
