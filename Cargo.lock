@@ -10718,6 +10718,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 name = "staking-miner"
 version = "0.9.17"
 dependencies = [
+ "assert_cmd",
  "clap",
  "frame-election-provider-support",
  "frame-support",

@@ -276,7 +276,7 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 	}
 }
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Clone, Parser, PartialEq)]
 enum Command {
 	/// Monitor for the phase being signed, then compute.
 	Monitor(MonitorConfig),
@@ -286,8 +286,8 @@ enum Command {
 	EmergencySolution(EmergencySolutionConfig),
 }
 
-#[derive(Debug, Clone, Parser)]
-enum Solvers {
+#[derive(Debug, Clone, Parser, PartialEq)]
+enum Solver {
 	SeqPhragmen {
 		#[clap(long, default_value = "10")]
 		iterations: usize,
@@ -305,7 +305,7 @@ frame_support::parameter_types! {
 	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
 }
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Clone, Parser, PartialEq)]
 struct MonitorConfig {
 	/// They type of event to listen to.
 	///
@@ -317,10 +317,10 @@ struct MonitorConfig {
 
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	solver: Solvers,
+	solver: Solver,
 }
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Clone, Parser, PartialEq)]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
@@ -328,13 +328,13 @@ struct EmergencySolutionConfig {
 
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	solver: Solvers,
+	solver: Solver,
 
 	/// The number of top backed winners to take. All are taken, if not provided.
 	take: Option<usize>,
 }
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Clone, Parser, PartialEq)]
 struct DryRunConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
@@ -342,11 +342,12 @@ struct DryRunConfig {
 
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	solver: Solvers,
+	solver: Solver,
 }
 
-#[derive(Debug, Clone, Parser)]
-struct SharedConfig {
+#[derive(Debug, Clone, Parser, PartialEq)]
+#[clap(author, version, about)]
+struct Opt {
 	/// The `ws` node to connect to.
 	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
@@ -357,13 +358,6 @@ struct SharedConfig {
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
 	#[clap(long, short, env = "SEED")]
 	seed: String,
-}
-
-#[derive(Debug, Clone, Parser)]
-struct Opt {
-	/// The `ws` node to connect to.
-	#[clap(flatten)]
-	shared: SharedConfig,
 
 	#[clap(subcommand)]
 	command: Command,
@@ -426,7 +420,7 @@ where
 
 /// Mine a solution with the given `solver`.
 fn mine_with<T>(
-	solver: &Solvers,
+	solver: &Solver,
 	ext: &mut Ext,
 	do_feasibility: bool,
 ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
@@ -437,7 +431,7 @@ where
 	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 	match solver {
-		Solvers::SeqPhragmen { iterations } => {
+		Solver::SeqPhragmen { iterations } => {
 			BalanceIterations::set(*iterations);
 			mine_solution::<
 				T,
@@ -448,7 +442,7 @@ where
 				>,
 			>(ext, do_feasibility)
 		},
-		Solvers::PhragMMS { iterations } => {
+		Solver::PhragMMS { iterations } => {
 			BalanceIterations::set(*iterations);
 			mine_solution::<
 				T,
@@ -469,7 +463,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -523,11 +517,11 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { shared, command } = Opt::parse();
-	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
+	let Opt { uri, seed, command } = Opt::parse();
+	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let rpc = loop {
-		match SharedRpcClient::new(&shared.uri).await {
+		match SharedRpcClient::new(&uri).await {
 			Ok(client) => break client,
 			Err(why) => {
 				log::warn!(
@@ -580,7 +574,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
@@ -590,7 +584,7 @@ async fn main() {
 	};
 
 	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&shared.seed, &rpc)
+		signer::signer_uri_from_string::<Runtime>(&seed, &rpc)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
@@ -636,5 +630,102 @@ mod tests {
 
 		assert_eq!(polkadot_version.spec_name, "polkadot".into());
 		assert_eq!(kusama_version.spec_name, "kusama".into());
+	}
+
+	#[test]
+	fn cli_version_works() {
+		use assert_cmd::{cargo::cargo_bin, Command};
+
+		let crate_name = env!("CARGO_PKG_NAME");
+		let output = Command::new(cargo_bin(crate_name)).arg("--version").output().unwrap();
+
+		assert!(output.status.success(), "command returned with non-success exit code");
+		let version = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+
+		assert_eq!(version, format!("{} {}", crate_name, env!("CARGO_PKG_VERSION")));
+	}
+
+	#[test]
+	fn cli_monitor_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed",
+			"//Alice",
+			"monitor",
+			"--listen",
+			"head",
+			"seq-phragmen",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed: "//Alice".to_string(),
+				command: Command::Monitor(MonitorConfig {
+					listen: "head".to_string(),
+					solver: Solver::SeqPhragmen { iterations: 10 }
+				}),
+			}
+		);
+	}
+
+	#[test]
+	fn cli_dry_run_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed",
+			"//Alice",
+			"dry-run",
+			"phrag-mms",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed: "//Alice".to_string(),
+				command: Command::DryRun(DryRunConfig {
+					at: None,
+					solver: Solver::PhragMMS { iterations: 10 }
+				}),
+			}
+		);
+	}
+
+	#[test]
+	fn cli_emergency_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed",
+			"//Alice",
+			"emergency-solution",
+			"99",
+			"phrag-mms",
+			"--iterations",
+			"1337",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed: "//Alice".to_string(),
+				command: Command::EmergencySolution(EmergencySolutionConfig {
+					take: Some(99),
+					at: None,
+					solver: Solver::PhragMMS { iterations: 1337 }
+				}),
+			}
+		);
 	}
 }
