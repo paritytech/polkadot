@@ -402,6 +402,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
+	fn force_set_most_recent_context() -> Weight;
 	fn force_schedule_code_upgrade(c: u32) -> Weight;
 	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
@@ -415,6 +416,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn force_set_current_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_set_most_recent_context() -> Weight {
 		Weight::MAX
 	}
 	fn force_schedule_code_upgrade(_c: u32) -> Weight {
@@ -551,6 +555,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn para_head)]
 	pub(super) type Heads<T: Config> = StorageMap<_, Twox64Concat, ParaId, HeadData>;
+
+	/// The context (relay-chain block number) of the most recent parachain head.
+	#[pallet::storage]
+	#[pallet::getter(fn para_most_recent_context)]
+	pub(super) type MostRecentContext<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
 
 	/// The validation code hash of every live para.
 	///
@@ -735,6 +745,18 @@ pub mod pallet {
 			ensure_root(origin)?;
 			<Self as Store>::Heads::insert(&para, new_head);
 			Self::deposit_event(Event::CurrentHeadUpdated(para));
+			Ok(())
+		}
+
+		/// Set the storage for the current parachain head data immediately.
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_most_recent_context())]
+		pub fn force_set_most_recent_context(
+			origin: OriginFor<T>,
+			para: ParaId,
+			context: T::BlockNumber,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			<Self as Store>::MostRecentContext::insert(&para, context);
 			Ok(())
 		}
 
@@ -1098,6 +1120,7 @@ impl<T: Config> Pallet<T> {
 					parachains.remove(para);
 
 					<Self as Store>::Heads::remove(&para);
+					<Self as Store>::MostRecentContext::remove(&para);
 					<Self as Store>::FutureCodeUpgrades::remove(&para);
 					<Self as Store>::UpgradeGoAheadSignal::remove(&para);
 					<Self as Store>::UpgradeRestrictionSignal::remove(&para);
@@ -1785,6 +1808,7 @@ impl<T: Config> Pallet<T> {
 		execution_context: T::BlockNumber,
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
+		MostRecentContext::<T>::insert(&id, execution_context);
 
 		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
 			if expected_at <= execution_context {
@@ -1979,6 +2003,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Heads::<T>::insert(&id, &genesis_data.genesis_head);
+		MostRecentContext::<T>::insert(&id, T::BlockNumber::from(0u32));
 	}
 }
 

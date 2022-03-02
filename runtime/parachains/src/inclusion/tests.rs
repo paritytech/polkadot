@@ -19,12 +19,13 @@ use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, ParaInclusion, Paras, ParasShared, System,
-		Test,
+		new_test_ext, Configuration, MockGenesisConfig, ParaInclusion, Paras, ParasShared,
+		Scheduler, System, Test,
 	},
 	paras::ParaGenesisArgs,
 	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
+	shared::AllowedRelayParentsTracker,
 };
 use assert_matches::assert_matches;
 use frame_support::assert_noop;
@@ -50,6 +51,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
 	config.parathread_cores = 1;
 	config.max_code_size = 3;
+	config.group_rotation_frequency = u32::MAX;
 	config
 }
 
@@ -77,6 +79,16 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
 		},
 		..Default::default()
 	}
+}
+
+fn default_allowed_relay_parent_tracker() -> AllowedRelayParentsTracker<Hash, BlockNumber> {
+	let mut allowed = AllowedRelayParentsTracker::default();
+
+	let relay_parent = System::parent_hash();
+	let parent_number = System::block_number().saturating_sub(1);
+
+	allowed.update(relay_parent, Hash::zero(), parent_number, 1);
+	allowed
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -298,6 +310,13 @@ impl TestCandidateBuilder {
 
 pub(crate) fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
 	let relay_parent_number = <frame_system::Pallet<Test>>::block_number() - 1;
+	make_vdata_hash_with_block_number(para_id, relay_parent_number)
+}
+
+fn make_vdata_hash_with_block_number(
+	para_id: ParaId,
+	relay_parent_number: BlockNumber,
+) -> Option<Hash> {
 	let persisted_validation_data = crate::util::make_persisted_validation_data::<Test>(
 		para_id,
 		relay_parent_number,
@@ -937,28 +956,35 @@ fn candidate_checks() {
 			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+		Scheduler::set_validator_groups(validator_groups);
+
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2),
 		};
+
+		let allowed_relay_parents = default_allowed_relay_parent_tracker();
 
 		// unscheduled candidate.
 		{
@@ -984,7 +1010,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_b_assignment.clone()],
 					&group_validators,
@@ -1039,7 +1065,7 @@ fn candidate_checks() {
 			// out-of-order manifests as unscheduled.
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed_b, backed_a],
 					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 					&group_validators,
@@ -1072,7 +1098,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1081,12 +1107,12 @@ fn candidate_checks() {
 			);
 		}
 
-		// candidate not in parent context.
+		// one of candidates is not based on allowed relay parent.
 		{
 			let wrong_parent_hash = Hash::repeat_byte(222);
 			assert!(System::parent_hash() != wrong_parent_hash);
 
-			let mut candidate = TestCandidateBuilder {
+			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				relay_parent: wrong_parent_hash,
 				pov_hash: Hash::repeat_byte(1),
@@ -1094,10 +1120,23 @@ fn candidate_checks() {
 				..Default::default()
 			}
 			.build();
-			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
-				candidate,
+			let mut candidate_b = TestCandidateBuilder {
+				para_id: chain_b,
+				relay_parent: System::parent_hash(),
+				pov_hash: Hash::repeat_byte(2),
+				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
+				..Default::default()
+			}
+			.build();
+
+			collator_sign_candidate(Sr25519Keyring::One, &mut candidate_a);
+
+			collator_sign_candidate(Sr25519Keyring::Two, &mut candidate_b);
+
+			let backed_a = block_on(back_candidate(
+				candidate_a,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
@@ -1105,14 +1144,23 @@ fn candidate_checks() {
 				BackingKind::Threshold,
 			));
 
+			let backed_b = block_on(back_candidate(
+				candidate_b,
+				&validators,
+				group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+				&keystore,
+				&signing_context,
+				BackingKind::Threshold,
+			));
+
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
-					vec![backed],
-					vec![chain_a_assignment.clone()],
+					&allowed_relay_parents,
+					vec![backed_b, backed_a],
+					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 					&group_validators,
 				),
-				Error::<Test>::CandidateNotInParentContext
+				Error::<Test>::DisallowedRelayParent
 			);
 		}
 
@@ -1142,7 +1190,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![
 						chain_a_assignment.clone(),
@@ -1184,7 +1232,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![thread_a_assignment.clone()],
 					&group_validators,
@@ -1234,7 +1282,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1274,7 +1322,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1318,7 +1366,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1352,7 +1400,7 @@ fn candidate_checks() {
 
 			assert_eq!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1387,7 +1435,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1422,7 +1470,7 @@ fn candidate_checks() {
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
-					Default::default(),
+					&allowed_relay_parents,
 					vec![backed],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
@@ -1480,27 +1528,34 @@ fn backing_works() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+		Scheduler::set_validator_groups(validator_groups);
+
+		let allowed_relay_parents = default_allowed_relay_parent_tracker();
+
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {
@@ -1587,7 +1642,7 @@ fn backing_works() {
 			core_indices: occupied_cores,
 			candidate_receipt_with_backing_validator_indices,
 		} = ParaInclusion::process_candidates(
-			Default::default(),
+			&allowed_relay_parents,
 			backed_candidates.clone(),
 			vec![
 				chain_a_assignment.clone(),
@@ -1758,11 +1813,22 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![vec![
+			ValidatorIndex(0),
+			ValidatorIndex(1),
+			ValidatorIndex(2),
+			ValidatorIndex(3),
+			ValidatorIndex(4),
+		]];
+		Scheduler::set_validator_groups(validator_groups);
+
+		let allowed_relay_parents = default_allowed_relay_parent_tracker();
+
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {
@@ -1788,7 +1854,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 
 		let ProcessedCandidates { core_indices: occupied_cores, .. } =
 			ParaInclusion::process_candidates(
-				Default::default(),
+				&allowed_relay_parents,
 				vec![backed_a],
 				vec![chain_a_assignment.clone()],
 				&group_validators,
@@ -1818,6 +1884,193 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			<PendingAvailabilityCommitments<Test>>::get(&chain_a),
 			Some(candidate_a.commitments),
 		);
+	});
+}
+
+#[test]
+fn check_allowed_relay_parents() {
+	let chain_a = ParaId::from(1);
+	let chain_b = ParaId::from(2);
+	let thread_a = ParaId::from(3);
+
+	// The block number of the relay-parent for testing.
+	const RELAY_PARENT_NUM: BlockNumber = 4;
+
+	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let validators = vec![
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	for validator in validators.iter() {
+		SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			PARACHAIN_KEY_TYPE_ID,
+			Some(&validator.to_seed()),
+		)
+		.unwrap();
+	}
+	let validator_public = validator_pubkeys(&validators);
+	let mut config = genesis_config(paras);
+	config.configuration.config.group_rotation_frequency = 1;
+
+	new_test_ext(config).execute_with(|| {
+		shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+		shared::Pallet::<Test>::set_session_index(5);
+
+		run_to_block(5, |_| None);
+
+		let group_validators = |group_index: GroupIndex| {
+			match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
+				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+			}
+			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
+		};
+
+		// When processing candidates, we compute the group index from scheduler.
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+		Scheduler::set_validator_groups(validator_groups);
+
+		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+
+		// Base each candidate on one of allowed relay parents.
+		//
+		// Note that the group rotation frequency is set to 1 above,
+		// which means groups shift at each relay parent.
+		//
+		// For example, candidate `a` is based on block 1,
+		// thus it will be included in block 2, its group index is
+		// core = 0 shifted 2 times: one for group rotation and one for
+		// fetching the group assigned to the next block.
+		//
+		// Candidates `b` and `c` are constructed accordingly.
+
+		let relay_parent_a = (1, Hash::repeat_byte(0x1));
+		let relay_parent_b = (2, Hash::repeat_byte(0x2));
+		let relay_parent_c = (3, Hash::repeat_byte(0x3));
+
+		let mut allowed_relay_parents = AllowedRelayParentsTracker::default();
+		let max_len = RELAY_PARENT_NUM as usize;
+		allowed_relay_parents.update(relay_parent_a.1, Hash::zero(), relay_parent_a.0, max_len);
+		allowed_relay_parents.update(relay_parent_b.1, Hash::zero(), relay_parent_b.0, max_len);
+		allowed_relay_parents.update(relay_parent_c.1, Hash::zero(), relay_parent_c.0, max_len);
+
+		let chain_a_assignment = CoreAssignment {
+			core: CoreIndex::from(0),
+			para_id: chain_a,
+			kind: AssignmentKind::Parachain,
+		};
+
+		let chain_b_assignment = CoreAssignment {
+			core: CoreIndex::from(1),
+			para_id: chain_b,
+			kind: AssignmentKind::Parachain,
+		};
+
+		let thread_a_assignment = CoreAssignment {
+			core: CoreIndex::from(2),
+			para_id: thread_a,
+			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+		};
+
+		let mut candidate_a = TestCandidateBuilder {
+			para_id: chain_a,
+			relay_parent: relay_parent_a.1,
+			pov_hash: Hash::repeat_byte(1),
+			persisted_validation_data_hash: make_vdata_hash_with_block_number(
+				chain_a,
+				relay_parent_a.0,
+			)
+			.unwrap(),
+			hrmp_watermark: relay_parent_a.0,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::One, &mut candidate_a);
+		let signing_context_a = SigningContext { parent_hash: relay_parent_a.1, session_index: 5 };
+
+		let mut candidate_b = TestCandidateBuilder {
+			para_id: chain_b,
+			relay_parent: relay_parent_b.1,
+			pov_hash: Hash::repeat_byte(2),
+			persisted_validation_data_hash: make_vdata_hash_with_block_number(
+				chain_b,
+				relay_parent_b.0,
+			)
+			.unwrap(),
+			hrmp_watermark: relay_parent_b.0,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::One, &mut candidate_b);
+		let signing_context_b = SigningContext { parent_hash: relay_parent_b.1, session_index: 5 };
+
+		let mut candidate_c = TestCandidateBuilder {
+			para_id: thread_a,
+			relay_parent: relay_parent_c.1,
+			pov_hash: Hash::repeat_byte(3),
+			persisted_validation_data_hash: make_vdata_hash_with_block_number(
+				thread_a,
+				relay_parent_c.0,
+			)
+			.unwrap(),
+			hrmp_watermark: relay_parent_c.0,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::Two, &mut candidate_c);
+		let signing_context_c = SigningContext { parent_hash: relay_parent_c.1, session_index: 5 };
+
+		let backed_a = block_on(back_candidate(
+			candidate_a.clone(),
+			&validators,
+			group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+			&keystore,
+			&signing_context_a,
+			BackingKind::Threshold,
+		));
+
+		let backed_b = block_on(back_candidate(
+			candidate_b.clone(),
+			&validators,
+			group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+			&keystore,
+			&signing_context_b,
+			BackingKind::Threshold,
+		));
+
+		let backed_c = block_on(back_candidate(
+			candidate_c.clone(),
+			&validators,
+			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+			&keystore,
+			&signing_context_c,
+			BackingKind::Threshold,
+		));
+
+		let backed_candidates = vec![backed_a, backed_b, backed_c];
+
+		ParaInclusion::process_candidates(
+			&allowed_relay_parents,
+			backed_candidates.clone(),
+			vec![
+				chain_a_assignment.clone(),
+				chain_b_assignment.clone(),
+				thread_a_assignment.clone(),
+			],
+			&group_validators,
+		)
+		.expect("candidates scheduled, in order, and backed");
 	});
 }
 
