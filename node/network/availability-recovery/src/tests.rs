@@ -285,7 +285,7 @@ impl TestState {
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendRequests(
 						requests,
-						IfDisconnected::ImmediateError,
+						IfDisconnected::TryConnect,
 					)
 				) => {
 					for req in requests {
@@ -334,7 +334,7 @@ impl TestState {
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendRequests(
 						mut requests,
-						IfDisconnected::ImmediateError,
+						IfDisconnected::TryConnect,
 					)
 				) => {
 					assert_eq!(requests.len(), 1);

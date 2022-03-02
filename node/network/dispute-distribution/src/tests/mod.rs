@@ -664,7 +664,7 @@ async fn check_sent_requests(
 	assert_matches!(
 		handle.recv().await,
 		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::TryConnect)
 		) => {
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(
