@@ -125,7 +125,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 			force_create_snapshot::<Runtime>(&mut ext)?;
 		};
 
-		log::debug!(target: LOG_TARGET, "+ solving with {:?}", config.solver);
+		log::debug!(target: LOG_TARGET, "solving with {:?}", config.solver);
 		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		let nonce = crate::get_account_info::<Runtime>(&rpc, &signer.account, config.at)
