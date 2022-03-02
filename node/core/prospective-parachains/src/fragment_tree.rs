@@ -47,13 +47,19 @@
 //! As long as the [`CandidateStorage`] has bounded input on the number of candidates supplied,
 //! [`FragmentTree`] complexity is bounded. This means that higher-level code needs to be selective
 //! about limiting the amount of candidates that are considered.
+//!
+//! The code in this module is not designed for speed or efficiency, but conceptual simplicity.
+//! Our assumption is that the amount of candidates and parachains we consider will be reasonably
+//! bounded and in practice will not exceed a few thousand at any time. This naïve implementation
+//! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 // TODO [now]: review & update.
 
 use std::{
-	collections::{hash_map::Entry as HEntry, HashMap, HashSet, BTreeMap},
+	collections::{hash_map::Entry as HEntry, BTreeMap, HashMap, HashSet},
 	sync::Arc,
 };
 
+use super::LOG_TARGET;
 use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult,
@@ -69,7 +75,6 @@ use polkadot_primitives::vstaging::{
 	GroupIndex, GroupRotationInfo, Hash, HeadData, Header, Id as ParaId, PersistedValidationData,
 	SessionIndex, ValidatorIndex,
 };
-use super::LOG_TARGET;
 
 /// An error indicating that a supplied candidate didn't match the persisted
 /// validation data provided alongside it.
@@ -131,6 +136,18 @@ impl CandidateStorage {
 		Ok(())
 	}
 
+	fn iter_para_children<'a>(
+		&'a self,
+		parent_head_hash: &Hash,
+	) -> impl Iterator<Item = &'a CandidateEntry> + 'a {
+		let by_candidate_hash = &self.by_candidate_hash;
+		self.by_parent_head
+			.get(parent_head_hash)
+			.into_iter()
+			.flat_map(|hashes| hashes.iter())
+			.filter_map(move |h| by_candidate_hash.get(h))
+	}
+
 	// TODO [now]: fn restrict_to(&graphs) which will be our main pruning function
 }
 
@@ -157,7 +174,7 @@ pub(crate) struct Scope {
 	para: ParaId,
 	relay_parent: RelayChainBlockInfo,
 	ancestors: BTreeMap<BlockNumber, (RelayChainBlockInfo, Constraints)>,
-	ancestors_by_hash: HashSet<Hash>,
+	ancestors_by_hash: HashMap<Hash, RelayChainBlockInfo>,
 	base_constraints: Constraints,
 	max_depth: usize,
 }
@@ -189,22 +206,22 @@ impl Scope {
 		relay_parent: RelayChainBlockInfo,
 		base_constraints: Constraints,
 		max_depth: usize,
-		ancestors: impl IntoIterator<Item=(RelayChainBlockInfo, Constraints)>,
+		ancestors: impl IntoIterator<Item = (RelayChainBlockInfo, Constraints)>,
 	) -> Result<Self, UnexpectedAncestor> {
 		let mut ancestors_map = BTreeMap::new();
-		let mut ancestors_by_hash = HashSet::new();
+		let mut ancestors_by_hash = HashMap::new();
 		{
 			let mut prev = relay_parent.number;
 			for (ancestor, constraints) in ancestors {
 				if prev == 0 {
-					return Err(UnexpectedAncestor);
+					return Err(UnexpectedAncestor)
 				} else if ancestor.number != prev - 1 {
-					return Err(UnexpectedAncestor);
+					return Err(UnexpectedAncestor)
 				} else if prev == base_constraints.min_relay_parent_number {
 					break
 				} else {
 					prev = ancestor.number;
-					ancestors_by_hash.insert(ancestor.hash);
+					ancestors_by_hash.insert(ancestor.hash, ancestor.clone());
 					ancestors_map.insert(ancestor.number, (ancestor, constraints));
 				}
 			}
@@ -219,39 +236,168 @@ impl Scope {
 			ancestors_by_hash,
 		})
 	}
+
+	fn earliest_relay_parent(&self) -> RelayChainBlockInfo {
+		self.ancestors.iter().next().map(|(_, v)| v.0.clone())
+			.unwrap_or_else(|| self.relay_parent.clone())
+	}
+
+	fn ancestor_by_hash(&self, hash: &Hash) -> Option<RelayChainBlockInfo> {
+		if hash == &self.relay_parent.hash {
+			return Some(self.relay_parent.clone())
+		}
+
+		self.ancestors_by_hash.get(hash)
+			.map(|info| info.clone())
+	}
 }
 
 // We use indices into a flat vector to refer to nodes in the tree.
-type NodePointer = usize;
+// Every tree also has an implicit root.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum NodePointer {
+	Root,
+	Storage(usize),
+}
 
 /// This is a tree of candidates based on some underlying storage of candidates
 /// and a scope.
 pub(crate) struct FragmentTree {
 	scope: Scope,
+
+	// Invariant: a contiguous prefix of the 'nodes' storage will contain
+	// the top-level children.
 	nodes: Vec<FragmentNode>,
 }
 
 impl FragmentTree {
-	/// Create a new [`FragmentTree`] with given scope, and populated from
-	/// the provided node storage.
-	pub fn new(scope: Scope, storage: &CandidateStorage) -> Self {
-		let mut tree = FragmentTree {
-			scope,
-			nodes: Vec::new(),
-		};
-
+	/// Create a new [`FragmentTree`] with given scope and populated from the
+	/// storage.
+	pub fn populate(scope: Scope, storage: &CandidateStorage) -> Self {
 		tracing::trace!(
 			target: LOG_TARGET,
-			relay_parent = ?tree.scope.relay_parent.hash,
-			relay_parent_num = tree.scope.relay_parent.number,
-			para_id = ?tree.scope.para,
-			ancestors = tree.scope.ancestors.len(),
+			relay_parent = ?scope.relay_parent.hash,
+			relay_parent_num = scope.relay_parent.number,
+			para_id = ?scope.para,
+			ancestors = scope.ancestors.len(),
 			"Instantiating Fragment Tree",
 		);
 
-		// populate.
+		let mut tree = FragmentTree { scope, nodes: Vec::new() };
+
+		// Populate the tree breadth-first.
+		let mut last_sweep_start = None;
+		loop {
+			let sweep_start = tree.nodes.len();
+
+			if Some(sweep_start) == last_sweep_start {
+				break
+			}
+
+			let parents: Vec<NodePointer> =
+				if let Some(last_start) = last_sweep_start {
+					(last_start..tree.nodes.len()).map(NodePointer::Storage).collect()
+				} else {
+					// This indicates depth = 0, as we're on the first
+					// iteration.
+					vec![NodePointer::Root]
+				};
+
+			// 1. get parent head and find constraints
+			// 2. iterate all candidates building on the right head and viable relay parent
+			// 3. add new node
+			for parent_pointer in parents {
+				let (modifications, child_depth, earliest_rp) = match parent_pointer {
+					NodePointer::Root => {
+						(ConstraintModifications::identity(), 0, tree.scope.earliest_relay_parent())
+					}
+					NodePointer::Storage(ptr) => {
+						let node = &tree.nodes[ptr];
+						let parent_rp = tree.scope.ancestor_by_hash(&node.relay_parent())
+							.expect("nodes in tree can only contain ancestors within scope; qed");
+
+						(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
+					}
+				};
+
+				if child_depth >= tree.scope.max_depth { continue }
+
+				let child_constraints = match tree.scope.base_constraints.apply_modifications(&modifications) {
+					Err(e) => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							new_parent_head = ?modifications.required_parent,
+							err = ?e,
+							"Failed to apply modifications",
+						);
+
+						continue
+					}
+					Ok(c) => c,
+				};
+
+				// Add nodes to tree wherever
+				// 1. parent hash is correct
+				// 2. relay-parent does not move backwards
+				// 3. candidate outputs fulfill constraints
+				let required_head_hash = child_constraints.required_parent.hash();
+				for candidate in storage.iter_para_children(&required_head_hash) {
+					let relay_parent = match tree.scope.ancestor_by_hash(&candidate.relay_parent) {
+						None => continue, // not in chain
+						Some(info) => {
+							if info.number < earliest_rp.number {
+								// moved backwards
+								continue
+							}
+
+							info
+						}
+					};
+
+					let fragment = {
+						let f = Fragment::new(
+							relay_parent,
+							child_constraints.clone(),
+							candidate.candidate.clone(),
+						);
+
+						match f {
+							Ok(f) => f,
+							Err(_) => continue,
+						}
+					};
+
+					let mut cumulative_modifications = modifications.clone();
+					cumulative_modifications.stack(fragment.constraint_modifications());
+					let node = FragmentNode {
+						parent: parent_pointer,
+						fragment,
+						erasure_root: candidate.erasure_root.clone(),
+						candidate_hash: candidate.candidate_hash.clone(),
+						depth: child_depth,
+						cumulative_modifications,
+						children: Vec::new(),
+					};
+
+					tree.insert_node(node);
+				}
+			}
+
+			last_sweep_start = Some(sweep_start);
+		}
 
 		tree
+	}
+
+	// Inserts a node and updates child references in a non-root parent.
+	fn insert_node(&mut self, node: FragmentNode) {
+		let pointer = NodePointer::Storage(self.nodes.len());
+		let parent_pointer = node.parent;
+		self.nodes.push(node);
+
+		if let NodePointer::Storage(ptr) = parent_pointer {
+			self.nodes[ptr].children.push(pointer);
+		}
 	}
 
 	// TODO [now]: add new candidate and recursively populate as necessary.
@@ -260,11 +406,14 @@ impl FragmentTree {
 }
 
 struct FragmentNode {
-	// A pointer to the parent node. `None` indicates that this is a root
-	// node.
-	parent: Option<NodePointer>,
+	// A pointer to the parent node.
+	parent: NodePointer,
 	fragment: Fragment,
 	erasure_root: Hash,
+	candidate_hash: CandidateHash,
+	depth: usize,
+	cumulative_modifications: ConstraintModifications,
+	children: Vec<NodePointer>,
 }
 
 impl FragmentNode {
