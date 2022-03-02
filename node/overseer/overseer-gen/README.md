@@ -76,3 +76,12 @@ subsystems must be initialized only once (another compile time check) or be _rep
 a special setter like method `replace_<subsystem>`.
 
 A task spawner and subsystem context are required to be defined with `SpawnNamed` and respectively `SubsystemContext` implemented.
+
+## Debugging
+
+As always, debugging is notoriously annoying with bugged proc-macros.
+
+Therefore [`expander`](https://github.com/drahnr/expander) is employed to yield better
+error messages. Enable with `--feature=polkadot-overseer-gen/expand` or
+`--feature=polkadot-overseer/expand` from the root of the project or
+make `"expand"` part of the default feature set.

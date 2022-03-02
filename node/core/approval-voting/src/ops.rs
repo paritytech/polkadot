@@ -242,7 +242,7 @@ pub fn add_block_entry(
 						candidate,
 						session,
 						block_assignments: BTreeMap::new(),
-						approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+						approvals: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 					}
 				});
 
@@ -253,7 +253,7 @@ pub fn add_block_entry(
 					backing_group,
 					our_assignment.map(|v| v.into()),
 					None,
-					bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 					false,
 				),
 			);

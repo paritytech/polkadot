@@ -925,10 +925,10 @@ mod sanitizers {
 		let validator_public = validator_pubkeys(&validators);
 
 		let unchecked_bitfields = [
-			BitVec::<Lsb0, u8>::repeat(true, expected_bits),
-			BitVec::<Lsb0, u8>::repeat(true, expected_bits),
+			BitVec::<u8, Lsb0>::repeat(true, expected_bits),
+			BitVec::<u8, Lsb0>::repeat(true, expected_bits),
 			{
-				let mut bv = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
+				let mut bv = BitVec::<u8, Lsb0>::repeat(false, expected_bits);
 				bv.set(expected_bits - 1, true);
 				bv
 			},
