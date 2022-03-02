@@ -169,6 +169,14 @@ impl<T: Config> Pallet<T> {
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
 		// Drop allowed relay parents buffer on a session change.
+		//
+		// During the initialization of the next block we always add its parent
+		// to the tracker.
+		//
+		// With asynchronous backing candidates built on top of relay
+		// parent `R` are still restricted by the runtime to be backed
+		// by the group assigned at `number(R) + 1`, which is guaranteed
+		// to be in the current session.
 		AllowedRelayParents::<T>::mutate(|tracker| tracker.buffer.clear());
 
 		CurrentSessionIndex::<T>::set(session_index);
