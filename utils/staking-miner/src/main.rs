@@ -363,7 +363,7 @@ struct SharedConfig {
 	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
 	#[clap(long, short, env = "SEED")]
-	seed: String,
+	seed_or_path: String,
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -597,7 +597,7 @@ async fn main() {
 	};
 
 	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&shared.seed, &rpc)
+		signer::signer_uri_from_string::<Runtime>(&shared.seed_or_path, &rpc)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
