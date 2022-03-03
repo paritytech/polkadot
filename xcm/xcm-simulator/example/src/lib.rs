@@ -87,7 +87,11 @@ pub fn relay_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![(ALICE, INITIAL_BALANCE), (para_account_id(1), INITIAL_BALANCE)],
+		balances: vec![
+			(ALICE, INITIAL_BALANCE),
+			(para_account_id(1), INITIAL_BALANCE),
+			(para_account_id(2), INITIAL_BALANCE),
+		],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
@@ -222,6 +226,44 @@ mod tests {
 			assert_eq!(
 				pallet_balances::Pallet::<parachain::Runtime>::free_balance(&ALICE),
 				INITIAL_BALANCE + withdraw_amount
+			);
+		});
+	}
+
+	#[test]
+	fn remote_locking() {
+		MockNet::reset();
+
+		let locked_amount = 100;
+
+		ParaB::execute_with(|| {
+			let message = Xcm(vec![
+				WithdrawAsset((Here, locked_amount).into()),
+				buy_execution((Here, locked_amount)),
+				LockAsset { asset: (Here, locked_amount).into(), unlocker: Parachain(1).into() },
+			]);
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone()));
+		});
+
+		Relay::execute_with(|| {
+			use pallet_balances::{BalanceLock, Reasons};
+			assert_eq!(
+				relay_chain::Balances::locks(&para_account_id(2)),
+				vec![BalanceLock {
+					id: *b"py/xcmlk",
+					amount: locked_amount,
+					reasons: Reasons::All
+				}]
+			);
+		});
+
+		ParaA::execute_with(|| {
+			assert_eq!(
+				parachain::MsgQueue::received_dmp(),
+				vec![Xcm(vec![NoteUnlockable {
+					owner: (Parent, Parachain(2)).into(),
+					asset: (Parent, locked_amount).into()
+				},])]
 			);
 		});
 	}

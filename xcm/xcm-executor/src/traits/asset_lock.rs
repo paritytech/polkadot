@@ -17,6 +17,7 @@
 use sp_std::convert::Infallible;
 use xcm::prelude::*;
 
+#[derive(Debug)]
 pub enum LockError {
 	NotApplicable,
 	WouldClobber,
