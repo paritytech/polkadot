@@ -1093,8 +1093,8 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 // Migration for crowdloan pallet to use fund index for account generation.
 pub struct CrowdloanIndexMigration;
-impl OnRuntimeUpgrade for CrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+impl OnRuntimeUpgrade<Weight> for CrowdloanIndexMigration {
+	fn on_runtime_upgrade() -> Weight {
 		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
 	}
 

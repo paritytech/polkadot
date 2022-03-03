@@ -1461,8 +1461,8 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 // Migration for crowdloan pallet to use fund index for account generation.
 pub struct CrowdloanIndexMigration;
-impl OnRuntimeUpgrade for CrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+impl OnRuntimeUpgrade<Weight> for CrowdloanIndexMigration {
+	fn on_runtime_upgrade() -> Weight {
 		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
 	}
 
@@ -1482,7 +1482,7 @@ impl OnRuntimeUpgrade for CrowdloanIndexMigration {
 /// See more details here: https://github.com/paritytech/polkadot/issues/4160
 pub struct FixCouncilDepositMigration;
 impl FixCouncilDepositMigration {
-	fn execute(check: bool) -> frame_support::weights::Weight {
+	fn execute(check: bool) -> Weight {
 		let accounts = vec![
 			// 14udY48vCbPLtF2VEpUmqfJLHesmAZWi5ShzeKgnqkuigYaR
 			[
@@ -1653,8 +1653,8 @@ impl FixCouncilDepositMigration {
 	}
 }
 
-impl OnRuntimeUpgrade for FixCouncilDepositMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+impl OnRuntimeUpgrade<Weight> for FixCouncilDepositMigration {
+	fn on_runtime_upgrade() -> Weight {
 		if VERSION.spec_version == 9180 {
 			Self::execute(false)
 		} else {

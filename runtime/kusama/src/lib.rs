@@ -1508,8 +1508,8 @@ pub type Executive = frame_executive::Executive<
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 pub struct CrowdloanIndexMigration;
-impl OnRuntimeUpgrade for CrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+impl OnRuntimeUpgrade<Weight> for CrowdloanIndexMigration {
+	fn on_runtime_upgrade() -> Weight {
 		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
 	}
 
