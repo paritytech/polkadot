@@ -276,7 +276,8 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 	}
 }
 
-#[derive(Debug, Clone, Parser, PartialEq)]
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 enum Command {
 	/// Monitor for the phase being signed, then compute.
 	Monitor(MonitorConfig),
@@ -286,7 +287,8 @@ enum Command {
 	EmergencySolution(EmergencySolutionConfig),
 }
 
-#[derive(Debug, Clone, Parser, PartialEq)]
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 enum Solver {
 	SeqPhragmen {
 		#[clap(long, default_value = "10")]
@@ -305,7 +307,8 @@ frame_support::parameter_types! {
 	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
 }
 
-#[derive(Debug, Clone, Parser, PartialEq)]
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 struct MonitorConfig {
 	/// They type of event to listen to.
 	///
@@ -320,7 +323,8 @@ struct MonitorConfig {
 	solver: Solver,
 }
 
-#[derive(Debug, Clone, Parser, PartialEq)]
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
@@ -334,7 +338,8 @@ struct EmergencySolutionConfig {
 	take: Option<usize>,
 }
 
-#[derive(Debug, Clone, Parser, PartialEq)]
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 struct DryRunConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
@@ -349,7 +354,8 @@ struct DryRunConfig {
 	force_snapshot: bool,
 }
 
-#[derive(Debug, Clone, Parser, PartialEq)]
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 #[clap(author, version, about)]
 struct Opt {
 	/// The `ws` node to connect to.
