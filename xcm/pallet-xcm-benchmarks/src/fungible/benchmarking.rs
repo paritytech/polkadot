@@ -113,11 +113,16 @@ benchmarks_instance_pallet! {
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
 
-		let mut executor = new_executor::<T>(trusted_reserve);
+		let mut executor = new_executor::<T>(Default::default());
+		executor.origin = Some(trusted_reserve);
 		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm).unwrap();
+		executor.execute(xcm).map_err(|_| {
+			BenchmarkError::Override(
+				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+			)
+		})?;
 	} verify {
 		assert!(executor.holding.ensure_contains(&assets).is_ok());
 	}
