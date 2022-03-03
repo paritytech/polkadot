@@ -357,6 +357,7 @@ test-node-metrics:
 
 test-deterministic-wasm:
   stage:                           stage2
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
     - job:                         cargo-fmt
       artifacts:                   false
