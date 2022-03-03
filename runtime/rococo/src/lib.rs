@@ -45,8 +45,7 @@ use primitives::{
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	prod_or_fast, slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight,
-	SlowAdjustingFeeUpdate,
+	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -942,7 +941,7 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * DAYS);
+	pub const LeasePeriod: BlockNumber = 1 * DAYS;
 }
 
 impl slots::Config for Runtime {
