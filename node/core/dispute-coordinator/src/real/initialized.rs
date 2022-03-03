@@ -53,7 +53,7 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	error::{log_error, Error, Fatal, FatalResult, NonFatal, NonFatalResult, Result},
+	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	metrics::Metrics,
 	real::{ordering::get_finalized_block_number, DisputeCoordinatorSubsystem},
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
@@ -610,7 +610,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
-	) -> Result<Box<dyn FnOnce() -> NonFatalResult<()>>> {
+	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -633,7 +633,7 @@ impl Initialized {
 				let report = move || {
 					pending_confirmation
 						.send(outcome)
-						.map_err(|_| NonFatal::DisputeImportOneshotSend)
+						.map_err(|_| JfyiError::DisputeImportOneshotSend)
 				};
 				match outcome {
 					ImportStatementsResult::InvalidImport => {
@@ -733,7 +733,7 @@ impl Initialized {
 	// Helper function for checking subsystem errors in message processing.
 	fn ensure_available_session_info(&self) -> Result<()> {
 		if let Some(subsystem_error) = self.error.clone() {
-			return Err(Error::NonFatal(NonFatal::RollingSessionWindow(subsystem_error)))
+			return Err(Error::RollingSessionWindow(subsystem_error))
 		}
 
 		Ok(())
@@ -1174,8 +1174,8 @@ impl MuxedMessage {
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
-			msg = from_overseer => Ok(Self::Subsystem(msg.map_err(Fatal::SubsystemReceive)?)),
-			msg = from_sender.next() => Ok(Self::Participation(msg.ok_or(Fatal::ParticipationWorkerReceiverExhausted)?)),
+			msg = from_overseer => Ok(Self::Subsystem(msg.map_err(FatalError::SubsystemReceive)?)),
+			msg = from_sender.next() => Ok(Self::Participation(msg.ok_or(FatalError::ParticipationWorkerReceiverExhausted)?)),
 		)
 	}
 }

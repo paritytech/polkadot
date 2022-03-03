@@ -28,6 +28,15 @@ use xcm::latest::Outcome;
 
 pub use pallet::*;
 
+/// Maximum value that `config.max_upward_message_size` can be set to
+///
+/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
+/// pallet to check these values before setting.
+pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 #[cfg(test)]
 pub(crate) mod tests;
 
@@ -99,29 +108,38 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		};
 
 		let id = upward_message_id(&data[..]);
-		let maybe_msg = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
+		let maybe_msg_and_weight = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,
 		)
-		.map(Xcm::<C::Call>::try_from);
-		match maybe_msg {
+		.map(|xcm| {
+			(
+				Xcm::<C::Call>::try_from(xcm),
+				// NOTE: We are overestimating slightly here.
+				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
+				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
+				// are taking call and control-flow overhead into account twice.
+				<C as Config>::WeightInfo::sink_process_upward_message(data.len() as u32),
+			)
+		});
+		match maybe_msg_and_weight {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
 				Ok(0)
 			},
-			Ok(Err(())) => {
+			Ok((Err(()), weight_used)) => {
 				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
-				Ok(0)
+				Ok(weight_used)
 			},
-			Ok(Ok(xcm_message)) => {
+			Ok((Ok(xcm_message), weight_used)) => {
 				let xcm_junction = Junction::Parachain(origin.into());
 				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
-						let weight_used = outcome.weight_used();
+						let outcome_weight = outcome.weight_used();
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
-						Ok(weight_used)
+						Ok(weight_used.saturating_add(outcome_weight))
 					},
 				}
 			},
@@ -165,6 +183,29 @@ impl fmt::Debug for AcceptanceCheckErr {
 	}
 }
 
+/// Weight information of this pallet.
+pub trait WeightInfo {
+	fn service_overweight() -> Weight;
+	fn sink_process_upward_message(s: u32) -> Weight;
+	fn clean_ump_after_outgoing() -> Weight;
+}
+
+/// fallback implementation
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn service_overweight() -> Weight {
+		Weight::MAX
+	}
+
+	fn sink_process_upward_message(_msg_size: u32) -> Weight {
+		Weight::MAX
+	}
+
+	fn clean_ump_after_outgoing() -> Weight {
+		Weight::MAX
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -192,6 +233,9 @@ pub mod pallet {
 
 		/// Origin which is allowed to execute overweight messages.
 		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -303,7 +347,7 @@ pub mod pallet {
 		///
 		/// Events:
 		/// - `OverweightServiced`: On success.
-		#[pallet::weight(weight_limit.saturating_add(1_000_000))]
+		#[pallet::weight(weight_limit.saturating_add(<T as Config>::WeightInfo::service_overweight()))]
 		pub fn service_overweight(
 			origin: OriginFor<T>,
 			index: OverweightIndex,
@@ -317,7 +361,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
 			Self::deposit_event(Event::OverweightServiced(index, used));
-			Ok(Some(used.saturating_add(1_000_000)).into())
+			Ok(Some(used.saturating_add(<T as Config>::WeightInfo::service_overweight())).into())
 		}
 	}
 }
@@ -336,20 +380,22 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 		outgoing_paras: &[ParaId],
-	) {
-		Self::perform_outgoing_para_cleanup(outgoing_paras);
+	) -> Weight {
+		Self::perform_outgoing_para_cleanup(outgoing_paras)
 	}
 
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
-	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
+		let mut weight: Weight = 0;
 		for outgoing_para in outgoing {
-			Self::clean_ump_after_outgoing(outgoing_para);
+			weight = weight.saturating_add(Self::clean_ump_after_outgoing(outgoing_para));
 		}
+		weight
 	}
 
 	/// Remove all relevant storage items for an outgoing parachain.
-	fn clean_ump_after_outgoing(outgoing_para: &ParaId) {
+	pub(crate) fn clean_ump_after_outgoing(outgoing_para: &ParaId) -> Weight {
 		<Self as Store>::RelayDispatchQueueSize::remove(outgoing_para);
 		<Self as Store>::RelayDispatchQueues::remove(outgoing_para);
 
@@ -366,6 +412,8 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::NextDispatchRoundStartWith::mutate(|v| {
 			*v = v.filter(|p| p == outgoing_para)
 		});
+
+		<T as Config>::WeightInfo::clean_ump_after_outgoing()
 	}
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns

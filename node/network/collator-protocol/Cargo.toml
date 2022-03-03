@@ -6,10 +6,8 @@ edition = "2021"
 
 [dependencies]
 always-assert = "0.1.2"
-derive_more = "0.99.17"
 futures = "0.3.21"
 futures-timer = "3"
-thiserror = "1.0.30"
 tracing = "0.1.31"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -21,6 +19,8 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+fatality = "0.0.6"
+thiserror = "1.0.30"
 
 [dev-dependencies]
 log = "0.4.13"
