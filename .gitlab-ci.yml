@@ -80,6 +80,7 @@ default:
 
 .test-refs:                        &test-refs
   rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
@@ -87,6 +88,7 @@ default:
 .common-refs:                      &common-refs
   # these jobs run always*
   rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
@@ -387,24 +389,26 @@ check-transaction-versions:
 
 
 
-publish-polkadot-image:
+# This image is used in testnets
+# Release image is handled by the Github Action here:
+# .github/workflows/publish-docker-release.yml
+publish-polkadot-debug-image:
   stage:                           stage2
   <<:                              *build-push-image
+  rules:
+    # Don't run when triggered from another pipeline
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
     <<:                            *image-variables
     # scripts/dockerfiles/polkadot_injected_debug.Dockerfile
     DOCKERFILE:                    dockerfiles/polkadot_injected_debug.Dockerfile
-    IMAGE_NAME:                    docker.io/paritypr/synth-wave
-  rules:
-    # Don't run on releases - this is handled by the Github Action here:
-    # .github/workflows/publish-docker-release.yml
-    - if: $CI_PIPELINE_SOURCE == "pipeline"
-      when: never
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    IMAGE_NAME:                    docker.io/paritypr/polkadot-debug
   needs:
     - job:                         build-linux-stable
       artifacts:                   true
@@ -636,7 +640,7 @@ zombienet-tests-parachains-smoke-test:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-malus-image
     - job:                         publish-test-collators-image
   variables:
@@ -666,7 +670,7 @@ zombienet-tests-parachains-pvf:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
@@ -695,7 +699,7 @@ zombienet-tests-parachains-disputes:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
     - job:                         publish-malus-image
   variables:
@@ -725,7 +729,7 @@ zombienet-tests-malus-dispute-valid:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-malus-image
     - job:                         publish-test-collators-image
   variables:
