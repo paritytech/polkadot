@@ -113,8 +113,7 @@ benchmarks_instance_pallet! {
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
 
-		let mut executor = new_executor::<T>(Default::default());
-		executor.origin = Some(trusted_reserve);
+		let mut executor = new_executor::<T>(trusted_reserve);
 		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
