@@ -395,7 +395,17 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking ChillThreshold (r:0 w:1)
 	// Storage: Staking MaxNominatorsCount (r:0 w:1)
 	// Storage: Staking MinNominatorBond (r:0 w:1)
-	fn set_staking_configs() -> Weight {
+	fn set_staking_configs_all_set() -> Weight {
+		(2_647_000 as Weight)
+			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+	}
+	// Storage: Staking MinCommission (r:0 w:1)
+	// Storage: Staking MinValidatorBond (r:0 w:1)
+	// Storage: Staking MaxValidatorsCount (r:0 w:1)
+	// Storage: Staking ChillThreshold (r:0 w:1)
+	// Storage: Staking MaxNominatorsCount (r:0 w:1)
+	// Storage: Staking MinNominatorBond (r:0 w:1)
+	fn set_staking_configs_all_remove() -> Weight {
 		(2_647_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
