@@ -73,7 +73,6 @@ macro_rules! construct_runtime_prelude {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
 					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
-					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
 					tip: crate::prelude::Balance,
@@ -85,7 +84,7 @@ macro_rules! construct_runtime_prelude {
 
 					let crate::signer::Signer { account, pair, .. } = signer;
 
-					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution), num_signed_submissions: witness };
+					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution) };
 					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."
@@ -409,7 +408,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
 where
 	T: EPM::Config,
 	S: NposSolver<
@@ -426,8 +425,7 @@ where
 				EPM::ElectionCompute::Signed,
 			)?;
 		}
-		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
-		Ok((solution, witness as u32))
+		Ok(solution)
 	})
 }
 
@@ -436,7 +434,7 @@ fn mine_with<T>(
 	solver: &Solver,
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
 where
 	T: EPM::Config,
 	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
