@@ -646,19 +646,6 @@ mod tests {
 	}
 
 	#[test]
-	fn cli_version_works() {
-		use assert_cmd::{cargo::cargo_bin, Command};
-
-		let crate_name = env!("CARGO_PKG_NAME");
-		let output = Command::new(cargo_bin(crate_name)).arg("--version").output().unwrap();
-
-		assert!(output.status.success(), "command returned with non-success exit code");
-		let version = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-
-		assert_eq!(version, format!("{} {}", crate_name, env!("CARGO_PKG_VERSION")));
-	}
-
-	#[test]
 	fn cli_monitor_works() {
 		let opt = Opt::try_parse_from([
 			env!("CARGO_PKG_NAME"),
