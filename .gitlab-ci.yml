@@ -341,6 +341,7 @@ check-dependent-cumulus:
 
 test-node-metrics:
   stage:                           stage2
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
     - job:                         check-runtime
       artifacts:                   false
