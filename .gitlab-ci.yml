@@ -599,6 +599,7 @@ check-try-runtime:
 
 check-no-default-features:
   stage:                           stage3
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
     - job:                         test-deterministic-wasm
       artifacts:                   false
