@@ -64,9 +64,6 @@ pub mod pallet {
 		CannotDowngrade,
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Schedule a para to be initialized at the start of the next session.

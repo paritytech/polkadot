@@ -211,7 +211,7 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+	impl<T: Config> Hooks<BlockNumberFor<T>, Weight> for Pallet<T> {
 		fn on_initialize(n: T::BlockNumber) -> Weight {
 			let mut weight = T::DbWeight::get().reads(1);
 

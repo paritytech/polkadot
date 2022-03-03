@@ -280,9 +280,6 @@ pub mod pallet {
 		}
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Make a claim to collect your DOTs.

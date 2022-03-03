@@ -41,7 +41,7 @@ use crate::weights::WeightInfo;
 use bp_header_chain::{justification::GrandpaJustification, InitializationData};
 use bp_runtime::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};
 use finality_grandpa::voter_set::VoterSet;
-use frame_support::{ensure, fail};
+use frame_support::{ensure, fail, weights::Weight};
 use frame_system::{ensure_signed, RawOrigin};
 use sp_finality_grandpa::{ConsensusLog, GRANDPA_ENGINE_ID};
 use sp_runtime::traits::{BadOrigin, Header as HeaderT, Zero};
@@ -105,8 +105,8 @@ pub mod pallet {
 	pub struct Pallet<T, I = ()>(PhantomData<(T, I)>);
 
 	#[pallet::hooks]
-	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
-		fn on_initialize(_n: T::BlockNumber) -> frame_support::weights::Weight {
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>, Weight> for Pallet<T, I> {
+		fn on_initialize(_n: T::BlockNumber) -> Weight {
 			<RequestCount<T, I>>::mutate(|count| *count = count.saturating_sub(1));
 
 			(0_u64)

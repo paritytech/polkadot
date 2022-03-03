@@ -200,9 +200,6 @@ pub mod pallet {
 		}
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Register head data and validation code for a reserved Para Id.

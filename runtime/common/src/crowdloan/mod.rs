@@ -328,7 +328,7 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+	impl<T: Config> Hooks<BlockNumberFor<T>, Weight> for Pallet<T> {
 		fn on_initialize(num: T::BlockNumber) -> frame_support::weights::Weight {
 			if let Some((sample, sub_sample)) = T::Auctioneer::auction_status(num).is_ending() {
 				// This is the very first block in the ending period

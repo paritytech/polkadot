@@ -185,9 +185,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type UnlockBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Create a new account. Proof of existence through a valid signed message.

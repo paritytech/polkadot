@@ -144,7 +144,7 @@ pub mod pallet {
 		StorageValue<_, Vec<BufferedSessionChange>, ValueQuery>;
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+	impl<T: Config> Hooks<BlockNumberFor<T>, Weight> for Pallet<T> {
 		fn on_initialize(now: T::BlockNumber) -> Weight {
 			// The other modules are initialized in this order:
 			// - Configuration

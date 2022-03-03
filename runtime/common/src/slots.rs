@@ -144,7 +144,7 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+	impl<T: Config> Hooks<BlockNumberFor<T>, Weight> for Pallet<T> {
 		fn on_initialize(n: T::BlockNumber) -> Weight {
 			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
 				// If we're beginning a new lease period then handle that.
