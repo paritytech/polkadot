@@ -524,7 +524,7 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { uri, seed, command } = Opt::parse();
+	let Opt { uri, seed_or_path, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let rpc = loop {
@@ -591,7 +591,7 @@ async fn main() {
 	};
 
 	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&shared.seed_or_path, &rpc)
+		signer::signer_uri_from_string::<Runtime>(&seed_or_path, &rpc)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
@@ -658,7 +658,7 @@ mod tests {
 			env!("CARGO_PKG_NAME"),
 			"--uri",
 			"hi",
-			"--seed",
+			"--seed-or-path",
 			"//Alice",
 			"monitor",
 			"--listen",
@@ -671,7 +671,7 @@ mod tests {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
-				seed: "//Alice".to_string(),
+				seed_or_path: "//Alice".to_string(),
 				command: Command::Monitor(MonitorConfig {
 					listen: "head".to_string(),
 					solver: Solver::SeqPhragmen { iterations: 10 }
@@ -686,7 +686,7 @@ mod tests {
 			env!("CARGO_PKG_NAME"),
 			"--uri",
 			"hi",
-			"--seed",
+			"--seed-or-path",
 			"//Alice",
 			"dry-run",
 			"phrag-mms",
@@ -697,10 +697,11 @@ mod tests {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
-				seed: "//Alice".to_string(),
+				seed_or_path: "//Alice".to_string(),
 				command: Command::DryRun(DryRunConfig {
 					at: None,
-					solver: Solver::PhragMMS { iterations: 10 }
+					solver: Solver::PhragMMS { iterations: 10 },
+					force_snapshot: false,
 				}),
 			}
 		);
@@ -712,7 +713,7 @@ mod tests {
 			env!("CARGO_PKG_NAME"),
 			"--uri",
 			"hi",
-			"--seed",
+			"--seed-or-path",
 			"//Alice",
 			"emergency-solution",
 			"99",
@@ -726,7 +727,7 @@ mod tests {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
-				seed: "//Alice".to_string(),
+				seed_or_path: "//Alice".to_string(),
 				command: Command::EmergencySolution(EmergencySolutionConfig {
 					take: Some(99),
 					at: None,
