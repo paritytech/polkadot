@@ -170,7 +170,7 @@ parameter_types! {
 	));
 	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
 		ChildTeleporter::get(),
-		MultiAsset { id: Concrete(Here.into()), fun: Fungible(200) },
+		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
 	));
 	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
