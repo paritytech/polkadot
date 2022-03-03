@@ -45,7 +45,8 @@ use primitives::{
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	prod_or_fast, slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight,
+	SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -417,7 +418,7 @@ impl parachains_disputes::Config for Runtime {
 }
 
 parameter_types! {
-	pub SessionDuration: BlockNumber = EpochDurationInBlocks::get() as _;
+	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
 }
 
 parameter_types! {
@@ -527,12 +528,13 @@ impl pallet_session::Config for Runtime {
 }
 
 parameter_types! {
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-	pub ReportLongevity: u64 = EpochDurationInBlocks::get() as u64 * 10;
+	pub const ReportLongevity: u64 = EPOCH_DURATION_IN_BLOCKS as u64 * 10;
 }
 
 impl pallet_babe::Config for Runtime {
-	type EpochDuration = EpochDurationInBlocks;
+	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
 	// session module is the trigger
@@ -941,7 +943,7 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 1 * DAYS;
+	pub const LeasePeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * DAYS);
 }
 
 impl slots::Config for Runtime {
@@ -1329,7 +1331,7 @@ sp_api::impl_runtime_apis! {
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
-				epoch_length: EpochDurationInBlocks::get().into(),
+				epoch_length: EpochDuration::get(),
 				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
