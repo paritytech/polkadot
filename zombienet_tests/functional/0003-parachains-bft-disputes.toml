@@ -11,6 +11,7 @@ chain = "rococo-local"
 chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
 
   [[relaychain.node_groups]]
+  image = "{{MALUS_IMAGE}}"
   name = "malus-validator"
   args = [ "-lparachain=debug" ]
   command = "malus --fake-approval-validation=invalid dispute-ancestor"
