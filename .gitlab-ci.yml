@@ -393,7 +393,7 @@ check-transaction-versions:
 # Release image is handled by the Github Action here:
 # .github/workflows/publish-docker-release.yml
 publish-polkadot-debug-image:
-  stage:                           build
+  stage:                           stage2
   <<:                              *build-push-image
   rules:
     # Don't run when triggered from another pipeline
@@ -670,7 +670,7 @@ zombienet-tests-parachains-pvf:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
@@ -699,7 +699,7 @@ zombienet-tests-parachains-disputes:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
     - job:                         publish-malus-image
   variables:
