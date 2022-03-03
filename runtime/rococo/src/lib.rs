@@ -25,6 +25,7 @@ use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, KeyOwnerProofSystem, Randomness},
+	weights::Weight,
 	PalletId,
 };
 use frame_system::EnsureRoot;
