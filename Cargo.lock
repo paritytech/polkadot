@@ -3595,9 +3595,9 @@ dependencies = [
 
 [[package]]
 name = "kvdb-shared-tests"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "575fe4b59231cae0dcf57b29b2f57ce471689ac963c3de14bb8242feafb2586c"
+checksum = "7a9001edd3459aa1503ea84215cf4618a6e2e020f51682494cc6f5ab1150e68e"
 dependencies = [
  "kvdb",
 ]
@@ -5869,9 +5869,9 @@ dependencies = [
 
 [[package]]
 name = "parity-db"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09aa6c5bb8070cf0456d9fc228b3022e900aae9092c48c9c45facf97422efc1d"
+checksum = "865edee5b792f537356d9e55cbc138e7f4718dc881a7ea45a18b37bf61c21e3d"
 dependencies = [
  "blake2-rfc",
  "crc32fast",

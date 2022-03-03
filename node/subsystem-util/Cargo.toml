@@ -32,9 +32,9 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-kvdb = "0.10.0"
-parity-util-mem = { version = "0.10", default-features = false }
-parity-db = { version = "0.3.7" }
+kvdb = "0.11.0"
+parity-util-mem = { version = "0.11", default-features = false }
+parity-db = { version = "0.3.8" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
