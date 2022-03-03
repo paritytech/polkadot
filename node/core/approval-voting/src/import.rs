@@ -463,9 +463,9 @@ pub(crate) async fn handle_new_head(
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
 				);
-				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
+				bitvec::bitvec![u8, BitOrderLsb0; 1; num_candidates]
 			} else {
-				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
+				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);

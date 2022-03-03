@@ -140,7 +140,7 @@ pub struct StoredBlockRange(pub BlockNumber, pub BlockNumber);
 pub struct Tick(u64);
 
 /// Convenience type definition
-pub type Bitfield = BitVec<BitOrderLsb0, u8>;
+pub type Bitfield = BitVec<u8, BitOrderLsb0>;
 
 /// The database config.
 #[derive(Debug, Clone, Copy)]

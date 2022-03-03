@@ -300,7 +300,7 @@ fn store_chunk_works() {
 				&candidate_hash,
 				&CandidateMeta {
 					data_available: false,
-					chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					chunks_stored: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 					state: State::Unavailable(BETimestamp(0)),
 				},
 			);
@@ -375,7 +375,7 @@ fn query_chunk_checks_meta() {
 				&CandidateMeta {
 					data_available: false,
 					chunks_stored: {
-						let mut v = bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators];
+						let mut v = bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators];
 						v.set(validator_index.0 as usize, true);
 						v
 					},
@@ -539,7 +539,7 @@ fn query_all_chunks_works() {
 					&candidate_hash_2,
 					&CandidateMeta {
 						data_available: false,
-						chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators as _],
+						chunks_stored: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators as _],
 						state: State::Unavailable(BETimestamp(0)),
 					},
 				);

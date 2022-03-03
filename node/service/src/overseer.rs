@@ -178,7 +178,6 @@ where
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
-	use std::iter::FromIterator;
 
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 

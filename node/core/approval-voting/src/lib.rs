@@ -1257,7 +1257,7 @@ async fn handle_approved_ancestor(
 
 	let mut block_descriptions = Vec::new();
 
-	let mut bits: BitVec<Lsb0, u8> = Default::default();
+	let mut bits: BitVec<u8, Lsb0> = Default::default();
 	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
 		// Block entries should be present as the assumption is that
 		// nothing here is finalized. If we encounter any missing block
@@ -1344,7 +1344,7 @@ async fn handle_approved_ancestor(
 								let n_approvals = c_entry
 									.approvals()
 									.iter()
-									.by_val()
+									.by_vals()
 									.enumerate()
 									.filter(|(i, approved)| {
 										*approved && a_entry.is_assigned(ValidatorIndex(*i as _))

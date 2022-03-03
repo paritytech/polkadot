@@ -148,7 +148,7 @@ enum State {
 struct CandidateMeta {
 	state: State,
 	data_available: bool,
-	chunks_stored: BitVec<BitOrderLsb0, u8>,
+	chunks_stored: BitVec<u8, BitOrderLsb0>,
 }
 
 fn query_inner<D: Decode>(
@@ -727,7 +727,7 @@ fn note_block_backed(
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
 			data_available: false,
-			chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			chunks_stored: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 		};
 
 		let prune_at = now + pruning_config.keep_unavailable_for;
@@ -1210,7 +1210,7 @@ fn store_available_data(
 	}
 
 	meta.data_available = true;
-	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
+	meta.chunks_stored = bitvec::bitvec![u8, BitOrderLsb0; 1; n_validators];
 
 	write_meta(&mut tx, &subsystem.config, &candidate_hash, &meta);
 	write_available_data(&mut tx, &subsystem.config, &candidate_hash, &available_data);

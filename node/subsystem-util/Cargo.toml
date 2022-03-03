@@ -2,21 +2,22 @@
 name = "polkadot-node-subsystem-util"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3.21"
 itertools = "0.10"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
 parking_lot = "0.11.2"
 pin-project = "1.0.9"
 rand = "0.8.5"
 thiserror = "1.0.30"
-tracing = "0.1.30"
+fatality = "0.0.6"
+tracing = "0.1.31"
 derive_more = "0.99.17"
-lru = "0.7.2"
+lru = "0.7.3"
 
 polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
@@ -43,5 +44,5 @@ log = "0.4.13"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 lazy_static = "1.4.0"
 polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
-kvdb-shared-tests = "0.8.0"
+kvdb-shared-tests = "0.9.0"
 tempfile = "3.1.0"

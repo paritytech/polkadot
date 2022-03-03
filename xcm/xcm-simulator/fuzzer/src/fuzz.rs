@@ -104,9 +104,9 @@ pub fn relay_ext() -> sp_io::TestExternalities {
 pub type RelayChainPalletXcm = pallet_xcm::Pallet<relay_chain::Runtime>;
 pub type ParachainPalletXcm = pallet_xcm::Pallet<parachain::Runtime>;
 
-fn run_one_input(data: &[u8]) {
+fn run_one_input(mut data: &[u8]) {
 	MockNet::reset();
-	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, data) {
+	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, &mut data) {
 		#[cfg(not(fuzzing))]
 		{
 			println!("Executing message {:?}", m);

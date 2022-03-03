@@ -411,8 +411,9 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	fn verify_signature(who: &T::AccountId, signature: &[u8]) -> Result<(), DispatchError> {
 		// sr25519 always expects a 64 byte signature.
-		ensure!(signature.len() == 64, Error::<T>::InvalidSignature);
-		let signature: AnySignature = sr25519::Signature::from_slice(signature).into();
+		let signature: AnySignature = sr25519::Signature::from_slice(signature)
+			.ok_or(Error::<T>::InvalidSignature)?
+			.into();
 
 		// In Polkadot, the AccountId is always the same as the 32 byte public key.
 		let account_bytes: [u8; 32] = account_to_bytes(who)?;
