@@ -57,9 +57,15 @@ pub(crate) async fn signer_uri_from_string<
 			Hash = Hash,
 		> + EPM::Config,
 >(
-	seed: &str,
+	mut seed_or_path: &str,
 	client: &SharedRpcClient,
 ) -> Result<Signer, Error<T>> {
+	seed_or_path = seed_or_path.trim();
+
+	let seed = match std::fs::read(seed_or_path) {
+		Ok(s) => String::from_utf8(s).map_err(|_| Error::<T>::AccountDoesNotExists)?,
+		Err(_) => seed_or_path.to_string(),
+	};
 	let seed = seed.trim();
 
 	let pair = Pair::from_string(seed, None)?;

@@ -343,6 +343,10 @@ struct DryRunConfig {
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
 	solver: Solver,
+
+	/// Force create a new snapshot, else expect one to exist onchain.
+	#[clap(long)]
+	force_snapshot: bool,
 }
 
 #[derive(Debug, Clone, Parser, PartialEq)]
@@ -352,12 +356,15 @@ struct Opt {
 	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
 
-	/// The seed of a funded account in hex.
+	/// The path to a file containing the seed of the account. If the file is not found, the seed is
+	/// used as-is.
+	///
+	/// Can also be provided via the `SEED` environment variable.
 	///
 	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
 	#[clap(long, short, env = "SEED")]
-	seed: String,
+	seed_or_path: String,
 
 	#[clap(subcommand)]
 	command: Command,
@@ -584,7 +591,7 @@ async fn main() {
 	};
 
 	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&seed, &rpc)
+		signer::signer_uri_from_string::<Runtime>(&shared.seed_or_path, &rpc)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
