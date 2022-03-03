@@ -586,6 +586,7 @@ check-runtime-benchmarks:
 
 check-try-runtime:
   stage:                           stage3
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
     - job:                         test-node-metrics
       artifacts:                   false
