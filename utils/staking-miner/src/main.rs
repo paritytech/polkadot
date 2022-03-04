@@ -75,7 +75,6 @@ macro_rules! construct_runtime_prelude {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
 					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
-					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
 					tip: crate::prelude::Balance,
@@ -87,7 +86,7 @@ macro_rules! construct_runtime_prelude {
 
 					let crate::signer::Signer { account, pair, .. } = signer;
 
-					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution), num_signed_submissions: witness };
+					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution) };
 					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."
@@ -280,6 +279,7 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 }
 
 #[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 enum Command {
 	/// Monitor for the phase being signed, then compute.
 	Monitor(MonitorConfig),
@@ -290,7 +290,8 @@ enum Command {
 }
 
 #[derive(Debug, Clone, Parser)]
-enum Solvers {
+#[cfg_attr(test, derive(PartialEq))]
+enum Solver {
 	SeqPhragmen {
 		#[clap(long, default_value = "10")]
 		iterations: usize,
@@ -345,6 +346,7 @@ frame_support::parameter_types! {
 }
 
 #[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 struct MonitorConfig {
 	/// They type of event to listen to.
 	///
@@ -356,7 +358,7 @@ struct MonitorConfig {
 
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	solver: Solvers,
+	solver: Solver,
 
 	/// Submission strategy to use.
 	///
@@ -372,6 +374,7 @@ struct MonitorConfig {
 }
 
 #[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
@@ -379,13 +382,14 @@ struct EmergencySolutionConfig {
 
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	solver: Solvers,
+	solver: Solver,
 
 	/// The number of top backed winners to take. All are taken, if not provided.
 	take: Option<usize>,
 }
 
 #[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 struct DryRunConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
@@ -393,7 +397,7 @@ struct DryRunConfig {
 
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	solver: Solvers,
+	solver: Solver,
 
 	/// Force create a new snapshot, else expect one to exist onchain.
 	#[clap(long)]
@@ -401,7 +405,9 @@ struct DryRunConfig {
 }
 
 #[derive(Debug, Clone, Parser)]
-struct SharedConfig {
+#[cfg_attr(test, derive(PartialEq))]
+#[clap(author, version, about)]
+struct Opt {
 	/// The `ws` node to connect to.
 	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
@@ -415,13 +421,6 @@ struct SharedConfig {
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
 	#[clap(long, short, env = "SEED")]
 	seed_or_path: String,
-}
-
-#[derive(Debug, Clone, Parser)]
-struct Opt {
-	/// The `ws` node to connect to.
-	#[clap(flatten)]
-	shared: SharedConfig,
 
 	#[clap(subcommand)]
 	command: Command,
@@ -460,7 +459,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
 where
 	T: EPM::Config,
 	S: NposSolver<
@@ -477,17 +476,16 @@ where
 				EPM::ElectionCompute::Signed,
 			)?;
 		}
-		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
-		Ok((solution, witness as u32))
+		Ok(solution)
 	})
 }
 
 /// Mine a solution with the given `solver`.
 fn mine_with<T>(
-	solver: &Solvers,
+	solver: &Solver,
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
 where
 	T: EPM::Config,
 	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
@@ -495,7 +493,7 @@ where
 	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 	match solver {
-		Solvers::SeqPhragmen { iterations } => {
+		Solver::SeqPhragmen { iterations } => {
 			BalanceIterations::set(*iterations);
 			mine_solution::<
 				T,
@@ -506,7 +504,7 @@ where
 				>,
 			>(ext, do_feasibility)
 		},
-		Solvers::PhragMMS { iterations } => {
+		Solver::PhragMMS { iterations } => {
 			BalanceIterations::set(*iterations);
 			mine_solution::<
 				T,
@@ -581,11 +579,11 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { shared, command } = Opt::parse();
-	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
+	let Opt { uri, seed_or_path, command } = Opt::parse();
+	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let rpc = loop {
-		match SharedRpcClient::new(&shared.uri).await {
+		match SharedRpcClient::new(&uri).await {
 			Ok(client) => break client,
 			Err(why) => {
 				log::warn!(
@@ -648,7 +646,7 @@ async fn main() {
 	};
 
 	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&shared.seed_or_path, &rpc)
+		signer::signer_uri_from_string::<Runtime>(&seed_or_path, &rpc)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
@@ -694,5 +692,90 @@ mod tests {
 
 		assert_eq!(polkadot_version.spec_name, "polkadot".into());
 		assert_eq!(kusama_version.spec_name, "kusama".into());
+	}
+
+	#[test]
+	fn cli_monitor_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed-or-path",
+			"//Alice",
+			"monitor",
+			"--listen",
+			"head",
+			"seq-phragmen",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed_or_path: "//Alice".to_string(),
+				command: Command::Monitor(MonitorConfig {
+					listen: "head".to_string(),
+					solver: Solver::SeqPhragmen { iterations: 10 }
+				}),
+			}
+		);
+	}
+
+	#[test]
+	fn cli_dry_run_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed-or-path",
+			"//Alice",
+			"dry-run",
+			"phrag-mms",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed_or_path: "//Alice".to_string(),
+				command: Command::DryRun(DryRunConfig {
+					at: None,
+					solver: Solver::PhragMMS { iterations: 10 },
+					force_snapshot: false,
+				}),
+			}
+		);
+	}
+
+	#[test]
+	fn cli_emergency_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed-or-path",
+			"//Alice",
+			"emergency-solution",
+			"99",
+			"phrag-mms",
+			"--iterations",
+			"1337",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed_or_path: "//Alice".to_string(),
+				command: Command::EmergencySolution(EmergencySolutionConfig {
+					take: Some(99),
+					at: None,
+					solver: Solver::PhragMMS { iterations: 1337 }
+				}),
+			}
+		);
 	}
 }
