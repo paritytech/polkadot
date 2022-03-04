@@ -10,6 +10,10 @@ default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
 chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
 
+[relaychain.default_resources]
+limits = { memory = "8G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
   [[relaychain.node_groups]]
   image = "{{MALUS_IMAGE}}"
   name = "malus-validator"
