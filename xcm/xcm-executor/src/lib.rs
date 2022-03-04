@@ -402,7 +402,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
 	fn process_instruction(&mut self, instr: Instruction<Config::Call>) -> Result<(), XcmError> {
 		log::trace!(
-			target: "xcm::execute",
+			target: "xcm::process_instruction",
 			"=== {:?}",
 			instr
 		);
