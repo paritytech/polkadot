@@ -100,7 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9140,
+	spec_version: 9170,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -682,7 +682,7 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
-	pub const PermanentSlotLeasePeriodLength: u32 = 356;
+	pub const PermanentSlotLeasePeriodLength: u32 = 365;
 	pub const TemporarySlotLeasePeriodLength: u32 = 3;
 	pub const MaxPermanentSlots: u32 = 25;
 	pub const MaxTemporarySlots: u32 = 20;
@@ -941,7 +941,7 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 7 * DAYS;
+	pub const LeasePeriod: BlockNumber = 1 * DAYS;
 }
 
 impl slots::Config for Runtime {

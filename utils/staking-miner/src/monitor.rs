@@ -16,12 +16,16 @@
 
 //! The monitor command.
 
-use crate::{prelude::*, rpc::*, signer::Signer, Error, MonitorConfig, SharedRpcClient};
+use crate::{
+	prelude::*, rpc::*, signer::Signer, Error, MonitorConfig, SharedRpcClient, SubmissionStrategy,
+};
 use codec::Encode;
 use jsonrpsee::core::Error as RpcError;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
+use sp_runtime::Perbill;
 use tokio::sync::mpsc;
+use EPM::{signed::SubmissionIndicesOf, SignedSubmissionOf};
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
@@ -43,21 +47,70 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT<Hash = Hash>>(
 }
 
 /// Ensure that our current `us` have not submitted anything previously.
-async fn ensure_no_previous_solution<
-	T: EPM::Config + frame_system::Config<AccountId = AccountId>,
-	B: BlockT,
->(
-	ext: &mut Ext,
+async fn ensure_no_previous_solution<T, B>(
+	rpc: &SharedRpcClient,
+	at: Hash,
 	us: &AccountId,
-) -> Result<(), Error<T>> {
-	use EPM::signed::SignedSubmissions;
-	ext.execute_with(|| {
-		if <SignedSubmissions<T>>::get().iter().any(|ss| &ss.who == us) {
-			Err(Error::AlreadySubmitted)
-		} else {
-			Ok(())
+) -> Result<(), Error<T>>
+where
+	T: EPM::Config + frame_system::Config<AccountId = AccountId, Hash = Hash>,
+	B: BlockT,
+{
+	let indices_key = StorageKey(EPM::SignedSubmissionIndices::<T>::hashed_key().to_vec());
+
+	let indices: SubmissionIndicesOf<T> = rpc
+		.get_storage_and_decode(&indices_key, Some(at))
+		.await
+		.map_err::<Error<T>, _>(Into::into)?
+		.unwrap_or_default();
+
+	for (_score, idx) in indices {
+		let key = StorageKey(EPM::SignedSubmissionsMap::<T>::hashed_key_for(idx));
+
+		if let Some(submission) = rpc
+			.get_storage_and_decode::<SignedSubmissionOf<T>>(&key, Some(at))
+			.await
+			.map_err::<Error<T>, _>(Into::into)?
+		{
+			if &submission.who == us {
+				return Err(Error::AlreadySubmitted)
+			}
 		}
-	})
+	}
+
+	Ok(())
+}
+
+/// Reads all current solutions and checks the scores according to the `SubmissionStrategy`.
+async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
+	rpc: &SharedRpcClient,
+	at: Hash,
+	score: sp_npos_elections::ElectionScore,
+	strategy: SubmissionStrategy,
+) -> Result<(), Error<T>> {
+	let epsilon = match strategy {
+		// don't care about current scores.
+		SubmissionStrategy::Always => return Ok(()),
+		SubmissionStrategy::IfLeading => Perbill::zero(),
+		SubmissionStrategy::ClaimBetterThan(epsilon) => epsilon,
+	};
+
+	let indices_key = StorageKey(EPM::SignedSubmissionIndices::<T>::hashed_key().to_vec());
+
+	let indices: SubmissionIndicesOf<T> = rpc
+		.get_storage_and_decode(&indices_key, Some(at))
+		.await
+		.map_err::<Error<T>, _>(Into::into)?
+		.unwrap_or_default();
+
+	// BTreeMap is ordered, take last to get the max score.
+	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
+		if !score.strict_threshold_better(curr_max_score, epsilon) {
+			return Err(Error::StrategyNotSatisfied)
+		}
+	}
+
+	Ok(())
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
@@ -131,41 +184,54 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			config: MonitorConfig,
 		) {
 
+			async fn flatten<T>(
+				handle: tokio::task::JoinHandle<Result<T, StakingMinerError>>
+			) -> Result<T, StakingMinerError> {
+				match handle.await {
+					Ok(Ok(result)) => Ok(result),
+					Ok(Err(err)) => Err(err),
+					Err(err) => panic!("tokio spawn task failed; kill task: {:?}", err),
+				}
+			}
+
 			let hash = at.hash();
 			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
-			// if the runtime version has changed, terminate.
+			// block on this because if this fails there is no way to recover from
+			// that error i.e, upgrade/downgrade required.
 			if let Err(err) = crate::check_versions::<Runtime>(&rpc).await {
 				let _ = tx.send(err.into());
 				return;
 			}
 
-			// we prefer doing this check before fetching anything into a remote-ext.
-			if ensure_signed_phase::<Runtime, Block>(&rpc, hash).await.is_err() {
-				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
+			let rpc1 = rpc.clone();
+			let rpc2 = rpc.clone();
+			let account = signer.account.clone();
+
+			let signed_phase_fut = tokio::spawn(async move {
+				ensure_signed_phase::<Runtime, Block>(&rpc1, hash).await
+			});
+
+			let no_prev_sol_fut = tokio::spawn(async move {
+				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
+			});
+
+			// Run the calls in parallel and return once all has completed or any failed.
+			if let Err(err) = tokio::try_join!(flatten(signed_phase_fut), flatten(no_prev_sol_fut)) {
+				log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
 				return;
 			}
 
-			// grab an externalities without staking, just the election snapshot.
-			let mut ext = match crate::create_election_ext::<Runtime, Block>(
-				rpc.clone(),
-				Some(hash),
-				vec![],
-			).await {
+			let mut ext = match crate::create_election_ext::<Runtime, Block>(rpc.clone(), Some(hash), vec![]).await {
 				Ok(ext) => ext,
 				Err(err) => {
-					let _ = tx.send(err);
+					log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
 					return;
 				}
 			};
 
-			if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
-				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
-				return;
-			}
-
 			// mine a solution, and run feasibility check on it as well.
-			let (raw_solution, witness) = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
+			let raw_solution = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
 				Ok(r) => r,
 				Err(err) => {
 					let _ = tx.send(err.into());
@@ -173,7 +239,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				}
 			};
 
-			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+			let score = raw_solution.score;
+			log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
 
 			let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(hash)).await {
 				Ok(maybe_account) => {
@@ -197,8 +264,27 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				era.death(current_block.into()),
 			);
 
-			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
+
+			let rpc1 = rpc.clone();
+			let rpc2 = rpc.clone();
+
+			let ensure_no_better_fut = tokio::spawn(async move {
+				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy).await
+			});
+
+			let ensure_signed_phase_fut = tokio::spawn(async move {
+				ensure_signed_phase::<Runtime, Block>(&rpc2, hash).await
+			});
+
+			// Run the calls in parallel and return once all has completed or any failed.
+			if tokio::try_join!(
+				flatten(ensure_no_better_fut),
+				flatten(ensure_signed_phase_fut),
+			).is_err() {
+				return;
+			}
 
 			let mut tx_subscription = match rpc.watch_extrinsic(&bytes).await {
 				Ok(sub) => sub,
