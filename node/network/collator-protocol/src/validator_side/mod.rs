@@ -54,9 +54,9 @@ use polkadot_subsystem::{
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
 };
 
-use crate::error::FatalResult;
+use crate::error::Result;
 
-use super::{modify_reputation, Result, LOG_TARGET};
+use super::{modify_reputation, LOG_TARGET};
 
 #[cfg(test)]
 mod tests;
@@ -1132,7 +1132,7 @@ pub(crate) async fn run<Context>(
 	keystore: SyncCryptoStorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
-) -> FatalResult<()>
+) -> std::result::Result<(), crate::error::FatalError>
 where
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,

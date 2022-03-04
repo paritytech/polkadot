@@ -36,13 +36,14 @@ use futures::{
 use lru::LruCache;
 use rand::seq::SliceRandom;
 
+use fatality::Nested;
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
 #[cfg(not(test))]
 use polkadot_node_network_protocol::request_response::CHUNK_REQUEST_TIMEOUT;
 use polkadot_node_network_protocol::{
 	request_response::{
-		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
-		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests,
+		self as req_res, outgoing::RequestError, v1 as request_v1, IncomingRequestReceiver,
+		OutgoingRequest, Recipient, Requests,
 	},
 	IfDisconnected, UnifiedReputationChange as Rep,
 };
@@ -992,7 +993,7 @@ impl AvailabilityRecoverySubsystem {
 					}
 				}
 				in_req = recv_req => {
-					match in_req {
+					match in_req.into_nested().map_err(|fatal| SubsystemError::with_origin("availability-recovery", fatal))? {
 						Ok(req) => {
 							match query_full_data(&mut ctx, req.payload.candidate_hash).await {
 								Ok(res) => {
@@ -1009,11 +1010,10 @@ impl AvailabilityRecoverySubsystem {
 								}
 							}
 						}
-						Err(incoming::Error::Fatal(f)) => return Err(SubsystemError::with_origin("availability-recovery", f)),
-						Err(incoming::Error::NonFatal(err)) => {
+						Err(jfyi) => {
 							tracing::debug!(
 								target: LOG_TARGET,
-								?err,
+								error = ?jfyi,
 								"Decoding incoming request failed"
 							);
 							continue

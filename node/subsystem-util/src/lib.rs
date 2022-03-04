@@ -87,6 +87,9 @@ pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
 
+/// Database trait for subsystem.
+pub mod database;
+
 mod determine_new_blocks;
 
 #[cfg(test)]
@@ -250,8 +253,6 @@ pub async fn sign(
 	key: &ValidatorId,
 	data: &[u8],
 ) -> Result<Option<ValidatorSignature>, KeystoreError> {
-	use std::convert::TryInto;
-
 	let signature =
 		CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
 

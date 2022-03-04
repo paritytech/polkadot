@@ -24,7 +24,8 @@ use polkadot_primitives::v1::BlockNumber;
 
 use futures::prelude::*;
 
-use crate::error::{Error, Result};
+use crate::error::Result;
+use fatality::Nested;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
@@ -62,13 +63,16 @@ where
 {
 	loop {
 		let res = run_until_error(&mut ctx, &subsystem).await;
-		match res {
-			Err(e) =>
-				if let Error::Fatal(_) = e {
-					break
-				},
-			Ok(()) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+		match res.into_nested() {
+			Err(fatal) => {
+				tracing::error!(target: LOG_TARGET, "Observed fatal issue: {:?}", fatal);
+				break
+			},
+			Ok(Err(jfyi)) => {
+				tracing::debug!(target: LOG_TARGET, "Observed issue: {:?}", jfyi);
+			},
+			Ok(Ok(())) => {
+				tracing::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 				break
 			},
 		}

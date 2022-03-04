@@ -1,15 +1,15 @@
 [package]
 name = "polkadot-node-primitives"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Primitives types for the Node-side"
 
 [dependencies]
 bounded-vec = "0.5"
-futures = "0.3.19"
+futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "master" }

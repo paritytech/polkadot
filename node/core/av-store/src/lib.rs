@@ -28,8 +28,8 @@ use std::{
 
 use futures::{channel::oneshot, future, select, FutureExt};
 use futures_timer::Delay;
-use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
@@ -148,11 +148,11 @@ enum State {
 struct CandidateMeta {
 	state: State,
 	data_available: bool,
-	chunks_stored: BitVec<BitOrderLsb0, u8>,
+	chunks_stored: BitVec<u8, BitOrderLsb0>,
 }
 
 fn query_inner<D: Decode>(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	column: u32,
 	key: &[u8],
 ) -> Result<Option<D>, Error> {
@@ -181,7 +181,7 @@ fn write_available_data(
 }
 
 fn load_available_data(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	hash: &CandidateHash,
 ) -> Result<Option<AvailableData>, Error> {
@@ -197,7 +197,7 @@ fn delete_available_data(tx: &mut DBTransaction, config: &Config, hash: &Candida
 }
 
 fn load_chunk(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
@@ -231,7 +231,7 @@ fn delete_chunk(
 }
 
 fn load_meta(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	hash: &CandidateHash,
 ) -> Result<Option<CandidateMeta>, Error> {
@@ -443,7 +443,7 @@ impl Clock for SystemClock {
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	config: Config,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	known_blocks: KnownUnfinalizedBlocks,
 	finalized_number: Option<BlockNumber>,
 	metrics: Metrics,
@@ -452,7 +452,7 @@ pub struct AvailabilityStoreSubsystem {
 
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
-	pub fn new(db: Arc<dyn KeyValueDB>, config: Config, metrics: Metrics) -> Self {
+	pub fn new(db: Arc<dyn Database>, config: Config, metrics: Metrics) -> Self {
 		Self::with_pruning_config_and_clock(
 			db,
 			config,
@@ -464,7 +464,7 @@ impl AvailabilityStoreSubsystem {
 
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	fn with_pruning_config_and_clock(
-		db: Arc<dyn KeyValueDB>,
+		db: Arc<dyn Database>,
 		config: Config,
 		pruning_config: PruningConfig,
 		clock: Box<dyn Clock>,
@@ -661,7 +661,7 @@ where
 
 async fn process_new_head<Context>(
 	ctx: &mut Context,
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
 	pruning_config: &PruningConfig,
@@ -711,7 +711,7 @@ where
 }
 
 fn note_block_backed(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
 	pruning_config: &PruningConfig,
@@ -727,7 +727,7 @@ fn note_block_backed(
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
 			data_available: false,
-			chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			chunks_stored: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 		};
 
 		let prune_at = now + pruning_config.keep_unavailable_for;
@@ -740,7 +740,7 @@ fn note_block_backed(
 }
 
 fn note_block_included(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
 	pruning_config: &PruningConfig,
@@ -1128,7 +1128,7 @@ fn process_message(
 
 // Ok(true) on success, Ok(false) on failure, and Err on internal error.
 fn store_chunk(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	candidate_hash: CandidateHash,
 	chunk: ErasureChunk,
@@ -1210,7 +1210,7 @@ fn store_available_data(
 	}
 
 	meta.data_available = true;
-	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
+	meta.chunks_stored = bitvec::bitvec![u8, BitOrderLsb0; 1; n_validators];
 
 	write_meta(&mut tx, &subsystem.config, &candidate_hash, &meta);
 	write_available_data(&mut tx, &subsystem.config, &candidate_hash, &available_data);
@@ -1222,7 +1222,7 @@ fn store_available_data(
 	Ok(())
 }
 
-fn prune_all(db: &Arc<dyn KeyValueDB>, config: &Config, clock: &dyn Clock) -> Result<(), Error> {
+fn prune_all(db: &Arc<dyn Database>, config: &Config, clock: &dyn Clock) -> Result<(), Error> {
 	let now = clock.now()?;
 	let (range_start, range_end) = pruning_range(now);
 

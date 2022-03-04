@@ -105,8 +105,8 @@ fn test_contains_duplicates_in_sorted_iter() {
 fn test_dispute_state_flag_from_state() {
 	assert_eq!(
 		DisputeStateFlags::from_state(&DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 0, 0, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 0, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		}),
@@ -115,8 +115,8 @@ fn test_dispute_state_flag_from_state() {
 
 	assert_eq!(
 		DisputeStateFlags::from_state(&DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 1, 1, 1, 1, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 1, 1, 1, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		}),
@@ -125,8 +125,8 @@ fn test_dispute_state_flag_from_state() {
 
 	assert_eq!(
 		DisputeStateFlags::from_state(&DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 0, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 1, 1, 1, 1, 1, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 1, 1, 1, 1, 1, 0, 0],
 			start: 0,
 			concluded_at: None,
 		}),
@@ -138,8 +138,8 @@ fn test_dispute_state_flag_from_state() {
 fn test_import_new_participant_spam_inc() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 0, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		},
@@ -165,8 +165,8 @@ fn test_import_new_participant_spam_inc() {
 	assert_eq!(
 		summary.state,
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		},
@@ -174,15 +174,15 @@ fn test_import_new_participant_spam_inc() {
 	assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
-	assert_eq!(summary.new_participants, bitvec![BitOrderLsb0, u8; 0, 0, 1, 0, 0, 0, 0, 0]);
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
 }
 
 #[test]
 fn test_import_prev_participant_spam_dec_confirmed() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 1, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		},
@@ -195,8 +195,8 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 	assert_eq!(
 		summary.state,
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 1, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		},
@@ -207,7 +207,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 	);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
-	assert_eq!(summary.new_participants, bitvec![BitOrderLsb0, u8; 0, 0, 1, 0, 0, 0, 0, 0]);
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::CONFIRMED);
 }
 
@@ -215,8 +215,8 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 1, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		},
@@ -234,8 +234,8 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 	assert_eq!(
 		summary.state,
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 1, 1, 1, 1, 1, 1, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 1, 1, 1, 1, 1, 0],
 			start: 0,
 			concluded_at: Some(0),
 		},
@@ -246,7 +246,7 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 	);
 	assert_eq!(summary.slash_for, vec![ValidatorIndex(0), ValidatorIndex(2)]);
 	assert!(summary.slash_against.is_empty());
-	assert_eq!(summary.new_participants, bitvec![BitOrderLsb0, u8; 0, 0, 1, 1, 1, 1, 1, 0]);
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 1, 1, 1, 1, 0]);
 	assert_eq!(
 		summary.new_flags,
 		DisputeStateFlags::CONFIRMED | DisputeStateFlags::AGAINST_SUPERMAJORITY,
@@ -257,8 +257,8 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 fn test_import_slash_against() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 1, 0, 0, 0, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 0, 0, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		},
@@ -275,8 +275,8 @@ fn test_import_slash_against() {
 	assert_eq!(
 		summary.state,
 		DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 1, 1, 1, 0, 1, 1],
-			validators_against: bitvec![BitOrderLsb0, u8; 0, 1, 0, 0, 0, 1, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 1, 1, 0, 1, 1],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 0, 0, 1, 0, 0],
 			start: 0,
 			concluded_at: Some(0),
 		},
@@ -284,7 +284,7 @@ fn test_import_slash_against() {
 	assert!(summary.spam_slot_changes.is_empty());
 	assert!(summary.slash_for.is_empty());
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
-	assert_eq!(summary.new_participants, bitvec![BitOrderLsb0, u8; 0, 0, 0, 1, 1, 1, 1, 1]);
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::FOR_SUPERMAJORITY);
 }
 
@@ -1021,8 +1021,8 @@ fn test_provide_multi_dispute_success_and_other() {
 					5,
 					candidate_hash.clone(),
 					DisputeState {
-						validators_for: bitvec![BitOrderLsb0, u8; 0, 0, 0, 0, 0, 1, 0],
-						validators_against: bitvec![BitOrderLsb0, u8; 1, 1, 1, 0, 1, 0, 1],
+						validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 1, 0],
+						validators_against: bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 1, 0, 1],
 						start: 6,
 						concluded_at: Some(6), // 5 vote against
 					}
@@ -1031,8 +1031,8 @@ fn test_provide_multi_dispute_success_and_other() {
 					3,
 					candidate_hash.clone(),
 					DisputeState {
-						validators_for: bitvec![BitOrderLsb0, u8; 1, 1, 0, 1, 1, 0, 1],
-						validators_against: bitvec![BitOrderLsb0, u8; 0, 0, 1, 0, 0, 1, 0],
+						validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 1, 1, 0, 1],
+						validators_against: bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 1, 0],
 						start: 6,
 						concluded_at: Some(6), // 5 vote for
 					}
@@ -1041,8 +1041,8 @@ fn test_provide_multi_dispute_success_and_other() {
 					4,
 					candidate_hash.clone(),
 					DisputeState {
-						validators_for: bitvec![BitOrderLsb0, u8; 0, 0, 0, 1, 0, 0, 0],
-						validators_against: bitvec![BitOrderLsb0, u8; 0, 0, 1, 0, 0, 0, 0],
+						validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 0, 0, 0],
+						validators_against: bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0],
 						start: 6,
 						concluded_at: None,
 					}
@@ -1154,8 +1154,8 @@ fn test_revert_and_freeze_merges() {
 fn test_has_supermajority_against() {
 	assert_eq!(
 		has_supermajority_against(&DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 1, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 1, 1, 1, 1, 1, 0, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 1, 1, 1, 1, 1, 0, 0, 0],
 			start: 0,
 			concluded_at: None,
 		}),
@@ -1164,8 +1164,8 @@ fn test_has_supermajority_against() {
 
 	assert_eq!(
 		has_supermajority_against(&DisputeState {
-			validators_for: bitvec![BitOrderLsb0, u8; 1, 1, 0, 0, 0, 0, 0, 0],
-			validators_against: bitvec![BitOrderLsb0, u8; 1, 1, 1, 1, 1, 1, 0, 0],
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 1, 1, 1, 1, 1, 1, 0, 0],
 			start: 0,
 			concluded_at: None,
 		}),
@@ -1180,23 +1180,23 @@ fn test_decrement_spam() {
 	// Test confirm is no-op
 	let mut spam_slots = original_spam_slots.clone();
 	let dispute_state_confirm = DisputeState {
-		validators_for: bitvec![BitOrderLsb0, u8; 1, 1, 0, 0, 0, 0, 0, 0],
-		validators_against: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
+		validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 0, 0, 0, 0, 0],
+		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
 		start: 0,
 		concluded_at: None,
 	};
 	assert_eq!(DisputeStateFlags::from_state(&dispute_state_confirm), DisputeStateFlags::CONFIRMED);
 	assert_eq!(
 		decrement_spam(spam_slots.as_mut(), &dispute_state_confirm),
-		bitvec![BitOrderLsb0, u8; 1, 1, 1, 0, 0, 0, 0, 0],
+		bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 0, 0, 0, 0],
 	);
 	assert_eq!(spam_slots, original_spam_slots);
 
 	// Test not confirm is decreasing spam
 	let mut spam_slots = original_spam_slots.clone();
 	let dispute_state_no_confirm = DisputeState {
-		validators_for: bitvec![BitOrderLsb0, u8; 1, 0, 0, 0, 0, 0, 0, 0],
-		validators_against: bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
+		validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
+		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
 		start: 0,
 		concluded_at: None,
 	};
@@ -1206,7 +1206,7 @@ fn test_decrement_spam() {
 	);
 	assert_eq!(
 		decrement_spam(spam_slots.as_mut(), &dispute_state_no_confirm),
-		bitvec![BitOrderLsb0, u8; 1, 0, 1, 0, 0, 0, 0, 0],
+		bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
 	);
 	assert_eq!(spam_slots, vec![0, 1, 1, 3, 4, 5, 6, 7]);
 }
@@ -2090,8 +2090,8 @@ fn filter_removes_concluded_ancient() {
 			&1,
 			&candidate_hash_a,
 			DisputeState {
-				validators_for: bitvec![BitOrderLsb0, u8; 0; 4],
-				validators_against: bitvec![BitOrderLsb0, u8; 1; 4],
+				validators_for: bitvec![u8, BitOrderLsb0; 0; 4],
+				validators_against: bitvec![u8, BitOrderLsb0; 1; 4],
 				start: 0,
 				concluded_at: Some(0),
 			},
@@ -2101,8 +2101,8 @@ fn filter_removes_concluded_ancient() {
 			&1,
 			&candidate_hash_b,
 			DisputeState {
-				validators_for: bitvec![BitOrderLsb0, u8; 0; 4],
-				validators_against: bitvec![BitOrderLsb0, u8; 1; 4],
+				validators_for: bitvec![u8, BitOrderLsb0; 0; 4],
+				validators_against: bitvec![u8, BitOrderLsb0; 1; 4],
 				start: 0,
 				concluded_at: Some(1),
 			},
