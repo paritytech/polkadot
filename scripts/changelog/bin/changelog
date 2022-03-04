@@ -65,6 +65,7 @@ end
 
 KUSAMA_DIGEST = ENV['KUSAMA_DIGEST'] || 'digests/kusama_srtool_output.json'
 WESTEND_DIGEST = ENV['WESTEND_DIGEST'] || 'digests/westend_srtool_output.json'
+ROCOCO_DIGEST = ENV['ROCOCO_DIGEST'] || 'digests/rococo_srtool_output.json'
 POLKADOT_DIGEST = ENV['POLKADOT_DIGEST'] || 'digests/polkadot_srtool_output.json'
 
 # Here we compose all the pieces together into one
@@ -74,6 +75,7 @@ cmd = format('jq \
     --slurpfile polkadot %s \
     --slurpfile srtool_kusama %s \
     --slurpfile srtool_westend %s \
+    --slurpfile srtool_rococo %s \
     --slurpfile srtool_polkadot %s \
     -n \'{
             substrate: $substrate[0],
@@ -81,10 +83,12 @@ cmd = format('jq \
         srtool: [
         { name: "kusama", data: $srtool_kusama[0] },
         { name: "westend", data: $srtool_westend[0] },
+        { name: "rococo", data: $srtool_rococo[0] },
         { name: "polkadot", data: $srtool_polkadot[0] }
     ] }\' > context.json', substrate_data, polkadot_data,
              KUSAMA_DIGEST,
              WESTEND_DIGEST,
+             ROCOCO_DIGEST,
              POLKADOT_DIGEST)
 system(cmd)
 

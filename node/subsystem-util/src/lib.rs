@@ -87,6 +87,9 @@ pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
 
+/// Database trait for subsystem.
+pub mod database;
+
 mod determine_new_blocks;
 
 #[cfg(test)]
