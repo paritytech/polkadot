@@ -302,7 +302,9 @@ enum Solver {
 	},
 }
 
+/// Submission strategy to use.
 #[derive(Debug, Copy, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 enum SubmissionStrategy {
 	// Only submit if at the time, we are the best.
 	IfLeading,
@@ -324,6 +326,8 @@ impl FromStr for SubmissionStrategy {
 	type Err = String;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let s = s.trim();
+
 		let res = if s == "if-leading" {
 			Self::IfLeading
 		} else if s == "always" {
@@ -716,7 +720,8 @@ mod tests {
 				seed_or_path: "//Alice".to_string(),
 				command: Command::Monitor(MonitorConfig {
 					listen: "head".to_string(),
-					solver: Solver::SeqPhragmen { iterations: 10 }
+					solver: Solver::SeqPhragmen { iterations: 10 },
+					submission_strategy: SubmissionStrategy::IfLeading,
 				}),
 			}
 		);
@@ -776,6 +781,18 @@ mod tests {
 					solver: Solver::PhragMMS { iterations: 1337 }
 				}),
 			}
+		);
+	}
+
+	#[test]
+	fn submission_strategy_from_str_works() {
+		use std::str::FromStr;
+
+		assert_eq!(SubmissionStrategy::from_str("if-leading"), Ok(SubmissionStrategy::IfLeading));
+		assert_eq!(SubmissionStrategy::from_str("always"), Ok(SubmissionStrategy::Always));
+		assert_eq!(
+			SubmissionStrategy::from_str("  percent-better 99   "),
+			Ok(SubmissionStrategy::ClaimBetterThan(Perbill::from_percent(99)))
 		);
 	}
 }
