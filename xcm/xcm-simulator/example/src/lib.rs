@@ -263,7 +263,7 @@ mod tests {
 				vec![Xcm(vec![NoteUnlockable {
 					owner: (Parent, Parachain(2)).into(),
 					asset: (Parent, locked_amount).into()
-				},])]
+				}])]
 			);
 		});
 	}
@@ -293,7 +293,10 @@ mod tests {
 				relay_chain::Balances::free_balance(para_account_id(1)),
 				INITIAL_BALANCE - send_amount
 			);
-			assert_eq!(relay_chain::Balances::free_balance(para_account_id(2)), send_amount);
+			assert_eq!(
+				relay_chain::Balances::free_balance(para_account_id(2)),
+				INITIAL_BALANCE + send_amount
+			);
 		});
 	}
 
@@ -336,7 +339,10 @@ mod tests {
 				INITIAL_BALANCE - send_amount
 			);
 			// Deposit executed
-			assert_eq!(relay_chain::Balances::free_balance(para_account_id(2)), send_amount);
+			assert_eq!(
+				relay_chain::Balances::free_balance(para_account_id(2)),
+				INITIAL_BALANCE + send_amount
+			);
 		});
 
 		// Check that QueryResponse message was received
