@@ -25,7 +25,6 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
