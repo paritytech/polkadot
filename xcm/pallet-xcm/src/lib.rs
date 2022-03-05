@@ -52,7 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse,
+		VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -610,6 +611,11 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	/// Global suspension state of the XCM executor.
+	#[pallet::storage]
+	#[pallet::getter(fn suspended)]
+	pub(super) type XcmExecutionSuspended<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		/// The default version to encode outgoing XCM messages with.
@@ -1089,6 +1095,18 @@ pub mod pallet {
 				fee_asset_item,
 				Some(weight_limit),
 			)
+		}
+
+		/// Set or unset the global suspension state of the XCM executor.
+		///
+		/// - `origin`: Must be Root.
+		/// - `suspended`: `true` to suspend, `false` to resume.
+		#[pallet::call_index(10)]
+		#[pallet::weight(100_000_000u64)]
+		pub fn force_suspension(origin: OriginFor<T>, suspended: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			XcmExecutionSuspended::<T>::set(suspended);
+			Ok(())
 		}
 	}
 }
@@ -2033,6 +2051,17 @@ impl<T: Config> OnResponse for Pallet<T> {
 				Weight::zero()
 			},
 		}
+	}
+}
+
+impl<T: Config> CheckSuspension for Pallet<T> {
+	fn is_suspended<Call>(
+		_origin: &MultiLocation,
+		_instructions: &mut [Instruction<Call>],
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> bool {
+		Self::suspended()
 	}
 }
 

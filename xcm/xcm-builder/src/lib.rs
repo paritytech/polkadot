@@ -49,7 +49,7 @@ mod barriers;
 pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
-	TakeWeightCredit, WithComputedOrigin,
+	RespectSuspension, TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;
