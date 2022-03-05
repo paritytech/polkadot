@@ -262,7 +262,7 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(origin: impl Into<MultiLocation>, message_hash: XcmHash, ) -> Self {
+	pub fn new(origin: impl Into<MultiLocation>, message_hash: XcmHash) -> Self {
 		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
@@ -285,17 +285,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	pub fn bench_process(
-		&mut self,
-		xcm: Xcm<Config::Call>,
-	) -> Result<(), ExecutorError> {
+	pub fn bench_process(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
 		self.process(xcm)
 	}
 
-	fn process(
-		&mut self,
-		xcm: Xcm<Config::Call>,
-	) -> Result<(), ExecutorError> {
+	fn process(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
 		log::trace!(
 			target: "xcm::process",
 			"origin: {:?}, total_surplus/refunded: {:?}/{:?}, error_handler_weight: {:?}",
@@ -429,10 +423,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
-	fn process_instruction(
-		&mut self,
-		instr: Instruction<Config::Call>,
-	) -> Result<(), XcmError> {
+	fn process_instruction(&mut self, instr: Instruction<Config::Call>) -> Result<(), XcmError> {
 		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
@@ -460,7 +451,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(&asset, origin, &beneficiary, &self.context)?;
+					Config::AssetTransactor::beam_asset(
+						&asset,
+						origin,
+						&beneficiary,
+						&self.context,
+					)?;
 				}
 				Ok(())
 			},
@@ -471,7 +467,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest, &self.context)?;
 				}
 				let reanchor_context = Config::LocationInverter::universal_location().into();
-				assets.reanchor(&dest, &reanchor_context).map_err(|()| XcmError::MultiLocationFull)?;
+				assets
+					.reanchor(&dest, &reanchor_context)
+					.map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
@@ -675,7 +673,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// We don't allow derivative origins to subscribe since it would otherwise pose a
 				// DoS risk.
 				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
-				Config::SubscriptionService::start(origin, query_id, max_response_weight, &self.context)
+				Config::SubscriptionService::start(
+					origin,
+					query_id,
+					max_response_weight,
+					&self.context,
+				)
 			},
 			UnsubscribeVersion => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
@@ -810,7 +813,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			ExchangeAsset { give, want, maximal } => {
 				let give = self.holding.saturating_take(give);
-				let r = Config::AssetExchanger::exchange_asset(self.origin_ref(), give, &want, maximal);
+				let r =
+					Config::AssetExchanger::exchange_asset(self.origin_ref(), give, &want, maximal);
 				let completed = r.is_ok();
 				let received = r.unwrap_or_else(|a| a);
 				for asset in received.into_assets_iter() {
@@ -898,7 +902,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		destination: &MultiLocation,
 	) -> Result<MultiAsset, XcmError> {
 		let reanchor_context = Config::LocationInverter::universal_location().into();
-		asset.reanchored(&destination, &reanchor_context).map_err(|()| XcmError::ReanchorFailed)
+		asset
+			.reanchored(&destination, &reanchor_context)
+			.map_err(|()| XcmError::ReanchorFailed)
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.
