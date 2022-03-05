@@ -15,8 +15,29 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::weights::Weight;
+use parity_scale_codec::{Decode, Encode};
 use sp_std::result::Result;
 use xcm::latest::{Instruction, MultiLocation};
+
+/// The reason why a given XCM is not permitted to execute.
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+pub enum RejectReason {
+	/// The supplied weight credit is not enough to pay for the weight required.
+	InsufficientCredit,
+	/// The series of `DescendOrigin` instructions would overflow the origin MultiLocation.
+	OriginMultiLocationTooLong,
+	/// Does not pass the barrier yet, but might pass in a later block.
+	Suspended,
+	/// Barrier does not recognize the incoming XCM format.
+	UnexpectedMessageFormat,
+	/// The receiving chain did not expect a response XCM from the origin.
+	UnexpectedResponse,
+	/// The origin is not trusted to pass this barrier.
+	UntrustedOrigin,
+	/// The incoming XCM contains a weight limit that is lower than the required weight, as weighed
+	/// by the receiver.
+	WeightLimitTooLow,
+}
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
@@ -36,7 +57,7 @@ pub trait ShouldExecute {
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()>;
+	) -> Result<(), RejectReason>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -46,21 +67,59 @@ impl ShouldExecute for Tuple {
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
+		let mut reason = RejectReason::UnexpectedMessageFormat;
 		for_tuples!( #(
-			match Tuple::should_execute(origin, instructions, max_weight, weight_credit) {
+			reason = match Tuple::should_execute(origin, instructions, max_weight, weight_credit) {
 				Ok(()) => return Ok(()),
-				_ => (),
-			}
+				Err(e) => e,
+			};
 		)* );
 		log::trace!(
 			target: "xcm::should_execute",
-			"did not pass barrier: origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			"did not pass barrier: origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}, reason: {:?}",
 			origin,
 			instructions,
 			max_weight,
 			weight_credit,
+			reason,
 		);
-		Err(())
+		Err(reason)
+	}
+}
+
+/// Trait to determine whether the execution engine is suspended from executing a given XCM.
+///
+/// The trait method is given the same parameters as `ShouldExecute::should_execute`, so that the
+/// implementer will have all the context necessary to determine whether or not to suspend the
+/// XCM executor.
+///
+/// Can be chained together in tuples to have multiple rounds of checks. If all of the tuple
+/// elements returns false, then execution is not suspended. Otherwise, execution is suspended
+/// if any of the tuple elements returns true.
+pub trait CheckSuspension {
+	fn is_suspended<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> bool;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl CheckSuspension for Tuple {
+	fn is_suspended<Call>(
+		origin: &MultiLocation,
+		instruction: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> bool {
+		for_tuples!( #(
+			if Tuple::is_suspended(origin, instruction, max_weight, weight_credit) {
+				return true
+			}
+		)* );
+
+		false
 	}
 }

@@ -16,8 +16,9 @@
 
 use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
 pub use crate::{
-	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
+	barriers::RespectSuspension, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
+	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, LocationInverter,
+	TakeWeightCredit,
 };
 pub use frame_support::{
 	dispatch::{
@@ -30,7 +31,7 @@ pub use frame_support::{
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_std::{
-	cell::RefCell,
+	cell::{Cell, RefCell},
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	fmt::Debug,
 	marker::PhantomData,
@@ -38,8 +39,8 @@ pub use sp_std::{
 pub use xcm::latest::prelude::*;
 pub use xcm_executor::{
 	traits::{
-		AssetExchange, AssetLock, ConvertOrigin, Enact, ExportXcm, FeeManager, FeeReason,
-		FilterAssetLocation, LockError, OnResponse, TransactAsset, UniversalLocation,
+		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
+		FeeReason, FilterAssetLocation, LockError, OnResponse, TransactAsset, UniversalLocation,
 	},
 	Assets, Config,
 };
@@ -111,6 +112,7 @@ thread_local! {
 		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<(), SendError>,
 	)>> = RefCell::new(None);
 	pub static SEND_PRICE: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
+	pub static SUSPENDED: Cell<bool> = Cell::new(false);
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
@@ -367,6 +369,24 @@ parameter_types! {
 	pub static MaxInstructions: u32 = 100;
 }
 
+pub struct TestSuspender;
+impl CheckSuspension for TestSuspender {
+	fn is_suspended<Call>(
+		_origin: &MultiLocation,
+		_instructions: &mut [Instruction<Call>],
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> bool {
+		SUSPENDED.with(|s| s.get())
+	}
+}
+
+impl TestSuspender {
+	pub fn set_suspended(suspended: bool) {
+		SUSPENDED.with(|s| s.set(suspended));
+	}
+}
+
 pub type TestBarrier = (
 	TakeWeightCredit,
 	AllowKnownQueryResponses<TestResponseHandler>,
@@ -576,7 +596,7 @@ impl Config for TestConfig {
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
 	type LocationInverter = LocationInverter<ExecutorUniversalLocation>;
-	type Barrier = TestBarrier;
+	type Barrier = RespectSuspension<TestBarrier, TestSuspender>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;

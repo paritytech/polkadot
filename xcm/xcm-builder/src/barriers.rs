@@ -30,7 +30,7 @@ use xcm::latest::{
 	MultiLocation,
 	WeightLimit::*,
 };
-use xcm_executor::traits::{OnResponse, ShouldExecute};
+use xcm_executor::traits::{CheckSuspension, OnResponse, RejectReason, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
 ///
@@ -44,13 +44,14 @@ impl ShouldExecute for TakeWeightCredit {
 		_instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
 		log::trace!(
 			target: "xcm::barriers",
 			"TakeWeightCredit origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			_origin, _instructions, max_weight, weight_credit,
 		);
-		*weight_credit = weight_credit.checked_sub(max_weight).ok_or(())?;
+		*weight_credit =
+			weight_credit.checked_sub(max_weight).ok_or(RejectReason::InsufficientCredit)?;
 		Ok(())
 	}
 }
@@ -67,37 +68,40 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowTopLevelPaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, _weight_credit,
 		);
 
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), RejectReason::UntrustedOrigin);
 		let mut iter = instructions.iter_mut();
-		let i = iter.next().ok_or(())?;
+		let i = iter.next().ok_or(RejectReason::UnexpectedMessageFormat)?;
 		match i {
 			ReceiveTeleportedAsset(..) |
 			WithdrawAsset(..) |
 			ReserveAssetDeposited(..) |
 			ClaimAsset { .. } => (),
-			_ => return Err(()),
+			_ => return Err(RejectReason::UnexpectedMessageFormat),
 		}
-		let mut i = iter.next().ok_or(())?;
+		let mut i = iter.next().ok_or(RejectReason::UnexpectedMessageFormat)?;
 		while let ClearOrigin = i {
-			i = iter.next().ok_or(())?;
+			i = iter.next().ok_or(RejectReason::UnexpectedMessageFormat)?;
 		}
 		match i {
-			BuyExecution { weight_limit: Limited(ref mut weight), .. } if *weight >= max_weight => {
-				*weight = max_weight;
-				Ok(())
-			},
+			BuyExecution { weight_limit: Limited(ref mut weight), .. } =>
+				if *weight >= max_weight {
+					*weight = max_weight;
+					Ok(())
+				} else {
+					Err(RejectReason::WeightLimitTooLow)
+				},
 			BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
 				*weight_limit = Limited(max_weight);
 				Ok(())
 			},
-			_ => Err(()),
+			_ => Err(RejectReason::UnexpectedMessageFormat),
 		}
 	}
 }
@@ -161,7 +165,7 @@ impl<
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
 		log::trace!(
 			target: "xcm::barriers",
 			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
@@ -171,7 +175,7 @@ impl<
 		let mut skipped = 0;
 		// NOTE: We do not check the validity of `UniversalOrigin` here, meaning that a malicious
 		// origin could place a `UniversalOrigin` in order to spoof some location which gets free
-		// execution. This technical could get it past the barrier condition, but the execution
+		// execution. This technically could get it past the barrier condition, but the execution
 		// would instantly fail since the first instruction would cause an error with the
 		// invalid UniversalOrigin.
 		while skipped < MaxPrefixes::get() as usize {
@@ -182,7 +186,9 @@ impl<
 					actual_origin = X1(new_global.clone()).relative_to(&LocalUniversal::get());
 				},
 				Some(DescendOrigin(j)) => {
-					actual_origin.append_with(j.clone()).map_err(|_| ())?;
+					actual_origin
+						.append_with(j.clone())
+						.map_err(|_| RejectReason::OriginMultiLocationTooLong)?;
 				},
 				_ => break,
 			}
@@ -197,6 +203,28 @@ impl<
 	}
 }
 
+/// Barrier condition that allows for a `SuspensionChecker` that controls whether or not the XCM
+/// executor will be suspended from executing the given XCM.
+pub struct RespectSuspension<Inner, SuspensionChecker>(PhantomData<(Inner, SuspensionChecker)>);
+impl<Inner, SuspensionChecker> ShouldExecute for RespectSuspension<Inner, SuspensionChecker>
+where
+	Inner: ShouldExecute,
+	SuspensionChecker: CheckSuspension,
+{
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> Result<(), RejectReason> {
+		if SuspensionChecker::is_suspended(origin, instructions, max_weight, weight_credit) {
+			Err(RejectReason::Suspended)
+		} else {
+			Inner::should_execute(origin, instructions, max_weight, weight_credit)
+		}
+	}
+}
+
 /// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) without
 /// any payments.
 /// Use only for executions from trusted origin groups.
@@ -207,13 +235,13 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), RejectReason::UntrustedOrigin);
 		Ok(())
 	}
 }
@@ -238,17 +266,21 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
 		match instructions.first() {
-			Some(QueryResponse { query_id, querier, .. })
-				if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>
-				Ok(()),
-			_ => Err(()),
+			Some(QueryResponse { query_id, querier, .. }) => {
+				if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) {
+					Ok(())
+				} else {
+					Err(RejectReason::UnexpectedResponse)
+				}
+			},
+			_ => Err(RejectReason::UnexpectedMessageFormat),
 		}
 	}
 }
@@ -262,16 +294,16 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 		instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), RejectReason> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowSubscriptionsFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), RejectReason::UntrustedOrigin);
 		match (instructions.len(), instructions.first()) {
 			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
-			_ => Err(()),
+			_ => Err(RejectReason::UnexpectedMessageFormat),
 		}
 	}
 }

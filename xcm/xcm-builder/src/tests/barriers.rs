@@ -36,7 +36,7 @@ fn take_weight_credit_barrier_should_work() {
 		10,
 		&mut weight_credit,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::InsufficientCredit));
 	assert_eq!(weight_credit, 0);
 }
 
@@ -66,14 +66,14 @@ fn computed_origin_should_work() {
 		100,
 		&mut 0,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::UntrustedOrigin));
 
 	let r = WithComputedOrigin::<
 		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 		ExecutorUniversalLocation,
 		ConstU32<2>,
 	>::should_execute(&Parent.into(), message.inner_mut(), 100, &mut 0);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::UntrustedOrigin));
 
 	let r = WithComputedOrigin::<
 		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
@@ -96,7 +96,7 @@ fn allow_unpaid_should_work() {
 		10,
 		&mut 0,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::UntrustedOrigin));
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parent.into(),
@@ -120,7 +120,7 @@ fn allow_paid_should_work() {
 		10,
 		&mut 0,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::UntrustedOrigin));
 
 	let fees = (Parent, 1).into();
 	let mut underpaying_message = Xcm::<()>(vec![
@@ -135,7 +135,7 @@ fn allow_paid_should_work() {
 		30,
 		&mut 0,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::WeightLimitTooLow));
 
 	let fees = (Parent, 1).into();
 	let mut paying_message = Xcm::<()>(vec![
@@ -150,12 +150,39 @@ fn allow_paid_should_work() {
 		30,
 		&mut 0,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(RejectReason::UntrustedOrigin));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
 		paying_message.inner_mut(),
 		30,
+		&mut 0,
+	);
+	assert_eq!(r, Ok(()));
+}
+
+#[test]
+fn suspension_should_work() {
+	TestSuspender::set_suspended(true);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+	let r = RespectSuspension::<AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>, TestSuspender>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		10,
+		&mut 0,
+	);
+	assert_eq!(r, Err(RejectReason::Suspended));
+
+	TestSuspender::set_suspended(false);
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+	let r = RespectSuspension::<AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>, TestSuspender>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		10,
 		&mut 0,
 	);
 	assert_eq!(r, Ok(()));

@@ -54,7 +54,7 @@ pub use pallet::*;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse, UniversalLocation,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse, UniversalLocation,
 		VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
@@ -550,6 +550,11 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	/// Global suspension state of the XCM executor.
+	#[pallet::storage]
+	#[pallet::getter(fn suspended)]
+	pub(super) type XcmExecutionSuspended<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		/// The default version to encode outgoing XCM messages with.
@@ -905,6 +910,17 @@ pub mod pallet {
 				}
 				.into()
 			})
+		}
+
+		/// Set or unset the global suspension state of the XCM executor.
+		///
+		/// - `origin`: Must be Root.
+		/// - `suspended`: `true` to suspend, `false` to resume.
+		#[pallet::weight(100_000_000u64)]
+		pub fn force_suspension(origin: OriginFor<T>, suspended: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			XcmExecutionSuspended::<T>::set(suspended);
+			Ok(())
 		}
 
 		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
@@ -1948,6 +1964,17 @@ impl<T: Config> OnResponse for Pallet<T> {
 				return 0
 			},
 		}
+	}
+}
+
+impl<T: Config> CheckSuspension for Pallet<T> {
+	fn is_suspended<Call>(
+		_origin: &MultiLocation,
+		_instructions: &mut [Instruction<Call>],
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> bool {
+		Self::suspended()
 	}
 }
 
