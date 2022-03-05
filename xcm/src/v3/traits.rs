@@ -250,7 +250,7 @@ pub trait ExecuteXcm<Call> {
 		weight_credit: Weight,
 	) -> Outcome;
 
-	/// Execute some XCM `message` with the versioned `hash` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
 	/// The weight limit is a basic hard-limit and the implementation may place further restrictions or requirements
 	/// on weight and other aspects.
 	fn execute_xcm(
