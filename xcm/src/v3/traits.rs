@@ -270,7 +270,7 @@ pub trait ExecuteXcm<Call> {
 		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, 0)
 	}
 
-	/// Execute some XCM `message` with the versioned `hash` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
 	///
 	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
 	/// execution without associated payment.
