@@ -22,10 +22,10 @@ use xcm::latest::{MultiAssets, MultiLocation, XcmContext};
 /// Define a handler for when some non-empty `Assets` value should be dropped.
 pub trait DropAssets {
 	/// Handler for receiving dropped assets. Returns the weight consumed by this operation.
-	fn drop_assets(origin: &MultiLocation, assets: Assets, context: XcmContext) -> Weight;
+	fn drop_assets(origin: &MultiLocation, assets: Assets, context: &XcmContext) -> Weight;
 }
 impl DropAssets for () {
-	fn drop_assets(_origin: &MultiLocation, _assets: Assets, _context: XcmContext) -> Weight {
+	fn drop_assets(_origin: &MultiLocation, _assets: Assets, _context: &XcmContext) -> Weight {
 		0
 	}
 }
@@ -35,7 +35,7 @@ impl DropAssets for () {
 pub struct FilterAssets<D, A>(PhantomData<(D, A)>);
 
 impl<D: DropAssets, A: Contains<Assets>> DropAssets for FilterAssets<D, A> {
-	fn drop_assets(origin: &MultiLocation, assets: Assets, context: XcmContext) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, context: &XcmContext) -> Weight {
 		if A::contains(&assets) {
 			D::drop_assets(origin, assets, context)
 		} else {
@@ -50,7 +50,7 @@ impl<D: DropAssets, A: Contains<Assets>> DropAssets for FilterAssets<D, A> {
 pub struct FilterOrigin<D, O>(PhantomData<(D, O)>);
 
 impl<D: DropAssets, O: Contains<MultiLocation>> DropAssets for FilterOrigin<D, O> {
-	fn drop_assets(origin: &MultiLocation, assets: Assets, context: XcmContext) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, context: &XcmContext) -> Weight {
 		if O::contains(origin) {
 			D::drop_assets(origin, assets, context)
 		} else {
@@ -67,7 +67,7 @@ pub trait ClaimAssets {
 		origin: &MultiLocation,
 		ticket: &MultiLocation,
 		what: &MultiAssets,
-		context: XcmContext,
+		context: &XcmContext,
 	) -> bool;
 }
 
@@ -77,10 +77,10 @@ impl ClaimAssets for Tuple {
 		origin: &MultiLocation,
 		ticket: &MultiLocation,
 		what: &MultiAssets,
-		context: XcmContext,
+		context: &XcmContext,
 	) -> bool {
 		for_tuples!( #(
-			if Tuple::claim_assets(origin, ticket, what, context.clone()) {
+			if Tuple::claim_assets(origin, ticket, what, context) {
 				return true;
 			}
 		)* );

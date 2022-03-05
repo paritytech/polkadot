@@ -40,7 +40,7 @@ impl xcm_executor::traits::OnResponse for DevNull {
 		_: Option<&MultiLocation>,
 		_: Response,
 		_: Weight,
-		_: XcmContext,
+		_: &XcmContext,
 	) -> Weight {
 		0
 	}

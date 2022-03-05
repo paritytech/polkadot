@@ -282,12 +282,11 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::InvalidFormat(id));
 					},
 					Ok(versioned) => {
-						let hash = versioned.using_encoded(sp_io::hashing::blake2_256);
 						match Xcm::try_from(versioned) {
 							Err(()) => Self::deposit_event(Event::UnsupportedVersion(id)),
 							Ok(x) => {
 								let outcome =
-									T::XcmExecutor::execute_xcm(Parent, x.clone(), hash, limit);
+									T::XcmExecutor::execute_xcm(Parent, x.clone(), id, limit);
 								<ReceivedDmp<T>>::append(x);
 								Self::deposit_event(Event::ExecutedDownward(id, outcome));
 							},

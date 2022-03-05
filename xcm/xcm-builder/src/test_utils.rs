@@ -41,14 +41,14 @@ impl VersionChangeNotifier for TestSubscriptionService {
 		location: &MultiLocation,
 		query_id: QueryId,
 		max_weight: u64,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
 		r.push((location.clone(), Some((query_id, max_weight))));
 		SubscriptionRequests::set(r);
 		Ok(())
 	}
-	fn stop(location: &MultiLocation, _context: XcmContext) -> XcmResult {
+	fn stop(location: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
 		r.retain(|(l, _q)| l != location);
 		r.push((location.clone(), None));
@@ -68,7 +68,7 @@ parameter_types! {
 pub struct TestAssetTrap;
 
 impl DropAssets for TestAssetTrap {
-	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: XcmContext) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		t.push((origin.clone(), assets.into()));
 		TrappedAssets::set(t);
@@ -81,7 +81,7 @@ impl ClaimAssets for TestAssetTrap {
 		origin: &MultiLocation,
 		ticket: &MultiLocation,
 		what: &MultiAssets,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> bool {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {

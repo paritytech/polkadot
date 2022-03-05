@@ -1712,7 +1712,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 		dest: &MultiLocation,
 		query_id: QueryId,
 		max_weight: u64,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> XcmResult {
 		let versioned_dest = LatestVersionedMultiLocation(dest);
 		let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
@@ -1731,7 +1731,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 
 	/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
 	/// subscription.
-	fn stop(dest: &MultiLocation, _context: XcmContext) -> XcmResult {
+	fn stop(dest: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 		Ok(())
 	}
@@ -1744,7 +1744,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 }
 
 impl<T: Config> DropAssets for Pallet<T> {
-	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: XcmContext) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		if assets.is_empty() {
 			return 0
 		}
@@ -1762,7 +1762,7 @@ impl<T: Config> ClaimAssets for Pallet<T> {
 		origin: &MultiLocation,
 		ticket: &MultiLocation,
 		assets: &MultiAssets,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> bool {
 		let mut versioned = VersionedMultiAssets::from(assets.clone());
 		match (ticket.parents, &ticket.interior) {
@@ -1810,7 +1810,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 		querier: Option<&MultiLocation>,
 		response: Response,
 		max_weight: Weight,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> Weight {
 		match (response, Queries::<T>::get(query_id)) {
 			(

@@ -54,14 +54,14 @@ pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
 
 pub struct DummyAssetTransactor;
 impl TransactAsset for DummyAssetTransactor {
-	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation, _context: XcmContext) -> XcmResult {
+	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		Ok(())
 	}
 
 	fn withdraw_asset(
 		_what: &MultiAsset,
 		_who: &MultiLocation,
-		_context: Option<XcmContext>,
+		_maybe_context: Option<&XcmContext>,
 	) -> Result<Assets, XcmError> {
 		let asset: MultiAsset = (Parent, 100_000).into();
 		Ok(asset.into())

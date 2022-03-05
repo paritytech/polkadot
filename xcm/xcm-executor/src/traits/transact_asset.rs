@@ -32,7 +32,7 @@ pub trait TransactAsset {
 	fn can_check_in(
 		_origin: &MultiLocation,
 		_what: &MultiAsset,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
@@ -50,7 +50,7 @@ pub trait TransactAsset {
 	///
 	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
-	fn check_in(_origin: &MultiLocation, _what: &MultiAsset, _context: XcmContext) {}
+	fn check_in(_origin: &MultiLocation, _what: &MultiAsset, _context: &XcmContext) {}
 
 	/// An asset has been teleported out to the given destination. This should do whatever housekeeping is needed.
 	///
@@ -62,12 +62,12 @@ pub trait TransactAsset {
 	///
 	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
-	fn check_out(_dest: &MultiLocation, _what: &MultiAsset, _context: XcmContext) {}
+	fn check_out(_dest: &MultiLocation, _what: &MultiAsset, _context: &XcmContext) {}
 
 	/// Deposit the `what` asset into the account of `who`.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if deposit failed.
-	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation, _context: XcmContext) -> XcmResult {
+	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
 
@@ -82,7 +82,7 @@ pub trait TransactAsset {
 	fn withdraw_asset(
 		_what: &MultiAsset,
 		_who: &MultiLocation,
-		_context: Option<XcmContext>,
+		_maybe_context: Option<&XcmContext>,
 	) -> Result<Assets, XcmError> {
 		Err(XcmError::Unimplemented)
 	}
@@ -94,7 +94,7 @@ pub trait TransactAsset {
 		_asset: &MultiAsset,
 		_from: &MultiLocation,
 		_to: &MultiLocation,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> Result<Assets, XcmError> {
 		Err(XcmError::Unimplemented)
 	}
@@ -106,11 +106,11 @@ pub trait TransactAsset {
 		asset: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
-		context: XcmContext,
+		context: &XcmContext,
 	) -> Result<Assets, XcmError> {
-		match Self::transfer_asset(asset, from, to, context.clone()) {
+		match Self::transfer_asset(asset, from, to, context) {
 			Err(XcmError::Unimplemented) => {
-				let assets = Self::withdraw_asset(asset, from, Some(context.clone()))?;
+				let assets = Self::withdraw_asset(asset, from, Some(context))?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to, context)?;
 				Ok(assets)
@@ -122,9 +122,9 @@ pub trait TransactAsset {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl TransactAsset for Tuple {
-	fn can_check_in(origin: &MultiLocation, what: &MultiAsset, context: XcmContext) -> XcmResult {
+	fn can_check_in(origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		for_tuples!( #(
-			match Tuple::can_check_in(origin, what, context.clone()) {
+			match Tuple::can_check_in(origin, what, context) {
 				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
@@ -139,21 +139,21 @@ impl TransactAsset for Tuple {
 		Err(XcmError::AssetNotFound)
 	}
 
-	fn check_in(origin: &MultiLocation, what: &MultiAsset, context: XcmContext) {
+	fn check_in(origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		for_tuples!( #(
-			Tuple::check_in(origin, what, context.clone());
+			Tuple::check_in(origin, what, context);
 		)* );
 	}
 
-	fn check_out(dest: &MultiLocation, what: &MultiAsset, context: XcmContext) {
+	fn check_out(dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		for_tuples!( #(
-			Tuple::check_out(dest, what, context.clone());
+			Tuple::check_out(dest, what, context);
 		)* );
 	}
 
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, context: XcmContext) -> XcmResult {
+	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, context: &XcmContext) -> XcmResult {
 		for_tuples!( #(
-			match Tuple::deposit_asset(what, who, context.clone()) {
+			match Tuple::deposit_asset(what, who, context) {
 				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
@@ -171,20 +171,20 @@ impl TransactAsset for Tuple {
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		context: Option<XcmContext>,
+		maybe_context: Option<&XcmContext>,
 	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::withdraw_asset(what, who, context.clone()) {
+			match Tuple::withdraw_asset(what, who, maybe_context) {
 				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
 		log::trace!(
 			target: "xcm::TransactAsset::withdraw_asset",
-			"did not withdraw asset: what: {:?}, who: {:?}, context: {:?}",
+			"did not withdraw asset: what: {:?}, who: {:?}, maybe_context: {:?}",
 			what,
 			who,
-			context,
+			maybe_context,
 		);
 		Err(XcmError::AssetNotFound)
 	}
@@ -193,10 +193,10 @@ impl TransactAsset for Tuple {
 		what: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
-		context: XcmContext,
+		context: &XcmContext,
 	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::transfer_asset(what, from, to, context.clone()) {
+			match Tuple::transfer_asset(what, from, to, context) {
 				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
@@ -226,7 +226,7 @@ mod tests {
 		fn can_check_in(
 			_origin: &MultiLocation,
 			_what: &MultiAsset,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> XcmResult {
 			Err(XcmError::AssetNotFound)
 		}
@@ -234,7 +234,7 @@ mod tests {
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> XcmResult {
 			Err(XcmError::AssetNotFound)
 		}
@@ -242,7 +242,7 @@ mod tests {
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: Option<XcmContext>,
+			_context: Option<&XcmContext>,
 		) -> Result<Assets, XcmError> {
 			Err(XcmError::AssetNotFound)
 		}
@@ -251,7 +251,7 @@ mod tests {
 			_what: &MultiAsset,
 			_from: &MultiLocation,
 			_to: &MultiLocation,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> Result<Assets, XcmError> {
 			Err(XcmError::AssetNotFound)
 		}
@@ -262,7 +262,7 @@ mod tests {
 		fn can_check_in(
 			_origin: &MultiLocation,
 			_what: &MultiAsset,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> XcmResult {
 			Err(XcmError::Overflow)
 		}
@@ -270,7 +270,7 @@ mod tests {
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> XcmResult {
 			Err(XcmError::Overflow)
 		}
@@ -278,7 +278,7 @@ mod tests {
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: Option<XcmContext>,
+			_context: Option<&XcmContext>,
 		) -> Result<Assets, XcmError> {
 			Err(XcmError::Overflow)
 		}
@@ -287,7 +287,7 @@ mod tests {
 			_what: &MultiAsset,
 			_from: &MultiLocation,
 			_to: &MultiLocation,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> Result<Assets, XcmError> {
 			Err(XcmError::Overflow)
 		}
@@ -298,7 +298,7 @@ mod tests {
 		fn can_check_in(
 			_origin: &MultiLocation,
 			_what: &MultiAsset,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> XcmResult {
 			Ok(())
 		}
@@ -306,7 +306,7 @@ mod tests {
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> XcmResult {
 			Ok(())
 		}
@@ -314,7 +314,7 @@ mod tests {
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: Option<XcmContext>,
+			_context: Option<&XcmContext>,
 		) -> Result<Assets, XcmError> {
 			Ok(Assets::default())
 		}
@@ -323,7 +323,7 @@ mod tests {
 			_what: &MultiAsset,
 			_from: &MultiLocation,
 			_to: &MultiLocation,
-			_context: XcmContext,
+			_context: &XcmContext,
 		) -> Result<Assets, XcmError> {
 			Ok(Assets::default())
 		}
@@ -338,7 +338,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1).into(),
 				&Here.into(),
-				XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_hash([0; 32]),
 			),
 			Err(XcmError::AssetNotFound)
 		);
@@ -352,7 +352,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1).into(),
 				&Here.into(),
-				XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_hash([0; 32]),
 			),
 			Ok(())
 		);
@@ -366,7 +366,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1).into(),
 				&Here.into(),
-				XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_hash([0; 32]),
 			),
 			Err(XcmError::Overflow)
 		);
@@ -380,7 +380,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1).into(),
 				&Here.into(),
-				XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_hash([0; 32]),
 			),
 			Ok(()),
 		);

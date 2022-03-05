@@ -211,7 +211,7 @@ impl TransactAsset for TestAssetTransactor {
 	fn deposit_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> Result<(), XcmError> {
 		add_asset(who.clone(), what.clone());
 		Ok(())
@@ -220,7 +220,7 @@ impl TransactAsset for TestAssetTransactor {
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		_context: Option<XcmContext>,
+		_maybe_context: Option<&XcmContext>,
 	) -> Result<Assets, XcmError> {
 		ASSETS.with(|a| {
 			a.borrow_mut()
@@ -345,7 +345,7 @@ impl OnResponse for TestResponseHandler {
 		_querier: Option<&MultiLocation>,
 		response: xcm::latest::Response,
 		_max_weight: Weight,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {

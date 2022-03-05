@@ -36,7 +36,7 @@ pub trait OnResponse {
 		querier: Option<&MultiLocation>,
 		response: Response,
 		max_weight: Weight,
-		context: XcmContext,
+		context: &XcmContext,
 	) -> Weight;
 }
 impl OnResponse for () {
@@ -53,7 +53,7 @@ impl OnResponse for () {
 		_querier: Option<&MultiLocation>,
 		_response: Response,
 		_max_weight: Weight,
-		_context: XcmContext,
+		_context: &XcmContext,
 	) -> Weight {
 		0
 	}
@@ -73,22 +73,22 @@ pub trait VersionChangeNotifier {
 		location: &MultiLocation,
 		query_id: QueryId,
 		max_weight: u64,
-		context: XcmContext,
+		context: &XcmContext,
 	) -> XcmResult;
 
 	/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
 	/// notification set up.
-	fn stop(location: &MultiLocation, context: XcmContext) -> XcmResult;
+	fn stop(location: &MultiLocation, context: &XcmContext) -> XcmResult;
 
 	/// Return true if a location is subscribed to XCM version changes.
 	fn is_subscribed(location: &MultiLocation) -> bool;
 }
 
 impl VersionChangeNotifier for () {
-	fn start(_: &MultiLocation, _: QueryId, _: u64, _: XcmContext) -> XcmResult {
+	fn start(_: &MultiLocation, _: QueryId, _: u64, _: &XcmContext) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
-	fn stop(_: &MultiLocation, _: XcmContext) -> XcmResult {
+	fn stop(_: &MultiLocation, _: &XcmContext) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
 	fn is_subscribed(_: &MultiLocation) -> bool {
