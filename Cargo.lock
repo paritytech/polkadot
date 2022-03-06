@@ -12391,6 +12391,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "serde",
  "xcm-procedural",
 ]
 
