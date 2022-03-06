@@ -500,8 +500,6 @@ impl FragmentTree {
 		}
 	}
 
-	// TODO [now]: add new candidate and recursively populate as necessary.
-
 	// TODO [now]: API for selecting backed candidates
 }
 
@@ -558,5 +556,13 @@ mod tests {
 
 	// TODO [now]: storage sets up links correctly.
 
-	// TODO [now]: storage pruning.
+	// TODO [now]: retain
+
+	// TODO [now]: recursive populate
+
+	// TODO [now]: enforce root-child nodes contiguous
+
+	// TODO [now]: add candidate child of root
+
+	// TODO [now]: add candidate child of non-root
 }
