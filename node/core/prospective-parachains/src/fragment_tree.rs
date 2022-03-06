@@ -136,6 +136,15 @@ impl CandidateStorage {
 		Ok(())
 	}
 
+	/// Retain only candidates which pass the predicate.
+	pub(crate) fn retain(&mut self, pred: impl Fn(&CandidateHash) -> bool) {
+		self.by_candidate_hash.retain(|h, _v| pred(h));
+		self.by_parent_head.retain(|parent, children| {
+			children.retain(|h| pred(h));
+			!children.is_empty()
+		})
+	}
+
 	fn iter_para_children<'a>(
 		&'a self,
 		parent_head_hash: &Hash,
@@ -147,8 +156,6 @@ impl CandidateStorage {
 			.flat_map(|hashes| hashes.iter())
 			.filter_map(move |h| by_candidate_hash.get(h))
 	}
-
-	// TODO [now]: fn restrict_to(&graphs) which will be our main pruning function
 }
 
 /// The state of a candidate.
@@ -283,7 +290,10 @@ impl FragmentTree {
 			"Instantiating Fragment Tree",
 		);
 
-		let mut tree = FragmentTree { scope, nodes: Vec::new() };
+		let mut tree = FragmentTree {
+			scope,
+			nodes: Vec::new(),
+		};
 
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
@@ -398,6 +408,20 @@ impl FragmentTree {
 		if let NodePointer::Storage(ptr) = parent_pointer {
 			self.nodes[ptr].children.push(pointer);
 		}
+	}
+
+	/// Returns a set of candidate hashes contained in nodes.
+	///
+	/// This runs in O(n) time in the number of nodes
+	/// and allocates memory.
+	pub(crate) fn candidates(&self) -> HashSet<CandidateHash> {
+		let mut set = HashSet::with_capacity(self.nodes.len());
+
+		for f in &self.nodes {
+			set.insert(f.candidate_hash);
+		}
+
+		set
 	}
 
 	// TODO [now]: add new candidate and recursively populate as necessary.
