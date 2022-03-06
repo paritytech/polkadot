@@ -54,7 +54,7 @@ use polkadot_primitives::vstaging::{
 
 use crate::{
 	error::{Error, FatalResult, NonFatal, NonFatalResult, Result},
-	fragment_tree::FragmentTree,
+	fragment_tree::{FragmentTree, CandidateStorage},
 };
 
 mod error;
@@ -87,28 +87,23 @@ struct ScheduledPara {
 
 struct RelayBlockViewData {
 	// Scheduling info for paras and upcoming paras.
-	scheduling: HashMap<ParaId, ScheduledPara>,
+	fragment_trees: HashMap<ParaId, FragmentTree>,
 	block_info: RelayChainBlockInfo,
 	// TODO [now]: other stuff
+	// e.g. ancestors in same session
 }
 
 struct View {
 	// Active or recent relay-chain blocks by block hash.
-	active_leaves: HashSet<Hash>,
-	active_or_recent: HashMap<Hash, RelayBlockViewData>,
-
-	// Fragment graphs, one for each parachain.
-	// TODO [now]: make this per-para per active-leaf
-	// TODO [now]: have global candidate storage per para id
-	fragments: HashMap<ParaId, FragmentTree>,
+	active_leaves: HashMap<Hash, RelayBlockViewData>,
+	candidate_storage: HashMap<ParaId, CandidateStorage>,
 }
 
 impl View {
 	fn new() -> Self {
 		View {
-			active_leaves: HashSet::new(),
-			active_or_recent: HashMap::new(),
-			fragments: HashMap::new(),
+			active_leaves: HashMap::new(),
+			candidate_storage: HashMap::new(),
 		}
 	}
 }
@@ -136,133 +131,11 @@ where
 	}
 }
 
-// TODO [now]; non-fatal error type.
 async fn update_view<Context>(
 	view: &mut View,
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 ) -> NonFatalResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
-	// TODO [now]: separate determining updates from updates themselves.
-
-	// Update active_leaves
-	{
-		for activated in update.activated.into_iter() {
-			view.active_leaves.insert(activated.hash);
-		}
-
-		for deactivated in update.deactivated.into_iter() {
-			view.active_leaves.remove(&deactivated);
-		}
-	}
-
-	// Find the set of blocks we care about.
-	let relevant_blocks = find_all_relevant_blocks(ctx, &view.active_leaves).await?;
-
-	let all_new: Vec<_> = relevant_blocks
-		.iter()
-		.filter(|(h, _hdr)| !view.active_or_recent.contains_key(h))
-		.collect();
-
-	{
-		// Prune everything that was relevant but isn't anymore.
-		let all_removed: Vec<_> = view
-			.active_or_recent
-			.keys()
-			.cloned()
-			.filter(|h| !relevant_blocks.contains_key(&h))
-			.collect();
-
-		for removed in all_removed {
-			let _ = view.active_or_recent.remove(&removed);
-		}
-
-		// Add new blocks and get data if necessary. Dispatch work to backing subsystems.
-		for (new_hash, new_header) in all_new {
-			let block_info = RelayChainBlockInfo {
-				hash: *new_hash,
-				number: new_header.number,
-				storage_root: new_header.state_root,
-			};
-
-			let scheduling_info = get_scheduling_info(ctx, *new_hash).await?;
-
-			let mut relevant_fragments = HashMap::new();
-
-			for core_info in scheduling_info.cores {
-				// TODO [now]: construct RelayBlockViewData appropriately
-			}
-
-			view.active_or_recent.insert(
-				*new_hash,
-				RelayBlockViewData { scheduling: relevant_fragments, block_info },
-			);
-		}
-
-		// TODO [now]: GC fragment trees:
-		//   1. Keep only fragment trees for paras that are scheduled at any of our blocks.
-		//   2. Keep only fragments that are built on any of our blocks.
-
-		// TODO [now]: give all backing subsystems messages or signals.
-		// There are, annoyingly, going to be race conditions with networking.
-		// Move networking into a backing 'super-subsystem'?
-		//
-		// Which ones need to care about 'orphaned' fragments?
-	}
-
-	unimplemented!()
-}
-
-// TODO [now]: don't accept too many fragments per para per relay-parent
-// Well I guess we're bounded/protected here by backing (Seconded messages)
-
-async fn get_base_constraints<Context>(
-	ctx: &mut Context,
-	relay_block: Hash,
-	para_id: ParaId,
-) -> NonFatalResult<Constraints>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
-	unimplemented!()
-}
-
-// Scheduling info.
-// - group rotation info: validator groups, group rotation info
-// - information about parachains that are predictably going to be assigned
-//   to each core. For now that's just parachains, but it's worth noting that
-//   parathread claims are anchored to a specific core.
-struct SchedulingInfo {
-	validator_groups: Vec<Vec<ValidatorIndex>>,
-	group_rotation_info: GroupRotationInfo,
-	// One core per parachain. this should have same length as 'validator-groups'
-	cores: Vec<CoreInfo>,
-}
-
-struct CoreInfo {
-	// all para-ids that the core could accept blocks for in the near future.
-	near_future: Vec<ParaId>,
-}
-
-async fn get_scheduling_info<Context>(
-	ctx: &mut Context,
-	relay_block: Hash,
-) -> NonFatalResult<SchedulingInfo>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
-	unimplemented!()
-}
-
-async fn find_all_relevant_blocks<Context>(
-	ctx: &mut Context,
-	active_leaves: &HashSet<Hash>,
-) -> NonFatalResult<HashMap<Hash, Header>>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
