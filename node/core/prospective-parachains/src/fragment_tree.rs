@@ -327,20 +327,29 @@ impl FragmentTree {
 		}
 	}
 
-	fn node_has_candidate_children(
+	fn node_has_candidate_child(
 		&self,
 		pointer: NodePointer,
 		candidate_hash: &CandidateHash,
 	) -> bool {
+		self.node_candidate_child(pointer, candidate_hash).is_some()
+	}
+
+	fn node_candidate_child(
+		&self,
+		pointer: NodePointer,
+		candidate_hash: &CandidateHash,
+	) -> Option<NodePointer> {
 		match pointer {
 			NodePointer::Root => self
 				.nodes
 				.iter()
 				.take_while(|n| n.parent == NodePointer::Root)
-				.find(|n| &n.candidate_hash == candidate_hash)
-				.is_some(),
+				.enumerate()
+				.find(|(_, n)| &n.candidate_hash == candidate_hash)
+				.map(|(i, _)| NodePointer::Storage(i)),
 			NodePointer::Storage(ptr) =>
-				self.nodes.get(ptr).map_or(false, |n| n.has_candidate_child(candidate_hash)),
+				self.nodes.get(ptr).and_then(|n| n.candidate_child(candidate_hash)),
 		}
 	}
 
@@ -388,6 +397,54 @@ impl FragmentTree {
 		// Pass this into the population function, which will sanity-check stuff like depth, fragments,
 		// etc. and then recursively populate.
 		self.populate_from_bases(storage, bases);
+	}
+
+	/// Select a candidate after the given `required_path` which pass
+	/// the predicate.
+	///
+	/// If there are multiple possibilities, this will select the first one.
+	///
+	/// This returns `None` if there is no candidate meeting those criteria.
+	///
+	/// The intention of the `required_path` is to allow queries on the basis of
+	/// one or more candidates which were previously pending availability becoming
+	/// available and opening up more room on the core.
+	pub(crate) fn select_child(
+		&self,
+		required_path: &[CandidateHash],
+		pred: impl Fn(&CandidateHash) -> bool,
+	) -> Option<CandidateHash> {
+		let base_node = {
+			// traverse the required path.
+			let mut node = NodePointer::Root;
+			for required_step in required_path {
+				node = self.node_candidate_child(node, &required_step)?;
+			}
+
+			node
+		};
+
+		// TODO [now]: taking the first selection might introduce bias
+		// or become gameable.
+		//
+		// For plausibly unique parachains, this shouldn't matter much.
+		// figure out alternative selection criteria?
+		match base_node {
+			NodePointer::Root => {
+				self.nodes.iter()
+					.take_while(|n| n.parent == NodePointer::Root)
+					.filter(|n| pred(&n.candidate_hash))
+					.map(|n| n.candidate_hash)
+					.next()
+			}
+			NodePointer::Storage(ptr) => {
+				self.nodes[ptr].children
+					.iter()
+					.filter(|n| pred(&n.1))
+					.map(|n| n.1)
+					.next()
+			}
+		}
 	}
 
 	fn populate_from_bases(&mut self, storage: &CandidateStorage, initial_bases: Vec<NodePointer>) {
@@ -463,7 +520,7 @@ impl FragmentTree {
 					};
 
 					// don't add candidates where the parent already has it as a child.
-					if self.node_has_candidate_children(parent_pointer, &candidate.candidate_hash) {
+					if self.node_has_candidate_child(parent_pointer, &candidate.candidate_hash) {
 						continue
 					}
 
@@ -499,8 +556,6 @@ impl FragmentTree {
 			last_sweep_start = Some(sweep_start);
 		}
 	}
-
-	// TODO [now]: API for selecting backed candidates
 }
 
 struct FragmentNode {
@@ -543,8 +598,8 @@ impl FragmentNode {
 		}
 	}
 
-	fn has_candidate_child(&self, candidate_hash: &CandidateHash) -> bool {
-		self.children.iter().find(|(_, c)| c == candidate_hash).is_some()
+	fn candidate_child(&self, candidate_hash: &CandidateHash) -> Option<NodePointer> {
+		self.children.iter().find(|(_, c)| c == candidate_hash).map(|(p, _)| *p)
 	}
 }
 
