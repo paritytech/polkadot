@@ -156,6 +156,10 @@ impl CandidateStorage {
 			.flat_map(|hashes| hashes.iter())
 			.filter_map(move |h| by_candidate_hash.get(h))
 	}
+
+	fn get(&'_ self, candidate_hash: &CandidateHash) -> Option<&'_ CandidateEntry> {
+		self.by_candidate_hash.get(candidate_hash)
+	}
 }
 
 /// The state of a candidate.
@@ -352,7 +356,32 @@ impl FragmentTree {
 		hash: CandidateHash,
 		storage: &CandidateStorage,
 	) {
-		unimplemented!()
+		let candidate_entry = match storage.get(&hash) {
+			None => return,
+			Some(e) => e,
+		};
+
+		let candidate_parent = &candidate_entry.candidate.persisted_validation_data.parent_head;
+
+		// Select an initial set of bases, whose required relay-parent matches that of the candidate.
+		let root_base = if &self.scope.base_constraints.required_parent == candidate_parent {
+			Some(NodePointer::Root)
+		} else {
+			None
+		};
+
+		let non_root_bases = self.nodes.iter()
+			.enumerate()
+			.filter(|(_, n)|
+				n.cumulative_modifications.required_parent.as_ref() == Some(candidate_parent)
+			)
+			.map(|(i, _)| NodePointer::Storage(i));
+
+		let bases = root_base.into_iter().chain(non_root_bases).collect();
+
+		// Pass this into the population function, which will sanity-check stuff like depth, fragments,
+		// etc. and then recursively populate.
+		self.populate_from_bases(storage, bases);
 	}
 
 	fn populate_from_bases(
