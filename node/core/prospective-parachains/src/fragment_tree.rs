@@ -295,10 +295,76 @@ impl FragmentTree {
 			nodes: Vec::new(),
 		};
 
+		tree.populate_from_bases(storage, vec![NodePointer::Root]);
+
+		tree
+	}
+
+	// Inserts a node and updates child references in a non-root parent.
+	fn insert_node(&mut self, node: FragmentNode) {
+		let pointer = NodePointer::Storage(self.nodes.len());
+		let parent_pointer = node.parent;
+		let candidate_hash = node.candidate_hash;
+
+		match parent_pointer {
+			NodePointer::Storage(ptr) => {
+				self.nodes.push(node);
+				self.nodes[ptr].children.push((pointer, candidate_hash))
+			}
+			NodePointer::Root => {
+				// Maintain the invariant of node storage beginning with depth-0.
+				if self.nodes.last().map_or(true, |last| last.parent == NodePointer::Root) {
+					self.nodes.push(node);
+				} else {
+					let pos = self.nodes.iter().take_while(|n| n.parent == NodePointer::Root).count();
+					self.nodes.insert(pos, node);
+				}
+			}
+		}
+	}
+
+	fn node_has_candidate_children(&self, pointer: NodePointer, candidate_hash: &CandidateHash) -> bool {
+		match pointer {
+			NodePointer::Root =>
+				self.nodes.iter().take_while(|n| n.parent == NodePointer::Root).find(|n| &n.candidate_hash == candidate_hash).is_some(),
+			NodePointer::Storage(ptr) =>
+				self.nodes.get(ptr).map_or(false, |n| n.has_candidate_child(candidate_hash)),
+		}
+	}
+
+	/// Returns a set of candidate hashes contained in nodes.
+	///
+	/// This runs in O(n) time in the number of nodes
+	/// and allocates memory.
+	pub(crate) fn candidates(&self) -> HashSet<CandidateHash> {
+		let mut set = HashSet::with_capacity(self.nodes.len());
+
+		for f in &self.nodes {
+			set.insert(f.candidate_hash);
+		}
+
+		set
+	}
+
+	/// Add a candidate and recursively populate from storage.
+	pub(crate) fn add_and_populate(
+		&mut self,
+		hash: CandidateHash,
+		storage: &CandidateStorage,
+	) {
+		unimplemented!()
+	}
+
+	fn populate_from_bases(
+		&mut self,
+		storage: &CandidateStorage,
+		initial_bases: Vec<NodePointer>,
+	) {
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
+
 		loop {
-			let sweep_start = tree.nodes.len();
+			let sweep_start = self.nodes.len();
 
 			if Some(sweep_start) == last_sweep_start {
 				break
@@ -306,11 +372,9 @@ impl FragmentTree {
 
 			let parents: Vec<NodePointer> =
 				if let Some(last_start) = last_sweep_start {
-					(last_start..tree.nodes.len()).map(NodePointer::Storage).collect()
+					(last_start..self.nodes.len()).map(NodePointer::Storage).collect()
 				} else {
-					// This indicates depth = 0, as we're on the first
-					// iteration.
-					vec![NodePointer::Root]
+					initial_bases.clone()
 				};
 
 			// 1. get parent head and find constraints
@@ -319,20 +383,20 @@ impl FragmentTree {
 			for parent_pointer in parents {
 				let (modifications, child_depth, earliest_rp) = match parent_pointer {
 					NodePointer::Root => {
-						(ConstraintModifications::identity(), 0, tree.scope.earliest_relay_parent())
+						(ConstraintModifications::identity(), 0, self.scope.earliest_relay_parent())
 					}
 					NodePointer::Storage(ptr) => {
-						let node = &tree.nodes[ptr];
-						let parent_rp = tree.scope.ancestor_by_hash(&node.relay_parent())
+						let node = &self.nodes[ptr];
+						let parent_rp = self.scope.ancestor_by_hash(&node.relay_parent())
 							.expect("nodes in tree can only contain ancestors within scope; qed");
 
 						(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
 					}
 				};
 
-				if child_depth >= tree.scope.max_depth { continue }
+				if child_depth >= self.scope.max_depth { continue }
 
-				let child_constraints = match tree.scope.base_constraints.apply_modifications(&modifications) {
+				let child_constraints = match self.scope.base_constraints.apply_modifications(&modifications) {
 					Err(e) => {
 						tracing::debug!(
 							target: LOG_TARGET,
@@ -352,7 +416,7 @@ impl FragmentTree {
 				// 3. candidate outputs fulfill constraints
 				let required_head_hash = child_constraints.required_parent.hash();
 				for candidate in storage.iter_para_children(&required_head_hash) {
-					let relay_parent = match tree.scope.ancestor_by_hash(&candidate.relay_parent) {
+					let relay_parent = match self.scope.ancestor_by_hash(&candidate.relay_parent) {
 						None => continue, // not in chain
 						Some(info) => {
 							if info.number < earliest_rp.number {
@@ -363,6 +427,11 @@ impl FragmentTree {
 							info
 						}
 					};
+
+					// don't add candidates where the parent already has it as a child.
+					if self.node_has_candidate_children(parent_pointer, &candidate.candidate_hash) {
+						continue;
+					}
 
 					let fragment = {
 						let f = Fragment::new(
@@ -389,39 +458,12 @@ impl FragmentTree {
 						children: Vec::new(),
 					};
 
-					tree.insert_node(node);
+					self.insert_node(node);
 				}
 			}
 
 			last_sweep_start = Some(sweep_start);
 		}
-
-		tree
-	}
-
-	// Inserts a node and updates child references in a non-root parent.
-	fn insert_node(&mut self, node: FragmentNode) {
-		let pointer = NodePointer::Storage(self.nodes.len());
-		let parent_pointer = node.parent;
-		self.nodes.push(node);
-
-		if let NodePointer::Storage(ptr) = parent_pointer {
-			self.nodes[ptr].children.push(pointer);
-		}
-	}
-
-	/// Returns a set of candidate hashes contained in nodes.
-	///
-	/// This runs in O(n) time in the number of nodes
-	/// and allocates memory.
-	pub(crate) fn candidates(&self) -> HashSet<CandidateHash> {
-		let mut set = HashSet::with_capacity(self.nodes.len());
-
-		for f in &self.nodes {
-			set.insert(f.candidate_hash);
-		}
-
-		set
 	}
 
 	// TODO [now]: add new candidate and recursively populate as necessary.
@@ -437,7 +479,7 @@ struct FragmentNode {
 	candidate_hash: CandidateHash,
 	depth: usize,
 	cumulative_modifications: ConstraintModifications,
-	children: Vec<NodePointer>,
+	children: Vec<(NodePointer, CandidateHash)>,
 }
 
 impl FragmentNode {
@@ -467,6 +509,10 @@ impl FragmentNode {
 				validation_code_hash: candidate.validation_code_hash.clone(),
 			},
 		}
+	}
+
+	fn has_candidate_child(&self, candidate_hash: &CandidateHash) -> bool {
+		self.children.iter().find(|(_, c)| c == candidate_hash).is_some()
 	}
 }
 
