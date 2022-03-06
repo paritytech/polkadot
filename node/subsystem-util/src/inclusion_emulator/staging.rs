@@ -306,16 +306,16 @@ impl Constraints {
 				Ok(pos) => {
 					// Exact match, so this is OK in all cases.
 					let _ = new.hrmp_inbound.valid_watermarks.drain(..pos + 1);
-				}
+				},
 				Err(pos) => match hrmp_watermark {
 					HrmpWatermarkUpdate::Head(_) => {
 						// Updates to Head are always OK.
 						let _ = new.hrmp_inbound.valid_watermarks.drain(..pos);
-					}
+					},
 					HrmpWatermarkUpdate::Trunk(n) => {
 						// Trunk update landing on disallowed watermark is not OK.
 						return Err(ModificationError::DisallowedHrmpWatermark(*n))
-					}
+					},
 				},
 			}
 		}
