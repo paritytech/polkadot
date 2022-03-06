@@ -84,6 +84,7 @@ pub use crate::v1::AssetInstance;
 /// - `<chain>/AccountKey20` for an ERC-20-style single-asset smart-contract on an Ethereum-like chain.
 ///
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MultiAsset {
 	/// No assets. Rarely used.
 	None,

@@ -22,6 +22,7 @@ use scale_info::TypeInfo;
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum NetworkId {
 	/// Unidentified/any.
 	Any,
@@ -35,6 +36,7 @@ pub enum NetworkId {
 
 /// An identifier of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyId {
 	/// The only body in its context.
 	Unit,
@@ -56,6 +58,7 @@ pub enum BodyId {
 
 /// A part of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
 	Voice,
@@ -103,6 +106,7 @@ impl BodyPart {
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junction {
 	/// The consensus system of which the context is a member and state-wise super-set.
 	///

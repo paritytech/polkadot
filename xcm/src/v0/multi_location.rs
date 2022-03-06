@@ -43,6 +43,7 @@ use parity_scale_codec::{self, Decode, Encode};
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MultiLocation {
 	/// The interpreting consensus system.
 	Null,

@@ -27,6 +27,7 @@ use scale_info::TypeInfo;
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
