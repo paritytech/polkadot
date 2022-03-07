@@ -320,7 +320,44 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
-	unimplemented!()
+	let storage = match view.candidate_storage.get_mut(&para) {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				para_id = ?para,
+				?candidate_hash,
+				"Received instructio to back candidate",
+			);
+
+			return Ok(())
+		},
+		Some(storage) => storage,
+	};
+
+	if !storage.contains(&candidate_hash) {
+		tracing::warn!(
+			target: LOG_TARGET,
+			para_id = ?para,
+			?candidate_hash,
+			"Received instruction to mark unknown candidate as backed.",
+		);
+
+		return Ok(())
+	}
+
+	if storage.is_backed(&candidate_hash) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			para_id = ?para,
+			?candidate_hash,
+			"Received redundant instruction to mark candidate as backed",
+		);
+
+		return Ok(())
+	}
+
+	storage.mark_backed(&candidate_hash);
+	Ok(())
 }
 
 async fn answer_get_backable_candidate<Context>(

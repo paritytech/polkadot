@@ -149,6 +149,11 @@ impl CandidateStorage {
 			.map_or(false, |e| e.state == CandidateState::Backed)
 	}
 
+	/// Whether a candidate is contained within the storage already.
+	pub fn contains(&self, candidate_hash: &CandidateHash) -> bool {
+		self.by_candidate_hash.contains_key(candidate_hash)
+	}
+
 	/// Retain only candidates which pass the predicate.
 	pub(crate) fn retain(&mut self, pred: impl Fn(&CandidateHash) -> bool) {
 		self.by_candidate_hash.retain(|h, _v| pred(h));
