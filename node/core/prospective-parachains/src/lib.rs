@@ -117,25 +117,37 @@ impl View {
 	}
 }
 
-async fn run<Context>(mut ctx: Context) -> Result<()>
+async fn run<Context>(mut ctx: Context) -> FatalResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
-	// TODO [now]: run_until_error where view is preserved
 	let mut view = View::new();
+	loop {
+		crate::error::log_error(
+			run_iteration(&mut ctx, &mut view).await,
+			"Encountered issue during run iteration",
+		)?;
+	}
+}
+
+async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
 	loop {
 		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				view = handle_active_leaves_update(&mut ctx, view, update).await?;
+				handle_active_leaves_update(&mut *ctx, view, update).await?;
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd) =>
-					handle_candidate_seconded(&mut ctx, &mut view, para, candidate, pvd).await?,
+					handle_candidate_seconded(&mut *ctx, view, para, candidate, pvd).await?,
 				ProspectiveParachainsMessage::CandidateBacked(para, candidate_hash) =>
-					handle_candidate_backed(&mut ctx, &mut view, para, candidate_hash).await?,
+					handle_candidate_backed(&mut *ctx, view, para, candidate_hash).await?,
 				ProspectiveParachainsMessage::GetBackableCandidate(
 					relay_parent,
 					para,
@@ -149,9 +161,9 @@ where
 
 async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
-	mut view: View,
+	view: &mut View,
 	update: ActiveLeavesUpdate,
-) -> JfyiErrorResult<View>
+) -> JfyiErrorResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -235,10 +247,10 @@ where
 
 	if !update.deactivated.is_empty() {
 		// This has potential to be a hotspot.
-		prune_view_candidate_storage(&mut view);
+		prune_view_candidate_storage(view);
 	}
 
-	Ok(view)
+	Ok(())
 }
 
 fn prune_view_candidate_storage(view: &mut View) {
