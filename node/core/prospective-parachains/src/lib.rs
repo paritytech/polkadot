@@ -27,35 +27,28 @@
 //! This also handles concerns such as the relay-chain being forkful,
 //! session changes, predicting validator group assignments.
 
-// TODO [now]: remove
-#![allow(unused)]
-
 use std::{
-	collections::{hash_map::Entry as HEntry, HashMap, HashSet},
-	sync::Arc,
+	collections::{HashMap, HashSet},
 };
 
 use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
 	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem_util::{
 	inclusion_emulator::staging::{
-		ConstraintModifications, Constraints, Fragment, RelayChainBlockInfo,
+		Constraints, RelayChainBlockInfo,
 	},
-	metrics::{self, prometheus},
 };
 use polkadot_primitives::vstaging::{
-	Block, BlockId, BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, PersistedValidationData,
-	SessionIndex, ValidatorIndex,
+	CandidateHash, CommittedCandidateReceipt,
+	Hash, Id as ParaId, PersistedValidationData,
 };
 
 use crate::{
-	error::{Error, FatalError, FatalResult, JfyiError, JfyiErrorResult, Result},
+	error::{FatalError, FatalResult, JfyiError, JfyiErrorResult, Result},
 	fragment_tree::{CandidateStorage, FragmentTree, Scope as TreeScope},
 };
 
@@ -76,12 +69,8 @@ const MAX_DEPTH: usize = 4;
 // The maximum ancestry we support.
 const MAX_ANCESTRY: usize = 5;
 
-/// The Prospective Parachains Subsystem.
-pub struct ProspectiveParachainsSubsystems {
-	metrics: Metrics,
-}
-
 // TODO [now]: add this enum to the broader subsystem types.
+/// Messages sent to the Prospective Parachains subsystem.
 pub enum ProspectiveParachainsMessage {
 	/// Inform the Prospective Parachains Subsystem of a new candidate.
 	CandidateSeconded(ParaId, CommittedCandidateReceipt, PersistedValidationData),
@@ -95,18 +84,9 @@ pub enum ProspectiveParachainsMessage {
 	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
 }
 
-struct ScheduledPara {
-	para: ParaId,
-	base_constraints: Constraints,
-	validator_group: GroupIndex,
-}
-
 struct RelayBlockViewData {
 	// Scheduling info for paras and upcoming paras.
 	fragment_trees: HashMap<ParaId, FragmentTree>,
-	block_info: RelayChainBlockInfo,
-	// TODO [now]: other stuff
-	// e.g. ancestors in same session
 }
 
 struct View {
@@ -121,7 +101,8 @@ impl View {
 	}
 }
 
-async fn run<Context>(mut ctx: Context) -> FatalResult<()>
+// TODO [now]: this is temporarily `pub` to make the unused lint behave reasonably.
+pub async fn run<Context>(mut ctx: Context) -> FatalResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -246,7 +227,7 @@ where
 		// TODO [now]: notify subsystems of new trees.
 
 		view.active_leaves
-			.insert(hash, RelayBlockViewData { block_info, fragment_trees });
+			.insert(hash, RelayBlockViewData { fragment_trees });
 	}
 
 	if !update.deactivated.is_empty() {
@@ -265,6 +246,7 @@ fn prune_view_candidate_storage(view: &mut View) {
 		for head in active_leaves.values() {
 			if let Some(tree) = head.fragment_trees.get(&para_id) {
 				coverage.extend(tree.candidates());
+				contained = true;
 			}
 		}
 
@@ -282,7 +264,7 @@ fn prune_view_candidate_storage(view: &mut View) {
 }
 
 async fn handle_candidate_seconded<Context>(
-	ctx: &mut Context,
+	_ctx: &mut Context,
 	view: &mut View,
 	para: ParaId,
 	candidate: CommittedCandidateReceipt,
@@ -336,7 +318,7 @@ where
 }
 
 async fn handle_candidate_backed<Context>(
-	ctx: &mut Context,
+	_ctx: &mut Context,
 	view: &mut View,
 	para: ParaId,
 	candidate_hash: CandidateHash,
@@ -440,6 +422,7 @@ fn answer_get_backable_candidate(
 	let _ = tx.send(tree.select_child(&required_path, |candidate| storage.is_backed(candidate)));
 }
 
+#[allow(unused)] // TODO [now]
 async fn fetch_constraints<Context>(
 	ctx: &mut Context,
 	relay_parent: &Hash,
@@ -449,6 +432,7 @@ async fn fetch_constraints<Context>(
 	unimplemented!()
 }
 
+#[allow(unused)] // TODO [now]
 async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
 	relay_parent: &Hash,

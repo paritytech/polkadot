@@ -55,25 +55,18 @@
 // TODO [now]: review & update.
 
 use std::{
-	collections::{hash_map::Entry as HEntry, BTreeMap, HashMap, HashSet},
-	sync::Arc,
+	collections::{BTreeMap, HashMap, HashSet},
 };
 
 use super::LOG_TARGET;
-use polkadot_node_subsystem::{
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult,
-};
 use polkadot_node_subsystem_util::{
 	inclusion_emulator::staging::{
 		ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 	},
-	metrics::{self, prometheus},
 };
 use polkadot_primitives::vstaging::{
-	Block, BlockId, BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	GroupIndex, GroupRotationInfo, Hash, HeadData, Header, Id as ParaId, PersistedValidationData,
-	SessionIndex, ValidatorIndex,
+	BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+	Hash, HeadData, Id as ParaId, PersistedValidationData,
 };
 
 /// An error indicating that a supplied candidate didn't match the persisted
@@ -158,7 +151,7 @@ impl CandidateStorage {
 	/// Retain only candidates which pass the predicate.
 	pub(crate) fn retain(&mut self, pred: impl Fn(&CandidateHash) -> bool) {
 		self.by_candidate_hash.retain(|h, _v| pred(h));
-		self.by_parent_head.retain(|parent, children| {
+		self.by_parent_head.retain(|_parent, children| {
 			children.retain(|h| pred(h));
 			!children.is_empty()
 		})
@@ -573,6 +566,7 @@ impl FragmentTree {
 	}
 }
 
+#[allow(unused)] // TODO [now]
 struct FragmentNode {
 	// A pointer to the parent node.
 	parent: NodePointer,
@@ -584,6 +578,7 @@ struct FragmentNode {
 	children: Vec<(NodePointer, CandidateHash)>,
 }
 
+#[allow(unused)] // TODO [now]
 impl FragmentNode {
 	fn relay_parent(&self) -> Hash {
 		self.fragment.relay_parent().hash

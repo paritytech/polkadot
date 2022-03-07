@@ -17,17 +17,14 @@
 //! Error types.
 
 use futures::channel::oneshot;
-use thiserror::Error;
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	SubsystemError,
 };
-use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
 use crate::LOG_TARGET;
 use fatality::Nested;
-use parity_scale_codec::Error as CodecError;
 
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
