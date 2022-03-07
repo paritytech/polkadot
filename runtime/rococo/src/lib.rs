@@ -1121,11 +1121,28 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
 	define_benchmarks!(
-		[runtime_parachains::configuration, Configuration]
+		// Polkadot
+		// NOTE: Make sure to prefix these with `runtime_common::` so
+		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
+		[runtime_common::crowdloan, Crowdloan]
 		[runtime_parachains::disputes, ParasDisputes]
-		[runtime_parachains::paras_inherent, ParaInherent]
+		[runtime_common::paras_registrar, Registrar]
+		[runtime_common::slots, Slots]
+		[runtime_parachains::configuration, Configuration]
+		[runtime_parachains::hrmp, Hrmp]
+		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
+		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::ump, Ump]
+		// Substrate
+		[pallet_balances, Balances]
+		[pallet_im_online, ImOnline]
+		[pallet_indices, Indices]
+		[pallet_multisig, Multisig]
+		[pallet_proxy, Proxy]
+		[pallet_timestamp, Timestamp]
+		[pallet_utility, Utility]
 	);
 }
 
