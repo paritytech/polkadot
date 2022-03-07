@@ -39,7 +39,7 @@ fn pallet_query_should_work() {
 		response: Response::PalletsInfo(vec![].try_into().unwrap()),
 		querier: Some(Here.into()),
 	}]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![(Parachain(1).into(), expected_msg, expected_hash)]);
 }
 
@@ -78,7 +78,7 @@ fn pallet_query_with_results_should_work() {
 		),
 		querier: Some(Here.into()),
 	}]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![(Parachain(1).into(), expected_msg, expected_hash)]);
 }
 

@@ -41,7 +41,7 @@ fn lock_roundtrip_should_work() {
 
 	let expected_msg =
 		Xcm::<()>(vec![NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100).into() }]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![((Parent, Parachain(1)).into(), expected_msg, expected_hash)]);
 	assert_eq!(
 		take_lock_trace(),
@@ -152,7 +152,7 @@ fn remote_unlock_roundtrip_should_work() {
 
 	let expected_msg =
 		Xcm::<()>(vec![UnlockAsset { target: (3u64,).into(), asset: (Parent, 100).into() }]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![((Parent, Parachain(1)).into(), expected_msg, expected_hash)]);
 	assert_eq!(
 		take_lock_trace(),

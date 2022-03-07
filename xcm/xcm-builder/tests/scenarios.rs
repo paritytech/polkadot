@@ -20,11 +20,9 @@ use mock::{
 	kusama_like_with_balances, fake_message_hash, AccountId, Balance, Balances, BaseXcmWeight,
 	XcmConfig, CENTS,
 };
-use parity_scale_codec::Encode;
 use polkadot_parachain::primitives::Id as ParaId;
-use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::{latest::prelude::*, VersionedXcm};
+use xcm::latest::prelude::*;
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -134,7 +132,7 @@ fn report_holding_works() {
 			max_weight: response_info.max_weight,
 			querier: Some(Here.into()),
 		}]);
-		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+		let expected_hash = fake_message_hash(&expected_msg);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(Parachain(PARA_ID).into(), expected_msg, expected_hash,)]
@@ -185,7 +183,7 @@ fn teleport_to_statemine_works() {
 			.into_iter()
 			.chain(teleport_effects.clone().into_iter())
 			.collect());
-		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+		let expected_hash = fake_message_hash(&expected_msg);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(Parachain(other_para_id).into(), expected_msg, expected_hash,)]
@@ -210,7 +208,7 @@ fn teleport_to_statemine_works() {
 			.into_iter()
 			.chain(teleport_effects.clone().into_iter())
 			.collect());
-		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+		let expected_hash = fake_message_hash(&expected_msg);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![
@@ -260,7 +258,7 @@ fn reserve_based_transfer_works() {
 			.into_iter()
 			.chain(transfer_effects.into_iter())
 			.collect());
-		let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+		let expected_hash = fake_message_hash(&expected_msg);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(Parachain(other_para_id).into(), expected_msg, expected_hash,)]

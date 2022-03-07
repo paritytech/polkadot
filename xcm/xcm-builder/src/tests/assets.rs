@@ -150,7 +150,7 @@ fn reserve_transfer_should_work() {
 		ClearOrigin,
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: three },
 	]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(asset_list(Parachain(2)), vec![(Here, 100).into()]);
 	assert_eq!(sent_xcm(), vec![(Parachain(2).into(), expected_msg, expected_hash)]);
 }

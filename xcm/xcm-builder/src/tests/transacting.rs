@@ -115,7 +115,7 @@ fn report_successful_transact_status_should_work() {
 		max_weight: 5000,
 		querier: Some(Here.into()),
 	}]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![(Parent.into(), expected_msg, expected_hash)]);
 }
 
@@ -145,7 +145,7 @@ fn report_failed_transact_status_should_work() {
 		max_weight: 5000,
 		querier: Some(Here.into()),
 	}]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![(Parent.into(), expected_msg, expected_hash)]);
 }
 
@@ -176,6 +176,6 @@ fn clear_transact_status_should_work() {
 		max_weight: 5000,
 		querier: Some(Here.into()),
 	}]);
-	let expected_hash = VersionedXcm::from(expected_msg.clone()).using_encoded(blake2_256);
+	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![(Parent.into(), expected_msg, expected_hash)]);
 }
