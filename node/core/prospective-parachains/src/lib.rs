@@ -53,7 +53,7 @@ use polkadot_primitives::vstaging::{
 };
 
 use crate::{
-	error::{Error, FatalResult, NonFatal, NonFatalResult, Result},
+	error::{Error, FatalError, JfyiError, Result, FatalResult, JfyiErrorResult},
 	fragment_tree::{FragmentTree, CandidateStorage},
 };
 
@@ -115,7 +115,7 @@ where
 {
 	let mut view = View::new();
 	loop {
-		match ctx.recv().await? {
+		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				update_view(&mut view, &mut ctx, update).await?;
@@ -135,7 +135,7 @@ async fn update_view<Context>(
 	view: &mut View,
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
-) -> NonFatalResult<()>
+) -> JfyiErrorResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,

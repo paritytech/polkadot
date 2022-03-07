@@ -9,6 +9,7 @@ futures = "0.3.19"
 tracing = "0.1.29"
 parity-scale-codec = "2"
 thiserror = "1.0.30"
+fatality = "0.0.6"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }

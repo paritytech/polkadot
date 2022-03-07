@@ -27,57 +27,27 @@ use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, 
 
 use crate::LOG_TARGET;
 use parity_scale_codec::Error as CodecError;
+use fatality::Nested;
 
-// TODO [now]: update to use fatality (thanks Bernhard)
-
-/// Errors for this subsystem.
-#[derive(Debug, Error)]
-#[error(transparent)]
+#[allow(missing_docs)]
+#[fatality::fatality(splitable)]
 pub enum Error {
-	/// All fatal errors.
-	Fatal(#[from] Fatal),
-	/// All nonfatal/potentially recoverable errors.
-	NonFatal(#[from] NonFatal),
-}
-
-/// General `Result` type for dispute coordinator.
-pub type Result<R> = std::result::Result<R, Error>;
-/// Result type with only fatal errors.
-pub type FatalResult<R> = std::result::Result<R, Fatal>;
-/// Result type with only non fatal errors.
-pub type NonFatalResult<R> = std::result::Result<R, NonFatal>;
-
-impl From<SubsystemError> for Error {
-	fn from(o: SubsystemError) -> Self {
-		match o {
-			SubsystemError::Context(msg) => Self::Fatal(Fatal::SubsystemContext(msg)),
-			_ => Self::NonFatal(NonFatal::Subsystem(o)),
-		}
-	}
-}
-
-/// Fatal errors of this subsystem.
-#[derive(Debug, Error)]
-pub enum Fatal {
-	/// We received a legacy `SubystemError::Context` error which is considered fatal.
+	#[fatal]
 	#[error("SubsystemError::Context error: {0}")]
 	SubsystemContext(String),
 
-	/// `ctx.spawn` failed with an error.
+	#[fatal]
 	#[error("Spawning a task failed: {0}")]
 	SpawnFailed(SubsystemError),
 
+	#[fatal]
 	#[error("Participation worker receiver exhausted.")]
 	ParticipationWorkerReceiverExhausted,
 
-	/// Receiving subsystem message from overseer failed.
+	#[fatal]
 	#[error("Receiving message from overseer failed: {0}")]
 	SubsystemReceive(#[source] SubsystemError),
-}
 
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum NonFatal {
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
 
@@ -88,29 +58,23 @@ pub enum NonFatal {
 	Subsystem(SubsystemError),
 }
 
+/// General `Result` type.
+pub type Result<R> = std::result::Result<R, Error>;
+/// Result for non-fatal only failures.
+pub type JfyiErrorResult<T> = std::result::Result<T, JfyiError>;
+/// Result for fatal only failures.
+pub type FatalResult<T> = std::result::Result<T, FatalError>;
+
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
-	match result {
-		Err(Error::Fatal(f)) => Err(f),
-		Err(Error::NonFatal(error)) => {
-			error.log();
+pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), FatalError> {
+	match result.into_nested()? {
+		Ok(()) => Ok(()),
+		Err(jfyi) => {
+			tracing::debug!(target: LOG_TARGET, error = ?jfyi, ctx);
 			Ok(())
 		},
-		Ok(()) => Ok(()),
-	}
-}
-
-impl NonFatal {
-	/// Log a `NonFatal`.
-	pub fn log(self) {
-		match self {
-			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) => tracing::debug!(target: LOG_TARGET, error = ?self),
-			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, error = ?self),
-		}
 	}
 }
