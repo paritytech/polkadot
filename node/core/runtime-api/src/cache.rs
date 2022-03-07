@@ -46,6 +46,7 @@ const CURRENT_BABE_EPOCH_CACHE_SIZE: usize = 64 * 1024;
 const ON_CHAIN_VOTES_CACHE_SIZE: usize = 3 * 1024;
 const PVFS_REQUIRE_PRECHECK_SIZE: usize = 1024;
 const VALIDATION_CODE_HASH_CACHE_SIZE: usize = 64 * 1024;
+const VERSION_CACHE_SIZE: usize = 4 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -113,6 +114,7 @@ pub(crate) struct RequestResultCache {
 		(Hash, ParaId, OccupiedCoreAssumption),
 		ResidentSizeOf<Option<ValidationCodeHash>>,
 	>,
+	version: MemoryLruCache<Hash, ResidentSizeOf<u32>>,
 }
 
 impl Default for RequestResultCache {
@@ -139,6 +141,7 @@ impl Default for RequestResultCache {
 			on_chain_votes: MemoryLruCache::new(ON_CHAIN_VOTES_CACHE_SIZE),
 			pvfs_require_precheck: MemoryLruCache::new(PVFS_REQUIRE_PRECHECK_SIZE),
 			validation_code_hash: MemoryLruCache::new(VALIDATION_CODE_HASH_CACHE_SIZE),
+			version: MemoryLruCache::new(VERSION_CACHE_SIZE),
 		}
 	}
 }
@@ -396,6 +399,14 @@ impl RequestResultCache {
 	) {
 		self.validation_code_hash.insert(key, ResidentSizeOf(value));
 	}
+
+	pub(crate) fn version(&mut self, relay_parent: &Hash) -> Option<&u32> {
+		self.version.get(&relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_version(&mut self, key: Hash, value: u32) {
+		self.version.insert(key, ResidentSizeOf(value));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -430,4 +441,5 @@ pub(crate) enum RequestResult {
 	// This is a request with side-effects and no result, hence ().
 	SubmitPvfCheckStatement(Hash, PvfCheckStatement, ValidatorSignature, ()),
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
+	Version(Hash, u32),
 }

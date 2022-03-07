@@ -680,7 +680,7 @@ This is fueled by an auxiliary type encapsulating all request types defined in t
 ```rust
 enum RuntimeApiRequest {
     /// Get the version of the runtime API at the given parent hash, if any.
-    Version(ResponseChannel<Option<u32>>),
+    Version(ResponseChannel<u32>),
     /// Get the current validator set.
     Validators(ResponseChannel<Vec<ValidatorId>>),
     /// Get the validator groups and rotation info.

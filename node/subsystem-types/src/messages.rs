@@ -612,6 +612,8 @@ pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeA
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
+	/// Get the version of the runtime API, if any.
+	Version(RuntimeApiSender<u32>),
 	/// Get the next, current and some previous authority discovery set deduplicated.
 	Authorities(RuntimeApiSender<Vec<AuthorityDiscoveryId>>),
 	/// Get the current validator set.
