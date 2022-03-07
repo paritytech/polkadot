@@ -539,10 +539,6 @@ update_westend_weights:
 
 build-rustdoc:
   stage:                           stage3
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         test-deterministic-wasm
-      artifacts:                   false
   <<:                              *docker-env
   <<:                              *test-refs
   variables:
@@ -565,10 +561,6 @@ build-rustdoc:
 
 generate-impl-guide:
   stage:                           stage3
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         check-transaction-versions
-      artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
   image:
@@ -579,10 +571,6 @@ generate-impl-guide:
 
 check-runtime-benchmarks:
   stage:                           stage3
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         test-node-metrics
-      artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -593,10 +581,6 @@ check-runtime-benchmarks:
 
 check-try-runtime:
   stage:                           stage3
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         test-node-metrics
-      artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -607,10 +591,6 @@ check-try-runtime:
 
 check-no-default-features:
   stage:                           stage3
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         test-deterministic-wasm
-      artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -623,10 +603,6 @@ check-no-default-features:
 
 deploy-parity-testnet:
   stage:                           stage3
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         test-deterministic-wasm
-      artifacts:                   false
   <<:                              *publish-refs
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
