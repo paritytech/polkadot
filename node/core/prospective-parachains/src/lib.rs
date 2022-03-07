@@ -77,6 +77,8 @@ pub struct ProspectiveParachainsSubsystems {
 }
 
 // TODO [now]: add this enum to the broader subsystem types.
+// TODO [now]: notify about candidate seconded
+// TODO [now]: notify about candidate backed
 pub enum ProspectiveParachainsMessage {}
 
 struct ScheduledPara {
@@ -113,12 +115,13 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
+	// TODO [now]: run_until_error where view is preserved
 	let mut view = View::new();
 	loop {
 		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				update_view(&mut view, &mut ctx, update).await?;
+				view = update_view(&mut ctx, view, update).await?;
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
@@ -132,14 +135,60 @@ where
 }
 
 async fn update_view<Context>(
-	view: &mut View,
 	ctx: &mut Context,
+	mut view: View,
 	update: ActiveLeavesUpdate,
-) -> JfyiErrorResult<()>
+) -> JfyiErrorResult<View>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
+	// 1. clean up inactive leaves
+	// 2. determine all scheduled para at each block
+	// 3. construct new fragment tree for each para for each new leaf
+	// 4. prune candidate storage.
+
+	for deactivated in update.deactivated {
+		view.active_leaves.remove(&deactivated);
+	}
+
+	// TODO [now]: 2
+
+	// TODO [now]: 3
+
+	prune_view_candidate_storage(&mut view);
+
+	Ok(view)
+}
+
+fn prune_view_candidate_storage(view: &mut View) {
+	let active_leaves = &view.active_leaves;
+	view.candidate_storage.retain(|para_id, storage| {
+		let mut coverage = HashSet::new();
+		let mut contained = false;
+		for head in active_leaves.values() {
+			if let Some(tree) = head.fragment_trees.get(&para_id) {
+				coverage.extend(tree.candidates());
+			}
+		}
+
+		if !contained {
+			return false;
+		}
+
+		storage.retain(|h| coverage.contains(&h));
+
+		// Even if `storage` is now empty, we retain.
+		// This maintains a convenient invariant that para-id storage exists
+		// as long as there's an active head which schedules the para.
+		true
+	})
+}
+
+async fn fetch_constraints<Context>(
+	ctx: &mut Context,
+	para_id: ParaId,
+) -> JfyiErrorResult<Option<Constraints>> {
 	unimplemented!()
 }
 
