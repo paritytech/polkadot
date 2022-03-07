@@ -149,7 +149,7 @@ pub struct OutboundHrmpMessage<Id> {
 	pub data: sp_std::vec::Vec<u8>,
 }
 
-/// `V1` primitives.
-pub mod v1 {
+/// `V2` primitives.
+pub mod v2 {
 	pub use super::*;
 }
