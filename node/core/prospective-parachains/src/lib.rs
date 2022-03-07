@@ -27,24 +27,17 @@
 //! This also handles concerns such as the relay-chain being forkful,
 //! session changes, predicting validator group assignments.
 
-use std::{
-	collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
-	messages::ChainApiMessage,
+	messages::ChainApiMessage, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+	SubsystemContext,
 };
-use polkadot_node_subsystem_util::{
-	inclusion_emulator::staging::{
-		Constraints, RelayChainBlockInfo,
-	},
-};
+use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
-	CandidateHash, CommittedCandidateReceipt,
-	Hash, Id as ParaId, PersistedValidationData,
+	CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId, PersistedValidationData,
 };
 
 use crate::{
@@ -166,10 +159,7 @@ where
 		let hash = activated.hash;
 		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, &hash).await?;
 
-		let block_info: RelayChainBlockInfo = match fetch_block_info(
-			&mut *ctx,
-			hash,
-		).await? {
+		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {
 			None => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -181,7 +171,7 @@ where
 				// to exit the 'loop' and skip this block without skipping
 				// pruning logic.
 				continue
-			}
+			},
 			Some(info) => info,
 		};
 
@@ -226,8 +216,7 @@ where
 
 		// TODO [now]: notify subsystems of new trees.
 
-		view.active_leaves
-			.insert(hash, RelayBlockViewData { fragment_trees });
+		view.active_leaves.insert(hash, RelayBlockViewData { fragment_trees });
 	}
 
 	if !update.deactivated.is_empty() {
@@ -456,7 +445,8 @@ where
 		hash: relay_hash,
 		k: ancestors,
 		response_channel: tx,
-	}).await;
+	})
+	.await;
 
 	let hashes = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
 	let mut block_info = Vec::with_capacity(hashes.len());
@@ -470,11 +460,11 @@ where
 				);
 
 				// Return, however far we got.
-				return Ok(block_info);
-			}
+				return Ok(block_info)
+			},
 			Some(info) => {
 				block_info.push(info);
-			}
+			},
 		}
 	}
 
@@ -484,7 +474,8 @@ where
 async fn fetch_block_info<Context>(
 	ctx: &mut Context,
 	relay_hash: Hash,
-) -> JfyiErrorResult<Option<RelayChainBlockInfo>> where
+) -> JfyiErrorResult<Option<RelayChainBlockInfo>>
+where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {

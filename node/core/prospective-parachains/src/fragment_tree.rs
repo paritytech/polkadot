@@ -54,19 +54,15 @@
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 // TODO [now]: review & update.
 
-use std::{
-	collections::{BTreeMap, HashMap, HashSet},
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::LOG_TARGET;
-use polkadot_node_subsystem_util::{
-	inclusion_emulator::staging::{
-		ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
-	},
+use polkadot_node_subsystem_util::inclusion_emulator::staging::{
+	ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 };
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	Hash, HeadData, Id as ParaId, PersistedValidationData,
+	BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt, Hash, HeadData,
+	Id as ParaId, PersistedValidationData,
 };
 
 /// An error indicating that a supplied candidate didn't match the persisted
