@@ -145,7 +145,8 @@ impl CandidateStorage {
 
 	/// Whether a candidate is recorded as being backed.
 	pub fn is_backed(&self, candidate_hash: &CandidateHash) -> bool {
-		self.by_candidate_hash.get(candidate_hash)
+		self.by_candidate_hash
+			.get(candidate_hash)
 			.map_or(false, |e| e.state == CandidateState::Backed)
 	}
 

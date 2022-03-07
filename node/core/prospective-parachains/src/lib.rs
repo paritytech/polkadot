@@ -372,7 +372,54 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
-	unimplemented!()
+	let data = match view.active_leaves.get(&relay_parent) {
+		None => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				para_id = ?para,
+				"Requested backable candidate for inactive relay-parent."
+			);
+
+			let _ = tx.send(None);
+			return Ok(())
+		},
+		Some(d) => d,
+	};
+
+	let tree = match data.fragment_trees.get(&para) {
+		None => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				para_id = ?para,
+				"Requested backable candidate for inactive para."
+			);
+
+			let _ = tx.send(None);
+			return Ok(())
+		},
+		Some(tree) => tree,
+	};
+
+	let storage = match view.candidate_storage.get(&para) {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				para_id = ?para,
+				"No candidate storage for active para",
+			);
+
+			let _ = tx.send(None);
+			return Ok(())
+		},
+		Some(s) => s,
+	};
+
+	let _ = tx.send(tree.select_child(&required_path, |candidate| storage.is_backed(candidate)));
+
+	Ok(())
 }
 
 async fn fetch_constraints<Context>(
