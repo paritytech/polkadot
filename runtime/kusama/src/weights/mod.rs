@@ -51,3 +51,4 @@ pub mod runtime_parachains_hrmp;
 pub mod runtime_parachains_initializer;
 pub mod runtime_parachains_paras;
 pub mod runtime_parachains_paras_inherent;
+pub mod runtime_parachains_ump;
