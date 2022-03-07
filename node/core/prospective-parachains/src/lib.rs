@@ -54,7 +54,7 @@ use polkadot_primitives::vstaging::{
 
 use crate::{
 	error::{Error, FatalError, JfyiError, Result, FatalResult, JfyiErrorResult},
-	fragment_tree::{FragmentTree, CandidateStorage},
+	fragment_tree::{FragmentTree, CandidateStorage, Scope as TreeScope},
 };
 
 mod error;
@@ -70,6 +70,9 @@ const LOG_TARGET: &str = "parachain::prospective-parachains";
 // Without it, a malicious validator group could create arbitrarily long,
 // useless prospective parachains and DoS honest nodes.
 const MAX_DEPTH: usize = 4;
+
+// The maximum ancestry we support.
+const MAX_ANCESTRY: usize = 5;
 
 /// The Prospective Parachains Subsystem.
 pub struct ProspectiveParachainsSubsystems {
@@ -144,19 +147,84 @@ where
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	// 1. clean up inactive leaves
-	// 2. determine all scheduled para at each block
+	// 2. determine all scheduled para at new block
 	// 3. construct new fragment tree for each para for each new leaf
 	// 4. prune candidate storage.
 
-	for deactivated in update.deactivated {
-		view.active_leaves.remove(&deactivated);
+	for deactivated in &update.deactivated {
+		view.active_leaves.remove(deactivated);
 	}
 
-	// TODO [now]: 2
+	if let Some(activated) = update.activated {
+		let hash = activated.hash;
+		let scheduled_paras = fetch_upcoming_paras(
+			ctx,
+			&hash,
+		).await?;
+
+		let block_info: RelayChainBlockInfo = unimplemented!();
+
+		let ancestry = fetch_ancestry(
+			&mut ctx,
+			hash,
+			MAX_ANCESTRY,
+		).await?;
+
+		// Find constraints.
+		let mut fragment_trees = HashMap::new();
+		for para in scheduled_paras {
+			let candidate_storage = view.candidate_storage
+				.entry(para)
+				.or_insert_with(CandidateStorage::new);
+
+			let constraints = fetch_constraints(
+				&mut ctx,
+				&hash,
+				para,
+			).await?;
+
+			let constraints = match constraints {
+				Some(c) => c,
+				None => {
+					// This indicates a runtime conflict of some kind.
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						para_id = ?para,
+						relay_parent = ?hash,
+						"Failed to get inclusion constraints."
+					);
+
+					continue
+				}
+			};
+
+			let scope = TreeScope::with_ancestors(
+				para,
+				block_info.clone(),
+				constraints,
+				MAX_DEPTH,
+				ancestry.iter().cloned(),
+			).expect("ancestors are provided in reverse order and correctly; qed");
+
+			let tree = FragmentTree::populate(scope, &*candidate_storage);
+			fragment_trees.insert(para, tree);
+		}
+
+		// TODO [now]: notify subsystems of new trees.
+
+		view.active_leaves.insert(hash, RelayBlockViewData {
+			block_info,
+			fragment_trees,
+		});
+	}
 
 	// TODO [now]: 3
 
-	prune_view_candidate_storage(&mut view);
+	if !update.deactivated.is_empty() {
+		// This has potential to be a hotspot.
+		prune_view_candidate_storage(&mut view);
+	}
 
 	Ok(view)
 }
@@ -187,8 +255,25 @@ fn prune_view_candidate_storage(view: &mut View) {
 
 async fn fetch_constraints<Context>(
 	ctx: &mut Context,
+	relay_parent: &Hash,
 	para_id: ParaId,
 ) -> JfyiErrorResult<Option<Constraints>> {
+	unimplemented!()
+}
+
+async fn fetch_upcoming_paras<Context>(
+	ctx: &mut Context,
+	relay_parent: &Hash
+) -> JfyiErrorResult<Vec<ParaId>> {
+	unimplemented!()
+}
+
+// Fetch ancestors in descending order, up to the amount requested.
+async fn fetch_ancestry<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	ancestors: usize,
+) -> JfyiErrorResult<Vec<RelayChainBlockInfo>> {
 	unimplemented!()
 }
 
