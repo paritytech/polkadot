@@ -284,7 +284,7 @@ mod tests {
 		Relay::execute_with(|| {
 			use pallet_balances::{BalanceLock, Reasons};
 			assert_eq!(
-				relay_chain::Balances::locks(&para_account_id(2)),
+				relay_chain::Balances::locks(&child_account_id(2)),
 				vec![BalanceLock {
 					id: *b"py/xcmlk",
 					amount: locked_amount,
