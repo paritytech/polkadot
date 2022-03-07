@@ -17,7 +17,8 @@
 mod mock;
 
 use mock::{
-	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
+	kusama_like_with_balances, fake_message_hash, AccountId, Balance, Balances, BaseXcmWeight,
+	XcmConfig, CENTS,
 };
 use parity_scale_codec::Encode;
 use polkadot_parachain::primitives::Id as ParaId;

@@ -26,10 +26,7 @@ use sp_std::cell::RefCell;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
-use xcm::{
-	latest::{opaque, prelude::*},
-	VersionedXcm,
-};
+use xcm::latest::{opaque, prelude::*};
 use xcm_executor::XcmExecutor;
 
 use xcm_builder::{
@@ -57,7 +54,7 @@ impl SendXcm for TestSendXcm {
 		msg: &mut Option<Xcm<()>>,
 	) -> SendResult<(MultiLocation, Xcm<()>, XcmHash)> {
 		let msg = msg.take().unwrap();
-		let hash = VersionedXcm::from(msg.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&msg);
 		let triplet = (dest.take().unwrap(), msg, hash);
 		Ok((triplet, MultiAssets::new()))
 	}
@@ -251,4 +248,8 @@ pub fn kusama_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext
+}
+
+pub fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(sp_io::hashing::blake2_256)
 }

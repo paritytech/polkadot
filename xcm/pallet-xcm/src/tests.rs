@@ -18,7 +18,6 @@ use crate::{
 	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
 	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
 };
-use codec::Encode;
 use frame_support::{
 	assert_noop, assert_ok,
 	traits::{Currency, Hooks},
@@ -35,10 +34,6 @@ const BOB: AccountId = AccountId::new([1u8; 32]);
 const PARA_ID: u32 = 2000;
 const INITIAL_BALANCE: u128 = 100;
 const SEND_AMOUNT: u128 = 10;
-
-fn fake_message_hash(message: &Xcm) -> XcmHash {
-	message.using_encoded(sp_io::hashing::blake2_256)
-}
 
 #[test]
 fn report_outcome_notify_works() {

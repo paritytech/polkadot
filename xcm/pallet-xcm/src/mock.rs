@@ -376,6 +376,6 @@ pub(crate) fn new_test_ext_with_balances(
 	ext
 }
 
-pub(crate) fn fake_message_hash(message: &Xcm) -> XcmHash {
+pub(crate) fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
 	message.using_encoded(sp_io::hashing::blake2_256)
 }
