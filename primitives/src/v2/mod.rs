@@ -1665,10 +1665,6 @@ sp_api::decl_runtime_apis! {
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
 
-		/// Old method to fetch v1 session info.
-		#[changed_in(2)]
-		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
-
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
@@ -1720,6 +1716,86 @@ sp_api::decl_runtime_apis! {
 		/// NOTE: This function is only available since parachain host version 2.
 		fn validation_code_hash(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCodeHash>;
+
+
+		/***** Replaced in v2 *****/
+
+		/// Old method to fetch v1 session info.
+		#[changed_in(2)]
+		fn session_info(index: SessionIndex) -> Option<OldV1SessionInfo>;
+	}
+}
+
+/// Old, v1-style info about session info. Only needed for limited
+/// backwards-compatibility.
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
+pub struct OldV1SessionInfo {
+	/// Validators in canonical ordering.
+	///
+	/// NOTE: There might be more authorities in the current session, than `validators` participating
+	/// in parachain consensus. See
+	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+	///
+	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
+	pub validators: Vec<ValidatorId>,
+	/// Validators' authority discovery keys for the session in canonical ordering.
+	///
+	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
+	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
+	/// participating in parachain consensus - see
+	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
+	pub discovery_keys: Vec<AuthorityDiscoveryId>,
+	/// The assignment keys for validators.
+	///
+	/// NOTE: There might be more authorities in the current session, than validators participating
+	/// in parachain consensus. See
+	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+	///
+	/// Therefore:
+	/// ```ignore
+	///		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
+	///	```
+	pub assignment_keys: Vec<AssignmentId>,
+	/// Validators in shuffled ordering - these are the validator groups as produced
+	/// by the `Scheduler` module for the session and are typically referred to by
+	/// `GroupIndex`.
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// The number of availability cores used by the protocol during this session.
+	pub n_cores: u32,
+	/// The zeroth delay tranche width.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of samples we do of `relay_vrf_modulo`.
+	pub relay_vrf_modulo_samples: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
+	/// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+	/// no-show.
+	pub no_show_slots: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+}
+
+impl From<OldV1SessionInfo> for SessionInfo {
+	fn from(old: OldV1SessionInfo) -> SessionInfo {
+		SessionInfo {
+			// new fields
+			active_validator_indices: Vec::new(),
+			random_seed: [0u8; 32],
+			dispute_period: 6,
+			// old fields
+			validators: old.validators,
+			discovery_keys: old.discovery_keys,
+			assignment_keys: old.assignment_keys,
+			validator_groups: old.validator_groups,
+			n_cores: old.n_cores,
+			zeroth_delay_tranche_width: old.zeroth_delay_tranche_width,
+			relay_vrf_modulo_samples: old.relay_vrf_modulo_samples,
+			n_delay_tranches: old.n_delay_tranches,
+			no_show_slots: old.no_show_slots,
+			needed_approvals: old.needed_approvals,
+		}
 	}
 }
 
