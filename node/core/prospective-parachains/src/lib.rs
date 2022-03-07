@@ -83,11 +83,15 @@ pub struct ProspectiveParachainsSubsystems {
 
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {
-	// TODO [now] : docs
+	/// Inform the Prospective Parachains Subsystem of a new candidate.
 	CandidateSeconded(ParaId, CommittedCandidateReceipt, PersistedValidationData),
-	// TODO [now]: docs
+	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
+	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
+	/// some time in the past.
 	CandidateBacked(ParaId, CandidateHash),
-	// TODO [now]: docs
+	/// Get a backable candidate hash for the given parachain, under the given relay-parent hash,
+	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
+	/// if no such candidate exists.
 	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
 }
 
