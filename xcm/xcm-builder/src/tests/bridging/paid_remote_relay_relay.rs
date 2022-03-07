@@ -66,8 +66,7 @@ fn sending_to_bridged_chain_works() {
 	add_asset(Parachain(100), (Here, 1000));
 
 	let msg = Xcm(vec![Trap(1)]);
-	let hash = fake_message_hash(&msg);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((hash, (Parent, 150).into())));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, (Parent, 150).into());
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -108,8 +107,7 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	add_asset(Parachain(100), (Here, 1000));
 
 	let msg = Xcm(vec![Trap(1)]);
-	let hash = fake_message_hash(&msg);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((hash, (Parent, 150).into())));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, (Parent, 150).into());
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(100).into(),

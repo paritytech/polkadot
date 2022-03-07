@@ -49,10 +49,9 @@ type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
 #[test]
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	let hash = fake_message_hash(&msg);
 	assert_eq!(
-		send_xcm::<LocalRouter>((Parent, Parent, Remote::get(), Parachain(1)).into(), msg),
-		Ok((hash, MultiAssets::new()))
+		send_xcm::<LocalRouter>((Parent, Parent, Remote::get(), Parachain(1)).into(), msg).unwrap().1,
+		MultiAssets::new()
 	);
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
@@ -81,9 +80,8 @@ fn sending_to_bridged_chain_works() {
 #[test]
 fn sending_to_sibling_of_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	let hash = fake_message_hash(&msg);
 	let dest = (Parent, Parent, Remote::get(), Parachain(1000)).into();
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((hash, MultiAssets::new())));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, MultiAssets::new());
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		(Parent, Parachain(1000)).into(),
@@ -109,9 +107,8 @@ fn sending_to_sibling_of_bridged_chain_works() {
 #[test]
 fn sending_to_relay_of_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
-	let hash = fake_message_hash(&msg);
 	let dest = (Parent, Parent, Remote::get()).into();
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((hash, MultiAssets::new())));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, MultiAssets::new());
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parent.into(),
