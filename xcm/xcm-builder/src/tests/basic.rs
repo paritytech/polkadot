@@ -85,7 +85,7 @@ fn code_registers_should_work() {
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
 	assert_eq!(limit, 70);
 
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
 	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.

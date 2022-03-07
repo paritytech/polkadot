@@ -29,7 +29,7 @@ fn pallet_query_should_work() {
 			max_weight: 50,
 		},
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
@@ -56,7 +56,7 @@ fn pallet_query_with_results_should_work() {
 			max_weight: 50,
 		},
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
@@ -95,7 +95,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 		max_weight: 10,
 		querier: Some(Here.into()),
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let weight_limit = 10;
 
 	// First time the response gets through since we're expecting it...

@@ -29,7 +29,7 @@ fn universal_origin_should_work() {
 		UniversalOrigin(GlobalConsensus(Kusama)),
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::InvalidLocation));
 
@@ -37,7 +37,7 @@ fn universal_origin_should_work() {
 		UniversalOrigin(GlobalConsensus(Kusama)),
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 
@@ -46,7 +46,7 @@ fn universal_origin_should_work() {
 		UniversalOrigin(GlobalConsensus(Kusama)),
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(20));
 	assert_eq!(asset_list((Ancestor(2), GlobalConsensus(Kusama))), vec![]);

@@ -612,3 +612,7 @@ impl Config for TestConfig {
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
 	(AssetId::from(location), Fungibility::Fungible(amount)).into()
 }
+
+pub fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(sp_io::hashing::blake2_256)
+}

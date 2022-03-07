@@ -28,7 +28,7 @@ fn expect_pallet_should_work() {
 		crate_major: 1,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
@@ -39,7 +39,7 @@ fn expect_pallet_should_work() {
 		crate_major: 1,
 		min_crate_minor: 41,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 }
@@ -54,7 +54,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 1,
 		min_crate_minor: 60,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 
@@ -65,7 +65,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 1,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
 
@@ -76,7 +76,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 1,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
 
@@ -87,7 +87,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 1,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
 
@@ -98,7 +98,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 1,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::PalletNotFound));
 
@@ -109,7 +109,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 2,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 
@@ -120,7 +120,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 0,
 		min_crate_minor: 42,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 
@@ -131,7 +131,7 @@ fn expect_pallet_should_fail_correctly() {
 		crate_major: 1,
 		min_crate_minor: 43,
 	}]);
-	let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 }

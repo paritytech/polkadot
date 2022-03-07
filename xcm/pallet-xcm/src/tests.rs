@@ -36,6 +36,10 @@ const PARA_ID: u32 = 2000;
 const INITIAL_BALANCE: u128 = 100;
 const SEND_AMOUNT: u128 = 10;
 
+fn fake_message_hash(message: &Xcm) -> XcmHash {
+	message.using_encoded(sp_io::hashing::blake2_256)
+}
+
 #[test]
 fn report_outcome_notify_works() {
 	let balances =
@@ -84,7 +88,7 @@ fn report_outcome_notify_works() {
 			max_weight: 1_000_000,
 			querier: Some(querier),
 		}]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r =
 			XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, 1_000_000_000);
 		assert_eq!(r, Outcome::Complete(1_000));
@@ -140,7 +144,7 @@ fn report_outcome_works() {
 			max_weight: 0,
 			querier: Some(querier),
 		}]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r =
 			XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, 1_000_000_000);
 		assert_eq!(r, Outcome::Complete(1_000));
@@ -179,7 +183,7 @@ fn custom_querier_works() {
 			max_weight: 0,
 			querier: None,
 		}]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: None, id: ALICE.into() },
 			message,
@@ -205,7 +209,7 @@ fn custom_querier_works() {
 			max_weight: 0,
 			querier: Some(MultiLocation::here()),
 		}]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
 			AccountId32 { network: None, id: ALICE.into() },
 			message,
@@ -231,7 +235,7 @@ fn custom_querier_works() {
 			max_weight: 0,
 			querier: Some(querier),
 		}]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			AccountId32 { network: None, id: ALICE.into() },
 			message,
@@ -823,7 +827,7 @@ fn subscription_side_works() {
 		let remote: MultiLocation = Parachain(1000).into();
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
@@ -958,7 +962,7 @@ fn subscriber_side_subscription_works() {
 				querier: None,
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(take_sent_xcm(), vec![]);
@@ -976,7 +980,7 @@ fn subscriber_side_subscription_works() {
 				querier: None,
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
@@ -1037,7 +1041,7 @@ fn auto_subscription_works() {
 				querier: None,
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
@@ -1068,7 +1072,7 @@ fn auto_subscription_works() {
 				querier: None,
 			},
 		]);
-		let hash = VersionedXcm::from(message.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
