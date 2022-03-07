@@ -68,26 +68,26 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. check that the validator bit index is not out of bounds.
   1. check the validators signature, iff `full_check=FullCheck::Yes`.
 
-* `sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
-    relay_parent: T::Hash,
+* `sanitize_backed_candidates<T: crate::inclusion::Config, F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool>(
     mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
     candidate_has_concluded_invalid_dispute: F,
     scheduled: &[CoreAssignment],
   ) `
   1. filter out any backed candidates that have concluded invalid.
-  1. filter out backed candidates that don't have a matching `relay_parent`.
   1. filters backed candidates whom's paraid was scheduled by means of the provided `scheduled` parameter.
+  1. sorts remaining candidates with respect to the core index assigned to them.
 
-* `process_candidates(parent_storage_root, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
+* `process_candidates(allowed_relay_parents, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
+    > For details on `AllowedRelayParentsTracker` see documentation for [Shared](./shared.md) module.
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
+  1. check that the relay-parent from each candidate receipt is one of the allowed relay-parents.
   1. check that there is no candidate pending availability for any scheduled `ParaId`.
-  1. check that each candidate's `validation_data_hash` corresponds to a `PersistedValidationData` computed from the current state.
-    > NOTE: With contextual execution in place, validation data will be obtained as of the state of the context block. However, only the state of the current block can be used for such a query.
+  1. check that each candidate's `validation_data_hash` corresponds to a `PersistedValidationData` computed from the state of the context block.
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_cooldown` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. Check the collator's signature on the candidate data.
-  1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
+  1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup, while group indices are computed by `Scheduler` according to group rotation info. 
   1. call `Ump::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.
   1. call `Dmp::check_processed_downward_messages(para, commitments.processed_downward_messages)` to check that the DMQ is properly drained.
   1. call `Hrmp::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.
