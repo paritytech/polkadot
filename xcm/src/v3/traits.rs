@@ -523,7 +523,5 @@ pub fn send_xcm<T: SendXcm>(
 	msg: Xcm<()>,
 ) -> result::Result<(XcmHash, MultiAssets), SendError> {
 	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg.clone()))?;
-	T::deliver(ticket)?;
-	let hash = crate::VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256);
-	Ok((hash, price))
+	Ok((T::deliver(ticket)?, price))
 }
