@@ -113,7 +113,6 @@ pub fn export_xcm<T: ExportXcm>(
 	msg: Xcm<()>,
 ) -> Result<(XcmHash, MultiAssets), SendError> {
 	let (ticket, price) = T::validate(network, channel, &mut Some(dest), &mut Some(msg.clone()))?;
-	T::deliver(ticket)?;
-	let hash = VersionedXcm::from(msg).using_encoded(sp_io::hashing::blake2_256);
+	let hash = T::deliver(ticket)?;
 	Ok((hash, price))
 }
