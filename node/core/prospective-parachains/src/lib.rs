@@ -219,8 +219,6 @@ where
 		});
 	}
 
-	// TODO [now]: 3
-
 	if !update.deactivated.is_empty() {
 		// This has potential to be a hotspot.
 		prune_view_candidate_storage(&mut view);
