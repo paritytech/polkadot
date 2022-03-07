@@ -140,7 +140,7 @@ impl SendXcm for TestMessageSender {
 		msg: &mut Option<Xcm<()>>,
 	) -> SendResult<(MultiLocation, Xcm<()>, XcmHash)> {
 		let msg = msg.take().unwrap();
-		let hash = VersionedXcm::from(msg.clone()).using_encoded(blake2_256);
+		let hash = fake_message_hash(&msg);
 		let triplet = (dest.take().unwrap(), msg, hash);
 		Ok((triplet, SEND_PRICE.with(|l| l.borrow().clone())))
 	}
@@ -167,7 +167,7 @@ impl ExportXcm for TestMessageExporter {
 				Ok(MultiAssets::new())
 			}
 		});
-		let h = VersionedXcm::from(m.clone()).using_encoded(blake2_256);
+		let h = fake_message_hash(&m);
 		match r {
 			Ok(price) => Ok(((network, channel, d, m, h), price)),
 			Err(e) => {

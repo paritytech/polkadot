@@ -58,13 +58,13 @@ fn export_message_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
 	// Polkadot parachain #2.
-	let message =
+	let expected_message =
 		Xcm(vec![TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() }]);
-	let exported_msg =
-		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]);
-	let hash = VersionedXcm::from(exported_msg.clone()).using_encoded(sp_io::hashing::blake2_256);
-	let expected_hash = VersionedXcm::from(message.clone()).using_encoded(blake2_256);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), exported_msg, hash, 50);
+	let expected_hash = fake_message_hash(&expected_message);
+	let message =
+		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: expected_message.clone() }]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, message, expected_hash)]);
+	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, expected_message, expected_hash)]);
 }
