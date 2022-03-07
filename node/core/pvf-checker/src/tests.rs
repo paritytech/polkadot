@@ -25,11 +25,9 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, RuntimeApiError,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::{
-	v1::{
-		BlockNumber, Hash, Header, SessionIndex, ValidationCode, ValidationCodeHash, ValidatorId,
-	},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	BlockNumber, Hash, Header, PvfCheckStatement, SessionIndex, ValidationCode, ValidationCodeHash,
+	ValidatorId,
 };
 use sp_application_crypto::AppKey;
 use sp_core::testing::TaskExecutor;

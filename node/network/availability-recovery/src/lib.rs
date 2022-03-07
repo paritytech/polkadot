@@ -49,12 +49,9 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
-use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt,
-		GroupIndex, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
+	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_subsystem::{
 	errors::RecoveryError,

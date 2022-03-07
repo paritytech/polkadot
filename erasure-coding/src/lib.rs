@@ -28,7 +28,7 @@ use std::convert::TryFrom;
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{AvailableData, Proof};
-use polkadot_primitives::v1::{BlakeTwo256, Hash as H256, HashT};
+use polkadot_primitives::v2::{BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
 use thiserror::Error;
 use trie::{
@@ -361,8 +361,7 @@ mod tests {
 	fn round_trip_works() {
 		let pov = PoV { block_data: BlockData((0..255).collect()) };
 
-		let available_data =
-			AvailableData { pov: pov.into(), validation_data: Default::default(), };
+		let available_data = AvailableData { pov: pov.into(), validation_data: Default::default() };
 		let chunks = obtain_chunks(10, &available_data).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -387,11 +386,9 @@ mod tests {
 
 	fn generate_trie_and_generate_proofs(magnitude: u32) {
 		let n_validators = 2_u32.pow(magnitude) as usize;
-		let pov =
-			PoV { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
+		let pov = PoV { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
 
-		let available_data =
-			AvailableData { pov: pov.into(), validation_data: Default::default() };
+		let available_data = AvailableData { pov: pov.into(), validation_data: Default::default() };
 
 		let chunks = obtain_chunks(magnitude as usize, &available_data).unwrap();
 

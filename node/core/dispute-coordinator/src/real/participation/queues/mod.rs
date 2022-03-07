@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, SessionIndex};
+use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, SessionIndex};
 
 use crate::real::ordering::CandidateComparator;
 

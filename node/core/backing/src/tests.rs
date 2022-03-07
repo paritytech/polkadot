@@ -23,7 +23,7 @@ use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate};
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CollatorId, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
 use polkadot_subsystem::{
@@ -34,7 +34,7 @@ use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore};
 use sp_tracing as _;
-use statement_table::v1::Misbehavior;
+use statement_table::v2::Misbehavior;
 use std::collections::HashMap;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
