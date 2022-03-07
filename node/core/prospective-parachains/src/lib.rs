@@ -40,6 +40,7 @@ use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult,
+	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem_util::{
 	inclusion_emulator::staging::{
@@ -164,13 +165,30 @@ where
 		view.active_leaves.remove(deactivated);
 	}
 
-	if let Some(activated) = update.activated {
+	for activated in update.activated.into_iter() {
 		let hash = activated.hash;
-		let scheduled_paras = fetch_upcoming_paras(ctx, &hash).await?;
+		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, &hash).await?;
 
-		let block_info: RelayChainBlockInfo = unimplemented!();
+		let block_info: RelayChainBlockInfo = match fetch_block_info(
+			&mut *ctx,
+			hash,
+		).await? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					block_hash = ?hash,
+					"Failed to get block info for newly activated leaf block."
+				);
 
-		let ancestry = fetch_ancestry(&mut ctx, hash, MAX_ANCESTRY).await?;
+				// `update.activated` is an option, but we can use this
+				// to exit the 'loop' and skip this block without skipping
+				// pruning logic.
+				continue
+			}
+			Some(info) => info,
+		};
+
+		let ancestry = fetch_ancestry(&mut *ctx, hash, MAX_ANCESTRY).await?;
 
 		// Find constraints.
 		let mut fragment_trees = HashMap::new();
@@ -178,7 +196,7 @@ where
 			let candidate_storage =
 				view.candidate_storage.entry(para).or_insert_with(CandidateStorage::new);
 
-			let constraints = fetch_constraints(&mut ctx, &hash, para).await?;
+			let constraints = fetch_constraints(&mut *ctx, &hash, para).await?;
 
 			let constraints = match constraints {
 				Some(c) => c,
@@ -411,6 +429,7 @@ async fn fetch_constraints<Context>(
 	relay_parent: &Hash,
 	para_id: ParaId,
 ) -> JfyiErrorResult<Option<Constraints>> {
+	// TODO [now]: probably a new runtime API.
 	unimplemented!()
 }
 
@@ -418,16 +437,66 @@ async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
 	relay_parent: &Hash,
 ) -> JfyiErrorResult<Vec<ParaId>> {
+	// TODO [now]: use `availability_cores` or something like it.
 	unimplemented!()
 }
 
 // Fetch ancestors in descending order, up to the amount requested.
 async fn fetch_ancestry<Context>(
 	ctx: &mut Context,
-	relay_parent: Hash,
+	relay_hash: Hash,
 	ancestors: usize,
-) -> JfyiErrorResult<Vec<RelayChainBlockInfo>> {
-	unimplemented!()
+) -> JfyiErrorResult<Vec<RelayChainBlockInfo>>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(ChainApiMessage::Ancestors {
+		hash: relay_hash,
+		k: ancestors,
+		response_channel: tx,
+	}).await;
+
+	let hashes = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
+	let mut block_info = Vec::with_capacity(hashes.len());
+	for hash in hashes {
+		match fetch_block_info(ctx, relay_hash).await? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					relay_hash = ?hash,
+					"Failed to fetch info for hash returned from ancestry.",
+				);
+
+				// Return, however far we got.
+				return Ok(block_info);
+			}
+			Some(info) => {
+				block_info.push(info);
+			}
+		}
+	}
+
+	Ok(block_info)
+}
+
+async fn fetch_block_info<Context>(
+	ctx: &mut Context,
+	relay_hash: Hash,
+) -> JfyiErrorResult<Option<RelayChainBlockInfo>> where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+
+	ctx.send_message(ChainApiMessage::BlockHeader(relay_hash, tx)).await;
+	let header = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
+	Ok(header.map(|header| RelayChainBlockInfo {
+		hash: relay_hash,
+		number: header.number,
+		storage_root: header.state_root,
+	}))
 }
 
 #[derive(Clone)]
