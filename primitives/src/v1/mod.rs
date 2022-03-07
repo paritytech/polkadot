@@ -42,18 +42,10 @@ pub use polkadot_parachain::primitives::{
 	LOWEST_PUBLIC_ID, LOWEST_USER_ID,
 };
 
-// Export some basic parachain primitives from v0.
-pub use crate::v0::{
-	CollatorId, CollatorSignature, CompactStatement, SigningContext, ValidatorId, ValidatorIndex,
-	ValidatorSignature, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
-};
-
 #[cfg(feature = "std")]
 use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
-
-// More exports from v0 for std.
 #[cfg(feature = "std")]
-pub use crate::v0::{CollatorPair, ValidatorPair};
+use serde::{Deserialize, Serialize};
 
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 pub use sp_consensus_slots::Slot;
@@ -68,6 +60,101 @@ pub use metrics::{
 	metric_definitions, RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues,
 	RuntimeMetricLabels, RuntimeMetricOp, RuntimeMetricUpdate,
 };
+
+/// The key type ID for a collator key.
+pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
+
+mod collator_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::COLLATOR_KEY_TYPE_ID);
+}
+
+/// Identity that collators use.
+pub type CollatorId = collator_app::Public;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
+/// A Parachain collator keypair.
+#[cfg(feature = "std")]
+pub type CollatorPair = collator_app::Pair;
+
+/// Signature on candidate's block data by a collator.
+pub type CollatorSignature = collator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
+/// The key type ID for a parachain validator key.
+pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
+
+mod validator_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::PARACHAIN_KEY_TYPE_ID);
+}
+
+/// Identity that parachain validators use when signing validation messages.
+///
+/// For now we assert that parachain validator set is exactly equivalent to the authority set, and
+/// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
+pub type ValidatorId = validator_app::Public;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
+/// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+pub struct ValidatorIndex(pub u32);
+
+// We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
+impl From<u32> for ValidatorIndex {
+	fn from(n: u32) -> Self {
+		ValidatorIndex(n)
+	}
+}
+
+application_crypto::with_pair! {
+	/// A Parachain validator keypair.
+	pub type ValidatorPair = validator_app::Pair;
+}
+
+/// Signature with which parachain validators sign blocks.
+///
+/// For now we assert that parachain validator set is exactly equivalent to the authority set, and
+/// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
+pub type ValidatorSignature = validator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
@@ -1351,6 +1438,143 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
+}
+
+/// An either implicit or explicit attestation to the validity of a parachain
+/// candidate.
+#[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+pub enum ValidityAttestation {
+	/// Implicit validity attestation by issuing.
+	/// This corresponds to issuance of a `Candidate` statement.
+	#[codec(index = 1)]
+	Implicit(ValidatorSignature),
+	/// An explicit attestation. This corresponds to issuance of a
+	/// `Valid` statement.
+	#[codec(index = 2)]
+	Explicit(ValidatorSignature),
+}
+
+impl ValidityAttestation {
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn to_compact_statement(&self, candidate_hash: CandidateHash) -> CompactStatement {
+		// Explicit and implicit map directly from
+		// `ValidityVote::Valid` and `ValidityVote::Issued`, and hence there is a
+		// `1:1` relationshow which enables the conversion.
+		match *self {
+			ValidityAttestation::Implicit(_) => CompactStatement::Seconded(candidate_hash),
+			ValidityAttestation::Explicit(_) => CompactStatement::Valid(candidate_hash),
+		}
+	}
+
+	/// Get a reference to the signature.
+	pub fn signature(&self) -> &ValidatorSignature {
+		match *self {
+			ValidityAttestation::Implicit(ref sig) => sig,
+			ValidityAttestation::Explicit(ref sig) => sig,
+		}
+	}
+
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn signed_payload<H: Encode>(
+		&self,
+		candidate_hash: CandidateHash,
+		signing_context: &SigningContext<H>,
+	) -> Vec<u8> {
+		match *self {
+			ValidityAttestation::Implicit(_) =>
+				(CompactStatement::Seconded(candidate_hash), signing_context).encode(),
+			ValidityAttestation::Explicit(_) =>
+				(CompactStatement::Valid(candidate_hash), signing_context).encode(),
+		}
+	}
+}
+
+/// A type returned by runtime with current session index and a parent hash.
+#[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
+pub struct SigningContext<H = Hash> {
+	/// Current session index.
+	pub session_index: sp_staking::SessionIndex,
+	/// Hash of the parent.
+	pub parent_hash: H,
+}
+
+const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
+
+/// Statements that can be made about parachain candidates. These are the
+/// actual values that are signed.
+#[derive(Clone, PartialEq, Eq, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash))]
+pub enum CompactStatement {
+	/// Proposal of a parachain candidate.
+	Seconded(CandidateHash),
+	/// State that a parachain candidate is valid.
+	Valid(CandidateHash),
+}
+
+impl CompactStatement {
+	/// Yields the payload used for validator signatures on this kind
+	/// of statement.
+	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
+		(self, context).encode()
+	}
+}
+
+// Inner helper for codec on `CompactStatement`.
+#[derive(Encode, Decode, TypeInfo)]
+enum CompactStatementInner {
+	#[codec(index = 1)]
+	Seconded(CandidateHash),
+	#[codec(index = 2)]
+	Valid(CandidateHash),
+}
+
+impl From<CompactStatement> for CompactStatementInner {
+	fn from(s: CompactStatement) -> Self {
+		match s {
+			CompactStatement::Seconded(h) => CompactStatementInner::Seconded(h),
+			CompactStatement::Valid(h) => CompactStatementInner::Valid(h),
+		}
+	}
+}
+
+impl parity_scale_codec::Encode for CompactStatement {
+	fn size_hint(&self) -> usize {
+		// magic + discriminant + payload
+		4 + 1 + 32
+	}
+
+	fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+		dest.write(&BACKING_STATEMENT_MAGIC);
+		CompactStatementInner::from(self.clone()).encode_to(dest)
+	}
+}
+
+impl parity_scale_codec::Decode for CompactStatement {
+	fn decode<I: parity_scale_codec::Input>(
+		input: &mut I,
+	) -> Result<Self, parity_scale_codec::Error> {
+		let maybe_magic = <[u8; 4]>::decode(input)?;
+		if maybe_magic != BACKING_STATEMENT_MAGIC {
+			return Err(parity_scale_codec::Error::from("invalid magic string"))
+		}
+
+		Ok(match CompactStatementInner::decode(input)? {
+			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
+			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
+		})
+	}
+}
+
+impl CompactStatement {
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &CandidateHash {
+		match *self {
+			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
+		}
+	}
 }
 
 /// The maximum number of validators `f` which may safely be faulty.
