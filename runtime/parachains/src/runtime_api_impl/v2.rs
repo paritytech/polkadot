@@ -11,10 +11,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v1
+//! A module exporting runtime API implementation functions for all runtime APIs using v2
 //! primitives.
 //!
-//! Runtimes implementing the v1 runtime API are recommended to forward directly to these
+//! Runtimes implementing the v2 runtime API are recommended to forward directly to these
 //! functions.
 
 use crate::{
@@ -87,7 +87,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 			Some(g) => g,
 			None => {
 				log::warn!(
-					target: "runtime::polkadot-api::v1",
+					target: "runtime::polkadot-api::v2",
 					"Could not determine the group responsible for core extracted \
 					from list of cores for some prior block in same session",
 				);

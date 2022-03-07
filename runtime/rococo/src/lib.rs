@@ -45,7 +45,7 @@ use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
 	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
-use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
+use runtime_parachains::{self, runtime_api_impl::v2 as runtime_api_impl};
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
