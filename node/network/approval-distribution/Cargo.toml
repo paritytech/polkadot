@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-approval-distribution"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 polkadot-node-primitives = { path = "../../primitives" }
@@ -11,8 +11,8 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 
-futures = "0.3.19"
-tracing = "0.1.29"
+futures = "0.3.21"
+tracing = "0.1.31"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }

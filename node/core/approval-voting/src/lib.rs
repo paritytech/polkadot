@@ -21,7 +21,6 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use kvdb::KeyValueDB;
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -43,6 +42,7 @@ use polkadot_node_subsystem::{
 	SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
+	database::Database,
 	metrics::{self, prometheus},
 	rolling_session_window::{
 		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
@@ -140,7 +140,7 @@ pub struct ApprovalVotingSubsystem {
 	keystore: Arc<LocalKeystore>,
 	db_config: DatabaseConfig,
 	slot_duration_millis: u64,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	mode: Mode,
 	metrics: Metrics,
 }
@@ -329,7 +329,7 @@ impl ApprovalVotingSubsystem {
 	/// Create a new approval voting subsystem with the given keystore, config, and database.
 	pub fn with_config(
 		config: Config,
-		db: Arc<dyn KeyValueDB>,
+		db: Arc<dyn Database>,
 		keystore: Arc<LocalKeystore>,
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
@@ -1257,7 +1257,7 @@ async fn handle_approved_ancestor(
 
 	let mut block_descriptions = Vec::new();
 
-	let mut bits: BitVec<Lsb0, u8> = Default::default();
+	let mut bits: BitVec<u8, Lsb0> = Default::default();
 	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
 		// Block entries should be present as the assumption is that
 		// nothing here is finalized. If we encounter any missing block
@@ -1344,7 +1344,7 @@ async fn handle_approved_ancestor(
 								let n_approvals = c_entry
 									.approvals()
 									.iter()
-									.by_val()
+									.by_vals()
 									.enumerate()
 									.filter(|(i, approved)| {
 										*approved && a_entry.is_assigned(ValidatorIndex(*i as _))

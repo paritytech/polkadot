@@ -17,31 +17,17 @@
 //! Error handling related code and Error/Result definitions.
 
 use sc_network::PeerId;
-use thiserror::Error;
 
 use parity_scale_codec::Error as DecodingError;
 
-/// Errors that happen during reception/decoding of incoming requests.
-#[derive(Debug, Error, derive_more::From)]
-#[error(transparent)]
+#[allow(missing_docs)]
+#[fatality::fatality(splitable)]
 pub enum Error {
-	/// All fatal errors.
-	Fatal(Fatal),
-	/// All nonfatal/potentially recoverable errors.
-	NonFatal(NonFatal),
-}
-
-/// Fatal errors when receiving incoming requests.
-#[derive(Debug, Error)]
-pub enum Fatal {
-	/// Incoming request stream exhausted. Should only happen on shutdown.
+	// Incoming request stream exhausted. Should only happen on shutdown.
+	#[fatal]
 	#[error("Incoming request channel got closed.")]
 	RequestChannelExhausted,
-}
 
-/// Non-fatal errors when receiving incoming requests.
-#[derive(Debug, Error)]
-pub enum NonFatal {
 	/// Decoding failed, we were able to change the peer's reputation accordingly.
 	#[error("Decoding request failed for peer {0}.")]
 	DecodingError(PeerId, #[source] DecodingError),

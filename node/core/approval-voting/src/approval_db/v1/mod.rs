@@ -16,10 +16,10 @@
 
 //! Version 1 of the DB schema.
 
-use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
 	ValidatorIndex, ValidatorSignature,
@@ -41,14 +41,14 @@ pub mod tests;
 
 /// `DbBackend` is a concrete implementation of the higher-level Backend trait
 pub struct DbBackend {
-	inner: Arc<dyn KeyValueDB>,
+	inner: Arc<dyn Database>,
 	config: Config,
 }
 
 impl DbBackend {
 	/// Create a new [`DbBackend`] with the supplied key-value store and
 	/// config.
-	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
+	pub fn new(db: Arc<dyn Database>, config: Config) -> Self {
 		DbBackend { inner: db, config }
 	}
 }
@@ -140,7 +140,7 @@ pub struct StoredBlockRange(pub BlockNumber, pub BlockNumber);
 pub struct Tick(u64);
 
 /// Convenience type definition
-pub type Bitfield = BitVec<BitOrderLsb0, u8>;
+pub type Bitfield = BitVec<u8, BitOrderLsb0>;
 
 /// The database config.
 #[derive(Debug, Clone, Copy)]
@@ -239,7 +239,7 @@ impl std::error::Error for Error {}
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn load_decode<D: Decode>(
-	store: &dyn KeyValueDB,
+	store: &dyn Database,
 	col_data: u32,
 	key: &[u8],
 ) -> Result<Option<D>> {
@@ -283,7 +283,7 @@ pub(crate) fn blocks_at_height_key(block_number: BlockNumber) -> [u8; 16] {
 }
 
 /// Return all blocks which have entries in the DB, ascending, by height.
-pub fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> SubsystemResult<Vec<Hash>> {
+pub fn load_all_blocks(store: &dyn Database, config: &Config) -> SubsystemResult<Vec<Hash>> {
 	let mut hashes = Vec::new();
 	if let Some(stored_blocks) = load_stored_blocks(store, config)? {
 		for height in stored_blocks.0..stored_blocks.1 {
@@ -297,7 +297,7 @@ pub fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> SubsystemResu
 
 /// Load the stored-blocks key from the state.
 pub fn load_stored_blocks(
-	store: &dyn KeyValueDB,
+	store: &dyn Database,
 	config: &Config,
 ) -> SubsystemResult<Option<StoredBlockRange>> {
 	load_decode(store, config.col_data, STORED_BLOCKS_KEY)
@@ -306,7 +306,7 @@ pub fn load_stored_blocks(
 
 /// Load a blocks-at-height entry for a given block number.
 pub fn load_blocks_at_height(
-	store: &dyn KeyValueDB,
+	store: &dyn Database,
 	config: &Config,
 	block_number: &BlockNumber,
 ) -> SubsystemResult<Vec<Hash>> {
@@ -317,7 +317,7 @@ pub fn load_blocks_at_height(
 
 /// Load a block entry from the aux store.
 pub fn load_block_entry(
-	store: &dyn KeyValueDB,
+	store: &dyn Database,
 	config: &Config,
 	block_hash: &Hash,
 ) -> SubsystemResult<Option<BlockEntry>> {
@@ -328,7 +328,7 @@ pub fn load_block_entry(
 
 /// Load a candidate entry from the aux store.
 pub fn load_candidate_entry(
-	store: &dyn KeyValueDB,
+	store: &dyn Database,
 	config: &Config,
 	candidate_hash: &CandidateHash,
 ) -> SubsystemResult<Option<CandidateEntry>> {

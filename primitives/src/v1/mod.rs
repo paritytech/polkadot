@@ -545,10 +545,10 @@ impl CandidateCommitments {
 ///
 /// Every bit refers to an availability core index.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
+pub struct AvailabilityBitfield(pub BitVec<u8, bitvec::order::Lsb0>);
 
-impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
-	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
+impl From<BitVec<u8, bitvec::order::Lsb0>> for AvailabilityBitfield {
+	fn from(inner: BitVec<u8, bitvec::order::Lsb0>) -> Self {
 		AvailabilityBitfield(inner)
 	}
 }
@@ -574,7 +574,7 @@ pub struct BackedCandidate<H = Hash> {
 	/// The validity votes themselves, expressed as signatures.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// The indices of the validators within the group, expressed as a bitfield.
-	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
+	pub validator_indices: BitVec<u8, bitvec::order::Lsb0>,
 }
 
 impl<H> BackedCandidate<H> {
@@ -810,7 +810,7 @@ pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
 	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
-	pub availability: BitVec<bitvec::order::Lsb0, u8>,
+	pub availability: BitVec<u8, bitvec::order::Lsb0>,
 	/// The group assigned to distribute availability pieces of this candidate.
 	pub group_responsible: GroupIndex,
 	/// The hash of the candidate occupying the core.
@@ -1331,9 +1331,9 @@ pub type CheckedMultiDisputeStatementSet = Vec<CheckedDisputeStatementSet>;
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, TypeInfo)]
 pub struct DisputeState<N = BlockNumber> {
 	/// A bitfield indicating all validators for the candidate.
-	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
+	pub validators_for: BitVec<u8, bitvec::order::Lsb0>, // one bit per validator.
 	/// A bitfield indicating all validators against the candidate.
-	pub validators_against: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
+	pub validators_against: BitVec<u8, bitvec::order::Lsb0>, // one bit per validator.
 	/// The block number at which the dispute started on-chain.
 	pub start: N,
 	/// The block number at which the dispute concluded on-chain.

@@ -463,9 +463,9 @@ pub(crate) async fn handle_new_head(
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
 				);
-				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
+				bitvec::bitvec![u8, BitOrderLsb0; 1; num_candidates]
 			} else {
-				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
+				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
@@ -579,11 +579,11 @@ pub(crate) mod tests {
 	use crate::approval_db::v1::DbBackend;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use kvdb::KeyValueDB;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_node_subsystem_util::database::Database;
 	use polkadot_primitives::{v1::ValidatorIndex, v2::SessionInfo};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
@@ -1125,7 +1125,9 @@ pub(crate) mod tests {
 
 	#[test]
 	fn insta_approval_works() {
-		let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db_writer: Arc<dyn Database> = Arc::new(db);
 		let mut db = DbBackend::new(db_writer.clone(), TEST_CONFIG);
 		let mut overlay_db = OverlayedBackend::new(&db);
 

@@ -21,7 +21,7 @@ use crate::{
 	backend::{Backend, OverlayedBackend},
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
-use kvdb::KeyValueDB;
+use polkadot_node_subsystem_util::database::Database;
 use polkadot_primitives::v1::Id as ParaId;
 use std::{collections::HashMap, sync::Arc};
 
@@ -32,13 +32,15 @@ const NUM_COLUMNS: u32 = 1;
 
 const TEST_CONFIG: Config = Config { col_data: DATA_COL };
 
-fn make_db() -> (DbBackend, Arc<dyn KeyValueDB>) {
-	let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+fn make_db() -> (DbBackend, Arc<dyn Database>) {
+	let db = kvdb_memorydb::create(NUM_COLUMNS);
+	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+	let db_writer: Arc<dyn Database> = Arc::new(db);
 	(DbBackend::new(db_writer.clone(), TEST_CONFIG), db_writer)
 }
 
-fn make_bitvec(len: usize) -> BitVec<BitOrderLsb0, u8> {
-	bitvec::bitvec![BitOrderLsb0, u8; 0; len]
+fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
+	bitvec::bitvec![u8, BitOrderLsb0; 0; len]
 }
 
 fn make_block_entry(

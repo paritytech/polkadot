@@ -47,7 +47,6 @@ use sp_core::crypto::Pair as _;
 use super::*;
 
 fn block_info_to_pair(blocks: impl IntoIterator<Item = BlockInfo>) -> Vec<(Hash, BlockNumber)> {
-	use std::iter::FromIterator;
 	Vec::from_iter(
 		blocks
 			.into_iter()

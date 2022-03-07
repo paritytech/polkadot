@@ -26,7 +26,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::SubsystemContext;
 
 use crate::{
-	error::{Error, NonFatal},
+	error::{Error, Result},
 	LOG_TARGET,
 };
 
@@ -101,7 +101,7 @@ impl SessionCache {
 		parent: Hash,
 		session_index: SessionIndex,
 		with_info: F,
-	) -> Result<Option<R>, Error>
+	) -> Result<Option<R>>
 	where
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
@@ -142,10 +142,10 @@ impl SessionCache {
 	///
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
-	pub fn report_bad(&mut self, report: BadValidators) -> crate::Result<()> {
+	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
 		let available_sessions = self.session_info_cache.iter().map(|(k, _)| *k).collect();
 		let session = self.session_info_cache.get_mut(&report.session_index).ok_or(
-			NonFatal::NoSuchCachedSession {
+			Error::NoSuchCachedSession {
 				available_sessions,
 				missing_session: report.session_index,
 			},
@@ -178,7 +178,7 @@ impl SessionCache {
 		runtime: &mut RuntimeInfo,
 		relay_parent: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<SessionInfo>, Error>
+	) -> Result<Option<SessionInfo>>
 	where
 		Context: SubsystemContext,
 	{

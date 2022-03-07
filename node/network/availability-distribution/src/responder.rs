@@ -20,8 +20,9 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 
+use fatality::Nested;
 use polkadot_node_network_protocol::{
-	request_response::{incoming, v1, IncomingRequest, IncomingRequestReceiver},
+	request_response::{v1, IncomingRequest, IncomingRequestReceiver},
 	UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
@@ -29,7 +30,7 @@ use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemSender};
 
 use crate::{
-	error::{NonFatal, NonFatalResult, Result},
+	error::{JfyiError, Result},
 	metrics::{Metrics, FAILED, NOT_FOUND, SUCCEEDED},
 	LOG_TARGET,
 };
@@ -45,20 +46,20 @@ pub async fn run_pov_receiver<Sender>(
 	Sender: SubsystemSender,
 {
 	loop {
-		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
-			Ok(msg) => {
+		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(msg)) => {
 				answer_pov_request_log(&mut sender, msg, &metrics).await;
 			},
-			Err(incoming::Error::Fatal(f)) => {
+			Err(fatal) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					error = ?f,
+					error = ?fatal,
 					"Shutting down POV receiver."
 				);
 				return
 			},
-			Err(incoming::Error::NonFatal(error)) => {
-				tracing::debug!(target: LOG_TARGET, ?error, "Error decoding incoming PoV request.");
+			Ok(Err(jfyi)) => {
+				tracing::debug!(target: LOG_TARGET, error = ?jfyi, "Error decoding incoming PoV request.");
 			},
 		}
 	}
@@ -73,22 +74,22 @@ pub async fn run_chunk_receiver<Sender>(
 	Sender: SubsystemSender,
 {
 	loop {
-		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
-			Ok(msg) => {
+		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(msg)) => {
 				answer_chunk_request_log(&mut sender, msg, &metrics).await;
 			},
-			Err(incoming::Error::Fatal(f)) => {
+			Err(fatal) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					error = ?f,
+					error = ?fatal,
 					"Shutting down chunk receiver."
 				);
 				return
 			},
-			Err(incoming::Error::NonFatal(error)) => {
+			Ok(Err(jfyi)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					?error,
+					error = ?jfyi,
 					"Error decoding incoming chunk request."
 				);
 			},
@@ -169,7 +170,7 @@ where
 		},
 	};
 
-	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
+	req.send_response(response).map_err(|_| JfyiError::SendResponse)?;
 	Ok(result)
 }
 
@@ -205,7 +206,7 @@ where
 		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
 	};
 
-	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
+	req.send_response(response).map_err(|_| JfyiError::SendResponse)?;
 	Ok(result)
 }
 
@@ -214,7 +215,7 @@ async fn query_chunk<Sender>(
 	sender: &mut Sender,
 	candidate_hash: CandidateHash,
 	validator_index: ValidatorIndex,
-) -> NonFatalResult<Option<ErasureChunk>>
+) -> std::result::Result<Option<ErasureChunk>, JfyiError>
 where
 	Sender: SubsystemSender,
 {
@@ -233,7 +234,7 @@ where
 			error = ?e,
 			"Error retrieving chunk",
 		);
-		NonFatal::QueryChunkResponseChannel(e)
+		JfyiError::QueryChunkResponseChannel(e)
 	})?;
 	Ok(result)
 }
@@ -242,7 +243,7 @@ where
 async fn query_available_data<Sender>(
 	sender: &mut Sender,
 	candidate_hash: CandidateHash,
-) -> NonFatalResult<Option<AvailableData>>
+) -> Result<Option<AvailableData>>
 where
 	Sender: SubsystemSender,
 {
@@ -251,6 +252,6 @@ where
 		.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx).into())
 		.await;
 
-	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;
+	let result = rx.await.map_err(JfyiError::QueryAvailableDataResponseChannel)?;
 	Ok(result)
 }

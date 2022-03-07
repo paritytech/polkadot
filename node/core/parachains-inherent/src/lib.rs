@@ -117,8 +117,8 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 
 	async fn try_handle_error(
 		&self,
-		_: &sp_inherents::InherentIdentifier,
-		_: &[u8],
+		_identifier: &sp_inherents::InherentIdentifier,
+		_error: &[u8],
 	) -> Option<Result<(), sp_inherents::Error>> {
 		// Inherent isn't checked and can not return any error
 		None

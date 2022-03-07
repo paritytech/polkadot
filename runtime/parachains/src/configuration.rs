@@ -322,6 +322,8 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
+	/// Maximum UMP message size (`MAX_UPWARD_MESSAGE_SIZE_BOUND`) exceeded.
+	MaxUpwardMessageSizeExceeded { max_message_size: u32 },
 	/// Maximum number of HRMP outbound channels exceeded.
 	MaxHrmpOutboundChannelsExceeded,
 	/// Maximum number of HRMP inbound channels exceeded.
@@ -385,6 +387,12 @@ where
 		if self.validation_upgrade_delay <= 1.into() {
 			return Err(ValidationUpgradeDelayIsTooLow {
 				validation_upgrade_delay: self.validation_upgrade_delay.clone(),
+			})
+		}
+
+		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
+			return Err(MaxUpwardMessageSizeExceeded {
+				max_message_size: self.max_upward_message_size,
 			})
 		}
 
