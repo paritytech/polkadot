@@ -14,90 +14,64 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use fatality::Nested;
 use futures::channel::oneshot;
-use thiserror::Error;
 
-use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	SubsystemError,
-};
+use polkadot_node_subsystem::{errors::ChainApiError, SubsystemError};
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
-use crate::LOG_TARGET;
+use crate::{real::participation, LOG_TARGET};
 use parity_scale_codec::Error as CodecError;
 
-/// Errors for this subsystem.
-#[derive(Debug, Error)]
-#[error(transparent)]
+pub type Result<T> = std::result::Result<T, Error>;
+pub type FatalResult<T> = std::result::Result<T, FatalError>;
+pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
+
+#[allow(missing_docs)]
+#[fatality::fatality(splitable)]
 pub enum Error {
-	/// All fatal errors.
-	Fatal(#[from] Fatal),
-	/// All nonfatal/potentially recoverable errors.
-	NonFatal(#[from] NonFatal),
-}
-
-/// General `Result` type for dispute coordinator.
-pub type Result<R> = std::result::Result<R, Error>;
-/// Result type with only fatal errors.
-pub type FatalResult<R> = std::result::Result<R, Fatal>;
-/// Result type with only non fatal errors.
-pub type NonFatalResult<R> = std::result::Result<R, NonFatal>;
-
-impl From<runtime::Error> for Error {
-	fn from(o: runtime::Error) -> Self {
-		match o {
-			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
-			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
-		}
-	}
-}
-
-impl From<SubsystemError> for Error {
-	fn from(o: SubsystemError) -> Self {
-		match o {
-			SubsystemError::Context(msg) => Self::Fatal(Fatal::SubsystemContext(msg)),
-			_ => Self::NonFatal(NonFatal::Subsystem(o)),
-		}
-	}
-}
-
-/// Fatal errors of this subsystem.
-#[derive(Debug, Error)]
-pub enum Fatal {
-	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information {0}")]
-	Runtime(#[from] runtime::Fatal),
-
 	/// We received a legacy `SubystemError::Context` error which is considered fatal.
+	#[fatal]
 	#[error("SubsystemError::Context error: {0}")]
 	SubsystemContext(String),
 
 	/// `ctx.spawn` failed with an error.
+	#[fatal]
 	#[error("Spawning a task failed: {0}")]
-	SpawnFailed(SubsystemError),
+	SpawnFailed(#[source] SubsystemError),
 
+	#[fatal]
 	#[error("Participation worker receiver exhausted.")]
 	ParticipationWorkerReceiverExhausted,
 
 	/// Receiving subsystem message from overseer failed.
+	#[fatal]
 	#[error("Receiving message from overseer failed: {0}")]
 	SubsystemReceive(#[source] SubsystemError),
 
+	#[fatal]
 	#[error("Writing to database failed: {0}")]
 	DbWriteFailed(std::io::Error),
 
-	#[error("Oneshot for receiving response from chain API got cancelled")]
+	#[fatal]
+	#[error("Oneshot for receiving block number from chain API got cancelled")]
+	CanceledBlockNumber,
+
+	#[fatal]
+	#[error("Retrieving block number from chain API failed with error: {0}")]
+	ChainApiBlockNumber(ChainApiError),
+
+	#[fatal]
+	#[error(transparent)]
+	ChainApiAncestors(ChainApiError),
+
+	#[fatal]
+	#[error("Chain API dropped response channel sender")]
 	ChainApiSenderDropped,
 
-	#[error("Retrieving response from chain API unexpectedly failed with error: {0}")]
-	ChainApi(#[from] ChainApiError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum NonFatal {
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
+	#[fatal(forward)]
+	#[error("Error while accessing runtime information {0}")]
+	Runtime(#[from] runtime::Error),
 
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
@@ -112,7 +86,7 @@ pub enum NonFatal {
 	DisputeImportOneshotSend,
 
 	#[error(transparent)]
-	Subsystem(SubsystemError),
+	Subsystem(#[from] SubsystemError),
 
 	#[error(transparent)]
 	Codec(#[from] CodecError),
@@ -121,36 +95,32 @@ pub enum NonFatal {
 	#[error("Sessions unavailable in `RollingSessionWindow`: {0}")]
 	RollingSessionWindow(#[from] SessionsUnavailable),
 
-	/// Errors coming from runtime::Runtime.
-	#[error("Error while accessing runtime information: {0}")]
-	Runtime(#[from] runtime::NonFatal),
-
 	#[error(transparent)]
-	QueueError(#[from] crate::real::participation::QueueError),
+	QueueError(#[from] participation::QueueError),
 }
 
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
-	match result {
-		Err(Error::Fatal(f)) => Err(f),
-		Err(Error::NonFatal(error)) => {
-			error.log();
+pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {
+	match result.into_nested()? {
+		Ok(()) => Ok(()),
+		Err(jfyi) => {
+			jfyi.log();
 			Ok(())
 		},
-		Ok(()) => Ok(()),
 	}
 }
 
-impl NonFatal {
-	/// Log a `NonFatal`.
+impl JfyiError {
+	/// Log a `JfyiError`.
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) | Self::Oneshot(_) =>
-				tracing::debug!(target: LOG_TARGET, error = ?self),
+			Self::Runtime(_) | Self::Oneshot(_) => {
+				tracing::debug!(target: LOG_TARGET, error = ?self)
+			},
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, error = ?self),
 		}

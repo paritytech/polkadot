@@ -7,7 +7,7 @@ title: Polkadot {{ env.VERSION }} Release checklist
 
 This is the release checklist for Polkadot {{ env.VERSION }}. **All** following
 checks should be completed before publishing a new release of the
-Polkadot/Kusama/Westend runtime or client. The current release candidate can be
+Polkadot/Kusama/Westend/Rococo runtime or client. The current release candidate can be
 checked out with `git checkout release-{{ env.VERSION }}`
 
 ### Runtime Releases
@@ -17,7 +17,7 @@ candidate branch.
 
 - [ ] Verify [`spec_version`](https://github.com/paritytech/polkadot/blob/master/doc/release-checklist.md#spec-version) has been incremented since the
     last release for any native runtimes from any existing use on public
-    (non-private/test) networks. If the runtime was published (release or pre-release), either
+    (non-private) networks. If the runtime was published (release or pre-release), either
     the `spec_version` or `impl` must be bumped.
 - [ ] Verify previously [completed migrations](https://github.com/paritytech/polkadot/blob/master/doc/release-checklist.md#old-migrations-removed) are
     removed for any public (non-private/test) networks.
