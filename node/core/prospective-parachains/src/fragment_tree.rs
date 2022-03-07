@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A tree utility for managing parachain fragments unreferenced by the relay-chain.
+//! A tree utility for managing parachain fragments not referenced by the relay-chain.
 //!
 //! This module exposes two main types: [`FragmentTree`] and [`CandidateStorage`]
 //! which are meant to be used in close conjunction. Each tree is associated with a particular
@@ -50,7 +50,7 @@
 //!
 //! The code in this module is not designed for speed or efficiency, but conceptual simplicity.
 //! Our assumption is that the amount of candidates and parachains we consider will be reasonably
-//! bounded and in practice will not exceed a few thousand at any time. This naïve implementation
+//! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 // TODO [now]: review & update.
 
