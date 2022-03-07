@@ -136,6 +136,19 @@ impl CandidateStorage {
 		Ok(candidate_hash)
 	}
 
+	/// Note that an existing candidate has been backed.
+	pub fn mark_backed(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(entry) = self.by_candidate_hash.get_mut(candidate_hash) {
+			entry.state = CandidateState::Backed;
+		}
+	}
+
+	/// Whether a candidate is recorded as being backed.
+	pub fn is_backed(&self, candidate_hash: &CandidateHash) -> bool {
+		self.by_candidate_hash.get(candidate_hash)
+			.map_or(false, |e| e.state == CandidateState::Backed)
+	}
+
 	/// Retain only candidates which pass the predicate.
 	pub(crate) fn retain(&mut self, pred: impl Fn(&CandidateHash) -> bool) {
 		self.by_candidate_hash.retain(|h, _v| pred(h));
@@ -165,7 +178,8 @@ impl CandidateStorage {
 /// The state of a candidate.
 ///
 /// Candidates aren't even considered until they've at least been seconded.
-pub(crate) enum CandidateState {
+#[derive(Debug, PartialEq)]
+enum CandidateState {
 	/// The candidate has been seconded.
 	Seconded,
 	/// The candidate has been completely backed by the group.
