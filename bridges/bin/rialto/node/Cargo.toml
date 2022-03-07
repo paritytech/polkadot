@@ -77,13 +77,13 @@ substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate
 
 # Polkadot Dependencies
 
-polkadot-client = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-client = { path = "../../../../node/client/", branch = "master" }
 
 # Polkadot (parachain) Dependencies
 
-polkadot-approval-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-availability-bitfield-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-availability-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-approval-distribution = { path = "../../../../node/network/approval-distribution" }
+polkadot-availability-bitfield-distribution = { path = "../../../../node/network/bitfield-distribution" }
+polkadot-availability-distribution = { path = {../../../../node/network/availability-distribution" }
 polkadot-availability-recovery = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-collator-protocol = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 polkadot-dispute-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
