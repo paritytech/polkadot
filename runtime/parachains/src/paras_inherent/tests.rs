@@ -1170,7 +1170,6 @@ mod sanitizers {
 			.map(|idx| {
 				let ca = CoreAssignment {
 					kind: scheduler::AssignmentKind::Parachain,
-					group_idx: GroupIndex::from(idx as u32),
 					para_id: ParaId::from(1_u32 + idx as u32),
 					core: CoreIndex::from(idx as u32),
 				};
@@ -1219,7 +1218,6 @@ mod sanitizers {
 		// happy path
 		assert_eq!(
 			sanitize_backed_candidates::<Test, _>(
-				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
 				scheduled
@@ -1231,19 +1229,6 @@ mod sanitizers {
 		{
 			let scheduled = &[][..];
 			assert!(sanitize_backed_candidates::<Test, _>(
-				relay_parent,
-				backed_candidates.clone(),
-				has_concluded_invalid,
-				scheduled
-			)
-			.is_empty());
-		}
-
-		// relay parent mismatch
-		{
-			let relay_parent = Hash::repeat_byte(0xFA);
-			assert!(sanitize_backed_candidates::<Test, _>(
-				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
 				scheduled
@@ -1267,7 +1252,6 @@ mod sanitizers {
 				|_idx: usize, candidate: &BackedCandidate| set.contains(&candidate.hash());
 			assert_eq!(
 				sanitize_backed_candidates::<Test, _>(
-					relay_parent,
 					backed_candidates.clone(),
 					has_concluded_invalid,
 					scheduled

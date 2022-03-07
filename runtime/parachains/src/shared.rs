@@ -21,7 +21,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
-use sp_std::vec::Vec;
+use sp_runtime::traits::AtLeast32BitUnsigned;
+use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
 
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -37,6 +38,77 @@ pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
 #[cfg(test)]
 mod tests;
+
+/// The maximum amount of relay-parent lookback.
+// TODO: put this in the configuration module (https://github.com/paritytech/polkadot/issues/4841).
+pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 4;
+
+/// Information about past relay-parents.
+#[derive(Encode, Decode, Default, TypeInfo)]
+pub struct AllowedRelayParentsTracker<Hash, BlockNumber> {
+	// The past relay parents, paired with state roots, that are viable to build upon.
+	//
+	// They are in ascending chronologic order, so the newest relay parents are at
+	// the back of the deque.
+	//
+	// (relay_parent, state_root)
+	buffer: VecDeque<(Hash, Hash)>,
+
+	// The number of the most recent relay-parent, if any.
+	// If the buffer is empty, this value has no meaning and may
+	// be nonsensical.
+	latest_number: BlockNumber,
+}
+
+impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
+	AllowedRelayParentsTracker<Hash, BlockNumber>
+{
+	/// Add a new relay-parent to the allowed relay parents, along with info about the header.
+	/// Provide a maximum length for the buffer, which will cause old relay-parents to be pruned.
+	pub(crate) fn update(
+		&mut self,
+		relay_parent: Hash,
+		state_root: Hash,
+		number: BlockNumber,
+		max_len: usize,
+	) {
+		self.buffer.push_back((relay_parent, state_root));
+		self.latest_number = number;
+		while self.buffer.len() > max_len {
+			let _ = self.buffer.pop_front();
+		}
+
+		// if max_len == 0, then latest_number is nonsensical. Otherwise, it's fine.
+
+		// We only allow relay parents within the same sessions, the buffer
+		// gets cleared on session changes.
+	}
+
+	/// Attempt to acquire the state root and block number to be used when building
+	/// upon the given relay-parent.
+	///
+	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
+	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent is
+	/// more recent than the previous.
+	pub(crate) fn acquire_info(
+		&self,
+		relay_parent: Hash,
+		prev: Option<BlockNumber>,
+	) -> Option<(Hash, BlockNumber)> {
+		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
+
+		if let Some(prev) = prev {
+			if prev >= self.latest_number {
+				return None
+			}
+		}
+
+		let age = (self.buffer.len() - 1) - pos;
+		let number = self.latest_number.clone() - BlockNumber::from(age as u32);
+
+		Some((self.buffer[pos].1, number))
+	}
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -68,6 +140,12 @@ pub mod pallet {
 	#[pallet::getter(fn active_validator_keys)]
 	pub(super) type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;
 
+	/// All allowed relay-parents.
+	#[pallet::storage]
+	#[pallet::getter(fn allowed_relay_parents)]
+	pub(crate) type AllowedRelayParents<T: Config> =
+		StorageValue<_, AllowedRelayParentsTracker<T::Hash, T::BlockNumber>, ValueQuery>;
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
 }
@@ -90,6 +168,17 @@ impl<T: Config> Pallet<T> {
 		new_config: &HostConfiguration<T::BlockNumber>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
+		// Drop allowed relay parents buffer on a session change.
+		//
+		// During the initialization of the next block we always add its parent
+		// to the tracker.
+		//
+		// With asynchronous backing candidates built on top of relay
+		// parent `R` are still restricted by the runtime to be backed
+		// by the group assigned at `number(R) + 1`, which is guaranteed
+		// to be in the current session.
+		AllowedRelayParents::<T>::mutate(|tracker| tracker.buffer.clear());
+
 		CurrentSessionIndex::<T>::set(session_index);
 		let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
 

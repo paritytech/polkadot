@@ -14,7 +14,7 @@ readme = "README.md"
 
 [dependencies]
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
-color-eyre = { version = "0.6.0", default-features = false }
+color-eyre = { version = "0.6.1", default-features = false }
 parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
@@ -106,6 +106,8 @@ members = [
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
 	"parachain/test-parachains/halt",
+	"parachain/test-parachains/undying",
+	"parachain/test-parachains/undying/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",

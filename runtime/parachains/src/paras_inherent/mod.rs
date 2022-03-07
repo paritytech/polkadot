@@ -28,8 +28,10 @@ use crate::{
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
 	metrics::METRICS,
+	paras,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump, ParaId,
+	shared::{self, ALLOWED_RELAY_PARENT_LOOKBACK},
+	ump, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -331,6 +333,22 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 
+		// Before anything else, update the allowed relay-parents.
+		{
+			let parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
+
+			shared::AllowedRelayParents::<T>::mutate(|tracker| {
+				tracker.update(
+					parent_hash,
+					parent_storage_root,
+					parent_number,
+					ALLOWED_RELAY_PARENT_LOOKBACK,
+				);
+			});
+		}
+		let allowed_relay_parents = <shared::Pallet<T>>::allowed_relay_parents();
+
 		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
@@ -494,13 +512,12 @@ impl<T: Config> Pallet<T> {
 		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 		<scheduler::Pallet<T>>::clear();
-		<scheduler::Pallet<T>>::schedule(freed, now);
+		<scheduler::Pallet<T>>::schedule(freed);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
 		let scheduled = <scheduler::Pallet<T>>::scheduled();
 		assure_sanity_backed_candidates::<T, _>(
-			parent_hash,
 			&backed_candidates,
 			move |_candidate_index: usize, backed_candidate: &BackedCandidate<T::Hash>| -> bool {
 				<T>::DisputesHandler::concluded_invalid(current_session, backed_candidate.hash())
@@ -512,12 +529,11 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
 		// Process backed candidates according to scheduled cores.
-		let parent_storage_root = parent_header.state_root().clone();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
 		} = <inclusion::Pallet<T>>::process_candidates(
-			parent_storage_root,
+			&allowed_relay_parents,
 			backed_candidates,
 			scheduled,
 			<scheduler::Pallet<T>>::group_validators,
@@ -570,6 +586,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+		let now = <frame_system::Pallet<T>>::block_number();
 
 		if parent_hash != parent_header.hash() {
 			log::warn!(
@@ -586,6 +603,22 @@ impl<T: Config> Pallet<T> {
 
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+
+		// Update the allowed relay-parents
+		let allowed_relay_parents = {
+			let parent_number = now - One::one();
+			let parent_storage_root = parent_header.state_root().clone();
+			let mut tracker = <shared::Pallet<T>>::allowed_relay_parents();
+
+			tracker.update(
+				parent_hash,
+				parent_storage_root,
+				parent_number,
+				ALLOWED_RELAY_PARENT_LOOKBACK,
+			);
+
+			tracker
+		};
 
 		// Filter out duplicates and continue.
 		if let Err(_) = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes) {
@@ -702,29 +735,28 @@ impl<T: Config> Pallet<T> {
 			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 			<scheduler::Pallet<T>>::clear();
-			let now = <frame_system::Pallet<T>>::block_number();
-			<scheduler::Pallet<T>>::schedule(freed, now);
+			<scheduler::Pallet<T>>::schedule(freed);
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
-			let relay_parent_number = now - One::one();
-			let parent_storage_root = parent_header.state_root().clone();
-
-			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
-				parent_hash,
 				backed_candidates,
 				move |candidate_idx: usize,
 				      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
 				      -> bool {
+					let para_id = backed_candidate.descriptor().para_id;
+					let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
+					let check_ctx = CandidateCheckContext::<T>::new(prev_context);
+
 					// never include a concluded-invalid candidate
 					concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
 							// Instead of checking the candidates with code upgrades twice
 							// move the checking up here and skip it in the training wheels fallback.
 							// That way we avoid possible duplicate checks while assuring all
 							// backed candidates fine to pass on.
-							check_ctx
-								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
+							//
+							// NOTE: this is the only place where we check the relay-parent.
+							check_ctx.verify_backed_candidate(&allowed_relay_parents, candidate_idx, backed_candidate)
 								.is_err()
 				},
 				&scheduled[..],
@@ -1107,7 +1139,6 @@ fn sanitize_backed_candidates<
 	T: crate::inclusion::Config,
 	F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool,
 >(
-	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
 	scheduled: &[CoreAssignment],
@@ -1125,12 +1156,11 @@ fn sanitize_backed_candidates<
 
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
-	// Also checks the candidate references the correct relay parent.
-
+	// We don't check the relay-parent because this is done in the closure when
+	// constructing the inherent and during actual processing otherwise.
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent &&
-			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
+		scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
 	});
 
 	// Sort the `Vec` last, once there is a guarantee that these
@@ -1152,7 +1182,6 @@ pub(crate) fn assure_sanity_backed_candidates<
 	T: crate::inclusion::Config,
 	F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool,
 >(
-	relay_parent: T::Hash,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
 	scheduled: &[CoreAssignment],
@@ -1162,13 +1191,6 @@ pub(crate) fn assure_sanity_backed_candidates<
 	for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
 		if candidate_has_concluded_invalid_dispute_or_is_invalid(idx, backed_candidate) {
 			return Err(Error::<T>::UnsortedOrDuplicateBackedCandidates)
-		}
-		// Assure the backed candidate's `ParaId`'s core is free.
-		// This holds under the assumption that `Scheduler::schedule` is called _before_.
-		// Also checks the candidate references the correct relay parent.
-		let desc = backed_candidate.descriptor();
-		if desc.relay_parent != relay_parent {
-			return Err(Error::<T>::UnexpectedRelayParent)
 		}
 	}
 

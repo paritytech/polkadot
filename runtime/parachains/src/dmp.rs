@@ -175,13 +175,27 @@ impl<T: Config> Pallet<T> {
 	/// Checks if the number of processed downward messages is valid.
 	pub(crate) fn check_processed_downward_messages(
 		para: ParaId,
+		relay_parent_number: T::BlockNumber,
 		processed_downward_messages: u32,
 	) -> Result<(), ProcessedDownwardMessagesAcceptanceErr> {
 		let dmq_length = Self::dmq_length(para);
 
 		if dmq_length > 0 && processed_downward_messages == 0 {
-			return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule)
+			// The advancement rule is for at least one downwards message to be processed
+			// if the queue is non-empty at the relay-parent. Downwards messages are annotated
+			// with the block number, so we compare the earliest (first) against the relay parent.
+			let contents = Self::dmq_contents(para);
+
+			// sanity: if dmq_length is >0 this should always be 'Some'.
+			if contents.get(0).map_or(false, |msg| msg.sent_at <= relay_parent_number) {
+				return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule)
+			}
 		}
+
+		// Note that we might be allowing a parachain to signal that it's processed
+		// messages that hadn't been placed in the queue at the relay_parent.
+		// only 'stupid' parachains would do it and we don't (and can't) force anyone
+		// to act on messages, so the lenient approach is fine here.
 		if dmq_length < processed_downward_messages {
 			return Err(ProcessedDownwardMessagesAcceptanceErr::Underflow {
 				processed_downward_messages,

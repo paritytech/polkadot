@@ -95,6 +95,10 @@ benchmarks! {
 	verify {
 		assert_last_event::<T>(Event::CurrentHeadUpdated(para_id).into());
 	}
+	force_set_most_recent_context {
+		let para_id = ParaId::from(1000);
+		let context = T::BlockNumber::from(1000u32);
+	}: _(RawOrigin::Root, para_id, context)
 	force_schedule_code_upgrade {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
