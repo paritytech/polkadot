@@ -274,9 +274,7 @@ mod tests {
 
 		ParaB::execute_with(|| {
 			let message = Xcm(vec![
-				WithdrawAsset((Here, locked_amount).into()),
-				buy_execution((Here, locked_amount)),
-				LockAsset { asset: (Here, locked_amount).into(), unlocker: Parachain(1).into() },
+				LockAsset { asset: (Here, locked_amount).into(), unlocker: (Parachain(1),).into() },
 			]);
 			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone()));
 		});
