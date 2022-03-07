@@ -30,13 +30,11 @@ use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use futures::executor::block_on;
 use keyring::Sr25519Keyring;
-use primitives::{
-	v0::PARACHAIN_KEY_TYPE_ID,
-	v1::{
-		BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
-		CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
-		UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
-	},
+use primitives::v1::{
+	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
+	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
+	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
+	PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};

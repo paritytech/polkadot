@@ -887,7 +887,7 @@ mod sanitizers {
 	use crate::mock::Test;
 	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
-	use primitives::v0::PARACHAIN_KEY_TYPE_ID;
+	use primitives::v1::PARACHAIN_KEY_TYPE_ID;
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;

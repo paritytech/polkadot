@@ -17,10 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::{
-	v0::PARACHAIN_KEY_TYPE_ID,
-	v1::{BlockNumber, ValidatorId},
-};
+use primitives::v1::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;

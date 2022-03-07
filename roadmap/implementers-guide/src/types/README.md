@@ -32,7 +32,7 @@ digraph {
     CandidateDescriptor:persisted_validation_data_hash -> PersistedValidationDataHash
 
     Id [label="polkadot_parachain::primitives::Id"]
-    CollatorId [label="polkadot_primitives::v0::CollatorId"]
+    CollatorId [label="polkadot_primitives::v1::CollatorId"]
 
     PoVHash [label = "Hash", shape="doublecircle", fill="gray90"]
 
@@ -302,9 +302,9 @@ digraph {
     SessionInfo:discovery_keys -> AuthorityDiscoveryId:w
     SessionInfo:validator_groups -> ValidatorIndex:w
 
-    ValidatorId [label = "polkadot_primitives::v0::ValidatorId"]
+    ValidatorId [label = "polkadot_primitives::v1::ValidatorId"]
     AuthorityDiscoveryId [label = "sp_authority_discovery::AuthorityId"]
-    ValidatorIndex [label = "polkadot_primitives::v0::ValidatorIndex"]
+    ValidatorIndex [label = "polkadot_primitives::v1::ValidatorIndex"]
 
     AbridgedHostConfiguration [label = <
         <table>
