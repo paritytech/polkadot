@@ -101,11 +101,11 @@ impl CandidateStorage {
 		&mut self,
 		candidate: CommittedCandidateReceipt,
 		persisted_validation_data: PersistedValidationData,
-	) -> Result<(), PersistedValidationDataMismatch> {
+	) -> Result<CandidateHash, PersistedValidationDataMismatch> {
 		let candidate_hash = candidate.hash();
 
 		if self.by_candidate_hash.contains_key(&candidate_hash) {
-			return Ok(())
+			return Ok(candidate_hash)
 		}
 
 		if persisted_validation_data.hash() != candidate.descriptor.persisted_validation_data_hash {
@@ -133,7 +133,7 @@ impl CandidateStorage {
 		// sanity-checked already.
 		self.by_candidate_hash.insert(candidate_hash, entry);
 
-		Ok(())
+		Ok(candidate_hash)
 	}
 
 	/// Retain only candidates which pass the predicate.

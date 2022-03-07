@@ -267,7 +267,47 @@ where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
-	unimplemented!()
+	// Add the candidate to storage.
+	// Then attempt to add it to all trees.
+	let storage = match view.candidate_storage.get_mut(&para) {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				para_id = ?para,
+				candidate_hash = ?candidate.hash(),
+				"Received seconded candidate for inactive para",
+			);
+
+			return Ok(())
+		},
+		Some(storage) => storage,
+	};
+
+	let candidate_hash = match storage.add_candidate(candidate, pvd) {
+		Ok(c) => c,
+		Err(crate::fragment_tree::PersistedValidationDataMismatch) => {
+			// We can't log the candidate hash without either doing more ~expensive
+			// hashing but this branch indicates something is seriously wrong elsewhere
+			// so it's doubtful that it would affect debugging.
+
+			tracing::warn!(
+				target: LOG_TARGET,
+				para = ?para,
+				"Received seconded candidate had mismatching validation data",
+			);
+
+			return Ok(())
+		},
+	};
+
+	for (_, leaf_data) in &mut view.active_leaves {
+		if let Some(tree) = leaf_data.fragment_trees.get_mut(&para) {
+			tree.add_and_populate(candidate_hash, &*storage);
+			// TODO [now]: notify other subsystems of changes.
+		}
+	}
+
+	Ok(())
 }
 
 async fn handle_candidate_backed<Context>(
