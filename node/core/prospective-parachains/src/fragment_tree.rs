@@ -184,7 +184,7 @@ struct CandidateEntry {
 pub(crate) struct Scope {
 	para: ParaId,
 	relay_parent: RelayChainBlockInfo,
-	ancestors: BTreeMap<BlockNumber, (RelayChainBlockInfo, Constraints)>,
+	ancestors: BTreeMap<BlockNumber, RelayChainBlockInfo>,
 	ancestors_by_hash: HashMap<Hash, RelayChainBlockInfo>,
 	base_constraints: Constraints,
 	max_depth: usize,
@@ -217,13 +217,13 @@ impl Scope {
 		relay_parent: RelayChainBlockInfo,
 		base_constraints: Constraints,
 		max_depth: usize,
-		ancestors: impl IntoIterator<Item = (RelayChainBlockInfo, Constraints)>,
+		ancestors: impl IntoIterator<Item = RelayChainBlockInfo>,
 	) -> Result<Self, UnexpectedAncestor> {
 		let mut ancestors_map = BTreeMap::new();
 		let mut ancestors_by_hash = HashMap::new();
 		{
 			let mut prev = relay_parent.number;
-			for (ancestor, constraints) in ancestors {
+			for ancestor in ancestors {
 				if prev == 0 {
 					return Err(UnexpectedAncestor)
 				} else if ancestor.number != prev - 1 {
@@ -233,7 +233,7 @@ impl Scope {
 				} else {
 					prev = ancestor.number;
 					ancestors_by_hash.insert(ancestor.hash, ancestor.clone());
-					ancestors_map.insert(ancestor.number, (ancestor, constraints));
+					ancestors_map.insert(ancestor.number, ancestor);
 				}
 			}
 		}
@@ -252,7 +252,7 @@ impl Scope {
 		self.ancestors
 			.iter()
 			.next()
-			.map(|(_, v)| v.0.clone())
+			.map(|(_, v)| v.clone())
 			.unwrap_or_else(|| self.relay_parent.clone())
 	}
 
