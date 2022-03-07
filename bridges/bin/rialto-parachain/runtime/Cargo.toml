@@ -2,7 +2,7 @@
 name = "rialto-parachain-runtime"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/parity-bridges-common/"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -64,11 +64,11 @@ cumulus-primitives-utility = { git = "https://github.com/paritytech/cumulus", br
 parachain-info = { git = "https://github.com/paritytech/cumulus", branch = "master", default-features = false }
 
 # Polkadot Dependencies
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-xcm = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-pallet-xcm = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+polkadot-parachain = { path = "../../../../, default-features = false }
+xcm = { path = "../../../../, default-features = false }
+xcm-builder = { path = "../../../../, default-features = false }
+xcm-executor = { path = "../../../../, default-features = false }
+pallet-xcm = { path = "../../../../, default-features = false }
 
 [features]
 default = ['std']
