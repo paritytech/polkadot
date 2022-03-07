@@ -166,7 +166,7 @@ impl SendXcm for TestSendXcm {
 		Ok((pair, MultiAssets::new()))
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
-		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&pair.1);
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(hash)
 	}
@@ -187,7 +187,7 @@ impl SendXcm for TestSendXcmErrX8 {
 		}
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
-		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&pair.1);
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(hash)
 	}

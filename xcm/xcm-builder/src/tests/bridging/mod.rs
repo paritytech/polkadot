@@ -70,7 +70,7 @@ impl SendXcm for TestRemoteIncomingRouter {
 		Ok((pair, MultiAssets::new()))
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
-		let hash = VersionedXcm::from(pair.1.clone()).using_encoded(sp_io::hashing::blake2_256);
+		let hash = fake_message_hash(&pair.1);
 		REMOTE_INCOMING_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(hash)
 	}
