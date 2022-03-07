@@ -74,9 +74,9 @@ pub trait TransactAsset {
 	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn,
 	/// which should always be equal to `_what`.
 	///
-	/// The XCM `_context` parameter may be `None` when the caller of `withdraw_asset` is outside of
-	/// the context of a currently-executing XCM. An example will be the `charge_fees` method in the
-	/// XCM executor.
+	/// The XCM `_maybe_context` parameter may be `None` when the caller of `withdraw_asset` is
+	/// outside of the context of a currently-executing XCM. An example will be the `charge_fees`
+	/// method in the XCM executor.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if withdraw failed.
 	fn withdraw_asset(
