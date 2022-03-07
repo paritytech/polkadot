@@ -61,8 +61,11 @@ fn export_message_should_work() {
 	let expected_message =
 		Xcm(vec![TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() }]);
 	let expected_hash = fake_message_hash(&expected_message);
-	let message =
-		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: expected_message.clone() }]);
+	let message = Xcm(vec![ExportMessage {
+		network: Polkadot,
+		destination: Here,
+		xcm: expected_message.clone(),
+	}]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
