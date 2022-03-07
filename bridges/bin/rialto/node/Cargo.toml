@@ -83,31 +83,31 @@ polkadot-client = { path = "../../../../node/client/", branch = "master" }
 
 polkadot-approval-distribution = { path = "../../../../node/network/approval-distribution" }
 polkadot-availability-bitfield-distribution = { path = "../../../../node/network/bitfield-distribution" }
-polkadot-availability-distribution = { path = {../../../../node/network/availability-distribution" }
-polkadot-availability-recovery = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-collator-protocol = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-dispute-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-gossip-support = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-network-bridge = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-collation-generation = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-approval-voting = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-av-store = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-backing = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-bitfield-signing = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-candidate-validation = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-chain-api = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-chain-selection = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-parachains-inherent = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-provisioner = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-pvf = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-runtime-api = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-core-dispute-coordinator = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-network-protocol = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-node-subsystem-util = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-overseer = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-statement-distribution = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-availability-distribution = { path = "../../../../node/network/availability-distribution" }
+polkadot-availability-recovery = { "../../../../node/network/availability-recovery" }
+polkadot-collator-protocol = { "../../../../node/network/collator-protocol" }
+polkadot-dispute-distribution = { "../../../../node/network/dispute-distribution" }
+polkadot-gossip-support = { "../../../../node/network/gossip-support" }
+polkadot-network-bridge = { "../../../../node/network/bridge" }
+polkadot-node-collation-generation = { "../../../../node/collation-generation" }
+polkadot-node-core-approval-voting = { "../../../../node/core/approval-voting" }
+polkadot-node-core-av-store = { "../../../../node/core/av-store" }
+polkadot-node-core-backing = { "../../../../node/core/backing" }
+polkadot-node-core-bitfield-signing = { "../../../../node/core/bitfield-signing" }
+polkadot-node-core-candidate-validation = { "../../../../node/core/candidate-validation" }
+polkadot-node-core-chain-api = { "../../../../node/core/chain-api" }
+polkadot-node-core-chain-selection = { "../../../../node/core/chain-selection" }
+polkadot-node-core-parachains-inherent = { "../../../../node/core/parachains-inherent" }
+polkadot-node-core-provisioner = { "../../../../node/core/provisioner" }
+polkadot-node-core-pvf = { "../../../../node/core/pvf" }
+polkadot-node-core-runtime-api = { "../../../../node/core/runtime-api" }
+polkadot-node-core-dispute-coordinator = { "../../../../node/core/dispute-coordinator" }
+polkadot-node-network-protocol = { "../../../../node/network/protocol" }
+polkadot-node-subsystem-util = { "../../../../node/subsystem-util" }
+polkadot-overseer = { "../../../../node/overseer" }
+polkadot-primitives = { "../../../../primitives" }
+polkadot-runtime-parachains = { "../../../../runtime/parachains" }
+polkadot-statement-distribution = { "../../../../node/network/statement-distribution" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
