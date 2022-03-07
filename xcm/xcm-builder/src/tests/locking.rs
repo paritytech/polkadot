@@ -47,7 +47,7 @@ fn lock_roundtrip_should_work() {
 		vec![(
 			(Parent, Parachain(1)).into(),
 			Xcm::<()>(vec![NoteUnlockable {
-				owner: (3u64,).into(),
+				owner: (Parent, Parachain(42), 3u64).into(),
 				asset: (Parent, 100u128).into()
 			},]),
 		)]

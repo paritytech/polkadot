@@ -76,19 +76,19 @@ impl<T: Get<MultiLocation>, I: TryFrom<AssetInstance>> MatchesNonFungible<I> for
 /// ```
 /// use xcm::latest::prelude::*;
 /// use xcm_builder::IsAbstract;
-/// use xcm_executor::traits::MatchesFungible;
+/// use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 ///
 /// frame_support::parameter_types! {
 /// 	pub TargetLocation: [u8; 32] = [7u8; 32];
 /// }
 ///
 /// # fn main() {
-/// let asset = ([7u8; 32], 999).into();
+/// let asset = ([7u8; 32], 999u128).into();
 /// // match `asset` if it is an abstract asset in `TargetLocation`.
 /// assert_eq!(<IsAbstract<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// let nft = ([7u8; 32], [42u8; 4]).into();
 /// assert_eq!(
-///     <IsAbstract<TargetLocation> as MatchesFungible<[u8; 4]>>::matches_fungible(&asset),
+///     <IsAbstract<TargetLocation> as MatchesNonFungible<[u8; 4]>>::matches_nonfungible(&nft),
 ///     Some([42u8; 4])
 /// );
 /// # }
