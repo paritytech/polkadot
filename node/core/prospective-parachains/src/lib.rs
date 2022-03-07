@@ -36,6 +36,7 @@ use std::{
 };
 
 use futures::prelude::*;
+use futures::channel::oneshot;
 
 use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
@@ -50,6 +51,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::vstaging::{
 	Block, BlockId, BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
 	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, SessionIndex, ValidatorIndex,
+	PersistedValidationData,
 };
 
 use crate::{
@@ -80,9 +82,23 @@ pub struct ProspectiveParachainsSubsystems {
 }
 
 // TODO [now]: add this enum to the broader subsystem types.
-// TODO [now]: notify about candidate seconded
-// TODO [now]: notify about candidate backed
-pub enum ProspectiveParachainsMessage {}
+pub enum ProspectiveParachainsMessage {
+	// TODO [now] : docs
+	CandidateSeconded(
+		ParaId,
+		CommittedCandidateReceipt,
+		PersistedValidationData,
+	),
+	// TODO [now]: docs
+	CandidateBacked(ParaId, CandidateHash),
+	// TODO [now]: docs
+	GetBackableCandidate(
+		Hash,
+		ParaId,
+		Vec<CandidateHash>,
+		oneshot::Sender<Option<CandidateHash>>,
+	),
+}
 
 struct ScheduledPara {
 	para: ParaId,
@@ -124,20 +140,31 @@ where
 		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				view = update_view(&mut ctx, view, update).await?;
+				view = handle_active_leaves_update(&mut ctx, view, update).await?;
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
-				// TODO [now]: handle messages
-				// 1. Notification of new fragment (orphaned?)
-				// 2. Notification of new fragment being backed
-				// 3. Request for backable candidates
+				ProspectiveParachainsMessage::CandidateSeconded(
+					para,
+					candidate,
+					pvd,
+				) => handle_candidate_seconded(&mut ctx, &mut view, para, candidate, pvd).await?,
+				ProspectiveParachainsMessage::CandidateBacked(
+					para,
+					candidate_hash,
+				) => handle_candidate_backed(&mut ctx, &mut view, para, candidate_hash).await?,
+				ProspectiveParachainsMessage::GetBackableCandidate(
+					relay_parent,
+					para,
+					required_path,
+					tx,
+				) => answer_get_backable_candidate(&mut ctx, &view, relay_parent, para, required_path, tx).await?,
 			},
 		}
 	}
 }
 
-async fn update_view<Context>(
+async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	mut view: View,
 	update: ActiveLeavesUpdate,
@@ -249,6 +276,48 @@ fn prune_view_candidate_storage(view: &mut View) {
 		// as long as there's an active head which schedules the para.
 		true
 	})
+}
+
+async fn handle_candidate_seconded<Context>(
+	ctx: &mut Context,
+	view: &mut View,
+	para: ParaId,
+	candidate: CommittedCandidateReceipt,
+	pvd: PersistedValidationData,
+) -> JfyiErrorResult<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	unimplemented!()
+}
+
+async fn handle_candidate_backed<Context>(
+	ctx: &mut Context,
+	view: &mut View,
+	para: ParaId,
+	candidate_hash: CandidateHash,
+) -> JfyiErrorResult<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	unimplemented!()
+}
+
+async fn answer_get_backable_candidate<Context>(
+	ctx: &mut Context,
+	view: &View,
+	relay_parent: Hash,
+	para: ParaId,
+	required_path: Vec<CandidateHash>,
+	tx: oneshot::Sender<Option<CandidateHash>>,
+) -> JfyiErrorResult<()>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	unimplemented!()
 }
 
 async fn fetch_constraints<Context>(
