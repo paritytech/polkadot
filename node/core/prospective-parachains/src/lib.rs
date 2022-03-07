@@ -140,16 +140,7 @@ where
 					para,
 					required_path,
 					tx,
-				) =>
-					answer_get_backable_candidate(
-						&mut ctx,
-						&view,
-						relay_parent,
-						para,
-						required_path,
-						tx,
-					)
-					.await?,
+				) => answer_get_backable_candidate(&view, relay_parent, para, required_path, tx),
 			},
 		}
 	}
@@ -360,18 +351,13 @@ where
 	Ok(())
 }
 
-async fn answer_get_backable_candidate<Context>(
-	ctx: &mut Context,
+fn answer_get_backable_candidate(
 	view: &View,
 	relay_parent: Hash,
 	para: ParaId,
 	required_path: Vec<CandidateHash>,
 	tx: oneshot::Sender<Option<CandidateHash>>,
-) -> JfyiErrorResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
+) {
 	let data = match view.active_leaves.get(&relay_parent) {
 		None => {
 			tracing::debug!(
@@ -382,7 +368,7 @@ where
 			);
 
 			let _ = tx.send(None);
-			return Ok(())
+			return
 		},
 		Some(d) => d,
 	};
@@ -397,7 +383,7 @@ where
 			);
 
 			let _ = tx.send(None);
-			return Ok(())
+			return
 		},
 		Some(tree) => tree,
 	};
@@ -412,14 +398,12 @@ where
 			);
 
 			let _ = tx.send(None);
-			return Ok(())
+			return
 		},
 		Some(s) => s,
 	};
 
 	let _ = tx.send(tree.select_child(&required_path, |candidate| storage.is_backed(candidate)));
-
-	Ok(())
 }
 
 async fn fetch_constraints<Context>(
