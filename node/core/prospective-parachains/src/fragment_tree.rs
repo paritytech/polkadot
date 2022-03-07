@@ -430,20 +430,15 @@ impl FragmentTree {
 		// For plausibly unique parachains, this shouldn't matter much.
 		// figure out alternative selection criteria?
 		match base_node {
-			NodePointer::Root => {
-				self.nodes.iter()
-					.take_while(|n| n.parent == NodePointer::Root)
-					.filter(|n| pred(&n.candidate_hash))
-					.map(|n| n.candidate_hash)
-					.next()
-			}
-			NodePointer::Storage(ptr) => {
-				self.nodes[ptr].children
-					.iter()
-					.filter(|n| pred(&n.1))
-					.map(|n| n.1)
-					.next()
-			}
+			NodePointer::Root => self
+				.nodes
+				.iter()
+				.take_while(|n| n.parent == NodePointer::Root)
+				.filter(|n| pred(&n.candidate_hash))
+				.map(|n| n.candidate_hash)
+				.next(),
+			NodePointer::Storage(ptr) =>
+				self.nodes[ptr].children.iter().filter(|n| pred(&n.1)).map(|n| n.1).next(),
 		}
 	}
 

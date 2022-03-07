@@ -26,8 +26,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
 use crate::LOG_TARGET;
-use parity_scale_codec::Error as CodecError;
 use fatality::Nested;
+use parity_scale_codec::Error as CodecError;
 
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]

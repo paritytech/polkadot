@@ -35,8 +35,7 @@ use std::{
 	sync::Arc,
 };
 
-use futures::prelude::*;
-use futures::channel::oneshot;
+use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
@@ -50,13 +49,13 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::vstaging::{
 	Block, BlockId, BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, SessionIndex, ValidatorIndex,
-	PersistedValidationData,
+	GroupIndex, GroupRotationInfo, Hash, Header, Id as ParaId, PersistedValidationData,
+	SessionIndex, ValidatorIndex,
 };
 
 use crate::{
-	error::{Error, FatalError, JfyiError, Result, FatalResult, JfyiErrorResult},
-	fragment_tree::{FragmentTree, CandidateStorage, Scope as TreeScope},
+	error::{Error, FatalError, FatalResult, JfyiError, JfyiErrorResult, Result},
+	fragment_tree::{CandidateStorage, FragmentTree, Scope as TreeScope},
 };
 
 mod error;
@@ -84,20 +83,11 @@ pub struct ProspectiveParachainsSubsystems {
 // TODO [now]: add this enum to the broader subsystem types.
 pub enum ProspectiveParachainsMessage {
 	// TODO [now] : docs
-	CandidateSeconded(
-		ParaId,
-		CommittedCandidateReceipt,
-		PersistedValidationData,
-	),
+	CandidateSeconded(ParaId, CommittedCandidateReceipt, PersistedValidationData),
 	// TODO [now]: docs
 	CandidateBacked(ParaId, CandidateHash),
 	// TODO [now]: docs
-	GetBackableCandidate(
-		Hash,
-		ParaId,
-		Vec<CandidateHash>,
-		oneshot::Sender<Option<CandidateHash>>,
-	),
+	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
 }
 
 struct ScheduledPara {
@@ -122,10 +112,7 @@ struct View {
 
 impl View {
 	fn new() -> Self {
-		View {
-			active_leaves: HashMap::new(),
-			candidate_storage: HashMap::new(),
-		}
+		View { active_leaves: HashMap::new(), candidate_storage: HashMap::new() }
 	}
 }
 
@@ -144,21 +131,25 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
-				ProspectiveParachainsMessage::CandidateSeconded(
-					para,
-					candidate,
-					pvd,
-				) => handle_candidate_seconded(&mut ctx, &mut view, para, candidate, pvd).await?,
-				ProspectiveParachainsMessage::CandidateBacked(
-					para,
-					candidate_hash,
-				) => handle_candidate_backed(&mut ctx, &mut view, para, candidate_hash).await?,
+				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd) =>
+					handle_candidate_seconded(&mut ctx, &mut view, para, candidate, pvd).await?,
+				ProspectiveParachainsMessage::CandidateBacked(para, candidate_hash) =>
+					handle_candidate_backed(&mut ctx, &mut view, para, candidate_hash).await?,
 				ProspectiveParachainsMessage::GetBackableCandidate(
 					relay_parent,
 					para,
 					required_path,
 					tx,
-				) => answer_get_backable_candidate(&mut ctx, &view, relay_parent, para, required_path, tx).await?,
+				) =>
+					answer_get_backable_candidate(
+						&mut ctx,
+						&view,
+						relay_parent,
+						para,
+						required_path,
+						tx,
+					)
+					.await?,
 			},
 		}
 	}
@@ -184,31 +175,19 @@ where
 
 	if let Some(activated) = update.activated {
 		let hash = activated.hash;
-		let scheduled_paras = fetch_upcoming_paras(
-			ctx,
-			&hash,
-		).await?;
+		let scheduled_paras = fetch_upcoming_paras(ctx, &hash).await?;
 
 		let block_info: RelayChainBlockInfo = unimplemented!();
 
-		let ancestry = fetch_ancestry(
-			&mut ctx,
-			hash,
-			MAX_ANCESTRY,
-		).await?;
+		let ancestry = fetch_ancestry(&mut ctx, hash, MAX_ANCESTRY).await?;
 
 		// Find constraints.
 		let mut fragment_trees = HashMap::new();
 		for para in scheduled_paras {
-			let candidate_storage = view.candidate_storage
-				.entry(para)
-				.or_insert_with(CandidateStorage::new);
+			let candidate_storage =
+				view.candidate_storage.entry(para).or_insert_with(CandidateStorage::new);
 
-			let constraints = fetch_constraints(
-				&mut ctx,
-				&hash,
-				para,
-			).await?;
+			let constraints = fetch_constraints(&mut ctx, &hash, para).await?;
 
 			let constraints = match constraints {
 				Some(c) => c,
@@ -223,7 +202,7 @@ where
 					);
 
 					continue
-				}
+				},
 			};
 
 			let scope = TreeScope::with_ancestors(
@@ -232,7 +211,8 @@ where
 				constraints,
 				MAX_DEPTH,
 				ancestry.iter().cloned(),
-			).expect("ancestors are provided in reverse order and correctly; qed");
+			)
+			.expect("ancestors are provided in reverse order and correctly; qed");
 
 			let tree = FragmentTree::populate(scope, &*candidate_storage);
 			fragment_trees.insert(para, tree);
@@ -240,10 +220,8 @@ where
 
 		// TODO [now]: notify subsystems of new trees.
 
-		view.active_leaves.insert(hash, RelayBlockViewData {
-			block_info,
-			fragment_trees,
-		});
+		view.active_leaves
+			.insert(hash, RelayBlockViewData { block_info, fragment_trees });
 	}
 
 	if !update.deactivated.is_empty() {
@@ -266,7 +244,7 @@ fn prune_view_candidate_storage(view: &mut View) {
 		}
 
 		if !contained {
-			return false;
+			return false
 		}
 
 		storage.retain(|h| coverage.contains(&h));
@@ -330,7 +308,7 @@ async fn fetch_constraints<Context>(
 
 async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
-	relay_parent: &Hash
+	relay_parent: &Hash,
 ) -> JfyiErrorResult<Vec<ParaId>> {
 	unimplemented!()
 }
