@@ -23,7 +23,7 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sp-tracing = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate", default-features = false, optional = true }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

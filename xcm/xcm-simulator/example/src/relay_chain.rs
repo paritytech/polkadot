@@ -138,7 +138,7 @@ impl Config for XcmConfig {
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 	type AssetTrap = ();
-	type AssetLocker = ();
+	type AssetLocker = XcmPallet;
 	type AssetExchanger = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
@@ -168,7 +168,7 @@ impl pallet_xcm::Config for Runtime {
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 	type Currency = Balances;
-	type CurrencyMatcher = ();
+	type CurrencyMatcher = IsConcrete<TokenLocation>;
 	type TrustedLockers = ();
 	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
@@ -183,6 +183,7 @@ impl ump::Config for Runtime {
 	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = ump::TestWeightInfo;
 }
 
 impl origin::Config for Runtime {}

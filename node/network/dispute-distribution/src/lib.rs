@@ -82,7 +82,7 @@ use self::receiver::DisputesReceiver;
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::{log_error, Fatal, FatalResult, Result};
+use error::{log_error, FatalError, FatalResult, Result};
 
 #[cfg(test)]
 mod tests;
@@ -160,7 +160,7 @@ where
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError>
 	where
 		Context: SubsystemContext<Message = DisputeDistributionMessage>
 			+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
@@ -176,7 +176,7 @@ where
 			self.metrics.clone(),
 		);
 		ctx.spawn("disputes-receiver", receiver.run().boxed())
-			.map_err(Fatal::SpawnTask)?;
+			.map_err(FatalError::SpawnTask)?;
 
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
@@ -197,7 +197,7 @@ where
 				},
 				MuxedMessage::Sender(result) => {
 					self.disputes_sender
-						.on_task_message(result.ok_or(Fatal::SenderExhausted)?)
+						.on_task_message(result.ok_or(FatalError::SenderExhausted)?)
 						.await;
 				},
 			}
@@ -254,7 +254,7 @@ impl MuxedMessage {
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 			msg = from_sender.next() => MuxedMessage::Sender(msg),
 		)
 	}

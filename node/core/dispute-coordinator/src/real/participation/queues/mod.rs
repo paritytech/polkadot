@@ -16,8 +16,6 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use thiserror::Error;
-
 use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, SessionIndex};
 
 use crate::real::ordering::CandidateComparator;
@@ -83,8 +81,8 @@ struct BestEffortEntry {
 }
 
 /// What can go wrong when queuing a request.
-#[derive(Debug, Error)]
-pub enum Error {
+#[derive(Debug, thiserror::Error)]
+pub enum QueueError {
 	#[error("Request could not be queued, because best effort queue was already full.")]
 	BestEffortFull,
 	#[error("Request could not be queued, because priority queue was already full.")]
@@ -137,21 +135,21 @@ impl Queues {
 		&mut self,
 		comparator: Option<CandidateComparator>,
 		req: ParticipationRequest,
-	) -> Result<(), Error> {
+	) -> Result<(), QueueError> {
 		debug_assert!(comparator
 			.map(|c| c.matches_candidate(req.candidate_hash()))
 			.unwrap_or(true));
 
 		if let Some(comparator) = comparator {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
-				return Err(Error::PriorityFull)
+				return Err(QueueError::PriorityFull)
 			}
 			// Remove any best effort entry:
 			self.best_effort.remove(&req.candidate_hash);
 			self.priority.insert(comparator, req);
 		} else {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
-				return Err(Error::BestEffortFull)
+				return Err(QueueError::BestEffortFull)
 			}
 			// Note: The request might have been added to priority in a previous call already, we
 			// take care of that case in `dequeue` (more efficient).
