@@ -740,10 +740,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let (remote_asset, context) = Self::try_reanchor(asset.clone(), &unlocker)?;
 				let lock_ticket =
 					Config::AssetLocker::prepare_lock(unlocker.clone(), asset, origin.clone())?;
-				let owner = origin.reanchored(&unlocker, &context)
-					.map_err(|_| XcmError::ReanchorFailed)?;
-				let msg =
-					Xcm::<()>(vec![NoteUnlockable { asset: remote_asset, owner }]);
+				let owner =
+					origin.reanchored(&unlocker, &context).map_err(|_| XcmError::ReanchorFailed)?;
+				let msg = Xcm::<()>(vec![NoteUnlockable { asset: remote_asset, owner }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(unlocker, msg)?;
 				self.take_fee(price, FeeReason::LockAsset)?;
 				lock_ticket.enact()?;
@@ -860,7 +859,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		destination: &MultiLocation,
 	) -> Result<(MultiAsset, MultiLocation), XcmError> {
 		let context = Config::LocationInverter::universal_location().into();
-		let asset = asset.reanchored(&destination, &context)
+		let asset = asset
+			.reanchored(&destination, &context)
 			.map_err(|()| XcmError::ReanchorFailed)?;
 		Ok((asset, context))
 	}
