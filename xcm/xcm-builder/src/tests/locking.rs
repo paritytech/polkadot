@@ -40,7 +40,7 @@ fn lock_roundtrip_should_work() {
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990u128).into()]);
 
 	let expected_msg =
-		Xcm::<()>(vec![NoteUnlockable { owner: (3u64,).into(), asset: (Parent, 100u128).into() }]);
+		Xcm::<()>(vec![NoteUnlockable { owner: (Parent, Parachain(42), 3u64).into(), asset: (Parent, 100u128).into() }]);
 	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![((Parent, Parachain(1)).into(), expected_msg, expected_hash)]);
 	assert_eq!(
