@@ -27,11 +27,10 @@ use bridge_runtime_common::messages::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	PalletId,
 };
 use frame_system::EnsureRoot;
-pub use pallet_balances::Call as BalancesCall;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_mmr_primitives as mmr;
@@ -707,11 +706,6 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
-/// An insecure randomness beacon that uses the parent block hash as random material.
-///
-/// THIS SHOULD ONLY BE USED FOR TESTING PURPOSES.
-pub struct ParentHashRandomness;
-
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 }
@@ -905,17 +899,6 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 	type MessageDispatch = crate::bridge_messages::FromWococoMessageDispatch;
 }
 
-impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
-	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
-		(
-			(System::parent_hash(), subject)
-				.using_encoded(sp_io::hashing::blake2_256)
-				.into(),
-			System::block_number(),
-		)
-	}
-}
-
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	pub const SampleLength: BlockNumber = 1;
@@ -927,7 +910,7 @@ impl auctions::Config for Runtime {
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
-	type Randomness = ParentHashRandomness;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
 }
