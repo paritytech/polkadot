@@ -86,8 +86,8 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use westend_runtime_constants::{currency::*, fee::*, time::*};
 
-mod weights;
 mod bag_thresholds;
+mod weights;
 pub mod xcm_config;
 
 #[cfg(test)]
