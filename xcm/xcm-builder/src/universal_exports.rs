@@ -331,14 +331,14 @@ pub struct HaulBlobExporter<Bridge, BridgedNetwork, Price>(
 impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> ExportXcm
 	for HaulBlobExporter<Bridge, BridgedNetwork, Price>
 {
-	type Ticket = Vec<u8>;
+	type Ticket = (Vec<u8>, XcmHash);
 
 	fn validate(
 		network: NetworkId,
 		_channel: u32,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> Result<(Vec<u8>, MultiAssets), SendError> {
+	) -> Result<((Vec<u8>, XcmHash), MultiAssets), SendError> {
 		let bridged_network = BridgedNetwork::get();
 		ensure!(&network == &bridged_network, SendError::NotApplicable);
 		// We don't/can't use the `channel` for this adapter.
@@ -351,12 +351,12 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 			},
 		};
 		let message = VersionedXcm::from(message.take().ok_or(SendError::MissingArgument)?);
+		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let blob = BridgeMessage { universal_dest, message }.encode();
-		Ok((blob, Price::get()))
+		Ok(((blob, hash), Price::get()))
 	}
 
-	fn deliver(blob: Vec<u8>) -> Result<XcmHash, SendError> {
-		let hash = sp_io::hashing::blake2_256(&blob[..]);
+	fn deliver((blob, hash): (Vec<u8>, XcmHash)) -> Result<XcmHash, SendError> {
 		Bridge::haul_blob(blob);
 		Ok(hash)
 	}
