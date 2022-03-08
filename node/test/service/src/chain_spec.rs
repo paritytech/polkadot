@@ -21,17 +21,18 @@ use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use polkadot_primitives::v1::{AccountId, AssignmentId, ValidatorId, MAX_CODE_SIZE, MAX_POV_SIZE};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
-use polkadot_test_runtime::{constants::currency::DOTS, BABE_GENESIS_EPOCH_CONFIG};
+use polkadot_test_runtime::BABE_GENESIS_EPOCH_CONFIG;
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::sr25519;
 use sp_runtime::Perbill;
+use test_runtime_constants::currency::DOTS;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec` parameterized for polkadot test runtime.
 pub type PolkadotChainSpec =
-	service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
+	sc_service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
@@ -43,6 +44,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	)
@@ -157,10 +159,10 @@ fn polkadot_testnet_genesis(
 		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: runtime::VestingConfig { vesting: vec![] },
-		sudo: runtime::SudoConfig { key: root_key },
+		sudo: runtime::SudoConfig { key: Some(root_key) },
 		configuration: runtime::ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 10u32,
+				validation_upgrade_cooldown: 10u32,
 				validation_upgrade_delay: 5,
 				code_retention_period: 1200,
 				max_code_size: MAX_CODE_SIZE,
@@ -170,6 +172,7 @@ fn polkadot_testnet_genesis(
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				no_show_slots: 10,
+				minimum_validation_upgrade_delay: 5,
 				..Default::default()
 			},
 		},

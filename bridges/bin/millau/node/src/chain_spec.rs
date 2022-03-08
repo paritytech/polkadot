@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use bp_millau::derive_account_from_rialto_id;
 use millau_runtime::{
-	AccountId, AuraConfig, BalancesConfig, BridgeWestendGrandpaConfig, GenesisConfig, GrandpaConfig, SessionConfig,
-	SessionKeys, Signature, SudoConfig, SystemConfig, WASM_BINARY,
+	AccountId, AuraConfig, BalancesConfig, BeefyConfig, BridgeRialtoMessagesConfig,
+	BridgeWestendGrandpaConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
+	Signature, SudoConfig, SystemConfig, WASM_BINARY,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{sr25519, Pair, Public};
@@ -56,10 +58,11 @@ where
 }
 
 /// Helper function to generate an authority key for Aura
-pub fn get_authority_keys_from_seed(s: &str) -> (AccountId, AuraId, GrandpaId) {
+pub fn get_authority_keys_from_seed(s: &str) -> (AccountId, AuraId, BeefyId, GrandpaId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(s),
 		get_from_seed::<AuraId>(s),
+		get_from_seed::<BeefyId>(s),
 		get_from_seed::<GrandpaId>(s),
 	)
 }
@@ -70,10 +73,7 @@ impl Alternative {
 		let properties = Some(
 			serde_json::json!({
 				"tokenDecimals": 9,
-				"tokenSymbol": "MLAU",
-				"bridgeIds": {
-					"Rialto": bp_runtime::RIALTO_CHAIN_ID,
-				}
+				"tokenSymbol": "MLAU"
 			})
 			.as_object()
 			.expect("Map given; qed")
@@ -81,8 +81,8 @@ impl Alternative {
 		);
 		match self {
 			Alternative::Development => ChainSpec::from_genesis(
-				"Development",
-				"dev",
+				"Millau Development",
+				"millau_dev",
 				sc_service::ChainType::Development,
 				|| {
 					testnet_genesis(
@@ -107,8 +107,8 @@ impl Alternative {
 				None,
 			),
 			Alternative::LocalTestnet => ChainSpec::from_genesis(
-				"Local Testnet",
-				"local_testnet",
+				"Millau Local",
+				"millau_local",
 				sc_service::ChainType::Local,
 				|| {
 					testnet_genesis(
@@ -137,10 +137,12 @@ impl Alternative {
 							get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 							get_account_id_from_seed::<sr25519::Public>("George//stash"),
 							get_account_id_from_seed::<sr25519::Public>("Harry//stash"),
-							pallet_bridge_messages::Pallet::<
-								millau_runtime::Runtime,
-								pallet_bridge_messages::DefaultInstance,
-							>::relayer_fund_account_id(),
+							get_account_id_from_seed::<sr25519::Public>("RialtoMessagesOwner"),
+							get_account_id_from_seed::<sr25519::Public>("WithRialtoTokenSwap"),
+							pallet_bridge_messages::relayer_fund_account_id::<
+								bp_millau::AccountId,
+								bp_millau::AccountIdConverter,
+							>(),
 							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
 								get_account_id_from_seed::<sr25519::Public>("Alice"),
 							)),
@@ -173,12 +175,12 @@ impl Alternative {
 	}
 }
 
-fn session_keys(aura: AuraId, grandpa: GrandpaId) -> SessionKeys {
-	SessionKeys { aura, grandpa }
+fn session_keys(aura: AuraId, beefy: BeefyId, grandpa: GrandpaId) -> SessionKeys {
+	SessionKeys { aura, beefy, grandpa }
 }
 
 fn testnet_genesis(
-	initial_authorities: Vec<(AccountId, AuraId, GrandpaId)>,
+	initial_authorities: Vec<(AccountId, AuraId, BeefyId, GrandpaId)>,
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	_enable_println: bool,
@@ -186,22 +188,20 @@ fn testnet_genesis(
 	GenesisConfig {
 		system: SystemConfig {
 			code: WASM_BINARY.expect("Millau development WASM not available").to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		balances: BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 50)).collect(),
 		},
-		aura: AuraConfig {
-			authorities: Vec::new(),
-		},
-		grandpa: GrandpaConfig {
-			authorities: Vec::new(),
-		},
-		sudo: SudoConfig { key: root_key },
+		aura: AuraConfig { authorities: Vec::new() },
+		beefy: BeefyConfig { authorities: Vec::new() },
+		grandpa: GrandpaConfig { authorities: Vec::new() },
+		sudo: SudoConfig { key: Some(root_key) },
 		session: SessionConfig {
 			keys: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.1.clone(), x.2.clone())))
+				.map(|x| {
+					(x.0.clone(), x.0.clone(), session_keys(x.1.clone(), x.2.clone(), x.3.clone()))
+				})
 				.collect::<Vec<_>>(),
 		},
 		bridge_westend_grandpa: BridgeWestendGrandpaConfig {
@@ -211,15 +211,17 @@ fn testnet_genesis(
 			owner: Some(get_account_id_from_seed::<sr25519::Public>("George")),
 			..Default::default()
 		},
+		bridge_rialto_messages: BridgeRialtoMessagesConfig {
+			owner: Some(get_account_id_from_seed::<sr25519::Public>("RialtoMessagesOwner")),
+			..Default::default()
+		},
 	}
 }
 
 #[test]
 fn derived_dave_account_is_as_expected() {
 	let dave = get_account_id_from_seed::<sr25519::Public>("Dave");
-	let derived: AccountId = derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(dave));
-	assert_eq!(
-		derived.to_string(),
-		"5DNW6UVnb7TN6wX5KwXtDYR3Eccecbdzuw89HqjyNfkzce6J".to_string()
-	);
+	let derived: AccountId =
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(dave));
+	assert_eq!(derived.to_string(), "5DNW6UVnb7TN6wX5KwXtDYR3Eccecbdzuw89HqjyNfkzce6J".to_string());
 }

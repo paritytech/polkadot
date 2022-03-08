@@ -29,11 +29,8 @@ pub enum ToQueue {
 	/// This schedules preparation of the given PVF.
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
-	/// [`FromQueue`] response. In case there is a need to bump the priority, use
-	/// [`ToQueue::Amend`].
+	/// [`FromQueue`] response.
 	Enqueue { priority: Priority, pvf: Pvf },
-	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.
-	Amend { priority: Priority, artifact_id: ArtifactId },
 }
 
 /// A response from queue.
@@ -97,7 +94,6 @@ impl WorkerData {
 ///  there is going to be a limited number of critical jobs and we don't really care if background starve.
 #[derive(Default)]
 struct Unscheduled {
-	background: VecDeque<Job>,
 	normal: VecDeque<Job>,
 	critical: VecDeque<Job>,
 }
@@ -105,7 +101,6 @@ struct Unscheduled {
 impl Unscheduled {
 	fn queue_mut(&mut self, prio: Priority) -> &mut VecDeque<Job> {
 		match prio {
-			Priority::Background => &mut self.background,
 			Priority::Normal => &mut self.normal,
 			Priority::Critical => &mut self.critical,
 		}
@@ -120,14 +115,12 @@ impl Unscheduled {
 	}
 
 	fn is_empty(&self) -> bool {
-		self.background.is_empty() && self.normal.is_empty() && self.critical.is_empty()
+		self.normal.is_empty() && self.critical.is_empty()
 	}
 
 	fn next(&mut self) -> Option<Job> {
 		let mut check = |prio: Priority| self.queue_mut(prio).pop_front();
-		check(Priority::Critical)
-			.or_else(|| check(Priority::Normal))
-			.or_else(|| check(Priority::Background))
+		check(Priority::Critical).or_else(|| check(Priority::Normal))
 	}
 }
 
@@ -213,9 +206,6 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 		ToQueue::Enqueue { priority, pvf } => {
 			handle_enqueue(queue, priority, pvf).await?;
 		},
-		ToQueue::Amend { priority, artifact_id } => {
-			handle_amend(queue, priority, artifact_id).await?;
-		},
 	}
 	Ok(())
 }
@@ -251,7 +241,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 
 	if let Some(available) = find_idle_worker(queue) {
 		// This may seem not fair (w.r.t priority) on the first glance, but it should be. This is
-		// because as soon as a worker finishes with the job it's immediatelly given the next one.
+		// because as soon as a worker finishes with the job it's immediately given the next one.
 		assign(queue, available, job).await?;
 	} else {
 		spawn_extra_worker(queue, priority.is_critical()).await?;
@@ -263,41 +253,6 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 
 fn find_idle_worker(queue: &mut Queue) -> Option<Worker> {
 	queue.workers.iter().filter(|(_, data)| data.is_idle()).map(|(k, _)| k).next()
-}
-
-async fn handle_amend(
-	queue: &mut Queue,
-	priority: Priority,
-	artifact_id: ArtifactId,
-) -> Result<(), Fatal> {
-	if let Some(&job) = queue.artifact_id_to_job.get(&artifact_id) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			validation_code_hash = ?artifact_id.code_hash,
-			?priority,
-			"amending preparation priority.",
-		);
-
-		let mut job_data: &mut JobData = &mut queue.jobs[job];
-		if job_data.priority < priority {
-			// The new priority is higher. We should do two things:
-			// - if the worker was already spawned with the background prio and the new one is not
-			//   (it's already the case, if we are in this branch but we still do the check for
-			//   clarity), then we should tell the pool to bump the priority for the worker.
-			//
-			// - save the new priority in the job.
-
-			if let Some(worker) = job_data.worker {
-				if job_data.priority.is_background() && !priority.is_background() {
-					send_pool(&mut queue.to_pool_tx, pool::ToPool::BumpPriority(worker)).await?;
-				}
-			}
-
-			job_data.priority = priority;
-		}
-	}
-
-	Ok(())
 }
 
 async fn handle_from_pool(queue: &mut Queue, from_pool: pool::FromPool) -> Result<(), Fatal> {
@@ -335,7 +290,7 @@ async fn handle_worker_concluded(
 			match $expr {
 				Some(v) => v,
 				None => {
-					// Precondition of calling this is that the $expr is never none;
+					// Precondition of calling this is that the `$expr` is never none;
 					// Assume the conditions holds, then this never is not hit;
 					// qed.
 					never!("never_none, {}", stringify!($expr));
@@ -469,12 +424,7 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 
 	send_pool(
 		&mut queue.to_pool_tx,
-		pool::ToPool::StartWork {
-			worker,
-			code: job_data.pvf.code.clone(),
-			artifact_path,
-			background_priority: job_data.priority.is_background(),
-		},
+		pool::ToPool::StartWork { worker, code: job_data.pvf.code.clone(), artifact_path },
 	)
 	.await?;
 
@@ -644,7 +594,7 @@ mod tests {
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Background, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		let w = test.workers.insert(());
@@ -714,26 +664,6 @@ mod tests {
 	}
 
 	#[async_std::test]
-	async fn bump_prio_on_urgency_change() {
-		let mut test = Test::new(2, 2);
-
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Background, pvf: pvf(1) });
-
-		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-
-		let w = test.workers.insert(());
-		test.send_from_pool(pool::FromPool::Spawned(w));
-
-		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
-		test.send_queue(ToQueue::Amend {
-			priority: Priority::Normal,
-			artifact_id: pvf(1).as_artifact_id(),
-		});
-
-		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::BumpPriority(w));
-	}
-
-	#[async_std::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
@@ -794,7 +724,7 @@ mod tests {
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 
-		// Now, to the interesting part. After the queue normally issues the start_work command to
+		// Now, to the interesting part. After the queue normally issues the `start_work` command to
 		// the pool, before receiving the command the queue may report that the worker ripped.
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		test.send_from_pool(pool::FromPool::Rip(w1));

@@ -62,14 +62,7 @@ pub fn initialize_logger(with_timestamp: bool) {
 			let log_level = color_level(record.level());
 			let log_target = color_target(record.target());
 
-			writeln!(
-				buf,
-				"{}{} {} {}",
-				loop_name_prefix(),
-				log_level,
-				log_target,
-				record.args(),
-			)
+			writeln!(buf, "{}{} {} {}", loop_name_prefix(), log_level, log_target, record.args(),)
 		});
 	}
 
@@ -81,12 +74,14 @@ pub(crate) fn initialize_loop(loop_name: String) {
 	LOOP_NAME.with(|g_loop_name| *g_loop_name.borrow_mut() = loop_name);
 }
 
-/// Returns loop name prefix to use in logs. The prefix is initialized with the `initialize_loop` call.
+/// Returns loop name prefix to use in logs. The prefix is initialized with the `initialize_loop`
+/// call.
 fn loop_name_prefix() -> String {
 	// try_with to avoid panic outside of async-std task context
 	LOOP_NAME
 		.try_with(|loop_name| {
-			// using borrow is ok here, because loop is only initialized once (=> borrow_mut will only be called once)
+			// using borrow is ok here, because loop is only initialized once (=> borrow_mut will
+			// only be called once)
 			let loop_name = loop_name.borrow();
 			if loop_name.is_empty() {
 				String::new()

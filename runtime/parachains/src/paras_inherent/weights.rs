@@ -77,18 +77,29 @@ pub fn paras_inherent_total_weight<T: Config>(
 ) -> Weight {
 	backed_candidates_weight::<T>(backed_candidates)
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
-		.saturating_add(dispute_statements_weight::<T>(disputes))
+		.saturating_add(multi_dispute_statement_sets_weight::<T, _, _>(disputes))
 }
 
-pub fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
+pub fn dispute_statement_set_weight<T: Config, S: AsRef<DisputeStatementSet>>(
+	statement_set: S,
+) -> Weight {
+	<<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
+		statement_set.as_ref().statements.len() as u32,
+	)
+}
+
+pub fn multi_dispute_statement_sets_weight<
+	T: Config,
+	D: AsRef<[S]>,
+	S: AsRef<DisputeStatementSet>,
+>(
+	disputes: D,
+) -> Weight {
 	disputes
+		.as_ref()
 		.iter()
-		.map(|d| {
-			<<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
-				d.statements.len() as u32
-			)
-		})
-		.fold(0, |acc, x| acc.saturating_add(x))
+		.map(|d| dispute_statement_set_weight::<T, &S>(d))
+		.fold(0, |acc_weight, weight| acc_weight.saturating_add(weight))
 }
 
 pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {

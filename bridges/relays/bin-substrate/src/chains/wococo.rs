@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
+use anyhow::anyhow;
 use codec::Decode;
 use frame_support::weights::{DispatchClass, DispatchInfo, Pays, Weight};
 use relay_wococo_client::Wococo;
@@ -32,41 +33,41 @@ impl CliEncodeCall for Wococo {
 
 	fn encode_call(call: &Call) -> anyhow::Result<Self::Call> {
 		Ok(match call {
-			Call::Remark { remark_payload, .. } => {
-				relay_wococo_client::runtime::Call::System(relay_wococo_client::runtime::SystemCall::remark(
+			Call::Remark { remark_payload, .. } => relay_wococo_client::runtime::Call::System(
+				relay_wococo_client::runtime::SystemCall::remark(
 					remark_payload.as_ref().map(|x| x.0.clone()).unwrap_or_default(),
-				))
-			}
-			Call::BridgeSendMessage {
-				lane,
-				payload,
-				fee,
-				bridge_instance_index,
-			} => match *bridge_instance_index {
-				bridge::WOCOCO_TO_ROCOCO_INDEX => {
-					let payload = Decode::decode(&mut &*payload.0)?;
-					relay_wococo_client::runtime::Call::BridgeMessagesRococo(
-						relay_wococo_client::runtime::BridgeMessagesRococoCall::send_message(lane.0, payload, fee.0),
-					)
-				}
-				_ => anyhow::bail!(
-					"Unsupported target bridge pallet with instance index: {}",
-					bridge_instance_index
 				),
-			},
+			),
+			Call::BridgeSendMessage { lane, payload, fee, bridge_instance_index } =>
+				match *bridge_instance_index {
+					bridge::WOCOCO_TO_ROCOCO_INDEX => {
+						let payload = Decode::decode(&mut &*payload.0)?;
+						relay_wococo_client::runtime::Call::BridgeMessagesRococo(
+							relay_wococo_client::runtime::BridgeMessagesRococoCall::send_message(
+								lane.0, payload, fee.0,
+							),
+						)
+					},
+					_ => anyhow::bail!(
+						"Unsupported target bridge pallet with instance index: {}",
+						bridge_instance_index
+					),
+				},
 			_ => anyhow::bail!("The call is not supported"),
 		})
 	}
 
-	fn get_dispatch_info(call: &relay_wococo_client::runtime::Call) -> anyhow::Result<DispatchInfo> {
+	fn get_dispatch_info(
+		call: &relay_wococo_client::runtime::Call,
+	) -> anyhow::Result<DispatchInfo> {
 		match *call {
-			relay_wococo_client::runtime::Call::System(relay_wococo_client::runtime::SystemCall::remark(_)) => {
-				Ok(DispatchInfo {
-					weight: crate::chains::rococo::SYSTEM_REMARK_CALL_WEIGHT,
-					class: DispatchClass::Normal,
-					pays_fee: Pays::Yes,
-				})
-			}
+			relay_wococo_client::runtime::Call::System(
+				relay_wococo_client::runtime::SystemCall::remark(_),
+			) => Ok(DispatchInfo {
+				weight: crate::chains::rococo::SYSTEM_REMARK_CALL_WEIGHT,
+				class: DispatchClass::Normal,
+				pays_fee: Pays::Yes,
+			}),
 			_ => anyhow::bail!("Unsupported Rococo call: {:?}", call),
 		}
 	}
@@ -86,7 +87,9 @@ impl CliChain for Wococo {
 		bp_wococo::max_extrinsic_weight()
 	}
 
-	fn encode_message(_message: encode_message::MessagePayload) -> Result<Self::MessagePayload, String> {
-		Err("Sending messages from Wococo is not yet supported.".into())
+	fn encode_message(
+		_message: encode_message::MessagePayload,
+	) -> anyhow::Result<Self::MessagePayload> {
+		Err(anyhow!("Sending messages from Wococo is not yet supported."))
 	}
 }

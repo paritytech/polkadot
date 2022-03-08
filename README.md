@@ -200,7 +200,7 @@ cargo build # Builds all native code
 You can run the tests if you like:
 
 ```bash
-cargo test --all
+cargo test --all --release
 ```
 
 You can start a development chain with:
@@ -242,6 +242,12 @@ polkadot --chain=polkadot-local --bob -d /tmp/bob --port 30334 --bootnodes '/ip4
 ```
 
 Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
+
+### Monitoring
+
+[Setup Prometheus and Grafana](https://wiki.polkadot.network/docs/maintain-guides-how-to-monitor-your-node).
+
+Once you set this up you can take a look at the [Polkadot Grafana dashboards](grafana/README.md) that we currently maintain. 
 
 ### Using Docker
 

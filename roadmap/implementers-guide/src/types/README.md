@@ -316,7 +316,7 @@ digraph {
             <tr><td>max_upward_message_size</td><td port="max_upward_message_size">u32</td></tr>
             <tr><td>max_upward_messages_num_per_candidate</td><td port="max_upward_messages_num_per_candidate">u32</td></tr>
             <tr><td>hrmp_max_message_num_per_candidate</td><td port="hrmp_max_message_num_per_candidate">u32</td></tr>
-            <tr><td>validation_upgrade_frequency</td><td port="validation_upgrade_frequency">BlockNumber</td></tr>
+            <tr><td>validation_upgrade_cooldown</td><td port="validation_upgrade_cooldown">BlockNumber</td></tr>
             <tr><td>validation_upgrade_delay</td><td port="validation_upgrade_delay">BlockNumber</td></tr>
         </table>
     >]

@@ -32,7 +32,7 @@ use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 use polkadot_subsystem::{Span, Stage};
 
-use crate::{Metrics, COST_WRONG_HASH, LOG_TARGET};
+use crate::{metrics::Metrics, COST_WRONG_HASH, LOG_TARGET};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -117,6 +117,7 @@ pub async fn fetch(
 				Ok(StatementFetchingResponse::Statement(statement)) => {
 					if statement.hash() != candidate_hash {
 						metrics.on_received_response(false);
+						metrics.on_unexpected_statement_large();
 
 						if let Err(err) =
 							sender.feed(RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)).await
@@ -161,6 +162,7 @@ pub async fn fetch(
 					);
 
 					metrics.on_received_response(false);
+					metrics.on_unexpected_statement_large();
 				},
 			}
 

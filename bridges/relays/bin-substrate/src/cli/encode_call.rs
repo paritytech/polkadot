@@ -14,18 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::bridge::FullBridge;
-use crate::cli::{AccountId, Balance, CliChain, ExplicitOrMaximal, HexBytes, HexLaneId};
-use crate::select_full_bridge;
+use crate::{
+	cli::{
+		bridge::FullBridge, AccountId, Balance, CliChain, ExplicitOrMaximal, HexBytes, HexLaneId,
+	},
+	select_full_bridge,
+};
 use frame_support::weights::DispatchInfo;
 use relay_substrate_client::Chain;
 use structopt::StructOpt;
+use strum::VariantNames;
 
 /// Encode source chain runtime call.
 #[derive(StructOpt, Debug)]
 pub struct EncodeCall {
 	/// A bridge instance to encode call for.
-	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
+	#[structopt(possible_values = FullBridge::VARIANTS, case_insensitive = true)]
 	bridge: FullBridge,
 	#[structopt(flatten)]
 	call: Call,
@@ -125,31 +129,30 @@ pub(crate) fn preprocess_call<Source: CliEncodeCall + CliChain, Target: CliEncod
 	bridge_instance: u8,
 ) {
 	match *call {
-		Call::Raw { .. } => {}
-		Call::Remark {
-			ref remark_size,
-			ref mut remark_payload,
-		} => {
+		Call::Raw { .. } => {},
+		Call::Remark { ref remark_size, ref mut remark_payload } =>
 			if remark_payload.is_none() {
 				*remark_payload = Some(HexBytes(generate_remark_payload(
 					remark_size,
-					compute_maximal_message_arguments_size(Source::max_extrinsic_size(), Target::max_extrinsic_size()),
+					compute_maximal_message_arguments_size(
+						Source::max_extrinsic_size(),
+						Target::max_extrinsic_size(),
+					),
 				)));
-			}
-		}
+			},
 		Call::Transfer { ref mut recipient, .. } => {
 			recipient.enforce_chain::<Source>();
-		}
-		Call::BridgeSendMessage {
-			ref mut bridge_instance_index,
-			..
-		} => {
+		},
+		Call::BridgeSendMessage { ref mut bridge_instance_index, .. } => {
 			*bridge_instance_index = bridge_instance;
-		}
+		},
 	};
 }
 
-fn generate_remark_payload(remark_size: &Option<ExplicitOrMaximal<usize>>, maximal_allowed_size: u32) -> Vec<u8> {
+fn generate_remark_payload(
+	remark_size: &Option<ExplicitOrMaximal<usize>>,
+	maximal_allowed_size: u32,
+) -> Vec<u8> {
 	match remark_size {
 		Some(ExplicitOrMaximal::Explicit(remark_size)) => vec![0; *remark_size],
 		Some(ExplicitOrMaximal::Maximal) => vec![0; maximal_allowed_size as _],
@@ -171,9 +174,11 @@ pub(crate) fn compute_maximal_message_arguments_size(
 ) -> u32 {
 	// assume that both signed extensions and other arguments fit 1KB
 	let service_tx_bytes_on_source_chain = 1024;
-	let maximal_source_extrinsic_size = maximal_source_extrinsic_size - service_tx_bytes_on_source_chain;
-	let maximal_call_size =
-		bridge_runtime_common::messages::target::maximal_incoming_message_size(maximal_target_extrinsic_size);
+	let maximal_source_extrinsic_size =
+		maximal_source_extrinsic_size - service_tx_bytes_on_source_chain;
+	let maximal_call_size = bridge_runtime_common::messages::target::maximal_incoming_message_size(
+		maximal_target_extrinsic_size,
+	);
 	let maximal_call_size = if maximal_call_size > maximal_source_extrinsic_size {
 		maximal_source_extrinsic_size
 	} else {
@@ -188,13 +193,14 @@ pub(crate) fn compute_maximal_message_arguments_size(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::send_message::SendMessage;
 
 	#[test]
 	fn should_encode_transfer_call() {
 		// given
 		let mut encode_call = EncodeCall::from_iter(vec![
 			"encode-call",
-			"RialtoToMillau",
+			"rialto-to-millau",
 			"transfer",
 			"--amount",
 			"12345",
@@ -208,20 +214,21 @@ mod tests {
 		// then
 		assert_eq!(
 			format!("{:?}", hex),
-			"0x0c00d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27de5c0"
+			"0x040000d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27de5c0"
 		);
 	}
 
 	#[test]
 	fn should_encode_remark_with_default_payload() {
 		// given
-		let mut encode_call = EncodeCall::from_iter(vec!["encode-call", "RialtoToMillau", "remark"]);
+		let mut encode_call =
+			EncodeCall::from_iter(vec!["encode-call", "rialto-to-millau", "remark"]);
 
 		// when
 		let hex = encode_call.encode().unwrap();
 
 		// then
-		assert!(format!("{:?}", hex).starts_with("0x070154556e69782074696d653a"));
+		assert!(format!("{:?}", hex).starts_with("0x000154556e69782074696d653a"));
 	}
 
 	#[test]
@@ -229,7 +236,7 @@ mod tests {
 		// given
 		let mut encode_call = EncodeCall::from_iter(vec![
 			"encode-call",
-			"RialtoToMillau",
+			"rialto-to-millau",
 			"remark",
 			"--remark-payload",
 			"1234",
@@ -239,20 +246,25 @@ mod tests {
 		let hex = encode_call.encode().unwrap();
 
 		// then
-		assert_eq!(format!("{:?}", hex), "0x0701081234");
+		assert_eq!(format!("{:?}", hex), "0x0001081234");
 	}
 
 	#[test]
 	fn should_encode_remark_with_size() {
 		// given
-		let mut encode_call =
-			EncodeCall::from_iter(vec!["encode-call", "RialtoToMillau", "remark", "--remark-size", "12"]);
+		let mut encode_call = EncodeCall::from_iter(vec![
+			"encode-call",
+			"rialto-to-millau",
+			"remark",
+			"--remark-size",
+			"12",
+		]);
 
 		// when
 		let hex = encode_call.encode().unwrap();
 
 		// then
-		assert_eq!(format!("{:?}", hex), "0x070130000000000000000000000000");
+		assert_eq!(format!("{:?}", hex), "0x000130000000000000000000000000");
 	}
 
 	#[test]
@@ -260,7 +272,7 @@ mod tests {
 		// when
 		let err = EncodeCall::from_iter_safe(vec![
 			"encode-call",
-			"RialtoToMillau",
+			"rialto-to-millau",
 			"remark",
 			"--remark-payload",
 			"1234",
@@ -273,6 +285,68 @@ mod tests {
 		assert_eq!(err.kind, structopt::clap::ErrorKind::ArgumentConflict);
 
 		let info = err.info.unwrap();
-		assert!(info.contains(&"remark-payload".to_string()) | info.contains(&"remark-size".to_string()))
+		assert!(
+			info.contains(&"remark-payload".to_string()) |
+				info.contains(&"remark-size".to_string())
+		)
+	}
+
+	#[test]
+	fn should_encode_raw_call() {
+		// given
+		let mut encode_call = EncodeCall::from_iter(vec![
+			"encode-call",
+			"rialto-to-millau",
+			"raw",
+			"040000d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27de5c0",
+		]);
+
+		// when
+		let hex = encode_call.encode().unwrap();
+
+		// then
+		assert_eq!(
+			format!("{:?}", hex),
+			"0x040000d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27de5c0"
+		);
+	}
+
+	#[test]
+	fn should_encode_bridge_send_message_call() {
+		// given
+		let encode_message = SendMessage::from_iter(vec![
+			"send-message",
+			"millau-to-rialto",
+			"--source-port",
+			"10946",
+			"--source-signer",
+			"//Alice",
+			"--target-signer",
+			"//Alice",
+			"--origin",
+			"Target",
+			"remark",
+		])
+		.encode_payload()
+		.unwrap();
+
+		let mut encode_call = EncodeCall::from_iter(vec![
+			"encode-call",
+			"rialto-to-millau",
+			"bridge-send-message",
+			"--fee",
+			"12345",
+			"--payload",
+			format!("{:}", &HexBytes::encode(&encode_message)).as_str(),
+		]);
+
+		// when
+		let call_hex = encode_call.encode().unwrap();
+
+		// then
+		assert!(format!("{:?}", call_hex).starts_with(
+			"0x0f030000000001000000381409000000000001d43593c715fdd31c61141abd04a99fd6822c8558854cc\
+			de39a5684e7a56da27d01d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d01"
+		))
 	}
 }

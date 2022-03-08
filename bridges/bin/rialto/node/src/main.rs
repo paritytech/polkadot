@@ -23,6 +23,8 @@ mod chain_spec;
 mod service;
 mod cli;
 mod command;
+mod overseer;
+mod parachains_db;
 
 /// Run the Rialto Node
 fn main() -> sc_cli::Result<()> {

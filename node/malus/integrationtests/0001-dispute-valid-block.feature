@@ -1,6 +1,6 @@
 Description: Disputes
 Network: ./0001-dispute-valid-block.toml
-Creds: config.gcloud
+Creds: config
 
 
 alice: is up

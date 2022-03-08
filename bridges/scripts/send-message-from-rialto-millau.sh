@@ -11,7 +11,7 @@ RIALTO_PORT="${RIALTO_PORT:-9944}"
 case "$1" in
 	remark)
 		RUST_LOG=runtime=trace,substrate-relay=trace,bridge=trace \
-		./target/debug/substrate-relay send-message RialtoToMillau \
+		./target/debug/substrate-relay send-message rialto-to-millau \
 			--source-host localhost \
 			--source-port $RIALTO_PORT \
 			--target-signer //Alice \
@@ -22,7 +22,7 @@ case "$1" in
 		;;
 	transfer)
 		RUST_LOG=runtime=trace,substrate-relay=trace,bridge=trace \
-		./target/debug/substrate-relay send-message RialtoToMillau \
+		./target/debug/substrate-relay send-message rialto-to-millau \
 			--source-host localhost \
 			--source-port $RIALTO_PORT \
 			--target-signer //Alice \

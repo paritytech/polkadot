@@ -20,13 +20,6 @@
 
 mod chains;
 mod cli;
-mod finality_pipeline;
-mod finality_target;
-mod headers_initialize;
-mod messages_lane;
-mod messages_source;
-mod messages_target;
-mod on_demand_headers;
 
 fn main() {
 	let command = cli::parse_args();

@@ -1,4 +1,0 @@
-- targets:
-  - relay-headers-poa-to-rialto:9616
-  - relay-poa-exchange-rialto:9616
-  - relay-headers-rialto-to-poa:9616

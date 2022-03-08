@@ -32,9 +32,12 @@ pub(crate) mod send_message;
 
 mod derive_account;
 mod init_bridge;
+mod register_parachain;
 mod relay_headers;
 mod relay_headers_and_messages;
 mod relay_messages;
+mod resubmit_transactions;
+mod swap_tokens;
 
 /// Parse relay CLI args.
 pub fn parse_args() -> Command {
@@ -84,8 +87,15 @@ pub enum Command {
 	EncodeMessage(encode_message::EncodeMessage),
 	/// Estimate Delivery and Dispatch Fee required for message submission to messages pallet.
 	EstimateFee(estimate_fee::EstimateFee),
-	/// Given a source chain `AccountId`, derive the corresponding `AccountId` for the target chain.
+	/// Given a source chain `AccountId`, derive the corresponding `AccountId` for the target
+	/// chain.
 	DeriveAccount(derive_account::DeriveAccount),
+	/// Resubmit transactions with increased tip if they are stalled.
+	ResubmitTransactions(resubmit_transactions::ResubmitTransactions),
+	/// Swap tokens using token-swap bridge.
+	SwapTokens(swap_tokens::SwapTokens),
+	/// Register parachain.
+	RegisterParachain(register_parachain::RegisterParachain),
 }
 
 impl Command {
@@ -94,12 +104,15 @@ impl Command {
 		use relay_utils::initialize::{initialize_logger, initialize_relay};
 
 		match self {
-			Self::RelayHeaders(_) | Self::RelayMessages(_) | Self::RelayHeadersAndMessages(_) | Self::InitBridge(_) => {
+			Self::RelayHeaders(_) |
+			Self::RelayMessages(_) |
+			Self::RelayHeadersAndMessages(_) |
+			Self::InitBridge(_) => {
 				initialize_relay();
-			}
+			},
 			_ => {
 				initialize_logger(false);
-			}
+			},
 		}
 	}
 
@@ -116,6 +129,9 @@ impl Command {
 			Self::EncodeMessage(arg) => arg.run().await?,
 			Self::EstimateFee(arg) => arg.run().await?,
 			Self::DeriveAccount(arg) => arg.run().await?,
+			Self::ResubmitTransactions(arg) => arg.run().await?,
+			Self::SwapTokens(arg) => arg.run().await?,
+			Self::RegisterParachain(arg) => arg.run().await?,
 		}
 		Ok(())
 	}
@@ -187,10 +203,7 @@ const SS58_FORMAT_PROOF: &str = "u16 -> Ss58Format is infallible; qed";
 impl AccountId {
 	/// Create new SS58-formatted address from raw account id.
 	pub fn from_raw<T: CliChain>(account: sp_runtime::AccountId32) -> Self {
-		Self {
-			account,
-			ss58_format: T::ss58_format().try_into().expect(SS58_FORMAT_PROOF),
-		}
+		Self { account, ss58_format: T::ss58_format().try_into().expect(SS58_FORMAT_PROOF) }
 	}
 
 	/// Enforces formatting account to be for given [`CliChain`] type.
@@ -228,7 +241,7 @@ pub trait CliChain: relay_substrate_client::Chain {
 	/// Chain's current version of the runtime.
 	const RUNTIME_VERSION: sp_version::RuntimeVersion;
 
-	/// Crypto keypair type used to send messages.
+	/// Crypto KeyPair type used to send messages.
 	///
 	/// In case of chains supporting multiple cryptos, pick one used by the CLI.
 	type KeyPair: sp_core::crypto::Pair;
@@ -242,7 +255,9 @@ pub trait CliChain: relay_substrate_client::Chain {
 	fn ss58_format() -> u16;
 
 	/// Construct message payload to be sent over the bridge.
-	fn encode_message(message: crate::cli::encode_message::MessagePayload) -> Result<Self::MessagePayload, String>;
+	fn encode_message(
+		message: crate::cli::encode_message::MessagePayload,
+	) -> anyhow::Result<Self::MessagePayload>;
 
 	/// Maximal extrinsic weight (from the runtime).
 	fn max_extrinsic_weight() -> Weight;
@@ -344,7 +359,7 @@ where
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		if s.to_lowercase() == "max" {
-			return Ok(ExplicitOrMaximal::Maximal);
+			return Ok(ExplicitOrMaximal::Maximal)
 		}
 
 		V::from_str(s)
@@ -360,7 +375,7 @@ macro_rules! declare_chain_options {
 	($chain:ident, $chain_prefix:ident) => {
 		paste::item! {
 			#[doc = $chain " connection params."]
-			#[derive(StructOpt, Debug, PartialEq, Eq)]
+			#[derive(StructOpt, Debug, PartialEq, Eq, Clone)]
 			pub struct [<$chain ConnectionParams>] {
 				#[doc = "Connect to " $chain " node at given host."]
 				#[structopt(long, default_value = "127.0.0.1")]
@@ -374,25 +389,114 @@ macro_rules! declare_chain_options {
 			}
 
 			#[doc = $chain " signing params."]
-			#[derive(StructOpt, Debug, PartialEq, Eq)]
+			#[derive(StructOpt, Debug, PartialEq, Eq, Clone)]
 			pub struct [<$chain SigningParams>] {
 				#[doc = "The SURI of secret key to use when transactions are submitted to the " $chain " node."]
 				#[structopt(long)]
-				pub [<$chain_prefix _signer>]: String,
+				pub [<$chain_prefix _signer>]: Option<String>,
 				#[doc = "The password for the SURI of secret key to use when transactions are submitted to the " $chain " node."]
 				#[structopt(long)]
 				pub [<$chain_prefix _signer_password>]: Option<String>,
+
+				#[doc = "Path to the file, that contains SURI of secret key to use when transactions are submitted to the " $chain " node. Can be overridden with " $chain_prefix "_signer option."]
+				#[structopt(long)]
+				pub [<$chain_prefix _signer_file>]: Option<std::path::PathBuf>,
+				#[doc = "Path to the file, that password for the SURI of secret key to use when transactions are submitted to the " $chain " node. Can be overridden with " $chain_prefix "_signer_password option."]
+				#[structopt(long)]
+				pub [<$chain_prefix _signer_password_file>]: Option<std::path::PathBuf>,
+
+				#[doc = "Transactions mortality period, in blocks. MUST be a power of two in [4; 65536] range. MAY NOT be larger than `BlockHashCount` parameter of the chain system module."]
+				#[structopt(long)]
+				pub [<$chain_prefix _transactions_mortality>]: Option<u32>,
+			}
+
+			#[doc = "Parameters required to sign transaction on behalf of owner of the messages pallet at " $chain "."]
+			#[derive(StructOpt, Debug, PartialEq, Eq)]
+			pub struct [<$chain MessagesPalletOwnerSigningParams>] {
+				#[doc = "The SURI of secret key to use when transactions are submitted to the " $chain " node."]
+				#[structopt(long)]
+				pub [<$chain_prefix _messages_pallet_owner>]: Option<String>,
+				#[doc = "The password for the SURI of secret key to use when transactions are submitted to the " $chain " node."]
+				#[structopt(long)]
+				pub [<$chain_prefix _messages_pallet_owner_password>]: Option<String>,
 			}
 
 			impl [<$chain SigningParams>] {
-				/// Parse signing params into chain-specific `KeyPair`.
+				/// Return transactions mortality.
+				#[allow(dead_code)]
+				pub fn transactions_mortality(&self) -> anyhow::Result<Option<u32>> {
+					self.[<$chain_prefix _transactions_mortality>]
+						.map(|transactions_mortality| {
+							if !(4..=65536).contains(&transactions_mortality)
+								|| !transactions_mortality.is_power_of_two()
+							{
+								Err(anyhow::format_err!(
+									"Transactions mortality {} is not a power of two in a [4; 65536] range",
+									transactions_mortality,
+								))
+							} else {
+								Ok(transactions_mortality)
+							}
+						})
+						.transpose()
+				}
+
+				/// Parse signing params into chain-specific KeyPair.
+				#[allow(dead_code)]
 				pub fn to_keypair<Chain: CliChain>(&self) -> anyhow::Result<Chain::KeyPair> {
+					let suri = match (self.[<$chain_prefix _signer>].as_ref(), self.[<$chain_prefix _signer_file>].as_ref()) {
+						(Some(suri), _) => suri.to_owned(),
+						(None, Some(suri_file)) => std::fs::read_to_string(suri_file)
+							.map_err(|err| anyhow::format_err!(
+								"Failed to read SURI from file {:?}: {}",
+								suri_file,
+								err,
+							))?,
+						(None, None) => return Err(anyhow::format_err!(
+							"One of options must be specified: '{}' or '{}'",
+							stringify!([<$chain_prefix _signer>]),
+							stringify!([<$chain_prefix _signer_file>]),
+						)),
+					};
+
+					let suri_password = match (
+						self.[<$chain_prefix _signer_password>].as_ref(),
+						self.[<$chain_prefix _signer_password_file>].as_ref(),
+					) {
+						(Some(suri_password), _) => Some(suri_password.to_owned()),
+						(None, Some(suri_password_file)) => std::fs::read_to_string(suri_password_file)
+							.map(Some)
+							.map_err(|err| anyhow::format_err!(
+								"Failed to read SURI password from file {:?}: {}",
+								suri_password_file,
+								err,
+							))?,
+						_ => None,
+					};
+
 					use sp_core::crypto::Pair;
 
 					Chain::KeyPair::from_string(
-						&self.[<$chain_prefix _signer>],
-						self.[<$chain_prefix _signer_password>].as_deref()
+						&suri,
+						suri_password.as_deref()
 					).map_err(|e| anyhow::format_err!("{:?}", e))
+				}
+			}
+
+			#[allow(dead_code)]
+			impl [<$chain MessagesPalletOwnerSigningParams>] {
+				/// Parse signing params into chain-specific KeyPair.
+				pub fn to_keypair<Chain: CliChain>(&self) -> anyhow::Result<Option<Chain::KeyPair>> {
+					use sp_core::crypto::Pair;
+
+					let [<$chain_prefix _messages_pallet_owner>] = match self.[<$chain_prefix _messages_pallet_owner>] {
+						Some(ref messages_pallet_owner) => messages_pallet_owner,
+						None => return Ok(None),
+					};
+					Chain::KeyPair::from_string(
+						[<$chain_prefix _messages_pallet_owner>],
+						self.[<$chain_prefix _messages_pallet_owner_password>].as_deref()
+					).map_err(|e| anyhow::format_err!("{:?}", e)).map(Some)
 				}
 			}
 
@@ -416,9 +520,12 @@ macro_rules! declare_chain_options {
 
 declare_chain_options!(Source, source);
 declare_chain_options!(Target, target);
+declare_chain_options!(Relaychain, relaychain);
+declare_chain_options!(Parachain, parachain);
 
 #[cfg(test)]
 mod tests {
+	use sp_core::Pair;
 	use std::str::FromStr;
 
 	use super::*;
@@ -434,10 +541,7 @@ mod tests {
 		let expected = vec![rialto1, rialto2, millau1, millau2];
 
 		// when
-		let parsed = expected
-			.iter()
-			.map(|s| AccountId::from_str(s).unwrap())
-			.collect::<Vec<_>>();
+		let parsed = expected.iter().map(|s| AccountId::from_str(s).unwrap()).collect::<Vec<_>>();
 
 		let actual = parsed.iter().map(|a| format!("{}", a)).collect::<Vec<_>>();
 
@@ -455,5 +559,94 @@ mod tests {
 
 		// then
 		assert_eq!(hex.0, hex2.0);
+	}
+
+	#[test]
+	fn reads_suri_from_file() {
+		const ALICE: &str = "//Alice";
+		const BOB: &str = "//Bob";
+		const ALICE_PASSWORD: &str = "alice_password";
+		const BOB_PASSWORD: &str = "bob_password";
+
+		let alice = sp_core::sr25519::Pair::from_string(ALICE, Some(ALICE_PASSWORD)).unwrap();
+		let bob = sp_core::sr25519::Pair::from_string(BOB, Some(BOB_PASSWORD)).unwrap();
+		let bob_with_alice_password =
+			sp_core::sr25519::Pair::from_string(BOB, Some(ALICE_PASSWORD)).unwrap();
+
+		let temp_dir = tempfile::tempdir().unwrap();
+		let mut suri_file_path = temp_dir.path().to_path_buf();
+		let mut password_file_path = temp_dir.path().to_path_buf();
+		suri_file_path.push("suri");
+		password_file_path.push("password");
+		std::fs::write(&suri_file_path, BOB.as_bytes()).unwrap();
+		std::fs::write(&password_file_path, BOB_PASSWORD.as_bytes()).unwrap();
+
+		// when both seed and password are read from file
+		assert_eq!(
+			TargetSigningParams {
+				target_signer: Some(ALICE.into()),
+				target_signer_password: Some(ALICE_PASSWORD.into()),
+
+				target_signer_file: None,
+				target_signer_password_file: None,
+
+				target_transactions_mortality: None,
+			}
+			.to_keypair::<relay_rialto_client::Rialto>()
+			.map(|p| p.public())
+			.map_err(drop),
+			Ok(alice.public()),
+		);
+
+		// when both seed and password are read from file
+		assert_eq!(
+			TargetSigningParams {
+				target_signer: None,
+				target_signer_password: None,
+
+				target_signer_file: Some(suri_file_path.clone()),
+				target_signer_password_file: Some(password_file_path.clone()),
+
+				target_transactions_mortality: None,
+			}
+			.to_keypair::<relay_rialto_client::Rialto>()
+			.map(|p| p.public())
+			.map_err(drop),
+			Ok(bob.public()),
+		);
+
+		// when password are is overriden by cli option
+		assert_eq!(
+			TargetSigningParams {
+				target_signer: None,
+				target_signer_password: Some(ALICE_PASSWORD.into()),
+
+				target_signer_file: Some(suri_file_path.clone()),
+				target_signer_password_file: Some(password_file_path.clone()),
+
+				target_transactions_mortality: None,
+			}
+			.to_keypair::<relay_rialto_client::Rialto>()
+			.map(|p| p.public())
+			.map_err(drop),
+			Ok(bob_with_alice_password.public()),
+		);
+
+		// when both seed and password are overriden by cli options
+		assert_eq!(
+			TargetSigningParams {
+				target_signer: Some(ALICE.into()),
+				target_signer_password: Some(ALICE_PASSWORD.into()),
+
+				target_signer_file: Some(suri_file_path),
+				target_signer_password_file: Some(password_file_path),
+
+				target_transactions_mortality: None,
+			}
+			.to_keypair::<relay_rialto_client::Rialto>()
+			.map(|p| p.public())
+			.map_err(drop),
+			Ok(alice.public()),
+		);
 	}
 }

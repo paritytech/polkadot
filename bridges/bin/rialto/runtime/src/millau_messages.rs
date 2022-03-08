@@ -31,25 +31,34 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 	RuntimeDebug,
 };
-use sp_runtime::{traits::Zero, FixedPointNumber, FixedU128};
+use scale_info::TypeInfo;
+use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_std::{convert::TryFrom, ops::RangeInclusive};
 
 /// Initial value of `MillauToRialtoConversionRate` parameter.
-pub const INITIAL_MILLAU_TO_RIALTO_CONVERSION_RATE: FixedU128 = FixedU128::from_inner(FixedU128::DIV);
+pub const INITIAL_MILLAU_TO_RIALTO_CONVERSION_RATE: FixedU128 =
+	FixedU128::from_inner(FixedU128::DIV);
+/// Initial value of `MillauFeeMultiplier` parameter.
+pub const INITIAL_MILLAU_FEE_MULTIPLIER: FixedU128 = FixedU128::from_inner(FixedU128::DIV);
 
 parameter_types! {
 	/// Millau to Rialto conversion rate. Initially we treat both tokens as equal.
 	pub storage MillauToRialtoConversionRate: FixedU128 = INITIAL_MILLAU_TO_RIALTO_CONVERSION_RATE;
+	/// Fee multiplier value at Millau chain.
+	pub storage MillauFeeMultiplier: FixedU128 = INITIAL_MILLAU_FEE_MULTIPLIER;
 }
 
 /// Message payload for Rialto -> Millau messages.
-pub type ToMillauMessagePayload = messages::source::FromThisChainMessagePayload<WithMillauMessageBridge>;
+pub type ToMillauMessagePayload =
+	messages::source::FromThisChainMessagePayload<WithMillauMessageBridge>;
 
 /// Message verifier for Rialto -> Millau messages.
-pub type ToMillauMessageVerifier = messages::source::FromThisChainMessageVerifier<WithMillauMessageBridge>;
+pub type ToMillauMessageVerifier =
+	messages::source::FromThisChainMessageVerifier<WithMillauMessageBridge>;
 
 /// Message payload for Millau -> Rialto messages.
-pub type FromMillauMessagePayload = messages::target::FromBridgedChainMessagePayload<WithMillauMessageBridge>;
+pub type FromMillauMessagePayload =
+	messages::target::FromBridgedChainMessagePayload<WithMillauMessageBridge>;
 
 /// Encoded Rialto Call as it comes from Millau.
 pub type FromMillauEncodedCall = messages::target::FromBridgedChainEncodedMessageCall<crate::Call>;
@@ -59,14 +68,15 @@ pub type FromMillauMessageDispatch = messages::target::FromBridgedChainMessageDi
 	WithMillauMessageBridge,
 	crate::Runtime,
 	pallet_balances::Pallet<Runtime>,
-	pallet_bridge_dispatch::DefaultInstance,
+	(),
 >;
 
 /// Messages proof for Millau -> Rialto messages.
 pub type FromMillauMessagesProof = messages::target::FromBridgedChainMessagesProof<bp_millau::Hash>;
 
 /// Messages delivery proof for Rialto -> Millau messages.
-pub type ToMillauMessagesDeliveryProof = messages::source::FromBridgedChainMessagesDeliveryProof<bp_millau::Hash>;
+pub type ToMillauMessagesDeliveryProof =
+	messages::source::FromBridgedChainMessagesDeliveryProof<bp_millau::Hash>;
 
 /// Millau <-> Rialto message bridge.
 #[derive(RuntimeDebug, Clone, Copy)]
@@ -76,14 +86,16 @@ impl MessageBridge for WithMillauMessageBridge {
 	const RELAYER_FEE_PERCENT: u32 = 10;
 	const THIS_CHAIN_ID: ChainId = RIALTO_CHAIN_ID;
 	const BRIDGED_CHAIN_ID: ChainId = MILLAU_CHAIN_ID;
+	const BRIDGED_MESSAGES_PALLET_NAME: &'static str = bp_millau::WITH_RIALTO_MESSAGES_PALLET_NAME;
 
 	type ThisChain = Rialto;
 	type BridgedChain = Millau;
-	type BridgedMessagesInstance = crate::WithMillauMessagesInstance;
 
 	fn bridged_balance_to_this_balance(bridged_balance: bp_millau::Balance) -> bp_rialto::Balance {
-		bp_rialto::Balance::try_from(MillauToRialtoConversionRate::get().saturating_mul_int(bridged_balance))
-			.unwrap_or(bp_rialto::Balance::MAX)
+		bp_rialto::Balance::try_from(
+			MillauToRialtoConversionRate::get().saturating_mul_int(bridged_balance),
+		)
+		.unwrap_or(bp_rialto::Balance::MAX)
 	}
 }
 
@@ -128,11 +140,15 @@ impl messages::ThisChainWithMessages for Rialto {
 	}
 
 	fn transaction_payment(transaction: MessageTransaction<Weight>) -> bp_rialto::Balance {
+		// `transaction` may represent transaction from the future, when multiplier value will
+		// be larger, so let's use slightly increased value
+		let multiplier = FixedU128::saturating_from_rational(110, 100)
+			.saturating_mul(pallet_transaction_payment::Pallet::<Runtime>::next_fee_multiplier());
 		// in our testnets, both per-byte fee and weight-to-fee are 1:1
 		messages::transaction_payment(
 			bp_rialto::BlockWeights::get().get(DispatchClass::Normal).base_extrinsic,
 			1,
-			FixedU128::zero(),
+			multiplier,
 			|weight| weight as _,
 			transaction,
 		)
@@ -159,12 +175,15 @@ impl messages::BridgedChainWithMessages for Millau {
 
 	fn message_weight_limits(_message_payload: &[u8]) -> RangeInclusive<Weight> {
 		// we don't want to relay too large messages + keep reserve for future upgrades
-		let upper_limit = messages::target::maximal_incoming_message_dispatch_weight(bp_millau::max_extrinsic_weight());
+		let upper_limit = messages::target::maximal_incoming_message_dispatch_weight(
+			bp_millau::max_extrinsic_weight(),
+		);
 
-		// we're charging for payload bytes in `WithMillauMessageBridge::transaction_payment` function
+		// we're charging for payload bytes in `WithMillauMessageBridge::transaction_payment`
+		// function
 		//
-		// this bridge may be used to deliver all kind of messages, so we're not making any assumptions about
-		// minimal dispatch weight here
+		// this bridge may be used to deliver all kind of messages, so we're not making any
+		// assumptions about minimal dispatch weight here
 
 		0..=upper_limit
 	}
@@ -195,11 +214,14 @@ impl messages::BridgedChainWithMessages for Millau {
 	}
 
 	fn transaction_payment(transaction: MessageTransaction<Weight>) -> bp_millau::Balance {
+		// we don't have a direct access to the value of multiplier at Millau chain
+		// => it is a messages module parameter
+		let multiplier = MillauFeeMultiplier::get();
 		// in our testnets, both per-byte fee and weight-to-fee are 1:1
 		messages::transaction_payment(
 			bp_millau::BlockWeights::get().get(DispatchClass::Normal).base_extrinsic,
 			1,
-			FixedU128::zero(),
+			multiplier,
 			|weight| weight as _,
 			transaction,
 		)
@@ -221,9 +243,11 @@ impl TargetHeaderChain<ToMillauMessagePayload, bp_millau::AccountId> for Millau 
 	fn verify_messages_delivery_proof(
 		proof: Self::MessagesDeliveryProof,
 	) -> Result<(LaneId, InboundLaneData<bp_rialto::AccountId>), Self::Error> {
-		messages::source::verify_messages_delivery_proof::<WithMillauMessageBridge, Runtime, crate::MillauGrandpaInstance>(
-			proof,
-		)
+		messages::source::verify_messages_delivery_proof::<
+			WithMillauMessageBridge,
+			Runtime,
+			crate::MillauGrandpaInstance,
+		>(proof)
 	}
 }
 
@@ -240,15 +264,16 @@ impl SourceHeaderChain<bp_millau::Balance> for Millau {
 		proof: Self::MessagesProof,
 		messages_count: u32,
 	) -> Result<ProvedMessages<Message<bp_millau::Balance>>, Self::Error> {
-		messages::target::verify_messages_proof::<WithMillauMessageBridge, Runtime, crate::MillauGrandpaInstance>(
-			proof,
-			messages_count,
-		)
+		messages::target::verify_messages_proof::<
+			WithMillauMessageBridge,
+			Runtime,
+			crate::MillauGrandpaInstance,
+		>(proof, messages_count)
 	}
 }
 
 /// Rialto -> Millau message lane pallet parameters.
-#[derive(RuntimeDebug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(RuntimeDebug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum RialtoToMillauMessagesParameter {
 	/// The conversion formula we use is: `RialtoTokens = MillauTokens * conversion_rate`.
 	MillauToRialtoConversionRate(FixedU128),
@@ -257,9 +282,8 @@ pub enum RialtoToMillauMessagesParameter {
 impl MessagesParameter for RialtoToMillauMessagesParameter {
 	fn save(&self) {
 		match *self {
-			RialtoToMillauMessagesParameter::MillauToRialtoConversionRate(ref conversion_rate) => {
-				MillauToRialtoConversionRate::set(conversion_rate)
-			}
+			RialtoToMillauMessagesParameter::MillauToRialtoConversionRate(ref conversion_rate) =>
+				MillauToRialtoConversionRate::set(conversion_rate),
 		}
 	}
 }
@@ -274,7 +298,9 @@ mod tests {
 		MessageKey,
 	};
 	use bp_runtime::{derive_account_id, messages::DispatchFeePayment, SourceAccount};
-	use bridge_runtime_common::messages::target::{FromBridgedChainEncodedMessageCall, FromBridgedChainMessagePayload};
+	use bridge_runtime_common::messages::target::{
+		FromBridgedChainEncodedMessageCall, FromBridgedChainMessagePayload,
+	};
 	use frame_support::{
 		traits::Currency,
 		weights::{GetDispatchInfo, WeightToFeePolynomial},
@@ -286,12 +312,15 @@ mod tests {
 		// this test actually belongs to the `bridge-runtime-common` crate, but there we have no
 		// mock runtime. Making another one there just for this test, given that both crates
 		// live n single repo is an overkill
-		let mut ext: sp_io::TestExternalities = SystemConfig::default().build_storage::<Runtime>().unwrap().into();
+		let mut ext: sp_io::TestExternalities =
+			SystemConfig::default().build_storage::<Runtime>().unwrap().into();
 		ext.execute_with(|| {
 			let bridge = MILLAU_CHAIN_ID;
-			let call: Call = SystemCall::remark(vec![]).into();
+			let call: Call = SystemCall::remark { remark: vec![] }.into();
 			let dispatch_weight = call.get_dispatch_info().weight;
-			let dispatch_fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::calc(&dispatch_weight);
+			let dispatch_fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::calc(
+				&dispatch_weight,
+			);
 			assert!(dispatch_fee > 0);
 
 			// create relayer account with minimal balance
@@ -303,12 +332,13 @@ mod tests {
 			);
 
 			// create dispatch account with minimal balance + dispatch fee
-			let dispatch_account = derive_account_id::<<Runtime as pallet_bridge_dispatch::Config>::SourceChainAccountId>(
-				bridge,
-				SourceAccount::Root,
-			);
+			let dispatch_account = derive_account_id::<
+				<Runtime as pallet_bridge_dispatch::Config>::SourceChainAccountId,
+			>(bridge, SourceAccount::Root);
 			let dispatch_account =
-				<Runtime as pallet_bridge_dispatch::Config>::AccountIdConverter::convert(dispatch_account);
+				<Runtime as pallet_bridge_dispatch::Config>::AccountIdConverter::convert(
+					dispatch_account,
+				);
 			let _ = <pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(
 				&dispatch_account,
 				initial_amount + dispatch_fee,
@@ -318,10 +348,7 @@ mod tests {
 			FromMillauMessageDispatch::dispatch(
 				&relayer_account,
 				DispatchMessage {
-					key: MessageKey {
-						lane_id: Default::default(),
-						nonce: 0,
-					},
+					key: MessageKey { lane_id: Default::default(), nonce: 0 },
 					data: DispatchMessageData {
 						payload: Ok(FromBridgedChainMessagePayload::<WithMillauMessageBridge> {
 							spec_version: VERSION.spec_version,
@@ -337,11 +364,15 @@ mod tests {
 
 			// ensure that fee has been transferred from dispatch to relayer account
 			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&relayer_account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
+					&relayer_account
+				),
 				initial_amount + dispatch_fee,
 			);
 			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&dispatch_account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
+					&dispatch_account
+				),
 				initial_amount,
 			);
 		});

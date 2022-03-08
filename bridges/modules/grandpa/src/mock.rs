@@ -19,6 +19,7 @@
 
 use bp_runtime::Chain;
 use frame_support::{construct_runtime, parameter_types, weights::Weight};
+use sp_core::sr25519::Signature;
 use sp_runtime::{
 	testing::{Header, H256},
 	traits::{BlakeTwo256, IdentityLookup},
@@ -76,6 +77,7 @@ impl frame_system::Config for TestRuntime {
 	type BlockLength = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -100,6 +102,11 @@ impl Chain for TestBridgedChain {
 	type Hash = <TestRuntime as frame_system::Config>::Hash;
 	type Hasher = <TestRuntime as frame_system::Config>::Hashing;
 	type Header = <TestRuntime as frame_system::Config>::Header;
+
+	type AccountId = AccountId;
+	type Balance = u64;
+	type Index = u64;
+	type Signature = Signature;
 }
 
 pub fn run_test<T>(test: impl FnOnce() -> T) -> T {

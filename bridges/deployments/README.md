@@ -44,16 +44,16 @@ the monitoring Compose file is _not_ optional, and must be included for bridge d
 
 ### Running and Updating Deployments
 We currently support two bridge deployments
-1. Ethereum PoA to Rialto Substrate
-2. Rialto Substrate to Millau Substrate
+1. Rialto Substrate to Millau Substrate
+2. Westend Substrate to Millau Substrate
 
 These bridges can be deployed using our [`./run.sh`](./run.sh) script.
 
 The first argument it takes is the name of the bridge you want to run. Right now we only support two
-bridges: `poa-rialto` and `rialto-millau`.
+bridges: `rialto-millau` and `westend-millau`.
 
 ```bash
-./run.sh poa-rialto
+./run.sh rialto-millau
 ```
 
 If you add a second `update` argument to the script it will pull the latest images from Docker Hub
@@ -66,7 +66,7 @@ and restart the deployment.
 You can also bring down a deployment using the script with the `stop` argument.
 
 ```bash
-./run.sh poa-rialto stop
+./run.sh rialto-millau stop
 ```
 
 ### Adding Deployments
@@ -80,7 +80,6 @@ not strictly required.
 ## General Notes
 
 Rialto authorities are named: `Alice`, `Bob`, `Charlie`, `Dave`, `Eve`.
-Rialto-PoA authorities are named: `Arthur`, `Bertha`, `Carlos`.
 Millau authorities are named: `Alice`, `Bob`, `Charlie`, `Dave`, `Eve`.
 
 Both authorities and following accounts have enough funds (for test purposes) on corresponding Substrate chains:
@@ -89,11 +88,11 @@ Both authorities and following accounts have enough funds (for test purposes) on
 - on Millau: `Ferdie`, `George`, `Harry`.
 
 Names of accounts on Substrate (Rialto and Millau) chains may be prefixed with `//` and used as
-seeds for the `sr25519` keys. This seed may also be used in the signer argument in Substrate
-and PoA relays. Example:
+seeds for the `sr25519` keys. This seed may also be used in the signer argument in Substrate relays.
+Example:
 
 ```bash
-./substrate-relay relay-headers RialtoToMillau \
+./substrate-relay relay-headers rialto-to-millau \
 	--source-host rialto-node-alice \
 	--source-port 9944 \
 	--target-host millau-node-alice \
@@ -105,13 +104,6 @@ and PoA relays. Example:
 Some accounts are used by bridge components. Using these accounts to sign other transactions
 is not recommended, because this may lead to nonces conflict.
 
-Following accounts are used when `poa-rialto` bridge is running:
-
-- Rialto's `Alice` signs relay transactions with new Rialto-PoA headers;
-- Rialto's `Bob` signs relay transactions with Rialto-PoA -> Rialto currency exchange proofs.
-- Rialto-PoA's `Arthur`: signs relay transactions with new Rialto headers;
-- Rialto-PoA's `Bertha`: signs currency exchange transactions.
-
 Following accounts are used when `rialto-millau` bridge is running:
 
 - Millau's `Charlie` signs complex headers+messages relay transactions on Millau chain;
@@ -121,7 +113,9 @@ Following accounts are used when `rialto-millau` bridge is running:
 - Millau's `Eve` signs relay transactions with message delivery confirmations (lane 00000001) from Rialto to Millau;
 - Rialto's `Eve` signs relay transactions with messages (lane 00000001) from Millau to Rialto;
 - Millau's `Ferdie` signs relay transactions with messages (lane 00000001) from Rialto to Millau;
-- Rialto's `Ferdie` signs relay transactions with message delivery confirmations (lane 00000001) from Millau to Rialto.
+- Rialto's `Ferdie` signs relay transactions with message delivery confirmations (lane 00000001) from Millau to Rialto;
+- Millau's `RialtoMessagesOwner` signs relay transactions with updated Rialto -> Millau conversion rate;
+- Rialto's `MillauMessagesOwner` signs relay transactions with updated Millau -> Rialto conversion rate.
 
 Following accounts are used when `westend-millau` bridge is running:
 
@@ -131,10 +125,10 @@ Following accounts are used when `westend-millau` bridge is running:
 When the network is running you can query logs from individual nodes using:
 
 ```bash
-docker logs rialto_poa-node-bertha_1 -f
+docker logs rialto_millau-node-charlie_1 -f
 ```
 
-To kill all left over containers and start the network from scratch next time:
+To kill all leftover containers and start the network from scratch next time:
 ```bash
 docker ps -a --format "{{.ID}}" | xargs docker rm # This removes all containers!
 ```
@@ -188,7 +182,6 @@ Here are the arguments currently supported:
   - `PROJECT`: Project to build withing bridges repo. Can be one of:
     - `rialto-bridge-node`
     - `millau-bridge-node`
-    - `ethereum-poa-relay`
     - `substrate-relay`
 
 ### GitHub Actions

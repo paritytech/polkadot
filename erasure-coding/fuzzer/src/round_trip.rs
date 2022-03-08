@@ -13,7 +13,7 @@ fn main() {
 
 			let available_data = AvailableData {
 				pov: Arc::new(pov_block),
-				validation_data: Default::default(),
+				validation_data: PersistedValidationData::default(),
 			};
 			let chunks = obtain_chunks_v1(
 				10,

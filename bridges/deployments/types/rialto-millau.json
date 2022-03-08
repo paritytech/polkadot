@@ -1,5 +1,7 @@
 {
 	"--1": "Millau Types",
+	"MillauAddress": "AccountId",
+	"MillauLookupSource": "AccountId",
 	"MillauBalance": "u64",
 	"MillauBlockHash": "H512",
 	"MillauBlockNumber": "u64",
@@ -25,6 +27,8 @@
 		}
 	},
 	"--2": "Rialto Types",
+	"RialtoAddress": "MultiAddress",
+	"RialtoLookupSource": "MultiAddress",
 	"RialtoBalance": "u128",
 	"RialtoBlockHash": "H256",
 	"RialtoBlockNumber": "u32",

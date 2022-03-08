@@ -21,8 +21,7 @@
 use bp_header_chain::justification::GrandpaJustification;
 use codec::Encode;
 use sp_application_crypto::TryFrom;
-use sp_finality_grandpa::{AuthorityId, AuthorityWeight};
-use sp_finality_grandpa::{AuthoritySignature, SetId};
+use sp_finality_grandpa::{AuthorityId, AuthoritySignature, AuthorityWeight, SetId};
 use sp_runtime::traits::{Header as HeaderT, One, Zero};
 use sp_std::prelude::*;
 
@@ -49,7 +48,7 @@ pub struct JustificationGeneratorParams<H> {
 	pub authorities: Vec<(Account, AuthorityWeight)>,
 	/// The total number of precommit ancestors in the `votes_ancestries` field our justification.
 	///
-	/// These may be distributed among many different forks.
+	/// These may be distributed among many forks.
 	pub ancestors: u32,
 	/// The number of forks.
 	///
@@ -72,10 +71,7 @@ impl<H: HeaderT> Default for JustificationGeneratorParams<H> {
 
 /// Make a valid GRANDPA justification with sensible defaults
 pub fn make_default_justification<H: HeaderT>(header: &H) -> GrandpaJustification<H> {
-	let params = JustificationGeneratorParams::<H> {
-		header: header.clone(),
-		..Default::default()
-	};
+	let params = JustificationGeneratorParams::<H> { header: header.clone(), ..Default::default() };
 
 	make_justification_for_header(params)
 }
@@ -89,15 +85,11 @@ pub fn make_default_justification<H: HeaderT>(header: &H) -> GrandpaJustificatio
 ///
 /// Note: This needs at least three authorities or else the verifier will complain about
 /// being given an invalid commit.
-pub fn make_justification_for_header<H: HeaderT>(params: JustificationGeneratorParams<H>) -> GrandpaJustification<H> {
-	let JustificationGeneratorParams {
-		header,
-		round,
-		set_id,
-		authorities,
-		mut ancestors,
-		forks,
-	} = params;
+pub fn make_justification_for_header<H: HeaderT>(
+	params: JustificationGeneratorParams<H>,
+) -> GrandpaJustification<H> {
+	let JustificationGeneratorParams { header, round, set_id, authorities, mut ancestors, forks } =
+		params;
 	let (target_hash, target_number) = (header.hash(), *header.number());
 	let mut votes_ancestries = vec![];
 	let mut precommits = vec![];
@@ -144,11 +136,7 @@ pub fn make_justification_for_header<H: HeaderT>(params: JustificationGeneratorP
 
 	GrandpaJustification {
 		round,
-		commit: finality_grandpa::Commit {
-			target_hash,
-			target_number,
-			precommits,
-		},
+		commit: finality_grandpa::Commit { target_hash, target_number, precommits },
 		votes_ancestries,
 	}
 }
@@ -165,10 +153,7 @@ fn generate_chain<H: HeaderT>(fork_id: u32, depth: u32, ancestor: &H) -> Vec<H> 
 
 		// Modifying the digest so headers at the same height but in different forks have different
 		// hashes
-		header
-			.digest_mut()
-			.logs
-			.push(sp_runtime::DigestItem::Other(fork_id.encode()));
+		header.digest_mut().logs.push(sp_runtime::DigestItem::Other(fork_id.encode()));
 
 		headers.push(header);
 	}
@@ -183,29 +168,26 @@ pub fn signed_precommit<H: HeaderT>(
 	round: u64,
 	set_id: SetId,
 ) -> finality_grandpa::SignedPrecommit<H::Hash, H::Number, AuthoritySignature, AuthorityId> {
-	let precommit = finality_grandpa::Precommit {
-		target_hash: target.0,
-		target_number: target.1,
-	};
+	let precommit = finality_grandpa::Precommit { target_hash: target.0, target_number: target.1 };
 
-	let encoded =
-		sp_finality_grandpa::localized_payload(round, set_id, &finality_grandpa::Message::Precommit(precommit.clone()));
+	let encoded = sp_finality_grandpa::localized_payload(
+		round,
+		set_id,
+		&finality_grandpa::Message::Precommit(precommit.clone()),
+	);
 
 	let signature = signer.sign(&encoded);
 	let raw_signature: Vec<u8> = signature.to_bytes().into();
 
-	// Need to wrap our signature and id types that they match what our `SignedPrecommit` is expecting
+	// Need to wrap our signature and id types that they match what our `SignedPrecommit` is
+	// expecting
 	let signature = AuthoritySignature::try_from(raw_signature).expect(
 		"We know our Keypair is good,
 		so our signature must also be good.",
 	);
 	let id = (*signer).into();
 
-	finality_grandpa::SignedPrecommit {
-		precommit,
-		signature,
-		id,
-	}
+	finality_grandpa::SignedPrecommit { precommit, signature, id }
 }
 
 /// Get a header for testing.
@@ -213,13 +195,7 @@ pub fn signed_precommit<H: HeaderT>(
 /// The correct parent hash will be used if given a non-zero header.
 pub fn test_header<H: HeaderT>(number: H::Number) -> H {
 	let default = |num| {
-		H::new(
-			num,
-			Default::default(),
-			Default::default(),
-			Default::default(),
-			Default::default(),
-		)
+		H::new(num, Default::default(), Default::default(), Default::default(), Default::default())
 	};
 
 	let mut header = default(number);

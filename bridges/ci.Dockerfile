@@ -24,7 +24,7 @@ USER user
 
 WORKDIR /home/user
 
-ARG PROJECT=ethereum-poa-relay
+ARG PROJECT=substrate-relay
 
 COPY --chown=user:user ./${PROJECT} ./
 COPY --chown=user:user ./bridge-entrypoint.sh ./

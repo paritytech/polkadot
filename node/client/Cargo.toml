@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-client"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -45,3 +45,9 @@ polkadot = ["polkadot-runtime"]
 kusama = ["kusama-runtime"]
 rococo = ["rococo-runtime"]
 westend = ["westend-runtime"]
+runtime-metrics = [
+    "rococo-runtime/runtime-metrics",
+    "kusama-runtime/runtime-metrics",
+    "westend-runtime/runtime-metrics",
+    "polkadot-runtime/runtime-metrics",
+]

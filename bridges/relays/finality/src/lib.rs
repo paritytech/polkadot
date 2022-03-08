@@ -19,13 +19,16 @@
 //! are still submitted to the target node, but are treated as auxiliary data as we are not trying
 //! to submit all source headers to the target node.
 
-pub use crate::finality_loop::{metrics_prefix, run, FinalitySyncParams, SourceClient, TargetClient};
+pub use crate::finality_loop::{
+	metrics_prefix, run, FinalitySyncParams, SourceClient, TargetClient,
+};
 
 use bp_header_chain::FinalityProof;
 use std::fmt::Debug;
 
 mod finality_loop;
 mod finality_loop_tests;
+mod sync_loop_metrics;
 
 /// Finality proofs synchronization pipeline.
 pub trait FinalitySyncPipeline: 'static + Clone + Debug + Send + Sync {

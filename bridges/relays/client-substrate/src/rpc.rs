@@ -18,11 +18,13 @@
 
 use crate::chain::Chain;
 
+use pallet_transaction_payment_rpc_runtime_api::FeeDetails;
 use sc_rpc_api::{state::ReadProof, system::Health};
 use sp_core::{
 	storage::{StorageData, StorageKey},
 	Bytes,
 };
+use sp_rpc::number::NumberOrHex;
 use sp_version::RuntimeVersion;
 
 jsonrpsee_proc_macros::rpc_client_api! {
@@ -41,13 +43,17 @@ jsonrpsee_proc_macros::rpc_client_api! {
 		fn system_account_next_index(account_id: C::AccountId) -> C::Index;
 		#[rpc(method = "author_submitExtrinsic", positional_params)]
 		fn author_submit_extrinsic(extrinsic: Bytes) -> C::Hash;
+		#[rpc(method = "author_pendingExtrinsics", positional_params)]
+		fn author_pending_extrinsics() -> Vec<Bytes>;
 		#[rpc(method = "state_call", positional_params)]
 		fn state_call(method: String, data: Bytes, at_block: Option<C::Hash>) -> Bytes;
 		#[rpc(method = "state_getStorage", positional_params)]
-		fn state_get_storage(key: StorageKey) -> Option<StorageData>;
+		fn state_get_storage(key: StorageKey, at_block: Option<C::Hash>) -> Option<StorageData>;
 		#[rpc(method = "state_getReadProof", positional_params)]
 		fn state_prove_storage(keys: Vec<StorageKey>, hash: Option<C::Hash>) -> ReadProof<C::Hash>;
 		#[rpc(method = "state_getRuntimeVersion", positional_params)]
 		fn state_runtime_version() -> RuntimeVersion;
+		#[rpc(method = "payment_queryFeeDetails", positional_params)]
+		fn payment_query_fee_details(extrinsic: Bytes, at_block: Option<C::Hash>) -> FeeDetails<NumberOrHex>;
 	}
 }

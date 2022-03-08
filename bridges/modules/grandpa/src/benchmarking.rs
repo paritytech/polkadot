@@ -23,7 +23,7 @@
 //! 2. The number of `pre-commits` in the justification
 //!
 //! Vote ancestries are the headers between (`finality_target`, `head_of_chain`], where
-//! `header_of_chain` is a decendant of `finality_target`.
+//! `header_of_chain` is a descendant of `finality_target`.
 //!
 //! Pre-commits are messages which are signed by validators at the head of the chain they think is
 //! the best.
@@ -34,7 +34,7 @@
 //! [A] <- [B] <- [C]
 //!
 //! The common ancestor of both forks is block A, so this is what GRANDPA will finalize. In order to
-//! verify this we will have vote ancestries of [B, C, B', C'] and pre-commits [C, C'].
+//! verify this we will have vote ancestries of `[B, C, B', C']` and pre-commits `[C, C']`.
 //!
 //! Note that the worst case scenario here would be a justification where each validator has it's
 //! own fork which is `SESSION_LENGTH` blocks long.
@@ -42,7 +42,8 @@
 use crate::*;
 
 use bp_test_utils::{
-	accounts, make_justification_for_header, JustificationGeneratorParams, TEST_GRANDPA_ROUND, TEST_GRANDPA_SET_ID,
+	accounts, make_justification_for_header, JustificationGeneratorParams, TEST_GRANDPA_ROUND,
+	TEST_GRANDPA_SET_ID,
 };
 use frame_benchmarking::{benchmarks_instance_pallet, whitelisted_caller};
 use frame_support::traits::Get;
@@ -63,7 +64,7 @@ const MAX_VALIDATOR_SET_SIZE: u32 = 1024;
 
 /// Returns number of first header to be imported.
 ///
-/// Since we boostrap the pallet with `HeadersToKeep` already imported headers,
+/// Since we bootstrap the pallet with `HeadersToKeep` already imported headers,
 /// this function computes the next expected header number to import.
 fn header_number<T: Config<I>, I: 'static, N: From<u32>>() -> N {
 	(T::HeadersToKeep::get() + 1).into()
@@ -80,7 +81,7 @@ fn prepare_benchmark_data<T: Config<I>, I: 'static>(
 		.collect::<Vec<_>>();
 
 	let init_data = InitializationData {
-		header: bp_test_utils::test_header(Zero::zero()),
+		header: Box::new(bp_test_utils::test_header(Zero::zero())),
 		authority_list,
 		set_id: TEST_GRANDPA_SET_ID,
 		is_halted: false,
@@ -109,7 +110,7 @@ benchmarks_instance_pallet! {
 		let v in 1..MAX_VOTE_ANCESTRIES;
 		let caller: T::AccountId = whitelisted_caller();
 		let (header, justification) = prepare_benchmark_data::<T, I>(p, v);
-	}: submit_finality_proof(RawOrigin::Signed(caller), header, justification)
+	}: submit_finality_proof(RawOrigin::Signed(caller), Box::new(header), justification)
 	verify {
 		let header: BridgedHeader<T, I> = bp_test_utils::test_header(header_number::<T, I, _>());
 		let expected_hash = header.hash();

@@ -10,23 +10,26 @@ repository = "https://github.com/paritytech/parity-bridges-common/"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-jsonrpc-core = "15.1.0"
+jsonrpc-core = "18.0"
 structopt = "0.3.21"
 serde_json = "1.0.59"
 
 # Bridge dependencies
 
-bp-messages = { path = "../../../primitives/messages" }
-bp-millau= { path = "../../../primitives/chain-millau" }
+bp-millau = { path = "../../../primitives/chain-millau" }
 bp-runtime = { path = "../../../primitives/runtime" }
 millau-runtime = { path = "../runtime" }
 pallet-bridge-messages = { path = "../../../modules/messages" }
 
 # Substrate Dependencies
 
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 node-inspect = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
@@ -45,7 +48,6 @@ sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "mast
 sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -56,9 +58,6 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", bran
 
 [features]
 default = []
-
-# TODO: https://github.com/paritytech/parity-bridges-common/issues/390
-# I've left the feature flag here to test our CI configuration
 runtime-benchmarks = [
-	# "millau-runtime/runtime-benchmarks",
+	"millau-runtime/runtime-benchmarks",
 ]

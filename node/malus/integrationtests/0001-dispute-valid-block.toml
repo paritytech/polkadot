@@ -4,7 +4,6 @@ timeout = 1000
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "wococo-local"
-chain_spec_command = "polkadot build-spec --chain wococo-local --disable-default-bootnode --raw > /cfg/wococo-local.json"
 command = "polkadot"
 
   [[relaychain.nodes]]
@@ -23,7 +22,7 @@ command = "polkadot"
   extra_args = [ "--charlie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
-  name = "david"
+  name = "dave"
   validator = true
   command = "/usr/local/bin/malus dispute-ancestor"
   extra_args = ["--dave", "-lparachain=debug"]

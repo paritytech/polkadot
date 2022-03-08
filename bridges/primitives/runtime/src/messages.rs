@@ -23,7 +23,7 @@ use scale_info::TypeInfo;
 /// Where message dispatch fee is paid?
 #[derive(Encode, Decode, RuntimeDebug, Clone, Copy, PartialEq, Eq, TypeInfo)]
 pub enum DispatchFeePayment {
-	/// The dispacth fee is paid at the source chain.
+	/// The dispatch fee is paid at the source chain.
 	AtSourceChain,
 	/// The dispatch fee is paid at the target chain.
 	///
@@ -51,7 +51,7 @@ pub struct MessageDispatchResult {
 	/// 2) if message has not been dispatched at all.
 	pub unspent_weight: Weight,
 	/// Whether the message dispatch fee has been paid during dispatch. This will be true if your
-	/// configuration supports pay-dispatch-fee-at-target-chain option and message sender has enabled
-	/// this option.
+	/// configuration supports pay-dispatch-fee-at-target-chain option and message sender has
+	/// enabled this option.
 	pub dispatch_fee_paid_during_dispatch: bool,
 }

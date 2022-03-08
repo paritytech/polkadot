@@ -4,9 +4,7 @@ Polkadot Release Process
 ### Branches
 * release-candidate branch: The branch used for staging of the next release.
   Named like `release-v0.8.26`
-* release branch: The branch to which successful release-candidates are merged
-  and tagged with the new version. Named literally `release`.
-
+  
 ### Notes
 * The release-candidate branch *must* be made in the paritytech/polkadot repo in
 order for release automation to work correctly
@@ -19,8 +17,13 @@ to v0.8.26-rc2) and new wasms built.
 Below are the steps of the release workflow. Steps prefixed with NOACTION are
 automated and require no human action.
 
-1. To initiate the release process, branch master off to a release branch and push it to Github:
-  - `git checkout master; git pull; git checkout -b release-v0.8.26; git push origin refs/heads/release-v0.8.26`
+1. To initiate the release process:
+  1. branch master off to a release candidate branch:
+  - `git checkout master; git pull; git checkout -b release-v0.8.26`
+  2. In the [substrate](https://github.com/paritytech/substrate) repo, check out the commit used by polkadot (this can be found using the following command in the *polkadot* repo: `grep 'paritytech/substrate' Cargo.lock | grep -E '[0-9a-f]{40}' | sort | uniq `
+  3. Branch off this **substrate** commit into its own branch: `git branch -b polkadot-v0.8.26; git push origin refs/heads/polkadot-v0.8.26`
+  4. In the **polkadot** repository, use [diener](https://github.com/bkchr/diener/) to switch to this branch: `diener update --branch "polkadot-v0.8.26" --substrate`. Update Cargo.lock (to do this, you can run `cargo build` and then ctrl+c once it finishes fetching and begins compiling)
+  5. Push the **polkadot** `release-v0.8.26` branch to Github: `git push origin refs/heads/release-v0.8.26`
 2. NOACTION: The current HEAD of the release-candidate branch is tagged `v0.8.26-rc1`
 3. NOACTION: A draft release and runtime WASMs are created for this
   release-candidate automatically. A link to the draft release will be linked in
@@ -38,11 +41,9 @@ automated and require no human action.
   candidate
   4. Depending on the cherry-picked changes, it may be necessary to perform some
   or all of the manual tests again.
-7. Once happy with the release-candidate, perform the release using the release
-  script located at `scripts/release.sh` (or perform the steps in that script
-  manually):
-  - `./scripts/release.sh v0.8.26`
-8. NOACTION: The HEAD of the `release` branch will be tagged with `v0.8.26`,
+  5. If there are **substrate** changes required, these should be cherry-picked to the substrate `polkadot-v0.8.26` branch and pushed, and the version of substrate used in **polkadot** updated using `cargo update -p sp-io`
+7. Once happy with the release-candidate, tag the current top commit in the release candidate branch and push to Github: `git tag -s -m 'v0.8.26' v0.8.26; git push --tags`
+9. NOACTION: The HEAD of the `release` branch will be tagged with `v0.8.26`,
   and a final draft release will be created on Github.
 
 ### Security releases

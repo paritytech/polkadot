@@ -14,18 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::bridge::FullBridge;
-use crate::cli::{Balance, CliChain, HexBytes, HexLaneId, SourceConnectionParams};
-use crate::select_full_bridge;
+use crate::{
+	cli::{bridge::FullBridge, Balance, CliChain, HexBytes, HexLaneId, SourceConnectionParams},
+	select_full_bridge,
+};
+use bp_runtime::BalanceOf;
 use codec::{Decode, Encode};
 use relay_substrate_client::Chain;
 use structopt::StructOpt;
+use strum::VariantNames;
 
 /// Estimate Delivery & Dispatch Fee command.
 #[derive(StructOpt, Debug, PartialEq, Eq)]
 pub struct EstimateFee {
 	/// A bridge instance to encode call for.
-	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
+	#[structopt(possible_values = FullBridge::VARIANTS, case_insensitive = true)]
 	bridge: FullBridge,
 	#[structopt(flatten)]
 	source: SourceConnectionParams,
@@ -40,21 +43,21 @@ pub struct EstimateFee {
 impl EstimateFee {
 	/// Run the command.
 	pub async fn run(self) -> anyhow::Result<()> {
-		let Self {
-			source,
-			bridge,
-			lane,
-			payload,
-		} = self;
+		let Self { source, bridge, lane, payload } = self;
 
 		select_full_bridge!(bridge, {
 			let source_client = source.to_client::<Source>().await?;
 			let lane = lane.into();
-			let payload = Source::encode_message(payload).map_err(|e| anyhow::format_err!("{:?}", e))?;
+			let payload =
+				Source::encode_message(payload).map_err(|e| anyhow::format_err!("{:?}", e))?;
 
-			let fee: <Source as Chain>::Balance =
-				estimate_message_delivery_and_dispatch_fee(&source_client, ESTIMATE_MESSAGE_FEE_METHOD, lane, payload)
-					.await?;
+			let fee: BalanceOf<Source> = estimate_message_delivery_and_dispatch_fee(
+				&source_client,
+				ESTIMATE_MESSAGE_FEE_METHOD,
+				lane,
+				payload,
+			)
+			.await?;
 
 			log::info!(target: "bridge", "Fee: {:?}", Balance(fee as _));
 			println!("{}", fee);
@@ -72,10 +75,11 @@ pub(crate) async fn estimate_message_delivery_and_dispatch_fee<Fee: Decode, C: C
 	let encoded_response = client
 		.state_call(estimate_fee_method.into(), (lane, payload).encode().into(), None)
 		.await?;
-	let decoded_response: Option<Fee> =
-		Decode::decode(&mut &encoded_response.0[..]).map_err(relay_substrate_client::Error::ResponseParseFailed)?;
-	let fee = decoded_response
-		.ok_or_else(|| anyhow::format_err!("Unable to decode fee from: {:?}", HexBytes(encoded_response.to_vec())))?;
+	let decoded_response: Option<Fee> = Decode::decode(&mut &encoded_response.0[..])
+		.map_err(relay_substrate_client::Error::ResponseParseFailed)?;
+	let fee = decoded_response.ok_or_else(|| {
+		anyhow::format_err!("Unable to decode fee from: {:?}", HexBytes(encoded_response.to_vec()))
+	})?;
 	Ok(fee)
 }
 
@@ -93,7 +97,7 @@ mod tests {
 		// when
 		let res = EstimateFee::from_iter(vec![
 			"estimate_fee",
-			"RialtoToMillau",
+			"rialto-to-millau",
 			"--source-port",
 			"1234",
 			"call",

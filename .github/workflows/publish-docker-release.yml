@@ -30,7 +30,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          file: scripts/docker/polkadot_injected_release.Dockerfile
+          file: scripts/dockerfiles/polkadot_injected_release.Dockerfile
           tags: |
             parity/polkadot:latest
             parity/polkadot:${{ github.event.release.tag_name }}
@@ -38,7 +38,6 @@ jobs:
             POLKADOT_VERSION=${{ github.event.release.tag_name }}
             VCS_REF=${{ github.ref }}
             BUILD_DATE=${{ github.event.release.published_at }}
-            GPG_KEYSERVER="hkps://keys.mailvelope.com"
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Image digest

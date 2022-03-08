@@ -19,11 +19,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Encode;
-use sp_core::hash::H256;
+use frame_support::{RuntimeDebug, StorageHasher};
+use sp_core::{hash::H256, storage::StorageKey};
 use sp_io::hashing::blake2_256;
-use sp_std::convert::TryFrom;
+use sp_std::{convert::TryFrom, vec::Vec};
 
-pub use chain::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};
+pub use chain::{
+	AccountIdOf, AccountPublicOf, BalanceOf, BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf,
+	IndexOf, SignatureOf, TransactionEraOf,
+};
+pub use frame_support::storage::storage_prefix as storage_value_final_key;
 pub use storage_proof::{Error as StorageProofError, StorageProofChecker};
 
 #[cfg(feature = "std")]
@@ -64,19 +69,24 @@ pub const ACCOUNT_DERIVATION_PREFIX: &[u8] = b"pallet-bridge/account-derivation/
 /// A unique prefix for entropy when generating a cross-chain account ID for the Root account.
 pub const ROOT_ACCOUNT_DERIVATION_PREFIX: &[u8] = b"pallet-bridge/account-derivation/root";
 
+/// Generic header Id.
+#[derive(RuntimeDebug, Default, Clone, Copy, Eq, Hash, PartialEq)]
+pub struct HeaderId<Hash, Number>(pub Number, pub Hash);
+
 /// Unique identifier of the chain.
 ///
 /// In addition to its main function (identifying the chain), this type may also be used to
 /// identify module instance. We have a bunch of pallets that may be used in different bridges. E.g.
-/// messages pallet may be deployed twice in the same runtime to bridge ThisChain with Chain1 and Chain2.
-/// Sometimes we need to be able to identify deployed instance dynamically. This type may be used for that.
+/// messages pallet may be deployed twice in the same runtime to bridge ThisChain with Chain1 and
+/// Chain2. Sometimes we need to be able to identify deployed instance dynamically. This type may be
+/// used for that.
 pub type ChainId = [u8; 4];
 
 /// Type of accounts on the source chain.
 pub enum SourceAccount<T> {
 	/// An account that belongs to Root (privileged origin).
 	Root,
-	/// A non-priviledged account.
+	/// A non-privileged account.
 	///
 	/// The embedded account ID may or may not have a private key depending on the "owner" of the
 	/// account (private key, pallet, proxy, etc.).
@@ -99,8 +109,10 @@ where
 	AccountId: Encode,
 {
 	match id {
-		SourceAccount::Root => (ROOT_ACCOUNT_DERIVATION_PREFIX, bridge_id).using_encoded(blake2_256),
-		SourceAccount::Account(id) => (ACCOUNT_DERIVATION_PREFIX, bridge_id, id).using_encoded(blake2_256),
+		SourceAccount::Root =>
+			(ROOT_ACCOUNT_DERIVATION_PREFIX, bridge_id).using_encoded(blake2_256),
+		SourceAccount::Account(id) =>
+			(ACCOUNT_DERIVATION_PREFIX, bridge_id, id).using_encoded(blake2_256),
 	}
 	.into()
 }
@@ -109,8 +121,8 @@ where
 ///
 /// This account is used to collect fees for relayers that are passing messages across the bridge.
 ///
-/// The account ID can be the same across different instances of `pallet-bridge-messages` if the same
-/// `bridge_id` is used.
+/// The account ID can be the same across different instances of `pallet-bridge-messages` if the
+/// same `bridge_id` is used.
 pub fn derive_relayer_fund_account_id(bridge_id: ChainId) -> H256 {
 	("relayer-fund-account", bridge_id).using_encoded(blake2_256).into()
 }
@@ -122,6 +134,12 @@ pub trait Size {
 	/// This function should be lightweight. The result should not necessary be absolutely
 	/// accurate.
 	fn size_hint(&self) -> u32;
+}
+
+impl Size for &[u8] {
+	fn size_hint(&self) -> u32 {
+		self.len() as _
+	}
 }
 
 impl Size for () {
@@ -136,5 +154,124 @@ pub struct PreComputedSize(pub usize);
 impl Size for PreComputedSize {
 	fn size_hint(&self) -> u32 {
 		u32::try_from(self.0).unwrap_or(u32::MAX)
+	}
+}
+
+/// Era of specific transaction.
+#[derive(RuntimeDebug, Clone, Copy)]
+pub enum TransactionEra<BlockNumber, BlockHash> {
+	/// Transaction is immortal.
+	Immortal,
+	/// Transaction is valid for a given number of blocks, starting from given block.
+	Mortal(HeaderId<BlockHash, BlockNumber>, u32),
+}
+
+impl<BlockNumber: Copy + Into<u64>, BlockHash: Copy> TransactionEra<BlockNumber, BlockHash> {
+	/// Prepare transaction era, based on mortality period and current best block number.
+	pub fn new(
+		best_block_id: HeaderId<BlockHash, BlockNumber>,
+		mortality_period: Option<u32>,
+	) -> Self {
+		mortality_period
+			.map(|mortality_period| TransactionEra::Mortal(best_block_id, mortality_period))
+			.unwrap_or(TransactionEra::Immortal)
+	}
+
+	/// Create new immortal transaction era.
+	pub fn immortal() -> Self {
+		TransactionEra::Immortal
+	}
+
+	/// Returns era that is used by FRAME-based runtimes.
+	pub fn frame_era(&self) -> sp_runtime::generic::Era {
+		match *self {
+			TransactionEra::Immortal => sp_runtime::generic::Era::immortal(),
+			TransactionEra::Mortal(header_id, period) =>
+				sp_runtime::generic::Era::mortal(period as _, header_id.0.into()),
+		}
+	}
+
+	/// Returns header hash that needs to be included in the signature payload.
+	pub fn signed_payload(&self, genesis_hash: BlockHash) -> BlockHash {
+		match *self {
+			TransactionEra::Immortal => genesis_hash,
+			TransactionEra::Mortal(header_id, _) => header_id.1,
+		}
+	}
+}
+
+/// This is a copy of the
+/// `frame_support::storage::generator::StorageMap::storage_map_final_key` for `Blake2_128Concat`
+/// maps.
+///
+/// We're using it because to call `storage_map_final_key` directly, we need access to the runtime
+/// and pallet instance, which (sometimes) is impossible.
+pub fn storage_map_final_key_blake2_128concat(
+	pallet_prefix: &str,
+	map_name: &str,
+	key: &[u8],
+) -> StorageKey {
+	storage_map_final_key_identity(
+		pallet_prefix,
+		map_name,
+		&frame_support::Blake2_128Concat::hash(key),
+	)
+}
+
+///
+pub fn storage_map_final_key_twox64_concat(
+	pallet_prefix: &str,
+	map_name: &str,
+	key: &[u8],
+) -> StorageKey {
+	storage_map_final_key_identity(pallet_prefix, map_name, &frame_support::Twox64Concat::hash(key))
+}
+
+/// This is a copy of the
+/// `frame_support::storage::generator::StorageMap::storage_map_final_key` for `Identity` maps.
+///
+/// We're using it because to call `storage_map_final_key` directly, we need access to the runtime
+/// and pallet instance, which (sometimes) is impossible.
+pub fn storage_map_final_key_identity(
+	pallet_prefix: &str,
+	map_name: &str,
+	key_hashed: &[u8],
+) -> StorageKey {
+	let pallet_prefix_hashed = frame_support::Twox128::hash(pallet_prefix.as_bytes());
+	let storage_prefix_hashed = frame_support::Twox128::hash(map_name.as_bytes());
+
+	let mut final_key = Vec::with_capacity(
+		pallet_prefix_hashed.len() + storage_prefix_hashed.len() + key_hashed.len(),
+	);
+
+	final_key.extend_from_slice(&pallet_prefix_hashed[..]);
+	final_key.extend_from_slice(&storage_prefix_hashed[..]);
+	final_key.extend_from_slice(key_hashed.as_ref());
+
+	StorageKey(final_key)
+}
+
+/// This is how a storage key of storage parameter (`parameter_types! { storage Param: bool = false;
+/// }`) is computed.
+///
+/// Copied from `frame_support::parameter_types` macro
+pub fn storage_parameter_key(parameter_name: &str) -> StorageKey {
+	let mut buffer = Vec::with_capacity(1 + parameter_name.len() + 1);
+	buffer.push(b':');
+	buffer.extend_from_slice(parameter_name.as_bytes());
+	buffer.push(b':');
+	StorageKey(sp_io::hashing::twox_128(&buffer).to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn storage_parameter_key_works() {
+		assert_eq!(
+			storage_parameter_key("MillauToRialtoConversionRate"),
+			StorageKey(hex_literal::hex!("58942375551bb0af1682f72786b59d04").to_vec()),
+		);
 	}
 }

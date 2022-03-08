@@ -303,7 +303,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	// Update session info based on most recent head.
+	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -329,6 +329,7 @@ pub(crate) async fn handle_new_head(
 		}
 	};
 
+	// Update session info based on most recent head.
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			tracing::debug!(
@@ -350,9 +351,10 @@ pub(crate) async fn handle_new_head(
 		Ok(_) => {},
 	}
 
-	// If we've just started the node and haven't yet received any finality notifications,
-	// we don't do any look-back. Approval voting is only for nodes were already online.
-	let lower_bound_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
+	// If we've just started the node and are far behind,
+	// import at most `MAX_HEADS_LOOK_BACK` blocks.
+	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
+	let lower_bound_number = finalized_number.unwrap_or(lower_bound_number).max(lower_bound_number);
 
 	let new_blocks = determine_new_blocks(
 		ctx.sender(),
@@ -461,9 +463,9 @@ pub(crate) async fn handle_new_head(
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
 				);
-				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
+				bitvec::bitvec![u8, BitOrderLsb0; 1; num_candidates]
 			} else {
-				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
+				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
@@ -575,13 +577,14 @@ pub(crate) async fn handle_new_head(
 pub(crate) mod tests {
 	use super::*;
 	use crate::approval_db::v1::DbBackend;
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use kvdb::KeyValueDB;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
+	use polkadot_node_subsystem_util::database::Database;
+	use polkadot_primitives::{v1::ValidatorIndex, v2::SessionInfo};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -684,6 +687,9 @@ pub(crate) mod tests {
 			n_delay_tranches: index as _,
 			no_show_slots: index as _,
 			needed_approvals: index as _,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 
@@ -715,7 +721,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -829,7 +835,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -931,7 +937,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -1021,7 +1027,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r
@@ -1119,7 +1125,9 @@ pub(crate) mod tests {
 
 	#[test]
 	fn insta_approval_works() {
-		let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db_writer: Arc<dyn Database> = Arc::new(db);
 		let mut db = DbBackend::new(db_writer.clone(), TEST_CONFIG);
 		let mut overlay_db = OverlayedBackend::new(&db);
 
@@ -1139,6 +1147,9 @@ pub(crate) mod tests {
 			relay_vrf_modulo_samples: irrelevant,
 			n_delay_tranches: irrelevant,
 			no_show_slots: irrelevant,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		};
 
 		let slot = Slot::from(10);
@@ -1163,7 +1174,7 @@ pub(crate) mod tests {
 
 		let hash = header.hash();
 		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
+			let mut r = dummy_candidate_receipt(dummy_hash());
 			r.descriptor.para_id = para_id;
 			r.descriptor.relay_parent = hash;
 			r

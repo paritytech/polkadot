@@ -20,21 +20,10 @@ use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
+use std::net::ToSocketAddrs;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-	#[error(transparent)]
-	PolkadotService(#[from] service::Error),
-
-	#[error(transparent)]
-	SubstrateCli(#[from] sc_cli::Error),
-
-	#[error(transparent)]
-	SubstrateService(#[from] sc_service::Error),
-
-	#[error("Other: {0}")]
-	Other(String),
-}
+pub use crate::error::Error;
+pub use polkadot_performance_test::PerfCheckError;
 
 impl std::convert::From<String> for Error {
 	fn from(s: String) -> Self {
@@ -83,7 +72,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend", "rococo"]
+			["polkadot", "kusama", "westend", "rococo", "versi"]
 				.iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
@@ -137,6 +126,14 @@ impl SubstrateCli for Cli {
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
+			"versi" => Box::new(service::chain_spec::versi_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-local" => Box::new(service::chain_spec::versi_local_testnet_config()?),
+			#[cfg(not(feature = "rococo-native"))]
+			name if name.starts_with("versi-") =>
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -145,7 +142,11 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_wococo() {
+				if self.run.force_rococo ||
+					chain_spec.is_rococo() ||
+					chain_spec.is_wococo() ||
+					chain_spec.is_versi()
+				{
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
@@ -170,7 +171,7 @@ impl SubstrateCli for Cli {
 		}
 
 		#[cfg(feature = "rococo-native")]
-		if spec.is_rococo() || spec.is_wococo() {
+		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
 			return &service::rococo_runtime::VERSION
 		}
 
@@ -215,16 +216,39 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
+/// Runs performance checks.
+/// Should only be used in release build since the check would take too much time otherwise.
+fn host_perf_check() -> Result<()> {
+	#[cfg(not(build_type = "release"))]
+	{
+		Err(PerfCheckError::WrongBuildType.into())
+	}
+	#[cfg(build_type = "release")]
+	{
+		crate::host_perf_check::host_perf_check()?;
+		Ok(())
+	}
+}
+
 /// Launch a node, accepting arguments just like a regular node,
 /// accepts an alternative overseer generator, to adjust behavior
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
 pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(run, overseer_gen)
+	run_node_inner(run, overseer_gen, |_logger_builder, _config| {})
 }
 
-fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	let runner = cli.create_runner(&cli.run.base).map_err(Error::from)?;
+fn run_node_inner<F>(
+	cli: Cli,
+	overseer_gen: impl service::OverseerGen,
+	logger_hook: F,
+) -> Result<()>
+where
+	F: FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration),
+{
+	let runner = cli
+		.create_runner_with_logger_hook::<sc_cli::RunCmd, F>(&cli.run.base, logger_hook)
+		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
 	set_default_ss58_version(chain_spec);
@@ -243,7 +267,17 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 		info!("----------------------------");
 	}
 
-	let jaeger_agent = cli.run.jaeger_agent;
+	let jaeger_agent = if let Some(ref jaeger_agent) = cli.run.jaeger_agent {
+		Some(
+			jaeger_agent
+				.to_socket_addrs()
+				.map_err(Error::AddressResolutionFailure)?
+				.next()
+				.ok_or_else(|| Error::AddressResolutionMissing)?,
+		)
+	} else {
+		None
+	};
 
 	runner.run_node_until_exit(move |config| async move {
 		let role = config.role.clone();
@@ -257,6 +291,7 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 				cli.run.beefy,
 				jaeger_agent,
 				None,
+				false,
 				overseer_gen,
 			)
 			.map(|full| full.task_manager)
@@ -267,10 +302,35 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
-	let cli = Cli::from_args();
+	let cli: Cli = Cli::from_args();
+
+	#[cfg(feature = "pyroscope")]
+	let mut pyroscope_agent_maybe = if let Some(ref agent_addr) = cli.run.pyroscope_server {
+		let address = agent_addr
+			.to_socket_addrs()
+			.map_err(Error::AddressResolutionFailure)?
+			.next()
+			.ok_or_else(|| Error::AddressResolutionMissing)?;
+		// The pyroscope agent requires a `http://` prefix, so we just do that.
+		let mut agent = pyro::PyroscopeAgent::builder(
+			"http://".to_owned() + address.to_string().as_str(),
+			"polkadot".to_owned(),
+		)
+		.sample_rate(113)
+		.build()?;
+		agent.start();
+		Some(agent)
+	} else {
+		None
+	};
+
+	#[cfg(not(feature = "pyroscope"))]
+	if cli.run.pyroscope_server.is_some() {
+		return Err(Error::PyroscopeNotCompiledIn)
+	}
 
 	match &cli.subcommand {
-		None => run_node_inner(cli, service::RealOverseerGen),
+		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
@@ -415,6 +475,29 @@ pub fn run() -> Result<()> {
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
+		Some(Subcommand::BenchmarkStorage(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+			set_default_ss58_version(chain_spec);
+
+			Ok(runner.async_run(|mut config| {
+				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+				let db = backend.expose_db();
+				let storage = backend.expose_storage();
+
+				Ok((
+					cmd.run(config, client, db, storage).map_err(Error::SubstrateCli),
+					task_manager,
+				))
+			})?)
+		},
+		Some(Subcommand::HostPerfCheck) => {
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(true);
+			builder.init()?;
+
+			host_perf_check()
+		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
@@ -478,5 +561,10 @@ pub fn run() -> Result<()> {
 		)
 		.into()),
 	}?;
+
+	#[cfg(feature = "pyroscope")]
+	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
+		pyroscope_agent.stop();
+	}
 	Ok(())
 }

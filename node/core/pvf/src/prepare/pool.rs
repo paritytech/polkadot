@@ -53,10 +53,6 @@ pub enum ToPool {
 	/// this message is processed.
 	Kill(Worker),
 
-	/// If the given worker was started with the background priority, then it will be raised up to
-	/// normal priority. Otherwise, it's no-op.
-	BumpPriority(Worker),
-
 	/// Request the given worker to start working on the given code.
 	///
 	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
@@ -65,12 +61,7 @@ pub enum ToPool {
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork {
-		worker: Worker,
-		code: Arc<Vec<u8>>,
-		artifact_path: PathBuf,
-		background_priority: bool,
-	},
+	StartWork { worker: Worker, code: Arc<Vec<u8>>, artifact_path: PathBuf },
 }
 
 /// A message sent from pool to its client.
@@ -214,7 +205,7 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, background_priority } => {
+		ToPool::StartWork { worker, code, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
@@ -225,7 +216,6 @@ fn handle_to_pool(
 							code,
 							cache_path.to_owned(),
 							artifact_path,
-							background_priority,
 							preparation_timer,
 						)
 						.boxed(),
@@ -248,10 +238,6 @@ fn handle_to_pool(
 			// It may be absent if it were previously already removed by `purge_dead`.
 			let _ = attempt_retire(metrics, spawned, worker);
 		},
-		ToPool::BumpPriority(worker) =>
-			if let Some(data) = spawned.get(worker) {
-				worker::bump_priority(&data.handle);
-			},
 	}
 }
 
@@ -277,11 +263,9 @@ async fn start_work_task<Timer>(
 	code: Arc<Vec<u8>>,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
-	background_priority: bool,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, background_priority).await;
+	let outcome = worker::start_work(idle, code, &cache_path, artifact_path).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 

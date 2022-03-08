@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.13"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.17"
-tracing = "0.1.29"
+futures = "0.3.21"
+tracing = "0.1.31"
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -16,10 +16,10 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
-indexmap = "1.7.0"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-derive_more = "0.99.17"
+indexmap = "1.8.0"
+parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
 thiserror = "1.0.30"
+fatality = "0.0.6"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
@@ -32,3 +32,4 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
+polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

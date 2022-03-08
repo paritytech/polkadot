@@ -756,35 +756,35 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			gossipped_own_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_gossipped_own_availabilty_bitfields_total",
+					"polkadot_parachain_gossipped_own_availabilty_bitfields_total",
 					"Number of own availability bitfields sent to other peers.",
 				)?,
 				registry,
 			)?,
 			received_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_received_availabilty_bitfields_total",
+					"polkadot_parachain_received_availabilty_bitfields_total",
 					"Number of valid availability bitfields received from other peers.",
 				)?,
 				registry,
 			)?,
 			active_leaves_update: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_bitfield_distribution_active_leaves_update",
+					"polkadot_parachain_bitfield_distribution_active_leaves_update",
 					"Time spent within `bitfield_distribution::active_leaves_update`",
 				))?,
 				registry,
 			)?,
 			handle_bitfield_distribution: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_bitfield_distribution_handle_bitfield_distribution",
+					"polkadot_parachain_bitfield_distribution_handle_bitfield_distribution",
 					"Time spent within `bitfield_distribution::handle_bitfield_distribution`",
 				))?,
 				registry,
 			)?,
 			handle_network_msg: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_bitfield_distribution_handle_network_msg",
+					"polkadot_parachain_bitfield_distribution_handle_network_msg",
 					"Time spent within `bitfield_distribution::handle_network_msg`",
 				))?,
 				registry,

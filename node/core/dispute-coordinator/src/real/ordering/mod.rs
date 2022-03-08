@@ -20,20 +20,23 @@ use std::{
 };
 
 use futures::channel::oneshot;
+use lru::LruCache;
 
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender,
+	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
-use super::{
-	error::{Fatal, FatalResult, Result},
+use crate::{
+	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
 
 #[cfg(test)]
 mod tests;
+
+const LRU_OBSERVED_BLOCKS_CAPACITY: usize = 20;
 
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
@@ -43,6 +46,10 @@ pub struct OrderingProvider {
 	///
 	/// We need this to clean up `included_candidates` on `ActiveLeavesUpdate`.
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
+	/// Latest relay blocks observed by the provider. We assume that ancestors of
+	/// cached blocks are already processed, i.e. we have saved corresponding
+	/// included candidates.
+	last_observed_blocks: LruCache<Hash, ()>,
 }
 
 /// `Comparator` for ordering of disputes for candidates.
@@ -62,6 +69,7 @@ pub struct OrderingProvider {
 /// we are already too late. The ordering mechanism here serves to prevent this from happening in
 /// the first place.
 #[derive(Copy, Clone)]
+#[cfg_attr(test, derive(Debug))]
 pub struct CandidateComparator {
 	/// Block number of the relay parent.
 	///
@@ -118,6 +126,11 @@ impl CandidateComparator {
 }
 
 impl OrderingProvider {
+	/// Limits the number of ancestors received for a single request.
+	pub(crate) const ANCESTRY_CHUNK_SIZE: usize = 10;
+	/// Limits the overall number of ancestors walked through for a given head.
+	pub(crate) const ANCESTRY_SIZE_LIMIT: usize = 1000;
+
 	/// Create a properly initialized `OrderingProvider`.
 	pub async fn new<Sender: SubsystemSender>(
 		sender: &mut Sender,
@@ -126,6 +139,7 @@ impl OrderingProvider {
 		let mut s = Self {
 			included_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
+			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -150,7 +164,7 @@ impl OrderingProvider {
 			None => {
 				tracing::warn!(
 					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
+					candidate_hash = ?candidate_hash,
 					"Candidate's relay_parent could not be found via chain API, but we saw candidate included?!"
 				);
 				return Ok(None)
@@ -168,24 +182,70 @@ impl OrderingProvider {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<()> {
+	) -> crate::error::Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
-			// Get included events:
-			let included = get_candidate_events(sender, activated.hash)
-				.await?
-				.into_iter()
-				.filter_map(|ev| match ev {
-					CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
-					_ => None,
-				});
-			for receipt in included {
-				let candidate_hash = receipt.hash();
-				self.included_candidates.insert(candidate_hash);
-				self.candidates_by_block_number
-					.entry(activated.number)
-					.or_default()
-					.insert(candidate_hash);
+			// Fetch last finalized block.
+			let ancestors = match get_finalized_block_number(sender).await {
+				Ok(block_number) => {
+					// Fetch ancestry up to last finalized block.
+					Self::get_block_ancestors(
+						sender,
+						activated.hash,
+						activated.number,
+						block_number,
+						&mut self.last_observed_blocks,
+					)
+					.await
+					.unwrap_or_else(|err| {
+						tracing::debug!(
+							target: LOG_TARGET,
+							activated_leaf = ?activated,
+							error = ?err,
+							"Skipping leaf ancestors due to an error",
+						);
+						// We assume this is a spurious error so we'll move forward with an
+						// empty ancestry.
+						Vec::new()
+					})
+				},
+				Err(err) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						activated_leaf = ?activated,
+						error = ?err,
+						"Failed to retrieve last finalized block number",
+					);
+					// We assume this is a spurious error so we'll move forward with an
+					// empty ancestry.
+					Vec::new()
+				},
+			};
+
+			// Ancestors block numbers are consecutive in the descending order.
+			let earliest_block_number = activated.number - ancestors.len() as u32;
+			let block_numbers = (earliest_block_number..=activated.number).rev();
+
+			let block_hashes = std::iter::once(activated.hash).chain(ancestors);
+			for (block_num, block_hash) in block_numbers.zip(block_hashes) {
+				// Get included events:
+				let included = get_candidate_events(sender, block_hash)
+					.await?
+					.into_iter()
+					.filter_map(|ev| match ev {
+						CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
+						_ => None,
+					});
+				for receipt in included {
+					let candidate_hash = receipt.hash();
+					self.included_candidates.insert(candidate_hash);
+					self.candidates_by_block_number
+						.entry(block_num)
+						.or_default()
+						.insert(candidate_hash);
+				}
 			}
+
+			self.last_observed_blocks.put(activated.hash, ());
 		}
 
 		Ok(())
@@ -204,6 +264,102 @@ impl OrderingProvider {
 			self.included_candidates.remove(&finalized_candidate);
 		}
 	}
+
+	/// Returns ancestors of `head` in the descending order, stopping
+	/// either at the block present in cache or at `target_ancestor`.
+	///
+	/// Suited specifically for querying non-finalized chains, thus
+	/// doesn't rely on block numbers.
+	///
+	/// Both `head` and last are **not** included in the result.
+	pub async fn get_block_ancestors<Sender: SubsystemSender>(
+		sender: &mut Sender,
+		mut head: Hash,
+		mut head_number: BlockNumber,
+		target_ancestor: BlockNumber,
+		lookup_cache: &mut LruCache<Hash, ()>,
+	) -> Result<Vec<Hash>> {
+		let mut ancestors = Vec::new();
+
+		if lookup_cache.get(&head).is_some() || head_number <= target_ancestor {
+			return Ok(ancestors)
+		}
+
+		loop {
+			let (tx, rx) = oneshot::channel();
+			let hashes = {
+				sender
+					.send_message(
+						ChainApiMessage::Ancestors {
+							hash: head,
+							k: Self::ANCESTRY_CHUNK_SIZE,
+							response_channel: tx,
+						}
+						.into(),
+					)
+					.await;
+
+				rx.await
+					.or(Err(FatalError::ChainApiSenderDropped))?
+					.map_err(FatalError::ChainApiAncestors)?
+			};
+
+			let earliest_block_number = match head_number.checked_sub(hashes.len() as u32) {
+				Some(number) => number,
+				None => {
+					// It's assumed that it's impossible to retrieve
+					// more than N ancestors for block number N.
+					tracing::error!(
+						target: LOG_TARGET,
+						"Received {} ancestors for block number {} from Chain API",
+						hashes.len(),
+						head_number,
+					);
+					return Ok(ancestors)
+				},
+			};
+			// The reversed order is parent, grandparent, etc. excluding the head.
+			let block_numbers = (earliest_block_number..head_number).rev();
+
+			for (block_number, hash) in block_numbers.zip(&hashes) {
+				// Return if we either met target/cached block or
+				// hit the size limit for the returned ancestry of head.
+				if lookup_cache.get(hash).is_some() ||
+					block_number <= target_ancestor ||
+					ancestors.len() >= Self::ANCESTRY_SIZE_LIMIT
+				{
+					return Ok(ancestors)
+				}
+
+				ancestors.push(*hash);
+			}
+
+			match hashes.last() {
+				Some(last_hash) => {
+					head = *last_hash;
+					head_number = earliest_block_number;
+				},
+				None => break,
+			}
+		}
+		return Ok(ancestors)
+	}
+}
+
+async fn send_message_fatal<Sender, Response>(
+	sender: &mut Sender,
+	message: ChainApiMessage,
+	receiver: oneshot::Receiver<std::result::Result<Response, ChainApiError>>,
+) -> FatalResult<Response>
+where
+	Sender: SubsystemSender,
+{
+	sender.send_message(message.into()).await;
+
+	receiver
+		.await
+		.map_err(|_| FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApiAncestors)
 }
 
 async fn get_block_number(
@@ -211,9 +367,12 @@ async fn get_block_number(
 	relay_parent: Hash,
 ) -> FatalResult<Option<BlockNumber>> {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx).into()).await;
+	send_message_fatal(sender, ChainApiMessage::BlockNumber(relay_parent, tx), rx).await
+}
 
-	rx.await
-		.map_err(|_| Fatal::CanceledBlockNumber)?
-		.map_err(Fatal::ChainApiBlockNumber)
+pub async fn get_finalized_block_number(
+	sender: &mut impl SubsystemSender,
+) -> FatalResult<BlockNumber> {
+	let (number_tx, number_rx) = oneshot::channel();
+	send_message_fatal(sender, ChainApiMessage::FinalizedBlockNumber(number_tx), number_rx).await
 }

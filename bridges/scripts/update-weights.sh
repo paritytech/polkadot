@@ -29,3 +29,15 @@ time cargo run --release -p rialto-bridge-node --features=runtime-benchmarks -- 
 	--heap-pages=4096 \
 	--output=./modules/grandpa/src/weights.rs \
 	--template=./.maintain/rialto-weight-template.hbs
+
+time cargo run --release -p millau-bridge-node --features=runtime-benchmarks -- benchmark \
+	--chain=dev \
+	--steps=50 \
+	--repeat=20 \
+	--pallet=pallet_bridge_token_swap \
+	--extrinsic=* \
+	--execution=wasm \
+	--wasm-execution=Compiled \
+	--heap-pages=4096 \
+	--output=./modules/token-swap/src/weights.rs \
+	--template=./.maintain/millau-weight-template.hbs

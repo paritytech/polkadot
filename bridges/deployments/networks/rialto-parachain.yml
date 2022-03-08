@@ -1,0 +1,90 @@
+# Compose file for quickly spinning up a local instance of the Rialto Parachain network.
+#
+# Since Rialto Parachain is unusable without Rialto, this file depends on some Rialto
+# network nodes.
+version: '3.5'
+services:
+  rialto-parachain-collator-alice: &rialto-parachain-collator
+    image: paritytech/rialto-parachain-collator
+    entrypoint: >
+      /home/user/rialto-parachain-collator
+      --alice
+      --collator
+      --force-authoring
+      --parachain-id 2000
+      --rpc-port 9933
+      --ws-port 9944
+      --rpc-cors=all
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --
+      --execution wasm
+      --chain /rialto-share/rialto-relaychain-spec-raw.json
+      --rpc-port 9934
+      --ws-port 9945
+    volumes:
+      - rialto-share:/rialto-share:z
+    environment:
+      RUST_LOG: runtime=trace,rpc=trace,txpool=trace,parachain=trace,parity_ws=trace
+    depends_on:
+      - rialto-chainspec-exporter
+    ports:
+      - "20433:9933"
+      - "20444:9944"
+
+  rialto-parachain-collator-bob:
+    <<: *rialto-parachain-collator
+    entrypoint: >
+      /home/user/rialto-parachain-collator
+      --bob
+      --collator
+      --force-authoring
+      --parachain-id 2000
+      --rpc-port 9933
+      --ws-port 9944
+      --rpc-cors=all
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --
+      --execution wasm
+      --chain /rialto-share/rialto-relaychain-spec-raw.json
+      --rpc-port 9934
+      --ws-port 9945
+    ports:
+      - "20533:9933"
+      - "20544:9944"
+
+  rialto-parachain-collator-charlie:
+    <<: *rialto-parachain-collator
+    entrypoint: >
+      /home/user/rialto-parachain-collator
+      --charlie
+      --collator
+      --force-authoring
+      --parachain-id 2000
+      --rpc-port 9933
+      --ws-port 9944
+      --rpc-cors=all
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --
+      --execution wasm
+      --chain /rialto-share/rialto-relaychain-spec-raw.json
+      --rpc-port 9934
+      --ws-port 9945
+    ports:
+      - "20633:9933"
+      - "20644:9944"
+
+  rialto-parachain-registrar:
+    image: paritytech/substrate-relay
+    entrypoint: /entrypoints/rialto-parachain-registrar-entrypoint.sh
+    volumes:
+      - ./networks/entrypoints:/entrypoints
+      - rialto-share:/rialto-share:z
+    environment:
+      RUST_LOG: bridge=trace
+    depends_on:
+      - rialto-node-alice
+      - rialto-parachain-collator-alice
+

@@ -28,6 +28,10 @@ use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
+fn dummy_signature() -> polkadot_primitives::v1::ValidatorSignature {
+	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
+}
+
 fn test_harness<T: Future<Output = VirtualOverseer>>(
 	mut state: State,
 	test_fn: impl FnOnce(VirtualOverseer) -> T,
@@ -470,7 +474,7 @@ fn import_approval_happy_path() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, &peer_b, msg).await;
@@ -537,7 +541,7 @@ fn import_approval_bad() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, &peer_b, msg).await;
@@ -867,7 +871,7 @@ fn import_remotely_then_locally() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, peer, msg).await;
@@ -922,7 +926,7 @@ fn sends_assignments_even_when_state_is_approved() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 
 		overseer_send(

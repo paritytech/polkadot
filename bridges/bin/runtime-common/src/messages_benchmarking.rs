@@ -20,8 +20,8 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use crate::messages::{
-	source::FromBridgedChainMessagesDeliveryProof, target::FromBridgedChainMessagesProof, AccountIdOf, BalanceOf,
-	BridgedChain, HashOf, MessageBridge, ThisChain,
+	source::FromBridgedChainMessagesDeliveryProof, target::FromBridgedChainMessagesProof,
+	AccountIdOf, BalanceOf, BridgedChain, HashOf, MessageBridge, ThisChain,
 };
 
 use bp_messages::{LaneId, MessageData, MessageKey, MessagePayload};
@@ -29,13 +29,16 @@ use bp_runtime::ChainId;
 use codec::Encode;
 use ed25519_dalek::{PublicKey, SecretKey, Signer, KEYPAIR_LENGTH, SECRET_KEY_LENGTH};
 use frame_support::weights::Weight;
-use pallet_bridge_messages::benchmarking::{MessageDeliveryProofParams, MessageProofParams, ProofSize};
+use pallet_bridge_messages::benchmarking::{
+	MessageDeliveryProofParams, MessageProofParams, ProofSize,
+};
 use sp_core::Hasher;
 use sp_runtime::traits::Header;
 use sp_std::prelude::*;
-use sp_trie::{record_all_keys, trie_types::TrieDBMut, Layout, MemoryDB, Recorder, TrieMut};
+use sp_trie::{record_all_keys, trie_types::TrieDBMutV1, LayoutV1, MemoryDB, Recorder, TrieMut};
 
-/// Generate ed25519 signature to be used in `pallet_brdige_call_dispatch::CallOrigin::TargetAccount`.
+/// Generate ed25519 signature to be used in
+/// `pallet_brdige_call_dispatch::CallOrigin::TargetAccount`.
 ///
 /// Returns public key of the signer and the signature itself.
 pub fn ed25519_sign(
@@ -47,8 +50,8 @@ pub fn ed25519_sign(
 ) -> ([u8; 32], [u8; 64]) {
 	// key from the repo example (https://docs.rs/ed25519-dalek/1.0.1/ed25519_dalek/struct.SecretKey.html)
 	let target_secret = SecretKey::from_bytes(&[
-		157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068, 073, 197, 105, 123, 050,
-		105, 025, 112, 059, 172, 003, 028, 174, 127, 096,
+		157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068, 073,
+		197, 105, 123, 050, 105, 025, 112, 059, 172, 003, 028, 174, 127, 096,
 	])
 	.expect("harcoded key is valid");
 	let target_public: PublicKey = (&target_secret).into();
@@ -56,7 +59,8 @@ pub fn ed25519_sign(
 	let mut target_pair_bytes = [0u8; KEYPAIR_LENGTH];
 	target_pair_bytes[..SECRET_KEY_LENGTH].copy_from_slice(&target_secret.to_bytes());
 	target_pair_bytes[SECRET_KEY_LENGTH..].copy_from_slice(&target_public.to_bytes());
-	let target_pair = ed25519_dalek::Keypair::from_bytes(&target_pair_bytes).expect("hardcoded pair is valid");
+	let target_pair =
+		ed25519_dalek::Keypair::from_bytes(&target_pair_bytes).expect("hardcoded pair is valid");
 
 	let signature_message = pallet_bridge_dispatch::account_ownership_digest(
 		target_call,
@@ -92,23 +96,17 @@ where
 	MH: Fn(H::Out) -> <R::BridgedChain as bp_runtime::Chain>::Header,
 {
 	// prepare Bridged chain storage with messages and (optionally) outbound lane state
-	let message_count = params
-		.message_nonces
-		.end()
-		.saturating_sub(*params.message_nonces.start())
-		+ 1;
+	let message_count =
+		params.message_nonces.end().saturating_sub(*params.message_nonces.start()) + 1;
 	let mut storage_keys = Vec::with_capacity(message_count as usize + 1);
 	let mut root = Default::default();
 	let mut mdb = MemoryDB::default();
 	{
-		let mut trie = TrieDBMut::<H>::new(&mut mdb, &mut root);
+		let mut trie = TrieDBMutV1::<H>::new(&mut mdb, &mut root);
 
 		// insert messages
 		for nonce in params.message_nonces.clone() {
-			let message_key = MessageKey {
-				lane_id: params.lane,
-				nonce,
-			};
+			let message_key = MessageKey { lane_id: params.lane, nonce };
 			let message_data = MessageData {
 				fee: BalanceOf::<BridgedChain<B>>::from(0),
 				payload: message_payload.clone(),
@@ -133,7 +131,7 @@ where
 
 	// generate storage proof to be delivered to This chain
 	let mut proof_recorder = Recorder::<H::Out>::new();
-	record_all_keys::<Layout<H>, _>(&mdb, &root, &mut proof_recorder)
+	record_all_keys::<LayoutV1<H>, _>(&mdb, &root, &mut proof_recorder)
 		.map_err(|_| "record_all_keys has failed")
 		.expect("record_all_keys should not fail in benchmarks");
 	let storage_proof = proof_recorder.drain().into_iter().map(|n| n.data.to_vec()).collect();
@@ -177,7 +175,7 @@ where
 	let mut root = Default::default();
 	let mut mdb = MemoryDB::default();
 	{
-		let mut trie = TrieDBMut::<H>::new(&mut mdb, &mut root);
+		let mut trie = TrieDBMutV1::<H>::new(&mut mdb, &mut root);
 		trie.insert(&storage_key, &params.inbound_lane_data.encode())
 			.map_err(|_| "TrieMut::insert has failed")
 			.expect("TrieMut::insert should not fail in benchmarks");
@@ -186,7 +184,7 @@ where
 
 	// generate storage proof to be delivered to This chain
 	let mut proof_recorder = Recorder::<H::Out>::new();
-	record_all_keys::<Layout<H>, _>(&mdb, &root, &mut proof_recorder)
+	record_all_keys::<LayoutV1<H>, _>(&mdb, &root, &mut proof_recorder)
 		.map_err(|_| "record_all_keys has failed")
 		.expect("record_all_keys should not fail in benchmarks");
 	let storage_proof = proof_recorder.drain().into_iter().map(|n| n.data.to_vec()).collect();
@@ -211,19 +209,19 @@ fn grow_trie<H: Hasher>(mut root: H::Out, mdb: &mut MemoryDB<H>, trie_size: Proo
 		ProofSize::HasExtraNodes(size) => (8, 1, size),
 	};
 
-	let mut key_index = 0;
+	let mut key_index = 0u32;
 	loop {
 		// generate storage proof to be delivered to This chain
 		let mut proof_recorder = Recorder::<H::Out>::new();
-		record_all_keys::<Layout<H>, _>(mdb, &root, &mut proof_recorder)
+		record_all_keys::<LayoutV1<H>, _>(mdb, &root, &mut proof_recorder)
 			.map_err(|_| "record_all_keys has failed")
 			.expect("record_all_keys should not fail in benchmarks");
 		let size: usize = proof_recorder.drain().into_iter().map(|n| n.data.len()).sum();
 		if size > minimal_trie_size as _ {
-			return root;
+			return root
 		}
 
-		let mut trie = TrieDBMut::<H>::from_existing(mdb, &mut root)
+		let mut trie = TrieDBMutV1::<H>::from_existing(mdb, &mut root)
 			.map_err(|_| "TrieDBMut::from_existing has failed")
 			.expect("TrieDBMut::from_existing should not fail in benchmarks");
 		for _ in 0..iterations {

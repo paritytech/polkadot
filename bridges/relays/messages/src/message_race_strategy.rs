@@ -17,7 +17,9 @@
 //! 2) new nonces may be proved to target node (i.e. they have appeared at the
 //!    block, which is known to the target node).
 
-use crate::message_race_loop::{NoncesRange, RaceState, RaceStrategy, SourceClientNonces, TargetClientNonces};
+use crate::message_race_loop::{
+	NoncesRange, RaceState, RaceStrategy, SourceClientNonces, TargetClientNonces,
+};
 
 use async_trait::async_trait;
 use bp_messages::MessageNonce;
@@ -40,15 +42,29 @@ pub struct BasicStrategy<
 > {
 	/// All queued nonces.
 	source_queue: SourceRangesQueue<SourceHeaderHash, SourceHeaderNumber, SourceNoncesRange>,
-	/// Best nonce known to target node (at its best block). `None` if it has not been received yet.
+	/// The best nonce known to target node (at its best block). `None` if it has not been received
+	/// yet.
 	best_target_nonce: Option<MessageNonce>,
 	/// Unused generic types dump.
 	_phantom: PhantomData<(TargetHeaderNumber, TargetHeaderHash, Proof)>,
 }
 
-impl<SourceHeaderNumber, SourceHeaderHash, TargetHeaderNumber, TargetHeaderHash, SourceNoncesRange, Proof>
-	BasicStrategy<SourceHeaderNumber, SourceHeaderHash, TargetHeaderNumber, TargetHeaderHash, SourceNoncesRange, Proof>
-where
+impl<
+		SourceHeaderNumber,
+		SourceHeaderHash,
+		TargetHeaderNumber,
+		TargetHeaderHash,
+		SourceNoncesRange,
+		Proof,
+	>
+	BasicStrategy<
+		SourceHeaderNumber,
+		SourceHeaderHash,
+		TargetHeaderNumber,
+		TargetHeaderHash,
+		SourceNoncesRange,
+		Proof,
+	> where
 	SourceHeaderHash: Clone,
 	SourceHeaderNumber: Clone + Ord,
 	SourceNoncesRange: NoncesRange,
@@ -79,9 +95,9 @@ where
 
 	/// Returns index of the latest source queue entry, that may be delivered to the target node.
 	///
-	/// Returns `None` if no entries may be delivered. All entries before and including the `Some(_)`
-	/// index are guaranteed to be witnessed at source blocks that are known to be finalized at the
-	/// target node.
+	/// Returns `None` if no entries may be delivered. All entries before and including the
+	/// `Some(_)` index are guaranteed to be witnessed at source blocks that are known to be
+	/// finalized at the target node.
 	pub fn maximal_available_source_queue_index(
 		&self,
 		race_state: RaceState<
@@ -95,12 +111,12 @@ where
 
 		// if we have already selected nonces that we want to submit, do nothing
 		if race_state.nonces_to_submit.is_some() {
-			return None;
+			return None
 		}
 
 		// if we already submitted some nonces, do nothing
 		if race_state.nonces_submitted.is_some() {
-			return None;
+			return None
 		}
 
 		// 1) we want to deliver all nonces, starting from `target_nonce + 1`
@@ -124,17 +140,34 @@ where
 		while let Some((queued_at, queued_range)) = self.source_queue.pop_front() {
 			if let Some(range_to_requeue) = queued_range.greater_than(nonce) {
 				self.source_queue.push_front((queued_at, range_to_requeue));
-				break;
+				break
 			}
 		}
 	}
 }
 
 #[async_trait]
-impl<SourceHeaderNumber, SourceHeaderHash, TargetHeaderNumber, TargetHeaderHash, SourceNoncesRange, Proof>
-	RaceStrategy<HeaderId<SourceHeaderHash, SourceHeaderNumber>, HeaderId<TargetHeaderHash, TargetHeaderNumber>, Proof>
-	for BasicStrategy<SourceHeaderNumber, SourceHeaderHash, TargetHeaderNumber, TargetHeaderHash, SourceNoncesRange, Proof>
-where
+impl<
+		SourceHeaderNumber,
+		SourceHeaderHash,
+		TargetHeaderNumber,
+		TargetHeaderHash,
+		SourceNoncesRange,
+		Proof,
+	>
+	RaceStrategy<
+		HeaderId<SourceHeaderHash, SourceHeaderNumber>,
+		HeaderId<TargetHeaderHash, TargetHeaderNumber>,
+		Proof,
+	>
+	for BasicStrategy<
+		SourceHeaderNumber,
+		SourceHeaderHash,
+		TargetHeaderNumber,
+		TargetHeaderHash,
+		SourceNoncesRange,
+		Proof,
+	> where
 	SourceHeaderHash: Clone + Debug + Send,
 	SourceHeaderNumber: Clone + Ord + Debug + Send,
 	SourceNoncesRange: NoncesRange + Debug + Send,
@@ -162,7 +195,8 @@ where
 	fn best_at_source(&self) -> Option<MessageNonce> {
 		let best_in_queue = self.source_queue.back().map(|(_, range)| range.end());
 		match (best_in_queue, self.best_target_nonce) {
-			(Some(best_in_queue), Some(best_target_nonce)) if best_in_queue > best_target_nonce => Some(best_in_queue),
+			(Some(best_in_queue), Some(best_target_nonce)) if best_in_queue > best_target_nonce =>
+				Some(best_in_queue),
 			(_, Some(best_target_nonce)) => Some(best_target_nonce),
 			(_, None) => None,
 		}
@@ -205,18 +239,17 @@ where
 
 		if let Some(best_target_nonce) = self.best_target_nonce {
 			if nonce < best_target_nonce {
-				return;
+				return
 			}
 		}
 
 		while let Some(true) = self.source_queue.front().map(|(_, range)| range.begin() <= nonce) {
-			let maybe_subrange = self
-				.source_queue
-				.pop_front()
-				.and_then(|(at_block, range)| range.greater_than(nonce).map(|subrange| (at_block, subrange)));
+			let maybe_subrange = self.source_queue.pop_front().and_then(|(at_block, range)| {
+				range.greater_than(nonce).map(|subrange| (at_block, subrange))
+			});
 			if let Some((at_block, subrange)) = maybe_subrange {
 				self.source_queue.push_front((at_block, subrange));
-				break;
+				break
 			}
 		}
 
@@ -238,10 +271,8 @@ where
 			race_state.nonces_submitted = None;
 		}
 
-		self.best_target_nonce = Some(std::cmp::max(
-			self.best_target_nonce.unwrap_or(nonces.latest_nonce),
-			nonce,
-		));
+		self.best_target_nonce =
+			Some(std::cmp::max(self.best_target_nonce.unwrap_or(nonces.latest_nonce), nonce));
 	}
 
 	fn finalized_target_nonces_updated(
@@ -278,9 +309,12 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::message_lane::MessageLane;
-	use crate::message_lane_loop::tests::{
-		header_id, TestMessageLane, TestMessagesProof, TestSourceHeaderHash, TestSourceHeaderNumber,
+	use crate::{
+		message_lane::MessageLane,
+		message_lane_loop::tests::{
+			header_id, TestMessageLane, TestMessagesProof, TestSourceHeaderHash,
+			TestSourceHeaderNumber,
+		},
 	};
 
 	type SourceNoncesRange = RangeInclusive<MessageNonce>;
@@ -295,17 +329,11 @@ mod tests {
 	>;
 
 	fn source_nonces(new_nonces: SourceNoncesRange) -> SourceClientNonces<SourceNoncesRange> {
-		SourceClientNonces {
-			new_nonces,
-			confirmed_nonce: None,
-		}
+		SourceClientNonces { new_nonces, confirmed_nonce: None }
 	}
 
 	fn target_nonces(latest_nonce: MessageNonce) -> TargetClientNonces<()> {
-		TargetClientNonces {
-			latest_nonce,
-			nonces_data: (),
-		}
+		TargetClientNonces { latest_nonce, nonces_data: () }
 	}
 
 	#[test]
@@ -420,18 +448,12 @@ mod tests {
 		strategy.source_nonces_updated(header_id(5), source_nonces(7..=8));
 
 		state.best_finalized_source_header_id_at_best_target = Some(header_id(4));
-		assert_eq!(
-			strategy.select_nonces_to_deliver(state.clone()).await,
-			Some((1..=6, ()))
-		);
+		assert_eq!(strategy.select_nonces_to_deliver(state.clone()).await, Some((1..=6, ())));
 		strategy.best_target_nonces_updated(target_nonces(6), &mut state);
 		assert_eq!(strategy.select_nonces_to_deliver(state.clone()).await, None);
 
 		state.best_finalized_source_header_id_at_best_target = Some(header_id(5));
-		assert_eq!(
-			strategy.select_nonces_to_deliver(state.clone()).await,
-			Some((7..=8, ()))
-		);
+		assert_eq!(strategy.select_nonces_to_deliver(state.clone()).await, Some((7..=8, ())));
 		strategy.best_target_nonces_updated(target_nonces(8), &mut state);
 		assert_eq!(strategy.select_nonces_to_deliver(state.clone()).await, None);
 	}
@@ -471,16 +493,17 @@ mod tests {
 		strategy.source_nonces_updated(header_id(3), source_nonces(7..=9));
 
 		fn source_queue_nonces(
-			source_queue: &SourceRangesQueue<TestSourceHeaderHash, TestSourceHeaderNumber, SourceNoncesRange>,
+			source_queue: &SourceRangesQueue<
+				TestSourceHeaderHash,
+				TestSourceHeaderNumber,
+				SourceNoncesRange,
+			>,
 		) -> Vec<MessageNonce> {
 			source_queue.iter().flat_map(|(_, range)| range.clone()).collect()
 		}
 
 		strategy.remove_le_nonces_from_source_queue(1);
-		assert_eq!(
-			source_queue_nonces(&strategy.source_queue),
-			vec![2, 3, 4, 5, 6, 7, 8, 9],
-		);
+		assert_eq!(source_queue_nonces(&strategy.source_queue), vec![2, 3, 4, 5, 6, 7, 8, 9],);
 
 		strategy.remove_le_nonces_from_source_queue(5);
 		assert_eq!(source_queue_nonces(&strategy.source_queue), vec![6, 7, 8, 9]);

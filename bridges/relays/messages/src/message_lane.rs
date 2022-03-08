@@ -21,7 +21,8 @@
 
 use num_traits::{SaturatingAdd, Zero};
 use relay_utils::{BlockNumberBase, HeaderId};
-use std::fmt::Debug;
+use sp_arithmetic::traits::AtLeast32BitUnsigned;
+use std::{fmt::Debug, ops::Sub};
 
 /// One-way message lane.
 pub trait MessageLane: 'static + Clone + Send + Sync {
@@ -40,7 +41,16 @@ pub trait MessageLane: 'static + Clone + Send + Sync {
 	/// 1) pay transaction fees;
 	/// 2) pay message delivery and dispatch fee;
 	/// 3) pay relayer rewards.
-	type SourceChainBalance: Clone + Copy + Debug + PartialOrd + SaturatingAdd + Zero + Send + Sync;
+	type SourceChainBalance: AtLeast32BitUnsigned
+		+ Clone
+		+ Copy
+		+ Debug
+		+ PartialOrd
+		+ Sub<Output = Self::SourceChainBalance>
+		+ SaturatingAdd
+		+ Zero
+		+ Send
+		+ Sync;
 	/// Number of the source header.
 	type SourceHeaderNumber: BlockNumberBase;
 	/// Hash of the source header.
@@ -53,7 +63,9 @@ pub trait MessageLane: 'static + Clone + Send + Sync {
 }
 
 /// Source header id within given one-way message lane.
-pub type SourceHeaderIdOf<P> = HeaderId<<P as MessageLane>::SourceHeaderHash, <P as MessageLane>::SourceHeaderNumber>;
+pub type SourceHeaderIdOf<P> =
+	HeaderId<<P as MessageLane>::SourceHeaderHash, <P as MessageLane>::SourceHeaderNumber>;
 
 /// Target header id within given one-way message lane.
-pub type TargetHeaderIdOf<P> = HeaderId<<P as MessageLane>::TargetHeaderHash, <P as MessageLane>::TargetHeaderNumber>;
+pub type TargetHeaderIdOf<P> =
+	HeaderId<<P as MessageLane>::TargetHeaderHash, <P as MessageLane>::TargetHeaderNumber>;

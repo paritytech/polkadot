@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+git_source(:github) { |repo_name| "https://github.com/#{repo_name}" }
+
+gem 'octokit', '~> 4'
+
+gem 'git_diff_parser', '~> 3'
+
+gem 'toml', '~> 0.3.0'
+
+gem 'rake', group: :dev
+
+gem 'optparse', '~> 0.1.1'
+
+gem 'logger', '~> 1.4'
+
+gem 'test-unit', group: :dev
+
+gem 'rubocop', group: :dev, require: false

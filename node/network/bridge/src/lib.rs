@@ -167,7 +167,7 @@ impl metrics::Metrics for Metrics {
 			peer_count: prometheus::register(
 				prometheus::GaugeVec::new(
 					prometheus::Opts::new(
-						"parachain_peer_count",
+						"polkadot_parachain_peer_count",
 						"The number of peers on a parachain-related peer-set",
 					),
 					&["protocol"]
@@ -177,7 +177,7 @@ impl metrics::Metrics for Metrics {
 			connected_events: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_peer_connect_events_total",
+						"polkadot_parachain_peer_connect_events_total",
 						"The number of peer connect events on a parachain notifications protocol",
 					),
 					&["protocol"]
@@ -187,7 +187,7 @@ impl metrics::Metrics for Metrics {
 			disconnected_events: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_peer_disconnect_events_total",
+						"polkadot_parachain_peer_disconnect_events_total",
 						"The number of peer disconnect events on a parachain notifications protocol",
 					),
 					&["protocol"]
@@ -197,7 +197,7 @@ impl metrics::Metrics for Metrics {
 			desired_peer_count: prometheus::register(
 				prometheus::GaugeVec::new(
 					prometheus::Opts::new(
-						"parachain_desired_peer_count",
+						"polkadot_parachain_desired_peer_count",
 						"The number of peers that the local node is expected to connect to on a parachain-related peer-set (either including or not including unresolvable authorities, depending on whether `ConnectToValidators` or `ConnectToValidatorsResolved` was used.)",
 					),
 					&["protocol"]
@@ -207,7 +207,7 @@ impl metrics::Metrics for Metrics {
 			notifications_received: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_notifications_received_total",
+						"polkadot_parachain_notifications_received_total",
 						"The number of notifications received on a parachain protocol",
 					),
 					&["protocol"]
@@ -217,7 +217,7 @@ impl metrics::Metrics for Metrics {
 			notifications_sent: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_notifications_sent_total",
+						"polkadot_parachain_notifications_sent_total",
 						"The number of notifications sent on a parachain protocol",
 					),
 					&["protocol"]
@@ -227,7 +227,7 @@ impl metrics::Metrics for Metrics {
 			bytes_received: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_notification_bytes_received_total",
+						"polkadot_parachain_notification_bytes_received_total",
 						"The number of bytes received on a parachain notification protocol",
 					),
 					&["protocol"]
@@ -237,7 +237,7 @@ impl metrics::Metrics for Metrics {
 			bytes_sent: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_notification_bytes_sent_total",
+						"polkadot_parachain_notification_bytes_sent_total",
 						"The number of bytes sent on a parachain notification protocol",
 					),
 					&["protocol"]

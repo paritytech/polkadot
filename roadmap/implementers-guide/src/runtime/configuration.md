@@ -12,29 +12,51 @@ The configuration module is responsible for two main pieces of storage.
 /// The current configuration to be used.
 Configuration: HostConfiguration;
 /// A pending configuration to be applied on session change.
-PendingConfiguration: Option<HostConfiguration>;
+PendingConfigs: Vec<(SessionIndex, HostConfiguration)>;
+/// A flag that says if the consistency checks should be omitted.
+BypassConsistencyCheck: bool;
 ```
 
 ## Session change
 
-The session change routine for the Configuration module is simple. If the `PendingConfiguration` is `Some`, take its value and set `Configuration` to be equal to it. Reset `PendingConfiguration` to `None`.
+The session change routine works as follows:
+
+- If there is no pending configurations, then return early.
+- Take all pending configurations that are less than or equal to the current session index.
+  - Get the pending configuration with the highest session index and apply it to the current configuration. Discard the earlier ones if any.
 
 ## Routines
 
 ```rust
+enum InconsistentErrror {
+  // ...
+}
+
+impl HostConfiguration {
+  fn check_consistency(&self) -> Result<(), InconsistentError> { /* ... */ }
+}
+
 /// Get the host configuration.
 pub fn configuration() -> HostConfiguration {
   Configuration::get()
 }
 
-/// Updating the pending configuration to be applied later.
-fn update_configuration(f: impl FnOnce(&mut HostConfiguration)) {
-  PendingConfiguration::mutate(|pending| {
-    let mut x = pending.unwrap_or_else(Self::configuration);
-    f(&mut x);
-    *pending = Some(x);
-  })
-}
+/// Schedules updating the host configuration. The update is given by the `updater` closure. The 
+/// closure takes the current version of the configuration and returns the new version. 
+/// Returns an `Err` if the closure returns a broken configuration. However, there are a couple of 
+/// exceptions: 
+///
+/// - if the configuration that was passed in the closure is already broken, then it will pass the 
+/// update: you cannot break something that is already broken.
+/// - If the `BypassConsistencyCheck` flag is set, then the checks will be skipped.
+///
+/// The changes made by this function will always be scheduled at session X, where X is the current session index + 2.
+/// If there is already a pending update for X, then the closure will receive the already pending configuration for 
+/// session X.
+///
+/// If there is already a pending update for the current session index + 1, then it won't be touched. Otherwise,
+/// that would violate the promise of this function that changes will be applied on the second session change (cur + 2).
+fn schedule_config_update(updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>)) -> DispatchResult
 ```
 
 ## Entry-points

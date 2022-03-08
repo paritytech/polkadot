@@ -354,7 +354,7 @@ Both conditions are verified by `pallet_bridge_messages::ensure_weights_are_corr
 `pallet_bridge_messages::ensure_able_to_receive_messages` functions, which must be called from every
 runtime's tests.
 
-### Post-dispatch weight refunds of the `receive_messages_proof` call
+#### Post-dispatch weight refunds of the `receive_messages_proof` call
 
 Weight formula of the `receive_messages_proof` call assumes that the dispatch fee of every message is
 paid at the target chain (where call is executed), that every message will be dispatched and that
@@ -388,6 +388,7 @@ The weight formula is:
 Weight = BaseWeight + MessagesCount * MessageConfirmationWeight
        + RelayersCount * RelayerRewardWeight
        + Max(0, ActualProofSize - ExpectedProofSize) * ProofByteDeliveryWeight
+       + MessagesCount * (DbReadWeight + DbWriteWeight)
 ```
 
 Where:
@@ -402,6 +403,15 @@ Where:
 | `ActualProofSize`         |                                                                                                                       | Provided by relayer                                                                                                                                                                                     |
 | `ExpectedProofSize`       | `EXTRA_STORAGE_PROOF_SIZE`                                                                                            | Size of proof that we are expecting                                                                                                                                                                     |
 | `ProofByteDeliveryWeight` | `(receive_single_message_proof_16_kb - receive_single_message_proof_1_kb) / (15 * 1024)`                              | Weight of processing every additional proof byte over `ExpectedProofSize` limit. We're using the same formula, as for message delivery, because proof mechanism is assumed to be the same in both cases |
+
+#### Post-dispatch weight refunds of the `receive_messages_delivery_proof` call
+
+Weight formula of the `receive_messages_delivery_proof` call assumes that all messages in the proof
+are actually delivered (so there are no already confirmed messages) and every messages is processed
+by the `OnDeliveryConfirmed` callback. This means that for every message, we're adding single db read
+weight and single db write weight. If, by some reason, messages are not processed by the
+`OnDeliveryConfirmed` callback, or their processing is faster than that additional weight, the
+difference is refunded to the submitter.
 
 #### Why we're always able to craft `receive_messages_delivery_proof` transaction?
 

@@ -4,7 +4,7 @@
 #
 # To deploy a network you can run this script with the name of the bridge (or multiple bridges) you want to run.
 #
-# `./run.sh poa-rialto rialto-millau`
+# `./run.sh westend-millau rialto-millau`
 #
 # To update a deployment to use the latest images available from the Docker Hub add the `update`
 # argument after the bridge name.
@@ -30,22 +30,22 @@ function show_help () {
   echo Error: $1
   echo " "
   echo "Usage:"
-  echo "  ./run.sh poa-rialto [stop|update]          Run PoA <> Rialto Networks & Bridge"
   echo "  ./run.sh rialto-millau [stop|update]       Run Rialto <> Millau Networks & Bridge"
   echo "  ./run.sh westend-millau [stop|update]      Run Westend -> Millau Networks & Bridge"
   echo " "
   echo "Options:"
   echo "  --no-monitoring                            Disable monitoring"
+  echo "  --no-ui                                    Disable UI"
   echo " "
   echo "You can start multiple bridges at once by passing several bridge names:"
-  echo "  ./run.sh poa-rialto rialto-millau westend-millau [stop|update]"
+  echo "  ./run.sh rialto-millau westend-millau [stop|update]"
   exit 1
 }
 
-RIALTO=' -f ./networks/rialto.yml'
+RIALTO=' -f ./networks/rialto.yml -f ./networks/rialto-parachain.yml'
 MILLAU=' -f ./networks/millau.yml'
-ETH_POA=' -f ./networks/eth-poa.yml'
 MONITORING=' -f ./monitoring/docker-compose.yml'
+UI=' -f ./ui/docker-compose.yml'
 
 BRIDGES=()
 NETWORKS=''
@@ -58,13 +58,10 @@ do
       shift
       continue
       ;;
-    poa-rialto)
-      BRIDGES+=($i)
-      NETWORKS+=${RIALTO}
-      RIALTO=''
-      NETWORKS+=${ETH_POA}
-      ETH_POA=''
+    --no-ui)
+      UI=""
       shift
+      continue
       ;;
     rialto-millau)
       BRIDGES+=($i)
@@ -94,7 +91,7 @@ if [ ${#BRIDGES[@]} -eq 0 ]; then
   show_help "Missing bridge name."
 fi
 
-COMPOSE_FILES=$NETWORKS$MONITORING
+COMPOSE_FILES=$NETWORKS$MONITORING$UI
 
 # Compose looks for .env files in the the current directory by default, we don't want that
 COMPOSE_ARGS="--project-directory ."

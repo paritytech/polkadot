@@ -1,0 +1,21 @@
+# Lists some code owners.
+#
+# A codeowner just oversees some part of the codebase. If an owned file is changed then the
+# corresponding codeowner receives a review request. An approval of the codeowner might be
+# required for merging a PR (depends on repository settings).
+#
+# For details about syntax, see:
+# https://help.github.com/en/articles/about-code-owners
+# But here are some important notes:
+#
+# - Glob syntax is git-like, e.g. `/core` means the core directory in the root, unlike `core`
+#   which can be everywhere.
+# - Multiple owners are supported.
+# - Either handle (e.g, @github_user or @github_org/team) or email can be used. Keep in mind,
+#   that handles might work better because they are more recognizable on GitHub,
+#   eyou can use them for mentioning unlike an email.
+# - The latest matching rule, if multiple, takes precedence.
+
+# CI
+/.github/ @paritytech/ci
+/.gitlab-ci.yml @paritytech/ci

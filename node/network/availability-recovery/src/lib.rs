@@ -20,6 +20,7 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
+	convert::TryFrom,
 	pin::Pin,
 	time::Duration,
 };
@@ -35,21 +36,25 @@ use futures::{
 use lru::LruCache;
 use rand::seq::SliceRandom;
 
+use fatality::Nested;
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
 #[cfg(not(test))]
 use polkadot_node_network_protocol::request_response::CHUNK_REQUEST_TIMEOUT;
 use polkadot_node_network_protocol::{
 	request_response::{
-		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
-		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests,
+		self as req_res, outgoing::RequestError, v1 as request_v1, IncomingRequestReceiver,
+		OutgoingRequest, Recipient, Requests,
 	},
 	IfDisconnected, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v1::{
+		AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt,
+		GroupIndex, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use polkadot_subsystem::{
 	errors::RecoveryError,
@@ -565,8 +570,20 @@ const fn is_unavailable(
 }
 
 /// Re-encode the data into erasure chunks in order to verify
-/// the root hash of the provided merkle tree, which is built
+/// the root hash of the provided Merkle tree, which is built
 /// on-top of the encoded chunks.
+///
+/// This (expensive) check is necessary, as otherwise we can't be sure that some chunks won't have
+/// been tampered with by the backers, which would result in some validators considering the data
+/// valid and some invalid as having fetched different set of chunks. The checking of the Merkle
+/// proof for individual chunks only gives us guarantees, that we have fetched a chunk belonging to
+/// a set the backers have committed to.
+///
+/// NOTE: It is fine to do this check with already decoded data, because if the decoding failed for
+/// some validators, we can be sure that chunks have been tampered with (by the backers) or the
+/// data was invalid to begin with. In the former case, validators fetching valid chunks will see
+/// invalid data as well, because the root won't match. In the latter case the situation is the
+/// same for anyone anyways.
 fn reconstructed_data_matches_root(
 	n_validators: usize,
 	expected_root: &Hash,
@@ -686,6 +703,38 @@ impl Future for RecoveryHandle {
 	}
 }
 
+/// Cached result of an availability recovery operation.
+#[derive(Debug, Clone)]
+enum CachedRecovery {
+	/// Availability was successfully retrieved before.
+	Valid(AvailableData),
+	/// Availability was successfully retrieved before, but was found to be invalid.
+	Invalid,
+}
+
+impl CachedRecovery {
+	/// Convert back to	`Result` to deliver responses.
+	fn into_result(self) -> Result<AvailableData, RecoveryError> {
+		match self {
+			Self::Valid(d) => Ok(d),
+			Self::Invalid => Err(RecoveryError::Invalid),
+		}
+	}
+}
+
+impl TryFrom<Result<AvailableData, RecoveryError>> for CachedRecovery {
+	type Error = ();
+	fn try_from(o: Result<AvailableData, RecoveryError>) -> Result<CachedRecovery, Self::Error> {
+		match o {
+			Ok(d) => Ok(Self::Valid(d)),
+			Err(RecoveryError::Invalid) => Ok(Self::Invalid),
+			// We don't want to cache unavailable state, as that state might change, so if
+			// requested again we want to try again!
+			Err(RecoveryError::Unavailable) => Err(()),
+		}
+	}
+}
+
 struct State {
 	/// Each recovery task is implemented as its own async task,
 	/// and these handles are for communicating with them.
@@ -695,7 +744,7 @@ struct State {
 	live_block: (BlockNumber, Hash),
 
 	/// An LRU cache of recently recovered data.
-	availability_lru: LruCache<CandidateHash, Result<AvailableData, RecoveryError>>,
+	availability_lru: LruCache<CandidateHash, CachedRecovery>,
 }
 
 impl Default for State {
@@ -812,8 +861,10 @@ where
 	let span = jaeger::Span::new(candidate_hash, "availbility-recovery")
 		.with_stage(jaeger::Stage::AvailabilityRecovery);
 
-	if let Some(result) = state.availability_lru.get(&candidate_hash) {
-		if let Err(e) = response_sender.send(result.clone()) {
+	if let Some(result) =
+		state.availability_lru.get(&candidate_hash).cloned().map(|v| v.into_result())
+	{
+		if let Err(e) = response_sender.send(result) {
 			tracing::warn!(
 				target: LOG_TARGET,
 				err = ?e,
@@ -942,7 +993,7 @@ impl AvailabilityRecoverySubsystem {
 					}
 				}
 				in_req = recv_req => {
-					match in_req {
+					match in_req.into_nested().map_err(|fatal| SubsystemError::with_origin("availability-recovery", fatal))? {
 						Ok(req) => {
 							match query_full_data(&mut ctx, req.payload.candidate_hash).await {
 								Ok(res) => {
@@ -959,11 +1010,10 @@ impl AvailabilityRecoverySubsystem {
 								}
 							}
 						}
-						Err(incoming::Error::Fatal(f)) => return Err(SubsystemError::with_origin("availability-recovery", f)),
-						Err(incoming::Error::NonFatal(err)) => {
+						Err(jfyi) => {
 							tracing::debug!(
 								target: LOG_TARGET,
-								?err,
+								error = ?jfyi,
 								"Decoding incoming request failed"
 							);
 							continue
@@ -972,7 +1022,9 @@ impl AvailabilityRecoverySubsystem {
 				}
 				output = state.ongoing_recoveries.select_next_some() => {
 					if let Some((candidate_hash, result)) = output {
-						state.availability_lru.put(candidate_hash, result);
+						if let Ok(recovery) = CachedRecovery::try_from(result) {
+							state.availability_lru.put(candidate_hash, recovery);
+						}
 					}
 				}
 			}

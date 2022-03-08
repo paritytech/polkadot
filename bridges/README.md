@@ -6,7 +6,7 @@ These components include Substrate pallets for syncing headers, passing arbitrar
 as libraries for building relayers to provide cross-chain communication capabilities.
 
 Three bridge nodes are also available. The nodes can be used to run test networks which bridge other
-Substrate chains or Ethereum Proof-of-Authority chains.
+Substrate chains.
 
 🚧 The bridges are currently under construction - a hardhat is recommended beyond this point 🚧
 
@@ -37,6 +37,25 @@ cd parity-bridges-common
 cargo build --all
 cargo test --all
 ```
+
+Also you can build the repo with
+[Parity CI Docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/bridges-ci):
+
+```bash
+docker pull paritytech/bridges-ci:production
+mkdir ~/cache
+chown 1000:1000 ~/cache #processes in the container runs as "nonroot" user with UID 1000
+docker run --rm -it -w /shellhere/parity-bridges-common \
+                    -v /home/$(whoami)/cache/:/cache/    \
+                    -v "$(pwd)":/shellhere/parity-bridges-common \
+                    -e CARGO_HOME=/cache/cargo/ \
+                    -e SCCACHE_DIR=/cache/sccache/ \
+                    -e CARGO_TARGET_DIR=/cache/target/  paritytech/bridges-ci:production cargo build --all
+#artifacts can be found in ~/cache/target
+```
+
+If you want to reproduce other steps of CI process you can use the following
+[guide](https://github.com/paritytech/scripts#reproduce-ci-locally).
 
 If you need more information about setting up your development environment Substrate's
 [Getting Started](https://substrate.dev/docs/en/knowledgebase/getting-started/) page is a good
@@ -85,7 +104,6 @@ the `relays` which are used to pass messages between chains.
 ├── diagrams        // Pretty pictures of the project architecture
 │  └──  ...
 ├── modules         // Substrate Runtime Modules (a.k.a Pallets)
-│  ├── ethereum     // Ethereum PoA Header Sync Module
 │  ├── grandpa      // On-Chain GRANDPA Light Client
 │  ├── messages     // Cross Chain Message Passing
 │  ├── dispatch     // Target Chain Message Execution
@@ -102,10 +120,9 @@ the `relays` which are used to pass messages between chains.
 To run the Bridge you need to be able to connect the bridge relay node to the RPC interface of nodes
 on each side of the bridge (source and target chain).
 
-There are 3 ways to run the bridge, described below:
+There are 2 ways to run the bridge, described below:
 
-- building & running from source,
-- building or using Docker images for each individual component,
+- building & running from source
 - running a Docker Compose setup (recommended).
 
 ### Using the Source
@@ -119,88 +136,102 @@ cargo build -p millau-bridge-node
 cargo build -p substrate-relay
 ```
 
-### Running
+### Running a Dev network
 
-To run a simple dev network you'll can use the scripts located in
-[the `deployments/local-scripts` folder](./deployments/local-scripts). Since the relayer connects to
-both Substrate chains it must be run last.
+We will launch a dev network to demonstrate how to relay a message between two Substrate based
+chains (named Rialto and Millau).
+
+To do this we will need two nodes, two relayers which will relay headers, and two relayers which
+will relay messages.
+
+#### Running from local scripts
+
+To run a simple dev network you can use the scripts located in the
+[`deployments/local-scripts` folder](./deployments/local-scripts).
+
+First, we must run the two Substrate nodes.
 
 ```bash
 # In `parity-bridges-common` folder
 ./deployments/local-scripts/run-rialto-node.sh
 ./deployments/local-scripts/run-millau-node.sh
+```
+
+After the nodes are up we can run the header relayers.
+
+```bash
 ./deployments/local-scripts/relay-millau-to-rialto.sh
+./deployments/local-scripts/relay-rialto-to-millau.sh
 ```
 
 At this point you should see the relayer submitting headers from the Millau Substrate chain to the
 Rialto Substrate chain.
 
-### Local Docker Setup
-
-To get up and running quickly you can use published Docker images for the bridge nodes and relayer.
-The images are published on [Docker Hub](https://hub.docker.com/u/paritytech).
-
-To run the dev network we first run the two bridge nodes:
-
-```bash
-docker run -p 30333:30333 -p 9933:9933 -p 9944:9944 \
-           -it paritytech/rialto-bridge-node --dev --tmp \
-           --rpc-cors=all --unsafe-rpc-external --unsafe-ws-external
-
-docker run -p 30334:30333 -p 9934:9933 -p 9945:9944 \
-           -it paritytech/millau-bridge-node --dev --tmp \
-           --rpc-cors=all --unsafe-rpc-external --unsafe-ws-external
+```
+# Header Relayer Logs
+[Millau_to_Rialto_Sync] [date] DEBUG bridge Going to submit finality proof of Millau header #147 to Rialto
+[...] [date] INFO bridge Synced 147 of 147 headers
+[...] [date] DEBUG bridge Going to submit finality proof of Millau header #148 to Rialto
+[...] [date] INFO bridge Synced 148 of 149 headers
 ```
 
-Notice that the `docker run` command will accept all the normal Substrate flags. For local
-development you should at minimum run with the `--dev` flag or else no blocks will be produced.
-
-Then we need to initialize and run the relayer:
+Finally, we can run the message relayers.
 
 ```bash
-docker run --network=host -it \
-        paritytech/substrate-relay init-bridge RialtoToMillau \
-        --target-host localhost \
-        --target-port 9945 \
-        --source-host localhost \
-        --source-port 9944 \
-        --target-signer //Alice
-
-docker run --network=host -it \
-        paritytech/substrate-relay relay-headers RialtoToMillau \
-        --target-host localhost \
-        --target-port 9945 \
-        --source-host localhost \
-        --source-port 9944 \
-        --target-signer //Bob \
+./deployments/local-scripts/relay-messages-millau-to-rialto.sh
+./deployments/local-scripts/relay-messages-rialto-to-millau.sh
 ```
 
-You should now see the relayer submitting headers from the Millau chain to the Rialto chain.
+You will also see the message lane relayers listening for new messages.
 
-If you don't want to use the published Docker images you can build images yourself. You can do this
-by running the following commands at the top level of the repository.
-
-```bash
-# In `parity-bridges-common` folder
-docker build . -t local/rialto-bridge-node --build-arg PROJECT=rialto-bridge-node
-docker build . -t local/millau-bridge-node --build-arg PROJECT=millau-bridge-node
-docker build . -t local/substrate-relay --build-arg PROJECT=substrate-relay
+```
+# Message Relayer Logs
+[Millau_to_Rialto_MessageLane_00000000] [date] DEBUG bridge Asking Millau::ReceivingConfirmationsDelivery about best message nonces
+[...] [date] INFO bridge Synced Some(2) of Some(3) nonces in Millau::MessagesDelivery -> Rialto::MessagesDelivery race
+[...] [date] DEBUG bridge Asking Millau::MessagesDelivery about message nonces
+[...] [date] DEBUG bridge Received best nonces from Millau::ReceivingConfirmationsDelivery: TargetClientNonces { latest_nonce: 0, nonces_data: () }
+[...] [date] DEBUG bridge Asking Millau::ReceivingConfirmationsDelivery about finalized message nonces
+[...] [date] DEBUG bridge Received finalized nonces from Millau::ReceivingConfirmationsDelivery: TargetClientNonces { latest_nonce: 0, nonces_data: () }
+[...] [date] DEBUG bridge Received nonces from Millau::MessagesDelivery: SourceClientNonces { new_nonces: {}, confirmed_nonce: Some(0) }
+[...] [date] DEBUG bridge Asking Millau node about its state
+[...] [date] DEBUG bridge Received state from Millau node: ClientState { best_self: HeaderId(1593, 0xacac***), best_finalized_self: HeaderId(1590, 0x0be81d...), best_finalized_peer_at_best_self: HeaderId(0, 0xdcdd89...) }
 ```
 
-_Note: Building the node images will take a long time, so make sure you have some coffee handy._
-
-Once you have the images built you can use them in the previous commands by replacing
-`paritytech/<component_name>` with `local/<component_name>` everywhere.
+To send a message see the ["How to send a message" section](#how-to-send-a-message).
 
 ### Full Network Docker Compose Setup
 
 For a more sophisticated deployment which includes bidirectional header sync, message passing,
 monitoring dashboards, etc. see the [Deployments README](./deployments/README.md).
 
+You should note that you can find images for all the bridge components published on
+[Docker Hub](https://hub.docker.com/u/paritytech).
+
+To run a Rialto node for example, you can use the following command:
+
+```bash
+docker run -p 30333:30333 -p 9933:9933 -p 9944:9944 \
+  -it paritytech/rialto-bridge-node --dev --tmp \
+  --rpc-cors=all --unsafe-rpc-external --unsafe-ws-external
+```
+
 ### How to send a message
 
-A straightforward way to interact with and test the bridge is sending messages. This is explained
-in the [send message](./docs/send-message.md) document.
+In this section we'll show you how to quickly send a bridge message, if you want to
+interact with and test the bridge see more details in [send message](./docs/send-message.md)
+
+```bash
+# In `parity-bridges-common` folder
+./scripts/send-message-from-millau-rialto.sh remark
+```
+
+After sending a message you will see the following logs showing a message was successfully sent:
+
+```
+INFO bridge Sending message to Rialto. Size: 286. Dispatch weight: 1038000. Fee: 275,002,568
+INFO bridge Signed Millau Call: 0x7904...
+TRACE bridge Sent transaction to Millau node: 0x5e68...
+```
 
 ## Community
 

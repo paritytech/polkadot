@@ -18,7 +18,7 @@
 //! data. Message lane allows sending arbitrary messages between bridged chains. This
 //! module provides entrypoint that starts reading messages from given message lane
 //! of source chain and submits proof-of-message-at-source-chain transactions to the
-//! target chain. Additionaly, proofs-of-messages-delivery are sent back from the
+//! target chain. Additionally, proofs-of-messages-delivery are sent back from the
 //! target chain to the source chain.
 
 // required for futures::select!
@@ -29,6 +29,7 @@ mod metrics;
 
 pub mod message_lane;
 pub mod message_lane_loop;
+pub mod relay_strategy;
 
 mod message_race_delivery;
 mod message_race_loop;

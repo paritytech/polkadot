@@ -15,7 +15,7 @@ variables:                         &default-vars
   GIT_DEPTH:                       100
   CARGO_INCREMENTAL:               0
   ARCH:                            "x86_64"
-  CI_IMAGE:                        "paritytech/bridges-ci:production"
+  CI_IMAGE:                        "paritytech/bridges-ci:staging"
   RUST_BACKTRACE:                  full
 
 default:
@@ -76,6 +76,7 @@ default:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]{4}-[0-9]{2}-[0-9]{2}.*$/  # i.e. v2021-09-27, v2021-09-27-1
     # there are two types of nightly pipelines:
     # 1. this one is triggered by the schedule with $PIPELINE == "nightly", it's for releasing.
     # this job runs only on nightly pipeline with the mentioned variable, against `master` branch
@@ -93,26 +94,22 @@ clippy-nightly:
   stage:                           lint
   <<:                              *docker-env
   <<:                              *test-refs
-  variables:
-    RUSTFLAGS:                     "-D warnings"
   script:
-    - cargo +nightly clippy --all-targets
-  # FIXME: remove when all the warns are fixed
-  allow_failure:                   true
+    - SKIP_WASM_BUILD=1 cargo +nightly clippy --all-targets -- -A clippy::redundant_closure
 
 fmt:
   stage:                           lint
   <<:                              *docker-env
   <<:                              *test-refs
   script:
-    - cargo fmt --all -- --check
+    - cargo +nightly fmt --all -- --check
 
 spellcheck:
   stage:                           lint
   <<:                              *docker-env
   <<:                              *test-refs
   script:
-    - cargo spellcheck check -m 1 -vv $(find modules/currency-exchange/src -name "*.rs")
+    - cargo spellcheck check -vvvv --cfg=.config/spellcheck.toml --checkers hunspell -m 1
 
 #### stage:                        check
 
@@ -121,11 +118,11 @@ check:
   <<:                              *docker-env
   <<:                              *test-refs
   script:                          &check-script
-    - time cargo check --verbose --workspace
+    - SKIP_WASM_BUILD=1 time cargo check --locked --verbose --workspace
     # Check Rialto benchmarks runtime
-    - time cargo check -p rialto-runtime --features runtime-benchmarks --verbose
+    - SKIP_WASM_BUILD=1 time cargo check -p rialto-runtime --locked --features runtime-benchmarks --verbose
     # Check Millau benchmarks runtime
-    - time cargo check -p millau-runtime --features runtime-benchmarks --verbose
+    - SKIP_WASM_BUILD=1 time cargo check -p millau-runtime --locked --features runtime-benchmarks --verbose
 
 check-nightly:
   stage:                           check
@@ -141,8 +138,13 @@ test:
   stage:                           test
   <<:                              *docker-env
   <<:                              *test-refs
+#  variables:
+#    RUSTFLAGS:                     "-D warnings"
   script:                          &test-script
-    - time cargo test --verbose --workspace
+    - time cargo fetch
+    - time cargo fetch --manifest-path=`cargo metadata --format-version=1 | jq --compact-output --raw-output  ".packages[] | select(.name == \"polkadot-test-runtime\").manifest_path"`
+    - time cargo fetch --manifest-path=`cargo metadata --format-version=1 | jq --compact-output --raw-output  ".packages[] | select(.name == \"polkadot-runtime\").manifest_path"`
+    - CARGO_NET_OFFLINE=true time cargo test --verbose --workspace
 
 test-nightly:
   stage:                           test
@@ -189,16 +191,19 @@ build:
   <<:                              *collect-artifacts
   # master
   script:                          &build-script
-    - time cargo build --release --verbose --workspace
+    - time cargo fetch
+    - time cargo fetch --manifest-path=`cargo metadata --format-version=1 | jq --compact-output --raw-output  ".packages[] | select(.name == \"polkadot-test-runtime\").manifest_path"`
+    - time cargo fetch --manifest-path=`cargo metadata --format-version=1 | jq --compact-output --raw-output  ".packages[] | select(.name == \"polkadot-runtime\").manifest_path"`
+    - CARGO_NET_OFFLINE=true time cargo build --release --verbose --workspace
   after_script:
     # Prepare artifacts
     - mkdir -p ./artifacts
     - strip ./target/release/rialto-bridge-node
     - mv -v ./target/release/rialto-bridge-node ./artifacts/
+    - strip ./target/release/rialto-parachain-collator
+    - mv -v ./target/release/rialto-parachain-collator ./artifacts/
     - strip ./target/release/millau-bridge-node
     - mv -v ./target/release/millau-bridge-node ./artifacts/
-    - strip ./target/release/ethereum-poa-relay
-    - mv -v ./target/release/ethereum-poa-relay ./artifacts/
     - strip ./target/release/substrate-relay
     - mv -v ./target/release/substrate-relay ./artifacts/
     - mv -v ./deployments/local-scripts/bridge-entrypoint.sh ./artifacts/
@@ -223,6 +228,9 @@ build-nightly:
     GIT_STRATEGY:                  none
     DOCKERFILE:                    ci.Dockerfile
     IMAGE_NAME:                    docker.io/paritytech/$CI_JOB_NAME
+    VAULT_SERVER_URL:              "https://vault.parity-mgmt-vault.parity.io"
+    VAULT_AUTH_PATH:               "gitlab-parity-io-jwt"
+    VAULT_AUTH_ROLE:               "cicd_gitlab_parity_${CI_PROJECT_NAME}"
   needs:
     - job:                         build
       artifacts:                   true
@@ -233,8 +241,15 @@ build-nightly:
         VERSION=$(echo ${CI_COMMIT_REF_NAME} | sed -r 's#/+#-#g');
       fi
     - echo "Effective tags = ${VERSION} sha-${CI_COMMIT_SHORT_SHA} latest"
+  secrets:
+      DOCKER_HUB_USER:
+        vault:                     cicd/gitlab/parity/DOCKER_HUB_USER@kv
+        file:                      false
+      DOCKER_HUB_PASS:
+        vault:                     cicd/gitlab/parity/DOCKER_HUB_PASS@kv
+        file:                      false
   script:
-    - test "${Docker_Hub_User_Parity}" -a "${Docker_Hub_Pass_Parity}" ||
+    - test "${DOCKER_HUB_USER}" -a "${DOCKER_HUB_PASS}" ||
         ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
     - buildah bud
@@ -248,24 +263,24 @@ build-nightly:
         --tag "${IMAGE_NAME}:latest"
         --file "${DOCKERFILE}" .
     # The job will success only on the protected branch
-    - echo "$Docker_Hub_Pass_Parity" |
-        buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
+    - echo "${DOCKER_HUB_PASS}" |
+        buildah login --username "${DOCKER_HUB_USER}" --password-stdin docker.io
     - buildah info
     - buildah push --format=v2s2 "${IMAGE_NAME}:${VERSION}"
     - buildah push --format=v2s2 "${IMAGE_NAME}:sha-${CI_COMMIT_SHORT_SHA}"
     - buildah push --format=v2s2 "${IMAGE_NAME}:latest"
   after_script:
-    - env REGISTRY_AUTH_FILE= buildah logout "$IMAGE_NAME"
+    - env REGISTRY_AUTH_FILE= buildah logout --all
 
 rialto-bridge-node:
   stage:                           publish
   <<:                              *build-push-image
 
-millau-bridge-node:
+rialto-parachain-collator:
   stage:                           publish
   <<:                              *build-push-image
 
-ethereum-poa-relay:
+millau-bridge-node:
   stage:                           publish
   <<:                              *build-push-image
 

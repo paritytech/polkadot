@@ -15,6 +15,7 @@
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 use parity_util_mem::MallocSizeOf;
+use scale_info::TypeInfo;
 use sp_runtime::traits::CheckEqual;
 
 // `sp_core::H512` can't be used, because it doesn't implement `CheckEqual`, which is required
@@ -22,7 +23,7 @@ use sp_runtime::traits::CheckEqual;
 
 fixed_hash::construct_fixed_hash! {
 	/// Hash type used in Millau chain.
-	#[derive(MallocSizeOf)]
+	#[derive(MallocSizeOf, TypeInfo)]
 	pub struct MillauHash(64);
 }
 

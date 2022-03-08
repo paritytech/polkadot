@@ -129,7 +129,7 @@ pub fn check_approval(
 			let n_assigned = assigned_mask.count_ones();
 
 			// Filter the amount of assigned validators by those which have approved.
-			assigned_mask &= approvals.iter().by_val();
+			assigned_mask &= approvals;
 			let n_approved = assigned_mask.count_ones();
 
 			// note: the process of computing `required` only chooses `exact` if
@@ -326,7 +326,7 @@ fn filled_tranche_iterator<'a>(
 ///  - if `tick` >  `clock_drift`: the value is equal to `tick` + `no_show_duration`.
 fn count_no_shows(
 	assignments: &[(ValidatorIndex, Tick)],
-	approvals: &BitSlice<BitOrderLsb0, u8>,
+	approvals: &BitSlice<u8, BitOrderLsb0>,
 	clock_drift: Tick,
 	block_tick: Tick,
 	no_show_duration: Tick,
@@ -367,7 +367,7 @@ fn count_no_shows(
 /// Determine the amount of tranches of assignments needed to determine approval of a candidate.
 pub fn tranches_to_approve(
 	approval_entry: &ApprovalEntry,
-	approvals: &BitSlice<BitOrderLsb0, u8>,
+	approvals: &BitSlice<u8, BitOrderLsb0>,
 	tranche_now: DelayTranche,
 	block_tick: Tick,
 	no_show_duration: Tick,
@@ -457,25 +457,24 @@ pub fn tranches_to_approve(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
+	use crate::{approval_db, BTreeMap};
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
+	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0, vec::BitVec};
 	use polkadot_primitives::v1::GroupIndex;
-
-	use crate::approval_db;
 
 	#[test]
 	fn pending_is_not_approved() {
 		let candidate = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
-			approvals: Default::default(),
+			block_assignments: BTreeMap::default(),
+			approvals: BitVec::default(),
 		}
 		.into();
 
 		let approval_entry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: Default::default(),
+			assignments: BitVec::default(),
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -499,10 +498,10 @@ mod tests {
 	#[test]
 	fn exact_takes_only_assignments_up_to() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
-			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+			block_assignments: BTreeMap::default(),
+			approvals: bitvec![u8, BitOrderLsb0; 0; 10],
 		}
 		.into();
 
@@ -525,7 +524,7 @@ mod tests {
 					assignments: (5..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
 			],
-			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
+			assignments: bitvec![u8, BitOrderLsb0; 1; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -571,10 +570,10 @@ mod tests {
 	#[test]
 	fn one_honest_node_always_approves() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
-			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+			block_assignments: BTreeMap::default(),
+			approvals: bitvec![u8, BitOrderLsb0; 0; 10],
 		}
 		.into();
 
@@ -597,7 +596,7 @@ mod tests {
 					assignments: (6..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
 			],
-			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
+			assignments: bitvec![u8, BitOrderLsb0; 1; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -650,7 +649,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; 5],
+			assignments: bitvec![u8, BitOrderLsb0; 0; 5],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -666,7 +665,7 @@ mod tests {
 
 		approval_entry.import_assignment(2, ValidatorIndex(4), block_tick + 2);
 
-		let approvals = bitvec![BitOrderLsb0, u8; 1; 5];
+		let approvals = bitvec![u8, BitOrderLsb0; 1; 5];
 
 		assert_eq!(
 			tranches_to_approve(
@@ -694,7 +693,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
+			assignments: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -705,7 +704,7 @@ mod tests {
 		approval_entry.import_assignment(0, ValidatorIndex(0), block_tick);
 		approval_entry.import_assignment(1, ValidatorIndex(2), block_tick);
 
-		let approvals = bitvec![BitOrderLsb0, u8; 0; 10];
+		let approvals = bitvec![u8, BitOrderLsb0; 0; 10];
 
 		let tranche_now = 2;
 		assert_eq!(
@@ -734,7 +733,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
+			assignments: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -747,7 +746,7 @@ mod tests {
 
 		approval_entry.import_assignment(1, ValidatorIndex(2), block_tick);
 
-		let mut approvals = bitvec![BitOrderLsb0, u8; 0; 10];
+		let mut approvals = bitvec![u8, BitOrderLsb0; 0; 10];
 		approvals.set(0, true);
 		approvals.set(1, true);
 
@@ -779,7 +778,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
+			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -793,7 +792,7 @@ mod tests {
 		approval_entry.import_assignment(1, ValidatorIndex(2), block_tick);
 		approval_entry.import_assignment(1, ValidatorIndex(3), block_tick);
 
-		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		let mut approvals = bitvec![u8, BitOrderLsb0; 0; n_validators];
 		approvals.set(0, true);
 		approvals.set(1, true);
 		// skip 2
@@ -846,7 +845,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
+			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -863,7 +862,7 @@ mod tests {
 		approval_entry.import_assignment(2, ValidatorIndex(4), block_tick + no_show_duration + 2);
 		approval_entry.import_assignment(2, ValidatorIndex(5), block_tick + no_show_duration + 2);
 
-		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		let mut approvals = bitvec![u8, BitOrderLsb0; 0; n_validators];
 		approvals.set(0, true);
 		approvals.set(1, true);
 		// skip 2
@@ -937,7 +936,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
+			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -954,7 +953,7 @@ mod tests {
 		approval_entry.import_assignment(2, ValidatorIndex(4), block_tick + no_show_duration + 2);
 		approval_entry.import_assignment(2, ValidatorIndex(5), block_tick + no_show_duration + 2);
 
-		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		let mut approvals = bitvec![u8, BitOrderLsb0; 0; n_validators];
 		approvals.set(0, true);
 		approvals.set(1, true);
 		// skip 2
@@ -1031,10 +1030,10 @@ mod tests {
 		let needed_approvals = 3;
 
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
-			approvals: bitvec![BitOrderLsb0, u8; 0; 3],
+			block_assignments: BTreeMap::default(),
+			approvals: bitvec![u8, BitOrderLsb0; 0; 3],
 		}
 		.into();
 
@@ -1050,7 +1049,7 @@ mod tests {
 					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
 			],
-			assignments: bitvec![BitOrderLsb0, u8; 1; 3],
+			assignments: bitvec![u8, BitOrderLsb0; 1; 3],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -1058,7 +1057,7 @@ mod tests {
 		}
 		.into();
 
-		let approvals = bitvec![BitOrderLsb0, u8; 0; 3];
+		let approvals = bitvec![u8, BitOrderLsb0; 0; 3];
 
 		let tranche_now = 10;
 		assert_eq!(
@@ -1100,7 +1099,7 @@ mod tests {
 				backing_group: GroupIndex(0),
 				our_assignment: None,
 				our_approval_sig: None,
-				assignments: bitvec![BitOrderLsb0, u8; 0; 3],
+				assignments: bitvec![u8, BitOrderLsb0; 0; 3],
 				approved: false,
 			}
 			.into();
@@ -1138,7 +1137,7 @@ mod tests {
 		let n_validators = 4;
 		let block_tick = 20;
 
-		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		let mut approvals = bitvec![u8, BitOrderLsb0; 0; n_validators];
 		for &v_index in &test.approvals {
 			approvals.set(v_index, true);
 		}

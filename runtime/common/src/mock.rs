@@ -17,10 +17,13 @@
 //! Mocking utilities for testing.
 
 use crate::traits::Registrar;
-use frame_support::dispatch::{DispatchError, DispatchResult};
+use frame_support::{
+	dispatch::{DispatchError, DispatchResult},
+	weights::Weight,
+};
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
-use sp_runtime::traits::SaturatedConversion;
+use sp_runtime::{traits::SaturatedConversion, Permill};
 use std::{cell::RefCell, collections::HashMap};
 
 thread_local! {
@@ -208,5 +211,23 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 		PARACHAINS.with(|x| x.borrow_mut().clear());
 		PARATHREADS.with(|x| x.borrow_mut().clear());
 		MANAGERS.with(|x| x.borrow_mut().clear());
+	}
+}
+
+/// A very dumb implementation of `EstimateNextSessionRotation`. At the moment of writing, this
+/// is more to satisfy type requirements rather than to test anything.
+pub struct TestNextSessionRotation;
+
+impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSessionRotation {
+	fn average_session_length() -> u32 {
+		10
+	}
+
+	fn estimate_current_session_progress(_now: u32) -> (Option<Permill>, Weight) {
+		(None, 0)
+	}
+
+	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
+		(None, 0)
 	}
 }

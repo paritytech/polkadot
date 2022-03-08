@@ -17,7 +17,8 @@
 //! Global system-wide Prometheus metrics exposed by relays.
 
 use crate::metrics::{
-	metric_name, register, Gauge, GaugeVec, Opts, PrometheusError, Registry, StandaloneMetrics, F64, U64,
+	metric_name, register, Gauge, GaugeVec, Metric, Opts, PrometheusError, Registry,
+	StandaloneMetric, F64, U64,
 };
 
 use async_std::sync::{Arc, Mutex};
@@ -39,33 +40,36 @@ pub struct GlobalMetrics {
 
 impl GlobalMetrics {
 	/// Create and register global metrics.
-	pub fn new(registry: &Registry, prefix: Option<&str>) -> Result<Self, PrometheusError> {
+	pub fn new() -> Result<Self, PrometheusError> {
 		Ok(GlobalMetrics {
 			system: Arc::new(Mutex::new(System::new_with_specifics(RefreshKind::everything()))),
-			system_average_load: register(
-				GaugeVec::new(
-					Opts::new(metric_name(prefix, "system_average_load"), "System load average"),
-					&["over"],
-				)?,
-				registry,
+			system_average_load: GaugeVec::new(
+				Opts::new(metric_name(None, "system_average_load"), "System load average"),
+				&["over"],
 			)?,
-			process_cpu_usage_percentage: register(
-				Gauge::new(metric_name(prefix, "process_cpu_usage_percentage"), "Process CPU usage")?,
-				registry,
+			process_cpu_usage_percentage: Gauge::new(
+				metric_name(None, "process_cpu_usage_percentage"),
+				"Process CPU usage",
 			)?,
-			process_memory_usage_bytes: register(
-				Gauge::new(
-					metric_name(prefix, "process_memory_usage_bytes"),
-					"Process memory (resident set size) usage",
-				)?,
-				registry,
+			process_memory_usage_bytes: Gauge::new(
+				metric_name(None, "process_memory_usage_bytes"),
+				"Process memory (resident set size) usage",
 			)?,
 		})
 	}
 }
 
+impl Metric for GlobalMetrics {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.system_average_load.clone(), registry)?;
+		register(self.process_cpu_usage_percentage.clone(), registry)?;
+		register(self.process_memory_usage_bytes.clone(), registry)?;
+		Ok(())
+	}
+}
+
 #[async_trait]
-impl StandaloneMetrics for GlobalMetrics {
+impl StandaloneMetric for GlobalMetrics {
 	async fn update(&self) {
 		// update system-wide metrics
 		let mut system = self.system.lock().await;
@@ -92,16 +96,19 @@ impl StandaloneMetrics for GlobalMetrics {
 					memory_usage,
 				);
 
-				self.process_cpu_usage_percentage
-					.set(if cpu_usage.is_finite() { cpu_usage } else { 0f64 });
+				self.process_cpu_usage_percentage.set(if cpu_usage.is_finite() {
+					cpu_usage
+				} else {
+					0f64
+				});
 				self.process_memory_usage_bytes.set(memory_usage);
-			}
+			},
 			_ => {
 				log::warn!(
 					target: "bridge-metrics",
 					"Failed to refresh process information. Metrics may show obsolete values",
 				);
-			}
+			},
 		}
 	}
 

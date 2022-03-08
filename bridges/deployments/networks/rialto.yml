@@ -20,7 +20,7 @@ services:
       - --unsafe-rpc-external
       - --unsafe-ws-external
     environment:
-      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,runtime::bridge=trace
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,runtime::bridge=trace,beefy=debug
     ports:
       - "9933:9933"
       - "9944:9944"
@@ -85,3 +85,20 @@ services:
     ports:
       - "10333:9933"
       - "10344:9944"
+
+  rialto-chainspec-exporter:
+    image: paritytech/rialto-bridge-node
+    entrypoint: /entrypoints/rialto-chainspec-exporter-entrypoint.sh
+    volumes:
+      - ./networks/entrypoints:/entrypoints
+      - rialto-share:/rialto-share:z
+
+# we're using `/rialto-share` to expose Rialto chain spec to those who are interested. Right
+# now it is Rialto Parachain collator nodes. Local + tmpfs combination allows sharing writable
+# in-memory volumes, which are dropped when containers are stopped.
+volumes:
+  rialto-share:
+    driver: local
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"

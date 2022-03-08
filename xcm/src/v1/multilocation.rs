@@ -323,6 +323,60 @@ impl MultiLocation {
 		}
 		Ok(())
 	}
+
+	/// Mutate `self` so that it represents the same location from the point of view of `target`.
+	/// The context of `self` is provided as `ancestry`.
+	///
+	/// Does not modify `self` in case of overflow.
+	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
+		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
+
+		// 1. Use our `ancestry` to figure out how the `target` would address us.
+		let inverted_target = ancestry.inverted(target)?;
+
+		// 2. Prepend `inverted_target` to `self` to get self's location from the perspective of
+		// `target`.
+		self.prepend_with(inverted_target).map_err(|_| ())?;
+
+		// 3. Given that we know some of `target` ancestry, ensure that any parents in `self` are
+		// strictly needed.
+		self.simplify(target.interior());
+
+		Ok(())
+	}
+
+	/// Treating `self` as a context, determine how it would be referenced by a `target` location.
+	pub fn inverted(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
+		use Junction::OnlyChild;
+		let mut ancestry = self.clone();
+		let mut junctions = Junctions::Here;
+		for _ in 0..target.parent_count() {
+			junctions = junctions
+				.pushed_front_with(ancestry.interior.take_last().unwrap_or(OnlyChild))
+				.map_err(|_| ())?;
+		}
+		let parents = target.interior().len() as u8;
+		Ok(MultiLocation::new(parents, junctions))
+	}
+
+	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
+	/// interpreted in.
+	pub fn simplify(&mut self, context: &Junctions) {
+		if context.len() < self.parents as usize {
+			// Not enough context
+			return
+		}
+		while self.parents > 0 {
+			let maybe = context.at(context.len() - (self.parents as usize));
+			match (self.interior.first(), maybe) {
+				(Some(i), Some(j)) if i == j => {
+					self.interior.take_first();
+					self.parents -= 1;
+				},
+				_ => break,
+			}
+		}
+	}
 }
 
 /// A unit struct which can be converted into a `MultiLocation` of `parents` value 1.
@@ -773,8 +827,81 @@ impl TryFrom<MultiLocation> for Junctions {
 #[cfg(test)]
 mod tests {
 	use super::{Ancestor, AncestorThen, Junctions::*, MultiLocation, Parent, ParentThen};
-	use crate::opaque::v1::{Junction::*, NetworkId::Any};
+	use crate::opaque::v1::{Junction::*, NetworkId::*};
 	use parity_scale_codec::{Decode, Encode};
+
+	#[test]
+	fn inverted_works() {
+		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42)).into();
+		let target = (Parent, PalletInstance(69)).into();
+		let expected = (Parent, PalletInstance(42)).into();
+		let inverted = ancestry.inverted(&target).unwrap();
+		assert_eq!(inverted, expected);
+
+		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
+		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
+		let inverted = ancestry.inverted(&target).unwrap();
+		assert_eq!(inverted, expected);
+	}
+
+	#[test]
+	fn simplify_basic_works() {
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let context = X2(Parachain(1000), PalletInstance(42));
+		let expected = GeneralIndex(69).into();
+		location.simplify(&context);
+		assert_eq!(location, expected);
+
+		let mut location: MultiLocation = (Parent, PalletInstance(42), GeneralIndex(69)).into();
+		let context = X1(PalletInstance(42));
+		let expected = GeneralIndex(69).into();
+		location.simplify(&context);
+		assert_eq!(location, expected);
+
+		let mut location: MultiLocation = (Parent, PalletInstance(42), GeneralIndex(69)).into();
+		let context = X2(Parachain(1000), PalletInstance(42));
+		let expected = GeneralIndex(69).into();
+		location.simplify(&context);
+		assert_eq!(location, expected);
+
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let context = X3(OnlyChild, Parachain(1000), PalletInstance(42));
+		let expected = GeneralIndex(69).into();
+		location.simplify(&context);
+		assert_eq!(location, expected);
+	}
+
+	#[test]
+	fn simplify_incompatible_location_fails() {
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let context = X3(Parachain(1000), PalletInstance(42), GeneralIndex(42));
+		let expected =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		location.simplify(&context);
+		assert_eq!(location, expected);
+
+		let mut location: MultiLocation =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		let context = X1(Parachain(1000));
+		let expected =
+			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
+		location.simplify(&context);
+		assert_eq!(location, expected);
+	}
+
+	#[test]
+	fn reanchor_works() {
+		let mut id: MultiLocation = (Parent, Parachain(1000), GeneralIndex(42)).into();
+		let ancestry = Parachain(2000).into();
+		let target = (Parent, Parachain(1000)).into();
+		let expected = GeneralIndex(42).into();
+		id.reanchor(&target, &ancestry).unwrap();
+		assert_eq!(id, expected);
+	}
 
 	#[test]
 	fn encode_and_decode_works() {

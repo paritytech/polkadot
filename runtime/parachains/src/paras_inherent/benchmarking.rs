@@ -29,7 +29,8 @@ benchmarks! {
 		let v in 10..BenchBuilder::<T>::fallback_max_validators();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(Default::default(), &[2], None);
+			.set_dispute_sessions(&[2])
+			.build();
 
 		let mut benchmark = scenario.data.clone();
 		let dispute = benchmark.disputes.pop().unwrap();
@@ -44,10 +45,12 @@ benchmarks! {
 	verify {
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
+
 		// Assert that there are on-chain votes that got scraped
 		let onchain_votes = OnChainVotes::<T>::get();
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
+
 		// Ensure that the votes are for the correct session
 		assert_eq!(vote.session, scenario._session);
 	}
@@ -60,7 +63,8 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed, &[1], None);
+			.set_backed_and_concluding_cores(cores_with_backed)
+			.build();
 
 		let mut benchmark = scenario.data.clone();
 		let bitfield = benchmark.bitfields.pop().unwrap();
@@ -104,7 +108,8 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed.clone(), &[1], None);
+			.set_backed_and_concluding_cores(cores_with_backed.clone())
+			.build();
 
 		let mut benchmark = scenario.data.clone();
 
@@ -156,7 +161,9 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed.clone(), &[1], Some(v));
+			.set_backed_and_concluding_cores(cores_with_backed.clone())
+			.set_code_upgrade(v)
+			.build();
 
 		let mut benchmark = scenario.data.clone();
 

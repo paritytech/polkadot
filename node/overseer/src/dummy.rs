@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, AllMessages, HeadSupportsParachains, MetricsTrait, Overseer,
-	OverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	prometheus::Registry, AllMessages, HeadSupportsParachains, InitializedOverseerBuilder,
+	MetricsTrait, Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
@@ -66,9 +66,10 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 	supports_parachains: SupportsParachains,
 	registry: Option<&'a Registry>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		SupportsParachains,
+		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
@@ -106,9 +107,10 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	subsystem: Sub,
 	registry: Option<&'a Registry>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		SupportsParachains,
+		Sub,
 		Sub,
 		Sub,
 		Sub,
@@ -155,7 +157,8 @@ where
 		+ Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
+		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<PvfCheckerMessage>, SubsystemError>,
 {
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
@@ -167,6 +170,7 @@ where
 		.bitfield_signing(subsystem.clone())
 		.candidate_backing(subsystem.clone())
 		.candidate_validation(subsystem.clone())
+		.pvf_checker(subsystem.clone())
 		.chain_api(subsystem.clone())
 		.collation_generation(subsystem.clone())
 		.collator_protocol(subsystem.clone())

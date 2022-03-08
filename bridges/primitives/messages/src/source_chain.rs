@@ -18,9 +18,14 @@
 
 use crate::{DeliveredMessages, InboundLaneData, LaneId, MessageNonce, OutboundLaneData};
 
+use crate::UnrewardedRelayer;
 use bp_runtime::Size;
-use frame_support::{Parameter, RuntimeDebug};
-use sp_std::{collections::btree_map::BTreeMap, fmt::Debug};
+use frame_support::{weights::Weight, Parameter, RuntimeDebug};
+use sp_std::{
+	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+	fmt::Debug,
+	ops::RangeInclusive,
+};
 
 /// The sender of the message on the source chain.
 pub type Sender<AccountId> = frame_system::RawOrigin<AccountId>;
@@ -56,14 +61,14 @@ pub trait TargetHeaderChain<Payload, AccountId> {
 	///
 	/// The proper implementation must ensure that the delivery-transaction with this
 	/// payload would (at least) be accepted into target chain transaction pool AND
-	/// eventually will be successfully 'mined'. The most obvious incorrect implementation
+	/// eventually will be successfully mined. The most obvious incorrect implementation
 	/// example would be implementation for BTC chain that accepts payloads larger than
 	/// 1MB. BTC nodes aren't accepting transactions that are larger than 1MB, so relayer
 	/// will be unable to craft valid transaction => this (and all subsequent) messages will
 	/// never be delivered.
 	fn verify_message(payload: &Payload) -> Result<(), Self::Error>;
 
-	/// Verify messages delivery proof and return lane && nonce of the latest recevied message.
+	/// Verify messages delivery proof and return lane && nonce of the latest received message.
 	fn verify_messages_delivery_proof(
 		proof: Self::MessagesDeliveryProof,
 	) -> Result<(LaneId, InboundLaneData<AccountId>), Self::Error>;
@@ -81,7 +86,8 @@ pub trait LaneMessageVerifier<Submitter, Payload, Fee> {
 	/// Error type.
 	type Error: Debug + Into<&'static str>;
 
-	/// Verify message payload and return Ok(()) if message is valid and allowed to be sent over the lane.
+	/// Verify message payload and return Ok(()) if message is valid and allowed to be sent over the
+	/// lane.
 	fn verify_message(
 		submitter: &Sender<Submitter>,
 		delivery_and_dispatch_fee: &Fee,
@@ -95,14 +101,14 @@ pub trait LaneMessageVerifier<Submitter, Payload, Fee> {
 /// submitter is paying (in source chain tokens/assets) for:
 ///
 /// 1) submit-message-transaction-fee itself. This fee is not included in the
-/// `delivery_and_dispatch_fee` and is witheld by the regular transaction payment mechanism;
+/// `delivery_and_dispatch_fee` and is withheld by the regular transaction payment mechanism;
 /// 2) message-delivery-transaction-fee. It is submitted to the target node by relayer;
 /// 3) message-dispatch fee. It is paid by relayer for processing message by target chain;
 /// 4) message-receiving-delivery-transaction-fee. It is submitted to the source node
 /// by relayer.
 ///
 /// So to be sure that any non-altruist relayer would agree to deliver message, submitter
-/// should set `delivery_and_dispatch_fee` to at least (equialent of): sum of fees from (2)
+/// should set `delivery_and_dispatch_fee` to at least (equivalent of): sum of fees from (2)
 /// to (4) above, plus some interest for the relayer.
 pub trait MessageDeliveryAndDispatchPayment<AccountId, Balance> {
 	/// Error type.
@@ -121,27 +127,98 @@ pub trait MessageDeliveryAndDispatchPayment<AccountId, Balance> {
 	/// The implementation may also choose to pay reward to the `confirmation_relayer`, which is
 	/// a relayer that has submitted delivery confirmation transaction.
 	fn pay_relayers_rewards(
+		lane_id: LaneId,
+		messages_relayers: VecDeque<UnrewardedRelayer<AccountId>>,
 		confirmation_relayer: &AccountId,
-		relayers_rewards: RelayersRewards<AccountId, Balance>,
+		received_range: &RangeInclusive<MessageNonce>,
 		relayer_fund_account: &AccountId,
 	);
+}
 
-	/// Perform some initialization in externalities-provided environment.
+/// Send message artifacts.
+#[derive(RuntimeDebug, PartialEq)]
+pub struct SendMessageArtifacts {
+	/// Nonce of the message.
+	pub nonce: MessageNonce,
+	/// Actual weight of send message call.
+	pub weight: Weight,
+}
+
+/// Messages bridge API to be used from other pallets.
+pub trait MessagesBridge<AccountId, Balance, Payload> {
+	/// Error type.
+	type Error: Debug;
+
+	/// Send message over the bridge.
 	///
-	/// For instance you may ensure that particular required accounts or storage items are present.
-	/// Returns the number of storage reads performed.
-	fn initialize(_relayer_fund_account: &AccountId) -> usize {
-		0
+	/// Returns unique message nonce or error if send has failed.
+	fn send_message(
+		sender: Sender<AccountId>,
+		lane: LaneId,
+		message: Payload,
+		delivery_and_dispatch_fee: Balance,
+	) -> Result<SendMessageArtifacts, Self::Error>;
+}
+
+/// Bridge that does nothing when message is being sent.
+#[derive(RuntimeDebug, PartialEq)]
+pub struct NoopMessagesBridge;
+
+impl<AccountId, Balance, Payload> MessagesBridge<AccountId, Balance, Payload>
+	for NoopMessagesBridge
+{
+	type Error = &'static str;
+
+	fn send_message(
+		_sender: Sender<AccountId>,
+		_lane: LaneId,
+		_message: Payload,
+		_delivery_and_dispatch_fee: Balance,
+	) -> Result<SendMessageArtifacts, Self::Error> {
+		Ok(SendMessageArtifacts { nonce: 0, weight: 0 })
 	}
 }
 
 /// Handler for messages delivery confirmation.
-#[impl_trait_for_tuples::impl_for_tuples(30)]
 pub trait OnDeliveryConfirmed {
 	/// Called when we receive confirmation that our messages have been delivered to the
 	/// target chain. The confirmation also has single bit dispatch result for every
-	/// confirmed message (see `DeliveredMessages` for details).
-	fn on_messages_delivered(_lane: &LaneId, _messages: &DeliveredMessages) {}
+	/// confirmed message (see `DeliveredMessages` for details). Guaranteed to be called
+	/// only when at least one message is delivered.
+	///
+	/// Should return total weight consumed by the call.
+	///
+	/// NOTE: messages pallet assumes that maximal weight that may be spent on processing
+	/// single message is single DB read + single DB write. So this function shall never
+	/// return weight that is larger than total number of messages * (db read + db write).
+	/// If your pallet needs more time for processing single message, please do it
+	/// from `on_initialize` call(s) of the next block(s).
+	fn on_messages_delivered(_lane: &LaneId, _messages: &DeliveredMessages) -> Weight;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl OnDeliveryConfirmed for Tuple {
+	fn on_messages_delivered(lane: &LaneId, messages: &DeliveredMessages) -> Weight {
+		let mut total_weight: Weight = 0;
+		for_tuples!(
+			#(
+				total_weight = total_weight.saturating_add(Tuple::on_messages_delivered(lane, messages));
+			)*
+		);
+		total_weight
+	}
+}
+
+/// Handler for messages have been accepted
+pub trait OnMessageAccepted {
+	/// Called when a message has been accepted by message pallet.
+	fn on_messages_accepted(lane: &LaneId, message: &MessageNonce) -> Weight;
+}
+
+impl OnMessageAccepted for () {
+	fn on_messages_accepted(_lane: &LaneId, _message: &MessageNonce) -> Weight {
+		0
+	}
 }
 
 /// Structure that may be used in place of `TargetHeaderChain`, `LaneMessageVerifier` and
@@ -149,7 +226,8 @@ pub trait OnDeliveryConfirmed {
 pub struct ForbidOutboundMessages;
 
 /// Error message that is used in `ForbidOutboundMessages` implementation.
-const ALL_OUTBOUND_MESSAGES_REJECTED: &str = "This chain is configured to reject all outbound messages";
+const ALL_OUTBOUND_MESSAGES_REJECTED: &str =
+	"This chain is configured to reject all outbound messages";
 
 impl<Payload, AccountId> TargetHeaderChain<Payload, AccountId> for ForbidOutboundMessages {
 	type Error = &'static str;
@@ -167,7 +245,9 @@ impl<Payload, AccountId> TargetHeaderChain<Payload, AccountId> for ForbidOutboun
 	}
 }
 
-impl<Submitter, Payload, Fee> LaneMessageVerifier<Submitter, Payload, Fee> for ForbidOutboundMessages {
+impl<Submitter, Payload, Fee> LaneMessageVerifier<Submitter, Payload, Fee>
+	for ForbidOutboundMessages
+{
 	type Error = &'static str;
 
 	fn verify_message(
@@ -181,7 +261,9 @@ impl<Submitter, Payload, Fee> LaneMessageVerifier<Submitter, Payload, Fee> for F
 	}
 }
 
-impl<AccountId, Balance> MessageDeliveryAndDispatchPayment<AccountId, Balance> for ForbidOutboundMessages {
+impl<AccountId, Balance> MessageDeliveryAndDispatchPayment<AccountId, Balance>
+	for ForbidOutboundMessages
+{
 	type Error = &'static str;
 
 	fn pay_delivery_and_dispatch_fee(
@@ -193,8 +275,10 @@ impl<AccountId, Balance> MessageDeliveryAndDispatchPayment<AccountId, Balance> f
 	}
 
 	fn pay_relayers_rewards(
+		_lane_id: LaneId,
+		_messages_relayers: VecDeque<UnrewardedRelayer<AccountId>>,
 		_confirmation_relayer: &AccountId,
-		_relayers_rewards: RelayersRewards<AccountId, Balance>,
+		_received_range: &RangeInclusive<MessageNonce>,
 		_relayer_fund_account: &AccountId,
 	) {
 	}

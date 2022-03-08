@@ -14,7 +14,7 @@ The block author can choose 0 or 1 backed parachain candidates per parachain; th
 
 ### Signed Bitfields
 
-[Signed bitfields](../../types/availability.md#signed-availability-bitfield) are attestations from a particular validator about which candidates it believes are available.
+[Signed bitfields](../../types/availability.md#signed-availability-bitfield) are attestations from a particular validator about which candidates it believes are available. Those will only be provided on fresh leaves.
 
 ### Misbehavior Reports
 

@@ -20,6 +20,7 @@ use proc_macro::TokenStream;
 
 mod v0;
 mod v1;
+mod weight_info;
 
 #[proc_macro]
 pub fn impl_conversion_functions_for_multilocation_v0(input: TokenStream) -> TokenStream {
@@ -33,4 +34,9 @@ pub fn impl_conversion_functions_for_multilocation_v1(input: TokenStream) -> Tok
 	v1::multilocation::generate_conversion_functions(input)
 		.unwrap_or_else(syn::Error::into_compile_error)
 		.into()
+}
+
+#[proc_macro_derive(XcmWeightInfoTrait)]
+pub fn derive_xcm_weight_info(item: TokenStream) -> TokenStream {
+	weight_info::derive(item)
 }

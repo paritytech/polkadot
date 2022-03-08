@@ -34,6 +34,7 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives_test_helpers::dummy_collator_signature;
 use polkadot_subsystem::{
 	jaeger,
 	messages::{
@@ -868,7 +869,7 @@ fn relays_collation_protocol_messages() {
 		let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 			Sr25519Keyring::Alice.public().into(),
 			Default::default(),
-			Default::default(),
+			sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 		);
 
 		let message =
@@ -1158,8 +1159,8 @@ fn send_messages_to_peers() {
 		{
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
-				Default::default(),
-				Default::default(),
+				0_u32.into(),
+				dummy_collator_signature(),
 			);
 
 			let message =
@@ -1227,6 +1228,7 @@ fn spread_event_to_subsystems_is_up_to_date() {
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
 			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
+			AllMessages::PvfChecker(_) => unreachable!("Not interested in network events"),
 			// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 			// notified, `unreachable!()` for those that should not.
 		}

@@ -14,7 +14,41 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Version 1 of the Cross-Consensus Message format data structures.
+//! # XCM Version 2
+//! Version 2 of the Cross-Consensus Message format data structures. The comprehensive list of
+//! changes can be found in
+//! [this PR description](https://github.com/paritytech/polkadot/pull/3629#issue-968428279).
+//!
+//! ## Changes to be aware of
+//! The biggest change here is the restructuring of XCM messages: instead of having `Order` and
+//! `Xcm` types, the `Xcm` type now simply wraps a `Vec` containing `Instruction`s. However, most
+//! changes should still be automatically convertible via the `try_from` and `from` conversion
+//! functions.
+//!
+//! ### Junction
+//! - No special attention necessary
+//!
+//! ### `MultiLocation`
+//! - No special attention necessary
+//!
+//! ### `MultiAsset`
+//! - No special attention necessary
+//!
+//! ### XCM and Order
+//! - `Xcm` and `Order` variants are now combined under a single `Instruction` enum.
+//! - `Order` is now obsolete and replaced entirely by `Instruction`.
+//! - `Xcm` is now a simple wrapper around a `Vec<Instruction>`.
+//! - During conversion from `Order` to `Instruction`, we do not handle `BuyExecution`s that have
+//!   nested XCMs, i.e. if the `instructions` field in the `BuyExecution` enum struct variant is
+//!   not empty, then the conversion will fail. To address this, rewrite the XCM using
+//!   `Instruction`s in chronological order.
+//! - During conversion from `Xcm` to `Instruction`, we do not handle `RelayedFrom` messages at
+//!   all.
+//!
+//! ### XCM Pallet
+//! - The `Weigher` configuration item must have sensible weights defined for `BuyExecution` and
+//!   `DepositAsset` instructions. Failing that, dispatch calls to `teleport_assets` and
+//!   `reserve_transfer_assets` will fail with `UnweighableMessage`.
 
 use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
 use crate::{DoubleEncoded, GetWeight};
@@ -30,9 +64,7 @@ use scale_info::TypeInfo;
 
 mod traits;
 
-pub use traits::{
-	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
 // These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
 pub use super::v1::{
 	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
@@ -190,6 +222,9 @@ impl From<WeightLimit> for Option<u64> {
 	}
 }
 
+/// Local weight type; execution time in picoseconds.
+pub type Weight = u64;
+
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.
@@ -198,7 +233,7 @@ impl From<WeightLimit> for Option<u64> {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]

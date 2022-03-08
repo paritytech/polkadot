@@ -1,4 +1,6 @@
 {
+	"Address": "MillauAddress",
+	"LookupSource": "MillauLookupSource",
 	"Fee": "MillauBalance",
 	"Balance": "MillauBalance",
 	"Hash": "MillauBlockHash",

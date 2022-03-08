@@ -92,6 +92,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -174,7 +175,7 @@ pub mod pallet {
 
 	// The account that will be used to payout participants of the DOT purchase process.
 	#[pallet::storage]
-	pub(super) type PaymentAccount<T: Config> = StorageValue<_, T::AccountId, ValueQuery>;
+	pub(super) type PaymentAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
 	// The statement purchasers will need to sign to participate.
 	#[pallet::storage]
@@ -290,12 +291,14 @@ pub mod pallet {
 		///
 		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
-		/// Origin must match the configured `PaymentAccount`.
+		/// Origin must match the configured `PaymentAccount` (if it is not configured then this
+		/// will always fail with `BadOrigin`).
 		#[pallet::weight(T::DbWeight::get().reads_writes(4, 2))]
 		pub fn payout(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			// Payments must be made directly by the `PaymentAccount`.
 			let payment_account = ensure_signed(origin)?;
-			ensure!(payment_account == PaymentAccount::<T>::get(), DispatchError::BadOrigin);
+			let test_against = PaymentAccount::<T>::get().ok_or(DispatchError::BadOrigin)?;
+			ensure!(payment_account == test_against, DispatchError::BadOrigin);
 
 			// Account should not have a vesting schedule.
 			ensure!(
@@ -363,7 +366,7 @@ pub mod pallet {
 		pub fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
-			PaymentAccount::<T>::set(who.clone());
+			PaymentAccount::<T>::put(who.clone());
 			Self::deposit_event(Event::<T>::PaymentAccountSet(who));
 			Ok(())
 		}
@@ -408,8 +411,9 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	fn verify_signature(who: &T::AccountId, signature: &[u8]) -> Result<(), DispatchError> {
 		// sr25519 always expects a 64 byte signature.
-		ensure!(signature.len() == 64, Error::<T>::InvalidSignature);
-		let signature: AnySignature = sr25519::Signature::from_slice(signature).into();
+		let signature: AnySignature = sr25519::Signature::from_slice(signature)
+			.ok_or(Error::<T>::InvalidSignature)?
+			.into();
 
 		// In Polkadot, the AccountId is always the same as the 32 byte public key.
 		let account_bytes: [u8; 32] = account_to_bytes(who)?;
@@ -516,6 +520,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -711,7 +716,7 @@ mod tests {
 				Origin::signed(configuration_origin()),
 				payment_account.clone()
 			));
-			assert_eq!(PaymentAccount::<Test>::get(), payment_account);
+			assert_eq!(PaymentAccount::<Test>::get(), Some(payment_account));
 		});
 	}
 

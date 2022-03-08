@@ -14,10 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{bridge::FullBridge, AccountId};
-use crate::select_full_bridge;
+use crate::{
+	cli::{bridge::FullBridge, AccountId},
+	select_full_bridge,
+};
 use relay_substrate_client::Chain;
 use structopt::StructOpt;
+use strum::VariantNames;
 
 /// Given a source chain `AccountId`, derive the corresponding `AccountId` for the target chain.
 ///
@@ -28,7 +31,7 @@ use structopt::StructOpt;
 #[derive(StructOpt)]
 pub struct DeriveAccount {
 	/// A bridge instance to initialize.
-	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
+	#[structopt(possible_values = FullBridge::VARIANTS, case_insensitive = true)]
 	bridge: FullBridge,
 	/// Source-chain address to derive Target-chain address from.
 	account: AccountId,
@@ -54,11 +57,7 @@ impl DeriveAccount {
 		select_full_bridge!(self.bridge, {
 			let (account, derived_account) = self.derive_account();
 			println!("Source address:\n{} ({})", account, Source::NAME);
-			println!(
-				"->Corresponding (derived) address:\n{} ({})",
-				derived_account,
-				Target::NAME,
-			);
+			println!("->Corresponding (derived) address:\n{} ({})", derived_account, Target::NAME,);
 
 			Ok(())
 		})
@@ -80,9 +79,9 @@ mod tests {
 		let millau = "752paRyW1EGfq9YLTSSqcSJ5hqnBDidBmaftGhBo8fy6ypW9";
 
 		// when
-		let (rialto_parsed, rialto_derived) = derive_account_cli("RialtoToMillau", rialto);
-		let (millau_parsed, millau_derived) = derive_account_cli("MillauToRialto", millau);
-		let (millau2_parsed, millau2_derived) = derive_account_cli("MillauToRialto", rialto);
+		let (rialto_parsed, rialto_derived) = derive_account_cli("rialto-to-millau", rialto);
+		let (millau_parsed, millau_derived) = derive_account_cli("millau-to-rialto", millau);
+		let (millau2_parsed, millau2_derived) = derive_account_cli("millau-to-rialto", rialto);
 
 		// then
 		assert_eq!(format!("{}", rialto_parsed), rialto);

@@ -236,7 +236,7 @@ impl WorkerHandle {
 			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
 			// of a small size, because otherwise if the child process does return any data we will end up
 			// issuing a syscall for each byte. We also prefer not to do allocate that on the stack, since
-			// each poll the buffer will be allocated and initialized (and that's due poll_read takes &mut [u8]
+			// each poll the buffer will be allocated and initialized (and that's due `poll_read` takes &mut [u8]
 			// and there are no guarantees that a `poll_read` won't ever read from there even though that's
 			// unlikely).
 			//
@@ -259,7 +259,7 @@ impl futures::Future for WorkerHandle {
 		let me = self.project();
 		match futures::ready!(AsyncRead::poll_read(me.stdout, cx, &mut *me.drop_box)) {
 			Ok(0) => {
-				// 0 means EOF means the child was terminated. Resolve.
+				// 0 means `EOF` means the child was terminated. Resolve.
 				Poll::Ready(())
 			},
 			Ok(_bytes_read) => {
@@ -268,7 +268,7 @@ impl futures::Future for WorkerHandle {
 				Poll::Pending
 			},
 			Err(_) => {
-				// The implementation is guaranteed to not to return WouldBlock and Interrupted. This
+				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted. This
 				// leaves us with a legit errors which we suppose were due to termination.
 				Poll::Ready(())
 			},
@@ -284,7 +284,7 @@ impl fmt::Debug for WorkerHandle {
 
 /// Convert the given path into a byte buffer.
 pub fn path_to_bytes(path: &Path) -> &[u8] {
-	// Ideally, we take the OsStr of the path, send that and reconstruct this on the other side.
+	// Ideally, we take the `OsStr` of the path, send that and reconstruct this on the other side.
 	// However, libstd doesn't provide us with such an option. There are crates out there that
 	// allow for extraction of a path, but TBH it doesn't seem to be a real issue.
 	//

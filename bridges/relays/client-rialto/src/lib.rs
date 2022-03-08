@@ -16,8 +16,11 @@
 
 //! Types used to connect to the Rialto-Substrate chain.
 
-use codec::Encode;
-use relay_substrate_client::{Chain, ChainBase, ChainWithBalances, TransactionSignScheme};
+use codec::{Compact, Decode, Encode};
+use relay_substrate_client::{
+	BalanceOf, Chain, ChainBase, ChainWithBalances, IndexOf, TransactionEraOf,
+	TransactionSignScheme, UnsignedTransaction,
+};
 use sp_core::{storage::StorageKey, Pair};
 use sp_runtime::{generic::SignedPayload, traits::IdentifyAccount};
 use std::time::Duration;
@@ -34,17 +37,22 @@ impl ChainBase for Rialto {
 	type Hash = rialto_runtime::Hash;
 	type Hasher = rialto_runtime::Hashing;
 	type Header = rialto_runtime::Header;
+
+	type AccountId = rialto_runtime::AccountId;
+	type Balance = rialto_runtime::Balance;
+	type Index = rialto_runtime::Index;
+	type Signature = rialto_runtime::Signature;
 }
 
 impl Chain for Rialto {
 	const NAME: &'static str = "Rialto";
 	const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_secs(5);
+	const STORAGE_PROOF_OVERHEAD: u32 = bp_rialto::EXTRA_STORAGE_PROOF_SIZE;
+	const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = bp_rialto::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE;
 
-	type AccountId = rialto_runtime::AccountId;
-	type Index = rialto_runtime::Index;
 	type SignedBlock = rialto_runtime::SignedBlock;
 	type Call = rialto_runtime::Call;
-	type Balance = rialto_runtime::Balance;
+	type WeightToFee = bp_rialto::WeightToFee;
 }
 
 impl ChainWithBalances for Rialto {
@@ -64,25 +72,25 @@ impl TransactionSignScheme for Rialto {
 	fn sign_transaction(
 		genesis_hash: <Self::Chain as ChainBase>::Hash,
 		signer: &Self::AccountKeyPair,
-		signer_nonce: <Self::Chain as Chain>::Index,
-		call: <Self::Chain as Chain>::Call,
+		era: TransactionEraOf<Self::Chain>,
+		unsigned: UnsignedTransaction<Self::Chain>,
 	) -> Self::SignedTransaction {
 		let raw_payload = SignedPayload::from_raw(
-			call,
+			unsigned.call,
 			(
 				frame_system::CheckSpecVersion::<rialto_runtime::Runtime>::new(),
 				frame_system::CheckTxVersion::<rialto_runtime::Runtime>::new(),
 				frame_system::CheckGenesis::<rialto_runtime::Runtime>::new(),
-				frame_system::CheckEra::<rialto_runtime::Runtime>::from(sp_runtime::generic::Era::Immortal),
-				frame_system::CheckNonce::<rialto_runtime::Runtime>::from(signer_nonce),
+				frame_system::CheckEra::<rialto_runtime::Runtime>::from(era.frame_era()),
+				frame_system::CheckNonce::<rialto_runtime::Runtime>::from(unsigned.nonce),
 				frame_system::CheckWeight::<rialto_runtime::Runtime>::new(),
-				pallet_transaction_payment::ChargeTransactionPayment::<rialto_runtime::Runtime>::from(0),
+				pallet_transaction_payment::ChargeTransactionPayment::<rialto_runtime::Runtime>::from(unsigned.tip),
 			),
 			(
 				rialto_runtime::VERSION.spec_version,
 				rialto_runtime::VERSION.transaction_version,
 				genesis_hash,
-				genesis_hash,
+				era.signed_payload(genesis_hash),
 				(),
 				(),
 				(),
@@ -92,7 +100,34 @@ impl TransactionSignScheme for Rialto {
 		let signer: sp_runtime::MultiSigner = signer.public().into();
 		let (call, extra, _) = raw_payload.deconstruct();
 
-		rialto_runtime::UncheckedExtrinsic::new_signed(call, signer.into_account(), signature.into(), extra)
+		rialto_runtime::UncheckedExtrinsic::new_signed(
+			call,
+			signer.into_account().into(),
+			signature.into(),
+			extra,
+		)
+	}
+
+	fn is_signed(tx: &Self::SignedTransaction) -> bool {
+		tx.signature.is_some()
+	}
+
+	fn is_signed_by(signer: &Self::AccountKeyPair, tx: &Self::SignedTransaction) -> bool {
+		tx.signature
+			.as_ref()
+			.map(|(address, _, _)| *address == rialto_runtime::Address::Id(signer.public().into()))
+			.unwrap_or(false)
+	}
+
+	fn parse_transaction(tx: Self::SignedTransaction) -> Option<UnsignedTransaction<Self::Chain>> {
+		let extra = &tx.signature.as_ref()?.2;
+		Some(UnsignedTransaction {
+			call: tx.function,
+			nonce: Compact::<IndexOf<Self::Chain>>::decode(&mut &extra.4.encode()[..]).ok()?.into(),
+			tip: Compact::<BalanceOf<Self::Chain>>::decode(&mut &extra.6.encode()[..])
+				.ok()?
+				.into(),
+		})
 	}
 }
 

@@ -26,10 +26,8 @@ use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 
 use std::collections::HashMap;
 
-use super::{
-	db::v1::{CandidateVotes, RecentDisputes},
-	error::FatalResult,
-};
+use super::db::v1::{CandidateVotes, RecentDisputes};
+use crate::error::FatalResult;
 
 #[derive(Debug)]
 pub enum BackendWriteOp {

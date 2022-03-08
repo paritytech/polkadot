@@ -60,7 +60,6 @@ struct ReplacePoVBytes<Sender>
 where
 	Sender: Send,
 {
-	keystore: SyncCryptoStorePtr,
 	queue: metered::UnboundedMeteredSender<(Sender, Hash, CandidateReceipt)>,
 }
 
@@ -112,7 +111,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 		let (sink, source) = metered::unbounded();
 		let keystore = args.keystore.clone() as SyncCryptoStorePtr;
 
-		let filter = ReplacePoVBytes { keystore: keystore.clone(), queue: sink };
+		let filter = ReplacePoVBytes { queue: sink };
 
 		let keystore2 = keystore.clone();
 		let spawner2 = spawner.clone();

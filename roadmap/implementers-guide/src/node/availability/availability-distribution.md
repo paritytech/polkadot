@@ -9,7 +9,7 @@ In particular this subsystem is responsible for:
 - Respond to network requests requesting availability data by querying the
   [Availability Store](../utility/availability-store.md).
 - Request chunks from backing validators to put them in the local `Availability
-  Store` whenever we find an occupied core on the chain,
+  Store` whenever we find an occupied core on any fresh leaf,
   this is to ensure availability by at least 2/3+ of all validators, this
   happens after a candidate is backed.
 - Fetch `PoV` from validators, when requested via `FetchPoV` message from

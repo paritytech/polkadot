@@ -1,17 +1,19 @@
 {
   "--1": "Rococo Types",
+  "RococoAddress": "AccountId",
+  "RococoLookupSource": "AccountId",
   "RococoBalance": "u128",
   "RococoBlockHash": "H256",
   "RococoBlockNumber": "u32",
   "RococoHeader": "Header",
   "--2": "Wococo Types",
+  "WococoAddress": "AccountId",
+  "WococoLookupSource": "AccountId",
   "WococoBalance": "RococoBalance",
   "WococoBlockHash": "RococoBlockHash",
   "WococoBlockNumber": "RococoBlockNumber",
   "WococoHeader": "RococoHeader",
   "--3": "Common types",
-  "Address": "AccountId",
-  "LookupSource": "AccountId",
   "AccountSigner": "MultiSigner",
   "SpecVersion": "u32",
   "RelayerId": "AccountId",
@@ -30,7 +32,7 @@
   "ChainId": "Id",
   "LaneId": "Id",
   "MessageNonce": "u64",
-  "MessageId": "(Id, u64)",
+  "BridgeMessageId": "(Id, u64)",
   "MessageKey": {
     "lane_id": "LaneId",
     "nonce:": "MessageNonce"
@@ -50,9 +52,9 @@
     "dispatch_results": "BitVec"
   },
   "OutboundLaneData": {
-    "latest_generated_nonce": "MessageNonce",
+    "oldest_unpruned_nonce": "MessageNonce",
     "latest_received_nonce": "MessageNonce",
-    "oldest_unpruned_nonce": "MessageNonce"
+    "latest_generated_nonce": "MessageNonce"
   },
   "MessageData": {
     "payload": "MessagePayload",
@@ -132,6 +134,8 @@
     "commit": "Commit",
     "votes_ancestries": "Vec<BridgedHeader>"
   },
+  "Address": "RococoAddress",
+  "LookupSource": "RococoLookupSource",
   "Fee": "RococoBalance",
   "Balance": "RococoBalance",
   "BlockHash": "RococoBlockHash",
