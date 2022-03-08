@@ -17,7 +17,7 @@
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
 use frame_support::traits::{tokens::fungibles, Contains, Get};
-use sp_std::{prelude::*, result, marker::PhantomData};
+use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, TransactAsset};
 
@@ -79,7 +79,11 @@ impl<
 		CheckingAccount,
 	>
 {
-	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset, _context: &XcmContext) -> XcmResult {
+	fn can_check_in(
+		_origin: &MultiLocation,
+		what: &MultiAsset,
+		_context: &XcmContext,
+	) -> XcmResult {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
 			"can_check_in origin: {:?}, what: {:?}",

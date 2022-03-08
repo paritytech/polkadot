@@ -53,7 +53,8 @@ fn lock_roundtrip_should_work() {
 	);
 
 	// Now we'll unlock it.
-	let message = Xcm(vec![UnlockAsset { asset: (Parent, 100u128).into(), target: (3u64,).into() }]);
+	let message =
+		Xcm(vec![UnlockAsset { asset: (Parent, 100u128).into(), target: (3u64,).into() }]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm((Parent, Parachain(1)), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
@@ -124,7 +125,8 @@ fn remote_unlock_roundtrip_should_work() {
 	set_send_price((Parent, 10u128));
 
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
-	let message = Xcm(vec![NoteUnlockable { asset: (Parent, 100u128).into(), owner: (3u64,).into() }]);
+	let message =
+		Xcm(vec![NoteUnlockable { asset: (Parent, 100u128).into(), owner: (3u64,).into() }]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm((Parent, Parachain(1)), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
@@ -185,7 +187,8 @@ fn remote_unlock_should_fail_correctly() {
 	assert_eq!(take_lock_trace(), vec![]);
 
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
-	let message = Xcm(vec![NoteUnlockable { asset: (Parent, 100u128).into(), owner: (3u64,).into() }]);
+	let message =
+		Xcm(vec![NoteUnlockable { asset: (Parent, 100u128).into(), owner: (3u64,).into() }]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm((Parent, Parachain(1)), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
