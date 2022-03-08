@@ -19,6 +19,7 @@ pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
+use frame_support::traits::ContainsPair;
 pub use frame_support::{
 	dispatch::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter, Weight,
@@ -39,7 +40,7 @@ pub use xcm::latest::prelude::*;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, ConvertOrigin, Enact, ExportXcm, FeeManager, FeeReason,
-		FilterAssetLocation, LockError, OnResponse, TransactAsset, UniversalLocation,
+		LockError, OnResponse, TransactAsset, UniversalLocation,
 	},
 	Assets, Config,
 };
@@ -283,15 +284,15 @@ pub fn clear_universal_aliases() {
 }
 
 pub struct TestIsReserve;
-impl FilterAssetLocation for TestIsReserve {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+impl ContainsPair<MultiAsset, MultiLocation> for TestIsReserve {
+	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_RESERVE
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
 }
 pub struct TestIsTeleporter;
-impl FilterAssetLocation for TestIsTeleporter {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+impl ContainsPair<MultiAsset, MultiLocation> for TestIsTeleporter {
+	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_TELEPORTER
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}

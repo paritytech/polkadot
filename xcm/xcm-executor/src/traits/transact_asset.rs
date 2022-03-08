@@ -95,7 +95,7 @@ pub trait TransactAsset {
 		to: &MultiLocation,
 	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to) {
-			Err(XcmError::Unimplemented) => {
+			Err(XcmError::AssetNotFound | XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from)?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to)?;
@@ -273,7 +273,7 @@ mod tests {
 			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()),
+			MultiTransactor::deposit_asset(&(Here, 1u128).into(), &Here.into()),
 			Err(XcmError::AssetNotFound)
 		);
 	}
@@ -282,7 +282,7 @@ mod tests {
 	fn unimplemented_and_not_found_continue_iteration() {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()), Ok(()),);
+		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1u128).into(), &Here.into()), Ok(()),);
 	}
 
 	#[test]
@@ -290,7 +290,7 @@ mod tests {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()),
+			MultiTransactor::deposit_asset(&(Here, 1u128).into(), &Here.into()),
 			Err(XcmError::Overflow)
 		);
 	}
@@ -299,6 +299,6 @@ mod tests {
 	fn success_stops_iteration() {
 		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()), Ok(()),);
+		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1u128).into(), &Here.into()), Ok(()),);
 	}
 }

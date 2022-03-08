@@ -25,7 +25,7 @@ mod tests;
 
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{
-	Contains, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
+	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -81,48 +81,6 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
-
-	/// A trait for querying whether a type can be said to "contain" a single pair-value.
-	pub trait ContainsPair<A, B> {
-		/// Return `true` if this "contains" the pair-value `a, b`.
-		fn contains(a: &A, b: &B) -> bool;
-	}
-
-	impl<A, B> ContainsPair<A, B> for frame_support::traits::Everything {
-		fn contains(_: &A, _: &B) -> bool {
-			true
-		}
-	}
-
-	impl<A, B> ContainsPair<A, B> for frame_support::traits::Nothing {
-		fn contains(_: &A, _: &B) -> bool {
-			false
-		}
-	}
-
-	#[impl_trait_for_tuples::impl_for_tuples(0, 30)]
-	impl<A, B> ContainsPair<A, B> for Tuple {
-		fn contains(a: &A, b: &B) -> bool {
-			for_tuples!( #(
-				if Tuple::contains(a, b) { return true }
-			)* );
-			false
-		}
-	}
-
-	/// Create a type which implements the `Contains` trait for a particular type with syntax similar
-	/// to `matches!`.
-	#[macro_export]
-	macro_rules! match_type {
-		( pub type $n:ident: impl ContainsPair<$a:ty, $b:ty> = { $phead:pat_param $( | $ptail:pat )* } ; ) => {
-			pub struct $n;
-			impl $crate::traits::ContainsPair<$a, $b> for $n {
-				fn contains(a: &$a, b: &$b) -> bool {
-					matches!((a, b), $phead $( | $ptail )* )
-				}
-			}
-		}
-	}
 
 	pub type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -1315,7 +1273,7 @@ impl<T: Config> Pallet<T> {
 		} else {
 			None
 		};
-		log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
+		log::debug!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
 		let (ticket, price) = validate_send::<T::XcmRouter>(dest, message)?;
 		if let Some(fee_payer) = maybe_fee_payer {
 			Self::charge_fees(fee_payer, price).map_err(|_| SendError::Fees)?;

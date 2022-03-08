@@ -36,7 +36,7 @@ mod remote_relay_relay;
 parameter_types! {
 	pub Local: NetworkId = ByGenesis([0; 32]);
 	pub Remote: NetworkId = ByGenesis([1; 32]);
-	pub Price: MultiAssets = MultiAssets::from((Here, 100));
+	pub Price: MultiAssets = MultiAssets::from((Here, 100u128));
 }
 
 std::thread_local! {

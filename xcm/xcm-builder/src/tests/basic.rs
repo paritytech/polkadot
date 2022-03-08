@@ -19,10 +19,9 @@ use super::*;
 #[test]
 fn basic_setup_works() {
 	add_reserve(Parent.into(), Wild((Parent, WildFungible).into()));
-	assert!(<TestConfig as Config>::IsReserve::filter_asset_location(
-		&(Parent, 100).into(),
-		&Parent.into(),
-	));
+	assert!(
+		<TestConfig as Config>::IsReserve::contains(&(Parent, 100u128).into(), &Parent.into(),)
+	);
 
 	assert_eq!(to_account(Parachain(1)), Ok(1001));
 	assert_eq!(to_account(Parachain(50)), Ok(1050));
@@ -42,8 +41,8 @@ fn basic_setup_works() {
 #[test]
 fn weigher_should_work() {
 	let mut message = Xcm(vec![
-		ReserveAssetDeposited((Parent, 100).into()),
-		BuyExecution { fees: (Parent, 1).into(), weight_limit: Limited(30) },
+		ReserveAssetDeposited((Parent, 100u128).into()),
+		BuyExecution { fees: (Parent, 1u128).into(), weight_limit: Limited(30) },
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
@@ -54,12 +53,12 @@ fn code_registers_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![Here.into()]);
 	// We own 1000 of our tokens.
-	add_asset(Here, (Here, 21));
+	add_asset(Here, (Here, 21u128));
 	let mut message = Xcm(vec![
 		// Set our error handler - this will fire only on the second message, when there's an error
 		SetErrorHandler(Xcm(vec![
 			TransferAsset {
-				assets: (Here, 2).into(),
+				assets: (Here, 2u128).into(),
 				beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 			},
 			// It was handled fine.
@@ -67,17 +66,17 @@ fn code_registers_should_work() {
 		])),
 		// Set the appendix - this will always fire.
 		SetAppendix(Xcm(vec![TransferAsset {
-			assets: (Here, 4).into(),
+			assets: (Here, 4u128).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		}])),
 		// First xfer always works ok
 		TransferAsset {
-			assets: (Here, 1).into(),
+			assets: (Here, 1u128).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error on the second message - our error handler will fire.
 		TransferAsset {
-			assets: (Here, 8).into(),
+			assets: (Here, 8u128).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 	]);
@@ -87,13 +86,13 @@ fn code_registers_should_work() {
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
 	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.
-	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 13).into()]);
-	assert_eq!(asset_list(Here), vec![(Here, 8).into()]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 13u128).into()]);
+	assert_eq!(asset_list(Here), vec![(Here, 8u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
 	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
-	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 20).into()]);
-	assert_eq!(asset_list(Here), vec![(Here, 1).into()]);
+	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 20u128).into()]);
+	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }

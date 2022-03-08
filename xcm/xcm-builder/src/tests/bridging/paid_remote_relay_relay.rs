@@ -28,7 +28,7 @@ parameter_types! {
 	pub RelayUniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
 	pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote::get()));
 	pub static BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
-		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 150).into()))];
+		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 150u128).into()))];
 	// ^^^ 100 to use the bridge (export) and 50 for the remote execution weight (5 instuctions
 	//     x 10 weight each).
 }
@@ -63,10 +63,10 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(Parachain(100), (Here, 1000));
+	add_asset(Parachain(100), (Here, 1000u128));
 
 	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((Parent, 150).into()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, msg), Ok((Parent, 150u128).into()));
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -81,7 +81,7 @@ fn sending_to_bridged_chain_works() {
 	);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850).into()]);
+	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850u128).into()]);
 }
 
 /// ```nocompile
@@ -104,9 +104,9 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	);
 
 	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(Parachain(100), (Here, 1000));
+	add_asset(Parachain(100), (Here, 1000u128));
 
-	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok((Parent, 150).into()));
+	assert_eq!(send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])), Ok((Parent, 150u128).into()));
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parachain(100).into(),
@@ -119,5 +119,5 @@ fn sending_to_parachain_of_bridged_chain_works() {
 	assert_eq!(take_received_remote_messages(), expected);
 
 	// The export cost 50 weight units (and thus 50 units of balance).
-	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850).into()]);
+	assert_eq!(asset_list(Parachain(100)), vec![(Here, 850u128).into()]);
 }

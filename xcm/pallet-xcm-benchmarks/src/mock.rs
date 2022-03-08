@@ -15,8 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::*;
-use frame_support::{parameter_types, weights::Weight};
-use xcm_executor::traits::FilterAssetLocation;
+use frame_support::{parameter_types, traits::ContainsPair, weights::Weight};
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
@@ -67,8 +66,8 @@ parameter_types! {
 }
 
 pub struct AllAssetLocationsPass;
-impl FilterAssetLocation for AllAssetLocationsPass {
-	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation) -> bool {
+impl ContainsPair<MultiAsset, MultiLocation> for AllAssetLocationsPass {
+	fn contains(_: &MultiAsset, _: &MultiLocation) -> bool {
 		true
 	}
 }
