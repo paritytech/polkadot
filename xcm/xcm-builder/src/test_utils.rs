@@ -37,13 +37,18 @@ parameter_types! {
 pub struct TestSubscriptionService;
 
 impl VersionChangeNotifier for TestSubscriptionService {
-	fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
+	fn start(
+		location: &MultiLocation,
+		query_id: QueryId,
+		max_weight: u64,
+		_context: &XcmContext,
+	) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
 		r.push((location.clone(), Some((query_id, max_weight))));
 		SubscriptionRequests::set(r);
 		Ok(())
 	}
-	fn stop(location: &MultiLocation) -> XcmResult {
+	fn stop(location: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
 		r.retain(|(l, _q)| l != location);
 		r.push((location.clone(), None));
@@ -63,7 +68,7 @@ parameter_types! {
 pub struct TestAssetTrap;
 
 impl DropAssets for TestAssetTrap {
-	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		t.push((origin.clone(), assets.into()));
 		TrappedAssets::set(t);
@@ -72,7 +77,12 @@ impl DropAssets for TestAssetTrap {
 }
 
 impl ClaimAssets for TestAssetTrap {
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+	fn claim_assets(
+		origin: &MultiLocation,
+		ticket: &MultiLocation,
+		what: &MultiAssets,
+		_context: &XcmContext,
+	) -> bool {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
 			if let Some((l, a)) = t.get(*i as usize) {

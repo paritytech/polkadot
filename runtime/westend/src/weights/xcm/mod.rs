@@ -238,4 +238,10 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn set_fees_mode(_: &bool) -> Weight {
 		Weight::MAX // todo fix
 	}
+	fn set_topic(_topic: &[u8; 32]) -> Weight {
+		XcmGeneric::<Runtime>::set_topic()
+	}
+	fn clear_topic() -> Weight {
+		XcmGeneric::<Runtime>::clear_topic()
+	}
 }

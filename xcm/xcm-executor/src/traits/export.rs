@@ -41,7 +41,7 @@ pub trait ExportXcm {
 	/// The implementation should do everything possible to ensure that this function is infallible
 	/// if called immediately after `validate`. Returning an error here would result in a price
 	/// paid without the service being delivered.
-	fn deliver(ticket: Self::Ticket) -> Result<(), SendError>;
+	fn deliver(ticket: Self::Ticket) -> Result<XcmHash, SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -76,7 +76,7 @@ impl ExportXcm for Tuple {
 		}
 	}
 
-	fn deliver(one_ticket: Self::Ticket) -> Result<(), SendError> {
+	fn deliver(one_ticket: Self::Ticket) -> Result<XcmHash, SendError> {
 		for_tuples!( #(
 			if let Some(validated) = one_ticket.Tuple.take() {
 				return Tuple::deliver(validated);
@@ -110,8 +110,8 @@ pub fn export_xcm<T: ExportXcm>(
 	channel: u32,
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
-) -> Result<MultiAssets, SendError> {
-	let (ticket, price) = T::validate(network, channel, &mut Some(dest), &mut Some(msg))?;
-	T::deliver(ticket)?;
-	Ok(price)
+) -> Result<(XcmHash, MultiAssets), SendError> {
+	let (ticket, price) = T::validate(network, channel, &mut Some(dest), &mut Some(msg.clone()))?;
+	let hash = T::deliver(ticket)?;
+	Ok((hash, price))
 }

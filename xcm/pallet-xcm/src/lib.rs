@@ -768,6 +768,7 @@ pub mod pallet {
 			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let hash = message.using_encoded(sp_io::hashing::blake2_256);
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
@@ -775,6 +776,7 @@ pub mod pallet {
 			let outcome = T::XcmExecutor::execute_xcm_in_credit(
 				origin_location,
 				message,
+				hash,
 				max_weight,
 				max_weight,
 			);
@@ -1014,8 +1016,9 @@ impl<T: Config> Pallet<T> {
 		let mut message = Xcm(vec![TransferReserveAsset { assets, dest, xcm }]);
 		let weight =
 			T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let outcome =
-			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, hash, weight, weight);
 		Self::deposit_event(Event::Attempted(outcome));
 		Ok(())
 	}
@@ -1072,8 +1075,9 @@ impl<T: Config> Pallet<T> {
 			Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
 		let weight =
 			T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let outcome =
-			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, hash, weight, weight);
 		Self::deposit_event(Event::Attempted(outcome));
 		Ok(())
 	}
@@ -1152,7 +1156,7 @@ impl<T: Config> Pallet<T> {
 				let message =
 					Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
 				let event = match send_xcm::<T::XcmRouter>(new_key.clone(), message) {
-					Ok(cost) => {
+					Ok((_hash, cost)) => {
 						let value = (query_id, max_weight, xcm_version);
 						VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
 						Event::VersionChangeNotified(new_key, xcm_version, cost)
@@ -1201,7 +1205,7 @@ impl<T: Config> Pallet<T> {
 							querier: None,
 						}]);
 						let event = match send_xcm::<T::XcmRouter>(new_key.clone(), message) {
-							Ok(cost) => {
+							Ok((_hash, cost)) => {
 								VersionNotifyTargets::<T>::insert(
 									XCM_VERSION,
 									versioned_key,
@@ -1236,7 +1240,7 @@ impl<T: Config> Pallet<T> {
 		});
 		// TODO #3735: Correct weight.
 		let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
-		let cost = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
+		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
 		Self::deposit_event(Event::VersionNotifyRequested(dest, cost));
 		VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
 		let query_status =
@@ -1251,7 +1255,7 @@ impl<T: Config> Pallet<T> {
 		let versioned_dest = LatestVersionedMultiLocation(&dest);
 		let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
 			.ok_or(XcmError::InvalidLocation)?;
-		let cost = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
+		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
 		Self::deposit_event(Event::VersionNotifyUnrequested(dest, cost));
 		Queries::<T>::remove(query_id);
 		Ok(())
@@ -1264,7 +1268,7 @@ impl<T: Config> Pallet<T> {
 		interior: impl Into<Junctions>,
 		dest: impl Into<MultiLocation>,
 		mut message: Xcm<()>,
-	) -> Result<(), SendError> {
+	) -> Result<XcmHash, SendError> {
 		let interior = interior.into();
 		let dest = dest.into();
 		let maybe_fee_payer = if interior != Junctions::Here {
@@ -1278,8 +1282,7 @@ impl<T: Config> Pallet<T> {
 		if let Some(fee_payer) = maybe_fee_payer {
 			Self::charge_fees(fee_payer, price).map_err(|_| SendError::Fees)?;
 		}
-		T::XcmRouter::deliver(ticket)?;
-		Ok(())
+		T::XcmRouter::deliver(ticket)
 	}
 
 	pub fn check_account() -> T::AccountId {
@@ -1663,7 +1666,12 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 	///
 	/// If the `location` has an ongoing notification and when this function is called, then an
 	/// error should be returned.
-	fn start(dest: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
+	fn start(
+		dest: &MultiLocation,
+		query_id: QueryId,
+		max_weight: u64,
+		_context: &XcmContext,
+	) -> XcmResult {
 		let versioned_dest = LatestVersionedMultiLocation(dest);
 		let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
 		ensure!(!already, XcmError::InvalidLocation);
@@ -1671,7 +1679,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 		let xcm_version = T::AdvertisedXcmVersion::get();
 		let response = Response::Version(xcm_version);
 		let instruction = QueryResponse { query_id, response, max_weight, querier: None };
-		let cost = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
+		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
 		Self::deposit_event(Event::<T>::VersionNotifyStarted(dest.clone(), cost));
 
 		let value = (query_id, max_weight, xcm_version);
@@ -1681,7 +1689,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 
 	/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
 	/// subscription.
-	fn stop(dest: &MultiLocation) -> XcmResult {
+	fn stop(dest: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 		Ok(())
 	}
@@ -1694,7 +1702,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 }
 
 impl<T: Config> DropAssets for Pallet<T> {
-	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		if assets.is_empty() {
 			return 0
 		}
@@ -1708,7 +1716,12 @@ impl<T: Config> DropAssets for Pallet<T> {
 }
 
 impl<T: Config> ClaimAssets for Pallet<T> {
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, assets: &MultiAssets) -> bool {
+	fn claim_assets(
+		origin: &MultiLocation,
+		ticket: &MultiLocation,
+		assets: &MultiAssets,
+		_context: &XcmContext,
+	) -> bool {
 		let mut versioned = VersionedMultiAssets::from(assets.clone());
 		match (ticket.parents, &ticket.interior) {
 			(0, X1(GeneralIndex(i))) =>
@@ -1755,6 +1768,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 		querier: Option<&MultiLocation>,
 		response: Response,
 		max_weight: Weight,
+		_context: &XcmContext,
 	) -> Weight {
 		match (response, Queries::<T>::get(query_id)) {
 			(

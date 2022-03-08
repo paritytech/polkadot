@@ -19,7 +19,7 @@
 use frame_support::traits::{ExistenceRequirement::AllowDeath, Get, WithdrawReasons};
 use sp_runtime::traits::{CheckedSub, SaturatedConversion};
 use sp_std::{convert::TryInto, marker::PhantomData, result};
-use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result};
+use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result, XcmContext};
 use xcm_executor::{
 	traits::{Convert, MatchesFungible, TransactAsset},
 	Assets,
@@ -101,7 +101,7 @@ impl<
 	> TransactAsset
 	for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
 {
-	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
+	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset, _context: &XcmContext) -> Result {
 		log::trace!(target: "xcm::currency_adapter", "can_check_in origin: {:?}, what: {:?}", _origin, what);
 		// Check we handle this asset.
 		let amount: Currency::Balance =
@@ -121,7 +121,7 @@ impl<
 		Ok(())
 	}
 
-	fn check_in(_origin: &MultiLocation, what: &MultiAsset) {
+	fn check_in(_origin: &MultiLocation, what: &MultiAsset, _context: &XcmContext) {
 		log::trace!(target: "xcm::currency_adapter", "check_in origin: {:?}, what: {:?}", _origin, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
@@ -140,7 +140,7 @@ impl<
 		}
 	}
 
-	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
+	fn check_out(_dest: &MultiLocation, what: &MultiAsset, _context: &XcmContext) {
 		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
@@ -149,7 +149,7 @@ impl<
 		}
 	}
 
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
+	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, _context: &XcmContext) -> Result {
 		log::trace!(target: "xcm::currency_adapter", "deposit_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =
@@ -162,7 +162,11 @@ impl<
 		Ok(())
 	}
 
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<Assets, XcmError> {
+	fn withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
+	) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "withdraw_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =

@@ -84,13 +84,15 @@ fn code_registers_should_work() {
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
 	assert_eq!(limit, 70);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), limit);
+	let hash = fake_message_hash(&message);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
 	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 13u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 8u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, hash, limit);
 	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 20u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);

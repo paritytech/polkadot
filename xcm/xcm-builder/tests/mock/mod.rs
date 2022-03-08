@@ -19,6 +19,7 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
+use parity_scale_codec::Encode;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
@@ -40,24 +41,27 @@ pub type AccountId = AccountId32;
 pub type Balance = u128;
 
 thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm, XcmHash)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	type Ticket = (MultiLocation, Xcm<()>);
+	type Ticket = (MultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(MultiLocation, Xcm<()>)> {
-		let pair = (dest.take().unwrap(), msg.take().unwrap());
-		Ok((pair, MultiAssets::new()))
+	) -> SendResult<(MultiLocation, Xcm<()>, XcmHash)> {
+		let msg = msg.take().unwrap();
+		let hash = fake_message_hash(&msg);
+		let triplet = (dest.take().unwrap(), msg, hash);
+		Ok((triplet, MultiAssets::new()))
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
-		SENT_XCM.with(|q| q.borrow_mut().push(pair));
-		Ok(())
+	fn deliver(triplet: (MultiLocation, Xcm<()>, XcmHash)) -> Result<XcmHash, SendError> {
+		let hash = triplet.2;
+		SENT_XCM.with(|q| q.borrow_mut().push(triplet));
+		Ok(hash)
 	}
 }
 
@@ -244,4 +248,8 @@ pub fn kusama_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext
+}
+
+pub fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(sp_io::hashing::blake2_256)
 }

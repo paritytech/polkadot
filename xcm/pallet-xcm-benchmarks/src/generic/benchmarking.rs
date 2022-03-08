@@ -47,7 +47,7 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// The completion of execution above is enough to validate this is completed.
 	}
@@ -69,7 +69,7 @@ benchmarks! {
 
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 
 	}
@@ -89,7 +89,7 @@ benchmarks! {
 		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm).map_err(|_| BenchmarkError::Skip)?;
+		executor.bench_process(xcm).map_err(|_| BenchmarkError::Skip)?;
 	} verify {
 		assert_eq!(executor.holding(), &multiassets.into());
 	}
@@ -102,7 +102,7 @@ benchmarks! {
 		let instruction = Instruction::QueryResponse { query_id, response, max_weight, querier };
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// The assert above is enough to show this XCM succeeded
 	}
@@ -127,7 +127,7 @@ benchmarks! {
 
 		let num_events = frame_system::Pallet::<T>::events().len();
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// TODO make better assertion? #4426
 		let num_events2 = frame_system::Pallet::<T>::events().len();
@@ -144,7 +144,7 @@ benchmarks! {
 		let instruction = Instruction::<XcmCallOf<T>>::RefundSurplus;
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		let result = executor.execute(xcm)?;
+		let result = executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.total_surplus(), &1337);
 		assert_eq!(executor.total_refunded(), &1337);
@@ -155,7 +155,7 @@ benchmarks! {
 		let instruction = Instruction::<XcmCallOf<T>>::SetErrorHandler(Xcm(vec![]));
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.error_handler(), &Xcm(vec![]));
 	}
@@ -166,7 +166,7 @@ benchmarks! {
 		let instruction = Instruction::<XcmCallOf<T>>::SetAppendix(appendix);
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.appendix(), &Xcm(vec![]));
 	}
@@ -177,7 +177,7 @@ benchmarks! {
 		let instruction = Instruction::<XcmCallOf<T>>::ClearError;
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(executor.error().is_none())
 	}
@@ -188,7 +188,7 @@ benchmarks! {
 		let instruction = Instruction::DescendOrigin(who.clone());
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(
 			executor.origin(),
@@ -204,7 +204,7 @@ benchmarks! {
 		let instruction = Instruction::ClearOrigin;
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.origin(), &None);
 	}
@@ -221,7 +221,7 @@ benchmarks! {
 		});
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// the execution succeeding is all we need to verify this xcm was successful
 	}
@@ -235,6 +235,11 @@ benchmarks! {
 		<T::XcmConfig as xcm_executor::Config>::AssetTrap::drop_assets(
 			&origin,
 			assets.clone().into(),
+			&XcmContext {
+				origin: Some(origin.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
 		);
 
 		// Assets should be in the trap now.
@@ -243,7 +248,7 @@ benchmarks! {
 		let instruction = Instruction::ClaimAsset { assets: assets.clone(), ticket };
 		let xcm = Xcm(vec![instruction]);
 	} :{
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(executor.holding().ensure_contains(&assets).is_ok());
 	}
@@ -255,7 +260,7 @@ benchmarks! {
 		// In order to access result in the verification below, it needs to be defined here.
 		let mut _result = Ok(());
 	} : {
-		_result = executor.execute(xcm);
+		_result = executor.bench_process(xcm);
 	} verify {
 		assert!(matches!(_result, Err(ExecutorError {
 			xcm_error: XcmError::Trap(10),
@@ -272,7 +277,7 @@ benchmarks! {
 		let instruction = Instruction::SubscribeVersion { query_id, max_response_weight };
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
 	}
@@ -286,7 +291,12 @@ benchmarks! {
 		<T::XcmConfig as xcm_executor::Config>::SubscriptionService::start(
 			&origin,
 			query_id,
-			max_response_weight
+			max_response_weight,
+			&XcmContext {
+				origin: Some(origin.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
 		).map_err(|_| "Could not start subscription")?;
 		assert!(<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
 
@@ -294,7 +304,7 @@ benchmarks! {
 		let instruction = Instruction::UnsubscribeVersion;
 		let xcm = Xcm(vec![instruction]);
 	} : {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(!<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
 	}
@@ -308,7 +318,7 @@ benchmarks! {
 		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// The execute completing successfully is as good as we can check.
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
@@ -324,7 +334,7 @@ benchmarks! {
 		let instruction = Instruction::BurnAsset(assets.into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(executor.holding().is_empty());
 	}
@@ -339,7 +349,7 @@ benchmarks! {
 		let instruction = Instruction::ExpectAsset(assets.into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// `execute` completing successfully is as good as we can check.
 	}
@@ -352,7 +362,7 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 		let mut _result = Ok(());
 	}: {
-		_result = executor.execute(xcm);
+		_result = executor.bench_process(xcm);
 	} verify {
 		assert!(matches!(_result, Err(ExecutorError {
 			xcm_error: XcmError::ExpectationFalse,
@@ -368,7 +378,7 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 		let mut _result = Ok(());
 	}: {
-		_result = executor.execute(xcm);
+		_result = executor.bench_process(xcm);
 	} verify {
 		assert!(matches!(_result, Err(ExecutorError {
 			xcm_error: XcmError::ExpectationFalse,
@@ -388,7 +398,7 @@ benchmarks! {
 		};
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
@@ -405,7 +415,7 @@ benchmarks! {
 		};
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// the execution succeeding is all we need to verify this xcm was successful
 	}
@@ -425,7 +435,7 @@ benchmarks! {
 		});
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
@@ -437,9 +447,32 @@ benchmarks! {
 		let instruction = Instruction::ClearTransactStatus;
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.transact_status(), &MaybeErrorCode::Success);
+	}
+
+	set_topic {
+		let mut executor = new_executor::<T>(Default::default());
+
+		let instruction = Instruction::SetTopic([1; 32]);
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.topic(), &Some([1; 32]));
+	}
+
+	clear_topic {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_topic(Some([2; 32]));
+
+		let instruction = Instruction::ClearTopic;
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.topic(), &None);
 	}
 
 	impl_benchmark_test_suite!(

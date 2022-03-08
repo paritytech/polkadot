@@ -24,8 +24,8 @@ impl xcm::opaque::latest::SendXcm for DevNull {
 	fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<()> {
 		Ok(((), MultiAssets::new()))
 	}
-	fn deliver(_: ()) -> Result<(), SendError> {
-		Ok(())
+	fn deliver(_: ()) -> Result<XcmHash, SendError> {
+		Ok([0; 32])
 	}
 }
 
@@ -39,6 +39,7 @@ impl xcm_executor::traits::OnResponse for DevNull {
 		_: Option<&MultiLocation>,
 		_: Response,
 		_: Weight,
+		_: &XcmContext,
 	) -> Weight {
 		0
 	}

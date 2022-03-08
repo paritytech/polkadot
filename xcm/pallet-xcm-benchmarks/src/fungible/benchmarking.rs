@@ -44,7 +44,15 @@ benchmarks_instance_pallet! {
 		let worst_case_holding = T::worst_case_holding(0);
 		let asset = T::get_multi_asset();
 
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(
+			&asset,
+			&sender_location,
+			&XcmContext {
+				origin: Some(sender_location.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
+		).unwrap();
 		// check the assets of origin.
 		assert!(!T::TransactAsset::balance(&sender_account).is_zero());
 
@@ -53,7 +61,7 @@ benchmarks_instance_pallet! {
 		let instruction = Instruction::<XcmCallOf<T>>::WithdrawAsset(vec![asset.clone()].into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// check one of the assets of origin.
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
@@ -69,14 +77,22 @@ benchmarks_instance_pallet! {
 		let dest_location = T::valid_destination()?;
 		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(
+			&asset,
+			&sender_location,
+			&XcmContext {
+				origin: Some(sender_location.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
+		).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(sender_location);
 		let instruction = Instruction::TransferAsset { assets, beneficiary: dest_location };
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
@@ -88,7 +104,15 @@ benchmarks_instance_pallet! {
 		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 
 		let asset = T::get_multi_asset();
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(
+			&asset,
+			&sender_location,
+			&XcmContext {
+				origin: Some(sender_location.clone()),
+				message_hash: [0; 32],
+				topic: None,
+			},
+		).unwrap();
 		let assets: MultiAssets = vec![ asset ].into();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
@@ -100,7 +124,7 @@ benchmarks_instance_pallet! {
 		};
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
@@ -129,7 +153,7 @@ benchmarks_instance_pallet! {
 		let instruction = Instruction::ReceiveTeleportedAsset(assets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm).map_err(|_| {
+		executor.bench_process(xcm).map_err(|_| {
 			BenchmarkError::Override(
 				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
 			)
@@ -158,7 +182,7 @@ benchmarks_instance_pallet! {
 		};
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// dest should have received some asset.
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero())
@@ -185,7 +209,7 @@ benchmarks_instance_pallet! {
 		};
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		// dest should have received some asset.
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero())
@@ -210,7 +234,7 @@ benchmarks_instance_pallet! {
 		};
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.bench_process(xcm)?;
 	} verify {
 		if let Some(checked_account) = T::CheckedAccount::get() {
 			// teleport checked account should have received some asset.

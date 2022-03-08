@@ -45,7 +45,7 @@ pub use multilocation::{
 };
 pub use traits::{
 	send_xcm, validate_send, Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError,
-	SendResult, SendXcm, Unwrappable, Weight,
+	SendResult, SendXcm, Unwrappable, Weight, XcmHash,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{OriginKind, WeightLimit};
@@ -184,7 +184,7 @@ pub mod prelude {
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
-			XcmWeightInfo, VERSION as XCM_VERSION,
+			XcmContext, XcmHash, XcmWeightInfo, VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};
@@ -327,6 +327,25 @@ pub struct QueryResponseInfo {
 	/// The `max_weight` field of the `QueryResponse` message.
 	#[codec(compact)]
 	pub max_weight: Weight,
+}
+
+/// Contextual data pertaining to a specific list of XCM instructions.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+pub struct XcmContext {
+	/// The `MultiLocation` origin of the corresponding XCM.
+	pub origin: Option<MultiLocation>,
+	/// The hash of the XCM.
+	pub message_hash: XcmHash,
+	/// The topic of the XCM.
+	pub topic: Option<[u8; 32]>,
+}
+
+impl XcmContext {
+	/// Constructor which sets the message hash to the supplied parameter and leaves the origin and
+	/// topic unset.
+	pub fn with_message_hash(message_hash: XcmHash) -> XcmContext {
+		XcmContext { origin: None, message_hash, topic: None }
+	}
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -944,6 +963,22 @@ pub enum Instruction<Call> {
 	///
 	/// Errors:
 	SetFeesMode { jit_withdraw: bool },
+
+	/// Set the Topic Register.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	SetTopic([u8; 32]),
+
+	/// Clear the Topic Register.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
+	ClearTopic,
 }
 
 impl<Call> Xcm<Call> {
@@ -1015,6 +1050,8 @@ impl<Call> Instruction<Call> {
 			NoteUnlockable { asset, owner } => NoteUnlockable { asset, owner },
 			RequestUnlock { asset, locker } => RequestUnlock { asset, locker },
 			SetFeesMode { jit_withdraw } => SetFeesMode { jit_withdraw },
+			SetTopic(topic) => SetTopic(topic),
+			ClearTopic => ClearTopic,
 		}
 	}
 }
@@ -1078,6 +1115,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			NoteUnlockable { asset, owner } => W::note_unlockable(asset, owner),
 			RequestUnlock { asset, locker } => W::request_unlock(asset, locker),
 			SetFeesMode { jit_withdraw } => W::set_fees_mode(jit_withdraw),
+			SetTopic(topic) => W::set_topic(topic),
+			ClearTopic => W::clear_topic(),
 		}
 	}
 }

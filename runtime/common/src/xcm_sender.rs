@@ -59,8 +59,10 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 
 	fn deliver(
 		(config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>),
-	) -> Result<(), SendError> {
+	) -> Result<XcmHash, SendError> {
+		let hash = sp_io::hashing::blake2_256(&blob[..]);
 		<dmp::Pallet<T>>::queue_downward_message(&config, para, blob)
+			.map(|()| hash)
 			.map_err(|_| SendError::Transport(&"Error placing into DMP queue"))
 	}
 }

@@ -35,6 +35,7 @@ impl<
 		what: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
+		_context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
@@ -78,7 +79,11 @@ impl<
 		CheckingAccount,
 	>
 {
-	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> XcmResult {
+	fn can_check_in(
+		_origin: &MultiLocation,
+		what: &MultiAsset,
+		_context: &XcmContext,
+	) -> XcmResult {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
 			"can_check_in origin: {:?}, what: {:?}",
@@ -96,7 +101,7 @@ impl<
 		Ok(())
 	}
 
-	fn check_in(_origin: &MultiLocation, what: &MultiAsset) {
+	fn check_in(_origin: &MultiLocation, what: &MultiAsset, _context: &XcmContext) {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
 			"check_in origin: {:?}, what: {:?}",
@@ -114,7 +119,7 @@ impl<
 		}
 	}
 
-	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
+	fn check_out(_dest: &MultiLocation, what: &MultiAsset, _context: &XcmContext) {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
 			"check_out dest: {:?}, what: {:?}",
@@ -129,7 +134,7 @@ impl<
 		}
 	}
 
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
+	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
 			"deposit_asset what: {:?}, who: {:?}",
@@ -146,6 +151,7 @@ impl<
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
@@ -180,7 +186,7 @@ impl<
 	> TransactAsset
 	for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
 {
-	fn can_check_in(origin: &MultiLocation, what: &MultiAsset) -> XcmResult {
+	fn can_check_in(origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		FungiblesMutateAdapter::<
 			Assets,
 			Matcher,
@@ -188,10 +194,10 @@ impl<
 			AccountId,
 			CheckAsset,
 			CheckingAccount,
-		>::can_check_in(origin, what)
+		>::can_check_in(origin, what, context)
 	}
 
-	fn check_in(origin: &MultiLocation, what: &MultiAsset) {
+	fn check_in(origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		FungiblesMutateAdapter::<
 			Assets,
 			Matcher,
@@ -199,10 +205,10 @@ impl<
 			AccountId,
 			CheckAsset,
 			CheckingAccount,
-		>::check_in(origin, what)
+		>::check_in(origin, what, context)
 	}
 
-	fn check_out(dest: &MultiLocation, what: &MultiAsset) {
+	fn check_out(dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		FungiblesMutateAdapter::<
 			Assets,
 			Matcher,
@@ -210,10 +216,10 @@ impl<
 			AccountId,
 			CheckAsset,
 			CheckingAccount,
-		>::check_out(dest, what)
+		>::check_out(dest, what, context)
 	}
 
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
+	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, context: &XcmContext) -> XcmResult {
 		FungiblesMutateAdapter::<
 			Assets,
 			Matcher,
@@ -221,12 +227,13 @@ impl<
 			AccountId,
 			CheckAsset,
 			CheckingAccount,
-		>::deposit_asset(what, who)
+		>::deposit_asset(what, who, context)
 	}
 
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
+		maybe_context: Option<&XcmContext>,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		FungiblesMutateAdapter::<
 			Assets,
@@ -235,16 +242,17 @@ impl<
 			AccountId,
 			CheckAsset,
 			CheckingAccount,
-		>::withdraw_asset(what, who)
+		>::withdraw_asset(what, who, maybe_context)
 	}
 
 	fn transfer_asset(
 		what: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
+		context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(
-			what, from, to,
+			what, from, to, context,
 		)
 	}
 }

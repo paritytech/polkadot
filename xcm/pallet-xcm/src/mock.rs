@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
@@ -24,7 +25,7 @@ use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
-use xcm::latest::prelude::*;
+use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
@@ -164,9 +165,10 @@ impl SendXcm for TestSendXcm {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
 		Ok((pair, MultiAssets::new()))
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
+		let hash = fake_message_hash(&pair.1);
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
-		Ok(())
+		Ok(hash)
 	}
 }
 /// Sender that returns error if `X8` junction and stops routing
@@ -184,9 +186,10 @@ impl SendXcm for TestSendXcmErrX8 {
 			Ok(((dest, msg), MultiAssets::new()))
 		}
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
+		let hash = fake_message_hash(&pair.1);
 		SENT_XCM.with(|q| q.borrow_mut().push(pair));
-		Ok(())
+		Ok(hash)
 	}
 }
 
@@ -371,4 +374,8 @@ pub(crate) fn new_test_ext_with_balances(
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext
+}
+
+pub(crate) fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(sp_io::hashing::blake2_256)
 }

@@ -69,9 +69,10 @@ impl SendXcm for TestRemoteIncomingRouter {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
 		Ok((pair, MultiAssets::new()))
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
+		let hash = fake_message_hash(&pair.1);
 		REMOTE_INCOMING_XCM.with(|q| q.borrow_mut().push(pair));
-		Ok(())
+		Ok(hash)
 	}
 }
 
@@ -99,9 +100,8 @@ fn deliver<RemoteExporter: ExportXcm>(
 	c: u32,
 	d: InteriorMultiLocation,
 	m: Xcm<()>,
-) -> Result<(), SendError> {
-	export_xcm::<RemoteExporter>(n, c, d, m)?;
-	Ok(())
+) -> Result<XcmHash, SendError> {
+	export_xcm::<RemoteExporter>(n, c, d, m).map(|(hash, _)| hash)
 }
 
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
@@ -121,7 +121,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		Ok((message, MultiAssets::new()))
 	}
 
-	fn deliver(message: Xcm<()>) -> Result<(), SendError> {
+	fn deliver(message: Xcm<()>) -> Result<XcmHash, SendError> {
 		// We now pretend that the message was delivered from `Local` to `Remote`, and execute
 		// so we need to ensure that the `TestConfig` is set up properly for executing as
 		// though it is `Remote`.
@@ -130,10 +130,11 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		AllowUnpaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
+		let hash = fake_message_hash(&message);
 		let outcome =
-			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, 2_000_000_000_000);
 		match outcome {
-			Outcome::Complete(..) => Ok(()),
+			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),
 		}
@@ -161,7 +162,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		Ok((message, MultiAssets::new()))
 	}
 
-	fn deliver(message: Xcm<()>) -> Result<(), SendError> {
+	fn deliver(message: Xcm<()>) -> Result<XcmHash, SendError> {
 		// We now pretend that the message was delivered from `Local` to `Remote`, and execute
 		// so we need to ensure that the `TestConfig` is set up properly for executing as
 		// though it is `Remote`.
@@ -170,10 +171,11 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		AllowPaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
+		let hash = fake_message_hash(&message);
 		let outcome =
-			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), 2_000_000_000_000);
+			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, 2_000_000_000_000);
 		match outcome {
-			Outcome::Complete(..) => Ok(()),
+			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),
 		}
