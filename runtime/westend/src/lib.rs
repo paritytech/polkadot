@@ -40,9 +40,9 @@ use primitives::{
 		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
 		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
+		ValidatorIndex, ValidatorSignature,
 	},
-	v2::SessionInfo,
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
@@ -57,6 +57,7 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
+use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
 	create_runtime_str,
@@ -75,7 +76,6 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -86,13 +86,8 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use westend_runtime_constants::{currency::*, fee::*, time::*};
 
-// Weights used in the runtime
 mod weights;
-
-// Voter bag threshold definitions.
 mod bag_thresholds;
-
-// XCM configurations.
 pub mod xcm_config;
 
 #[cfg(test)]
@@ -703,7 +698,7 @@ parameter_types! {
 	Decode,
 	RuntimeDebug,
 	MaxEncodedLen,
-	scale_info::TypeInfo,
+	TypeInfo,
 )]
 pub enum ProxyType {
 	Any,
@@ -1291,8 +1286,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_pvf_check_statement(
-			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
