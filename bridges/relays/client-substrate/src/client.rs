@@ -496,7 +496,7 @@ impl<C: Chain> Client<C> {
 		self.jsonrpsee_execute(move |client| async move {
 			Substrate::<C>::state_prove_storage(&*client, keys, Some(at_block))
 				.await
-				.map(|proof| StorageProof::new(proof.proof.into_iter().map(|b| b.0).collect()))
+				.map(|proof| StorageProof::new(proof.proof.into_iter().map(|b| b.0)))
 				.map_err(Into::into)
 		})
 		.await

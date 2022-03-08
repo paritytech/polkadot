@@ -126,7 +126,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		};
 
 		log::debug!(target: LOG_TARGET, "solving with {:?}", config.solver);
-		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
+		let raw_solution = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		let nonce = crate::get_account_info::<Runtime>(&rpc, &signer.account, config.at)
 			.await?
@@ -137,7 +137,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		);
 		let tip = 0 as Balance;
 		let era = sp_runtime::generic::Era::Immortal;
-		let extrinsic = ext.execute_with(|| create_uxt(raw_solution.clone(), witness, signer.clone(), nonce, tip, era));
+		let extrinsic = ext.execute_with(|| create_uxt(raw_solution.clone(), signer.clone(), nonce, tip, era));
 
 		let bytes = sp_core::Bytes(extrinsic.encode().to_vec());
 		print_info::<Runtime>(&rpc, &mut ext, &raw_solution, &bytes).await;
@@ -150,7 +150,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let dispatch_result = ext.execute_with(|| {
 			// manually tweak the phase.
 			EPM::CurrentPhase::<Runtime>::put(EPM::Phase::Signed);
-			EPM::Pallet::<Runtime>::submit(frame_system::RawOrigin::Signed(signer.account).into(), Box::new(raw_solution), witness)
+			EPM::Pallet::<Runtime>::submit(frame_system::RawOrigin::Signed(signer.account).into(), Box::new(raw_solution))
 		});
 		log::info!(target: LOG_TARGET, "dispatch result is {:?}", dispatch_result);
 
