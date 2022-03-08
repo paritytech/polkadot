@@ -1259,8 +1259,10 @@ mod tests {
 
 	#[test]
 	fn basic_roundtrip_works() {
-		let xcm =
-			Xcm::<()>(vec![TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() }]);
+		let xcm = Xcm::<()>(vec![TransferAsset {
+			assets: (Here, 1u128).into(),
+			beneficiary: Here.into(),
+		}]);
 		let old_xcm = OldXcm::<()>(vec![OldInstruction::TransferAsset {
 			assets: (OldHere, 1).into(),
 			beneficiary: OldHere.into(),
@@ -1273,7 +1275,7 @@ mod tests {
 	#[test]
 	fn teleport_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
-			ReceiveTeleportedAsset((Here, 1).into()),
+			ReceiveTeleportedAsset((Here, 1u128).into()),
 			ClearOrigin,
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
@@ -1294,9 +1296,9 @@ mod tests {
 	#[test]
 	fn reserve_deposit_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
-			ReserveAssetDeposited((Here, 1).into()),
+			ReserveAssetDeposited((Here, 1u128).into()),
 			ClearOrigin,
-			BuyExecution { fees: (Here, 1).into(), weight_limit: Some(1).into() },
+			BuyExecution { fees: (Here, 1u128).into(), weight_limit: Some(1).into() },
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm = OldXcm::<()>(vec![
@@ -1320,7 +1322,7 @@ mod tests {
 	#[test]
 	fn deposit_asset_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
-			WithdrawAsset((Here, 1).into()),
+			WithdrawAsset((Here, 1u128).into()),
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm = OldXcm::<()>(vec![
@@ -1339,7 +1341,7 @@ mod tests {
 	#[test]
 	fn deposit_reserve_asset_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
-			WithdrawAsset((Here, 1).into()),
+			WithdrawAsset((Here, 1u128).into()),
 			DepositReserveAsset {
 				assets: Wild(AllCounted(1)),
 				dest: Here.into(),

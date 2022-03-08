@@ -109,7 +109,7 @@ pub trait TransactAsset {
 		context: &XcmContext,
 	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to, context) {
-			Err(XcmError::Unimplemented) => {
+			Err(XcmError::AssetNotFound | XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from, Some(context))?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to, context)?;
@@ -336,7 +336,7 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(Here, 1).into(),
+				&(Here, 1u128).into(),
 				&Here.into(),
 				&XcmContext::with_message_hash([0; 32]),
 			),
@@ -350,7 +350,7 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(Here, 1).into(),
+				&(Here, 1u128).into(),
 				&Here.into(),
 				&XcmContext::with_message_hash([0; 32]),
 			),
@@ -364,7 +364,7 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(Here, 1).into(),
+				&(Here, 1u128).into(),
 				&Here.into(),
 				&XcmContext::with_message_hash([0; 32]),
 			),
@@ -378,7 +378,7 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(Here, 1).into(),
+				&(Here, 1u128).into(),
 				&Here.into(),
 				&XcmContext::with_message_hash([0; 32]),
 			),

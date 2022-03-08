@@ -561,5 +561,5 @@ pub trait GetWeight<W> {
 #[test]
 fn conversion_works() {
 	use latest::prelude::*;
-	let _: VersionedMultiAssets = (Here, 1).into();
+	let _: VersionedMultiAssets = (Here, 1u128).into();
 }

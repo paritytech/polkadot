@@ -5792,6 +5792,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-uniques"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#f6679ddd31f68e9f1578064d58a246130c27026b"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-utility"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#f6679ddd31f68e9f1578064d58a246130c27026b"
@@ -12635,7 +12650,9 @@ version = "0.9.17"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "pallet-balances",
+ "pallet-uniques",
  "pallet-xcm",
  "parity-scale-codec",
  "polkadot-core-primitives",
@@ -12646,6 +12663,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "sp-tracing",
  "xcm",
  "xcm-builder",
  "xcm-executor",

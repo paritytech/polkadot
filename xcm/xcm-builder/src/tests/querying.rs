@@ -88,7 +88,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	// We put this in manually here, but normally this would be done at the point of crafting the message.
 	expect_response(query_id, Parent.into());
 
-	let the_response = Response::Assets((Parent, 100).into());
+	let the_response = Response::Assets((Parent, 100u128).into());
 	let message = Xcm::<TestCall>(vec![QueryResponse {
 		query_id,
 		response: the_response.clone(),

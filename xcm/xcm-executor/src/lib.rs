@@ -19,7 +19,7 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
-	traits::{Contains, Get, PalletsInfoAccess},
+	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
 use parity_scale_codec::{Decode, Encode};
@@ -31,8 +31,8 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
-	ExportXcm, FeeManager, FeeReason, FilterAssetLocation, OnResponse, ShouldExecute,
-	TransactAsset, UniversalLocation, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -200,7 +200,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			xcm_weight,
 			&mut weight_credit,
 		) {
-			log::debug!(
+			log::trace!(
 				target: "xcm::execute_xcm_in_credit",
 				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",
 				e,
@@ -303,6 +303,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			match &mut result {
 				r @ Ok(()) =>
 					if let Err(e) = self.process_instruction(instr) {
+						log::trace!(target: "xcm::execute", "!!! ERROR: {:?}", e);
 						*r = Err(ExecutorError { index: i as u32, xcm_error: e, weight: 0 });
 					},
 				Err(ref mut error) =>
@@ -340,7 +341,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
 			// the error which didn't end up being executed.
 			Some((_i, e)) => {
-				log::debug!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, self.original_origin);
+				log::trace!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, self.original_origin);
 				Outcome::Incomplete(weight_used, e)
 			},
 		}
@@ -424,6 +425,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
 	fn process_instruction(&mut self, instr: Instruction<Config::Call>) -> Result<(), XcmError> {
+		log::trace!(
+			target: "xcm::process_instruction",
+			"=== {:?}",
+			instr
+		);
 		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
@@ -440,7 +446,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.into_inner().into_iter() {
 					// Must ensure that we recognise the asset as being managed by the origin.
 					ensure!(
-						Config::IsReserve::filter_asset_location(&asset, &origin),
+						Config::IsReserve::contains(&asset, &origin),
 						XcmError::UntrustedReserveLocation
 					);
 					self.subsume_asset(asset)?;
@@ -482,7 +488,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(
-						Config::IsTeleporter::filter_asset_location(asset, &origin),
+						Config::IsTeleporter::contains(asset, &origin),
 						XcmError::UntrustedTeleportLocation
 					);
 					// We should check that the asset can actually be teleported in (for this to be in error, there
@@ -774,11 +780,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			LockAsset { asset, unlocker } => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
-				let remote_asset = Self::try_reanchor(asset.clone(), &unlocker)?;
+				let (remote_asset, context) = Self::try_reanchor(asset.clone(), &unlocker)?;
 				let lock_ticket =
 					Config::AssetLocker::prepare_lock(unlocker.clone(), asset, origin.clone())?;
-				let msg =
-					Xcm::<()>(vec![NoteUnlockable { asset: remote_asset, owner: origin.clone() }]);
+				let owner =
+					origin.reanchored(&unlocker, &context).map_err(|_| XcmError::ReanchorFailed)?;
+				let msg = Xcm::<()>(vec![NoteUnlockable { asset: remote_asset, owner }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(unlocker, msg)?;
 				self.take_fee(price, FeeReason::LockAsset)?;
 				lock_ticket.enact()?;
@@ -797,7 +804,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			RequestUnlock { asset, locker } => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
-				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?;
+				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?.0;
 				let reduce_ticket = Config::AssetLocker::prepare_reduce_unlockable(
 					locker.clone(),
 					asset,
@@ -900,11 +907,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn try_reanchor(
 		asset: MultiAsset,
 		destination: &MultiLocation,
-	) -> Result<MultiAsset, XcmError> {
+	) -> Result<(MultiAsset, MultiLocation), XcmError> {
 		let reanchor_context = Config::LocationInverter::universal_location().into();
-		asset
+		let asset = asset
 			.reanchored(&destination, &reanchor_context)
-			.map_err(|()| XcmError::ReanchorFailed)
+			.map_err(|()| XcmError::ReanchorFailed)?;
+		Ok((asset, reanchor_context))
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

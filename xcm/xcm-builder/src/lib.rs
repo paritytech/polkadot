@@ -40,6 +40,11 @@ pub use origin_conversion::{
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
 
+mod asset_conversion;
+pub use asset_conversion::{AsPrefixedGeneralIndex, ConvertedAbstractId, ConvertedConcreteId};
+#[allow(deprecated)]
+pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
+
 mod barriers;
 pub use barriers::{
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
@@ -50,9 +55,11 @@ mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
 mod fungibles_adapter;
-pub use fungibles_adapter::{
-	AsPrefixedGeneralIndex, ConvertedAbstractAssetId, ConvertedConcreteAssetId, FungiblesAdapter,
-	FungiblesMutateAdapter, FungiblesTransferAdapter,
+pub use fungibles_adapter::{FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter};
+
+mod nonfungibles_adapter;
+pub use nonfungibles_adapter::{
+	NonFungiblesAdapter, NonFungiblesMutateAdapter, NonFungiblesTransferAdapter,
 };
 
 mod weight;
@@ -60,8 +67,8 @@ pub use weight::{
 	FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents, WeightInfoBounds,
 };
 
-mod matches_fungible;
-pub use matches_fungible::{IsAbstract, IsConcrete};
+mod matches_token;
+pub use matches_token::{IsAbstract, IsConcrete};
 
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
