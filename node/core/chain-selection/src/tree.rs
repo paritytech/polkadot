@@ -24,7 +24,7 @@
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
 use polkadot_node_primitives::BlockWeight;
-use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_primitives::v2::{BlockNumber, Hash};
 
 use std::collections::HashMap;
 

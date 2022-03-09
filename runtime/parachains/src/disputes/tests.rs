@@ -28,7 +28,7 @@ use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
 };
-use primitives::v1::BlockNumber;
+use primitives::v2::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
 /// Filtering updates the spam slots, as such update them.

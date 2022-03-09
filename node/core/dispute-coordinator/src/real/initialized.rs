@@ -43,13 +43,10 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
-use polkadot_primitives::{
-	v1::{
-		byzantine_threshold, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
-		DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex,
-		ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	byzantine_threshold, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
+	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 
 use crate::{
@@ -771,7 +768,7 @@ impl Initialized {
 		let n_validators = validators.len();
 
 		let supermajority_threshold =
-			polkadot_primitives::v1::supermajority_threshold(n_validators);
+			polkadot_primitives::v2::supermajority_threshold(n_validators);
 
 		// In case we are not provided with a candidate receipt
 		// we operate under the assumption, that a previous vote

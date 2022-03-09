@@ -30,13 +30,11 @@ use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use futures::executor::block_on;
 use keyring::Sr25519Keyring;
-use primitives::{
-	v0::PARACHAIN_KEY_TYPE_ID,
-	v1::{
-		BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
-		CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
-		UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
-	},
+use primitives::v2::{
+	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
+	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
+	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
+	PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
@@ -93,7 +91,7 @@ pub(crate) fn collator_sign_candidate(
 ) {
 	candidate.descriptor.collator = collator.public().into();
 
-	let payload = primitives::v1::collator_signature_payload(
+	let payload = primitives::v2::collator_signature_payload(
 		&candidate.descriptor.relay_parent,
 		&candidate.descriptor.para_id,
 		&candidate.descriptor.persisted_validation_data_hash,
@@ -148,7 +146,7 @@ pub(crate) async fn back_candidate(
 	let backed = BackedCandidate { candidate, validity_votes, validator_indices };
 
 	let successfully_backed =
-		primitives::v1::check_candidate_backing(&backed, signing_context, group.len(), |i| {
+		primitives::v2::check_candidate_backing(&backed, signing_context, group.len(), |i| {
 			Some(validators[group[i].0 as usize].public().into())
 		})
 		.ok()

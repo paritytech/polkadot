@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use crate::interceptor::*;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, Hash,
 	Signed,
 };
