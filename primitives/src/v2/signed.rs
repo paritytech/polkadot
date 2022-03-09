@@ -153,9 +153,13 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	///
 	/// Succeeds if and only if the super-payload provided actually encodes as
 	/// the expected payload.
-	pub fn convert_to_superpayload<SuperPayload>(self, claimed: SuperPayload)
-		-> Result<Signed<SuperPayload, RealPayload>, (Self, SuperPayload)>
-		where SuperPayload: EncodeAs<RealPayload>, Payload: Encode
+	pub fn convert_to_superpayload<SuperPayload>(
+		self,
+		claimed: SuperPayload,
+	) -> Result<Signed<SuperPayload, RealPayload>, (Self, SuperPayload)>
+	where
+		SuperPayload: EncodeAs<RealPayload>,
+		Payload: Encode,
 	{
 		if claimed.encode_as() == self.0.payload.encode_as() {
 			Ok(Signed(UncheckedSigned {

@@ -642,6 +642,8 @@ impl From<BitVec<u8, bitvec::order::Lsb0>> for AvailabilityBitfield {
 
 /// A signed compact statement, suitable to be sent to the chain.
 pub type SignedStatement = Signed<CompactStatement>;
+/// A signed compact statement, with signature not yet checked.
+pub type UncheckedSignedStatement = UncheckedSigned<CompactStatement>;
 
 /// A bitfield signed by a particular validator about the availability of pending candidates.
 pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
