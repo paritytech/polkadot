@@ -90,6 +90,11 @@ macro_rules! impl_runtime_weights {
 		// Implement tests for the weight multiplier.
 		runtime_common::impl_multiplier_tests!();
 
+		// Expose the weight from the runtime constants module.
+		pub weights::constants::{
+			BlockExecutionWeight, ExtrinsicBaseWeight, ParityDbWeight, RocksDbWeight,
+		};
+
 		// Common constants used in all runtimes.
 		parameter_types! {
 			pub const BlockHashCount: BlockNumber = 2400;
