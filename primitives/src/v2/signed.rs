@@ -148,6 +148,26 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	{
 		Signed(self.0.unchecked_convert_payload())
 	}
+
+	/// Convert `Payload` into some claimed `SuperPayload` if the encoding matches.
+	///
+	/// Succeeds if and only if the super-payload provided actually encodes as
+	/// the expected payload.
+	pub fn convert_to_superpayload<SuperPayload>(self, claimed: SuperPayload)
+		-> Result<Signed<SuperPayload, RealPayload>, (Self, SuperPayload)>
+		where SuperPayload: EncodeAs<RealPayload>, Payload: Encode
+	{
+		if claimed.encode_as() == self.0.payload.encode_as() {
+			Ok(Signed(UncheckedSigned {
+				payload: claimed,
+				validator_index: self.0.validator_index,
+				signature: self.0.signature,
+				real_payload: std::marker::PhantomData,
+			}))
+		} else {
+			Err((self, claimed))
+		}
+	}
 }
 
 // We can't bound this on `Payload: Into<RealPayload>` because that conversion consumes
