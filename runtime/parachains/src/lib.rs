@@ -50,7 +50,7 @@ mod mock;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
-use primitives::v1::Id as ParaId;
+use primitives::v2::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 ///
@@ -65,7 +65,7 @@ pub fn schedule_para_initialize<T: paras::Config>(
 /// Schedule a para to be cleaned up at the start of the next session.
 ///
 /// See [`paras::Pallet::schedule_para_cleanup`] for more details.
-pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) -> Result<(), ()> {
+pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v2::Id) -> Result<(), ()> {
 	<paras::Pallet<T>>::schedule_para_cleanup(id).map_err(|_| ())
 }
 

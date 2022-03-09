@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{
 	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
 	JobSubsystem, JobTrait,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
 	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
 	SignedAvailabilityBitfield, ValidatorIndex,

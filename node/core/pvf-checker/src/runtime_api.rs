@@ -21,9 +21,8 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	SubsystemSender,
 };
-use polkadot_primitives::{
-	v1::{Hash, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorSignature},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorSignature,
 };
 
 pub(crate) async fn session_index_for_child(

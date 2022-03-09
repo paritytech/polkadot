@@ -91,14 +91,14 @@ impl MockAuthorityDiscovery {
 impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
-		authority: polkadot_primitives::v1::AuthorityDiscoveryId,
+		authority: polkadot_primitives::v2::AuthorityDiscoveryId,
 	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
 	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<HashSet<polkadot_primitives::v1::AuthorityDiscoveryId>> {
+	) -> Option<HashSet<polkadot_primitives::v2::AuthorityDiscoveryId>> {
 		self.authorities.get(&peer_id).cloned()
 	}
 }

@@ -39,7 +39,7 @@ pub fn on_runtime_upgrade<T: Config>() -> Weight {
 
 mod v0 {
 	use super::*;
-	use primitives::v1::{CoreIndex, GroupIndex, Id as ParaId};
+	use primitives::v2::{CoreIndex, GroupIndex, Id as ParaId};
 
 	#[derive(Encode, Decode)]
 	pub struct CoreAssignment {

@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 

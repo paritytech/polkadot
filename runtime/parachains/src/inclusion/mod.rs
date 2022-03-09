@@ -30,7 +30,7 @@ use crate::{
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
+use primitives::v2::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
 	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
@@ -171,6 +171,9 @@ impl<H> Default for ProcessedCandidates<H> {
 }
 
 /// Number of backing votes we need for a valid backing.
+///
+/// WARNING: This check has to be kept in sync with the node side check in the backing
+/// subsystem.
 pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// For considerations on this value see:
 	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
@@ -595,7 +598,7 @@ impl<T: Config> Pallet<T> {
 
 						// check the signatures in the backing and that it is a majority.
 						{
-							let maybe_amount_validated = primitives::v1::check_candidate_backing(
+							let maybe_amount_validated = primitives::v2::check_candidate_backing(
 								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
@@ -715,7 +718,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
 		relay_parent_number: T::BlockNumber,
-		validation_outputs: primitives::v1::CandidateCommitments,
+		validation_outputs: primitives::v2::CandidateCommitments,
 	) -> bool {
 		let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
 		let check_ctx = CandidateCheckContext::<T>::new(prev_context);
@@ -1077,11 +1080,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		para_id: ParaId,
 		relay_parent_number: T::BlockNumber,
 		head_data: &HeadData,
-		new_validation_code: &Option<primitives::v1::ValidationCode>,
+		new_validation_code: &Option<primitives::v2::ValidationCode>,
 		processed_downward_messages: u32,
-		upward_messages: &[primitives::v1::UpwardMessage],
+		upward_messages: &[primitives::v2::UpwardMessage],
 		hrmp_watermark: T::BlockNumber,
-		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
+		horizontal_messages: &[primitives::v2::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,

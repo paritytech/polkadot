@@ -106,8 +106,8 @@ impl RegisterParachain {
 			let para_id: ParaId = relay_client
 				.storage_value(StorageKey(para_id_key.to_vec()), None)
 				.await?
-				.unwrap_or(polkadot_primitives::v1::LOWEST_PUBLIC_ID)
-				.max(polkadot_primitives::v1::LOWEST_PUBLIC_ID);
+				.unwrap_or(polkadot_primitives::v2::LOWEST_PUBLIC_ID)
+				.max(polkadot_primitives::v2::LOWEST_PUBLIC_ID);
 			log::info!(target: "bridge", "Going to reserve parachain id: {:?}", para_id);
 
 			// step 1: reserve a parachain id

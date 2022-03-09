@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, HashT, Header, PersistedValidationData, ValidationCode,
 };
 

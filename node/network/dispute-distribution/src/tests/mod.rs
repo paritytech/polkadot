@@ -41,9 +41,8 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
-use polkadot_primitives::{
-	v1::{AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
 };
 use polkadot_subsystem::{
 	messages::{
