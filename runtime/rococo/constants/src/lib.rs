@@ -98,7 +98,7 @@ mod tests {
 	use super::{
 		currency::{CENTS, DOLLARS, MILLICENTS},
 		fee::WeightToFee,
-		BlockWeights,
+		weights::BlockWeights,
 	};
 	use frame_support::weights::{DispatchClass, WeightToFeePolynomial};
 
