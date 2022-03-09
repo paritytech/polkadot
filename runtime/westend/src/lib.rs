@@ -1558,7 +1558,7 @@ sp_api::impl_runtime_apis! {
 				));
 				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
 					Westmint::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(WndLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 			}
 
