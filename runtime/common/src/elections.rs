@@ -116,9 +116,4 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 	fn unsafe_clear() {
 		pallet_bags_list::Pallet::<T>::unsafe_clear()
 	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn score_update_worst_case(who: &T::AccountId, is_increase: bool) -> Self::Score {
-		pallet_bags_list::Pallet::<T>::weight_update_worst_case(who, is_increase)
-	}
 }
