@@ -92,6 +92,21 @@ impl Jaeger {
 		Ok(())
 	}
 
+	/// Provide a no-thrills test setup helper.
+	#[cfg(test)]
+	pub fn test_setup() {
+		let mut instance = INSTANCE.write();
+		match *instance {
+			Self::Launched { .. } => {},
+			_ => {
+				let (traces_in, _traces_out) = mick_jaeger::init(mick_jaeger::Config {
+					service_name: "polkadot-jaeger-test".to_owned(),
+				});
+				*instance = Self::Launched { traces_in };
+			},
+		}
+	}
+
 	/// Spawn the background task in order to send the tracing information out via UDP
 	#[cfg(not(target_os = "unknown"))]
 	pub fn launch<S: SpawnNamed>(self, spawner: S) -> result::Result<(), JaegerError> {
