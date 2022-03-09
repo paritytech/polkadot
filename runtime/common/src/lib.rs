@@ -74,9 +74,6 @@ const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO
 /// It expects the passed runtime constants to contain a `weights` module.
 /// The generated weight types were formerly part of the common
 /// runtime but are now runtime dependant.
-///
-/// Example:
-///   impl_runtime_weights!(polkadot_runtime_constants);
 #[macro_export]
 macro_rules! impl_runtime_weights {
 	($runtime:ident) => {
