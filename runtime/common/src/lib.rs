@@ -42,7 +42,7 @@ use frame_support::{
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use primitives::v2::{AssignmentId, ValidatorId};
-use sp_runtime::{Perbill};
+use sp_runtime::Perbill;
 use static_assertions::const_assert;
 
 pub use pallet_balances::Call as BalancesCall;
@@ -81,7 +81,8 @@ macro_rules! impl_runtime_weights {
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
-			AVERAGE_ON_INITIALIZE_RATIO, MAXIMUM_BLOCK_WEIGHT, NORMAL_DISPATCH_RATIO, impl_multiplier_tests, impl_elections_weights,
+			impl_elections_weights, impl_multiplier_tests, AVERAGE_ON_INITIALIZE_RATIO,
+			MAXIMUM_BLOCK_WEIGHT, NORMAL_DISPATCH_RATIO,
 		};
 		use sp_runtime::{FixedPointNumber, Perquintill};
 
