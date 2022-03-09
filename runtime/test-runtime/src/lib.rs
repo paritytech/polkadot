@@ -54,9 +54,7 @@ use primitives::{
 	},
 	v2::SessionInfo as SessionInfoData,
 };
-use runtime_common::{
-	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
-};
+use runtime_common::{claims, impl_runtime_weights, paras_sudo_wrapper};
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
 	create_runtime_str,
