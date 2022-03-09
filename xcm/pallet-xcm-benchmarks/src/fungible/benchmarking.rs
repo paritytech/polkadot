@@ -141,13 +141,13 @@ benchmarks_instance_pallet! {
 		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm).map_err(|_| {
+		executor.bench_process(xcm).map_err(|_| {
 			BenchmarkError::Override(
 				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
 			)
 		})?;
 	} verify {
-		assert!(executor.holding.ensure_contains(&assets).is_ok());
+		assert!(executor.holding().ensure_contains(&assets).is_ok());
 	}
 
 	receive_teleported_asset {
