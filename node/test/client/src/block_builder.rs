@@ -16,7 +16,7 @@
 
 use crate::{Client, FullBackend};
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v1::{Block, InherentData as ParachainsInherentData};
+use polkadot_primitives::v2::{Block, InherentData as ParachainsInherentData};
 use polkadot_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
 use sp_api::ProvideRuntimeApi;
@@ -110,7 +110,7 @@ impl InitPolkadotBlockBuilder for Client {
 
 		inherent_data
 			.put_data(
-				polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER,
+				polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER,
 				&parachains_inherent_data,
 			)
 			.expect("Put parachains inherent data");

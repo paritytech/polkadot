@@ -47,7 +47,7 @@ use frame_support::{
 };
 use frame_system::limits;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
-use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
+use primitives::v2::{AssignmentId, BlockNumber, ValidatorId};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
@@ -123,7 +123,7 @@ pub type SlowAdjustingFeeUpdate<R> =
 ///
 /// This must only be used as long as the balance type is `u128`.
 pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
-static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
+static_assertions::assert_eq_size!(primitives::v2::Balance, u128);
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
 /// keys.

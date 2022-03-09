@@ -28,7 +28,7 @@ use sp_std::prelude::Vec;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 
-use crate::v0::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
+use super::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
 
 /// Signed data with signature already verified.
 ///
@@ -265,7 +265,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	/// Sign this payload with the given context and pair.
 	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
 	pub fn benchmark_sign<H: Encode>(
-		public: &crate::v0::ValidatorId,
+		public: &super::ValidatorId,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,

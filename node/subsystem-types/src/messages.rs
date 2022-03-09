@@ -38,19 +38,16 @@ use polkadot_node_primitives::{
 	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
 	SignedFullStatement, ValidationResult,
 };
-use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-		CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-		CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
-		OccupiedCoreAssumption, PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
-		SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex, ValidatorSignature,
-	},
-	v2::{PvfCheckStatement, SessionInfo},
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
-use polkadot_statement_table::v1::Misbehavior;
+use polkadot_statement_table::v2::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashSet},
 	sync::Arc,
@@ -615,6 +612,8 @@ pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeA
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
+	/// Get the version of the runtime API, if any.
+	Version(RuntimeApiSender<u32>),
 	/// Get the next, current and some previous authority discovery set deduplicated.
 	Authorities(RuntimeApiSender<Vec<AuthorityDiscoveryId>>),
 	/// Get the current validator set.
@@ -641,7 +640,7 @@ pub enum RuntimeApiRequest {
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,
-		polkadot_primitives::v1::CandidateCommitments,
+		polkadot_primitives::v2::CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
@@ -671,7 +670,7 @@ pub enum RuntimeApiRequest {
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
-	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v2::ScrapedOnChainVotes>>),
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.

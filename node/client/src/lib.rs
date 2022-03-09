@@ -19,9 +19,8 @@
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
-use polkadot_primitives::{
-	v1::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
-	v2::ParachainHost,
+use polkadot_primitives::v2::{
+	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;
