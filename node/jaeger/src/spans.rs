@@ -238,12 +238,21 @@ impl LazyIdent for CandidateHash {
 
 	fn extra_tags(&self, span: &mut Span) {
 		span.add_string_fmt_debug_tag("candidate-hash", &self.0);
+		// A convenience for usage with the grafana tempo UI,
+		// not a technical requirement. It merely provides an easy anchor
+		// where the true trace identifier of the span is not based on
+		// a candidate hash (which it should be!), but is required to
+		// continue investigating.
+		span.add_string_tag("traceID", self.eval().to_string());
 	}
 }
 
 impl Span {
 	/// Creates a new span builder based on anything that can be lazily evaluated
 	/// to and identifier.
+	///
+	/// Attention: The primary identifier will be used for identification
+	/// and as such should be
 	pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
 		let mut span = INSTANCE
 			.read_recursive()
@@ -479,7 +488,7 @@ mod tests {
 	fn extra_tags_do_not_change_trace_id() {
 		Jaeger::test_setup();
 		let candidate_hash = dbg!(Hash::from(&RAW));
-		let trace_id = dbg!(hash_to_identifier(candidate_hash));
+		let trace_id = hash_to_identifier(candidate_hash);
 
 		let span = Span::new(candidate_hash, "foo");
 
