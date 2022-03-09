@@ -76,6 +76,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 	for UseNominatorsAndUpdateBagsList<T>
 {
 	type Error = pallet_bags_list::Error;
+	type Value = <T as pallet_bags_list::Config>::Value;
 
 	fn iter() -> Box<dyn Iterator<Item = T::AccountId>> {
 		Box::new(pallet_staking::Nominators::<T>::iter().map(|(n, _)| n))
@@ -89,11 +90,11 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 		pallet_bags_list::Pallet::<T>::contains(id)
 	}
 
-	fn on_insert(id: T::AccountId, weight: VoteWeight) -> Result<(), Self::Error> {
+	fn on_insert(id: T::AccountId, weight: Self::Value) -> Result<(), Self::Error> {
 		pallet_bags_list::Pallet::<T>::on_insert(id, weight)
 	}
 
-	fn on_update(id: &T::AccountId, new_weight: VoteWeight) {
+	fn on_update(id: &T::AccountId, new_weight: Self::Value) {
 		pallet_bags_list::Pallet::<T>::on_update(id, new_weight);
 	}
 
@@ -103,7 +104,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 
 	fn unsafe_regenerate(
 		all: impl IntoIterator<Item = T::AccountId>,
-		weight_of: Box<dyn Fn(&T::AccountId) -> VoteWeight>,
+		weight_of: Box<dyn Fn(&T::AccountId) -> Self::Value>,
 	) -> u32 {
 		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
 	}
@@ -117,7 +118,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn weight_update_worst_case(who: &T::AccountId, is_increase: bool) -> VoteWeight {
+	fn weight_update_worst_case(who: &T::AccountId, is_increase: bool) -> Self::Value {
 		pallet_bags_list::Pallet::<T>::weight_update_worst_case(who, is_increase)
 	}
 }
