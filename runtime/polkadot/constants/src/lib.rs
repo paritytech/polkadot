@@ -99,8 +99,8 @@ mod tests {
 	use super::{
 		currency::{CENTS, DOLLARS, MILLICENTS},
 		fee::WeightToFee,
-		ExtrinsicBaseWeight,
 	};
+	use crate::weights::BlockWeights;
 	use frame_support::weights::WeightToFeePolynomial;
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
