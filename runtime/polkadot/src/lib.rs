@@ -2156,7 +2156,7 @@ mod test_fees {
 	#[test]
 	#[ignore]
 	fn transfer_cost_min_multiplier() {
-		let min_multiplier = runtime_common::MinimumMultiplier::get();
+		let min_multiplier = MinimumMultiplier::get();
 		let call = pallet_balances::Call::<Runtime>::transfer_keep_alive {
 			dest: Charlie.to_account_id().into(),
 			value: Default::default(),

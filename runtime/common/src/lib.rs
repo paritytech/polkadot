@@ -249,7 +249,7 @@ macro_rules! impl_multiplier_tests {
 		use sp_core::H256;
 		use sp_runtime::{
 			testing::Header,
-			traits::{BlakeTwo256, Convert, IdentityLookup},
+			traits::{BlakeTwo256, One, Convert, IdentityLookup},
 			Perbill,
 		};
 

@@ -100,7 +100,7 @@ mod tests {
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
-	use frame_support::weights::{DispatchClass, WeightToFeePolynomial};
+	use frame_support::weights::WeightToFeePolynomial;
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
