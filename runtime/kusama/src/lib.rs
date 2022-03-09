@@ -33,9 +33,8 @@ use primitives::{
 	v2::SessionInfo,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	prod_or_fast, slots, CurrencyToVote,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -56,7 +55,6 @@ use frame_support::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
-	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -65,7 +63,6 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use sp_arithmetic::Perquintill;
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -91,7 +88,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-use kusama_runtime_constants::{currency::*, fee::*, time::*};
+use kusama_runtime_constants::{currency::*, fee::*, time::*, weights::RocksDbWeight};
 
 // Weights used in the runtime.
 mod weights;
@@ -104,6 +101,8 @@ pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
+
+impl_runtime_weights!(kusama_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]

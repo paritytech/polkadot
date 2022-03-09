@@ -33,9 +33,8 @@ use primitives::{
 	v2::SessionInfo,
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
+	paras_sudo_wrapper, slots, CurrencyToVote,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -53,7 +52,6 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
-	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -88,7 +86,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-use westend_runtime_constants::{currency::*, fee::*, time::*};
+use westend_runtime_constants::{currency::*, fee::*, time::*, weights::RocksDbWeight};
 
 // Weights used in the runtime
 mod weights;
@@ -101,6 +99,8 @@ pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
+
+impl_runtime_weights!(westend_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]

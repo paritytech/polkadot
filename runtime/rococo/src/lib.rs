@@ -44,8 +44,8 @@ use primitives::{
 	v2::{PvfCheckStatement, SessionInfo as SessionInfoData},
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
+	paras_sudo_wrapper, slots,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -82,7 +82,7 @@ pub use pallet_balances::Call as BalancesCall;
 use polkadot_parachain::primitives::Id as ParaId;
 
 /// Constant values used within the runtime.
-use rococo_runtime_constants::{currency::*, fee::*, time::*};
+use rococo_runtime_constants::{currency::*, fee::*, time::*, weights::RocksDbWeight};
 
 use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 
@@ -90,6 +90,8 @@ mod bridge_messages;
 mod validator_manager;
 mod weights;
 pub mod xcm_config;
+
+impl_runtime_weights!(rococo_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]

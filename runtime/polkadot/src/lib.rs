@@ -22,9 +22,8 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	prod_or_fast, slots, CurrencyToVote,
 };
 
 use runtime_parachains::{
@@ -44,7 +43,6 @@ use frame_support::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
-	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -92,7 +90,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-use polkadot_runtime_constants::{currency::*, fee::*, time::*};
+use polkadot_runtime_constants::{currency::*, fee::*, time::*, weights::RocksDbWeight};
 
 // Weights used in the runtime.
 mod weights;
@@ -100,6 +98,8 @@ mod weights;
 mod bag_thresholds;
 
 pub mod xcm_config;
+
+impl_runtime_weights!(polkadot_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]

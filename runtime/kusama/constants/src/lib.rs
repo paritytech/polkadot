@@ -15,6 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
+pub mod weights;
+
 /// Money matters.
 pub mod currency {
 	use primitives::v0::Balance;
@@ -51,11 +54,11 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
 	use primitives::v0::Balance;
-	use runtime_common::ExtrinsicBaseWeight;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
 
