@@ -91,7 +91,7 @@ macro_rules! impl_runtime_weights {
 		// Implement the weight types of the elections module.
 		runtime_common::impl_elections_weights!($runtime);
 		// Implement tests for the weight multiplier.
-		runtime_common::impl_multiplier_tests();
+		runtime_common::impl_multiplier_tests!();
 
 		// Common constants used in all runtimes.
 		parameter_types! {
