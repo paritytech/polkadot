@@ -139,7 +139,7 @@ mod enter {
 	#[test]
 	fn test_session_is_tracked_in_on_chain_scraping() {
 		use crate::disputes::run_to_block;
-		use primitives::v1::{
+		use primitives::v2::{
 			DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
 			InvalidDisputeStatementKind, ValidDisputeStatementKind,
 		};
@@ -861,8 +861,8 @@ mod enter {
 	}
 }
 
-fn default_header() -> primitives::v1::Header {
-	primitives::v1::Header {
+fn default_header() -> primitives::v2::Header {
+	primitives::v2::Header {
 		parent_hash: Default::default(),
 		number: 0,
 		state_root: Default::default(),
@@ -878,7 +878,7 @@ mod sanitizers {
 		back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
 	};
 	use bitvec::order::Lsb0;
-	use primitives::v1::{
+	use primitives::v2::{
 		AvailabilityBitfield, GroupIndex, Hash, Id as ParaId, SignedAvailabilityBitfield,
 		ValidatorIndex,
 	};
@@ -887,7 +887,7 @@ mod sanitizers {
 	use crate::mock::Test;
 	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
-	use primitives::v0::PARACHAIN_KEY_TYPE_ID;
+	use primitives::v2::PARACHAIN_KEY_TYPE_ID;
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;

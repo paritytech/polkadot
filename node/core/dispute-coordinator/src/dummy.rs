@@ -20,7 +20,7 @@ use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
 };
-use polkadot_primitives::v1::BlockNumber;
+use polkadot_primitives::v2::BlockNumber;
 
 use futures::prelude::*;
 

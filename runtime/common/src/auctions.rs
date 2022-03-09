@@ -30,7 +30,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::Decode;
-use primitives::v1::Id as ParaId;
+use primitives::v2::Id as ParaId;
 use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};
 
@@ -658,7 +658,7 @@ mod tests {
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
-	use primitives::v1::{BlockNumber, Header, Id as ParaId};
+	use primitives::v2::{BlockNumber, Header, Id as ParaId};
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use std::{cell::RefCell, collections::BTreeMap};

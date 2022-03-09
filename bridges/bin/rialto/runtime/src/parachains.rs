@@ -20,7 +20,7 @@ use crate::{AccountId, Balance, Balances, BlockNumber, Event, Origin, Registrar,
 
 use frame_support::{parameter_types, weights::Weight};
 use frame_system::EnsureRoot;
-use polkadot_primitives::v1::ValidatorIndex;
+use polkadot_primitives::v2::ValidatorIndex;
 use polkadot_runtime_common::{paras_registrar, paras_sudo_wrapper, slots};
 use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,

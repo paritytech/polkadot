@@ -28,7 +28,7 @@ use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, runtime_api_impl::v1 as runtime_impl,
+	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
 };
@@ -44,15 +44,12 @@ use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::{
-	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
-	},
-	v2::SessionInfo as SessionInfoData,
+use primitives::v2::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
 	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
@@ -649,7 +646,7 @@ pub mod pallet_test_notifier {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v1::Block,
+		NodeBlock = primitives::v2::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -833,7 +830,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::CandidateCommitments,
+			outputs: primitives::v2::CandidateCommitments,
 		) -> bool {
 			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -883,7 +880,7 @@ sp_api::impl_runtime_apis! {
 
 		fn submit_pvf_check_statement(
 			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			signature: primitives::v2::ValidatorSignature,
 		) {
 			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
