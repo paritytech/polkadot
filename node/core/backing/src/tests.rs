@@ -528,6 +528,18 @@ fn backing_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::Provisioner(
+				ProvisionerMessage::ProvisionableData(
+					_,
+					ProvisionableData::BackedCandidate(candidate_receipt)
+				)
+			) => {
+				assert_eq!(candidate_receipt, candidate_a.to_plain());
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::Share(hash, _stmt)
 			) => {
@@ -547,18 +559,6 @@ fn backing_works() {
 			vec![ValidatorIndex(5)],
 		)
 		.await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::Provisioner(
-				ProvisionerMessage::ProvisionableData(
-					_,
-					ProvisionableData::BackedCandidate(candidate_receipt)
-				)
-			) => {
-				assert_eq!(candidate_receipt, candidate_a.to_plain());
-			}
-		);
 
 		virtual_overseer
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
@@ -701,16 +701,11 @@ fn backing_works_while_validation_ongoing() {
 
 		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
 
-		let statement =
-			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
-
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
 			candidate_a.hash(),
 			test_state.session(),
-			vec![ValidatorIndex(5), ValidatorIndex(3)],
+			vec![ValidatorIndex(5)],
 		)
 		.await;
 
@@ -727,6 +722,19 @@ fn backing_works_while_validation_ongoing() {
 				)
 			) if descriptor == candidate_a.descriptor
 		);
+
+		let statement =
+			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
+
+		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate_a.hash(),
+			test_state.session(),
+			vec![ValidatorIndex(3)],
+		)
+		.await;
 
 		let (tx, rx) = oneshot::channel();
 		let msg = CandidateBackingMessage::GetBackedCandidates(
@@ -885,6 +893,19 @@ fn backing_misbehavior_works() {
 			vec![ValidatorIndex(0)],
 		)
 		.await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::Provisioner(
+				ProvisionerMessage::ProvisionableData(
+					_,
+					ProvisionableData::BackedCandidate(CandidateReceipt {
+						descriptor,
+						..
+					})
+				)
+			) if descriptor == candidate_a.descriptor
+		);
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1618,18 +1639,25 @@ fn retry_works() {
 		)
 		.await;
 
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::AvailabilityDistribution(
-				AvailabilityDistributionMessage::FetchPoV {
-					relay_parent,
-					tx,
-					..
-				}
+		// Not deterministic which message comes first:
+		for _ in 0u32..2 {
+			match virtual_overseer.recv().await {
+				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+					_,
+					ProvisionableData::BackedCandidate(CandidateReceipt { descriptor, .. }),
+				)) => {
+					assert_eq!(descriptor, candidate.descriptor);
+				},
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV { relay_parent, tx, .. },
 				) if relay_parent == test_state.relay_parent => {
-				std::mem::drop(tx);
+					std::mem::drop(tx);
+				},
+				msg => {
+					assert!(false, "Unexpected message: {:?}", msg);
+				},
 			}
-		);
+		}
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
@@ -1643,27 +1671,20 @@ fn retry_works() {
 		)
 		.await;
 
-		// Not deterministic which message comes first:
-		for _ in 0u32..2 {
-			match virtual_overseer.recv().await {
-				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
-					_,
-					ProvisionableData::BackedCandidate(CandidateReceipt { descriptor, .. }),
-				)) => {
-					assert_eq!(descriptor, candidate.descriptor);
-				},
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityDistribution(
+				AvailabilityDistributionMessage::FetchPoV {
+					relay_parent,
+					tx,
+					..
+				}
 				// Subsystem requests PoV and requests validation.
 				// Now we pass.
-				AllMessages::AvailabilityDistribution(
-					AvailabilityDistributionMessage::FetchPoV { relay_parent, tx, .. },
 				) if relay_parent == test_state.relay_parent => {
 					tx.send(pov.clone()).unwrap();
-				},
-				msg => {
-					assert!(false, "Unexpected message: {:?}", msg);
-				},
-			}
-		}
+				}
+		);
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1774,16 +1795,11 @@ fn observes_backing_even_if_not_validator() {
 
 		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
 
-		let statement =
-			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
-
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
 			candidate_a_hash,
 			test_state.session(),
-			vec![ValidatorIndex(0), ValidatorIndex(5), ValidatorIndex(2)],
+			vec![ValidatorIndex(0), ValidatorIndex(5)],
 		)
 		.await;
 
@@ -1798,6 +1814,19 @@ fn observes_backing_even_if_not_validator() {
 				assert_eq!(candidate_receipt, candidate_a.to_plain());
 			}
 		);
+
+		let statement =
+			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
+
+		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate_a_hash,
+			test_state.session(),
+			vec![ValidatorIndex(2)],
+		)
+		.await;
 
 		virtual_overseer
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
