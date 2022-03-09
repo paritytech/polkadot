@@ -257,6 +257,8 @@ test-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
+    - sleep 10
+    - exit 1
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
 
 
@@ -803,3 +805,23 @@ publish-rustdoc:
     - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
   after_script:
     - rm -rf .git/ ./*
+
+#### stage:                        .post
+
+# This job cancels the whole pipeline if test-linux-stable job fails
+cancel-pipeline:
+  stage:                           .post
+  needs:
+    - job:                         test-linux-stable
+      artifacts:                   false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      when: on_failure
+  variables:
+    PROJECT_ID:                    "${CI_PROJECT_ID}"
+    PIPELINE_ID:                   "${CI_PIPELINE_ID}"
+  allow_failure:                   false
+  trigger:                         "parity/infrastructure/ci_cd/pipeline-stopper"
