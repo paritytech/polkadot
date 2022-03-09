@@ -98,9 +98,9 @@ mod tests {
 	use super::{
 		currency::{CENTS, DOLLARS, MILLICENTS},
 		fee::WeightToFee,
+		BlockWeights,
 	};
 	use frame_support::weights::{DispatchClass, WeightToFeePolynomial};
-	use runtime_common::BlockWeights;
 
 	#[test]
 	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
