@@ -87,6 +87,8 @@ pub use sp_runtime::BuildStorage;
 use test_runtime_constants::{currency::*, fee::*, time::*};
 pub mod xcm_config;
 
+impl_runtime_weights!(test_runtime_constants);
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
