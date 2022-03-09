@@ -41,10 +41,8 @@ use frame_support::{
 	traits::{ConstU32, Currency, OneSessionHandler},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
-use frame_system::limits;
-use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
-use primitives::v2::{AssignmentId, BlockNumber, ValidatorId};
-use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
+use primitives::v2::{AssignmentId, ValidatorId};
+use sp_runtime::{Perbill};
 use static_assertions::const_assert;
 
 pub use pallet_balances::Call as BalancesCall;
@@ -83,17 +81,17 @@ macro_rules! impl_runtime_weights {
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
-			AVERAGE_ON_INITIALIZE_RATIO, MAXIMUM_BLOCK_WEIGHT, NORMAL_DISPATCH_RATIO,
+			AVERAGE_ON_INITIALIZE_RATIO, MAXIMUM_BLOCK_WEIGHT, NORMAL_DISPATCH_RATIO, impl_multiplier_tests, impl_elections_weights,
 		};
 		use sp_runtime::{FixedPointNumber, Perquintill};
 
 		// Implement the weight types of the elections module.
-		runtime_common::impl_elections_weights!($runtime);
+		impl_elections_weights!($runtime);
 		// Implement tests for the weight multiplier.
-		runtime_common::impl_multiplier_tests!();
+		impl_multiplier_tests!();
 
 		// Expose the weight from the runtime constants module.
-		pub weights::constants::{
+		pub use $runtime::weights::{
 			BlockExecutionWeight, ExtrinsicBaseWeight, ParityDbWeight, RocksDbWeight,
 		};
 

@@ -80,7 +80,7 @@ pub use pallet_balances::Call as BalancesCall;
 use polkadot_parachain::primitives::Id as ParaId;
 
 /// Constant values used within the runtime.
-use rococo_runtime_constants::{currency::*, fee::*, time::*, weights::RocksDbWeight};
+use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
 use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 
