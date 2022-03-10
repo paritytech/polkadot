@@ -166,7 +166,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 				payload: claimed,
 				validator_index: self.0.validator_index,
 				signature: self.0.signature,
-				real_payload: std::marker::PhantomData,
+				real_payload: sp_std::marker::PhantomData,
 			}))
 		} else {
 			Err((self, claimed))
