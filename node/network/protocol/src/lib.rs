@@ -357,6 +357,14 @@ pub mod v1 {
 			}
 		}
 
+		/// Get the signature from the statement.
+		pub fn get_signature(&self) -> ValidatorSignature {
+			match self {
+				Self::Statement(_, statement) => statement.unchecked_signature().clone(),
+				Self::LargeStatement(metadata) => metadata.signature.clone(),
+			}
+		}
+
 		/// Get contained relay parent.
 		pub fn get_relay_parent(&self) -> Hash {
 			match self {
