@@ -43,7 +43,7 @@ use polkadot_node_subsystem_util::{
 	determine_new_blocks,
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
 };
@@ -584,7 +584,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::{v1::ValidatorIndex, v2::SessionInfo};
+	use polkadot_primitives::v2::{SessionInfo, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -646,21 +646,21 @@ pub(crate) mod tests {
 			_config: &criteria::Config,
 			_leaving_cores: Vec<(
 				CandidateHash,
-				polkadot_primitives::v1::CoreIndex,
-				polkadot_primitives::v1::GroupIndex,
+				polkadot_primitives::v2::CoreIndex,
+				polkadot_primitives::v2::GroupIndex,
 			)>,
-		) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
+		) -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment> {
 			HashMap::new()
 		}
 
 		fn check_assignment_cert(
 			&self,
-			_claimed_core_index: polkadot_primitives::v1::CoreIndex,
-			_validator_index: polkadot_primitives::v1::ValidatorIndex,
+			_claimed_core_index: polkadot_primitives::v2::CoreIndex,
+			_validator_index: polkadot_primitives::v2::ValidatorIndex,
 			_config: &criteria::Config,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-			_backing_group: polkadot_primitives::v1::GroupIndex,
+			_backing_group: polkadot_primitives::v2::GroupIndex,
 		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 			Ok(0)
 		}

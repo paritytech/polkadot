@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,
 };
-use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
+use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},

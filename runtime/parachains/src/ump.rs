@@ -20,7 +20,7 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
-use primitives::v1::{Id as ParaId, UpwardMessage};
+use primitives::v2::{Id as ParaId, UpwardMessage};
 use sp_std::{
 	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
 };

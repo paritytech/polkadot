@@ -25,7 +25,7 @@ use polkadot_node_network_protocol::request_response::{
 };
 use polkadot_node_primitives::PoV;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{IfDisconnected, NetworkBridgeMessage},
@@ -133,7 +133,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_node_primitives::BlockData;
-	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
+	use polkadot_primitives::v2::{CandidateHash, Hash, ValidatorIndex};
 	use polkadot_subsystem::messages::{
 		AllMessages, AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	};

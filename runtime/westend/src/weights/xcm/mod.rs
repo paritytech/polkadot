@@ -69,9 +69,8 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
-	fn reserve_asset_deposited(_assets: &MultiAssets) -> Weight {
-		// Westend does not support reserve asset deposits.
-		Weight::MAX
+	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())

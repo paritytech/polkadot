@@ -35,6 +35,8 @@ mod prelude;
 mod rpc;
 mod signer;
 
+use std::str::FromStr;
+
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
@@ -45,7 +47,7 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
 use tracing_subscriber::{fmt, EnvFilter};
 
 use std::{ops::Deref, sync::Arc};
@@ -243,6 +245,7 @@ enum Error<T: EPM::Config> {
 	IncorrectPhase,
 	AlreadySubmitted,
 	VersionMismatch,
+	StrategyNotSatisfied,
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
@@ -299,6 +302,46 @@ enum Solver {
 	},
 }
 
+/// Submission strategy to use.
+#[derive(Debug, Copy, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+enum SubmissionStrategy {
+	// Only submit if at the time, we are the best.
+	IfLeading,
+	// Always submit.
+	Always,
+	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
+	// better than us. This helps detect obviously fake solutions and still combat them.
+	ClaimBetterThan(Perbill),
+}
+
+/// Custom `impl` to parse `SubmissionStrategy` from CLI.
+///
+/// Possible options:
+/// * --submission-strategy if-leading: only submit if leading
+/// * --submission-strategy always: always submit
+/// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better.
+///
+impl FromStr for SubmissionStrategy {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let s = s.trim();
+
+		let res = if s == "if-leading" {
+			Self::IfLeading
+		} else if s == "always" {
+			Self::Always
+		} else if s.starts_with("percent-better ") {
+			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
+			Self::ClaimBetterThan(Perbill::from_percent(percent))
+		} else {
+			return Err(s.into())
+		};
+		Ok(res)
+	}
+}
+
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
@@ -320,6 +363,18 @@ struct MonitorConfig {
 	/// The solver algorithm to use.
 	#[clap(subcommand)]
 	solver: Solver,
+
+	/// Submission strategy to use.
+	///
+	/// Possible options:
+	///
+	/// `--submission-strategy if-leading`: only submit if leading.
+	///
+	/// `--submission-strategy always`: always submit.
+	///
+	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
+	#[clap(long, parse(try_from_str), default_value = "if-leading")]
+	submission_strategy: SubmissionStrategy,
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -665,7 +720,8 @@ mod tests {
 				seed_or_path: "//Alice".to_string(),
 				command: Command::Monitor(MonitorConfig {
 					listen: "head".to_string(),
-					solver: Solver::SeqPhragmen { iterations: 10 }
+					solver: Solver::SeqPhragmen { iterations: 10 },
+					submission_strategy: SubmissionStrategy::IfLeading,
 				}),
 			}
 		);
@@ -725,6 +781,18 @@ mod tests {
 					solver: Solver::PhragMMS { iterations: 1337 }
 				}),
 			}
+		);
+	}
+
+	#[test]
+	fn submission_strategy_from_str_works() {
+		use std::str::FromStr;
+
+		assert_eq!(SubmissionStrategy::from_str("if-leading"), Ok(SubmissionStrategy::IfLeading));
+		assert_eq!(SubmissionStrategy::from_str("always"), Ok(SubmissionStrategy::Always));
+		assert_eq!(
+			SubmissionStrategy::from_str("  percent-better 99   "),
+			Ok(SubmissionStrategy::ClaimBetterThan(Perbill::from_percent(99)))
 		);
 	}
 }

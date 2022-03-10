@@ -50,13 +50,10 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::{
-	v1::{
-		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
-		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
-		ValidatorIndex, ValidatorPair, ValidatorSignature,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
+	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;

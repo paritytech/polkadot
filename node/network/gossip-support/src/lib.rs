@@ -52,7 +52,7 @@ use polkadot_node_subsystem::{
 	SubsystemError, SubsystemSender,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, SessionIndex};
 
 #[cfg(test)]
 mod tests;
