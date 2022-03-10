@@ -40,7 +40,7 @@ polkadot-runtime = { path = "../../runtime/polkadot" }
 kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
 
-sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
+ss58-registry = { git = "https://github.com/paritytech/ss58-registry", branch = "main" }
 
 [dev-dependencies]
 assert_cmd = "2.0.2"

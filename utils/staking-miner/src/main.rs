@@ -34,11 +34,13 @@ mod monitor;
 mod prelude;
 mod rpc;
 mod signer;
+mod token;
 
 use std::str::FromStr;
 
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
+pub(crate) use ss58_registry::{Token, TokenRegistry};
 
 use clap::Parser;
 use frame_election_provider_support::NposSolver;
@@ -606,8 +608,7 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
-			sub_tokens::dynamic::set_name("DOT");
-			sub_tokens::dynamic::set_decimal_points(10_000_000_000);
+			Token::set(TokenRegistry::Dot.into());
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
@@ -618,8 +619,7 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormatRegistry::KusamaAccount.into(),
 			);
-			sub_tokens::dynamic::set_name("KSM");
-			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
+			Token::set(TokenRegistry::Ksm.into());
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
@@ -630,8 +630,7 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
-			sub_tokens::dynamic::set_name("WND");
-			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
+			Token::set(Token { name: "WND", decimals: 12 });
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {

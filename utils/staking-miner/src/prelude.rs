@@ -50,4 +50,4 @@ pub type Ext = sp_io::TestExternalities;
 pub type Pair = sp_core::sr25519::Pair;
 
 /// A dynamic token type used to represent account balances.
-pub type Token = sub_tokens::dynamic::DynamicToken;
+pub use crate::token::Token;
