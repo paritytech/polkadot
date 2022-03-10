@@ -1142,7 +1142,7 @@ mod benches {
 		[pallet_multisig, Multisig]
 		[pallet_proxy, Proxy]
 		[pallet_timestamp, Timestamp]
-		[pallet_utility, Utility]
+		// [pallet_utility, Utility]
 	);
 }
 
