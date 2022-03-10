@@ -14,27 +14,38 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Polkadot runtime. This can be compiled with `#[no_std]`, ready for Wasm.
+//! The Westend runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use pallet_transaction_payment::CurrencyAdapter;
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	PalletId,
+};
+use frame_system::EnsureRoot;
+use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_mmr_primitives as mmr;
+use pallet_session::historical as session_historical;
+use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
 	slots, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
 	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
-
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
@@ -43,22 +54,8 @@ use runtime_parachains::{
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
-
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
-	weights::Weight,
-	PalletId, RuntimeDebug,
-};
-use frame_system::EnsureRoot;
-use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_mmr_primitives as mmr;
-use pallet_session::historical as session_historical;
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use sp_core::OpaqueMetadata;
+use scale_info::TypeInfo;
+use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
 	create_runtime_str,
 	curve::PiecewiseLinear,
@@ -71,11 +68,11 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -86,13 +83,8 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use westend_runtime_constants::{currency::*, fee::*, time::*};
 
-// Weights used in the runtime
-mod weights;
-
-// Voter bag threshold definitions.
 mod bag_thresholds;
-
-// XCM configurations.
+mod weights;
 pub mod xcm_config;
 
 #[cfg(test)]
@@ -107,7 +99,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9170,
+	spec_version: 9180,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -171,7 +163,7 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+	pub MaximumSchedulerWeight: frame_support::weights::Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
@@ -704,7 +696,7 @@ parameter_types! {
 	Decode,
 	RuntimeDebug,
 	MaxEncodedLen,
-	scale_info::TypeInfo,
+	TypeInfo,
 )]
 pub enum ProxyType {
 	Any,
@@ -1301,8 +1293,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_pvf_check_statement(
-			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v2::ValidatorSignature,
+			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
