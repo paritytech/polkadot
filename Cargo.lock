@@ -7050,6 +7050,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-tracing-gum"
+version = "0.9.17"
+dependencies = [
+ "polkadot-node-jaeger",
+ "polkadot-node-tracing-gum-proc-macro",
+ "tracing",
+]
+
+[[package]]
+name = "polkadot-node-tracing-gum-proc-macro"
+version = "0.9.17"
+dependencies = [
+ "assert_matches",
+ "expander 0.0.6",
+ "proc-macro-crate 1.1.3",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "polkadot-overseer"
 version = "0.9.18"
 dependencies = [

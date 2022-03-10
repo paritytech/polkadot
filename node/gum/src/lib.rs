@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,108 +18,11 @@
 //! `traceID` annotation without codebase turnover.
 
 #[macro_use]
-pub use {Level, event, span, error, warn, debug, tracing};
+pub use tracing::{Level, event};
 
-#[macro_export]
-macro_rules! info {
-    (target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
-        $crate::event!(target: $target, parent: $parent, $crate::Level::INFO, { $($field)* }, $($arg)*)
-    );
-    (target: $target:expr, parent: $parent:expr, $($k:ident).+ $($field:tt)+ ) => (
-        $crate::event!(target: $target, parent: $parent, $crate::Level::INFO, { $($k).+ $($field)+ })
-    );
-    (target: $target:expr, parent: $parent:expr, ?$($k:ident).+ $($field:tt)+ ) => (
-        $crate::event!(target: $target, parent: $parent, $crate::Level::INFO, { $($k).+ $($field)+ })
-    );
-    (target: $target:expr, parent: $parent:expr, %$($k:ident).+ $($field:tt)+ ) => (
-        $crate::event!(target: $target, parent: $parent, $crate::Level::INFO, { $($k).+ $($field)+ })
-    );
-    (target: $target:expr, parent: $parent:expr, $($arg:tt)+ ) => (
-        $crate::event!(target: $target, parent: $parent, $crate::Level::INFO, {}, $($arg)+)
-    );
-    (parent: $parent:expr, { $($field:tt)+ }, $($arg:tt)+ ) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { $($field)+ },
-            $($arg)+
-        )
-    );
-    (parent: $parent:expr, $($k:ident).+ = $($field:tt)*) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { $($k).+ = $($field)*}
-        )
-    );
-    (parent: $parent:expr, ?$($k:ident).+ = $($field:tt)*) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { ?$($k).+ = $($field)*}
-        )
-    );
-    (parent: $parent:expr, %$($k:ident).+ = $($field:tt)*) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { %$($k).+ = $($field)*}
-        )
-    );
-    (parent: $parent:expr, $($k:ident).+, $($field:tt)*) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { $($k).+, $($field)*}
-        )
-    );
-    (parent: $parent:expr, ?$($k:ident).+, $($field:tt)*) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { ?$($k).+, $($field)*}
-        )
-    );
-    (parent: $parent:expr, %$($k:ident).+, $($field:tt)*) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            { %$($k).+, $($field)*}
-        )
-    );
-    (parent: $parent:expr, $($arg:tt)+) => (
-        $crate::event!(
-            target: module_path!(),
-            parent: $parent,
-            $crate::Level::INFO,
-            {},
-            $($arg)+
-        )
-    );
-    (target: $target:expr, { $($field:tt)* }, $($arg:tt)* ) => (
-        $crate::event!(target: $target, $crate::Level::INFO, { $($field)* }, $($arg)*)
-    );
-    (target: $target:expr, $($k:ident).+ $($field:tt)* ) => (
-        $crate::event!(target: $target, $crate::Level::INFO, { $($k).+ $($field)* })
-    );
-    (target: $target:expr, ?$($k:ident).+ $($field:tt)* ) => (
-        $crate::event!(target: $target, $crate::Level::INFO, { ?$($k).+ $($field)* })
-    );
-    (target: $target:expr, %$($k:ident).+ $($field:tt)* ) => (
-        $crate::event!(target: $target, $crate::Level::INFO, { $($k).+ $($field)* })
-    );
-    (target: $target:expr, $($arg:tt)+ ) => (
-        $crate::event!(target: $target, $crate::Level::INFO, {}, $($arg)+)
-    );
-}
+pub use jaeger::hash_to_trace_identifier;
 
+pub use gum_proc_macro::{error, warn, info, debug, trace};
 
 #[cfg(test)]
 mod tests {
