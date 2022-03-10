@@ -688,8 +688,7 @@ zombienet-tests-parachains-pvf:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-pvf.feature"
-  allow_failure:                   true
-  retry: 2
+  allow_failure:                   false
   tags:
     - zombienet-polkadot-integration-test
 
@@ -718,8 +717,7 @@ zombienet-tests-parachains-disputes:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.feature"
-  allow_failure:                   true
-  retry: 2
+  allow_failure:                   false
   tags:
     - zombienet-polkadot-integration-test
 
