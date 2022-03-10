@@ -32,7 +32,7 @@ use polkadot_cli::{
 
 // Filter wrapping related types.
 use crate::{
-	interceptor::*, shared::MALUS, variants::ReplaceValidationResult, FakeCandidateValidation,
+	interceptor::*, shared::MALUS, variants::ReplaceValidationResult, DisputeAncestorOptions,
 };
 
 // Import extra types relevant to the particular
@@ -99,25 +99,15 @@ where
 		}
 	}
 }
-pub(crate) struct DisputeValidCandidates {
-	/// Backing configuration.
-	fake_backing_validation: Option<FakeCandidateValidation>,
-	/// Approval voting configuration (applies to disputes as well).
-	fake_approval_validation: Option<FakeCandidateValidation>,
-}
 
-impl Default for DisputeValidCandidates {
-	fn default() -> Self {
-		Self { fake_backing_validation: None, fake_approval_validation: None }
-	}
+pub(crate) struct DisputeValidCandidates {
+	/// Fake validation config (applies to disputes as well).
+	opts: DisputeAncestorOptions,
 }
 
 impl DisputeValidCandidates {
-	pub fn new(
-		fake_backing_validation: Option<FakeCandidateValidation>,
-		fake_approval_validation: Option<FakeCandidateValidation>,
-	) -> Self {
-		Self { fake_backing_validation, fake_approval_validation }
+	pub fn new(opts: DisputeAncestorOptions) -> Self {
+		Self { opts }
 	}
 }
 
@@ -136,8 +126,8 @@ impl OverseerGen for DisputeValidCandidates {
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 		let backing_filter = ReplaceApprovalsWithDisputes;
 		let validation_filter = ReplaceValidationResult::new(
-			self.fake_backing_validation.clone(),
-			self.fake_approval_validation.clone(),
+			self.opts.fake_validation.clone(),
+			self.opts.fake_validation_error.clone(),
 		);
 		let candidate_validation_config = args.candidate_validation_config.clone();
 

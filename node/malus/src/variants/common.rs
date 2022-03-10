@@ -20,7 +20,7 @@
 #![allow(missing_docs)]
 
 // Filter wrapping related types.
-use crate::{interceptor::*, shared::MALUS, FakeCandidateValidation};
+use crate::{interceptor::*, shared::MALUS, FakeCandidateValidation, FakeCandidateValidationError};
 use polkadot_node_primitives::{InvalidCandidate, ValidationResult};
 use polkadot_node_subsystem::messages::CandidateValidationMessage;
 
@@ -28,16 +28,16 @@ use polkadot_node_subsystem::messages::CandidateValidationMessage;
 /// An interceptor which fakes validation result with a preconfigured result.
 /// Replaces `CandidateValidationSubsystem`.
 pub struct ReplaceValidationResult {
-	fake_backing_validation: Option<FakeCandidateValidation>,
-	fake_approval_validation: Option<FakeCandidateValidation>,
+	fake_validation: FakeCandidateValidation,
+	fake_validation_error: FakeCandidateValidationError,
 }
 
 impl ReplaceValidationResult {
 	pub fn new(
-		fake_backing_validation: Option<FakeCandidateValidation>,
-		fake_approval_validation: Option<FakeCandidateValidation>,
+		fake_validation: FakeCandidateValidation,
+		fake_validation_error: FakeCandidateValidationError,
 	) -> Self {
-		Self { fake_backing_validation, fake_approval_validation }
+		Self { fake_validation, fake_validation_error }
 	}
 }
 
@@ -54,7 +54,7 @@ where
 		_sender: &mut Sender,
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
-		if self.fake_backing_validation.is_none() && self.fake_approval_validation.is_none() {
+		if self.fake_validation == FakeCandidateValidation::Disabled {
 			return Some(msg)
 		}
 
@@ -70,22 +70,24 @@ where
 						sender,
 					),
 			} => {
-				if let Some(FakeCandidateValidation::Invalid) = self.fake_approval_validation {
-					let validation_result =
-						ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
+				match self.fake_validation {
+					FakeCandidateValidation::ApprovalInvalid |
+					FakeCandidateValidation::BackingAndApprovalInvalid => {
+						let validation_result =
+							ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
 
-					tracing::info!(
-						target = MALUS,
-						para_id = ?descriptor.para_id,
-						candidate_hash = ?descriptor.para_head,
-						"ValidateFromExhaustive result: {:?}",
-						&validation_result
-					);
-					// We're not even checking the candidate, this makes us appear faster than honest validators.
-					sender.send(Ok(validation_result)).unwrap();
-					None
-				} else {
-					Some(FromOverseer::Communication {
+						tracing::info!(
+							target = MALUS,
+							para_id = ?descriptor.para_id,
+							candidate_hash = ?descriptor.para_head,
+							"ValidateFromExhaustive result: {:?}",
+							&validation_result
+						);
+						// We're not even checking the candidate, this makes us appear faster than honest validators.
+						sender.send(Ok(validation_result)).unwrap();
+						None
+					},
+					_ => Some(FromOverseer::Communication {
 						msg: CandidateValidationMessage::ValidateFromExhaustive(
 							validation_data,
 							validation_code,
@@ -94,33 +96,35 @@ where
 							timeout,
 							sender,
 						),
-					})
+					}),
 				}
 			},
 			FromOverseer::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromChainState(descriptor, pov, timeout, sender),
 			} => {
-				if let Some(FakeCandidateValidation::Invalid) = self.fake_backing_validation {
-					let validation_result =
-						ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
-					tracing::info!(
-						target = MALUS,
-						para_id = ?descriptor.para_id,
-						candidate_hash = ?descriptor.para_head,
-						"ValidateFromChainState result: {:?}",
-						&validation_result
-					);
+				match self.fake_validation {
+					FakeCandidateValidation::BackingInvalid |
+					FakeCandidateValidation::BackingAndApprovalInvalid => {
+						let validation_result =
+							ValidationResult::Invalid(self.fake_validation_error.clone().into());
+						tracing::info!(
+							target = MALUS,
+							para_id = ?descriptor.para_id,
+							candidate_hash = ?descriptor.para_head,
+							"ValidateFromChainState result: {:?}",
+							&validation_result
+						);
 
-					// We're not even checking the candidate, this makes us appear faster than honest validators.
-					sender.send(Ok(validation_result)).unwrap();
-					None
-				} else {
-					Some(FromOverseer::Communication {
+						// We're not even checking the candidate, this makes us appear faster than honest validators.
+						sender.send(Ok(validation_result)).unwrap();
+						None
+					},
+					_ => Some(FromOverseer::Communication {
 						msg: CandidateValidationMessage::ValidateFromChainState(
 							descriptor, pov, timeout, sender,
 						),
-					})
+					}),
 				}
 			},
 			msg => Some(msg),

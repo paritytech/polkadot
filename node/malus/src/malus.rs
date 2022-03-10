@@ -19,6 +19,7 @@
 use clap::{ArgEnum, Parser};
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
+use polkadot_node_primitives::InvalidCandidate;
 
 pub(crate) mod interceptor;
 pub(crate) mod shared;
@@ -37,7 +38,7 @@ enum NemesisVariant {
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor(RunCmd),
+	DisputeAncestor(DisputeAncestorOptions),
 
 	#[allow(missing_docs)]
 	#[clap(name = "prepare-worker", hide = true)]
@@ -51,8 +52,67 @@ enum NemesisVariant {
 #[derive(ArgEnum, Clone, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
 pub enum FakeCandidateValidation {
-	Invalid,
+	Disabled,
+	BackingInvalid,
+	ApprovalInvalid,
+	BackingAndApprovalInvalid,
 	// TODO: impl Valid.
+}
+
+/// Candidate invalidity details
+#[derive(ArgEnum, Clone, Debug, PartialEq)]
+#[clap(rename_all = "kebab-case")]
+pub enum FakeCandidateValidationError {
+	/// Validation outputs check doesn't pass.
+	InvalidOutputs,
+	/// Failed to execute.`validate_block`. This includes function panicking.
+	ExecutionError,
+	/// Execution timeout.
+	Timeout,
+	/// Validation input is over the limit.
+	ParamsTooLarge,
+	/// Code size is over the limit.
+	CodeTooLarge,
+	/// Code does not decompress correctly.
+	CodeDecompressionFailure,
+	/// PoV does not decompress correctly.
+	PoVDecompressionFailure,
+	/// Validation function returned invalid data.
+	BadReturn,
+	/// Invalid relay chain parent.
+	BadParent,
+	/// POV hash does not match.
+	PoVHashMismatch,
+	/// Bad collator signature.
+	BadSignature,
+	/// Para head hash does not match.
+	ParaHeadHashMismatch,
+	/// Validation code hash does not match.
+	CodeHashMismatch,
+}
+
+impl Into<InvalidCandidate> for FakeCandidateValidationError {
+	fn into(self) -> InvalidCandidate {
+		match self {
+			FakeCandidateValidationError::ExecutionError =>
+				InvalidCandidate::ExecutionError("Malus".into()),
+			FakeCandidateValidationError::InvalidOutputs => InvalidCandidate::InvalidOutputs,
+			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
+			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
+			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
+			FakeCandidateValidationError::CodeDecompressionFailure =>
+				InvalidCandidate::CodeDecompressionFailure,
+			FakeCandidateValidationError::PoVDecompressionFailure =>
+				InvalidCandidate::PoVDecompressionFailure,
+			FakeCandidateValidationError::BadReturn => InvalidCandidate::BadReturn,
+			FakeCandidateValidationError::BadParent => InvalidCandidate::BadParent,
+			FakeCandidateValidationError::PoVHashMismatch => InvalidCandidate::PoVHashMismatch,
+			FakeCandidateValidationError::BadSignature => InvalidCandidate::BadSignature,
+			FakeCandidateValidationError::ParaHeadHashMismatch =>
+				InvalidCandidate::ParaHeadHashMismatch,
+			FakeCandidateValidationError::CodeHashMismatch => InvalidCandidate::CodeHashMismatch,
+		}
+	}
 }
 
 #[derive(Debug, Parser)]
@@ -60,12 +120,19 @@ pub enum FakeCandidateValidation {
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
+}
+#[derive(Clone, Debug, Parser)]
+#[clap(rename_all = "kebab-case")]
+#[allow(missing_docs)]
+struct DisputeAncestorOptions {
+	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::Disabled)]
+	pub fake_validation: FakeCandidateValidation,
 
-	#[clap(long, arg_enum, ignore_case = true)]
-	pub fake_backing_validation: Option<FakeCandidateValidation>,
+	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
+	pub fake_validation_error: FakeCandidateValidationError,
 
-	#[clap(long, arg_enum, ignore_case = true)]
-	pub fake_approval_validation: Option<FakeCandidateValidation>,
+	#[clap(flatten)]
+	cmd: RunCmd,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -80,12 +147,9 @@ impl MalusCli {
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
 			NemesisVariant::SuggestGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(cmd) => polkadot_cli::run_node(
-				run_cmd(cmd),
-				DisputeValidCandidates::new(
-					self.fake_backing_validation,
-					self.fake_approval_validation,
-				),
+			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				DisputeValidCandidates::new(opts),
 			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
