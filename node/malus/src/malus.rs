@@ -16,10 +16,9 @@
 
 //! A malus or nemesis node launch code.
 
-use clap::{ArgEnum, Parser};
+use clap::Parser;
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
-use polkadot_node_primitives::InvalidCandidate;
 
 pub(crate) mod interceptor;
 pub(crate) mod shared;
@@ -49,90 +48,11 @@ enum NemesisVariant {
 	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
-#[derive(ArgEnum, Clone, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
-pub enum FakeCandidateValidation {
-	Disabled,
-	BackingInvalid,
-	ApprovalInvalid,
-	BackingAndApprovalInvalid,
-	// TODO: impl Valid.
-}
-
-/// Candidate invalidity details
-#[derive(ArgEnum, Clone, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
-pub enum FakeCandidateValidationError {
-	/// Validation outputs check doesn't pass.
-	InvalidOutputs,
-	/// Failed to execute.`validate_block`. This includes function panicking.
-	ExecutionError,
-	/// Execution timeout.
-	Timeout,
-	/// Validation input is over the limit.
-	ParamsTooLarge,
-	/// Code size is over the limit.
-	CodeTooLarge,
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
-	/// PoV does not decompress correctly.
-	PoVDecompressionFailure,
-	/// Validation function returned invalid data.
-	BadReturn,
-	/// Invalid relay chain parent.
-	BadParent,
-	/// POV hash does not match.
-	PoVHashMismatch,
-	/// Bad collator signature.
-	BadSignature,
-	/// Para head hash does not match.
-	ParaHeadHashMismatch,
-	/// Validation code hash does not match.
-	CodeHashMismatch,
-}
-
-impl Into<InvalidCandidate> for FakeCandidateValidationError {
-	fn into(self) -> InvalidCandidate {
-		match self {
-			FakeCandidateValidationError::ExecutionError =>
-				InvalidCandidate::ExecutionError("Malus".into()),
-			FakeCandidateValidationError::InvalidOutputs => InvalidCandidate::InvalidOutputs,
-			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
-			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
-			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
-			FakeCandidateValidationError::CodeDecompressionFailure =>
-				InvalidCandidate::CodeDecompressionFailure,
-			FakeCandidateValidationError::PoVDecompressionFailure =>
-				InvalidCandidate::PoVDecompressionFailure,
-			FakeCandidateValidationError::BadReturn => InvalidCandidate::BadReturn,
-			FakeCandidateValidationError::BadParent => InvalidCandidate::BadParent,
-			FakeCandidateValidationError::PoVHashMismatch => InvalidCandidate::PoVHashMismatch,
-			FakeCandidateValidationError::BadSignature => InvalidCandidate::BadSignature,
-			FakeCandidateValidationError::ParaHeadHashMismatch =>
-				InvalidCandidate::ParaHeadHashMismatch,
-			FakeCandidateValidationError::CodeHashMismatch => InvalidCandidate::CodeHashMismatch,
-		}
-	}
-}
-
 #[derive(Debug, Parser)]
 #[allow(missing_docs)]
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
-}
-#[derive(Clone, Debug, Parser)]
-#[clap(rename_all = "kebab-case")]
-#[allow(missing_docs)]
-struct DisputeAncestorOptions {
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::Disabled)]
-	pub fake_validation: FakeCandidateValidation,
-
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
-	pub fake_validation_error: FakeCandidateValidationError,
-
-	#[clap(flatten)]
-	cmd: RunCmd,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {

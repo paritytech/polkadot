@@ -20,7 +20,8 @@
 #![allow(missing_docs)]
 
 // Filter wrapping related types.
-use crate::{interceptor::*, shared::MALUS, FakeCandidateValidation, FakeCandidateValidationError};
+use super::dispute_valid_candidates::{FakeCandidateValidation, FakeCandidateValidationError};
+use crate::{interceptor::*, shared::MALUS};
 use polkadot_node_primitives::{InvalidCandidate, ValidationResult};
 use polkadot_node_subsystem::messages::CandidateValidationMessage;
 

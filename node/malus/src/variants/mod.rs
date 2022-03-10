@@ -22,7 +22,8 @@ mod dispute_valid_candidates;
 mod suggest_garbage_candidate;
 
 pub(crate) use self::{
-	back_garbage_candidate::BackGarbageCandidate, dispute_valid_candidates::DisputeValidCandidates,
+	back_garbage_candidate::BackGarbageCandidate,
+	dispute_valid_candidates::{DisputeAncestorOptions, DisputeValidCandidates},
 	suggest_garbage_candidate::SuggestGarbageCandidate,
 };
 pub(crate) use common::ReplaceValidationResult;
