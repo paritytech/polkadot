@@ -480,7 +480,7 @@ mod tests {
 			.zip(trace_id.to_be_bytes().iter())
 			.enumerate()
 		{
-			assert_eq!(*a, *b, "Index [{idx}] does not match: {a} != {b}", idx, a, b);
+			assert_eq!(*a, *b, "Index [{}] does not match: {} != {}", idx, a, b);
 		}
 	}
 
