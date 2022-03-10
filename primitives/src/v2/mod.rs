@@ -176,6 +176,24 @@ pub mod well_known_keys {
 	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
 	//
 
+	/// The current relay chain block randomness
+	///
+	/// The storage item should be accessed as a `schnorrkel::Randomness` encoded value.
+	pub const CURRENT_BLOCK_RANDOMNESS: &[u8] =
+		&hex!["1cb6f36e027abb2091cfb5110ab5087fd077dfdb8adb10f78f10a5df8742c545"];
+
+	/// The randomness for one epoch ago
+	///
+	/// The storage item should be accessed as a `schnorrkel::Randomness` encoded value.
+	pub const ONE_EPOCH_AGO_RANDOMNESS: &[u8] =
+		&hex!["1cb6f36e027abb2091cfb5110ab5087f7ce678799d3eff024253b90e84927cc6"];
+
+	/// The randomness for two epochs ago
+	///
+	/// The storage item should be accessed as a `schnorrkel::Randomness` encoded value.
+	pub const TWO_EPOCHS_AGO_RANDOMNESS: &[u8] =
+		&hex!["1cb6f36e027abb2091cfb5110ab5087f7a414cb008e0e61e46722aa60abdd672"];
+
 	/// The current slot number.
 	///
 	/// The storage entry should be accessed as a `Slot` encoded value.
