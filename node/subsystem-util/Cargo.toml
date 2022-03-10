@@ -15,7 +15,7 @@ pin-project = "1.0.9"
 rand = "0.8.5"
 thiserror = "1.0.30"
 fatality = "0.0.6"
-tracing = "0.1.31"
+tracing = "0.1.32"
 derive_more = "0.99.17"
 lru = "0.7.3"
 
