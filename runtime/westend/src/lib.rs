@@ -113,7 +113,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 10,
+	transaction_version: 11,
 	state_version: 0,
 };
 
@@ -414,9 +414,10 @@ parameter_types! {
 
 impl pallet_bags_list::Config for Runtime {
 	type Event = Event;
-	type VoteWeightProvider = Staking;
+	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
+	type Score = sp_npos_elections::VoteWeight;
 }
 
 pallet_staking_reward_curve::build! {

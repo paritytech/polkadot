@@ -16,7 +16,7 @@
 
 //! Code for elections.
 
-use frame_election_provider_support::{SortedListProvider, VoteWeight};
+use frame_election_provider_support::SortedListProvider;
 use sp_std::{boxed::Box, marker::PhantomData};
 
 /// Implements the weight types for the elections module and a specific
@@ -78,6 +78,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 	for UseNominatorsAndUpdateBagsList<T>
 {
 	type Error = pallet_bags_list::Error;
+	type Score = <T as pallet_bags_list::Config>::Score;
 
 	fn iter() -> Box<dyn Iterator<Item = T::AccountId>> {
 		Box::new(pallet_staking::Nominators::<T>::iter().map(|(n, _)| n))
@@ -91,11 +92,11 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 		pallet_bags_list::Pallet::<T>::contains(id)
 	}
 
-	fn on_insert(id: T::AccountId, weight: VoteWeight) -> Result<(), Self::Error> {
+	fn on_insert(id: T::AccountId, weight: Self::Score) -> Result<(), Self::Error> {
 		pallet_bags_list::Pallet::<T>::on_insert(id, weight)
 	}
 
-	fn on_update(id: &T::AccountId, new_weight: VoteWeight) {
+	fn on_update(id: &T::AccountId, new_weight: Self::Score) {
 		pallet_bags_list::Pallet::<T>::on_update(id, new_weight);
 	}
 
@@ -105,7 +106,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 
 	fn unsafe_regenerate(
 		all: impl IntoIterator<Item = T::AccountId>,
-		weight_of: Box<dyn Fn(&T::AccountId) -> VoteWeight>,
+		weight_of: Box<dyn Fn(&T::AccountId) -> Self::Score>,
 	) -> u32 {
 		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
 	}
@@ -116,10 +117,5 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 
 	fn unsafe_clear() {
 		pallet_bags_list::Pallet::<T>::unsafe_clear()
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn weight_update_worst_case(who: &T::AccountId, is_increase: bool) -> VoteWeight {
-		pallet_bags_list::Pallet::<T>::weight_update_worst_case(who, is_increase)
 	}
 }

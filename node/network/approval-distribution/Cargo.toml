@@ -12,7 +12,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 
 futures = "0.3.21"
-tracing = "0.1.31"
+tracing = "0.1.32"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
