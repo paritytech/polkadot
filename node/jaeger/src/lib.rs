@@ -150,7 +150,7 @@ impl Jaeger {
 
 	/// Create a span, but defer the evaluation/transformation into a `TraceIdentifier`.
 	///
-	/// The deferal allows to avoid the additional CPU runtime cost in case of
+	/// The deferral allows to avoid the additional CPU runtime cost in case of
 	/// items that are not a pre-computed hash by themselves.
 	pub(crate) fn span<F>(&self, lazy_hash: F, span_name: &'static str) -> Option<mick_jaeger::Span>
 	where
