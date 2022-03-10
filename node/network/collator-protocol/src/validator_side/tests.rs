@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
 	ValidatorId, ValidatorIndex,
 };
@@ -132,7 +132,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 	let keystore = TestKeyStore::new();
 	keystore
 		.sr25519_generate_new(
-			polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
+			polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID,
 			Some(&Sr25519Keyring::Alice.to_seed()),
 		)
 		.unwrap();

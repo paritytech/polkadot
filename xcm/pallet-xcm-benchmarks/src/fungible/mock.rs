@@ -132,7 +132,7 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmSender = DevNull;
 	type AssetTransactor = AssetTransactor;
 	type OriginConverter = ();
-	type IsReserve = ();
+	type IsReserve = TrustedReserves;
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
@@ -159,6 +159,7 @@ impl crate::Config for Test {
 }
 
 pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
+pub type TrustedReserves = (xcm_builder::Case<RsrvConcreteFung>,);
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
@@ -167,7 +168,13 @@ parameter_types! {
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
 	));
+	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+		ChildTeleporter::get(),
+		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
+	));
 	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
+	pub const RsrvConcreteFung: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
 }
 
@@ -175,6 +182,7 @@ impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckedAccount;
 	type TrustedTeleporter = TrustedTeleporter;
+	type TrustedReserve = TrustedReserve;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =

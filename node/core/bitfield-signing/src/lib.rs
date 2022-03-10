@@ -41,7 +41,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	JobSender, JobSubsystem, JobTrait, Validator,
 };
-use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
+use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use std::{iter::FromIterator, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
@@ -171,15 +171,16 @@ async fn construct_availability_bitfield(
 	)
 	.await?;
 
+	let core_bits = FromIterator::from_iter(results.into_iter());
 	tracing::debug!(
 		target: LOG_TARGET,
 		?relay_parent,
-		"Signing Bitfield for {} cores: {:?}",
-		availability_cores.len(),
-		results,
+		"Signing Bitfield for {core_count} cores: {core_bits}",
+		core_count = availability_cores.len(),
+		core_bits = core_bits,
 	);
 
-	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
+	Ok(AvailabilityBitfield(core_bits))
 }
 
 #[derive(Clone)]

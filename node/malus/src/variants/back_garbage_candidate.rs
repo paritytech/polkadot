@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util as util;
 use crate::{interceptor::*, shared::*};
 use polkadot_node_primitives::{PoV, ValidationResult};
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
 	ValidationCode,
 };
