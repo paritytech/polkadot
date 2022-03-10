@@ -21,32 +21,26 @@ fn pallet_query_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![QueryPallet {
-			module_name: "Error".into(),
-			response_info: QueryResponseInfo {
-				destination: Parachain(1).into(),
-				query_id: 1,
-				max_weight: 50,
-			},
-		}]),
-		50,
-	);
+	let message = Xcm(vec![QueryPallet {
+		module_name: "Error".into(),
+		response_info: QueryResponseInfo {
+			destination: Parachain(1).into(),
+			query_id: 1,
+			max_weight: 50,
+		},
+	}]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parachain(1).into(),
-			Xcm::<()>(vec![QueryResponse {
-				query_id: 1,
-				max_weight: 50,
-				response: Response::PalletsInfo(vec![].try_into().unwrap()),
-				querier: Some(Here.into()),
-			}]),
-		)]
-	);
+	let expected_msg = Xcm::<()>(vec![QueryResponse {
+		query_id: 1,
+		max_weight: 50,
+		response: Response::PalletsInfo(vec![].try_into().unwrap()),
+		querier: Some(Here.into()),
+	}]);
+	let expected_hash = fake_message_hash(&expected_msg);
+	assert_eq!(sent_xcm(), vec![(Parachain(1).into(), expected_msg, expected_hash)]);
 }
 
 #[test]
@@ -54,44 +48,38 @@ fn pallet_query_with_results_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![QueryPallet {
-			module_name: "pallet_balances".into(),
-			response_info: QueryResponseInfo {
-				destination: Parachain(1).into(),
-				query_id: 1,
-				max_weight: 50,
-			},
-		}]),
-		50,
-	);
+	let message = Xcm(vec![QueryPallet {
+		module_name: "pallet_balances".into(),
+		response_info: QueryResponseInfo {
+			destination: Parachain(1).into(),
+			query_id: 1,
+			max_weight: 50,
+		},
+	}]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parachain(1).into(),
-			Xcm::<()>(vec![QueryResponse {
-				query_id: 1,
-				max_weight: 50,
-				response: Response::PalletsInfo(
-					vec![PalletInfo::new(
-						1,
-						b"Balances".as_ref().into(),
-						b"pallet_balances".as_ref().into(),
-						1,
-						42,
-						69,
-					)
-					.unwrap(),]
-					.try_into()
-					.unwrap()
-				),
-				querier: Some(Here.into()),
-			}]),
-		)]
-	);
+	let expected_msg = Xcm::<()>(vec![QueryResponse {
+		query_id: 1,
+		max_weight: 50,
+		response: Response::PalletsInfo(
+			vec![PalletInfo::new(
+				1,
+				b"Balances".as_ref().into(),
+				b"pallet_balances".as_ref().into(),
+				1,
+				42,
+				69,
+			)
+			.unwrap()]
+			.try_into()
+			.unwrap(),
+		),
+		querier: Some(Here.into()),
+	}]);
+	let expected_hash = fake_message_hash(&expected_msg);
+	assert_eq!(sent_xcm(), vec![(Parachain(1).into(), expected_msg, expected_hash)]);
 }
 
 #[test]
@@ -100,21 +88,22 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	// We put this in manually here, but normally this would be done at the point of crafting the message.
 	expect_response(query_id, Parent.into());
 
-	let the_response = Response::Assets((Parent, 100).into());
+	let the_response = Response::Assets((Parent, 100u128).into());
 	let message = Xcm::<TestCall>(vec![QueryResponse {
 		query_id,
 		response: the_response.clone(),
 		max_weight: 10,
 		querier: Some(Here.into()),
 	}]);
+	let hash = fake_message_hash(&message);
 	let weight_limit = 10;
 
 	// First time the response gets through since we're expecting it...
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(10));
 	assert_eq!(response(query_id).unwrap(), the_response);
 
 	// Second time it doesn't, since we're not.
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 }

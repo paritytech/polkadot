@@ -15,8 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::*;
-use frame_support::{parameter_types, weights::Weight};
-use xcm_executor::traits::FilterAssetLocation;
+use frame_support::{parameter_types, traits::ContainsPair, weights::Weight};
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
@@ -25,8 +24,8 @@ impl xcm::opaque::latest::SendXcm for DevNull {
 	fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<()> {
 		Ok(((), MultiAssets::new()))
 	}
-	fn deliver(_: ()) -> Result<(), SendError> {
-		Ok(())
+	fn deliver(_: ()) -> Result<XcmHash, SendError> {
+		Ok([0; 32])
 	}
 }
 
@@ -40,6 +39,7 @@ impl xcm_executor::traits::OnResponse for DevNull {
 		_: Option<&MultiLocation>,
 		_: Response,
 		_: Weight,
+		_: &XcmContext,
 	) -> Weight {
 		0
 	}
@@ -67,8 +67,8 @@ parameter_types! {
 }
 
 pub struct AllAssetLocationsPass;
-impl FilterAssetLocation for AllAssetLocationsPass {
-	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation) -> bool {
+impl ContainsPair<MultiAsset, MultiLocation> for AllAssetLocationsPass {
+	fn contains(_: &MultiAsset, _: &MultiLocation) -> bool {
 		true
 	}
 }

@@ -89,7 +89,7 @@ pub fn asset_instance_from(x: u32) -> AssetInstance {
 }
 
 pub fn new_executor<T: Config>(origin: MultiLocation) -> ExecutorOf<T> {
-	ExecutorOf::<T>::new(origin)
+	ExecutorOf::<T>::new(origin, [0; 32])
 }
 
 /// Build a multi-location from an account id.

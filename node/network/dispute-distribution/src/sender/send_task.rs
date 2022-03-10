@@ -35,7 +35,7 @@ use polkadot_subsystem::{
 	SubsystemContext,
 };
 
-use super::error::{Fatal, Result};
+use super::error::{FatalError, Result};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
@@ -266,7 +266,7 @@ async fn send_requests<Context: SubsystemContext>(
 		);
 
 		let (remote, remote_handle) = fut.remote_handle();
-		ctx.spawn("dispute-sender", remote.boxed()).map_err(Fatal::SpawnTask)?;
+		ctx.spawn("dispute-sender", remote.boxed()).map_err(FatalError::SpawnTask)?;
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 

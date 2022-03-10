@@ -39,12 +39,12 @@ mod dummy;
 /// The real implementation.
 mod real;
 
-use kvdb::KeyValueDB;
 use metrics::Metrics;
 use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
+use polkadot_node_subsystem_util::database::Database;
 use sc_keystore::LocalKeystore;
 use std::sync::Arc;
 
@@ -66,7 +66,7 @@ impl DisputeCoordinatorSubsystem {
 
 	/// Create a new instance of the subsystem.
 	pub fn new(
-		store: Arc<dyn KeyValueDB>,
+		store: Arc<dyn Database>,
 		config: real::Config,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,

@@ -40,9 +40,9 @@ use runtime_common::{
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
-	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
@@ -404,7 +404,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
-		runtime_common::elections::OffchainRandomBalancing,
+		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
@@ -474,6 +474,7 @@ impl pallet_staking::Config for Runtime {
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
 	type SortedListProvider = BagsList;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
@@ -827,7 +828,7 @@ impl parachains_session_info::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
-	type DisputesHandler = ();
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
@@ -852,6 +853,7 @@ impl parachains_ump::Config for Runtime {
 		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -894,6 +896,13 @@ impl assigned_slots::Config for Runtime {
 	type MaxPermanentSlots = MaxPermanentSlots;
 	type MaxTemporarySlots = MaxTemporarySlots;
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+}
+
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
+	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1040,6 +1049,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 51,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 53,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
@@ -1122,10 +1132,12 @@ mod benches {
 		[runtime_common::paras_registrar, Registrar]
 		[runtime_common::slots, Slots]
 		[runtime_parachains::configuration, Configuration]
+		[runtime_parachains::disputes, ParasDisputes]
 		[runtime_parachains::hrmp, Hrmp]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
 		[runtime_parachains::paras_inherent, ParaInherent]
+		[runtime_parachains::ump, Ump]
 		// Substrate
 		[pallet_bags_list, BagsList]
 		[pallet_balances, Balances]
@@ -1544,6 +1556,10 @@ sp_api::impl_runtime_apis! {
 					Westmint::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+					Westmint::get(),
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
+				));
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
@@ -1551,6 +1567,7 @@ sp_api::impl_runtime_apis! {
 
 				type CheckedAccount = xcm_config::CheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {

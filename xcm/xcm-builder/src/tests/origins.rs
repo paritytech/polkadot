@@ -25,35 +25,29 @@ fn universal_origin_should_work() {
 	// Parachain 2 may represent Polkadot to us
 	add_universal_alias(Parachain(2), Polkadot);
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(2),
-		Xcm(vec![
-			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
-		]),
-		50,
-	);
+	let message = Xcm(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
+	]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::InvalidLocation));
 
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
-		]),
-		50,
-	);
+	let message = Xcm(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
+	]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
 
 	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![
-			UniversalOrigin(GlobalConsensus(Kusama)),
-			TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
-		]),
-		50,
-	);
+	let message = Xcm(vec![
+		UniversalOrigin(GlobalConsensus(Kusama)),
+		TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
+	]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(20));
 	assert_eq!(asset_list((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
 }
@@ -64,13 +58,18 @@ fn export_message_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
 	// Polkadot parachain #2.
-	let message =
-		Xcm(vec![TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() }]);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1),
-		Xcm(vec![ExportMessage { network: Polkadot, destination: Here, xcm: message.clone() }]),
-		50,
-	);
+	let expected_message = Xcm(vec![TransferAsset {
+		assets: (Here, 100u128).into(),
+		beneficiary: Parachain(2).into(),
+	}]);
+	let expected_hash = fake_message_hash(&expected_message);
+	let message = Xcm(vec![ExportMessage {
+		network: Polkadot,
+		destination: Here,
+		xcm: expected_message.clone(),
+	}]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, message)]);
+	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, expected_message, expected_hash)]);
 }

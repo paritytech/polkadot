@@ -17,14 +17,17 @@
 //! Various implementations for the `MatchesFungible` trait.
 
 use frame_support::traits::Get;
-use sp_runtime::traits::CheckedConversion;
-use sp_std::{convert::TryFrom, marker::PhantomData};
+use sp_std::{
+	convert::{TryFrom, TryInto},
+	marker::PhantomData,
+};
 use xcm::latest::{
 	AssetId::{Abstract, Concrete},
-	Fungibility::Fungible,
+	AssetInstance,
+	Fungibility::{Fungible, NonFungible},
 	MultiAsset, MultiLocation,
 };
-use xcm_executor::traits::MatchesFungible;
+use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 
 /// Converts a `MultiAsset` into balance `B` if it is a concrete fungible with an id equal to that
 /// given by `T`'s `Get`.
@@ -51,7 +54,16 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match (&a.id, &a.fun) {
 			(Concrete(ref id), Fungible(ref amount)) if id == &T::get() =>
-				CheckedConversion::checked_from(*amount),
+				(*amount).try_into().ok(),
+			_ => None,
+		}
+	}
+}
+impl<T: Get<MultiLocation>, I: TryFrom<AssetInstance>> MatchesNonFungible<I> for IsConcrete<T> {
+	fn matches_nonfungible(a: &MultiAsset) -> Option<I> {
+		match (&a.id, &a.fun) {
+			(Concrete(ref id), NonFungible(ref instance)) if id == &T::get() =>
+				instance.clone().try_into().ok(),
 			_ => None,
 		}
 	}
@@ -64,16 +76,21 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// ```
 /// use xcm::latest::prelude::*;
 /// use xcm_builder::IsAbstract;
-/// use xcm_executor::traits::MatchesFungible;
+/// use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 ///
 /// frame_support::parameter_types! {
 /// 	pub TargetLocation: [u8; 32] = [7u8; 32];
 /// }
 ///
 /// # fn main() {
-/// let asset = ([7u8; 32], 999).into();
-/// // match `asset` if it is a concrete asset in `TargetLocation`.
+/// let asset = ([7u8; 32], 999u128).into();
+/// // match `asset` if it is an abstract asset in `TargetLocation`.
 /// assert_eq!(<IsAbstract<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
+/// let nft = ([7u8; 32], [42u8; 4]).into();
+/// assert_eq!(
+///     <IsAbstract<TargetLocation> as MatchesNonFungible<[u8; 4]>>::matches_nonfungible(&nft),
+///     Some([42u8; 4])
+/// );
 /// # }
 /// ```
 pub struct IsAbstract<T>(PhantomData<T>);
@@ -81,7 +98,16 @@ impl<T: Get<[u8; 32]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match (&a.id, &a.fun) {
 			(Abstract(ref id), Fungible(ref amount)) if id == &T::get() =>
-				CheckedConversion::checked_from(*amount),
+				(*amount).try_into().ok(),
+			_ => None,
+		}
+	}
+}
+impl<T: Get<[u8; 32]>, B: TryFrom<AssetInstance>> MatchesNonFungible<B> for IsAbstract<T> {
+	fn matches_nonfungible(a: &MultiAsset) -> Option<B> {
+		match (&a.id, &a.fun) {
+			(Abstract(ref id), NonFungible(ref instance)) if id == &T::get() =>
+				instance.clone().try_into().ok(),
 			_ => None,
 		}
 	}

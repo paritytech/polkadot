@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,19 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::latest::MultiAsset;
+use substrate_wasm_builder::WasmBuilder;
 
-pub trait MatchesFungible<Balance> {
-	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
-}
-
-#[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<Balance> MatchesFungible<Balance> for Tuple {
-	fn matches_fungible(a: &MultiAsset) -> Option<Balance> {
-		for_tuples!( #(
-			match Tuple::matches_fungible(a) { o @ Some(_) => return o, _ => () }
-		)* );
-		log::trace!(target: "xcm::matches_fungible", "did not match fungible asset: {:?}", &a);
-		None
-	}
+fn main() {
+	WasmBuilder::new().with_current_project().export_heap_base().build()
 }

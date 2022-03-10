@@ -29,7 +29,9 @@ pub(crate) const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,
@@ -526,6 +528,10 @@ impl Junctions {
 			}
 		}
 		return self.at(prefix.len())
+	}
+
+	pub fn starts_with(&self, prefix: &Junctions) -> bool {
+		prefix.len() <= self.len() && prefix.iter().zip(self.iter()).all(|(x, y)| x == y)
 	}
 }
 

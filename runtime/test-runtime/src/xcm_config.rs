@@ -45,8 +45,8 @@ impl SendXcm for DoNothingRouter {
 	fn validate(_dest: &mut Option<MultiLocation>, _msg: &mut Option<Xcm<()>>) -> SendResult<()> {
 		Ok(((), MultiAssets::new()))
 	}
-	fn deliver(_: ()) -> Result<(), SendError> {
-		Ok(())
+	fn deliver(_: ()) -> Result<XcmHash, SendError> {
+		Ok([0; 32])
 	}
 }
 
@@ -54,11 +54,15 @@ pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
 
 pub struct DummyAssetTransactor;
 impl TransactAsset for DummyAssetTransactor {
-	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		Ok(())
 	}
 
-	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
+	fn withdraw_asset(
+		_what: &MultiAsset,
+		_who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
+	) -> Result<Assets, XcmError> {
 		let asset: MultiAsset = (Parent, 100_000).into();
 		Ok(asset.into())
 	}

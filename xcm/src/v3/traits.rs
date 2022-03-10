@@ -246,15 +246,17 @@ pub trait ExecuteXcm<Call> {
 	fn execute(
 		origin: impl Into<MultiLocation>,
 		pre: Self::Prepared,
+		hash: XcmHash,
 		weight_credit: Weight,
 	) -> Outcome;
 
-	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
-	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
-	/// other aspects.
+	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
+	/// The weight limit is a basic hard-limit and the implementation may place further restrictions or requirements
+	/// on weight and other aspects.
 	fn execute_xcm(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
+		hash: XcmHash,
 		weight_limit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
@@ -265,16 +267,17 @@ pub trait ExecuteXcm<Call> {
 			message,
 			weight_limit,
 		);
-		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
+		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, 0)
 	}
 
-	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
 	///
 	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
 	/// execution without associated payment.
 	fn execute_xcm_in_credit(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
+		hash: XcmHash,
 		weight_limit: Weight,
 		weight_credit: Weight,
 	) -> Outcome {
@@ -286,7 +289,7 @@ pub trait ExecuteXcm<Call> {
 		if xcm_weight > weight_limit {
 			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
 		}
-		Self::execute(origin, pre, weight_credit)
+		Self::execute(origin, pre, hash, weight_credit)
 	}
 
 	/// Deduct some `fees` to the sovereign account of the given `location` and place them as per
@@ -306,7 +309,7 @@ impl<C> ExecuteXcm<C> for () {
 	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> {
 		Err(message)
 	}
-	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: Weight) -> Outcome {
+	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: XcmHash, _: Weight) -> Outcome {
 		unreachable!()
 	}
 	fn charge_fees(_location: impl Into<MultiLocation>, _fees: MultiAssets) -> Result {
@@ -340,6 +343,9 @@ pub enum SendError {
 	Fees,
 }
 
+/// A hash type for identifying messages.
+pub type XcmHash = [u8; 32];
+
 /// Result value when attempting to send an XCM message.
 pub type SendResult<T> = result::Result<(T, MultiAssets), SendError>;
 
@@ -372,8 +378,9 @@ impl<T> Unwrappable for Option<T> {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v3::prelude::*;
 /// # use parity_scale_codec::Encode;
+/// # use xcm::v3::prelude::*;
+/// # use xcm::VersionedXcm;
 /// # use std::convert::Infallible;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -383,7 +390,7 @@ impl<T> Unwrappable for Option<T> {
 ///     fn validate(_: &mut Option<MultiLocation>, _: &mut Option<Xcm<()>>) -> SendResult<Infallible> {
 ///         Err(SendError::NotApplicable)
 ///     }
-///     fn deliver(_: Infallible) -> Result<(), SendError> {
+///     fn deliver(_: Infallible) -> Result<XcmHash, SendError> {
 ///         unreachable!()
 ///     }
 /// }
@@ -398,8 +405,8 @@ impl<T> Unwrappable for Option<T> {
 ///             _ => Err(SendError::Unroutable),
 ///         }
 ///     }
-///     fn deliver(_: ()) -> Result<(), SendError> {
-///         Ok(())
+///     fn deliver(_: ()) -> Result<XcmHash, SendError> {
+///         Ok([0; 32])
 ///     }
 /// }
 ///
@@ -413,8 +420,8 @@ impl<T> Unwrappable for Option<T> {
 ///             _ => Err(SendError::NotApplicable),
 ///         }
 ///     }
-///     fn deliver(_: ()) -> Result<(), SendError> {
-///         Ok(())
+///     fn deliver(_: ()) -> Result<XcmHash, SendError> {
+///         Ok([0; 32])
 ///     }
 /// }
 ///
@@ -426,6 +433,7 @@ impl<T> Unwrappable for Option<T> {
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);
+/// let message_hash = message.using_encoded(sp_io::hashing::blake2_256);
 ///
 /// // Sender2 will block this.
 /// assert!(send_xcm::<(Sender1, Sender2, Sender3)>(Parent.into(), message.clone()).is_err());
@@ -453,7 +461,7 @@ pub trait SendXcm {
 	) -> SendResult<Self::Ticket>;
 
 	/// Actually carry out the delivery operation for a previously validated message sending.
-	fn deliver(ticket: Self::Ticket) -> result::Result<(), SendError>;
+	fn deliver(ticket: Self::Ticket) -> result::Result<XcmHash, SendError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -486,7 +494,7 @@ impl SendXcm for Tuple {
 		}
 	}
 
-	fn deliver(one_ticket: Self::Ticket) -> result::Result<(), SendError> {
+	fn deliver(one_ticket: Self::Ticket) -> result::Result<XcmHash, SendError> {
 		for_tuples!( #(
 			if let Some(validated) = one_ticket.Tuple {
 				return Tuple::deliver(validated);
@@ -513,8 +521,8 @@ pub fn validate_send<T: SendXcm>(dest: MultiLocation, msg: Xcm<()>) -> SendResul
 pub fn send_xcm<T: SendXcm>(
 	dest: MultiLocation,
 	msg: Xcm<()>,
-) -> result::Result<MultiAssets, SendError> {
-	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg))?;
-	T::deliver(ticket)?;
-	Ok(price)
+) -> result::Result<(XcmHash, MultiAssets), SendError> {
+	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg.clone()))?;
+	let hash = T::deliver(ticket)?;
+	Ok((hash, price))
 }

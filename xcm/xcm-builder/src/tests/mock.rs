@@ -20,6 +20,7 @@ pub use crate::{
 	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, LocationInverter,
 	TakeWeightCredit,
 };
+use frame_support::traits::ContainsPair;
 pub use frame_support::{
 	dispatch::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter, Weight,
@@ -30,17 +31,18 @@ pub use frame_support::{
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
+pub use sp_io::hashing::blake2_256;
 pub use sp_std::{
 	cell::{Cell, RefCell},
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	fmt::Debug,
 	marker::PhantomData,
 };
-pub use xcm::latest::prelude::*;
+pub use xcm::prelude::*;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
-		FeeReason, FilterAssetLocation, LockError, OnResponse, TransactAsset, UniversalLocation,
+		FeeReason, LockError, OnResponse, TransactAsset, UniversalLocation,
 	},
 	Assets, Config,
 };
@@ -105,27 +107,27 @@ impl GetDispatchInfo for TestCall {
 }
 
 thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
-	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>, XcmHash)>> = RefCell::new(Vec::new());
+	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash)>> = RefCell::new(Vec::new());
 	pub static EXPORTER_OVERRIDE: RefCell<Option<(
 		fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
-		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<(), SendError>,
+		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<XcmHash, SendError>,
 	)>> = RefCell::new(None);
 	pub static SEND_PRICE: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
 	pub static SUSPENDED: Cell<bool> = Cell::new(false);
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_send_price(p: impl Into<MultiAsset>) {
 	SEND_PRICE.with(|l| l.replace(p.into().into()));
 }
-pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)> {
+pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm, XcmHash)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_exporter_override(
 	price: fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
-	deliver: fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<(), SendError>,
+	deliver: fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<XcmHash, SendError>,
 ) {
 	EXPORTER_OVERRIDE.with(|x| x.replace(Some((price, deliver))));
 }
@@ -135,28 +137,31 @@ pub fn clear_exporter_override() {
 }
 pub struct TestMessageSender;
 impl SendXcm for TestMessageSender {
-	type Ticket = (MultiLocation, Xcm<()>);
+	type Ticket = (MultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(MultiLocation, Xcm<()>)> {
-		let pair = (dest.take().unwrap(), msg.take().unwrap());
-		Ok((pair, SEND_PRICE.with(|l| l.borrow().clone())))
+	) -> SendResult<(MultiLocation, Xcm<()>, XcmHash)> {
+		let msg = msg.take().unwrap();
+		let hash = fake_message_hash(&msg);
+		let triplet = (dest.take().unwrap(), msg, hash);
+		Ok((triplet, SEND_PRICE.with(|l| l.borrow().clone())))
 	}
-	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<(), SendError> {
-		SENT_XCM.with(|q| q.borrow_mut().push(pair));
-		Ok(())
+	fn deliver(triplet: (MultiLocation, Xcm<()>, XcmHash)) -> Result<XcmHash, SendError> {
+		let hash = triplet.2;
+		SENT_XCM.with(|q| q.borrow_mut().push(triplet));
+		Ok(hash)
 	}
 }
 pub struct TestMessageExporter;
 impl ExportXcm for TestMessageExporter {
-	type Ticket = (NetworkId, u32, InteriorMultiLocation, Xcm<()>);
+	type Ticket = (NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		network: NetworkId,
 		channel: u32,
 		dest: &mut Option<InteriorMultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, Xcm<()>)> {
+	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash)> {
 		let (d, m) = (dest.take().unwrap(), msg.take().unwrap());
 		let r: Result<MultiAssets, SendError> = EXPORTER_OVERRIDE.with(|e| {
 			if let Some((ref f, _)) = &*e.borrow() {
@@ -165,8 +170,9 @@ impl ExportXcm for TestMessageExporter {
 				Ok(MultiAssets::new())
 			}
 		});
+		let h = fake_message_hash(&m);
 		match r {
-			Ok(price) => Ok(((network, channel, d, m), price)),
+			Ok(price) => Ok(((network, channel, d, m, h), price)),
 			Err(e) => {
 				*dest = Some(d);
 				*msg = Some(m);
@@ -174,14 +180,17 @@ impl ExportXcm for TestMessageExporter {
 			},
 		}
 	}
-	fn deliver(tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>)) -> Result<(), SendError> {
+	fn deliver(
+		tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash),
+	) -> Result<XcmHash, SendError> {
 		EXPORTER_OVERRIDE.with(|e| {
 			if let Some((_, ref f)) = &*e.borrow() {
-				let (network, channel, dest, msg) = tuple;
+				let (network, channel, dest, msg, _hash) = tuple;
 				f(network, channel, dest, msg)
 			} else {
+				let hash = tuple.4;
 				EXPORTED_XCM.with(|q| q.borrow_mut().push(tuple));
-				Ok(())
+				Ok(hash)
 			}
 		})
 	}
@@ -202,12 +211,20 @@ pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
 
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
+	fn deposit_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		_context: &XcmContext,
+	) -> Result<(), XcmError> {
 		add_asset(who.clone(), what.clone());
 		Ok(())
 	}
 
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
+	fn withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
+	) -> Result<Assets, XcmError> {
 		ASSETS.with(|a| {
 			a.borrow_mut()
 				.get_mut(who)
@@ -285,15 +302,15 @@ pub fn clear_universal_aliases() {
 }
 
 pub struct TestIsReserve;
-impl FilterAssetLocation for TestIsReserve {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+impl ContainsPair<MultiAsset, MultiLocation> for TestIsReserve {
+	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_RESERVE
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
 }
 pub struct TestIsTeleporter;
-impl FilterAssetLocation for TestIsTeleporter {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+impl ContainsPair<MultiAsset, MultiLocation> for TestIsTeleporter {
+	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_TELEPORTER
 			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.matches(asset))))
 	}
@@ -331,6 +348,7 @@ impl OnResponse for TestResponseHandler {
 		_querier: Option<&MultiLocation>,
 		response: xcm::latest::Response,
 		_max_weight: Weight,
+		_context: &XcmContext,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
@@ -614,4 +632,8 @@ impl Config for TestConfig {
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
 	(AssetId::from(location), Fungibility::Fungible(amount)).into()
+}
+
+pub fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(sp_io::hashing::blake2_256)
 }
