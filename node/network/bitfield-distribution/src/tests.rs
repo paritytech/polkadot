@@ -22,7 +22,7 @@ use maplit::hashmap;
 use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{AvailabilityBitfield, Signed, ValidatorIndex};
+use polkadot_primitives::v2::{AvailabilityBitfield, Signed, ValidatorIndex};
 use polkadot_subsystem::jaeger;
 use sp_application_crypto::AppKey;
 use sp_keystore::{testing::KeyStore, SyncCryptoStore, SyncCryptoStorePtr};

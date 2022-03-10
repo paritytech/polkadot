@@ -20,7 +20,7 @@
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem::errors::RuntimeApiError;
-use polkadot_primitives::v1::SessionIndex;
+use polkadot_primitives::v2::SessionIndex;
 
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]

@@ -38,6 +38,10 @@ pub mod pallet {
 		/// A trusted location which we allow teleports from, and the asset we allow to teleport.
 		type TrustedTeleporter: Get<Option<(xcm::latest::MultiLocation, xcm::latest::MultiAsset)>>;
 
+		/// A trusted location where reserve assets are stored, and the asset we allow to be
+		/// reserves.
+		type TrustedReserve: Get<Option<(xcm::latest::MultiLocation, xcm::latest::MultiAsset)>>;
+
 		/// Give me a fungible asset that your asset transactor is going to accept.
 		fn get_multi_asset() -> xcm::latest::MultiAsset;
 	}

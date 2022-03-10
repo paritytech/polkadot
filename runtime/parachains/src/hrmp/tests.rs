@@ -20,7 +20,7 @@ use crate::mock::{
 	System, Test,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
-use primitives::v1::BlockNumber;
+use primitives::v2::BlockNumber;
 use std::collections::BTreeMap;
 
 fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -387,7 +387,7 @@ fn check_sent_messages() {
 
 #[test]
 fn verify_externally_accessible() {
-	use primitives::v1::{well_known_keys, AbridgedHrmpChannel};
+	use primitives::v2::{well_known_keys, AbridgedHrmpChannel};
 
 	let para_a = 20.into();
 	let para_b = 21.into();

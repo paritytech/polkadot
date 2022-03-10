@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 use crate::real::LOG_TARGET;
 

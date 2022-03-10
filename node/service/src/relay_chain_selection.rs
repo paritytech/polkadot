@@ -40,7 +40,7 @@ use consensus_common::{Error as ConsensusError, SelectChain};
 use futures::channel::oneshot;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::{AllMessages, Handle};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
 };
 use polkadot_subsystem::messages::{
@@ -55,7 +55,7 @@ use std::sync::Arc;
 /// This is a safety net that should be removed at some point in the future.
 // Until it's not, make sure to also update `MAX_HEADS_LOOK_BACK` in `approval-voting`
 // and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator` when changing its value.
-const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 500;
+const MAX_FINALITY_LAG: polkadot_primitives::v2::BlockNumber = 500;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 

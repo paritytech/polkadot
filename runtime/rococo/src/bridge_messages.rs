@@ -99,7 +99,7 @@ pub struct RococoLikeChain<B, GI> {
 impl<B, GI> ChainWithMessages for RococoLikeChain<B, GI> {
 	type Hash = crate::Hash;
 	type AccountId = crate::AccountId;
-	type Signer = primitives::v1::AccountPublic;
+	type Signer = primitives::v2::AccountPublic;
 	type Signature = crate::Signature;
 	type Weight = Weight;
 	type Balance = crate::Balance;
@@ -447,10 +447,10 @@ mod tests {
 				u64::MAX,
 				u64::MAX,
 			)),
-			frame_system::CheckNonce::from(primitives::v1::Nonce::MAX),
+			frame_system::CheckNonce::from(primitives::v2::Nonce::MAX),
 			frame_system::CheckWeight::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::from(
-				primitives::v1::Balance::MAX,
+				primitives::v2::Balance::MAX,
 			),
 		);
 		let mut zeroes = TrailingZeroInput::zeroes();
