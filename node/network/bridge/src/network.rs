@@ -63,10 +63,10 @@ pub(crate) fn send_message<M>(
 	// network used `Bytes` this would not be necessary.
 	let last_peer = peers.pop();
 	peers.into_iter().for_each(|peer| {
-		net.write_notification(peer, peer_set, version, message.clone());
+		net.write_notification(peer, peer_set, message.clone());
 	});
 	if let Some(peer) = last_peer {
-		net.write_notification(peer, peer_set, version, message);
+		net.write_notification(peer, peer_set, message);
 	}
 }
 
@@ -103,16 +103,10 @@ pub trait Network: Clone + Send + 'static {
 	fn report_peer(&self, who: PeerId, cost_benefit: Rep);
 
 	/// Disconnect a given peer from the peer set specified without harming reputation.
-	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet, version: ProtocolVersion);
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet);
 
 	/// Write a notification to a peer on the given peer-set's protocol.
-	fn write_notification(
-		&self,
-		who: PeerId,
-		peer_set: PeerSet,
-		version: ProtocolVersion,
-		message: Vec<u8>,
-	);
+	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>);
 }
 
 #[async_trait]
@@ -137,22 +131,21 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		sc_network::NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
 	}
 
-	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet, version: ProtocolVersion) {
-		if let Some(proto) = peer_set.into_protocol_name(version) {
-			sc_network::NetworkService::disconnect_peer(&**self, who, proto);
-		}
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
+		sc_network::NetworkService::disconnect_peer(
+			&**self,
+			who,
+			peer_set.into_default_protocol_name(),
+		);
 	}
 
-	fn write_notification(
-		&self,
-		who: PeerId,
-		peer_set: PeerSet,
-		version: ProtocolVersion,
-		message: Vec<u8>,
-	) {
-		if let Some(proto) = peer_set.into_protocol_name(version) {
-			sc_network::NetworkService::write_notification(&**self, who, proto, message);
-		}
+	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
+		sc_network::NetworkService::write_notification(
+			&**self,
+			who,
+			peer_set.into_default_protocol_name(),
+			message,
+		);
 	}
 
 	async fn start_request<AD: AuthorityDiscovery>(

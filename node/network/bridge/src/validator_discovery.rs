@@ -164,9 +164,7 @@ mod tests {
 
 	use async_trait::async_trait;
 	use futures::stream::BoxStream;
-	use polkadot_node_network_protocol::{
-		request_response::outgoing::Requests, PeerId, ProtocolVersion,
-	};
+	use polkadot_node_network_protocol::{request_response::outgoing::Requests, PeerId};
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use std::{
@@ -248,11 +246,11 @@ mod tests {
 			panic!()
 		}
 
-		fn disconnect_peer(&self, _: PeerId, _: PeerSet, _: ProtocolVersion) {
+		fn disconnect_peer(&self, _: PeerId, _: PeerSet) {
 			panic!()
 		}
 
-		fn write_notification(&self, _: PeerId, _: PeerSet, _: ProtocolVersion, _: Vec<u8>) {
+		fn write_notification(&self, _: PeerId, _: PeerSet, _: Vec<u8>) {
 			panic!()
 		}
 	}

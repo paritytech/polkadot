@@ -463,14 +463,7 @@ where
 							peer_set = ?peer_set,
 						);
 
-						let version = match peer_set {
-							PeerSet::Validation => shared.0.lock().validation_peers.get(&peer).map(|d| d.version),
-							PeerSet::Collation => shared.0.lock().collation_peers.get(&peer).map(|d| d.version),
-						};
-
-						if let Some(version) = version {
-							network_service.disconnect_peer(peer, peer_set, version);
-						}
+						network_service.disconnect_peer(peer, peer_set);
 					}
 					NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
 						tracing::trace!(

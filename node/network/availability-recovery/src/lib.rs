@@ -196,9 +196,7 @@ impl RequestFromBackers {
 				Recipient::Authority(
 					params.validator_authority_keys[validator_index.0 as usize].clone(),
 				),
-				req_res::v1::AvailableDataFetchingRequest {
-					candidate_hash: params.candidate_hash,
-				},
+				req_res::v1::AvailableDataFetchingRequest { candidate_hash: params.candidate_hash },
 			);
 
 			sender
