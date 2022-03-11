@@ -165,24 +165,26 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// # use xcm_executor::traits::UniversalLocation;
 /// # fn main() {
 /// parameter_types!{
-///     pub Ancestry: InteriorMultiLocation = X2(
+///     pub UniversalLocation: InteriorMultiLocation = X2(
 ///         Parachain(1),
 ///         AccountKey20 { network: None, key: Default::default() },
 ///     );
 /// }
 ///
 /// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: None, id: Default::default() }));
-/// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+/// let inverted = LocationInverter::<UniversalLocation>::invert_location(&input);
 /// assert_eq!(inverted, Ok(MultiLocation::new(
 ///     2,
 ///     X2(Parachain(1), AccountKey20 { network: None, key: Default::default() }),
 /// )));
 /// # }
 /// ```
-pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
-impl<Ancestry: Get<InteriorMultiLocation>> UniversalLocation for LocationInverter<Ancestry> {
+pub struct LocationInverter<UniversalLocation>(PhantomData<UniversalLocation>);
+impl<UniversalLocation: Get<InteriorMultiLocation>> UniversalLocation
+	for LocationInverter<UniversalLocation>
+{
 	fn universal_location() -> InteriorMultiLocation {
-		Ancestry::get()
+		UniversalLocation::get()
 	}
 }
 
@@ -216,11 +218,11 @@ mod tests {
 	#[test]
 	fn inverter_works_in_tree() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = X3(Parachain(1), account20(), account20());
+			pub UniversalLocation: InteriorMultiLocation = X3(Parachain(1), account20(), account20());
 		}
 
 		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input).unwrap();
 		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
 	}
 
@@ -231,11 +233,11 @@ mod tests {
 	#[test]
 	fn inverter_uses_context_as_inverted_location() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = X2(account20(), account20());
+			pub UniversalLocation: InteriorMultiLocation = X2(account20(), account20());
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input).unwrap();
 		assert_eq!(inverted, X2(account20(), account20()).into());
 	}
 
@@ -246,22 +248,22 @@ mod tests {
 	#[test]
 	fn inverter_uses_only_child_on_missing_context() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = X1(PalletInstance(5));
+			pub UniversalLocation: InteriorMultiLocation = X1(PalletInstance(5));
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input).unwrap();
 		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
 	}
 
 	#[test]
 	fn inverter_errors_when_location_is_too_large() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = Here;
+			pub UniversalLocation: InteriorMultiLocation = Here;
 		}
 
 		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input);
 		assert_eq!(inverted, Err(()));
 	}
 }

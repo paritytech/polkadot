@@ -245,7 +245,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
 	pub const RelayLocation: MultiLocation = Here.into_location();
 	pub const AnyNetwork: Option<NetworkId> = None;
-	pub Ancestry: InteriorMultiLocation = Here;
+	pub UniversalLocation: InteriorMultiLocation = Here;
 	pub UnitWeightCost: Weight = 1_000;
 }
 
@@ -285,7 +285,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = Case<TrustedAssets>;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type LocationInverter = LocationInverter<UniversalLocation>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
@@ -318,7 +318,7 @@ impl pallet_xcm::Config for Test {
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type LocationInverter = LocationInverter<UniversalLocation>;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
