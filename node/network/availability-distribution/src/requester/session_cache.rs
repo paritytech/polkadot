@@ -99,14 +99,13 @@ impl SessionCache {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		parent: Hash,
+		session_index: SessionIndex,
 		with_info: F,
 	) -> Result<Option<R>>
 	where
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
-		let session_index = runtime.get_session_index_for_child(ctx.sender(), parent).await?;
-
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
 			return Ok(Some(with_info(o_info)))
