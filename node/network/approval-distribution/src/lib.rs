@@ -343,7 +343,9 @@ impl State {
 							.await;
 						},
 						PendingMessage::Approval(approval_vote) => {
-							if let Some(block_entry) = self.blocks.get_mut(&approval_vote.block_hash) {
+							if let Some(block_entry) =
+								self.blocks.get_mut(&approval_vote.block_hash)
+							{
 								block_entry.known_by.entry(peer_id).or_default();
 							}
 							self.import_and_circulate_approval(
