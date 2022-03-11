@@ -34,7 +34,7 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 use polkadot_subsystem::{

@@ -21,7 +21,7 @@ use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
+use primitives::v2::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
 	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
 	DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,

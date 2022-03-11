@@ -26,9 +26,9 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
 };
-use polkadot_primitives::{
-	v1::{BlockNumber, Hash, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorIndex},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use std::collections::HashSet;
