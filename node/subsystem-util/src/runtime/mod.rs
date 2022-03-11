@@ -26,13 +26,10 @@ use sp_core::crypto::ByteArray;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
-use polkadot_primitives::{
-	v1::{
-		CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
-		SessionIndex, Signed, SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash,
-		ValidatorId, ValidatorIndex,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
+	SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -44,7 +41,7 @@ use crate::{
 mod error;
 
 use error::{recv_runtime, Result};
-pub use error::{Error, Fatal, NonFatal};
+pub use error::{Error, FatalError, JfyiError};
 
 /// Configuration for construction a `RuntimeInfo`.
 pub struct Config {
@@ -169,7 +166,7 @@ impl RuntimeInfo {
 			let session_info =
 				recv_runtime(request_session_info(parent, session_index, sender).await)
 					.await?
-					.ok_or(NonFatal::NoSuchSession(session_index))?;
+					.ok_or(JfyiError::NoSuchSession(session_index))?;
 			let validator_info = self.get_validator_info(&session_info).await?;
 
 			let full_info = ExtendedSessionInfo { session_info, validator_info };

@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{
 	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
 	JobSubsystem, JobTrait,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
 	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
 	SignedAvailabilityBitfield, ValidatorIndex,
@@ -291,7 +291,7 @@ impl ProvisionerJob {
 	}
 }
 
-type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
+type CoreAvailability = BitVec<u8, bitvec::order::Lsb0>;
 
 /// The provisioner is the subsystem best suited to choosing which specific
 /// backed candidates and availability bitfields should be assembled into the

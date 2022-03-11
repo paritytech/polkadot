@@ -21,7 +21,7 @@ use super::{
 	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
-	match_type, parameter_types,
+	match_types, parameter_types,
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
@@ -107,7 +107,7 @@ parameter_types! {
 
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
 
-match_type! {
+match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};

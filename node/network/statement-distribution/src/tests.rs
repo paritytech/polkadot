@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::{v1::ValidationCode, v2::SessionInfo};
+use polkadot_primitives::v2::{SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
@@ -273,11 +273,11 @@ fn per_peer_relay_parent_knowledge_receive() {
 
 	assert_eq!(
 		knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE),
 	);
 	assert_eq!(
 		knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE),
 	);
 
 	assert!(knowledge
@@ -336,11 +336,11 @@ fn per_peer_relay_parent_knowledge_receive() {
 
 	assert_eq!(
 		knowledge.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_REMOTE),
 	);
 	assert_eq!(
 		knowledge.receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_REMOTE),
 	);
 
 	// Last, make sure that already-known statements are disregarded.

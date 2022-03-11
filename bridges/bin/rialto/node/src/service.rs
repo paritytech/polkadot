@@ -29,7 +29,7 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::request_response::IncomingRequest;
 use polkadot_overseer::{BlockInfo, OverseerConnector};
-use polkadot_primitives::v1::BlockId;
+use polkadot_primitives::v2::BlockId;
 use rialto_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::ExecutorProvider;
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
@@ -43,7 +43,7 @@ use std::{sync::Arc, time::Duration};
 use substrate_prometheus_endpoint::Registry;
 
 pub use polkadot_overseer::Handle;
-pub use polkadot_primitives::v1::ParachainHost;
+pub use polkadot_primitives::v2::ParachainHost;
 pub use sc_client_api::AuxStore;
 pub use sp_authority_discovery::AuthorityDiscoveryApi;
 pub use sp_blockchain::HeaderBackend;

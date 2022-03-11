@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-service"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 # Substrate Client
@@ -61,13 +61,14 @@ frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
-futures = "0.3.19"
+futures = "0.3.21"
 hex-literal = "0.3.4"
-tracing = "0.1.29"
-serde = { version = "1.0.132", features = ["derive"] }
+tracing = "0.1.32"
+serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
-kvdb = "0.10.0"
-kvdb-rocksdb = { version = "0.14.0", optional = true }
+kvdb = "0.11.0"
+kvdb-rocksdb = { version = "0.15.1", optional = true }
+parity-db = { version = "0.3.8", optional = true }
 async-trait = "0.1.52"
 lru = "0.7"
 
@@ -156,7 +157,8 @@ full-node = [
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
 	"polkadot-node-core-pvf-checker",
-	"kvdb-rocksdb"
+	"kvdb-rocksdb",
+	"parity-db",
 ]
 
 # Configure the native runtimes to use. Polkadot is enabled by default.

@@ -30,8 +30,8 @@ pub use polkadot_overseer::{
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, OverseerBuilder,
-	OverseerConnector, OverseerHandle,
+	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
+	Overseer, OverseerConnector, OverseerHandle,
 };
 
 use polkadot_primitives::v2::ParachainHost;
@@ -79,7 +79,7 @@ where
 	/// Runtime client generic, providing the `ProvieRuntimeApi` trait besides others.
 	pub runtime_client: Arc<RuntimeClient>,
 	/// The underlying key value store for the parachains.
-	pub parachains_db: Arc<dyn kvdb::KeyValueDB>,
+	pub parachains_db: Arc<dyn polkadot_node_subsystem_util::database::Database>,
 	/// Underlying network service implementation.
 	pub network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	/// Underlying authority discovery service.
@@ -142,7 +142,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		pvf_checker_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
@@ -178,7 +178,6 @@ where
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
-	use std::iter::FromIterator;
 
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 

@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
 };
@@ -39,7 +39,7 @@ use polkadot_subsystem::{
 };
 
 use crate::{
-	error::{Fatal, Result},
+	error::{FatalError, Result},
 	metrics::{Metrics, FAILED, SUCCEEDED},
 	requester::session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
@@ -185,7 +185,7 @@ impl FetchTask {
 			let (handle, kill) = oneshot::channel();
 
 			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
-				.map_err(|e| Fatal::SpawnTask(e))?;
+				.map_err(|e| FatalError::SpawnTask(e))?;
 
 			Ok(FetchTask { live_in, state: FetchedState::Started(handle) })
 		} else {

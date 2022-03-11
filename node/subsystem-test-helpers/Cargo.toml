@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-node-subsystem-test-helpers"
-version = "0.9.16"
+version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1.52"
-futures = "0.3.19"
-parking_lot = "0.11.1"
+futures = "0.3.21"
+parking_lot = "0.12.0"
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }

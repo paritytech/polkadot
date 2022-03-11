@@ -1,5 +1,6 @@
 [settings]
 timeout = 1000
+bootnode = true
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
