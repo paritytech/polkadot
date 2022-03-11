@@ -180,11 +180,11 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// # }
 /// ```
 pub struct LocationInverter<UniversalLocation>(PhantomData<UniversalLocation>);
-impl<UniversalLocation: Get<InteriorMultiLocation>> UniversalLocation
-	for LocationInverter<UniversalLocation>
+impl<Location: Get<InteriorMultiLocation>> UniversalLocation
+	for LocationInverter<Location>
 {
 	fn universal_location() -> InteriorMultiLocation {
-		UniversalLocation::get()
+		Location::get()
 	}
 }
 

@@ -138,7 +138,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = ();
 	type IsReserve = TrustedReserves;
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
+	type LocationInverter = xcm_builder::LocationInverter<UniversalLocation>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
