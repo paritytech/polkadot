@@ -54,12 +54,8 @@ impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
 /// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T, W, P>(PhantomData<(T, W, P)>);
 
-impl<
-	T: configuration::Config + dmp::Config,
-	W: xcm::WrapVersion,
-	P: PriceForParachainDelivery,
-> SendXcm
-	for ChildParachainRouter<T, W, P>
+impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForParachainDelivery>
+	SendXcm for ChildParachainRouter<T, W, P>
 {
 	type Ticket = (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>);
 
