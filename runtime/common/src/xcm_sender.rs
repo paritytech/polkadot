@@ -16,6 +16,7 @@
 
 //! XCM sender for relay chain.
 
+use frame_support::traits::Get;
 use parity_scale_codec::Encode;
 use primitives::v2::Id as ParaId;
 use runtime_parachains::{
@@ -26,10 +27,38 @@ use sp_std::{marker::PhantomData, prelude::*};
 use xcm::prelude::*;
 use SendError::*;
 
+pub trait PriceForParachainDelivery {
+	fn price_for_parachain_delivery(para: ParaId, message: &Xcm<()>) -> MultiAssets;
+}
+
+impl PriceForParachainDelivery for () {
+	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
+		MultiAssets::new()
+	}
+}
+
+pub struct ConstantPrice<T>(sp_std::marker::PhantomData<T>);
+
+impl PriceForParachainDelivery for () {
+	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
+		MultiAssets::new()
+	}
+}
+
+impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
+	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
+		T::get()
+	}
+}
+
 /// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 
-impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
+impl<
+	T: configuration::Config + dmp::Config,
+	W: xcm::WrapVersion,
+	P: PriceForParachainDelivery,
+> SendXcm
 	for ChildParachainRouter<T, W>
 {
 	type Ticket = (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>);
@@ -50,11 +79,12 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 		let xcm = msg.take().ok_or(MissingArgument)?;
 		let config = <configuration::Pallet<T>>::config();
 		let para = id.into();
+		let price = P::price_for_parachain_delivery(para, &xcm);
 		let blob = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?.encode();
 		<dmp::Pallet<T>>::can_queue_downward_message(&config, &para, &blob)
 			.map_err(Into::<SendError>::into)?;
 
-		Ok(((config, para, blob), MultiAssets::new()))
+		Ok(((config, para, blob), price))
 	}
 
 	fn deliver(
