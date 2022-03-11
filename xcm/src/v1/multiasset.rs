@@ -644,5 +644,14 @@ mod tests {
 			Fungibility::Fungible(index_10 as u128),
 		));
 		assert_eq!(multi_assets[index_10], asset_10);
+
+		// index mutation
+		let index_6 = 6usize;
+		let asset_x = MultiAsset::from((
+			AssetId::Abstract(alloc::format!("{}", 20).as_bytes().to_vec()),
+			Fungibility::Fungible(20u128),
+		));
+		multi_assets[index_6] = asset_x.clone();
+		assert_eq!(multi_assets[index_6], asset_x);
 	}
 }
