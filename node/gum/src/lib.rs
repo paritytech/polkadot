@@ -17,53 +17,11 @@
 //! A wrapper around `tracing` macros, to provide semi automatic
 //! `traceID` annotation without codebase turnover.
 
-#[macro_use]
-pub use tracing::{Level, event};
+pub use tracing::{enabled, event, Level};
 
 pub use jaeger::hash_to_trace_identifier;
 
-pub use gum_proc_macro::{error, warn, info, debug, trace};
+pub use gum_proc_macro::{debug, error, info, trace, warn};
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-
-	#[derive(Default, Debug)]
-	struct Y {
-		x: u8,
-	}
-
-	#[test]
-	fn t01() {
-		let a = 7;
-		info!(target: "foo",
-            "Something something {a}, {b:?}, or maybe {c}",
-            b = Y::default(),
-            c = a
-        );
-	}
-
-	#[test]
-	fn t02() {
-		let a = 7;
-		info!(target: "bar",
-            a = a,
-            b = ?Y::default(),
-            "fff {c}",
-            c = a,
-        );
-	}
-
-	#[test]
-	fn t03() {
-		let a = 7;
-		info!(target: "bar",
-            a = a,
-            candidate_hash = 0xFFFFFFF,
-            b = ?Y::default(),
-            c = ?a,
-            "xxx",
-		);
-	}
-}
+mod tests;

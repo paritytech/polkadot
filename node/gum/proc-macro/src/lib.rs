@@ -18,7 +18,7 @@
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Token, parse2, Result, punctuated::Punctuated, parse_quote};
+use syn::{parse2, parse_quote, punctuated::Punctuated, Result, Token};
 
 mod types;
 
@@ -28,62 +28,108 @@ use self::types::*;
 mod tests;
 
 #[proc_macro]
-pub fn gum(
-	item: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
+pub fn error(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	gum(item, Level::Error)
+}
+
+#[proc_macro]
+pub fn warn(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	gum(item, Level::Warn)
+}
+
+#[proc_macro]
+pub fn info(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	gum(item, Level::Info)
+}
+
+#[proc_macro]
+pub fn debug(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	gum(item, Level::Debug)
+}
+
+#[proc_macro]
+pub fn trace(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	gum(item, Level::Trace)
+}
+
+pub(crate) fn gum(item: proc_macro::TokenStream, level: Level) -> proc_macro::TokenStream {
 	let item: TokenStream = item.into();
 
-	let res = expander::Expander::new("tracing-gum")
-		.add_comment("Generated overseer code by `gum!(..)`".to_owned())
+	let res = expander::Expander::new("gum")
+		.add_comment("Generated overseer code by `gum::warn!(..)`".to_owned())
 		.dry(!cfg!(feature = "expand"))
 		.verbose(false)
 		.fmt(expander::Edition::_2021)
-		.maybe_write_to_out_dir(impl_gum2(item))
+		.maybe_write_to_out_dir(impl_gum2(item, level))
 		.expect("Expander does not fail due to IO in OUT_DIR. qed");
 
-	res.unwrap_or_else(|err| err.to_compile_error())
-		.into()
+	res.unwrap_or_else(|err| err.to_compile_error()).into()
 }
 
-pub(crate) fn impl_gum2(
-	orig: TokenStream,
-) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> {
 	let args: Args = parse2(orig)?;
 
-	let ts = impl_gum2_from_args(args)?;
-
-	Ok(ts)
-}
-
-fn impl_gum2_from_args(mut args: Args) -> Result<TokenStream> {
 	let krate = support_crate();
-	// TODO handle `candidate_hash` in a special way
 	let span = Span::call_site();
-	let maybe_candidate_hash = args.values.iter().find(|value| {
+
+	let Args { target, comma, mut values, format_str, maybe_comma2, rest } = args;
+
+	// find a value or alias called `candidate_hash`.
+	let maybe_candidate_hash = values.iter_mut().find(|value| {
 		let ident = value.as_ident();
 		ident == &Ident::new("candidate_hash", ident.span())
 	});
-	if let Some(_candidate_hash) = maybe_candidate_hash {
-		let had_trailing_comma = args.values.trailing_punct();
+
+	if let Some(kv) = maybe_candidate_hash {
+		let (ident, rhs_expr, replace_with) = match kv {
+			Value::Alias(alias) => {
+				let ValueWithAliasIdent { alias, marker, expr, .. } = alias.clone();
+				(
+					alias.clone(),
+					expr.to_token_stream(),
+					Some(Value::Value(ValueWithFormatMarker { marker, ident: alias })),
+				)
+			},
+			Value::Value(value) => (value.ident.clone(), value.ident.to_token_stream(), None),
+		};
+
+		// we generate a local value with the same alias name
+		// so replace the expr with just a value
+		if let Some(replace_with) = replace_with {
+			let _old = std::mem::replace(kv, replace_with);
+		};
+
+		// Inject the addition `traceID = % trace_id` identifier
+		// while maintaining trailing comma semantics.
+		let had_trailing_comma = values.trailing_punct();
 		if !had_trailing_comma {
-			args.values.push_punct(Token![,](span));
+			values.push_punct(Token![,](span));
 		}
-		// append the generaed `traceID` cross reference
-		// XXX FIXME `candidate_hash = $expr` needs a let binding
-		// that's guarded by something else
-		args.values.push_value(parse_quote!{
-			traceID = #krate :: hash_to_trace_identifier (candidate_hash)
+
+		values.push_value(parse_quote! {
+			traceID = % trace_id
 		});
 		if had_trailing_comma {
-			args.values.push_punct(Token![,](span));
+			values.push_punct(Token![,](span));
 		}
-	}
 
-	Ok(quote!{
-		#krate :: event!(
-			#args
-		)
-	})
+		Ok(quote! {
+			if #krate :: enabled!(#target #comma #level) {
+				// create a scoped let binding
+				let #ident = #rhs_expr;
+				let trace_id = #krate :: hash_to_trace_identifier ( #ident );
+				#krate :: event!(
+					#target #comma #level, #values #format_str #maybe_comma2 #rest
+				)
+			}
+		})
+	} else {
+		Ok(quote! {
+				#krate :: event!(
+					#target #comma #level, #values #format_str #maybe_comma2 #rest
+				)
+		})
+	}
 }
 
 fn support_crate() -> TokenStream {

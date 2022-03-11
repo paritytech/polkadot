@@ -21,8 +21,11 @@ expander = "0.0.6"
 [dev-dependencies]
 assert_matches = "1.5.0"
 
+
 [features]
 default = []
-# write the expanded version to a `overlord-expansion.[a-f0-9]{10}.rs`
+# write the expanded version to a `gum.[a-f0-9]{10}.rs`
 # in the `OUT_DIR` as defined by `cargo` for the `expander` crate.
+# XXX currently this does not work, since `include!` only can import
+# valid rust files, not fragments of such
 expand = []

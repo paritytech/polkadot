@@ -53,7 +53,7 @@ mod spans;
 pub use self::{
 	config::{JaegerConfig, JaegerConfigBuilder},
 	errors::JaegerError,
-	spans::{PerLeafSpan, Span, Stage, hash_to_trace_identifier},
+	spans::{hash_to_trace_identifier, PerLeafSpan, Span, Stage},
 };
 
 use self::spans::TraceIdentifier;
