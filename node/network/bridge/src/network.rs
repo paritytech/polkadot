@@ -29,7 +29,7 @@ use sc_network::{
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Recipient, Requests},
-	PeerId, UnifiedReputationChange as Rep,
+	PeerId, ProtocolVersion, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
 
@@ -46,6 +46,7 @@ pub(crate) fn send_message<M>(
 	net: &mut impl Network,
 	mut peers: Vec<PeerId>,
 	peer_set: PeerSet,
+	version: ProtocolVersion,
 	message: M,
 	metrics: &super::Metrics,
 ) where
@@ -53,7 +54,7 @@ pub(crate) fn send_message<M>(
 {
 	let message = {
 		let encoded = message.encode();
-		metrics.on_notification_sent(peer_set, encoded.len(), peers.len());
+		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
 		encoded
 	};
 
@@ -62,10 +63,10 @@ pub(crate) fn send_message<M>(
 	// network used `Bytes` this would not be necessary.
 	let last_peer = peers.pop();
 	peers.into_iter().for_each(|peer| {
-		net.write_notification(peer, peer_set, message.clone());
+		net.write_notification(peer, peer_set, version, message.clone());
 	});
 	if let Some(peer) = last_peer {
-		net.write_notification(peer, peer_set, message);
+		net.write_notification(peer, peer_set, version, message);
 	}
 }
 
@@ -102,10 +103,16 @@ pub trait Network: Clone + Send + 'static {
 	fn report_peer(&self, who: PeerId, cost_benefit: Rep);
 
 	/// Disconnect a given peer from the peer set specified without harming reputation.
-	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet);
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet, version: ProtocolVersion);
 
 	/// Write a notification to a peer on the given peer-set's protocol.
-	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>);
+	fn write_notification(
+		&self,
+		who: PeerId,
+		peer_set: PeerSet,
+		version: ProtocolVersion,
+		message: Vec<u8>,
+	);
 }
 
 #[async_trait]
@@ -130,17 +137,22 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		sc_network::NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
 	}
 
-	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
-		sc_network::NetworkService::disconnect_peer(&**self, who, peer_set.into_protocol_name());
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet, version: ProtocolVersion) {
+		if let Some(proto) = peer_set.into_protocol_name(version) {
+			sc_network::NetworkService::disconnect_peer(&**self, who, proto);
+		}
 	}
 
-	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
-		sc_network::NetworkService::write_notification(
-			&**self,
-			who,
-			peer_set.into_protocol_name(),
-			message,
-		);
+	fn write_notification(
+		&self,
+		who: PeerId,
+		peer_set: PeerSet,
+		version: ProtocolVersion,
+		message: Vec<u8>,
+	) {
+		if let Some(proto) = peer_set.into_protocol_name(version) {
+			sc_network::NetworkService::write_notification(&**self, who, proto, message);
+		}
 	}
 
 	async fn start_request<AD: AuthorityDiscovery>(

@@ -75,15 +75,23 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		);
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
+		//
+		// for peer-set management, the default should be used regardless of
+		// the negotiated version.
+		// TODO [now] : verify
 		if let Err(e) = network_service
-			.set_reserved_peers(peer_set.into_protocol_name(), newly_requested)
+			.set_reserved_peers(peer_set.into_default_protocol_name(), newly_requested)
 			.await
 		{
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
+		//
+		// for peer-set management, the default should be used regardless of
+		// the negotiated version.
+		// TODO [now] : verify
 		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), peers_to_remove)
+			.remove_from_peers_set(peer_set.into_default_protocol_name(), peers_to_remove)
 			.await;
 
 		network_service
@@ -156,7 +164,9 @@ mod tests {
 
 	use async_trait::async_trait;
 	use futures::stream::BoxStream;
-	use polkadot_node_network_protocol::{request_response::outgoing::Requests, PeerId};
+	use polkadot_node_network_protocol::{
+		request_response::outgoing::Requests, PeerId, ProtocolVersion,
+	};
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use std::{
@@ -238,11 +248,11 @@ mod tests {
 			panic!()
 		}
 
-		fn disconnect_peer(&self, _: PeerId, _: PeerSet) {
+		fn disconnect_peer(&self, _: PeerId, _: PeerSet, _: ProtocolVersion) {
 			panic!()
 		}
 
-		fn write_notification(&self, _: PeerId, _: PeerSet, _: Vec<u8>) {
+		fn write_notification(&self, _: PeerId, _: PeerSet, _: ProtocolVersion, _: Vec<u8>) {
 			panic!()
 		}
 	}

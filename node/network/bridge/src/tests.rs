@@ -53,9 +53,9 @@ pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
 	ReputationChange(PeerId, Rep),
 	/// Disconnect a peer from the given peer-set.
-	DisconnectPeer(PeerId, PeerSet),
+	DisconnectPeer(PeerId, PeerSet, ProtocolVersion),
 	/// Write a notification to a given peer on the given peer-set.
-	WriteNotification(PeerId, PeerSet, Vec<u8>),
+	WriteNotification(PeerId, PeerSet, ProtocolVersion, Vec<u8>),
 }
 
 // The subsystem's view of the network - only supports a single call to `event_stream`.
@@ -124,17 +124,23 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet, version: ProtocolVersion) {
 		self.action_tx
 			.lock()
-			.unbounded_send(NetworkAction::DisconnectPeer(who, peer_set))
+			.unbounded_send(NetworkAction::DisconnectPeer(who, peer_set, version))
 			.unwrap();
 	}
 
-	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
+	fn write_notification(
+		&self,
+		who: PeerId,
+		peer_set: PeerSet,
+		version: ProtocolVersion,
+		message: Vec<u8>,
+	) {
 		self.action_tx
 			.lock()
-			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, message))
+			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, version, message))
 			.unwrap();
 	}
 }
@@ -175,7 +181,7 @@ impl TestNetworkHandle {
 	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
 		self.send_network_event(NetworkEvent::NotificationStreamOpened {
 			remote: peer,
-			protocol: peer_set.into_protocol_name(),
+			protocol: peer_set.into_default_protocol_name(),
 			negotiated_fallback: None,
 			role: role.into(),
 		})
@@ -185,7 +191,7 @@ impl TestNetworkHandle {
 	async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
 		self.send_network_event(NetworkEvent::NotificationStreamClosed {
 			remote: peer,
-			protocol: peer_set.into_protocol_name(),
+			protocol: peer_set.into_default_protocol_name(),
 		})
 		.await;
 	}
@@ -193,7 +199,7 @@ impl TestNetworkHandle {
 	async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
 		self.send_network_event(NetworkEvent::NotificationsReceived {
 			remote: peer,
-			messages: vec![(peer_set.into_protocol_name(), message.into())],
+			messages: vec![(peer_set.into_default_protocol_name(), message.into())],
 		})
 		.await;
 	}
@@ -390,6 +396,7 @@ fn send_our_view_upon_connection() {
 			&NetworkAction::WriteNotification(
 				peer.clone(),
 				PeerSet::Validation,
+				1,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view.clone()).encode(),
 			),
 		);
@@ -398,6 +405,7 @@ fn send_our_view_upon_connection() {
 			&NetworkAction::WriteNotification(
 				peer.clone(),
 				PeerSet::Collation,
+				1,
 				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(view.clone()).encode(),
 			),
 		);
@@ -436,12 +444,12 @@ fn sends_view_updates_to_peers() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
+			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, 1, wire_message.clone()),
 		);
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
+			&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, 1, wire_message.clone()),
 		);
 
 		let hash_a = Hash::repeat_byte(1);
@@ -463,12 +471,12 @@ fn sends_view_updates_to_peers() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
+			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, 1, wire_message.clone()),
 		);
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
+			&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, 1, wire_message.clone()),
 		);
 		virtual_overseer
 	});
@@ -501,13 +509,19 @@ fn do_not_send_view_update_until_synced() {
 				&NetworkAction::WriteNotification(
 					peer_a,
 					PeerSet::Validation,
+					1,
 					wire_message.clone(),
 				),
 			);
 
 			assert_network_actions_contains(
 				&actions,
-				&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
+				&NetworkAction::WriteNotification(
+					peer_b,
+					PeerSet::Collation,
+					1,
+					wire_message.clone(),
+				),
 			);
 		}
 
@@ -555,13 +569,19 @@ fn do_not_send_view_update_until_synced() {
 				&NetworkAction::WriteNotification(
 					peer_a,
 					PeerSet::Validation,
+					1,
 					wire_message.clone(),
 				),
 			);
 
 			assert_network_actions_contains(
 				&actions,
-				&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
+				&NetworkAction::WriteNotification(
+					peer_b,
+					PeerSet::Collation,
+					1,
+					wire_message.clone(),
+				),
 			);
 		}
 		virtual_overseer
@@ -615,12 +635,12 @@ fn do_not_send_view_update_when_only_finalized_block_changed() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
+			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, 1, wire_message.clone()),
 		);
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(peer_b, PeerSet::Validation, wire_message.clone()),
+			&NetworkAction::WriteNotification(peer_b, PeerSet::Validation, 1, wire_message.clone()),
 		);
 		virtual_overseer
 	});
@@ -813,6 +833,7 @@ fn peer_disconnect_from_just_one_peerset() {
 			&NetworkAction::WriteNotification(
 				peer.clone(),
 				PeerSet::Collation,
+				1,
 				wire_message.clone(),
 			),
 		);
@@ -1029,6 +1050,7 @@ fn sent_views_include_finalized_number_update() {
 			&NetworkAction::WriteNotification(
 				peer_a.clone(),
 				PeerSet::Validation,
+				1,
 				wire_message.clone(),
 			),
 		);
@@ -1149,6 +1171,7 @@ fn send_messages_to_peers() {
 				NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Validation,
+					1,
 					WireMessage::ProtocolMessage(message).encode(),
 				)
 			);
@@ -1180,6 +1203,7 @@ fn send_messages_to_peers() {
 				NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Collation,
+					1,
 					WireMessage::ProtocolMessage(message).encode(),
 				)
 			);

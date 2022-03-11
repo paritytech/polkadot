@@ -60,10 +60,10 @@ impl PeerSet {
 	///
 	/// Those should be used in the network configuration to register the protocols with the
 	/// network service.
-	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig
-	{
+	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let version = self.get_default_version();
-		let protocol = self.into_protocol_name(version)
+		let protocol = self
+			.into_protocol_name(version)
 			.expect("default version always has protocol name; qed");
 		let max_notification_size = 100 * 1024;
 
@@ -110,6 +110,14 @@ impl PeerSet {
 		}
 	}
 
+	/// Get the default protocol name as a static str.
+	pub const fn get_default_protocol_name(self) -> &'static str {
+		match self {
+			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
+			PeerSet::Collation => COLLATION_PROTOCOL_V1,
+		}
+	}
+
 	/// Get the protocol name associated with each peer set
 	/// and the given version, if any, as static str.
 	pub const fn get_protocol_name_static(self, version: ProtocolVersion) -> Option<&'static str> {
@@ -118,6 +126,11 @@ impl PeerSet {
 			(PeerSet::Collation, 1) => Some(COLLATION_PROTOCOL_V1),
 			_ => None,
 		}
+	}
+
+	/// Get the protocol name associated with each peer set as understood by Substrate.
+	pub fn into_default_protocol_name(self) -> Cow<'static, str> {
+		self.get_default_protocol_name().into()
 	}
 
 	/// Convert a peer set and the given version into a protocol name, if any,
