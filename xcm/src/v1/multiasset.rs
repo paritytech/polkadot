@@ -28,6 +28,7 @@ use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,
 	convert::{TryFrom, TryInto},
+	ops::{Index, IndexMut},
 	result,
 };
 use parity_scale_codec::{self as codec, Decode, Encode};
@@ -349,10 +350,29 @@ impl<T: Into<MultiAsset>> From<T> for MultiAssets {
 	}
 }
 
+impl Index<usize> for MultiAssets {
+	type Output = MultiAsset;
+	fn index(&self, index: usize) -> &Self::Output {
+		&self.0[index]
+	}
+}
+
+impl IndexMut<usize> for MultiAssets {
+	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+		&mut self.0[index]
+	}
+}
+
 impl MultiAssets {
 	/// A new (empty) value.
 	pub fn new() -> Self {
 		Self(Vec::new())
+	}
+
+	/// Constructs a new, empty `MultiAssets` with the specified capacity.
+	pub fn with_capacity(capacity: usize) -> Self {
+		let assets = Vec::with_capacity(capacity);
+		Self(assets)
 	}
 
 	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
@@ -590,5 +610,39 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssetFilter {
 		} else {
 			Ok(MultiAssetFilter::Definite(old.try_into()?))
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn create_multiassets_with_capacity_and_indexing_works() {
+		let capacity: usize = 10;
+		let mut multi_assets = MultiAssets::with_capacity(capacity);
+		assert_eq!(multi_assets.len(), 0);
+		for i in 0..capacity {
+			let asset = MultiAsset::from((
+				AssetId::Abstract(alloc::format!("{}", i).as_bytes().to_vec()),
+				Fungibility::Fungible(i as u128),
+			));
+			multi_assets.push(asset);
+		}
+		assert_eq!(multi_assets.len(), capacity);
+
+		let index_2 = 2usize;
+		let asset_2 = MultiAsset::from((
+			AssetId::Abstract(alloc::format!("{}", index_2).as_bytes().to_vec()),
+			Fungibility::Fungible(index_2 as u128),
+		));
+		assert_eq!(multi_assets[index_2], asset_2);
+
+		let index_10 = capacity - 1;
+		let asset_10 = MultiAsset::from((
+			AssetId::Abstract(alloc::format!("{}", index_10).as_bytes().to_vec()),
+			Fungibility::Fungible(index_10 as u128),
+		));
+		assert_eq!(multi_assets[index_10], asset_10);
 	}
 }
