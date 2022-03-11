@@ -652,7 +652,7 @@ where
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
 		},
-		NetworkBridgeUpdateV1(event) => {
+		NetworkBridgeUpdate(event) => {
 			if let Err(e) = handle_network_msg(ctx, runtime, state, event).await {
 				tracing::warn!(
 					target: LOG_TARGET,

@@ -167,7 +167,7 @@ where
 			);
 			match message {
 				FromOverseer::Communication {
-					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
+					msg: GossipSupportMessage::NetworkBridgeUpdate(ev),
 				} => self.handle_connect_disconnect(ev),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,

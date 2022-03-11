@@ -1242,7 +1242,7 @@ impl ApprovalDistribution {
 			};
 			match message {
 				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(event),
+					msg: ApprovalDistributionMessage::NetworkBridgeUpdate(event),
 				} => {
 					state.handle_network_msg(&mut ctx, &self.metrics, event).await;
 				},

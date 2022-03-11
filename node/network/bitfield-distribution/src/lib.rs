@@ -198,7 +198,7 @@ impl BitfieldDistribution {
 					.await;
 				},
 				FromOverseer::Communication {
-					msg: BitfieldDistributionMessage::NetworkBridgeUpdateV1(event),
+					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
 				} => {
 					tracing::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received

@@ -1055,7 +1055,7 @@ async fn process_msg<Context>(
 		ReportCollator(id) => {
 			report_collator(ctx, &state.peer_data, id).await;
 		},
-		NetworkBridgeUpdateV1(event) => {
+		NetworkBridgeUpdate(event) => {
 			if let Err(e) = handle_network_msg(ctx, state, keystore, event).await {
 				tracing::warn!(
 					target: LOG_TARGET,

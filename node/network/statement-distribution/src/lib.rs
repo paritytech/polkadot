@@ -1958,7 +1958,7 @@ impl StatementDistributionSubsystem {
 					)
 					.await;
 				},
-				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
+				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
 					let _timer = metrics.time_network_bridge_update_v1();
 
 					handle_network_update(

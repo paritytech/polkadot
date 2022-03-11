@@ -1182,7 +1182,7 @@ fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
 	ctx: &mut impl SubsystemSender,
 ) {
-	if let Some(msg) = event.focus().ok().map(CollatorProtocolMessage::NetworkBridgeUpdateV1) {
+	if let Some(msg) = event.focus().ok().map(CollatorProtocolMessage::NetworkBridgeUpdate) {
 		ctx.send_unbounded_message(msg.into());
 	}
 }
@@ -1202,7 +1202,7 @@ where
 {
 	let messages_for = |event: NetworkBridgeEvent<protocol_v1::CollationProtocol>| {
 		event.focus().ok().map(|m| {
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::NetworkBridgeUpdateV1(m))
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::NetworkBridgeUpdate(m))
 		})
 	};
 

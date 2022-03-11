@@ -106,7 +106,7 @@ async fn setup_peer_with_view(
 ) {
 	overseer_send(
 		virtual_overseer,
-		ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
+		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer_id.clone(),
 			ObservedRole::Full,
 			None,
@@ -115,7 +115,7 @@ async fn setup_peer_with_view(
 	.await;
 	overseer_send(
 		virtual_overseer,
-		ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerViewChange(
+		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
 			peer_id.clone(),
 			view,
 		)),
@@ -130,7 +130,7 @@ async fn send_message_from_peer(
 ) {
 	overseer_send(
 		virtual_overseer,
-		ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 			peer_id.clone(),
 			msg,
 		)),
@@ -323,7 +323,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 		// send a view update that removes block B from peer's view by bumping the finalized_number
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerViewChange(
+			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
 				peer.clone(),
 				View::with_finalized(2),
 			)),
@@ -382,7 +382,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 		// update peer view to include the hash
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerViewChange(
+			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
 				peer.clone(),
 				view![hash],
 			)),
@@ -743,7 +743,7 @@ fn update_peer_view() {
 		// update peer's view
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerViewChange(
+			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
 				peer.clone(),
 				View::new(vec![hash_b, hash_c, hash_d], 2),
 			)),
@@ -796,7 +796,7 @@ fn update_peer_view() {
 		// update peer's view
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerViewChange(
+			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
 				peer.clone(),
 				View::with_finalized(finalized_number),
 			)),

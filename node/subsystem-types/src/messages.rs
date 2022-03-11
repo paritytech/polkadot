@@ -201,7 +201,7 @@ pub enum CollatorProtocolMessage {
 	ReportCollator(CollatorId),
 	/// Get a network bridge update.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	///
 	/// The hash is the relay parent.
@@ -444,7 +444,7 @@ pub enum BitfieldDistributionMessage {
 
 	/// Event from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
 }
 
 impl BitfieldDistributionMessage {
@@ -452,7 +452,7 @@ impl BitfieldDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkBridgeUpdate(_) => None,
 		}
 	}
 }
@@ -708,7 +708,7 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -902,7 +902,7 @@ pub enum ApprovalDistributionMessage {
 	DistributeApproval(IndirectSignedApprovalVote),
 	/// An update from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
 }
 
 /// Message to the Gossip Support subsystem.
@@ -910,7 +910,7 @@ pub enum ApprovalDistributionMessage {
 pub enum GossipSupportMessage {
 	/// Dummy constructor, so we can receive networking events.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
 }
 
 /// PVF checker message.

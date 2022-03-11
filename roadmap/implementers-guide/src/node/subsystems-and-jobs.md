@@ -103,11 +103,11 @@ digraph {
     coll_prot   -> net_brdg     [arrowhead = "onormal", label = "RequestCollation"]
     coll_prot   -> cand_sel     [arrowhead = "onormal", label = "Collation"]
 
-    net_brdg    -> avail_dist   [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
-    net_brdg    -> bitf_dist    [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
-    net_brdg    -> pov_dist     [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
-    net_brdg    -> stmt_dist    [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
-    net_brdg    -> coll_prot    [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
+    net_brdg    -> avail_dist   [arrowhead = "onormal", label = "NetworkBridgeUpdate"]
+    net_brdg    -> bitf_dist    [arrowhead = "onormal", label = "NetworkBridgeUpdate"]
+    net_brdg    -> pov_dist     [arrowhead = "onormal", label = "NetworkBridgeUpdate"]
+    net_brdg    -> stmt_dist    [arrowhead = "onormal", label = "NetworkBridgeUpdate"]
+    net_brdg    -> coll_prot    [arrowhead = "onormal", label = "NetworkBridgeUpdate"]
 
     pov_dist    -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage"]
     pov_dist    -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
@@ -264,7 +264,7 @@ sequenceDiagram
 
         Note right of NB: Bridge sends validation message to all appropriate peers
     else On receipt of peer validation message
-        NB ->> SD: NetworkBridgeUpdateV1
+        NB ->> SD: NetworkBridgeUpdate
 
         % fn handle_incoming_message
         alt if we aren't already aware of the relay parent for this statement

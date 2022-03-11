@@ -316,28 +316,28 @@ async fn assert_sends_validation_event_to_all(
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::StatementDistribution(
-			StatementDistributionMessage::NetworkBridgeUpdateV1(e)
+			StatementDistributionMessage::NetworkBridgeUpdate(e)
 		) if e == event.focus().expect("could not focus message")
 	);
 
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::BitfieldDistribution(
-			BitfieldDistributionMessage::NetworkBridgeUpdateV1(e)
+			BitfieldDistributionMessage::NetworkBridgeUpdate(e)
 		) if e == event.focus().expect("could not focus message")
 	);
 
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::ApprovalDistribution(
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(e)
+			ApprovalDistributionMessage::NetworkBridgeUpdate(e)
 		) if e == event.focus().expect("could not focus message")
 	);
 
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::GossipSupport(
-			GossipSupportMessage::NetworkBridgeUpdateV1(e)
+			GossipSupportMessage::NetworkBridgeUpdate(e)
 		) if e == event.focus().expect("could not focus message")
 	);
 }
@@ -349,7 +349,7 @@ async fn assert_sends_collation_event_to_all(
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::CollatorProtocol(
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(e)
+			CollatorProtocolMessage::NetworkBridgeUpdate(e)
 		) if e == event.focus().expect("could not focus message")
 	)
 }
@@ -720,7 +720,7 @@ fn peer_messages_sent_via_overseer() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ApprovalDistribution(
-				ApprovalDistributionMessage::NetworkBridgeUpdateV1(
+				ApprovalDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(p, m)
 				)
 			) => {
@@ -902,7 +902,7 @@ fn relays_collation_protocol_messages() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::CollatorProtocol(
-				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+				CollatorProtocolMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(p, m)
 				)
 			) => {

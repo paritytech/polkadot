@@ -303,7 +303,7 @@ async fn connect_and_declare_collator(
 ) {
 	overseer_send(
 		virtual_overseer,
-		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
+		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			ObservedRole::Full,
 			None,
@@ -313,7 +313,7 @@ async fn connect_and_declare_collator(
 
 	overseer_send(
 		virtual_overseer,
-		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 			peer.clone(),
 			protocol_v1::CollatorProtocolMessage::Declare(
 				collator.public(),
@@ -333,7 +333,7 @@ async fn advertise_collation(
 ) {
 	overseer_send(
 		virtual_overseer,
-		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 			peer,
 			protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent),
 		)),
@@ -354,7 +354,7 @@ fn act_on_advertisement() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent],
 			)),
 		)
@@ -395,7 +395,7 @@ fn collator_reporting_works() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent],
 			)),
 		)
@@ -454,7 +454,7 @@ fn collator_authentication_verification_works() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b,
 				ObservedRole::Full,
 				None,
@@ -465,7 +465,7 @@ fn collator_authentication_verification_works() {
 		// the peer sends a declare message but sign the wrong payload
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
 				protocol_v1::CollatorProtocolMessage::Declare(
 					test_state.collators[0].public(),
@@ -510,7 +510,7 @@ fn fetch_collations_works() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent, second],
 			)),
 		)
@@ -574,7 +574,7 @@ fn fetch_collations_works() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerDisconnected(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerDisconnected(
 				peer_b.clone(),
 			)),
 		)
@@ -582,7 +582,7 @@ fn fetch_collations_works() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerDisconnected(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerDisconnected(
 				peer_c.clone(),
 			)),
 		)
@@ -675,7 +675,7 @@ fn reject_connection_to_next_group() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent],
 			)),
 		)
@@ -722,7 +722,7 @@ fn fetch_next_collation_on_invalid_collation() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent, second],
 			)),
 		)
@@ -822,7 +822,7 @@ fn inactive_disconnected() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![hash_a],
 			)),
 		)
@@ -870,7 +870,7 @@ fn activity_extends_life() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![hash_a, hash_b, hash_c],
 			)),
 		)
@@ -929,7 +929,7 @@ fn disconnect_if_no_declare() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent],
 			)),
 		)
@@ -941,7 +941,7 @@ fn disconnect_if_no_declare() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b.clone(),
 				ObservedRole::Full,
 				None,
@@ -966,7 +966,7 @@ fn disconnect_if_wrong_declare() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent],
 			)),
 		)
@@ -978,7 +978,7 @@ fn disconnect_if_wrong_declare() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b.clone(),
 				ObservedRole::Full,
 				None,
@@ -988,7 +988,7 @@ fn disconnect_if_wrong_declare() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
 				protocol_v1::CollatorProtocolMessage::Declare(
 					pair.public(),
@@ -1027,7 +1027,7 @@ fn view_change_clears_old_collators() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![test_state.relay_parent],
 			)),
 		)
@@ -1049,7 +1049,7 @@ fn view_change_clears_old_collators() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
 				our_view![hash_b],
 			)),
 		)
