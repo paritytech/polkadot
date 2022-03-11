@@ -1869,9 +1869,9 @@ dependencies = [
 
 [[package]]
 name = "expander"
-version = "0.0.5"
+version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "309f21c39e8e38e4b6eda07e155bd7a4e5fc4d707cefd0402cc82a8b6bb65aaa"
+checksum = "3774182a5df13c3d1690311ad32fbe913feef26baba609fa2dd5f72042bd2ab6"
 dependencies = [
  "blake2 0.10.2",
  "fs-err",
@@ -7071,7 +7071,7 @@ name = "polkadot-overseer-gen-proc-macro"
 version = "0.9.18"
 dependencies = [
  "assert_matches",
- "expander 0.0.5",
+ "expander 0.0.6",
  "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
@@ -7674,7 +7674,6 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-rpc",
- "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "polkadot-service",
  "polkadot-test-runtime",

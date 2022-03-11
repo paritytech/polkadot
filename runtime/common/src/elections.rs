@@ -16,33 +16,35 @@
 
 //! Code for elections.
 
-use super::{BlockExecutionWeight, BlockLength, BlockWeights};
 use frame_election_provider_support::SortedListProvider;
-use frame_support::{
-	parameter_types,
-	weights::{DispatchClass, Weight},
-};
-use sp_runtime::Perbill;
-use sp_std::{boxed::Box, convert::From, marker::PhantomData};
+use sp_std::{boxed::Box, marker::PhantomData};
 
-parameter_types! {
-	/// A limit for off-chain phragmen unsigned solution submission.
-	///
-	/// We want to keep it as high as possible, but can't risk having it reject,
-	/// so we always subtract the base block execution weight.
-	pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.expect("Normal extrinsics have weight limit configured by default; qed")
-		.saturating_sub(BlockExecutionWeight::get());
+/// Implements the weight types for the elections module and a specific
+/// runtime.
+/// This macro should not be called directly; use [`impl_runtime_weights`] instead.
+#[macro_export]
+macro_rules! impl_elections_weights {
+	($runtime:ident) => {
+		parameter_types! {
+			/// A limit for off-chain phragmen unsigned solution submission.
+			///
+			/// We want to keep it as high as possible, but can't risk having it reject,
+			/// so we always subtract the base block execution weight.
+			pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
+				.get(DispatchClass::Normal)
+				.max_extrinsic
+				.expect("Normal extrinsics have weight limit configured by default; qed")
+				.saturating_sub($runtime::weights::BlockExecutionWeight::get());
 
-	/// A limit for off-chain phragmen unsigned solution length.
-	///
-	/// We allow up to 90% of the block's size to be consumed by the solution.
-	pub OffchainSolutionLengthLimit: u32 = Perbill::from_rational(90_u32, 100) *
-		*BlockLength::get()
-		.max
-		.get(DispatchClass::Normal);
+			/// A limit for off-chain phragmen unsigned solution length.
+			///
+			/// We allow up to 90% of the block's size to be consumed by the solution.
+			pub OffchainSolutionLengthLimit: u32 = Perbill::from_rational(90_u32, 100) *
+				*BlockLength::get()
+				.max
+				.get(DispatchClass::Normal);
+		}
+	};
 }
 
 /// The numbers configured here could always be more than the the maximum limits of staking pallet
