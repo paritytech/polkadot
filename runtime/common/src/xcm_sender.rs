@@ -30,7 +30,6 @@ use SendError::*;
 pub trait PriceForParachainDelivery {
 	fn price_for_parachain_delivery(para: ParaId, message: &Xcm<()>) -> MultiAssets;
 }
-
 impl PriceForParachainDelivery for () {
 	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
 		MultiAssets::new()
@@ -38,13 +37,6 @@ impl PriceForParachainDelivery for () {
 }
 
 pub struct ConstantPrice<T>(sp_std::marker::PhantomData<T>);
-
-impl PriceForParachainDelivery for () {
-	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
-		MultiAssets::new()
-	}
-}
-
 impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
 	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
 		T::get()
