@@ -88,12 +88,12 @@ where
 	/// Underlying authority discovery service.
 	pub authority_discovery_service: AuthorityDiscoveryService,
 	/// POV request receiver
-	pub pov_req_receiver: IncomingRequestReceiver<request_v1::PoVFetchingRequest>,
-	pub chunk_req_receiver: IncomingRequestReceiver<request_v1::ChunkFetchingRequest>,
-	pub collation_req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	pub pov_req_receiver: IncomingRequestReceiver<request_v1::PoVFetchingV1Request>,
+	pub chunk_req_receiver: IncomingRequestReceiver<request_v1::ChunkFetchingV1Request>,
+	pub collation_req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingV1Request>,
 	pub available_data_req_receiver:
-		IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
-	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+		IncomingRequestReceiver<request_v1::AvailableDataFetchingV1Request>,
+	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingV1Request>,
 	pub dispute_req_receiver: IncomingRequestReceiver<request_v1::DisputeRequest>,
 	/// Prometheus registry, commonly used for production systems, less so for test.
 	pub registry: Option<&'a Registry>,

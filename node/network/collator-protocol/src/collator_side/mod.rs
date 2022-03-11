@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{
 		incoming::{self, OutgoingResponse},
-		v1::{self as request_v1, CollationFetchingRequest, CollationFetchingResponse},
+		v1::{self as request_v1, CollationFetchingV1Request, CollationFetchingV1Response},
 		IncomingRequest, IncomingRequestReceiver,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
@@ -227,7 +227,7 @@ struct WaitingCollationFetches {
 	/// Is there currently a collation getting fetched?
 	collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
-	waiting: VecDeque<IncomingRequest<CollationFetchingRequest>>,
+	waiting: VecDeque<IncomingRequest<CollationFetchingV1Request>>,
 	/// All peers that are waiting or actively uploading.
 	///
 	/// We will not accept multiple requests from the same peer, otherwise our DoS protection of
@@ -670,7 +670,7 @@ where
 /// Issue a response to a previously requested collation.
 async fn send_collation(
 	state: &mut State,
-	request: IncomingRequest<CollationFetchingRequest>,
+	request: IncomingRequest<CollationFetchingV1Request>,
 	receipt: CandidateReceipt,
 	pov: PoV,
 ) {
@@ -680,7 +680,7 @@ async fn send_collation(
 	let peer_id = request.peer;
 
 	let response = OutgoingResponse {
-		result: Ok(CollationFetchingResponse::Collation(receipt, pov)),
+		result: Ok(CollationFetchingV1Response::Collation(receipt, pov)),
 		reputation_changes: Vec::new(),
 		sent_feedback: Some(tx),
 	};
@@ -788,7 +788,7 @@ where
 async fn handle_incoming_request<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	req: IncomingRequest<request_v1::CollationFetchingRequest>,
+	req: IncomingRequest<request_v1::CollationFetchingV1Request>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -844,7 +844,7 @@ where
 				target: LOG_TARGET,
 				for_para_id = %req.payload.para_id,
 				our_para_id = %our_para_id,
-				"received a `CollationFetchingRequest` for unexpected para_id",
+				"received a `CollationFetchingV1Request` for unexpected para_id",
 			);
 		},
 		None => {
@@ -977,7 +977,7 @@ pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
-	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingV1Request>,
 	metrics: Metrics,
 ) -> std::result::Result<(), FatalError>
 where

@@ -21,7 +21,7 @@ use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
 	request_response::{
-		v1::{StatementFetchingRequest, StatementFetchingResponse},
+		v1::{StatementFetchingV1Request, StatementFetchingV1Response},
 		IncomingRequest, Recipient, Requests,
 	},
 	view, ObservedRole,
@@ -1077,7 +1077,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1126,7 +1126,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1146,7 +1146,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1167,7 +1167,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1179,7 +1179,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					bad.descriptor.para_id = 0xeadbeaf.into();
 					bad
 				};
-				let response = StatementFetchingResponse::Statement(bad_candidate);
+				let response = StatementFetchingV1Response::Statement(bad_candidate);
 				outgoing.pending_response.send(Ok(response.encode())).unwrap();
 			}
 		);
@@ -1202,7 +1202,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1223,7 +1223,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1231,7 +1231,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				assert_eq!(req.candidate_hash, metadata.candidate_hash);
 				// On retry, we should have reverse order:
 				assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
-				let response = StatementFetchingResponse::Statement(candidate.clone());
+				let response = StatementFetchingV1Response::Statement(candidate.clone());
 				outgoing.pending_response.send(Ok(response.encode())).unwrap();
 			}
 		);
@@ -1296,7 +1296,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		// Failing request first (wrong relay parent hash):
 		let (pending_response, response_rx) = oneshot::channel();
-		let inner_req = StatementFetchingRequest {
+		let inner_req = StatementFetchingV1Request {
 			relay_parent: hash_b,
 			candidate_hash: metadata.candidate_hash,
 		};
@@ -1314,7 +1314,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// Another failing request (peer_a never received a statement from us, so it is not
 		// allowed to request the data):
 		let (pending_response, response_rx) = oneshot::channel();
-		let inner_req = StatementFetchingRequest {
+		let inner_req = StatementFetchingV1Request {
 			relay_parent: metadata.relay_parent,
 			candidate_hash: metadata.candidate_hash,
 		};
@@ -1331,7 +1331,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		// And now the succeding request from peer_b:
 		let (pending_response, response_rx) = oneshot::channel();
-		let inner_req = StatementFetchingRequest {
+		let inner_req = StatementFetchingV1Request {
 			relay_parent: metadata.relay_parent,
 			candidate_hash: metadata.candidate_hash,
 		};
@@ -1341,7 +1341,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			pending_response,
 		};
 		req_cfg.inbound_queue.as_mut().unwrap().send(req).await.unwrap();
-		let StatementFetchingResponse::Statement(committed) =
+		let StatementFetchingV1Response::Statement(committed) =
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
 
@@ -1635,7 +1635,7 @@ fn share_prioritizes_backing_group() {
 		// Now that it has the candidate it should answer requests accordingly:
 
 		let (pending_response, response_rx) = oneshot::channel();
-		let inner_req = StatementFetchingRequest {
+		let inner_req = StatementFetchingV1Request {
 			relay_parent: metadata.relay_parent,
 			candidate_hash: metadata.candidate_hash,
 		};
@@ -1645,7 +1645,7 @@ fn share_prioritizes_backing_group() {
 			pending_response,
 		};
 		req_cfg.inbound_queue.as_mut().unwrap().send(req).await.unwrap();
-		let StatementFetchingResponse::Statement(committed) =
+		let StatementFetchingV1Response::Statement(committed) =
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
 
@@ -1814,7 +1814,7 @@ fn peer_cant_flood_with_large_statements() {
 				)) => {
 					let reqs = reqs.pop().unwrap();
 					let outgoing = match reqs {
-						Requests::StatementFetching(outgoing) => outgoing,
+						Requests::StatementFetchingV1(outgoing) => outgoing,
 						_ => panic!("Unexpected request"),
 					};
 					let req = outgoing.payload;

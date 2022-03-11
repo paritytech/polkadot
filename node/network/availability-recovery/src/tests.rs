@@ -292,7 +292,7 @@ impl TestState {
 						i += 1;
 						assert_matches!(
 							req,
-							Requests::ChunkFetching(req) => {
+							Requests::ChunkFetchingV1(req) => {
 								assert_eq!(req.payload.candidate_hash, candidate_hash);
 
 								let validator_index = req.payload.index.0 as usize;
@@ -308,7 +308,7 @@ impl TestState {
 
 								let _ = req.pending_response.send(
 									available_data.map(|r|
-										req_res::v1::ChunkFetchingResponse::from(r).encode()
+										req_res::v1::ChunkFetchingV1Response::from(r).encode()
 									)
 								);
 							}
@@ -341,7 +341,7 @@ impl TestState {
 
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AvailableDataFetching(req) => {
+						Requests::AvailableDataFetchingV1(req) => {
 							assert_eq!(req.payload.candidate_hash, candidate_hash);
 							let validator_index = self.validator_authority_id
 								.iter()
@@ -362,7 +362,7 @@ impl TestState {
 
 							let _ = req.pending_response.send(
 								available_data.map(|r|
-									req_res::v1::AvailableDataFetchingResponse::from(r).encode()
+									req_res::v1::AvailableDataFetchingV1Response::from(r).encode()
 								)
 							);
 

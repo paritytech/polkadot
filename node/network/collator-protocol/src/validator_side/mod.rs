@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 	request_response as req_res,
 	request_response::{
 		outgoing::{Recipient, RequestError},
-		v1::{CollationFetchingRequest, CollationFetchingResponse},
+		v1::{CollationFetchingV1Request, CollationFetchingV1Response},
 		OutgoingRequest, Requests,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
@@ -189,7 +189,7 @@ impl metrics::Metrics for Metrics {
 
 struct PerRequest {
 	/// Responses from collator.
-	from_collator: Fuse<BoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>>,
+	from_collator: Fuse<BoxFuture<'static, req_res::OutgoingResult<CollationFetchingV1Response>>>,
 	/// Sender to forward to initial requester.
 	to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
 	/// A jaeger span corresponding to the lifetime of the request.
@@ -751,9 +751,9 @@ async fn request_collation<Context>(
 
 	let (full_request, response_recv) = OutgoingRequest::new(
 		Recipient::Peer(peer_id),
-		CollationFetchingRequest { relay_parent, para_id },
+		CollationFetchingV1Request { relay_parent, para_id },
 	);
-	let requests = Requests::CollationFetching(full_request);
+	let requests = Requests::CollationFetchingV1(full_request);
 
 	let per_request = PerRequest {
 		from_collator: response_recv.boxed().fuse(),
@@ -1419,7 +1419,7 @@ async fn poll_collation_response(
 				);
 				CollationFetchResult::Error(None)
 			},
-			Ok(CollationFetchingResponse::Collation(receipt, _))
+			Ok(CollationFetchingV1Response::Collation(receipt, _))
 				if receipt.descriptor().para_id != pending_collation.para_id =>
 			{
 				tracing::debug!(
@@ -1432,7 +1432,7 @@ async fn poll_collation_response(
 
 				CollationFetchResult::Error(Some(COST_WRONG_PARA))
 			},
-			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
+			Ok(CollationFetchingV1Response::Collation(receipt, pov)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
 					para_id = %pending_collation.para_id,

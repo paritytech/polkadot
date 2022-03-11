@@ -24,7 +24,7 @@ use fatality::Nested;
 use polkadot_node_network_protocol::{
 	request_response::{
 		incoming::OutgoingResponse,
-		v1::{StatementFetchingRequest, StatementFetchingResponse},
+		v1::{StatementFetchingV1Request, StatementFetchingV1Response},
 		IncomingRequestReceiver, MAX_PARALLEL_STATEMENT_REQUESTS,
 	},
 	PeerId, UnifiedReputationChange as Rep,
@@ -52,7 +52,7 @@ pub enum ResponderMessage {
 /// `CommittedCandidateReceipt` from peers, whether this can be used to re-assemble one ore
 /// many `SignedFullStatement`s needs to be verified by the caller.
 pub async fn respond(
-	mut receiver: IncomingRequestReceiver<StatementFetchingRequest>,
+	mut receiver: IncomingRequestReceiver<StatementFetchingV1Request>,
 	mut sender: mpsc::Sender<ResponderMessage>,
 ) {
 	let mut pending_out = FuturesUnordered::new();
@@ -105,7 +105,7 @@ pub async fn respond(
 				tracing::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
 				Err(())
 			},
-			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
+			Ok(v) => Ok(StatementFetchingV1Response::Statement(v)),
 		};
 		let (pending_sent_tx, pending_sent_rx) = oneshot::channel();
 		let response = OutgoingResponse {

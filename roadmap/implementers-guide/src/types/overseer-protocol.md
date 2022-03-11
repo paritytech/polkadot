@@ -204,9 +204,9 @@ This is a network protocol that receives messages of type [`AvailabilityDistribu
 ```rust
 enum AvailabilityDistributionMessage {
       /// Incoming network request for an availability chunk.
-      ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
+      ChunkFetchingV1Request(IncomingRequest<req_res_v1::ChunkFetchingV1Request>),
       /// Incoming network request for a seconded PoV.
-      PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
+      PoVFetchingV1Request(IncomingRequest<req_res_v1::PoVFetchingV1Request>),
       /// Instruct availability distribution to fetch a remote PoV.
       ///
       /// NOTE: The result of this fetch is not yet locally validated and could be bogus.

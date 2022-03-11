@@ -668,7 +668,7 @@ async fn check_sent_requests(
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(
 					r,
-					Requests::DisputeSending(req) => {req}
+					Requests::DisputeSendingV1(req) => {req}
 				)
 			)
 			.collect();

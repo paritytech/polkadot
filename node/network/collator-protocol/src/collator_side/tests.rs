@@ -539,7 +539,7 @@ fn advertise_and_send_collation() {
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer,
-				payload: CollationFetchingRequest {
+				payload: CollationFetchingV1Request {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -558,7 +558,7 @@ fn advertise_and_send_collation() {
 				.unwrap()
 				.send(RawIncomingRequest {
 					peer,
-					payload: CollationFetchingRequest {
+					payload: CollationFetchingV1Request {
 						relay_parent: test_state.relay_parent,
 						para_id: test_state.para_id,
 					}
@@ -583,8 +583,8 @@ fn advertise_and_send_collation() {
 		assert_matches!(
 			rx.await,
 			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
+				let CollationFetchingV1Response::Collation(receipt, pov): CollationFetchingV1Response
+					= CollationFetchingV1Response::decode(
 						&mut full_response.result
 						.expect("We should have a proper answer").as_ref()
 				)
@@ -608,7 +608,7 @@ fn advertise_and_send_collation() {
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer,
-				payload: CollationFetchingRequest {
+				payload: CollationFetchingV1Request {
 					relay_parent: old_relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -910,7 +910,7 @@ where
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer: validator_0,
-				payload: CollationFetchingRequest {
+				payload: CollationFetchingV1Request {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -924,8 +924,8 @@ where
 		let feedback_tx = assert_matches!(
 			rx.await,
 			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
+				let CollationFetchingV1Response::Collation(receipt, pov): CollationFetchingV1Response
+					= CollationFetchingV1Response::decode(
 						&mut full_response.result
 						.expect("We should have a proper answer").as_ref()
 				)
@@ -945,7 +945,7 @@ where
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer: validator_1,
-				payload: CollationFetchingRequest {
+				payload: CollationFetchingV1Request {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -961,8 +961,8 @@ where
 		assert_matches!(
 			rx.await,
 			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
+				let CollationFetchingV1Response::Collation(receipt, pov): CollationFetchingV1Response
+					= CollationFetchingV1Response::decode(
 						&mut full_response.result
 						.expect("We should have a proper answer").as_ref()
 				)

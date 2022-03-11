@@ -283,7 +283,7 @@ async fn assert_fetch_collation_request(
 		let req = reqs.into_iter().next()
 			.expect("There should be exactly one request");
 		match req {
-			Requests::CollationFetching(req) => {
+			Requests::CollationFetchingV1(req) => {
 				let payload = req.payload;
 				assert_eq!(payload.relay_parent, relay_parent);
 				assert_eq!(payload.para_id, para_id);
@@ -560,7 +560,7 @@ fn fetch_collations_works() {
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
 			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 
@@ -644,13 +644,13 @@ fn fetch_collations_works() {
 		// First request finishes now:
 		response_channel_non_exclusive
 			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 
 		response_channel
 			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 
@@ -767,7 +767,7 @@ fn fetch_next_collation_on_invalid_collation() {
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
 			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 

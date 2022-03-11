@@ -40,7 +40,7 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be 
 /// Receiver task to be forked as a separate task to handle PoV requests.
 pub async fn run_pov_receiver<Sender>(
 	mut sender: Sender,
-	mut receiver: IncomingRequestReceiver<v1::PoVFetchingRequest>,
+	mut receiver: IncomingRequestReceiver<v1::PoVFetchingV1Request>,
 	metrics: Metrics,
 ) where
 	Sender: SubsystemSender,
@@ -68,7 +68,7 @@ pub async fn run_pov_receiver<Sender>(
 /// Receiver task to be forked as a separate task to handle chunk requests.
 pub async fn run_chunk_receiver<Sender>(
 	mut sender: Sender,
-	mut receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
+	mut receiver: IncomingRequestReceiver<v1::ChunkFetchingV1Request>,
 	metrics: Metrics,
 ) where
 	Sender: SubsystemSender,
@@ -102,7 +102,7 @@ pub async fn run_chunk_receiver<Sender>(
 /// Any errors of `answer_pov_request` will simply be logged.
 pub async fn answer_pov_request_log<Sender>(
 	sender: &mut Sender,
-	req: IncomingRequest<v1::PoVFetchingRequest>,
+	req: IncomingRequest<v1::PoVFetchingV1Request>,
 	metrics: &Metrics,
 ) where
 	Sender: SubsystemSender,
@@ -126,7 +126,7 @@ pub async fn answer_pov_request_log<Sender>(
 /// Any errors of `answer_request` will simply be logged.
 pub async fn answer_chunk_request_log<Sender>(
 	sender: &mut Sender,
-	req: IncomingRequest<v1::ChunkFetchingRequest>,
+	req: IncomingRequest<v1::ChunkFetchingV1Request>,
 	metrics: &Metrics,
 ) -> ()
 where
@@ -151,7 +151,7 @@ where
 /// Returns: `Ok(true)` if chunk was found and served.
 pub async fn answer_pov_request<Sender>(
 	sender: &mut Sender,
-	req: IncomingRequest<v1::PoVFetchingRequest>,
+	req: IncomingRequest<v1::PoVFetchingV1Request>,
 ) -> Result<bool>
 where
 	Sender: SubsystemSender,
@@ -163,10 +163,10 @@ where
 	let result = av_data.is_some();
 
 	let response = match av_data {
-		None => v1::PoVFetchingResponse::NoSuchPoV,
+		None => v1::PoVFetchingV1Response::NoSuchPoV,
 		Some(av_data) => {
 			let pov = Arc::try_unwrap(av_data.pov).unwrap_or_else(|a| (&*a).clone());
-			v1::PoVFetchingResponse::PoV(pov)
+			v1::PoVFetchingV1Response::PoV(pov)
 		},
 	};
 
@@ -179,7 +179,7 @@ where
 /// Returns: `Ok(true)` if chunk was found and served.
 pub async fn answer_chunk_request<Sender>(
 	sender: &mut Sender,
-	req: IncomingRequest<v1::ChunkFetchingRequest>,
+	req: IncomingRequest<v1::ChunkFetchingV1Request>,
 ) -> Result<bool>
 where
 	Sender: SubsystemSender,
@@ -202,8 +202,8 @@ where
 	);
 
 	let response = match chunk {
-		None => v1::ChunkFetchingResponse::NoSuchChunk,
-		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
+		None => v1::ChunkFetchingV1Response::NoSuchChunk,
+		Some(chunk) => v1::ChunkFetchingV1Response::Chunk(chunk.into()),
 	};
 
 	req.send_response(response).map_err(|_| JfyiError::SendResponse)?;

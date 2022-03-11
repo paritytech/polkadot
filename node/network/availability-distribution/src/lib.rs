@@ -63,9 +63,9 @@ pub struct AvailabilityDistributionSubsystem {
 /// Receivers to be passed into availability distribution.
 pub struct IncomingRequestReceivers {
 	/// Receiver for incoming PoV requests.
-	pub pov_req_receiver: IncomingRequestReceiver<v1::PoVFetchingRequest>,
+	pub pov_req_receiver: IncomingRequestReceiver<v1::PoVFetchingV1Request>,
 	/// Receiver for incoming availability chunk requests.
-	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
+	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingV1Request>,
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem

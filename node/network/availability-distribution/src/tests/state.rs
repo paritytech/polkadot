@@ -303,9 +303,9 @@ async fn overseer_recv(rx: &mut mpsc::UnboundedReceiver<AllMessages>) -> AllMess
 fn to_incoming_req(
 	executor: &TaskExecutor,
 	outgoing: Requests,
-) -> IncomingRequest<v1::ChunkFetchingRequest> {
+) -> IncomingRequest<v1::ChunkFetchingV1Request> {
 	match outgoing {
-		Requests::ChunkFetching(OutgoingRequest { payload, pending_response, .. }) => {
+		Requests::ChunkFetchingV1(OutgoingRequest { payload, pending_response, .. }) => {
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>) =
 				oneshot::channel();
 			executor.spawn(
