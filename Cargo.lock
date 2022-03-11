@@ -7674,7 +7674,6 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-rpc",
- "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "polkadot-service",
  "polkadot-test-runtime",

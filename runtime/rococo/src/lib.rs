@@ -42,8 +42,8 @@ use primitives::v2::{
 	ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
+	paras_sudo_wrapper, slots,
 };
 use runtime_parachains::{self, runtime_api_impl::v2 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -88,6 +88,8 @@ mod bridge_messages;
 mod validator_manager;
 mod weights;
 pub mod xcm_config;
+
+impl_runtime_weights!(rococo_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]

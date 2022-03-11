@@ -22,9 +22,8 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	prod_or_fast, slots, CurrencyToVote,
 };
 
 use runtime_parachains::{
@@ -44,7 +43,6 @@ use frame_support::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
-	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -96,6 +94,8 @@ mod weights;
 mod bag_thresholds;
 
 pub mod xcm_config;
+
+impl_runtime_weights!(polkadot_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -2153,7 +2153,7 @@ mod test_fees {
 	#[test]
 	#[ignore]
 	fn transfer_cost_min_multiplier() {
-		let min_multiplier = runtime_common::MinimumMultiplier::get();
+		let min_multiplier = MinimumMultiplier::get();
 		let call = pallet_balances::Call::<Runtime>::transfer_keep_alive {
 			dest: Charlie.to_account_id().into(),
 			value: Default::default(),
