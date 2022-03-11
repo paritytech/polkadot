@@ -247,7 +247,7 @@ macro_rules! prod_or_fast {
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
-	use frame_support::{parameter_types, weights::Weight};
+	use frame_support::{parameter_types, weights::{DispatchClass, Weight}};
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,
