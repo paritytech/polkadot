@@ -172,8 +172,8 @@ impl crate::Config for Test {
 	}
 }
 
-pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
-pub type TrustedReserves = (xcm_builder::Case<RsrvConcreteFung>,);
+pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
+pub type TrustedReserves = (xcm_builder::Case<ReserveConcreteFungible>,);
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
@@ -186,9 +186,9 @@ parameter_types! {
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
-	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
+	pub const TeleportConcreteFungible: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
-	pub const RsrvConcreteFung: (MultiAssetFilter, MultiLocation) =
+	pub const ReserveConcreteFungible: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
 }
 
