@@ -119,7 +119,7 @@ pub struct StatementDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
-	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingV1Request>>,
+	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
 	/// Prometheus metrics
 	metrics: Metrics,
 }
@@ -146,7 +146,7 @@ impl StatementDistributionSubsystem {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
-		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingV1Request>,
+		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 		metrics: Metrics,
 	) -> Self {
 		Self { keystore, req_receiver: Some(req_receiver), metrics }

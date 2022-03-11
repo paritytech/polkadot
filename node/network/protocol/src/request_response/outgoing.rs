@@ -29,15 +29,15 @@ use super::{v1, IsRequest, Protocol};
 #[derive(Debug)]
 pub enum Requests {
 	/// Request an availability chunk from a node.
-	ChunkFetchingV1(OutgoingRequest<v1::ChunkFetchingV1Request>),
+	ChunkFetchingV1(OutgoingRequest<v1::ChunkFetchingRequest>),
 	/// Fetch a collation from a collator which previously announced it.
-	CollationFetchingV1(OutgoingRequest<v1::CollationFetchingV1Request>),
+	CollationFetchingV1(OutgoingRequest<v1::CollationFetchingRequest>),
 	/// Fetch a PoV from a validator which previously sent out a seconded statement.
-	PoVFetchingV1(OutgoingRequest<v1::PoVFetchingV1Request>),
+	PoVFetchingV1(OutgoingRequest<v1::PoVFetchingRequest>),
 	/// Request full available data from a node.
-	AvailableDataFetchingV1(OutgoingRequest<v1::AvailableDataFetchingV1Request>),
+	AvailableDataFetchingV1(OutgoingRequest<v1::AvailableDataFetchingRequest>),
 	/// Requests for fetching large statements as part of statement distribution.
-	StatementFetchingV1(OutgoingRequest<v1::StatementFetchingV1Request>),
+	StatementFetchingV1(OutgoingRequest<v1::StatementFetchingRequest>),
 	/// Requests for notifying about an ongoing dispute.
 	DisputeSendingV1(OutgoingRequest<v1::DisputeRequest>),
 }

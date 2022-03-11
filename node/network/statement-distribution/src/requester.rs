@@ -23,7 +23,7 @@ use futures::{
 
 use polkadot_node_network_protocol::{
 	request_response::{
-		v1::{StatementFetchingV1Request, StatementFetchingV1Response},
+		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		OutgoingRequest, Recipient, Requests,
 	},
 	PeerId, UnifiedReputationChange,
@@ -88,7 +88,7 @@ pub async fn fetch(
 	// Peers left for trying out.
 	let mut new_peers = peers;
 
-	let req = StatementFetchingV1Request { relay_parent, candidate_hash };
+	let req = StatementFetchingRequest { relay_parent, candidate_hash };
 
 	// We retry endlessly (with sleep periods), and rely on the subsystem to kill us eventually.
 	loop {
@@ -114,7 +114,7 @@ pub async fn fetch(
 			metrics.on_sent_request();
 
 			match pending_response.await {
-				Ok(StatementFetchingV1Response::Statement(statement)) => {
+				Ok(StatementFetchingResponse::Statement(statement)) => {
 					if statement.hash() != candidate_hash {
 						metrics.on_received_response(false);
 						metrics.on_unexpected_statement_large();

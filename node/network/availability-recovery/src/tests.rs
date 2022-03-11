@@ -308,7 +308,7 @@ impl TestState {
 
 								let _ = req.pending_response.send(
 									available_data.map(|r|
-										req_res::v1::ChunkFetchingV1Response::from(r).encode()
+										req_res::v1::ChunkFetchingResponse::from(r).encode()
 									)
 								);
 							}
@@ -362,7 +362,7 @@ impl TestState {
 
 							let _ = req.pending_response.send(
 								available_data.map(|r|
-									req_res::v1::AvailableDataFetchingV1Response::from(r).encode()
+									req_res::v1::AvailableDataFetchingResponse::from(r).encode()
 								)
 							);
 

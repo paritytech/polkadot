@@ -20,7 +20,7 @@ use futures::{channel::oneshot, future::BoxFuture, FutureExt};
 
 use polkadot_node_network_protocol::request_response::{
 	outgoing::{RequestError, Requests},
-	v1::{PoVFetchingV1Request, PoVFetchingV1Response},
+	v1::{PoVFetchingRequest, PoVFetchingResponse},
 	OutgoingRequest, Recipient,
 };
 use polkadot_node_primitives::PoV;
@@ -60,7 +60,7 @@ where
 		.clone();
 	let (req, pending_response) = OutgoingRequest::new(
 		Recipient::Authority(authority_id.clone()),
-		PoVFetchingV1Request { candidate_hash },
+		PoVFetchingRequest { candidate_hash },
 	);
 	let full_req = Requests::PoVFetchingV1(req);
 
@@ -85,7 +85,7 @@ where
 async fn fetch_pov_job(
 	pov_hash: Hash,
 	authority_id: AuthorityDiscoveryId,
-	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingV1Response, RequestError>>,
+	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
 	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
@@ -98,15 +98,15 @@ async fn fetch_pov_job(
 /// Do the actual work of waiting for the response.
 async fn do_fetch_pov(
 	pov_hash: Hash,
-	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingV1Response, RequestError>>,
+	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
 	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) -> Result<()> {
 	let response = pending_response.await.map_err(Error::FetchPoV);
 	let pov = match response {
-		Ok(PoVFetchingV1Response::PoV(pov)) => pov,
-		Ok(PoVFetchingV1Response::NoSuchPoV) => {
+		Ok(PoVFetchingResponse::PoV(pov)) => pov,
+		Ok(PoVFetchingResponse::NoSuchPoV) => {
 			metrics.on_fetched_pov(NOT_FOUND);
 			return Err(Error::NoSuchPoV)
 		},
@@ -203,7 +203,7 @@ mod tests {
 							Some(Requests::PoVFetchingV1(outgoing)) => {outgoing}
 						);
 						req.pending_response
-							.send(Ok(PoVFetchingV1Response::PoV(pov.clone()).encode()))
+							.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))
 							.unwrap();
 						break
 					},

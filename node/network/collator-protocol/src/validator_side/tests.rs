@@ -560,7 +560,7 @@ fn fetch_collations_works() {
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
 			.send(Ok(
-				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 
@@ -644,13 +644,13 @@ fn fetch_collations_works() {
 		// First request finishes now:
 		response_channel_non_exclusive
 			.send(Ok(
-				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 
 		response_channel
 			.send(Ok(
-				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 
@@ -767,7 +767,7 @@ fn fetch_next_collation_on_invalid_collation() {
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
 			.send(Ok(
-				CollationFetchingV1Response::Collation(candidate_a.clone(), pov.clone()).encode()
+				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
 			))
 			.expect("Sending response should succeed");
 

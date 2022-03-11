@@ -58,7 +58,7 @@ fn task_does_not_accept_invalid_chunk() {
 			let mut m = HashMap::new();
 			m.insert(
 				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
-				ChunkFetchingV1Response::Chunk(v1::ChunkResponse {
+				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: vec![1, 2, 3],
 					proof: Proof::try_from(vec![vec![9, 8, 2], vec![2, 3, 4]]).unwrap(),
 				}),
@@ -86,7 +86,7 @@ fn task_stores_valid_chunk() {
 			let mut m = HashMap::new();
 			m.insert(
 				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
-				ChunkFetchingV1Response::Chunk(v1::ChunkResponse {
+				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: chunk.chunk.clone(),
 					proof: chunk.proof,
 				}),
@@ -118,7 +118,7 @@ fn task_does_not_accept_wrongly_indexed_chunk() {
 			let mut m = HashMap::new();
 			m.insert(
 				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
-				ChunkFetchingV1Response::Chunk(v1::ChunkResponse {
+				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: chunk.chunk.clone(),
 					proof: chunk.proof,
 				}),
@@ -157,18 +157,18 @@ fn task_stores_valid_chunk_if_there_is_one() {
 			let mut m = HashMap::new();
 			m.insert(
 				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
-				ChunkFetchingV1Response::Chunk(v1::ChunkResponse {
+				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: chunk.chunk.clone(),
 					proof: chunk.proof,
 				}),
 			);
 			m.insert(
 				Recipient::Authority(Sr25519Keyring::Bob.public().into()),
-				ChunkFetchingV1Response::NoSuchChunk,
+				ChunkFetchingResponse::NoSuchChunk,
 			);
 			m.insert(
 				Recipient::Authority(Sr25519Keyring::Charlie.public().into()),
-				ChunkFetchingV1Response::Chunk(v1::ChunkResponse {
+				ChunkFetchingResponse::Chunk(v1::ChunkResponse {
 					chunk: vec![1, 2, 3],
 					proof: Proof::try_from(vec![vec![9, 8, 2], vec![2, 3, 4]]).unwrap(),
 				}),
@@ -188,7 +188,7 @@ fn task_stores_valid_chunk_if_there_is_one() {
 struct TestRun {
 	/// Response to deliver for a given validator index.
 	/// None means, answer with `NetworkError`.
-	chunk_responses: HashMap<Recipient, ChunkFetchingV1Response>,
+	chunk_responses: HashMap<Recipient, ChunkFetchingResponse>,
 	/// Set of chunks that should be considered valid:
 	valid_chunks: HashSet<Vec<u8>>,
 }
@@ -241,7 +241,7 @@ impl TestRun {
 					let response =
 						self.chunk_responses.get(&req.peer).ok_or(network::RequestFailure::Refused);
 
-					if let Ok(ChunkFetchingV1Response::Chunk(resp)) = &response {
+					if let Ok(ChunkFetchingResponse::Chunk(resp)) = &response {
 						if self.valid_chunks.contains(&resp.chunk) {
 							valid_responses += 1;
 						}
@@ -278,7 +278,7 @@ fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 			session_index: 0,
 			group_index: GroupIndex(0),
 			group: Vec::new(),
-			request: ChunkFetchingV1Request {
+			request: ChunkFetchingRequest {
 				candidate_hash: CandidateHash([43u8; 32].into()),
 				index: ValidatorIndex(0),
 			},

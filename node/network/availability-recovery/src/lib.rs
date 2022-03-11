@@ -101,7 +101,7 @@ const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(100);
 pub struct AvailabilityRecoverySubsystem {
 	fast_path: bool,
 	/// Receiver for available data requests.
-	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingV1Request>,
+	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 	/// Metrics for this subsystem.
 	metrics: Metrics,
 }
@@ -196,7 +196,7 @@ impl RequestFromBackers {
 				Recipient::Authority(
 					params.validator_authority_keys[validator_index.0 as usize].clone(),
 				),
-				req_res::v1::AvailableDataFetchingV1Request {
+				req_res::v1::AvailableDataFetchingRequest {
 					candidate_hash: params.candidate_hash,
 				},
 			);
@@ -212,7 +212,7 @@ impl RequestFromBackers {
 				.await;
 
 			match response.await {
-				Ok(req_res::v1::AvailableDataFetchingV1Response::AvailableData(data)) => {
+				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
 					if reconstructed_data_matches_root(
 						params.validators.len(),
 						&params.erasure_root,
@@ -236,7 +236,7 @@ impl RequestFromBackers {
 						// it doesn't help to report the peer with req/res.
 					}
 				},
-				Ok(req_res::v1::AvailableDataFetchingV1Response::NoSuchData) => {},
+				Ok(req_res::v1::AvailableDataFetchingResponse::NoSuchData) => {},
 				Err(e) => tracing::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
@@ -321,7 +321,7 @@ impl RequestChunksFromValidators {
 				);
 
 				// Request data.
-				let raw_request = req_res::v1::ChunkFetchingV1Request {
+				let raw_request = req_res::v1::ChunkFetchingRequest {
 					candidate_hash: params.candidate_hash,
 					index: validator_index,
 				};
@@ -336,9 +336,9 @@ impl RequestChunksFromValidators {
 				self.requesting_chunks.push(Box::pin(async move {
 					let _timer = timer;
 					match res.await {
-						Ok(req_res::v1::ChunkFetchingV1Response::Chunk(chunk)) =>
+						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk)) =>
 							Ok(Some(chunk.recombine_into_chunk(&raw_request))),
-						Ok(req_res::v1::ChunkFetchingV1Response::NoSuchChunk) => Ok(None),
+						Ok(req_res::v1::ChunkFetchingResponse::NoSuchChunk) => Ok(None),
 						Err(e) => Err((validator_index, e)),
 					}
 				}));
@@ -929,7 +929,7 @@ impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to
 	/// request data from backers.
 	pub fn with_fast_path(
-		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingV1Request>,
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 		metrics: Metrics,
 	) -> Self {
 		Self { fast_path: true, req_receiver, metrics }
@@ -937,7 +937,7 @@ impl AvailabilityRecoverySubsystem {
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
 	pub fn with_chunks_only(
-		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingV1Request>,
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 		metrics: Metrics,
 	) -> Self {
 		Self { fast_path: false, req_receiver, metrics }

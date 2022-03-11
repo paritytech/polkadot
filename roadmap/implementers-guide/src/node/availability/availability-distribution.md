@@ -30,8 +30,8 @@ this subsystem drives request/response protocols.
 Input:
 
 - `OverseerSignal::ActiveLeaves(ActiveLeavesUpdate)`
-- `AvailabilityDistributionMessage{msg: ChunkFetchingV1Request}`
-- `AvailabilityDistributionMessage{msg: PoVFetchingV1Request}`
+- `AvailabilityDistributionMessage{msg: ChunkFetchingRequest}`
+- `AvailabilityDistributionMessage{msg: PoVFetchingRequest}`
 - `AvailabilityDistributionMessage{msg: FetchPoV}`
 
 Output:
@@ -63,7 +63,7 @@ availability a reality.
 
 It does that by querying checking occupied cores for all active leaves. For each
 occupied core it will spawn a task fetching the erasure chunk which has the
-`ValidatorIndex` of the node. For this an `ChunkFetchingV1Request` is issued, via
+`ValidatorIndex` of the node. For this an `ChunkFetchingRequest` is issued, via
 substrate's generic request/response protocol.
 
 The spawned task will start trying to fetch the chunk from validators in
@@ -89,8 +89,8 @@ as we would like as many validators as possible to have their chunk. See this
 
 ### Serving
 
-On the other side the subsystem will listen for incoming `ChunkFetchingV1Request`s
-and `PoVFetchingV1Request`s from the network bridge and will respond to queries,
+On the other side the subsystem will listen for incoming `ChunkFetchingRequest`s
+and `PoVFetchingRequest`s from the network bridge and will respond to queries,
 by looking the requested chunks and `PoV`s up in the availability store, this
 happens in the `responder` module.
 

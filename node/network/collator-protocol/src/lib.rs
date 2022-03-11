@@ -79,7 +79,7 @@ pub enum ProtocolSide {
 	Collator(
 		PeerId,
 		CollatorPair,
-		IncomingRequestReceiver<request_v1::CollationFetchingV1Request>,
+		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 		collator_side::Metrics,
 	),
 }

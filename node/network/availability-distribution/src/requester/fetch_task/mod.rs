@@ -25,7 +25,7 @@ use futures::{
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
 	outgoing::{OutgoingRequest, Recipient, RequestError, Requests},
-	v1::{ChunkFetchingV1Request, ChunkFetchingV1Response},
+	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
 use polkadot_primitives::v2::{
@@ -112,7 +112,7 @@ struct RunningTask {
 	group: Vec<AuthorityDiscoveryId>,
 
 	/// The request to send.
-	request: ChunkFetchingV1Request,
+	request: ChunkFetchingRequest,
 
 	/// Root hash, for verifying the chunks validity.
 	erasure_root: Hash,
@@ -157,7 +157,7 @@ impl FetchTaskConfig {
 			group: session_info.validator_groups.get(core.group_responsible.0 as usize)
 				.expect("The responsible group of a candidate should be available in the corresponding session. qed.")
 				.clone(),
-			request: ChunkFetchingV1Request {
+			request: ChunkFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
 			},
@@ -284,8 +284,8 @@ impl RunningTask {
 				},
 			};
 			let chunk = match resp {
-				ChunkFetchingV1Response::Chunk(resp) => resp.recombine_into_chunk(&self.request),
-				ChunkFetchingV1Response::NoSuchChunk => {
+				ChunkFetchingResponse::Chunk(resp) => resp.recombine_into_chunk(&self.request),
+				ChunkFetchingResponse::NoSuchChunk => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						validator = ?validator,
@@ -322,7 +322,7 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
-	) -> std::result::Result<ChunkFetchingV1Response, TaskError> {
+	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
 		let requests = Requests::ChunkFetchingV1(full_request);
