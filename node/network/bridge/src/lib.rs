@@ -644,18 +644,55 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 			Some(NetworkEvent::SyncConnected { .. }) |
 			Some(NetworkEvent::SyncDisconnected { .. }) => {},
 			Some(NetworkEvent::NotificationStreamOpened {
-				remote: peer, protocol, role, ..
+				remote: peer, protocol, role, negotiated_fallback,
 			}) => {
 				let role = ObservedRole::from(role);
-				let (peer_set, version) = match PeerSet::try_from_protocol_name(&protocol) {
-					None => continue,
-					Some(p) => p,
+				let (peer_set, version) = {
+					let (peer_set, version) = match PeerSet::try_from_protocol_name(&protocol) {
+						None => continue,
+						Some(p) => p,
+					};
+
+					if let Some(fallback) = negotiated_fallback {
+						match PeerSet::try_from_protocol_name(&fallback) {
+							None => {
+								tracing::debug!(
+									target: LOG_TARGET,
+									fallback = &*fallback,
+									?peer,
+									?peer_set,
+									"Unknown fallback",
+								);
+
+								continue
+							}
+							Some((p2, v2)) => {
+								if p2 != peer_set {
+									tracing::debug!(
+										target: LOG_TARGET,
+										fallback = &*fallback,
+										fallback_peerset = ?p2,
+										protocol = &*protocol,
+										peerset = ?peer_set,
+										"Fallback mismatched peer-set",
+									);
+
+									continue
+								}
+
+								(p2, v2)
+							}
+						}
+					} else {
+						(peer_set, version)
+					}
 				};
 
 				tracing::debug!(
 					target: LOG_TARGET,
 					action = "PeerConnected",
 					peer_set = ?peer_set,
+					version,
 					peer = ?peer,
 					role = ?role
 				);
