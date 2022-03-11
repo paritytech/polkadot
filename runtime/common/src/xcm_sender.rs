@@ -17,7 +17,7 @@
 //! XCM sender for relay chain.
 
 use parity_scale_codec::Encode;
-use primitives::v1::Id as ParaId;
+use primitives::v2::Id as ParaId;
 use runtime_parachains::{
 	configuration::{self, HostConfiguration},
 	dmp,
