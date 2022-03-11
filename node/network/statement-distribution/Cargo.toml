@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
 edition = "2021"
