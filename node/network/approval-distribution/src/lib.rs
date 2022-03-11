@@ -326,6 +326,13 @@ impl State {
 				for (peer_id, message) in to_import {
 					match message {
 						PendingMessage::Assignment(assignment, claimed_index) => {
+							// Since we have received a pending message about this block,
+							// we can safely assume that a peer is aware of that block even
+							// if the view update message from a peer has been received before
+							// our own view update
+							if let Some(block_entry) = self.blocks.get_mut(&assignment.block_hash) {
+								block_entry.known_by.entry(peer_id).or_default();
+							}
 							self.import_and_circulate_assignment(
 								ctx,
 								metrics,
@@ -336,6 +343,9 @@ impl State {
 							.await;
 						},
 						PendingMessage::Approval(approval_vote) => {
+							if let Some(block_entry) = self.blocks.get_mut(&approval_vote.block_hash) {
+								block_entry.known_by.entry(peer_id).or_default();
+							}
 							self.import_and_circulate_approval(
 								ctx,
 								metrics,
