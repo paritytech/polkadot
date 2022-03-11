@@ -23,7 +23,7 @@
 
 use crate::shared;
 use pallet_staking::SessionInterface;
-use primitives::v1::ValidatorIndex;
+use primitives::v2::ValidatorIndex;
 
 /// The amount of era points given by backing a candidate that is included.
 pub const BACKING_POINTS: u32 = 20;
@@ -74,7 +74,7 @@ mod tests {
 		mock::{new_test_ext, MockGenesisConfig, ParasShared, Test},
 	};
 	use keyring::Sr25519Keyring;
-	use primitives::v1::ValidatorId;
+	use primitives::v2::ValidatorId;
 
 	#[test]
 	fn rewards_based_on_indirection() {

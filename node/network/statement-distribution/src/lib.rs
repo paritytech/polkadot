@@ -34,9 +34,10 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
+	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use polkadot_subsystem::{
 	jaeger,
@@ -780,10 +781,10 @@ impl ActiveHeadData {
 	/// without modifying the internal state.
 	fn check_useful_or_unknown(
 		&self,
-		statement: &UncheckedSignedFullStatement,
+		statement: &UncheckedSignedStatement,
 	) -> std::result::Result<(), DeniedStatement> {
 		let validator_index = statement.unchecked_validator_index();
-		let compact = statement.unchecked_payload().to_compact();
+		let compact = statement.unchecked_payload();
 		let comparator = StoredStatementComparator {
 			compact: compact.clone(),
 			validator_index,
@@ -857,8 +858,8 @@ impl ActiveHeadData {
 fn check_statement_signature(
 	head: &ActiveHeadData,
 	relay_parent: Hash,
-	statement: UncheckedSignedFullStatement,
-) -> std::result::Result<SignedFullStatement, UncheckedSignedFullStatement> {
+	statement: UncheckedSignedStatement,
+) -> std::result::Result<SignedStatement, UncheckedSignedStatement> {
 	let signing_context =
 		SigningContext { session_index: head.session_index, parent_hash: relay_parent };
 
@@ -1387,24 +1388,57 @@ async fn handle_incoming_message<'a>(
 		return None
 	}
 
+	let checked_compact = {
+		let (compact, validator_index) = message.get_fingerprint();
+		let signature = message.get_signature();
+
+		let unchecked_compact = UncheckedSignedStatement::new(compact, validator_index, signature);
+
+		match active_head.check_useful_or_unknown(&unchecked_compact) {
+			Ok(()) => {},
+			Err(DeniedStatement::NotUseful) => return None,
+			Err(DeniedStatement::UsefulButKnown) => {
+				report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+				return None
+			},
+		}
+
+		// check the signature on the statement.
+		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
+			Err(statement) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?peer,
+					?statement,
+					"Invalid statement signature"
+				);
+				report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+				return None
+			},
+			Ok(statement) => statement,
+		}
+	};
+
+	// Fetch from the network only after signature and usefulness checks are completed.
+	let is_large_statement = message.is_large_statement();
 	let statement =
 		retrieve_statement_from_message(peer, message, active_head, ctx, req_sender, metrics)
 			.await?;
 
-	match active_head.check_useful_or_unknown(&statement) {
-		Ok(()) => {},
-		Err(DeniedStatement::NotUseful) => return None,
-		Err(DeniedStatement::UsefulButKnown) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
-			return None
-		},
-	}
+	let payload = statement.unchecked_into_payload();
 
-	// check the signature on the statement.
-	let statement = match check_statement_signature(&active_head, relay_parent, statement) {
-		Err(statement) => {
-			tracing::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
-			report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+	// Upgrade the `Signed` wrapper from the compact payload to the full payload.
+	// This fails if the payload doesn't encode correctly.
+	let statement: SignedFullStatement = match checked_compact.convert_to_superpayload(payload) {
+		Err((compact, _)) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?compact,
+				is_large_statement,
+				"Full statement had bad payload."
+			);
+			report_peer(ctx, peer, COST_WRONG_HASH).await;
 			return None
 		},
 		Ok(statement) => statement,
