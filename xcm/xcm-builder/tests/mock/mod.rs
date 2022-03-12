@@ -33,8 +33,8 @@ use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
-	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	IsChildSystemParachain, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit,
 };
 
 pub type AccountId = AccountId32;
@@ -178,7 +178,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<UniversalLocation>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
@@ -199,7 +199,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNe
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	type LocationInverter = LocationInverter<UniversalLocation>;
+	type UniversalLocation = UniversalLocation;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = TestSendXcm;
 	// Anyone can execute XCM messages locally...

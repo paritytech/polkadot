@@ -135,6 +135,19 @@ impl Junctions {
 		self.for_each_mut(Junction::remove_network_id);
 	}
 
+	/// Treating `self` as the universal context, return the location of the local consensus system
+	/// from the point of view of the given `location`.
+	pub fn invert_target(mut self, location: &MultiLocation) -> Result<MultiLocation, ()> {
+		let mut junctions = Self::Here;
+		for _ in 0..location.parent_count() {
+			junctions = junctions
+				.pushed_with(self.take_first().unwrap_or(Junction::OnlyChild))
+				.map_err(|_| ())?;
+		}
+		let parents = location.interior().len() as u8;
+		Ok(MultiLocation::new(parents, junctions))
+	}
+
 	/// Execute a function `f` on every junction. We use this since we cannot implement a mutable
 	/// `Iterator` without unsafe code.
 	pub fn for_each_mut(&mut self, mut x: impl FnMut(&mut Junction)) {
@@ -569,6 +582,22 @@ xcm_procedural::impl_conversion_functions_for_junctions_v3!();
 #[cfg(test)]
 mod tests {
 	use super::{super::prelude::*, *};
+
+	#[test]
+	fn inverting_works() {
+		let context: InteriorMultiLocation = (Parachain(1000), PalletInstance(42)).into();
+		let target = (Parent, PalletInstance(69)).into();
+		let expected = (Parent, PalletInstance(42)).into();
+		let inverted = context.invert_target(&target).unwrap();
+		assert_eq!(inverted, expected);
+
+		let context: InteriorMultiLocation =
+			(Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
+		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
+		let inverted = context.invert_target(&target).unwrap();
+		assert_eq!(inverted, expected);
+	}
 
 	#[test]
 	fn relative_to_works() {

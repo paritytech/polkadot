@@ -203,26 +203,3 @@ impl<O> ConvertOrigin<O> for Tuple {
 		Err(origin)
 	}
 }
-
-/// Means of wotking with a relative location.
-pub trait UniversalLocation {
-	/// Return the location of the local consensus system from the point of view of the location
-	/// `l`.
-	///
-	/// Given a target `location`, the result provides the location which represents the local
-	/// consensus system from the targets perspective.
-	fn invert_location(location: &MultiLocation) -> Result<MultiLocation, ()> {
-		let mut context = Self::universal_location();
-		let mut junctions = Here;
-		for _ in 0..location.parent_count() {
-			junctions = junctions
-				.pushed_with(context.take_first().unwrap_or(OnlyChild))
-				.map_err(|_| ())?;
-		}
-		let parents = location.interior().len() as u8;
-		Ok(MultiLocation::new(parents, junctions))
-	}
-
-	/// Return the location of the local consensus system within the known Universe.
-	fn universal_location() -> InteriorMultiLocation;
-}

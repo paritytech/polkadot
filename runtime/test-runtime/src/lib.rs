@@ -521,6 +521,7 @@ parameter_types! {
 	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
 	pub const AnyNetwork: Option<xcm::latest::NetworkId> = None;
 	pub const MaxInstructions: u32 = 100;
+	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;
 }
 
 pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
@@ -530,7 +531,7 @@ impl pallet_xcm::Config for Runtime {
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
 	type Event = Event;
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type LocationInverter = xcm_config::InvertNothing;
+	type UniversalLocation = UniversalLocation;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type XcmRouter = xcm_config::DoNothingRouter;

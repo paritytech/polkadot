@@ -23,7 +23,7 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::MultiLocation;
+use super::{InteriorMultiLocation, MultiLocation};
 use crate::v2::{
 	AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
 	MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
@@ -347,7 +347,11 @@ impl AssetId {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.reanchor(target, context)?;
 		}
@@ -412,7 +416,11 @@ impl MultiAsset {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		self.id.reanchor(target, context)
 	}
 
@@ -421,7 +429,7 @@ impl MultiAsset {
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		context: &MultiLocation,
+		context: InteriorMultiLocation,
 	) -> Result<Self, ()> {
 		self.id.reanchor(target, context)?;
 		Ok(self)
@@ -620,8 +628,12 @@ impl MultiAssets {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
-		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context))
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context.clone()))
 	}
 
 	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
@@ -700,7 +712,11 @@ impl WildMultiAsset {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
@@ -785,7 +801,11 @@ impl MultiAssetFilter {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		match self {
 			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, context),
 			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, context),
