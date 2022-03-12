@@ -754,6 +754,9 @@ parameter_types! {
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
+
+	pub const CuratorDepositMultiplierWithFee: Permill = Permill::from_percent(50);
+	pub const CuratorDepositMultiplierWithNoFee: Permill = Permill::from_percent(1);
 }
 
 type ApproveOrigin = EnsureOneOf<
