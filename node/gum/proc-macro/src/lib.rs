@@ -76,8 +76,7 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 
 	// find a value or alias called `candidate_hash`.
 	let maybe_candidate_hash = values.iter_mut().find(|value| {
-		let ident = value.as_ident();
-		ident == &Ident::new("candidate_hash", ident.span())
+		value.as_ident() ==  "candidate_hash"
 	});
 
 	if let Some(kv) = maybe_candidate_hash {
