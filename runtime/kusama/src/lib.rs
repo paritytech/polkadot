@@ -442,9 +442,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
-	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type Fallback = frame_election_provider_support::onchain::BoundedOnChainSequentialPhragmen<
+		Self,
+		frame_support::traits::ConstU32<20_000>,
+		frame_support::traits::ConstU32<2_000>,
+	>;
 	type GovernanceFallback =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+		frame_election_provider_support::onchain::BoundedOnChainSequentialPhragmen<
+			Self,
+			frame_support::traits::ConstU32<20_000>,
+			frame_support::traits::ConstU32<2_000>,
+		>;
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
