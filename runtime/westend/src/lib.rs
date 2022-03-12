@@ -364,7 +364,7 @@ parameter_types! {
 	pub const VoterSnapshotPerBlock: u32 = 22_500;
 }
 
-sp_npos_elections::generate_solution_type!(
+frame_npos_elections_solution_type::generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,
