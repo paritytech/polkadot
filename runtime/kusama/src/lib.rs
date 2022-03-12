@@ -795,8 +795,7 @@ impl pallet_bounties::Config for Runtime {
 
 parameter_types! {
 	pub const MaxActiveChildBountyCount: u32 = 100;
-	pub const ChildBountyValueMinimum: Balance = EXISTENTIAL_DEPOSIT * 2;
-	pub const ChildBountyValueMinimum: Balance = 100 * CENTS;
+	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
 	pub const ChildCuratorDepositMultiplierWithFee: Permill = Permill::from_percent(50);
 	pub const ChildCuratorDepositMultiplierWithNoFee: Permill = Permill::from_percent(1);
 }
@@ -805,8 +804,8 @@ impl pallet_child_bounties::Config for Runtime {
 	type Event = Event;
 	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
 	type ChildBountyValueMinimum = ChildBountyValueMinimum;
-	type ChildBountyCuratorDepositBase = ChildBountyCuratorDepositBase;
-	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
+	type ChildCuratorDepositMultiplierWithFee = ChildCuratorDepositMultiplierWithFee;
+	type ChildCuratorDepositMultiplierWithNoFee = ChildCuratorDepositMultiplierWithNoFee;	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
 }
 
 impl pallet_tips::Config for Runtime {
