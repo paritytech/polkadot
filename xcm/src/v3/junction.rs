@@ -18,7 +18,7 @@
 
 use super::{Junctions, MultiLocation};
 use crate::{
-	v1::{BodyId as OldBodyId, BodyPart as OldBodyPart},
+	v2::{BodyId as OldBodyId, BodyPart as OldBodyPart},
 	v2::{Junction as OldJunction, NetworkId as OldNetworkId},
 	VersionedMultiLocation,
 };

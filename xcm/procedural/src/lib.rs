@@ -18,13 +18,13 @@
 
 use proc_macro::TokenStream;
 
-mod v1;
+mod v2;
 mod v3;
 mod weight_info;
 
 #[proc_macro]
-pub fn impl_conversion_functions_for_multilocation_v1(input: TokenStream) -> TokenStream {
-	v1::multilocation::generate_conversion_functions(input)
+pub fn impl_conversion_functions_for_multilocation_v2(input: TokenStream) -> TokenStream {
+	v2::multilocation::generate_conversion_functions(input)
 		.unwrap_or_else(syn::Error::into_compile_error)
 		.into()
 }
