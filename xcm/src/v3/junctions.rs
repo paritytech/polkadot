@@ -135,6 +135,19 @@ impl Junctions {
 		self.for_each_mut(Junction::remove_network_id);
 	}
 
+	/// Treating `self` as the universal context, return the location of the local consensus system
+	/// from the point of view of the given `location`.
+	pub fn invert_target(mut self, location: &MultiLocation) -> Result<MultiLocation, ()> {
+		let mut junctions = Self::Here;
+		for _ in 0..location.parent_count() {
+			junctions = junctions
+				.pushed_with(self.take_first().unwrap_or(Junction::OnlyChild))
+				.map_err(|_| ())?;
+		}
+		let parents = location.interior().len() as u8;
+		Ok(MultiLocation::new(parents, junctions))
+	}
+
 	/// Execute a function `f` on every junction. We use this since we cannot implement a mutable
 	/// `Iterator` without unsafe code.
 	pub fn for_each_mut(&mut self, mut x: impl FnMut(&mut Junction)) {

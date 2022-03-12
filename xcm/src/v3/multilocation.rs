@@ -388,11 +388,11 @@ impl MultiLocation {
 	/// The context of `self` is provided as `context`.
 	///
 	/// Does not modify `self` in case of overflow.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(&mut self, target: &MultiLocation, context: InteriorMultiLocation) -> Result<(), ()> {
 		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
 
 		// 1. Use our `context` to figure out how the `target` would address us.
-		let inverted_target = context.inverted(target)?;
+		let inverted_target = context.invert_target(target)?;
 
 		// 2. Prepend `inverted_target` to `self` to get self's location from the perspective of
 		// `target`.
@@ -412,7 +412,7 @@ impl MultiLocation {
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		context: &MultiLocation,
+		context: InteriorMultiLocation,
 	) -> Result<Self, Self> {
 		match self.reanchor(target, context) {
 			Ok(()) => Ok(self),
@@ -420,8 +420,18 @@ impl MultiLocation {
 		}
 	}
 
+	/// Determine how the local consensus would be referenced by a consensus at `self`.
+	///
+	/// This chain's `local_context` is provided.
+	// TODO: Remove underscore.
+	pub fn _inverted(&self, local_context: InteriorMultiLocation) -> Result<MultiLocation, ()> {
+		local_context.invert_target(&self)
+	}
+
 	/// Treating `self` as a context, determine how it would be referenced by a `target` location.
-	pub fn inverted(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
+	// TODO: Remove and refactor to use `_inverted`
+	#[deprecated = "Use Junctions::invert_target instead"]
+	pub fn invert_target(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
 		use Junction::OnlyChild;
 		let mut context = self.clone();
 		let mut junctions = Junctions::Here;
@@ -522,16 +532,16 @@ mod tests {
 
 	#[test]
 	fn inverted_works() {
-		let context: MultiLocation = (Parachain(1000), PalletInstance(42)).into();
-		let target = (Parent, PalletInstance(69)).into();
+		let context = (Parachain(1000), PalletInstance(42)).into();
+		let target: MultiLocation = (Parent, PalletInstance(69)).into();
 		let expected = (Parent, PalletInstance(42)).into();
-		let inverted = context.inverted(&target).unwrap();
+		let inverted = target._inverted(context).unwrap();
 		assert_eq!(inverted, expected);
 
-		let context: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
-		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
+		let context = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let target: MultiLocation = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
 		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
-		let inverted = context.inverted(&target).unwrap();
+		let inverted = target._inverted(context).unwrap();
 		assert_eq!(inverted, expected);
 	}
 
@@ -589,7 +599,7 @@ mod tests {
 		let context = Parachain(2000).into();
 		let target = (Parent, Parachain(1000)).into();
 		let expected = GeneralIndex(42).into();
-		id.reanchor(&target, &context).unwrap();
+		id.reanchor(&target, context).unwrap();
 		assert_eq!(id, expected);
 	}
 

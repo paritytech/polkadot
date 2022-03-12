@@ -23,7 +23,7 @@ use sp_std::{
 use xcm::latest::{
 	AssetId, AssetInstance,
 	Fungibility::{Fungible, NonFungible},
-	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation,
+	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, InteriorMultiLocation,
 	WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible},
 	WildMultiAsset::{All, AllCounted, AllOf, AllOfCounted},
 };
@@ -216,7 +216,7 @@ impl Assets {
 	pub fn reanchor(
 		&mut self,
 		target: &MultiLocation,
-		context: &MultiLocation,
+		context: InteriorMultiLocation,
 		mut maybe_failed_bin: Option<&mut Self>,
 	) {
 		let mut fungible = Default::default();

@@ -55,9 +55,9 @@ fn ensure_is_remote(
 /// that the message sending cannot be abused in any way.
 ///
 /// This is only useful when the local chain has bridging capabilities.
-pub struct LocalUnpaidExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancestry)>);
-impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
-	for LocalUnpaidExporter<Exporter, Ancestry>
+pub struct LocalUnpaidExporter<Exporter, UniversalLocation>(PhantomData<(Exporter, UniversalLocation)>);
+impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
+	for LocalUnpaidExporter<Exporter, UniversalLocation>
 {
 	type Ticket = Exporter::Ticket;
 
@@ -66,7 +66,7 @@ impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Exporter::Ticket> {
 		let d = dest.take().ok_or(MissingArgument)?;
-		let devolved = match ensure_is_remote(Ancestry::get(), d) {
+		let devolved = match ensure_is_remote(UniversalLocation::get(), d) {
 			Ok(x) => x,
 			Err(d) => {
 				*dest = Some(d);
@@ -144,11 +144,11 @@ impl<T: Get<Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>>> ExporterFor
 ///
 /// This is only useful if we have special dispensation by the remote bridges to have the
 /// `ExportMessage` instruction executed without payment.
-pub struct UnpaidRemoteExporter<Bridges, Router, Ancestry>(
-	PhantomData<(Bridges, Router, Ancestry)>,
+pub struct UnpaidRemoteExporter<Bridges, Router, UniversalLocation>(
+	PhantomData<(Bridges, Router, UniversalLocation)>,
 );
-impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
-	for UnpaidRemoteExporter<Bridges, Router, Ancestry>
+impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
+	for UnpaidRemoteExporter<Bridges, Router, UniversalLocation>
 {
 	type Ticket = Router::Ticket;
 
@@ -157,7 +157,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Router::Ticket> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
-		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| NotApplicable)?;
+		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
 
 		// Prepend the desired message with instructions which effectively rewrite the origin.
@@ -203,11 +203,11 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 ///
 /// The `ExportMessage` instruction on the bridge is paid for from the local chain's sovereign
 /// account on the bridge. The amount paid is determined through the `ExporterFor` trait.
-pub struct SovereignPaidRemoteExporter<Bridges, Router, Ancestry>(
-	PhantomData<(Bridges, Router, Ancestry)>,
+pub struct SovereignPaidRemoteExporter<Bridges, Router, UniversalLocation>(
+	PhantomData<(Bridges, Router, UniversalLocation)>,
 );
-impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm
-	for SovereignPaidRemoteExporter<Bridges, Router, Ancestry>
+impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
+	for SovereignPaidRemoteExporter<Bridges, Router, UniversalLocation>
 {
 	type Ticket = Router::Ticket;
 
@@ -216,7 +216,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Router::Ticket> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
-		let devolved = ensure_is_remote(Ancestry::get(), d).map_err(|_| NotApplicable)?;
+		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
 
 		// Prepend the desired message with instructions which effectively rewrite the origin.
@@ -234,14 +234,14 @@ impl<Bridges: ExporterFor, Router: SendXcm, Ancestry: Get<InteriorMultiLocation>
 				.ok_or(NotApplicable)?;
 
 		let local_from_bridge =
-			MultiLocation::from(Ancestry::get()).inverted(&bridge).map_err(|_| Unroutable)?;
+			UniversalLocation::get().invert_target(&bridge).map_err(|_| Unroutable)?;
 		let export_instruction =
 			ExportMessage { network: remote_network, destination: remote_location, xcm: exported };
 
 		let message = Xcm(if let Some(ref payment) = maybe_payment {
 			let fees = payment
 				.clone()
-				.reanchored(&bridge, &Ancestry::get().into())
+				.reanchored(&bridge, UniversalLocation::get())
 				.map_err(|_| Unroutable)?;
 			vec![
 				WithdrawAsset(fees.clone().into()),

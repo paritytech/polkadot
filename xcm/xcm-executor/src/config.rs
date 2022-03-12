@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager,
-	OnResponse, ShouldExecute, TransactAsset, UniversalLocation, VersionChangeNotifier,
+	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
 	WeightBounds, WeightTrader,
 };
 use frame_support::{
@@ -46,8 +46,8 @@ pub trait Config {
 	/// Combinations of (Asset, Location) pairs which we trust as teleporters.
 	type IsTeleporter: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Means of inverting a location.
-	type LocationInverter: UniversalLocation;
+	/// This chain's Universal Location.
+	type UniversalLocation: Get<InteriorMultiLocation>;
 
 	/// Whether we should execute the given XCM at all.
 	type Barrier: ShouldExecute;

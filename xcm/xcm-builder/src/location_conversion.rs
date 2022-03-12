@@ -20,7 +20,7 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, UniversalLocation};
+use xcm_executor::traits::Convert;
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
@@ -147,45 +147,6 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
-/// Simple location inverter; give it this location's context and it'll figure out the inverted
-/// location.
-///
-/// # Example
-/// ## Network Topology
-/// ```txt
-///                    v Source
-/// Relay -> Para 1 -> Account20
-///       -> Para 2 -> Account32
-///                    ^ Target
-/// ```
-/// ```rust
-/// # use frame_support::parameter_types;
-/// # use xcm::latest::prelude::*;
-/// # use xcm_builder::LocationInverter;
-/// # use xcm_executor::traits::UniversalLocation;
-/// # fn main() {
-/// parameter_types!{
-///     pub UniversalLocation: InteriorMultiLocation = X2(
-///         Parachain(1),
-///         AccountKey20 { network: None, key: Default::default() },
-///     );
-/// }
-///
-/// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: None, id: Default::default() }));
-/// let inverted = LocationInverter::<UniversalLocation>::invert_location(&input);
-/// assert_eq!(inverted, Ok(MultiLocation::new(
-///     2,
-///     X2(Parachain(1), AccountKey20 { network: None, key: Default::default() }),
-/// )));
-/// # }
-/// ```
-pub struct LocationInverter<UniversalLocation>(PhantomData<UniversalLocation>);
-impl<Location: Get<InteriorMultiLocation>> UniversalLocation for LocationInverter<Location> {
-	fn universal_location() -> InteriorMultiLocation {
-		Location::get()
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -220,7 +181,7 @@ mod tests {
 		}
 
 		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
-		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input).unwrap();
+		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
 		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
 	}
 
@@ -235,7 +196,7 @@ mod tests {
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input).unwrap();
+		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
 		assert_eq!(inverted, X2(account20(), account20()).into());
 	}
 
@@ -250,7 +211,7 @@ mod tests {
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input).unwrap();
+		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
 		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
 	}
 
@@ -261,7 +222,7 @@ mod tests {
 		}
 
 		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
-		let inverted = LocationInverter::<UniversalLocation>::invert_location(&input);
+		let inverted = UniversalLocation::get().invert_target(&input);
 		assert_eq!(inverted, Err(()));
 	}
 }

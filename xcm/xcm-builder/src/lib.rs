@@ -29,7 +29,7 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	LocationInverter, ParentIsPreset, SiblingParachainConvertsVia,
+	ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;

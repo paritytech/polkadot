@@ -17,7 +17,7 @@
 use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
 pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
+	FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
 };
 use frame_support::traits::ContainsPair;
 pub use frame_support::{
@@ -41,7 +41,7 @@ pub use xcm::prelude::*;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, ConvertOrigin, Enact, ExportXcm, FeeManager, FeeReason,
-		LockError, OnResponse, TransactAsset, UniversalLocation,
+		LockError, OnResponse, TransactAsset,
 	},
 	Assets, Config,
 };
@@ -593,7 +593,7 @@ impl Config for TestConfig {
 	type OriginConverter = TestOriginConverter;
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
-	type LocationInverter = LocationInverter<ExecutorUniversalLocation>;
+	type UniversalLocation = ExecutorUniversalLocation;
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
