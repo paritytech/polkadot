@@ -816,18 +816,19 @@ impl pallet_bounties::Config for Runtime {
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
-	type BountyCuratorDeposit = BountyCuratorDeposit;
+	type CuratorDepositMultiplierWithFee = CuratorDepositMultiplierWithFee;
+	type CuratorDepositMultiplierWithNoFee = CuratorDepositMultiplierWithNoFee;
 	type BountyValueMinimum = BountyValueMinimum;
-	type ChildBountyManager = ChildBounties;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
+	type ChildBountyManager = ChildBounties;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
 }
 
 parameter_types! {
 	pub const MaxActiveChildBountyCount: u32 = 100;
+	pub const ChildBountyValueMinimum: Balance = EXISTENTIAL_DEPOSIT * 2;
 	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
-	// This will be 1% of the bounty value.
 	pub const ChildBountyCuratorDepositBase: Permill = Permill::from_percent(1);
 }
 

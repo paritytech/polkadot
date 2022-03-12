@@ -780,23 +780,25 @@ impl pallet_treasury::Config for Runtime {
 }
 
 impl pallet_bounties::Config for Runtime {
+	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
-	type BountyCuratorDeposit = BountyCuratorDeposit;
+	type CuratorDepositMultiplierWithFee = CuratorDepositMultiplierWithFee;
+	type CuratorDepositMultiplierWithNoFee = CuratorDepositMultiplierWithNoFee;
 	type BountyValueMinimum = BountyValueMinimum;
-	type ChildBountyManager = ChildBounties;
 	type DataDepositPerByte = DataDepositPerByte;
-	type Event = Event;
 	type MaximumReasonLength = MaximumReasonLength;
+	type ChildBountyManager = ChildBounties;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
 }
 
 parameter_types! {
 	pub const MaxActiveChildBountyCount: u32 = 100;
-	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
-	// This will be 1% of the bounty value.
-	pub const ChildBountyCuratorDepositBase: Permill = Permill::from_percent(1);
+	pub const ChildBountyValueMinimum: Balance = EXISTENTIAL_DEPOSIT * 2;
+	pub const ChildBountyValueMinimum: Balance = 100 * CENTS;
+	pub const ChildCuratorDepositMultiplierWithFee: Permill = Permill::from_percent(50);
+	pub const ChildCuratorDepositMultiplierWithNoFee: Permill = Permill::from_percent(1);
 }
 
 impl pallet_child_bounties::Config for Runtime {
