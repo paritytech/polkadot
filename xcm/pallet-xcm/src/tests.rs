@@ -343,7 +343,7 @@ fn teleport_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -385,7 +385,7 @@ fn limmited_teleport_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -470,7 +470,7 @@ fn reserve_transfer_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -516,7 +516,7 @@ fn limited_reserve_transfer_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v1_ok: xcm::v1::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -714,7 +714,7 @@ fn basic_subscription_works() {
 
 		let weight = BaseXcmWeight::get();
 		let mut message = Xcm::<()>(vec![
-			// Remote supports XCM v1
+			// Remote supports XCM v2
 			QueryResponse {
 				query_id: 0,
 				max_weight: 0,
@@ -860,9 +860,9 @@ fn subscription_side_upgrades_work_with_notify() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		AdvertisedXcmVersion::set(1);
 
-		// An entry from a previous runtime with v1 XCM.
-		let v1_location = VersionedMultiLocation::V1(xcm::v1::Junction::Parachain(1001).into());
-		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 2));
+		// An entry from a previous runtime with v2 XCM.
+		let v2_location = VersionedMultiLocation::V2(xcm::v2::Junction::Parachain(1001).into());
+		VersionNotifyTargets::<Test>::insert(1, v2_location, (70, 0, 2));
 		let v3_location = Parachain(1003).into_versioned();
 		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, 0, 2));
 
@@ -913,9 +913,9 @@ fn subscription_side_upgrades_work_with_notify() {
 #[test]
 fn subscription_side_upgrades_work_without_notify() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
-		// An entry from a previous runtime with v1 XCM.
-		let v1_location = VersionedMultiLocation::V1(xcm::v1::Junction::Parachain(1001).into());
-		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 2));
+		// An entry from a previous runtime with v2 XCM.
+		let v2_location = VersionedMultiLocation::V2(xcm::v2::Junction::Parachain(1001).into());
+		VersionNotifyTargets::<Test>::insert(1, v2_location, (70, 0, 2));
 		let v3_location = Parachain(1003).into_versioned();
 		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, 0, 2));
 
@@ -949,7 +949,7 @@ fn subscriber_side_subscription_works() {
 
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
-			// Remote supports XCM v1
+			// Remote supports XCM v2
 			QueryResponse {
 				query_id: 0,
 				max_weight: 0,
@@ -997,14 +997,15 @@ fn auto_subscription_works() {
 		assert_ok!(XcmPallet::force_default_xcm_version(Origin::root(), Some(1)));
 
 		// Wrapping a version for a destination we don't know elicits a subscription.
-		let v1_msg = xcm::v1::Xcm::<()>::QueryResponse {
+		let old_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::QueryResponse {
 			query_id: 1,
-			response: xcm::v1::Response::Assets(vec![].into()),
-		};
+			response: xcm::v2::Response::Assets(vec![].into()),
+			max_weight: 1_000_000_000,
+		}]);
 		let v2_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
 		assert_eq!(
-			XcmPallet::wrap_version(&remote0, v1_msg.clone()),
-			Ok(VersionedXcm::from(v1_msg.clone())),
+			XcmPallet::wrap_version(&remote0, old_msg.clone()),
+			Ok(VersionedXcm::from(old_msg.clone())),
 		);
 		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
 		let expected = vec![(remote0.clone().into(), 2)];
@@ -1059,7 +1060,7 @@ fn auto_subscription_works() {
 
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
-			// Remote supports XCM v1
+			// Remote supports XCM v2
 			QueryResponse {
 				query_id: 1,
 				max_weight: 0,
@@ -1072,7 +1073,7 @@ fn auto_subscription_works() {
 		assert_eq!(r, Outcome::Complete(weight));
 
 		// v2 messages cannot be sent to remote1...
-		assert_eq!(XcmPallet::wrap_version(&remote1, v1_msg.clone()), Ok(VersionedXcm::V1(v1_msg)));
+		assert_eq!(XcmPallet::wrap_version(&remote1, old_msg.clone()), Ok(VersionedXcm::V2(old_msg)));
 		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
 	})
 }
@@ -1083,9 +1084,9 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		AdvertisedXcmVersion::set(1);
 
 		// An entry from a previous runtime with v0 XCM.
-		let v1_location = VersionedMultiLocation::V1(xcm::v1::Junction::Parachain(1001).into());
-		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 1));
-		let v2_location = VersionedMultiLocation::V1(xcm::v2::Junction::Parachain(1002).into());
+		let v2_location = VersionedMultiLocation::V2(xcm::v2::Junction::Parachain(1001).into());
+		VersionNotifyTargets::<Test>::insert(1, v2_location, (70, 0, 1));
+		let v2_location = VersionedMultiLocation::V2(xcm::v2::Junction::Parachain(1002).into());
 		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
 		let v3_location = Parachain(1003).into_versioned();
 		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, 0, 1));
