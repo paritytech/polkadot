@@ -54,8 +54,7 @@ pub use pallet::*;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse,
-		VersionChangeNotifier, WeightBounds,
+		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -1333,7 +1332,8 @@ impl<T: Config> Pallet<T> {
 		timeout: T::BlockNumber,
 	) -> Result<QueryId, XcmError> {
 		let responder = responder.into();
-		let destination = T::UniversalLocation::get().invert_target(&responder)
+		let destination = T::UniversalLocation::get()
+			.invert_target(&responder)
 			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 		let query_id = Self::new_query(responder, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
@@ -1371,7 +1371,8 @@ impl<T: Config> Pallet<T> {
 		timeout: T::BlockNumber,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
-		let destination = T::UniversalLocation::get().invert_target(&responder)
+		let destination = T::UniversalLocation::get()
+			.invert_target(&responder)
 			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 		let notify: <T as Config>::Call = notify.into();
 		let max_weight = notify.get_dispatch_info().weight;

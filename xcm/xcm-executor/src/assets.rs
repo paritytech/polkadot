@@ -23,7 +23,7 @@ use sp_std::{
 use xcm::latest::{
 	AssetId, AssetInstance,
 	Fungibility::{Fungible, NonFungible},
-	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, InteriorMultiLocation,
+	InteriorMultiLocation, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation,
 	WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible},
 	WildMultiAsset::{All, AllCounted, AllOf, AllOfCounted},
 };

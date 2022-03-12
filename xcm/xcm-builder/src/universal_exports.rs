@@ -55,7 +55,9 @@ fn ensure_is_remote(
 /// that the message sending cannot be abused in any way.
 ///
 /// This is only useful when the local chain has bridging capabilities.
-pub struct LocalUnpaidExporter<Exporter, UniversalLocation>(PhantomData<(Exporter, UniversalLocation)>);
+pub struct LocalUnpaidExporter<Exporter, UniversalLocation>(
+	PhantomData<(Exporter, UniversalLocation)>,
+);
 impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
 	for LocalUnpaidExporter<Exporter, UniversalLocation>
 {

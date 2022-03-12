@@ -584,6 +584,22 @@ mod tests {
 	use super::{super::prelude::*, *};
 
 	#[test]
+	fn inverting_works() {
+		let context: InteriorMultiLocation = (Parachain(1000), PalletInstance(42)).into();
+		let target = (Parent, PalletInstance(69)).into();
+		let expected = (Parent, PalletInstance(42)).into();
+		let inverted = context.invert_target(&target).unwrap();
+		assert_eq!(inverted, expected);
+
+		let context: InteriorMultiLocation =
+			(Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
+		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
+		let inverted = context.invert_target(&target).unwrap();
+		assert_eq!(inverted, expected);
+	}
+
+	#[test]
 	fn relative_to_works() {
 		use Junctions::*;
 		use NetworkId::*;

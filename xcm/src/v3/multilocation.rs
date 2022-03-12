@@ -388,7 +388,11 @@ impl MultiLocation {
 	/// The context of `self` is provided as `context`.
 	///
 	/// Does not modify `self` in case of overflow.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: InteriorMultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
 
 		// 1. Use our `context` to figure out how the `target` would address us.
@@ -504,21 +508,6 @@ mod tests {
 		assert_eq!(x, MultiLocation { parents: 0, interior: OnlyChild.into() });
 		let x: MultiLocation = (OnlyChild,).into();
 		assert_eq!(x, MultiLocation { parents: 0, interior: OnlyChild.into() });
-	}
-
-	#[test]
-	fn inverted_works() {
-		let context = (Parachain(1000), PalletInstance(42)).into();
-		let target: MultiLocation = (Parent, PalletInstance(69)).into();
-		let expected = (Parent, PalletInstance(42)).into();
-		let inverted = context.invert_target(target).unwrap();
-		assert_eq!(inverted, expected);
-
-		let context = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
-		let target: MultiLocation = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
-		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
-		let inverted = context.invert_target(target).unwrap();
-		assert_eq!(inverted, expected);
 	}
 
 	#[test]

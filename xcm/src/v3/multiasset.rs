@@ -347,7 +347,11 @@ impl AssetId {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: InteriorMultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.reanchor(target, context)?;
 		}
@@ -624,7 +628,11 @@ impl MultiAssets {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: InteriorMultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context.clone()))
 	}
 
@@ -704,7 +712,11 @@ impl WildMultiAsset {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: InteriorMultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
@@ -789,7 +801,11 @@ impl MultiAssetFilter {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: InteriorMultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		match self {
 			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, context),
 			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, context),
