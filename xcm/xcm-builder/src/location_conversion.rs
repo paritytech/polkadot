@@ -207,12 +207,12 @@ mod tests {
 	#[test]
 	fn inverter_uses_only_child_on_missing_context() {
 		parameter_types! {
-			pub UniversalLocation: InteriorMultiLocation = X1(PalletInstance(5));
+			pub UniversalLocation: InteriorMultiLocation = PalletInstance(5).into();
 		}
 
 		let input = MultiLocation::grandparent();
 		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
-		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
+		assert_eq!(inverted, (OnlyChild, PalletInstance(5)).into());
 	}
 
 	#[test]

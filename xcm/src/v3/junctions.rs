@@ -136,15 +136,15 @@ impl Junctions {
 	}
 
 	/// Treating `self` as the universal context, return the location of the local consensus system
-	/// from the point of view of the given `location`.
-	pub fn invert_target(mut self, location: &MultiLocation) -> Result<MultiLocation, ()> {
+	/// from the point of view of the given `target`.
+	pub fn invert_target(mut self, target: &MultiLocation) -> Result<MultiLocation, ()> {
 		let mut junctions = Self::Here;
-		for _ in 0..location.parent_count() {
+		for _ in 0..target.parent_count() {
 			junctions = junctions
-				.pushed_with(self.take_first().unwrap_or(Junction::OnlyChild))
+				.pushed_front_with(self.take_last().unwrap_or(Junction::OnlyChild))
 				.map_err(|_| ())?;
 		}
-		let parents = location.interior().len() as u8;
+		let parents = target.interior().len() as u8;
 		Ok(MultiLocation::new(parents, junctions))
 	}
 
