@@ -6,5 +6,5 @@ edition = "2021"
 
 [dependencies]
 parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }

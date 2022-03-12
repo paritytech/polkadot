@@ -24,20 +24,20 @@ service = { package = "polkadot-service", path = "../node/service", default-feat
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update", optional = true }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update", optional = true }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update", default-features = false }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
 
 [features]
 default = ["wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native"]

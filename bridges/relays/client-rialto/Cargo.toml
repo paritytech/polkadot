@@ -17,8 +17,8 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "shawntabrizi-bounty-deposit-update" }
