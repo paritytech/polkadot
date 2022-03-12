@@ -39,7 +39,8 @@ pub mod multilocation {
 			.map(|num_junctions| {
 				let junctions =
 					(0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
-				let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
+				let idents =
+					(0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
 				let variant = &format_ident!("X{}", num_junctions + 1);
 				let array_size = num_junctions + 1;
 
@@ -71,7 +72,8 @@ pub mod multilocation {
 				};
 
 				let from_parent_tuples = (1..=max_parents).map(|cur_parents| {
-					let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
+					let parents =
+						(0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 					let underscores =
 						(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
 

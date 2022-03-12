@@ -52,8 +52,8 @@
 
 use super::{
 	v3::{
-		Instruction as NewInstruction, Response as NewResponse, Xcm as NewXcm,
-		BodyId as NewBodyId, BodyPart as NewBodyPart, NetworkId as NewNetworkId,
+		BodyId as NewBodyId, BodyPart as NewBodyPart, Instruction as NewInstruction,
+		NetworkId as NewNetworkId, Response as NewResponse, Xcm as NewXcm,
 	},
 	DoubleEncoded, GetWeight,
 };
@@ -67,10 +67,10 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
-mod traits;
 mod junction;
 mod multiasset;
 mod multilocation;
+mod traits;
 
 pub use junction::Junction;
 pub use multiasset::{

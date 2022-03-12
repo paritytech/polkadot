@@ -18,8 +18,10 @@
 
 use super::{Junctions, MultiLocation};
 use crate::{
-	v2::{BodyId as OldBodyId, BodyPart as OldBodyPart},
-	v2::{Junction as OldJunction, NetworkId as OldNetworkId},
+	v2::{
+		BodyId as OldBodyId, BodyPart as OldBodyPart, Junction as OldJunction,
+		NetworkId as OldNetworkId,
+	},
 	VersionedMultiLocation,
 };
 use core::convert::{TryFrom, TryInto};
