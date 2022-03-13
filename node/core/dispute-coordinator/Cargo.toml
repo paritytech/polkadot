@@ -1,16 +1,17 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.31"
+tracing = "0.1.32"
 parity-scale-codec = "3.0.0"
 kvdb = "0.11.0"
 thiserror = "1.0.30"
-lru = "0.7.2"
+lru = "0.7.3"
+fatality = "0.0.6"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
@@ -18,6 +19,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 
 [dev-dependencies]
 kvdb-memorydb = "0.11.0"

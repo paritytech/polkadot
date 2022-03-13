@@ -29,7 +29,9 @@ pub(crate) const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junctions {
 	/// The interpreting consensus system.
@@ -132,6 +134,19 @@ impl Junctions {
 	/// Remove the `NetworkId` value in any `Junction`s.
 	pub fn remove_network_id(&mut self) {
 		self.for_each_mut(Junction::remove_network_id);
+	}
+
+	/// Treating `self` as the universal context, return the location of the local consensus system
+	/// from the point of view of the given `target`.
+	pub fn invert_target(mut self, target: &MultiLocation) -> Result<MultiLocation, ()> {
+		let mut junctions = Self::Here;
+		for _ in 0..target.parent_count() {
+			junctions = junctions
+				.pushed_front_with(self.take_last().unwrap_or(Junction::OnlyChild))
+				.map_err(|_| ())?;
+		}
+		let parents = target.interior().len() as u8;
+		Ok(MultiLocation::new(parents, junctions))
 	}
 
 	/// Execute a function `f` on every junction. We use this since we cannot implement a mutable
@@ -528,6 +543,10 @@ impl Junctions {
 		}
 		return self.at(prefix.len())
 	}
+
+	pub fn starts_with(&self, prefix: &Junctions) -> bool {
+		prefix.len() <= self.len() && prefix.iter().zip(self.iter()).all(|(x, y)| x == y)
+	}
 }
 
 impl TryFrom<MultiLocation> for Junctions {
@@ -564,6 +583,22 @@ xcm_procedural::impl_conversion_functions_for_junctions_v3!();
 #[cfg(test)]
 mod tests {
 	use super::{super::prelude::*, *};
+
+	#[test]
+	fn inverting_works() {
+		let context: InteriorMultiLocation = (Parachain(1000), PalletInstance(42)).into();
+		let target = (Parent, PalletInstance(69)).into();
+		let expected = (Parent, PalletInstance(42)).into();
+		let inverted = context.invert_target(&target).unwrap();
+		assert_eq!(inverted, expected);
+
+		let context: InteriorMultiLocation =
+			(Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
+		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
+		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
+		let inverted = context.invert_target(&target).unwrap();
+		assert_eq!(inverted, expected);
+	}
 
 	#[test]
 	fn relative_to_works() {

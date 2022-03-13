@@ -31,7 +31,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
-	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 };
 use xcm_executor::{Config, XcmExecutor};
 
@@ -97,7 +97,7 @@ parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = NetworkId::ByGenesis([0; 32]);
 	pub const AnyNetwork: Option<NetworkId> = None;
-	pub const Ancestry: InteriorMultiLocation = Here;
+	pub const UniversalLocation: InteriorMultiLocation = Here;
 	pub const UnitWeightCost: Weight = 1_000;
 }
 
@@ -132,7 +132,7 @@ impl Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = ();
-	type LocationInverter = LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
@@ -162,7 +162,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
@@ -183,6 +183,7 @@ impl ump::Config for Runtime {
 	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = ump::TestWeightInfo;
 }
 
 impl origin::Config for Runtime {}

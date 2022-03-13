@@ -16,15 +16,14 @@
 
 use crate::traits::{
 	AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager,
-	FilterAssetLocation, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
-	VersionChangeNotifier, WeightBounds, WeightTrader,
+	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
-	traits::{Contains, Get, PalletsInfoAccess},
+	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::latest::{Junction, MultiLocation, SendXcm};
+use xcm::prelude::*;
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
@@ -40,14 +39,14 @@ pub trait Config {
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
 
-	/// Combinations of (Location, Asset) pairs which we trust as reserves.
-	type IsReserve: FilterAssetLocation;
+	/// Combinations of (Asset, Location) pairs which we trust as reserves.
+	type IsReserve: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Combinations of (Location, Asset) pairs which we trust as teleporters.
-	type IsTeleporter: FilterAssetLocation;
+	/// Combinations of (Asset, Location) pairs which we trust as teleporters.
+	type IsTeleporter: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Means of inverting a location.
-	type LocationInverter: UniversalLocation;
+	/// This chain's Universal Location.
+	type UniversalLocation: Get<InteriorMultiLocation>;
 
 	/// Whether we should execute the given XCM at all.
 	type Barrier: ShouldExecute;

@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
 	Hash, Id as ParaId,
 };
@@ -50,8 +50,9 @@ use polkadot_subsystem::{
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
 };
 
-use super::{Result, LOG_TARGET};
-use crate::error::{log_error, Fatal, FatalResult, NonFatal};
+use super::LOG_TARGET;
+use crate::error::{log_error, Error, FatalError, Result};
+use fatality::Split;
 
 #[cfg(test)]
 mod tests;
@@ -762,7 +763,7 @@ where
 				let statement = runtime
 					.check_signature(ctx.sender(), relay_parent, statement)
 					.await?
-					.map_err(NonFatal::InvalidStatementSignature)?;
+					.map_err(Error::InvalidStatementSignature)?;
 
 				let removed =
 					state.collation_result_senders.remove(&statement.payload().candidate_hash());
@@ -978,7 +979,7 @@ pub(crate) async fn run<Context>(
 	collator_pair: CollatorPair,
 	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
-) -> FatalResult<()>
+) -> std::result::Result<(), FatalError>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -992,7 +993,7 @@ where
 		let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
 		pin_mut!(recv_req);
 		select! {
-			msg = ctx.recv().fuse() => match msg.map_err(Fatal::SubsystemReceive)? {
+			msg = ctx.recv().fuse() => match msg.map_err(FatalError::SubsystemReceive)? {
 				FromOverseer::Communication { msg } => {
 					log_error(
 						process_msg(&mut ctx, &mut runtime, &mut state, msg).await,
@@ -1032,11 +1033,11 @@ where
 							"Handling incoming request"
 						)?;
 					}
-					Err(incoming::Error::Fatal(f)) => return Err(f.into()),
-					Err(incoming::Error::NonFatal(err)) => {
+					Err(error) => {
+						let jfyi = error.split().map_err(incoming::Error::from)?;
 						tracing::debug!(
 							target: LOG_TARGET,
-							?err,
+							error = ?jfyi,
 							"Decoding incoming request failed"
 						);
 						continue

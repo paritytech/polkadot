@@ -21,7 +21,7 @@ use super::{
 	Origin, ParaId, Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
-	match_type, parameter_types,
+	match_types, parameter_types,
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
@@ -31,8 +31,8 @@ use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, BackingToPlurality, ChildParachainAsNative,
 	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
+	IsConcrete, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	TakeWeightCredit, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -97,7 +97,7 @@ parameter_types! {
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
+	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
 );
 
 parameter_types! {
@@ -108,7 +108,7 @@ parameter_types! {
 
 pub type TrustedTeleporters = (xcm_builder::Case<DotForStatemint>,);
 
-match_type! {
+match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
@@ -134,7 +134,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<UniversalLocation>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
@@ -184,7 +184,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Nothing;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<UniversalLocation>;
+	type UniversalLocation = UniversalLocation;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;

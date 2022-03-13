@@ -42,7 +42,7 @@ type Router = LocalUnpaidExporter<HaulBlobExporter<TheBridge, Remote, Price>, Un
 fn sending_to_bridged_chain_works() {
 	let msg = Xcm(vec![Trap(1)]);
 	let dest = (Parent, Parent, Remote::get(), Parachain(1)).into();
-	assert_eq!(send_xcm::<Router>(dest, msg), Ok((Here, 100).into()));
+	assert_eq!(send_xcm::<Router>(dest, msg).unwrap().1, (Here, 100).into());
 	assert_eq!(TheBridge::service(), 1);
 	assert_eq!(
 		take_received_remote_messages(),
@@ -69,8 +69,9 @@ fn sending_to_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
+	let msg = Xcm(vec![Trap(1)]);
 	let dest = (Parent, Parent, Remote::get(), Parachain(1000)).into();
-	assert_eq!(send_xcm::<Router>(dest, Xcm(vec![Trap(1)])), Ok((Here, 100).into()));
+	assert_eq!(send_xcm::<Router>(dest, msg).unwrap().1, (Here, 100).into());
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		(Parent, Parachain(1000)).into(),
@@ -95,8 +96,9 @@ fn sending_to_parachain_of_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_relay_chain_of_bridged_chain_works() {
+	let msg = Xcm(vec![Trap(1)]);
 	let dest = (Parent, Parent, Remote::get()).into();
-	assert_eq!(send_xcm::<Router>(dest, Xcm(vec![Trap(1)])), Ok((Here, 100).into()));
+	assert_eq!(send_xcm::<Router>(dest, msg).unwrap().1, (Here, 100).into());
 	assert_eq!(TheBridge::service(), 1);
 	let expected = vec![(
 		Parent.into(),

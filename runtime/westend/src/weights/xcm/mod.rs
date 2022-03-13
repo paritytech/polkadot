@@ -72,9 +72,8 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
-	fn reserve_asset_deposited(_assets: &MultiAssets) -> Weight {
-		// Westend does not support reserve asset deposits.
-		Weight::MAX
+	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
@@ -98,7 +97,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::transfer_reserve_asset())
 	}
 	fn transact(
-		_origin_type: &OriginKind,
+		_origin_kind: &OriginKind,
 		_require_weight_at_most: &u64,
 		_call: &DoubleEncoded<Call>,
 	) -> Weight {
@@ -237,5 +236,11 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
 		Weight::MAX // todo fix
+	}
+	fn set_topic(_topic: &[u8; 32]) -> Weight {
+		XcmGeneric::<Runtime>::set_topic()
+	}
+	fn clear_topic() -> Weight {
+		XcmGeneric::<Runtime>::clear_topic()
 	}
 }

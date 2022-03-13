@@ -22,20 +22,15 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::{
-	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
-	},
-	v2::SessionInfo,
+use primitives::v2::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
+	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	prod_or_fast, slots, CurrencyToVote,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -44,7 +39,7 @@ use runtime_parachains::{
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
@@ -56,7 +51,6 @@ use frame_support::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
-	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -65,7 +59,6 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use sp_arithmetic::Perquintill;
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -105,6 +98,8 @@ pub mod xcm_config;
 #[cfg(test)]
 mod tests;
 
+impl_runtime_weights!(kusama_runtime_constants);
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -114,13 +109,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9170,
+	spec_version: 9180,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 10,
+	transaction_version: 11,
 	state_version: 0,
 };
 
@@ -453,7 +448,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
-		runtime_common::elections::OffchainRandomBalancing,
+		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
@@ -470,9 +465,10 @@ parameter_types! {
 
 impl pallet_bags_list::Config for Runtime {
 	type Event = Event;
-	type VoteWeightProvider = Staking;
+	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
+	type Score = sp_npos_elections::VoteWeight;
 }
 
 fn era_payout(
@@ -582,6 +578,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type SortedListProvider = BagsList;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
@@ -1228,6 +1225,7 @@ impl parachains_ump::Config for Runtime {
 		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1364,7 +1362,7 @@ impl pallet_gilt::Config for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v1::Block,
+		NodeBlock = primitives::v2::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -1543,6 +1541,7 @@ mod benches {
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::paras, Paras]
+		[runtime_parachains::ump, Ump]
 		// Substrate
 		[pallet_balances, Balances]
 		[pallet_bags_list, BagsList]
@@ -1663,7 +1662,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::CandidateCommitments,
+			outputs: primitives::v2::CandidateCommitments,
 		) -> bool {
 			parachains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -1716,7 +1715,7 @@ sp_api::impl_runtime_apis! {
 
 		fn submit_pvf_check_statement(
 			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			signature: primitives::v2::ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}

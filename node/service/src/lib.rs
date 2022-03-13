@@ -94,7 +94,7 @@ pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
+pub use polkadot_primitives::v2::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -856,10 +856,31 @@ where
 		);
 	}
 
-	let parachains_db = crate::parachains_db::open_creating(
-		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
-		crate::parachains_db::CacheSizes::default(),
-	)?;
+	let parachains_db = match &config.database {
+		DatabaseSource::RocksDb { path, .. } => crate::parachains_db::open_creating_rocksdb(
+			path.clone(),
+			crate::parachains_db::CacheSizes::default(),
+		)?,
+		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating_paritydb(
+			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+			crate::parachains_db::CacheSizes::default(),
+		)?,
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+			if paritydb_path.is_dir() && paritydb_path.exists() {
+				crate::parachains_db::open_creating_paritydb(
+					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+					crate::parachains_db::CacheSizes::default(),
+				)?
+			} else {
+				crate::parachains_db::open_creating_rocksdb(
+					rocksdb_path.clone(),
+					crate::parachains_db::CacheSizes::default(),
+				)?
+			},
+		DatabaseSource::Custom { .. } => {
+			unimplemented!("No polkadot subsystem db for custom source.");
+		},
+	};
 
 	let availability_config = AvailabilityConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,

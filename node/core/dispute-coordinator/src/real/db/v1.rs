@@ -17,24 +17,23 @@
 //! `V1` database for the dispute coordinator.
 
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
-use polkadot_primitives::v1::{
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
+use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,
 };
 
 use std::sync::Arc;
 
-use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{
-	error::{Fatal, FatalResult},
+	error::{FatalError, FatalResult},
+	real::{
+		backend::{Backend, BackendWriteOp, OverlayedBackend},
+		DISPUTE_WINDOW,
+	},
 	status::DisputeStatus,
-};
-
-use crate::real::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
-	DISPUTE_WINDOW,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -42,12 +41,12 @@ const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";
 const CANDIDATE_VOTES_SUBKEY: &[u8; 15] = b"candidate-votes";
 
 pub struct DbBackend {
-	inner: Arc<dyn KeyValueDB>,
+	inner: Arc<dyn Database>,
 	config: ColumnConfiguration,
 }
 
 impl DbBackend {
-	pub fn new(db: Arc<dyn KeyValueDB>, config: ColumnConfiguration) -> Self {
+	pub fn new(db: Arc<dyn Database>, config: ColumnConfiguration) -> Self {
 		Self { inner: db, config }
 	}
 }
@@ -100,7 +99,7 @@ impl Backend for DbBackend {
 			}
 		}
 
-		self.inner.write(tx).map_err(Fatal::DbWriteFailed)
+		self.inner.write(tx).map_err(FatalError::DbWriteFailed)
 	}
 }
 
@@ -168,8 +167,8 @@ pub enum Error {
 impl From<Error> for crate::error::Error {
 	fn from(err: Error) -> Self {
 		match err {
-			Error::Io(io) => Self::NonFatal(crate::error::NonFatal::Io(io)),
-			Error::Codec(e) => Self::NonFatal(crate::error::NonFatal::Codec(e)),
+			Error::Io(io) => Self::Io(io),
+			Error::Codec(e) => Self::Codec(e),
 		}
 	}
 }
@@ -177,7 +176,7 @@ impl From<Error> for crate::error::Error {
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn load_decode<D: Decode>(db: &dyn KeyValueDB, col_data: u32, key: &[u8]) -> Result<Option<D>> {
+fn load_decode<D: Decode>(db: &dyn Database, col_data: u32, key: &[u8]) -> Result<Option<D>> {
 	match db.get(col_data, key)? {
 		None => Ok(None),
 		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
@@ -186,7 +185,7 @@ fn load_decode<D: Decode>(db: &dyn KeyValueDB, col_data: u32, key: &[u8]) -> Res
 
 /// Load the candidate votes for the specific session-candidate pair, if any.
 pub(crate) fn load_candidate_votes(
-	db: &dyn KeyValueDB,
+	db: &dyn Database,
 	config: &ColumnConfiguration,
 	session: SessionIndex,
 	candidate_hash: &CandidateHash,
@@ -197,7 +196,7 @@ pub(crate) fn load_candidate_votes(
 
 /// Load the earliest session, if any.
 pub(crate) fn load_earliest_session(
-	db: &dyn KeyValueDB,
+	db: &dyn Database,
 	config: &ColumnConfiguration,
 ) -> SubsystemResult<Option<SessionIndex>> {
 	load_decode(db, config.col_data, EARLIEST_SESSION_KEY)
@@ -206,7 +205,7 @@ pub(crate) fn load_earliest_session(
 
 /// Load the recent disputes, if any.
 pub(crate) fn load_recent_disputes(
-	db: &dyn KeyValueDB,
+	db: &dyn Database,
 	config: &ColumnConfiguration,
 ) -> SubsystemResult<Option<RecentDisputes>> {
 	load_decode(db, config.col_data, RECENT_DISPUTES_KEY)
@@ -265,10 +264,12 @@ pub(crate) fn note_current_session(
 mod tests {
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
-	use polkadot_primitives::v1::{Hash, Id as ParaId};
+	use polkadot_primitives::v2::{Hash, Id as ParaId};
 
 	fn make_db() -> DbBackend {
-		let store = Arc::new(kvdb_memorydb::create(1));
+		let db = kvdb_memorydb::create(1);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let store = Arc::new(db);
 		let config = ColumnConfiguration { col_data: 0 };
 		DbBackend::new(store, config)
 	}

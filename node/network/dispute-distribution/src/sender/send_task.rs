@@ -27,7 +27,7 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
 use polkadot_subsystem::{
@@ -35,7 +35,7 @@ use polkadot_subsystem::{
 	SubsystemContext,
 };
 
-use super::error::{Fatal, Result};
+use super::error::{FatalError, Result};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
@@ -266,7 +266,7 @@ async fn send_requests<Context: SubsystemContext>(
 		);
 
 		let (remote, remote_handle) = fut.remote_handle();
-		ctx.spawn("dispute-sender", remote.boxed()).map_err(Fatal::SpawnTask)?;
+		ctx.spawn("dispute-sender", remote.boxed()).map_err(FatalError::SpawnTask)?;
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 

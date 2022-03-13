@@ -36,8 +36,7 @@ fn craft_known_storage_proof(input_vec: Vec<(Vec<u8>, Vec<u8>)>) -> (H256, Stora
 	let vector_element_proof = StorageProof::new(
 		prove_read(backend, input_vec.iter().map(|x| x.0.as_slice()))
 			.unwrap()
-			.iter_nodes()
-			.collect(),
+			.iter_nodes(),
 	);
 	(root, vector_element_proof)
 }

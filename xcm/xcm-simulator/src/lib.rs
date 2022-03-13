@@ -20,7 +20,7 @@ pub use codec::Encode;
 pub use paste;
 
 pub use frame_support::{traits::Get, weights::Weight};
-pub use sp_io::TestExternalities;
+pub use sp_io::{hashing::blake2_256, TestExternalities};
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
@@ -74,6 +74,10 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 			outbound
 		},
 	}
+}
+
+pub fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(blake2_256)
 }
 
 #[macro_export]
@@ -210,6 +214,7 @@ macro_rules! decl_test_network {
 			parachains = vec![ $( ($para_id:expr, $parachain:ty), )* ],
 		}
 	) => {
+		use $crate::Encode;
 		pub struct $name;
 
 		impl $name {
@@ -319,9 +324,10 @@ macro_rules! decl_test_network {
 			}
 			fn deliver(
 				triple: ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>),
-			) -> Result<(), $crate::SendError> {
+			) -> Result<$crate::XcmHash, $crate::SendError> {
+				let hash = $crate::fake_message_hash(&triple.2);
 				$crate::PARA_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(triple));
-				Ok(())
+				Ok(hash)
 			}
 		}
 
@@ -350,9 +356,10 @@ macro_rules! decl_test_network {
 			}
 			fn deliver(
 				pair: ($crate::MultiLocation, $crate::Xcm<()>),
-			) -> Result<(), $crate::SendError> {
+			) -> Result<$crate::XcmHash, $crate::SendError> {
+				let hash = $crate::fake_message_hash(&pair.1);
 				$crate::RELAY_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(pair));
-				Ok(())
+				Ok(hash)
 			}
 		}
 	};

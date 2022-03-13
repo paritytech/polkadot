@@ -18,8 +18,10 @@
 
 use super::{Junctions, MultiLocation};
 use crate::{
-	v1::{BodyId as OldBodyId, BodyPart as OldBodyPart},
-	v2::{Junction as OldJunction, NetworkId as OldNetworkId},
+	v2::{
+		BodyId as OldBodyId, BodyPart as OldBodyPart, Junction as OldJunction,
+		NetworkId as OldNetworkId,
+	},
 	VersionedMultiLocation,
 };
 use core::convert::{TryFrom, TryInto};
@@ -72,7 +74,9 @@ impl From<OldNetworkId> for Option<NetworkId> {
 }
 
 /// An identifier of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyId {
 	/// The only body in its context.
@@ -117,7 +121,9 @@ impl TryFrom<OldBodyId> for BodyId {
 }
 
 /// A part of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
@@ -179,7 +185,9 @@ impl TryFrom<OldBodyPart> for BodyPart {
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.

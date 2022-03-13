@@ -2,7 +2,7 @@
 name = "pallet-xcm-benchmarks"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-version = "0.9.17"
+version = "0.9.18"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -24,7 +24,6 @@ log = "0.4.0"
 pallet-balances = { branch = "master", git = "https://github.com/paritytech/substrate" }
 pallet-assets = { branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-core = { branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-io = { branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-tracing = { branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
@@ -41,6 +40,8 @@ std = [
 	"frame-benchmarking/std",
 	"frame-support/std",
 	"frame-system/std",
+	"sp-io/std",
 	"sp-runtime/std",
-	"sp-std/std"
+	"sp-std/std",
+	"xcm-executor/std"
 ]

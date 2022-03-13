@@ -21,7 +21,6 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use kvdb::KeyValueDB;
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -43,6 +42,7 @@ use polkadot_node_subsystem::{
 	SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
+	database::Database,
 	metrics::{self, prometheus},
 	rolling_session_window::{
 		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
@@ -50,13 +50,10 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::{
-	v1::{
-		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
-		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
-		ValidatorIndex, ValidatorPair, ValidatorSignature,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
+	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -140,7 +137,7 @@ pub struct ApprovalVotingSubsystem {
 	keystore: Arc<LocalKeystore>,
 	db_config: DatabaseConfig,
 	slot_duration_millis: u64,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	mode: Mode,
 	metrics: Metrics,
 }
@@ -329,7 +326,7 @@ impl ApprovalVotingSubsystem {
 	/// Create a new approval voting subsystem with the given keystore, config, and database.
 	pub fn with_config(
 		config: Config,
-		db: Arc<dyn KeyValueDB>,
+		db: Arc<dyn Database>,
 		keystore: Arc<LocalKeystore>,
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,

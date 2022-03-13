@@ -32,7 +32,7 @@ use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::v1::Id as ParaId;
+use primitives::v2::Id as ParaId;
 use runtime_parachains::{
 	configuration,
 	paras::{self},
@@ -546,7 +546,7 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::v1::{BlockNumber, Header};
+	use primitives::v2::{BlockNumber, Header};
 	use runtime_parachains::{
 		configuration as parachains_configuration, paras as parachains_paras,
 		shared as parachains_shared,

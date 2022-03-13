@@ -23,7 +23,7 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::MultiLocation;
+use super::{InteriorMultiLocation, MultiLocation};
 use crate::v2::{
 	AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
 	MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
@@ -39,7 +39,9 @@ use parity_scale_codec::{self as codec, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum AssetInstance {
 	/// Undefined - used if the non-fungible asset class has only one instance.
@@ -108,6 +110,130 @@ impl From<[u8; 32]> for AssetInstance {
 	}
 }
 
+impl From<u8> for AssetInstance {
+	fn from(x: u8) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl From<u16> for AssetInstance {
+	fn from(x: u16) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl From<u32> for AssetInstance {
+	fn from(x: u32) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl From<u64> for AssetInstance {
+	fn from(x: u64) -> Self {
+		Self::Index(x as u128)
+	}
+}
+
+impl TryFrom<AssetInstance> for () {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Undefined => Ok(()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 4] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array4(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 8] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array8(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 16] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array16(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for [u8; 32] {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Array32(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u8 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u16 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u32 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u64 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => x.try_into().map_err(|_| ()),
+			_ => Err(()),
+		}
+	}
+}
+
+impl TryFrom<AssetInstance> for u128 {
+	type Error = ();
+	fn try_from(x: AssetInstance) -> Result<Self, ()> {
+		match x {
+			AssetInstance::Index(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
+}
+
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
@@ -121,6 +247,13 @@ impl Fungibility {
 		use Fungibility::*;
 		use WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible};
 		matches!((self, w), (Fungible(_), WildFungible) | (NonFungible(_), WildNonFungible))
+	}
+}
+
+impl From<i32> for Fungibility {
+	fn from(amount: i32) -> Fungibility {
+		debug_assert_ne!(amount, 0);
+		Fungibility::Fungible(amount as u128)
 	}
 }
 
@@ -170,7 +303,9 @@ impl TryFrom<OldWildFungibility> for WildFungibility {
 }
 
 /// Classification of an asset being concrete or abstract.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum AssetId {
 	Concrete(MultiLocation),
@@ -216,7 +351,11 @@ impl AssetId {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.reanchor(target, context)?;
 		}
@@ -282,7 +421,11 @@ impl MultiAsset {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		self.id.reanchor(target, context)
 	}
 
@@ -291,7 +434,7 @@ impl MultiAsset {
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		context: &MultiLocation,
+		context: InteriorMultiLocation,
 	) -> Result<Self, ()> {
 		self.id.reanchor(target, context)?;
 		Ok(self)
@@ -491,8 +634,12 @@ impl MultiAssets {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
-		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context))
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context.clone()))
 	}
 
 	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
@@ -572,7 +719,11 @@ impl WildMultiAsset {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
@@ -658,7 +809,11 @@ impl MultiAssetFilter {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		match self {
 			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, context),
 			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, context),
@@ -711,5 +866,5 @@ impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
 fn conversion_works() {
 	use super::prelude::*;
 
-	let _: MultiAssets = (Here, 1).into();
+	let _: MultiAssets = (Here, 1u128).into();
 }
