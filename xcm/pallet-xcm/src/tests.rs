@@ -991,72 +991,78 @@ fn subscriber_side_subscription_works() {
 #[test]
 fn auto_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
-		let remote0 = Parachain(1000).into();
-		let remote1 = Parachain(1001).into();
+		let remote_v2: MultiLocation = Parachain(1000).into();
+		let remote_v3: MultiLocation = Parachain(1001).into();
 
-		assert_ok!(XcmPallet::force_default_xcm_version(Origin::root(), Some(1)));
+		assert_ok!(XcmPallet::force_default_xcm_version(Origin::root(), Some(2)));
 
 		// Wrapping a version for a destination we don't know elicits a subscription.
-		let old_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::QueryResponse {
-			query_id: 1,
-			response: xcm::v2::Response::Assets(vec![].into()),
-			max_weight: 1_000_000_000,
-		}]);
-		let v2_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
+		let msg_v2 = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
+		let msg_v3 = xcm::v3::Xcm::<()>(vec![xcm::v3::Instruction::ClearTopic]);
 		assert_eq!(
-			XcmPallet::wrap_version(&remote0, old_msg.clone()),
-			Ok(VersionedXcm::from(old_msg.clone())),
+			XcmPallet::wrap_version(&remote_v2, msg_v2.clone()),
+			Ok(VersionedXcm::from(msg_v2.clone())),
 		);
-		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
-		let expected = vec![(remote0.clone().into(), 2)];
+		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v3.clone()), Err(()));
+
+		let expected = vec![(remote_v2.clone().into(), 2)];
 		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
 
-		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
-		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
-		let expected = vec![(remote0.clone().into(), 3), (remote1.clone().into(), 1)];
+		assert_eq!(
+			XcmPallet::wrap_version(&remote_v3, msg_v2.clone()),
+			Ok(VersionedXcm::from(msg_v2.clone())),
+		);
+		assert_eq!(XcmPallet::wrap_version(&remote_v3, msg_v3.clone()), Err(()));
+
+		let expected = vec![(remote_v2.clone().into(), 2), (remote_v3.clone().into(), 2)];
 		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
 
 		XcmPallet::on_initialize(1);
 		assert_eq!(
 			take_sent_xcm(),
 			vec![(
-				remote0.clone(),
+				remote_v3.clone(),
 				Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
 			)]
 		);
 
-		// Assume remote0 is working ok and XCM version 2.
+		// Assume remote_v3 is working ok and XCM version 3.
 
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
-			// Remote supports XCM v2
+			// Remote supports XCM v3
 			QueryResponse {
 				query_id: 0,
 				max_weight: 0,
-				response: Response::Version(2),
+				response: Response::Version(3),
 				querier: None,
 			},
 		]);
 		let hash = fake_message_hash(&message);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, hash, weight);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote_v3.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
-		// This message can now be sent to remote0 as it's v2.
+		// V2 messages can be sent to remote_v3 under XCM v3.
 		assert_eq!(
-			XcmPallet::wrap_version(&remote0, v2_msg.clone()),
-			Ok(VersionedXcm::from(v2_msg.clone()))
+			XcmPallet::wrap_version(&remote_v3, msg_v2.clone()),
+			Ok(VersionedXcm::from(msg_v2.clone()).into_version(3).unwrap()),
+		);
+		// This message can now be sent to remote_v3 as it's v3.
+		assert_eq!(
+			XcmPallet::wrap_version(&remote_v3, msg_v3.clone()),
+			Ok(VersionedXcm::from(msg_v3.clone()))
 		);
 
 		XcmPallet::on_initialize(2);
 		assert_eq!(
 			take_sent_xcm(),
 			vec![(
-				remote1.clone(),
+				remote_v2.clone(),
 				Xcm(vec![SubscribeVersion { query_id: 1, max_response_weight: 0 }]),
 			)]
 		);
 
-		// Assume remote1 is working ok and XCM version 1.
+		// Assume remote_v2 is working ok and XCM version 2.
 
 		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
@@ -1064,17 +1070,17 @@ fn auto_subscription_works() {
 			QueryResponse {
 				query_id: 1,
 				max_weight: 0,
-				response: Response::Version(1),
+				response: Response::Version(2),
 				querier: None,
 			},
 		]);
 		let hash = fake_message_hash(&message);
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, hash, weight);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote_v2.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 
-		// v2 messages cannot be sent to remote1...
-		assert_eq!(XcmPallet::wrap_version(&remote1, old_msg.clone()), Ok(VersionedXcm::V2(old_msg)));
-		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
+		// v3 messages cannot be sent to remote_v2...
+		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v2.clone()), Ok(VersionedXcm::V2(msg_v2)));
+		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v3.clone()), Err(()));
 	})
 }
 
