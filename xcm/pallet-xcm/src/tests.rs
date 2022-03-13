@@ -1079,7 +1079,10 @@ fn auto_subscription_works() {
 		assert_eq!(r, Outcome::Complete(weight));
 
 		// v3 messages cannot be sent to remote_v2...
-		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v2.clone()), Ok(VersionedXcm::V2(msg_v2)));
+		assert_eq!(
+			XcmPallet::wrap_version(&remote_v2, msg_v2.clone()),
+			Ok(VersionedXcm::V2(msg_v2))
+		);
 		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v3.clone()), Err(()));
 	})
 }
