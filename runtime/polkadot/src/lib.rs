@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, CurrencyToVote,
+	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
 use runtime_parachains::{
@@ -2116,6 +2116,7 @@ mod test_fees {
 	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
+	use runtime_common::MinimumMultiplier;
 	use separator::Separatable;
 	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
 
