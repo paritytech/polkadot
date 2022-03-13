@@ -118,6 +118,7 @@ pub mod prelude {
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum OriginKind {
 	/// Origin should just be the native dispatch origin representation for the sender in the
 	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
@@ -141,6 +142,7 @@ pub enum OriginKind {
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum NetworkId {
 	/// Unidentified/any.
 	Any,
@@ -167,6 +169,7 @@ impl TryInto<NetworkId> for Option<NewNetworkId> {
 
 /// An identifier of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyId {
 	/// The only body in its context.
 	Unit,
@@ -203,6 +206,7 @@ impl From<NewBodyId> for BodyId {
 
 /// A part of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
 	Voice,
@@ -261,6 +265,7 @@ impl From<NewBodyPart> for BodyPart {
 
 /// Response data to a query.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Response {
 	/// Some assets.
 	Assets(MultiAssets),

@@ -30,6 +30,7 @@ pub(crate) const MAX_JUNCTIONS: usize = 8;
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,

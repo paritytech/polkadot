@@ -33,6 +33,7 @@ use scale_info::TypeInfo;
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum NetworkId {
 	/// Network specified by the first 32 bytes of its genesis block.
 	ByGenesis([u8; 32]),
@@ -72,6 +73,7 @@ impl From<OldNetworkId> for Option<NetworkId> {
 
 /// An identifier of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyId {
 	/// The only body in its context.
 	Unit,
@@ -116,6 +118,7 @@ impl TryFrom<OldBodyId> for BodyId {
 
 /// A part of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
 	Voice,
@@ -177,6 +180,7 @@ impl TryFrom<OldBodyPart> for BodyPart {
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///

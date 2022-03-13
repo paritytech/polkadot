@@ -221,6 +221,7 @@ impl TryFrom<NewFungibility> for Fungibility {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiAsset {
 	pub id: AssetId,
 	pub fun: Fungibility,
@@ -304,6 +305,7 @@ impl TryFrom<NewMultiAsset> for MultiAsset {
 
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiAssets(Vec<MultiAsset>);
 
 impl Decode for MultiAssets {
@@ -469,6 +471,7 @@ impl MultiAssets {
 
 /// Classification of whether an asset is fungible or not.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum WildFungibility {
 	Fungible,
 	NonFungible,
@@ -487,6 +490,7 @@ impl TryFrom<NewWildFungibility> for WildFungibility {
 
 /// A wildcard representing a set of assets.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum WildMultiAsset {
 	/// All assets in the holding register, up to `usize` individual assets (different instances of non-fungibles could
 	/// be separate assets).
@@ -531,6 +535,7 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 /// Note: Vectors of wildcards whose encoding is supported in XCM v0 are unsupported
 /// in this implementation and will result in a decode error.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MultiAssetFilter {
 	Definite(MultiAssets),
 	Wild(WildMultiAsset),
