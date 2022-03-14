@@ -149,7 +149,7 @@ impl Initialized {
 				)
 				.await;
 			if let Ok(()) = res {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				return Ok(())
 			}
 			log_error(res)?;
@@ -268,7 +268,7 @@ impl Initialized {
 				.await
 			{
 				Err(e) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						err = ?e,
 						"Failed to update session cache for disputes",
@@ -283,7 +283,7 @@ impl Initialized {
 					self.error = None;
 					let session = window_end;
 					if self.highest_session < session {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							session,
 							"Observed new session. Pruning"
@@ -304,7 +304,7 @@ impl Initialized {
 					.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now)
 					.await
 					.map_err(|err| {
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							"Skipping scraping block #{}({}) due to error: {}",
 							new_leaf.number,
@@ -335,7 +335,7 @@ impl Initialized {
 					)
 					.await
 					.unwrap_or_else(|err| {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							activated_leaf = ?new_leaf,
 							error = ?err,
@@ -347,7 +347,7 @@ impl Initialized {
 					})
 				},
 				Err(err) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						activated_leaf = ?new_leaf,
 						error = ?err,
@@ -364,7 +364,7 @@ impl Initialized {
 			for ancestor in ancestors {
 				let _ = self.scrape_on_chain_votes(ctx, overlay_db, ancestor, now).await.map_err(
 					|err| {
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							hash = ?ancestor,
 							error = ?err,
@@ -405,14 +405,14 @@ impl Initialized {
 			match rx.await {
 				Ok(Ok(Some(val))) => val,
 				Ok(Ok(None)) => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						relay_parent = ?new_leaf,
 						"No on chain votes stored for relay chain leaf");
 					return Ok(())
 				},
 				Ok(Err(e)) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						relay_parent = ?new_leaf,
 						error = ?e,
@@ -420,7 +420,7 @@ impl Initialized {
 					return Ok(())
 				},
 				Err(e) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						relay_parent = ?new_leaf,
 						error = ?e,
@@ -446,7 +446,7 @@ impl Initialized {
 			if let Some(session_info) = self.rolling_session_window.session_info(session) {
 				session_info.clone()
 			} else {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
 					?session,
@@ -466,7 +466,7 @@ impl Initialized {
 						.validators
 						.get(validator_index.0 as usize)
 						.or_else(|| {
-							tracing::error!(
+							gum::error!(
 							target: LOG_TARGET,
 							relay_parent = ?new_leaf,
 							"Missing public key for validator {:?}",
@@ -506,11 +506,11 @@ impl Initialized {
 				)
 				.await?;
 			match import_result {
-				ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
+				ImportStatementsResult::ValidImport => gum::trace!(target: LOG_TARGET,
 																	   relay_parent = ?new_leaf,
 																	   ?session,
 																	   "Imported backing vote from on-chain"),
-				ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
+				ImportStatementsResult::InvalidImport => gum::warn!(target: LOG_TARGET,
 																		relay_parent = ?new_leaf,
 																		?session,
 																		"Attempted import of on-chain backing votes failed"),
@@ -537,7 +537,7 @@ impl Initialized {
 					{
 						session_info.clone()
 					} else {
-						tracing::warn!(
+						gum::warn!(
 								target: LOG_TARGET,
 								relay_parent = ?new_leaf,
 								?session,
@@ -549,7 +549,7 @@ impl Initialized {
 						.validators
 						.get(validator_index.0 as usize)
 						.or_else(|| {
-							tracing::error!(
+							gum::error!(
 								target: LOG_TARGET,
 								relay_parent = ?new_leaf,
 								?session,
@@ -584,12 +584,12 @@ impl Initialized {
 				)
 				.await?;
 			match import_result {
-				ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
+				ImportStatementsResult::ValidImport => gum::trace!(target: LOG_TARGET,
 																	   relay_parent = ?new_leaf,
 																	   ?candidate_hash,
 																	   ?session,
 																	   "Imported statement of concluded dispute from on-chain"),
-				ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
+				ImportStatementsResult::InvalidImport => gum::warn!(target: LOG_TARGET,
 																		relay_parent = ?new_leaf,
 																		?candidate_hash,
 																		?session,
@@ -679,7 +679,7 @@ impl Initialized {
 					{
 						query_output.push((session_index, candidate_hash, v.into()));
 					} else {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							session_index,
 							"No votes found for candidate",
@@ -753,7 +753,7 @@ impl Initialized {
 
 		let session_info = match self.rolling_session_window.session_info(session) {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					session,
 					"Importing statement lacks info for session which has an active dispute",
@@ -794,7 +794,7 @@ impl Initialized {
 						true,
 					)
 				} else {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						session,
 						"Not seen backing vote for candidate which has an active dispute",
@@ -837,7 +837,7 @@ impl Initialized {
 				.get(val_index.0 as usize)
 				.map_or(true, |v| v != statement.validator_public())
 			{
-				tracing::debug!(
+				gum::debug!(
 				target: LOG_TARGET,
 				?val_index,
 				session,
@@ -907,7 +907,7 @@ impl Initialized {
 			}
 			// Only validity stating votes or validator had free spam slot?
 			if !free_spam_slots_available {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,
@@ -931,7 +931,7 @@ impl Initialized {
 		// Participate in dispute if the imported vote was not local, we did not vote before either
 		// and we actually have keys to issue a local vote.
 		if !is_local && !voted_already && is_disputed && !controlled_indices.is_empty() {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate_receipt.hash(),
 				priority = ?comparator.is_some(),
@@ -959,7 +959,7 @@ impl Initialized {
 
 		let status = if is_disputed {
 			let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
-				tracing::info!(
+				gum::info!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					session,
@@ -994,7 +994,7 @@ impl Initialized {
 			}
 
 			if !was_concluded_valid && concluded_valid {
-				tracing::info!(
+				gum::info!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					session,
@@ -1004,7 +1004,7 @@ impl Initialized {
 			}
 
 			if !was_concluded_invalid && concluded_invalid {
-				tracing::info!(
+				gum::info!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					session,
@@ -1038,7 +1038,7 @@ impl Initialized {
 		// Load session info.
 		let info = match self.rolling_session_window.session_info(session) {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					session,
 					"Missing info for session which has an active dispute",
@@ -1088,7 +1088,7 @@ impl Initialized {
 				},
 				Ok(None) => {},
 				Err(e) => {
-					tracing::error!(
+					gum::error!(
 					target: LOG_TARGET,
 					err = ?e,
 					"Encountered keystore error while signing dispute statement",
@@ -1102,7 +1102,7 @@ impl Initialized {
 			let dispute_message =
 				match make_dispute_message(info, &votes, statement.clone(), *index) {
 					Err(err) => {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?err,
 							"Creating dispute message failed."
@@ -1130,7 +1130,7 @@ impl Initialized {
 				.await?
 			{
 				ImportStatementsResult::InvalidImport => {
-					tracing::error!(
+					gum::error!(
 						target: LOG_TARGET,
 						?candidate_hash,
 						?session,
@@ -1138,7 +1138,7 @@ impl Initialized {
 					);
 				},
 				ImportStatementsResult::ValidImport => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?candidate_hash,
 						?session,

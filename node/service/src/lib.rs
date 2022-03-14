@@ -47,7 +47,7 @@ use {
 	polkadot_overseer::BlockInfo,
 	sc_client_api::{BlockBackend, ExecutorProvider},
 	sp_trie::PrefixedMemoryDB,
-	tracing::info,
+	gum::info,
 };
 
 pub use sp_core::traits::SpawnNamed;
@@ -975,7 +975,7 @@ where
 	};
 
 	if local_keystore.is_none() {
-		tracing::info!("Cannot run as validator without local keystore.");
+		gum::info!("Cannot run as validator without local keystore.");
 	}
 
 	let maybe_params =
@@ -1011,7 +1011,7 @@ where
 				},
 			)
 			.map_err(|e| {
-				tracing::error!("Failed to init overseer: {}", e);
+				gum::error!("Failed to init overseer: {}", e);
 				e
 			})?;
 		let handle = Handle::new(overseer_handle.clone());

@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
-tracing = "0.1.32"
+gum = { package = "tracing-gum", path = "../gum/" }
 thiserror = "1.0.30"
 async-trait = "0.1.52"
 polkadot-node-subsystem = { path = "../../subsystem" }

@@ -132,7 +132,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 			move |(mut subsystem_sender, hash, candidate_receipt): (_, Hash, CandidateReceipt)| {
 				let keystore = keystore.clone();
 				async move {
-					tracing::info!(
+					gum::info!(
 						target = MALUS,
 						"Replacing seconded candidate pov with something else"
 					);
@@ -160,7 +160,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 							))
 							.await;
 					} else {
-						tracing::info!("We are not a validator. Not siging anything.");
+						gum::info!("We are not a validator. Not siging anything.");
 					}
 				}
 			},

@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3.21"
-tracing = "0.1.32"
+gum = { package = "tracing-gum", path = "../gum/" }
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

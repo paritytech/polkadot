@@ -67,7 +67,7 @@ impl SpamSlots {
 				let spam_vote_count = slots.entry((*session, *validator)).or_default();
 				*spam_vote_count += 1;
 				if *spam_vote_count > MAX_SPAM_VOTES {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?session,
 						?validator,

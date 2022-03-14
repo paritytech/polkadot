@@ -170,7 +170,7 @@ where
 									response_sender,
 								);
 							} else {
-								tracing::info!(
+								gum::info!(
 									target = MALUS,
 									"Could not get availability data, can't back"
 								);
@@ -178,7 +178,7 @@ where
 						}),
 					);
 				} else {
-					tracing::info!(target = MALUS, "No CandidateReceipt available to work with");
+					gum::info!(target = MALUS, "No CandidateReceipt available to work with");
 				}
 				None
 			},

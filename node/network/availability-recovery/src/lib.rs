@@ -180,7 +180,7 @@ impl RequestFromBackers {
 		params: &RecoveryParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			candidate_hash = ?params.candidate_hash,
 			erasure_root = ?params.erasure_root,
@@ -216,7 +216,7 @@ impl RequestFromBackers {
 						&params.erasure_root,
 						&data,
 					) {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							"Received full data",
@@ -224,7 +224,7 @@ impl RequestFromBackers {
 
 						return Ok(data)
 					} else {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							?validator_index,
@@ -235,7 +235,7 @@ impl RequestFromBackers {
 					}
 				},
 				Ok(req_res::v1::AvailableDataFetchingResponse::NoSuchData) => {},
-				Err(e) => tracing::debug!(
+				Err(e) => gum::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
 					?validator_index,
@@ -310,7 +310,7 @@ impl RequestChunksFromValidators {
 		while self.requesting_chunks.len() < num_requests {
 			if let Some(validator_index) = self.shuffling.pop_back() {
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?validator,
 					?validator_index,
@@ -379,7 +379,7 @@ impl RequestChunksFromValidators {
 							metrics.on_chunk_request_invalid();
 							self.error_count += 1;
 
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								?validator_index,
@@ -388,7 +388,7 @@ impl RequestChunksFromValidators {
 						} else {
 							metrics.on_chunk_request_succeeded();
 
-							tracing::trace!(
+							gum::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								?validator_index,
@@ -400,7 +400,7 @@ impl RequestChunksFromValidators {
 						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
 
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							?validator_index,
@@ -415,7 +415,7 @@ impl RequestChunksFromValidators {
 				Err((validator_index, e)) => {
 					self.error_count += 1;
 
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						candidate_hash= ?params.candidate_hash,
 						err = ?e,
@@ -479,7 +479,7 @@ impl RequestChunksFromValidators {
 					}
 				},
 				Err(oneshot::Canceled) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						candidate_hash = ?params.candidate_hash,
 						"Failed to reach the availability store"
@@ -490,7 +490,7 @@ impl RequestChunksFromValidators {
 
 		loop {
 			if self.is_unavailable(&params) {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
 					erasure_root = ?params.erasure_root,
@@ -521,7 +521,7 @@ impl RequestChunksFromValidators {
 							&params.erasure_root,
 							&data,
 						) {
-							tracing::trace!(
+							gum::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								erasure_root = ?params.erasure_root,
@@ -530,7 +530,7 @@ impl RequestChunksFromValidators {
 
 							Ok(data)
 						} else {
-							tracing::trace!(
+							gum::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								erasure_root = ?params.erasure_root,
@@ -541,7 +541,7 @@ impl RequestChunksFromValidators {
 						}
 					},
 					Err(err) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							erasure_root = ?params.erasure_root,
@@ -589,7 +589,7 @@ fn reconstructed_data_matches_root(
 	let chunks = match obtain_chunks_v1(n_validators, data) {
 		Ok(chunks) => chunks,
 		Err(e) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				err = ?e,
 				"Failed to obtain chunks",
@@ -619,7 +619,7 @@ impl<S: SubsystemSender> RecoveryTask<S> {
 				Ok(Some(data)) => return Ok(data),
 				Ok(None) => {},
 				Err(oneshot::Canceled) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						candidate_hash = ?self.params.candidate_hash,
 						"Failed to reach the availability store",
@@ -669,7 +669,7 @@ impl Future for RecoveryHandle {
 
 		// these are reverse order, so remove is fine.
 		for index in indices_to_remove {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				candidate_hash = ?self.candidate_hash,
 				"Receiver for available data dropped.",
@@ -679,7 +679,7 @@ impl Future for RecoveryHandle {
 		}
 
 		if self.awaiting.is_empty() {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				candidate_hash = ?self.candidate_hash,
 				"All receivers for available data dropped.",
@@ -829,7 +829,7 @@ where
 	});
 
 	if let Err(e) = ctx.spawn("recovery-task", Box::pin(remote)) {
-		tracing::warn!(
+		gum::warn!(
 			target: LOG_TARGET,
 			err = ?e,
 			"Failed to spawn a recovery task",
@@ -862,7 +862,7 @@ where
 		state.availability_lru.get(&candidate_hash).cloned().map(|v| v.into_result())
 	{
 		if let Err(e) = response_sender.send(result) {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err = ?e,
 				"Error responding with an availability recovery result",
@@ -898,7 +898,7 @@ where
 			)
 			.await,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
+			gum::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
 			response_sender
 				.send(Err(RecoveryError::Unavailable))
 				.map_err(|_| error::Error::CanceledResponseSender)?;
@@ -978,7 +978,7 @@ impl AvailabilityRecoverySubsystem {
 										response_sender,
 										&metrics,
 									).await {
-										tracing::warn!(
+										gum::warn!(
 											target: LOG_TARGET,
 											err = ?e,
 											"Error handling a recovery request",
@@ -997,7 +997,7 @@ impl AvailabilityRecoverySubsystem {
 									let _ = req.send_response(res.into());
 								}
 								Err(e) => {
-									tracing::debug!(
+									gum::debug!(
 										target: LOG_TARGET,
 										err = ?e,
 										"Failed to query available data.",
@@ -1008,7 +1008,7 @@ impl AvailabilityRecoverySubsystem {
 							}
 						}
 						Err(jfyi) => {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								error = ?jfyi,
 								"Decoding incoming request failed"

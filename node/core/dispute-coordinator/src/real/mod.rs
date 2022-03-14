@@ -194,7 +194,7 @@ impl DisputeCoordinatorSubsystem {
 			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
 				Ok(Some(update)) => update,
 				Ok(None) => {
-					tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+					gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 					return Ok(None)
 				},
 				Err(e) => {
@@ -267,7 +267,7 @@ impl DisputeCoordinatorSubsystem {
 				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
 			Err(e) => {
-				tracing::error!(
+				gum::error!(
 					target: LOG_TARGET,
 					"Failed initial load of recent disputes: {:?}",
 					e
@@ -285,7 +285,7 @@ impl DisputeCoordinatorSubsystem {
 					Ok(Some(votes)) => votes.into(),
 					Ok(None) => continue,
 					Err(e) => {
-						tracing::error!(
+						gum::error!(
 							target: LOG_TARGET,
 							"Failed initial load of candidate votes: {:?}",
 							e
@@ -296,7 +296,7 @@ impl DisputeCoordinatorSubsystem {
 
 			let validators = match rolling_session_window.session_info(session) {
 				None => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						session,
 						"Missing info for session which has an active dispute",
@@ -401,7 +401,7 @@ where
 			// hour old database state, we should rather cancel contained oneshots and delay
 			// finality until we are fully functional.
 			{
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?msg,
 					"Received msg before first active leaves update. This is not expected - message will be dropped."

@@ -240,7 +240,7 @@ impl ToTokens for Args {
 	}
 }
 
-/// Support tracing levels, passed to `tracing::event!`.
+/// Support tracing levels, passed to `gum::event!`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Level {
 	Error,
