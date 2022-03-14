@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -169,8 +169,8 @@ std = [
 	"beefy-primitives/std",
 	"pallet-mmr-primitives/std",
 	"frame-election-provider-support/std",
-  "pallet-xcm/std",
-  "xcm/std",
+	"pallet-xcm/std",
+	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
 ]
@@ -204,12 +204,12 @@ runtime-benchmarks = [
 	"pallet-tips/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
-  "pallet-xcm/runtime-benchmarks",
+	"pallet-xcm/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
 	"hex-literal",
-  "xcm-builder/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 ]
