@@ -90,7 +90,7 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 						marker,
 						ident: alias,
 						dot: None,
-						member: None,
+						inner: Punctuated::new(),
 					})),
 				)
 			},

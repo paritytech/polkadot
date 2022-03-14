@@ -116,7 +116,7 @@ pub(crate) struct ValueWithFormatMarker {
 	pub marker: FormatMarker,
 	pub ident: Ident,
 	pub dot: Option<Token![.]>,
-	pub member: Option<syn::Member>,
+	pub inner: Punctuated<syn::Member, Token![.]>,
 }
 
 impl Parse for ValueWithFormatMarker {
@@ -124,16 +124,30 @@ impl Parse for ValueWithFormatMarker {
 		let marker = input.parse::<FormatMarker>()?;
 		let ident = input.parse::<syn::Ident>()?;
 
-		let lookahead = input.lookahead1();
-		let (dot, member) = if lookahead.peek(Token![.]) {
-			let token = input.parse::<Token![.]>()?;
-			let member = input.parse::<syn::Member>()?;
-			(Some(token), Some(member))
-		} else {
-			(None, None)
-		};
+		let mut inner = Punctuated::<syn::Member, Token![.]>::new();
 
-		Ok(Self { marker, ident, dot, member })
+		let lookahead = input.lookahead1();
+		let dot = if lookahead.peek(Token![.]) {
+			let dot = Some(dbg!(input.parse::<Token![.]>())?);
+
+			loop {
+				let member = input.parse::<syn::Member>()?;
+				inner.push_value(member);
+
+				let lookahead = input.lookahead1();
+				if !lookahead.peek(Token![.]) {
+					break
+				}
+
+				let token = input.parse::<Token![.]>()?;
+				inner.push_punct(token);
+			}
+
+			dot
+		} else {
+			None
+		};
+		Ok(Self { marker, ident, dot, inner })
 	}
 }
 
@@ -141,9 +155,10 @@ impl ToTokens for ValueWithFormatMarker {
 	fn to_tokens(&self, tokens: &mut TokenStream) {
 		let marker = &self.marker;
 		let ident = &self.ident;
-		let member = &self.member;
+		let dot = &self.dot;
+		let inner = &self.inner;
 		tokens.extend(quote! {
-			#marker #ident #member
+			#marker #ident #dot #inner
 		})
 	}
 }

@@ -26,6 +26,4 @@ assert_matches = "1.5.0"
 default = []
 # write the expanded version to a `gum.[a-f0-9]{10}.rs`
 # in the `OUT_DIR` as defined by `cargo` for the `expander` crate.
-# XXX currently this does not work, since `include!` only can import
-# valid rust files, not fragments of such
 expand = []

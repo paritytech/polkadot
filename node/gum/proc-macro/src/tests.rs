@@ -20,7 +20,7 @@ use assert_matches::assert_matches;
 use quote::quote;
 
 #[test]
-fn x() {
+fn smoke() {
 	assert_matches!(
 		impl_gum2(
 			quote! {
@@ -43,29 +43,60 @@ mod roundtrip {
 	macro_rules! roundtrip {
 		($whatty:ty | $ts:expr) => {
 			let input = $ts;
-			let typed = ::syn::parse2::<$whatty>(input).expect("Must parse. qed");
-			let downgraded = dbg!(typed.to_token_stream());
-			let reparsed = ::syn::parse2::<$whatty>(downgraded).expect("Also. qed");
-			assert_eq!(
-				dbg!(typed.into_token_stream().to_string()),
-				reparsed.into_token_stream().to_string(),
+			assert_matches!(
+				::syn::parse2::<$whatty>(input),
+				Ok(typed) => {
+					let downgraded = dbg!(typed.to_token_stream());
+					assert_matches!(::syn::parse2::<$whatty>(downgraded),
+					Ok(reparsed) => {
+						assert_eq!(
+							dbg!(typed.into_token_stream().to_string()),
+							reparsed.into_token_stream().to_string(),
+						)
+					});
+				}
 			);
-		};
+		}
 	}
 
 	#[test]
-	fn basic() {
+	fn u_target() {
 		roundtrip! {Target | quote! {target: "foo" } };
+	}
+
+	#[test]
+	fn u_format_marker() {
 		roundtrip! {FormatMarker | quote! {?} };
 		roundtrip! {FormatMarker | quote! {%} };
 		roundtrip! {FormatMarker | quote! {} };
+	}
+
+	#[test]
+	fn u_value_w_alias() {
 		roundtrip! {Value | quote! {x = y} };
-		roundtrip! {Value | quote! {z} };
-		roundtrip! {Value | quote! {?q} };
-		roundtrip! {Value | quote! {%etcpp} };
 		roundtrip! {Value | quote! {f = f} };
 		roundtrip! {Value | quote! {ff = ?ff} };
 		roundtrip! {Value | quote! {fff = %fff} };
+	}
+
+	#[test]
+	fn u_value_bare_w_format_marker() {
+		roundtrip! {Value | quote! {?q} };
+		roundtrip! {Value | quote! {%etcpp} };
+
+		roundtrip! {ValueWithFormatMarker | quote! {?q} };
+		roundtrip! {ValueWithFormatMarker | quote! {%etcpp} };
+	}
+
+	#[test]
+	fn u_value_bare_w_field_access() {
+		roundtrip! {ValueWithFormatMarker | quote! {a.b} };
+		roundtrip! {ValueWithFormatMarker | quote! {a.b.cdef.ghij} };
+		roundtrip! {ValueWithFormatMarker | quote! {?a.b.c} };
+	}
+
+	#[test]
+	fn u_args() {
 		roundtrip! {Args | quote! {target: "yes", k=?v, candidate_hash, "But why? {a}", a} };
 		roundtrip! {Args | quote! {target: "also", candidate_hash = ?c_hash, "But why?"} };
 		roundtrip! {Args | quote! {"Nope? {}", candidate_hash} };
@@ -98,7 +129,7 @@ mod roundtrip {
 	#[test]
 
 	fn sample_w_candidate_hash_aliased_unnecessary() {
-		dbg!(impl_gum2(
+		assert_matches!(impl_gum2(
 			quote! {
 				"bar",
 				a = a,
@@ -110,14 +141,14 @@ mod roundtrip {
 				a,
 			},
 			Level::Info
-		)
-		.unwrap()
-		.to_string());
+		), Ok(x) => {
+			dbg!(x.to_string())
+		});
 	}
 
 	#[test]
 	fn no_fmt_str_args() {
-		dbg!(impl_gum2(
+		assert_matches!(impl_gum2(
 			quote! {
 				target: "bar",
 				a = a,
@@ -127,14 +158,14 @@ mod roundtrip {
 				"xxx",
 			},
 			Level::Trace
-		)
-		.unwrap()
-		.to_string());
+		), Ok(x) => {
+			dbg!(x.to_string())
+		});
 	}
 
 	#[test]
 	fn no_fmt_str() {
-		dbg!(impl_gum2(
+		assert_matches!(impl_gum2(
 			quote! {
 				target: "bar",
 				a = a,
@@ -143,34 +174,34 @@ mod roundtrip {
 				c = a,
 			},
 			Level::Trace
-		)
-		.unwrap()
-		.to_string());
+		), Ok(x) => {
+			dbg!(x.to_string())
+		});
 	}
 
 	#[test]
 	fn field_member_as_kv() {
-		dbg!(impl_gum2(
+		assert_matches!(impl_gum2(
 			quote! {
 				target: "z",
 				?y.x,
 			},
 			Level::Info
-		)
-		.unwrap()
-		.to_string());
+		), Ok(x) => {
+			dbg!(x.to_string())
+		});
 	}
 
 	#[test]
-	fn field_member_as_kv() {
-		dbg!(impl_gum2(
+	fn nested_field_member_as_kv() {
+		assert_matches!(impl_gum2(
 			quote! {
 				target: "z",
-				?z.x,
+				?a.b.c.d.e.f.g,
 			},
 			Level::Info
-		)
-		.unwrap()
-		.to_string());
+		), Ok(x) => {
+			dbg!(x.to_string())
+		});
 	}
 }
