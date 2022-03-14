@@ -601,13 +601,7 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(
-				target: LOG_TARGET,
-				?source,
-				?fingerprint,
-				?result,
-				"Checked assignment",
-			);
+			gum::trace!(target: LOG_TARGET, ?source, ?fingerprint, ?result, "Checked assignment",);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -660,11 +654,7 @@ impl State {
 				);
 				return
 			} else {
-				gum::debug!(
-					target: LOG_TARGET,
-					?fingerprint,
-					"Importing locally a new assignment",
-				);
+				gum::debug!(target: LOG_TARGET, ?fingerprint, "Importing locally a new assignment",);
 			}
 		}
 
@@ -834,13 +824,7 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				?fingerprint,
-				?result,
-				"Checked approval",
-			);
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, ?result, "Checked approval",);
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -871,11 +855,7 @@ impl State {
 				);
 				return
 			} else {
-				gum::debug!(
-					target: LOG_TARGET,
-					?fingerprint,
-					"Importing locally a new approval",
-				);
+				gum::debug!(target: LOG_TARGET, ?fingerprint, "Importing locally a new approval",);
 			}
 		}
 

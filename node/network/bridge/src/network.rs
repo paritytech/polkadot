@@ -180,10 +180,8 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 				match pending_response
 					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
 				{
-					Err(_) => gum::debug!(
-						target: LOG_TARGET,
-						"Sending failed request response failed."
-					),
+					Err(_) =>
+						gum::debug!(target: LOG_TARGET, "Sending failed request response failed."),
 					Ok(_) => {},
 				}
 				return

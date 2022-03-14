@@ -455,12 +455,7 @@ async fn fetch_finalized(
 
 	match hash_rx.await? {
 		Err(err) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				number,
-				?err,
-				"Fetching finalized block number failed"
-			);
+			gum::warn!(target: LOG_TARGET, number, ?err, "Fetching finalized block number failed");
 			Ok(None)
 		},
 		Ok(None) => {

@@ -89,11 +89,7 @@ impl DisputeSender {
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
 			Entry::Occupied(_) => {
-				gum::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					"Dispute sending already active."
-				);
+				gum::trace!(target: LOG_TARGET, ?candidate_hash, "Dispute sending already active.");
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {

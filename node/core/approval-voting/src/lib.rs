@@ -965,10 +965,8 @@ async fn handle_actions(
 						gum::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
 					},
 					Ok(ImportStatementsResult::ValidImport) => {},
-					Ok(ImportStatementsResult::InvalidImport) => gum::warn!(
-						target: LOG_TARGET,
-						"Failed to import statements of validity",
-					),
+					Ok(ImportStatementsResult::InvalidImport) =>
+						gum::warn!(target: LOG_TARGET, "Failed to import statements of validity",),
 				}
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {

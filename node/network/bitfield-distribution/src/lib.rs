@@ -296,11 +296,7 @@ async fn handle_bitfield_distribution<Context>(
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		gum::trace!(
-			target: LOG_TARGET,
-			"Could not find a validator for index {}",
-			validator_index
-		);
+		gum::trace!(target: LOG_TARGET, "Could not find a validator for index {}", validator_index);
 		return
 	};
 

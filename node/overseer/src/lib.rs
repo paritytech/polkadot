@@ -536,11 +536,8 @@ where
 						);
 						metrics.memory_stats_snapshot(memory_stats_snapshot);
 					},
-					Err(e) => gum::debug!(
-						target: LOG_TARGET,
-						"Failed to obtain memory stats: {:?}",
-						e
-					),
+					Err(e) =>
+						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
 				}),
 			Err(_) => {
 				gum::debug!(

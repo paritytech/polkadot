@@ -487,11 +487,7 @@ where
 			}
 		};
 
-		gum::trace!(
-			target: LOG_TARGET,
-			?subchain_head,
-			"Ancestor approval restriction applied",
-		);
+		gum::trace!(target: LOG_TARGET, ?subchain_head, "Ancestor approval restriction applied",);
 
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);

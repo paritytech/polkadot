@@ -188,11 +188,7 @@ async fn imported_block_info(
 	{
 		Some(s) => s,
 		None => {
-			gum::debug!(
-				target: LOG_TARGET,
-				"Session info unavailable for block {}",
-				block_hash,
-			);
+			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
 
 			return Ok(None)
 		},

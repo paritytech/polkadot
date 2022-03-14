@@ -100,8 +100,7 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 				JfyiError::InvalidValidatorIndex |
 				JfyiError::NoSuchCachedSession { .. } |
 				JfyiError::QueryAvailableDataResponseChannel(_) |
-				JfyiError::QueryChunkResponseChannel(_) =>
-					gum::warn!(target: LOG_TARGET, error = %jfyi, ctx),
+				JfyiError::QueryChunkResponseChannel(_) => gum::warn!(target: LOG_TARGET, error = %jfyi, ctx),
 				JfyiError::FetchPoV(_) |
 				JfyiError::SendResponse |
 				JfyiError::NoSuchPoV |

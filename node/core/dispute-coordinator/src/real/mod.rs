@@ -267,11 +267,7 @@ impl DisputeCoordinatorSubsystem {
 				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
 			Err(e) => {
-				gum::error!(
-					target: LOG_TARGET,
-					"Failed initial load of recent disputes: {:?}",
-					e
-				);
+				gum::error!(target: LOG_TARGET, "Failed initial load of recent disputes: {:?}", e);
 				return Err(e.into())
 			},
 		};

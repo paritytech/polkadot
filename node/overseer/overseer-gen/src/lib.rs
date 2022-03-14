@@ -63,11 +63,11 @@
 pub use polkadot_overseer_gen_proc_macro::overlord;
 
 #[doc(hidden)]
+pub use gum;
+#[doc(hidden)]
 pub use metered;
 #[doc(hidden)]
 pub use polkadot_node_primitives::SpawnNamed;
-#[doc(hidden)]
-pub use tracing;
 
 #[doc(hidden)]
 pub use async_trait::async_trait;

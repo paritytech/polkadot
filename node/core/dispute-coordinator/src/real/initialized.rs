@@ -283,11 +283,7 @@ impl Initialized {
 					self.error = None;
 					let session = window_end;
 					if self.highest_session < session {
-						gum::trace!(
-							target: LOG_TARGET,
-							session,
-							"Observed new session. Pruning"
-						);
+						gum::trace!(target: LOG_TARGET, session, "Observed new session. Pruning");
 
 						self.highest_session = session;
 
@@ -1102,11 +1098,7 @@ impl Initialized {
 			let dispute_message =
 				match make_dispute_message(info, &votes, statement.clone(), *index) {
 					Err(err) => {
-						gum::debug!(
-							target: LOG_TARGET,
-							?err,
-							"Creating dispute message failed."
-						);
+						gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
 						continue
 					},
 					Ok(dispute_message) => dispute_message,

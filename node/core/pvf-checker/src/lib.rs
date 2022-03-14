@@ -540,12 +540,7 @@ async fn initiate_precheck(
 	validation_code_hash: ValidationCodeHash,
 	metrics: &Metrics,
 ) {
-	gum::debug!(
-		target: LOG_TARGET,
-		?validation_code_hash,
-		?relay_parent,
-		"initiating a precheck",
-	);
+	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
 	let (tx, rx) = oneshot::channel();
 	sender

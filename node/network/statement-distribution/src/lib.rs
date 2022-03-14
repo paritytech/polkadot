@@ -1324,13 +1324,7 @@ async fn handle_incoming_message<'a>(
 
 	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
 		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
-			gum::debug!(
-				target: LOG_TARGET,
-				?peer,
-				?message,
-				?rep,
-				"Unexpected large statement.",
-			);
+			gum::debug!(target: LOG_TARGET, ?peer, ?message, ?rep, "Unexpected large statement.",);
 			report_peer(ctx, peer, rep).await;
 			return None
 		}
@@ -1406,12 +1400,7 @@ async fn handle_incoming_message<'a>(
 		// check the signature on the statement.
 		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
 			Err(statement) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					?peer,
-					?statement,
-					"Invalid statement signature"
-				);
+				gum::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
 				report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
 				return None
 			},
