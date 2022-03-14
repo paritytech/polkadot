@@ -20,4 +20,4 @@ bp-messages = { path = "../../primitives/messages" }
 bp-runtime = { path = "../../primitives/runtime" }
 relay-utils = { path = "../utils" }
 
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "jsonrpsee-polkadot-v0.9.18" }
