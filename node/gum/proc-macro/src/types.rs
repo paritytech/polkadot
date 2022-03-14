@@ -128,7 +128,7 @@ impl Parse for ValueWithFormatMarker {
 
 		let lookahead = input.lookahead1();
 		let dot = if lookahead.peek(Token![.]) {
-			let dot = Some(dbg!(input.parse::<Token![.]>())?);
+			let dot = Some(input.parse::<Token![.]>()?);
 
 			loop {
 				let member = input.parse::<syn::Member>()?;

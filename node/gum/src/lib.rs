@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![deny(unused_crate_dependencies)]
+#![deny(missing_docs)]
+#![deny(clippy::dbg_macro)]
+
 //! A wrapper around `tracing` macros, to provide semi automatic
 //! `traceID` annotation without codebase turnover.
 

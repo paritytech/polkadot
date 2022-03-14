@@ -15,6 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 #![deny(unused_crate_dependencies)]
+#![deny(missing_docs)]
+#![deny(clippy::dbg_macro)]
+
+//! Generative part of `tracing-gum`. See `tracing-gum` for usage documentation.
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -27,31 +31,37 @@ use self::types::*;
 #[cfg(test)]
 mod tests;
 
+/// Print an error message.
 #[proc_macro]
 pub fn error(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Error)
 }
 
+/// Print a warning level message.
 #[proc_macro]
 pub fn warn(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Warn)
 }
 
+/// Print a info level message.
 #[proc_macro]
 pub fn info(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Info)
 }
 
+/// Print a debug level message.
 #[proc_macro]
 pub fn debug(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Debug)
 }
 
+/// Print a trace level message.
 #[proc_macro]
 pub fn trace(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Trace)
 }
 
+/// One-size-fits all internal implementation that produces the actual code.
 pub(crate) fn gum(item: proc_macro::TokenStream, level: Level) -> proc_macro::TokenStream {
 	let item: TokenStream = item.into();
 
@@ -66,6 +76,9 @@ pub(crate) fn gum(item: proc_macro::TokenStream, level: Level) -> proc_macro::To
 	res.unwrap_or_else(|err| err.to_compile_error()).into()
 }
 
+/// Does the actual parsing and token generation based on `proc_macro2` types.
+///
+/// Required for unit tests.
 pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> {
 	let args: Args = parse2(orig)?;
 
@@ -75,9 +88,7 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 	let Args { target, comma, mut values, fmt } = args;
 
 	// find a value or alias called `candidate_hash`.
-	let maybe_candidate_hash = values.iter_mut().find(|value| {
-		value.as_ident() ==  "candidate_hash"
-	});
+	let maybe_candidate_hash = values.iter_mut().find(|value| value.as_ident() == "candidate_hash");
 
 	if let Some(kv) = maybe_candidate_hash {
 		let (ident, rhs_expr, replace_with) = match kv {
@@ -141,6 +152,7 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 	}
 }
 
+/// Extract the support crate path.
 fn support_crate() -> TokenStream {
 	let support_crate_name = if cfg!(test) {
 		quote! {crate}
