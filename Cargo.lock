@@ -1877,18 +1877,6 @@ dependencies = [
  "fs-err",
  "proc-macro2",
  "quote",
-]
-
-[[package]]
-name = "expander"
-version = "0.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3774182a5df13c3d1690311ad32fbe913feef26baba609fa2dd5f72042bd2ab6"
-dependencies = [
- "blake2 0.10.2",
- "fs-err",
- "proc-macro2",
- "quote",
  "syn",
 ]
 
