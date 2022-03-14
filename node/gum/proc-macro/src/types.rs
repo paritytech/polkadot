@@ -115,6 +115,8 @@ impl ToTokens for ValueWithAliasIdent {
 pub(crate) struct ValueWithFormatMarker {
 	pub marker: FormatMarker,
 	pub ident: Ident,
+	// pub expr: Box<syn::Expr>,
+	// pub member: Option<(Dot, Member)>,
 }
 
 impl Parse for ValueWithFormatMarker {
@@ -171,15 +173,52 @@ impl ToTokens for Value {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) struct FmtGroup {
+	// TODO use `parse_fmt_str:2.0.0`
+	// instead to sanitize
+	pub format_str: syn::LitStr,
+	pub maybe_comma: Option<Token![,]>,
+	pub rest: TokenStream,
+}
+
+impl Parse for FmtGroup {
+	fn parse(input: ParseStream) -> Result<Self> {
+		let format_str = input
+			.parse()
+			.map_err(|e| syn::Error::new(e.span(), "Expected format specifier"))?;
+
+		let (maybe_comma, rest) = if input.peek(Token![,]) {
+			let comma = input.parse::<Token![,]>()?;
+			let rest = input.parse()?;
+			(Some(comma), rest)
+		} else {
+			(None, TokenStream::new())
+		};
+
+		if !input.is_empty() {
+			return Err(syn::Error::new(input.span(), "Unexpected data, expected closing `)`."))
+		}
+
+		Ok(Self { format_str, maybe_comma, rest })
+	}
+}
+
+impl ToTokens for FmtGroup {
+	fn to_tokens(&self, tokens: &mut TokenStream) {
+		let format_str = &self.format_str;
+		let maybe_comma = &self.maybe_comma;
+		let rest = &self.rest;
+
+		tokens.extend(quote! { #format_str #maybe_comma #rest });
+	}
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct Args {
 	pub target: Option<Target>,
 	pub comma: Option<Token![,]>,
 	pub values: Punctuated<Value, Token![,]>,
-	// TODO use `parse_fmt_str:2.0.0`
-	// instead to sanitize
-	pub format_str: syn::LitStr,
-	pub maybe_comma2: Option<Token![,]>,
-	pub rest: TokenStream,
+	pub fmt: Option<FmtGroup>,
 }
 
 impl Parse for Args {
@@ -207,22 +246,14 @@ impl Parse for Args {
 			}
 		}
 
-		let format_str = input
-			.parse()
-			.map_err(|e| syn::Error::new(e.span(), "Expected format specifier"))?;
-		let (maybe_comma2, rest) = if input.peek(Token![,]) {
-			let comma2 = input.parse::<Token![,]>()?;
-			let rest = input.parse()?;
-			(Some(comma2), rest)
+		let fmt = if values.empty_or_trailing() && !input.is_empty() {
+			let fmt = input.parse::<FmtGroup>()?;
+			Some(fmt)
 		} else {
-			(None, TokenStream::new())
+			None
 		};
 
-		if !input.is_empty() {
-			return Err(syn::Error::new(input.span(), "Unexpected data, expected closing `)`."))
-		}
-
-		Ok(Self { target, comma, values, format_str, maybe_comma2, rest })
+		Ok(Self { target, comma, values, fmt })
 	}
 }
 
@@ -231,11 +262,9 @@ impl ToTokens for Args {
 		let target = &self.target;
 		let comma = &self.comma;
 		let values = &self.values;
-		let format_str = &self.format_str;
-		let maybe_comma2 = &self.maybe_comma2;
-		let rest = &self.rest;
+		let fmt = &self.fmt;
 		tokens.extend(quote! {
-			#target #comma #values #format_str #maybe_comma2 #rest
+			#target #comma #values #fmt
 		})
 	}
 }

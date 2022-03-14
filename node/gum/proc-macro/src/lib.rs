@@ -72,7 +72,7 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 	let krate = support_crate();
 	let span = Span::call_site();
 
-	let Args { target, comma, mut values, format_str, maybe_comma2, rest } = args;
+	let Args { target, comma, mut values, fmt } = args;
 
 	// find a value or alias called `candidate_hash`.
 	let maybe_candidate_hash = values.iter_mut().find(|value| {
@@ -114,18 +114,20 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 
 		Ok(quote! {
 			if #krate :: enabled!(#target #comma #level) {
+				use ::std::ops::Deref;
+
 				// create a scoped let binding
-				let #ident = #rhs_expr;
+				let #ident: ::polkadot_primitives::Hash = #rhs_expr .deref();
 				let trace_id = #krate :: hash_to_trace_identifier ( #ident );
 				#krate :: event!(
-					#target #comma #level, #values #format_str #maybe_comma2 #rest
+					#target #comma #level, #values #fmt
 				)
 			}
 		})
 	} else {
 		Ok(quote! {
 				#krate :: event!(
-					#target #comma #level, #values #format_str #maybe_comma2 #rest
+					#target #comma #level, #values #fmt
 				)
 		})
 	}
@@ -136,8 +138,8 @@ fn support_crate() -> TokenStream {
 		quote! {crate}
 	} else {
 		use proc_macro_crate::{crate_name, FoundCrate};
-		let crate_name = crate_name("polkadot-node-tracing-gum")
-			.expect("Support crate `polkadot-node-tracing-gum` is present in `Cargo.toml`. qed");
+		let crate_name = crate_name("tracing-gum")
+			.expect("Support crate `tracing-gum` is present in `Cargo.toml`. qed");
 		match crate_name {
 			FoundCrate::Itself => quote! {crate},
 			FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).to_token_stream(),

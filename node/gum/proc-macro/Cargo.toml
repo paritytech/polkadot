@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-tracing-gum-proc-macro"
+name = "tracing-gum-proc-macro"
 version = "0.9.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"

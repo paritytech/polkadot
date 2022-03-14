@@ -105,7 +105,9 @@ mod roundtrip {
 				candidate_hash = ?candidate_hash,
 				b = ?Y::default(),
 				c = ?a,
-				"xxx",
+				"xxx {} {}",
+				a,
+				a,
 			},
 			Level::Info
 		)
@@ -114,7 +116,7 @@ mod roundtrip {
 	}
 
 	#[test]
-	fn xxx2() {
+	fn no_fmt_str_args() {
 		dbg!(impl_gum2(
 			quote! {
 				target: "bar",
@@ -125,6 +127,48 @@ mod roundtrip {
 				"xxx",
 			},
 			Level::Trace
+		)
+		.unwrap()
+		.to_string());
+	}
+
+	#[test]
+	fn no_fmt_str() {
+		dbg!(impl_gum2(
+			quote! {
+				target: "bar",
+				a = a,
+				candidate_hash = ?candidate_hash,
+				b = ?Y::default(),
+				c = a,
+			},
+			Level::Trace
+		)
+		.unwrap()
+		.to_string());
+	}
+
+	#[test]
+	fn field_member_as_kv() {
+		dbg!(impl_gum2(
+			quote! {
+				target: "z",
+				?y.x,
+			},
+			Level::Info
+		)
+		.unwrap()
+		.to_string());
+	}
+
+	#[test]
+	fn expr_as_kv() {
+		dbg!(impl_gum2(
+			quote! {
+				target: "z",
+				?::std::ops::Deref::deref(&77).x,
+			},
+			Level::Info
 		)
 		.unwrap()
 		.to_string());
