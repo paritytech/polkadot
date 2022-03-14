@@ -135,8 +135,10 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 				// create a scoped let binding of something that `deref`s to
 				// `Hash`.
 				let value = #rhs_expr;
+				let value = &value;
+				let value: & #krate:: Hash = value.deref();
 				// Do the `deref` to `Hash` and convert to a `TraceIdentifier`.
-				let #ident: #krate:: Hash = * value.deref();
+				let #ident: #krate:: Hash = * value;
 				let trace_id = #krate:: hash_to_trace_identifier ( #ident );
 				#krate :: event!(
 					#target #comma #level, #values #fmt

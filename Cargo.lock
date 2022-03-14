@@ -11509,7 +11509,6 @@ name = "tracing-gum"
 version = "0.9.17"
 dependencies = [
  "polkadot-node-jaeger",
- "polkadot-node-primitives",
  "polkadot-primitives",
  "tracing",
  "tracing-gum-proc-macro",

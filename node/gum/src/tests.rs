@@ -1,3 +1,19 @@
+// Copyright 2022 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 pub use polkadot_primitives::v2::{CandidateHash, Hash};
 
@@ -8,10 +24,15 @@ struct Y {
 }
 
 #[test]
+fn plain() {
+	error!("plain");
+}
+
+#[test]
 fn wo_alias() {
 	let a: i32 = 7;
 	error!(target: "foo",
-		"Something something {}, {b:?}, or maybe {c}",
+		"Something something {}, {:?}, or maybe {}",
 		a,
 		b = Y::default(),
 		c = a
@@ -35,7 +56,7 @@ fn w_candidate_hash_value_assignment() {
 	info!(target: "bar",
 		a = a,
 		// ad-hoc value
-		candidate_hash = %Hash::repeat_byte(0xF0),
+		candidate_hash = %CandidateHash(Hash::repeat_byte(0xF0)),
 		b = ?Y::default(),
 		c = ?a,
 		"xxx",
@@ -45,7 +66,7 @@ fn w_candidate_hash_value_assignment() {
 #[test]
 fn w_candidate_hash_from_scope() {
 	let a: i32 = 7;
-	let candidate_hash = Hash::repeat_byte(0xF1);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xF1));
 	debug!(target: "bar",
 		a = a,
 		?candidate_hash,
@@ -71,7 +92,7 @@ fn w_candidate_hash_aliased() {
 #[test]
 fn w_candidate_hash_aliased_unnecessary() {
 	let a: i32 = 7;
-	let candidate_hash = Hash::repeat_byte(0xFA);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xFA));
 	info!(
 		target: "bar",
 		a = a,

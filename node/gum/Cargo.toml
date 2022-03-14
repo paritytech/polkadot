@@ -9,7 +9,4 @@ description = "Stick logs together with the TraceID as provided by tempo"
 tracing = "0.1.31"
 jaeger = { path = "../jaeger", package = "polkadot-node-jaeger" }
 gum-proc-macro = { path = "./proc-macro", package = "tracing-gum-proc-macro" }
-polkadot-primitives = { path = "../../primitives" }
-
-[dev-dependencies]
-polkadot-node-primitives = { path = "../primitives" }
+polkadot-primitives = { path = "../../primitives", features = ["std"] }
