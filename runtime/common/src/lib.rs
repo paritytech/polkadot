@@ -38,17 +38,20 @@ mod integration_tests;
 mod mock;
 
 use frame_support::{
+	parameter_types,
 	traits::{ConstU32, Currency, OneSessionHandler},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
-use primitives::v2::{AssignmentId, ValidatorId};
-use sp_runtime::Perbill;
+use frame_system::limits;
+use primitives::v2::{AssignmentId, BlockNumber, ValidatorId};
+use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
 pub use pallet_balances::Call as BalancesCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
+use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -70,6 +73,29 @@ pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
+// Common constants used in all runtimes.
+parameter_types! {
+	pub const BlockHashCount: BlockNumber = 2400;
+	/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
+	/// than this will decrease the weight and more will increase.
+	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
+	/// The adjustment variable of the runtime. Higher values will cause `TargetBlockFullness` to
+	/// change the fees more rapidly.
+	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(3, 100_000);
+	/// Minimum amount of the multiplier. This value cannot be too low. A test case should ensure
+	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
+	/// See `multiplier_can_grow_from_zero`.
+	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
+	/// Maximum length of block. Up to 5MB.
+	pub BlockLength: limits::BlockLength =
+	limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+}
+
+/// Parameterized slow adjusting fee updated based on
+/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#-2.-slow-adjusting-mechanism
+pub type SlowAdjustingFeeUpdate<R> =
+	TargetedFeeAdjustment<R, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
+
 /// Implements the weight types for a runtime.
 /// It expects the passed runtime constants to contain a `weights` module.
 /// The generated weight types were formerly part of the common
@@ -81,37 +107,20 @@ macro_rules! impl_runtime_weights {
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
-			impl_elections_weights, impl_multiplier_tests, AVERAGE_ON_INITIALIZE_RATIO,
-			MAXIMUM_BLOCK_WEIGHT, NORMAL_DISPATCH_RATIO,
+			impl_elections_weights, AVERAGE_ON_INITIALIZE_RATIO, MAXIMUM_BLOCK_WEIGHT,
+			NORMAL_DISPATCH_RATIO,
 		};
 		use sp_runtime::{FixedPointNumber, Perquintill};
 
 		// Implement the weight types of the elections module.
 		impl_elections_weights!($runtime);
-		// Implement tests for the weight multiplier.
-		impl_multiplier_tests!();
 
 		// Expose the weight from the runtime constants module.
 		pub use $runtime::weights::{
 			BlockExecutionWeight, ExtrinsicBaseWeight, ParityDbWeight, RocksDbWeight,
 		};
 
-		// Common constants used in all runtimes.
 		parameter_types! {
-			pub const BlockHashCount: BlockNumber = 2400;
-			/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
-			/// than this will decrease the weight and more will increase.
-			pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
-			/// The adjustment variable of the runtime. Higher values will cause `TargetBlockFullness` to
-			/// change the fees more rapidly.
-			pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(3, 100_000);
-			/// Minimum amount of the multiplier. This value cannot be too low. A test case should ensure
-			/// that combined with `AdjustmentVariable`, we can recover from the minimum.
-			/// See `multiplier_can_grow_from_zero`.
-			pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
-			/// Maximum length of block. Up to 5MB.
-			pub BlockLength: limits::BlockLength =
-			limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
 			/// Block weights base values and limits.
 			pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
 				.base_block($runtime::weights::BlockExecutionWeight::get())
@@ -132,11 +141,6 @@ macro_rules! impl_runtime_weights {
 				.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 				.build_or_panic();
 		}
-
-		/// Parameterized slow adjusting fee updated based on
-		/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#-2.-slow-adjusting-mechanism
-		pub type SlowAdjustingFeeUpdate<R> =
-			TargetedFeeAdjustment<R, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
 	};
 }
 
@@ -240,119 +244,115 @@ macro_rules! prod_or_fast {
 	};
 }
 
-/// Generates tests that check that the different weight multiplier work together.
-/// Should not be called directly, use [`impl_runtime_weights`] instead.
-#[macro_export]
-macro_rules! impl_multiplier_tests {
-	() => {
-	#[cfg(test)]
-	mod multiplier_tests {
-		use super::*;
-		use frame_support::{parameter_types, weights::Weight};
-		use sp_core::H256;
-		use sp_runtime::{
-			testing::Header,
-			traits::{BlakeTwo256, One, Convert, IdentityLookup},
-			Perbill,
-		};
+#[cfg(test)]
+mod multiplier_tests {
+	use super::*;
+	use frame_support::{
+		parameter_types,
+		weights::{DispatchClass, Weight},
+	};
+	use sp_core::H256;
+	use sp_runtime::{
+		testing::Header,
+		traits::{BlakeTwo256, Convert, IdentityLookup, One},
+		Perbill,
+	};
 
-		type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
-		type Block = frame_system::mocking::MockBlock<Runtime>;
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
+	type Block = frame_system::mocking::MockBlock<Runtime>;
 
-		frame_support::construct_runtime!(
-			pub enum Runtime where
-				Block = Block,
-				NodeBlock = Block,
-				UncheckedExtrinsic = UncheckedExtrinsic,
-			{
-				System: frame_system::{Pallet, Call, Config, Storage, Event<T>}
-			}
-		);
-
-		parameter_types! {
-			pub const BlockHashCount: u64 = 250;
-			pub const AvailableBlockRatio: Perbill = Perbill::one();
-			pub BlockLength: frame_system::limits::BlockLength =
-				frame_system::limits::BlockLength::max(2 * 1024);
-			pub BlockWeights: frame_system::limits::BlockWeights =
-				frame_system::limits::BlockWeights::simple_max(1024);
-		}
-
-		impl frame_system::Config for Runtime {
-			type BaseCallFilter = frame_support::traits::Everything;
-			type BlockWeights = BlockWeights;
-			type BlockLength = ();
-			type DbWeight = ();
-			type Origin = Origin;
-			type Index = u64;
-			type BlockNumber = u64;
-			type Call = Call;
-			type Hash = H256;
-			type Hashing = BlakeTwo256;
-			type AccountId = u64;
-			type Lookup = IdentityLookup<Self::AccountId>;
-			type Header = Header;
-			type Event = Event;
-			type BlockHashCount = BlockHashCount;
-			type Version = ();
-			type PalletInfo = PalletInfo;
-			type AccountData = ();
-			type OnNewAccount = ();
-			type OnKilledAccount = ();
-			type SystemWeightInfo = ();
-			type SS58Prefix = ();
-			type OnSetCode = ();
-			type MaxConsumers = frame_support::traits::ConstU32<16>;
-		}
-
-		fn run_with_system_weight<F>(w: Weight, mut assertions: F)
-		where
-			F: FnMut() -> (),
+	frame_support::construct_runtime!(
+		pub enum Runtime where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-				.build_storage::<Runtime>()
-				.unwrap()
-				.into();
-			t.execute_with(|| {
-				System::set_block_consumed_resources(w, 0);
-				assertions()
-			});
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>}
 		}
+	);
 
-		#[test]
-		fn multiplier_can_grow_from_zero() {
-			let minimum_multiplier = MinimumMultiplier::get();
-			let target = TargetBlockFullness::get() *
-				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
-			// if the min is too small, then this will not change, and we are doomed forever.
-			// the weight is 1/100th bigger than target.
-			run_with_system_weight(target * 101 / 100, || {
-				let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
-				assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
-			})
-		}
-
-		#[test]
-		#[ignore]
-		fn multiplier_growth_simulator() {
-			// assume the multiplier is initially set to its minimum. We update it with values twice the
-			//target (target is 25%, thus 50%) and we see at which point it reaches 1.
-			let mut multiplier = MinimumMultiplier::get();
-			let block_weight = TargetBlockFullness::get() *
-				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() *
-				2;
-			let mut blocks = 0;
-			while multiplier <= Multiplier::one() {
-				run_with_system_weight(block_weight, || {
-					let next = SlowAdjustingFeeUpdate::<Runtime>::convert(multiplier);
-					// ensure that it is growing as well.
-					assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
-					multiplier = next;
-				});
-				blocks += 1;
-				println!("block = {} multiplier {:?}", blocks, multiplier);
-			}
-		}
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+		pub const AvailableBlockRatio: Perbill = Perbill::one();
+		pub BlockLength: frame_system::limits::BlockLength =
+			frame_system::limits::BlockLength::max(2 * 1024);
+		pub BlockWeights: frame_system::limits::BlockWeights =
+			frame_system::limits::BlockWeights::simple_max(1024);
 	}
+
+	impl frame_system::Config for Runtime {
+		type BaseCallFilter = frame_support::traits::Everything;
+		type BlockWeights = BlockWeights;
+		type BlockLength = ();
+		type DbWeight = ();
+		type Origin = Origin;
+		type Index = u64;
+		type BlockNumber = u64;
+		type Call = Call;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
+		type Event = Event;
+		type BlockHashCount = BlockHashCount;
+		type Version = ();
+		type PalletInfo = PalletInfo;
+		type AccountData = ();
+		type OnNewAccount = ();
+		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
+		type SS58Prefix = ();
+		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
+	}
+
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
+	where
+		F: FnMut() -> (),
+	{
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		t.execute_with(|| {
+			System::set_block_consumed_resources(w, 0);
+			assertions()
+		});
+	}
+
+	#[test]
+	fn multiplier_can_grow_from_zero() {
+		let minimum_multiplier = MinimumMultiplier::get();
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		// if the min is too small, then this will not change, and we are doomed forever.
+		// the weight is 1/100th bigger than target.
+		run_with_system_weight(target * 101 / 100, || {
+			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
+			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
+		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() *
+			2;
+		let mut blocks = 0;
+		while multiplier <= Multiplier::one() {
+			run_with_system_weight(block_weight, || {
+				let next = SlowAdjustingFeeUpdate::<Runtime>::convert(multiplier);
+				// ensure that it is growing as well.
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+			});
+			blocks += 1;
+			println!("block = {} multiplier {:?}", blocks, multiplier);
+		}
 	}
 }
