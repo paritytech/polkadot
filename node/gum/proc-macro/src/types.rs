@@ -115,26 +115,40 @@ impl ToTokens for ValueWithAliasIdent {
 pub(crate) struct ValueWithFormatMarker {
 	pub marker: FormatMarker,
 	pub ident: Ident,
-	// pub expr: Box<syn::Expr>,
-	// pub member: Option<(Dot, Member)>,
+	pub dot: Option<Token![.]>,
+	pub member: Option<syn::Member>,
 }
 
 impl Parse for ValueWithFormatMarker {
 	fn parse(input: ParseStream) -> Result<Self> {
-		Ok(Self { marker: input.parse()?, ident: input.parse()? })
+		let marker = input.parse::<FormatMarker>()?;
+		let ident = input.parse::<syn::Ident>()?;
+
+		let lookahead = input.lookahead1();
+		let (dot, member) = if lookahead.peek(Token![.]) {
+			let token = input.parse::<Token![.]>()?;
+			let member = input.parse::<syn::Member>()?;
+			(Some(token), Some(member))
+		} else {
+			(None, None)
+		};
+
+		Ok(Self { marker, ident, dot, member })
 	}
 }
 
 impl ToTokens for ValueWithFormatMarker {
 	fn to_tokens(&self, tokens: &mut TokenStream) {
 		let marker = &self.marker;
-		let expr = &self.ident;
+		let ident = &self.ident;
+		let member = &self.member;
 		tokens.extend(quote! {
-			#marker #expr
+			#marker #ident #member
 		})
 	}
 }
 
+/// A value as passed to the macro, appearing _before_ the format string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 
 pub(crate) enum Value {
@@ -172,10 +186,16 @@ impl ToTokens for Value {
 	}
 }
 
+/// Defines the token stream consisting of a format string and it's arguments.
+///
+/// Attention: Currently the correctness of the arguments is not checked as part
+/// of the parsing logic.
+/// It would be possible to use `parse_fmt_str:2.0.0`
+/// to do so and possibly improve the error message here - for the time being
+/// it's not clear if this yields any practical benefits, and is hence
+/// left for future consideration.
 #[derive(Debug, Clone)]
 pub(crate) struct FmtGroup {
-	// TODO use `parse_fmt_str:2.0.0`
-	// instead to sanitize
 	pub format_str: syn::LitStr,
 	pub maybe_comma: Option<Token![,]>,
 	pub rest: TokenStream,
@@ -213,6 +233,7 @@ impl ToTokens for FmtGroup {
 	}
 }
 
+/// Full set of arguments as provided to the `gum::warn!` call.
 #[derive(Debug, Clone)]
 pub(crate) struct Args {
 	pub target: Option<Target>,
@@ -269,7 +290,10 @@ impl ToTokens for Args {
 	}
 }
 
-/// Support tracing levels, passed to `gum::event!`.
+/// Support tracing levels, passed to `tracing::event!`
+///
+/// Note: Not parsed from the input stream, but implicitly defined
+/// by the macro name, i.e. `level::debug!` is `Level::Debug`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Level {
 	Error,

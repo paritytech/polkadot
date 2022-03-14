@@ -86,7 +86,12 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 				(
 					alias.clone(),
 					expr.to_token_stream(),
-					Some(Value::Value(ValueWithFormatMarker { marker, ident: alias })),
+					Some(Value::Value(ValueWithFormatMarker {
+						marker,
+						ident: alias,
+						dot: None,
+						member: None,
+					})),
 				)
 			},
 			Value::Value(value) => (value.ident.clone(), value.ident.to_token_stream(), None),
@@ -116,9 +121,12 @@ pub(crate) fn impl_gum2(orig: TokenStream, level: Level) -> Result<TokenStream> 
 			if #krate :: enabled!(#target #comma #level) {
 				use ::std::ops::Deref;
 
-				// create a scoped let binding
-				let #ident: ::polkadot_primitives::Hash = #rhs_expr .deref();
-				let trace_id = #krate :: hash_to_trace_identifier ( #ident );
+				// create a scoped let binding of something that `deref`s to
+				// `Hash`.
+				let value = #rhs_expr;
+				// Do the `deref` to `Hash` and convert to a `TraceIdentifier`.
+				let #ident: #krate:: Hash = * value.deref();
+				let trace_id = #krate:: hash_to_trace_identifier ( #ident );
 				#krate :: event!(
 					#target #comma #level, #values #fmt
 				)

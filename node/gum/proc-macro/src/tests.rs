@@ -162,11 +162,11 @@ mod roundtrip {
 	}
 
 	#[test]
-	fn expr_as_kv() {
+	fn field_member_as_kv() {
 		dbg!(impl_gum2(
 			quote! {
 				target: "z",
-				?::std::ops::Deref::deref(&77).x,
+				?z.x,
 			},
 			Level::Info
 		)

@@ -129,7 +129,7 @@ where
 				},
 				ChainApiMessage::Ancestors { hash, k, response_channel } => {
 					let _timer = subsystem.metrics.time_ancestors();
-					// gum::span!(gum::Level::TRACE, "ChainApiMessage::Ancestors", subsystem=LOG_TARGET, hash=%hash, k=k);
+					gum::trace!(target: LOG_TARGET, hash=%hash, k=k, "ChainApiMessage::Ancestors");
 
 					let mut hash = hash;
 
