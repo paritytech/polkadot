@@ -1060,10 +1060,6 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			signature: statement.signature().clone(),
 		};
 
-		/*
-			protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into())
-				.get_metadata();
-		*/
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
@@ -1605,10 +1601,7 @@ fn share_prioritizes_backing_group() {
 			signed_by: statement.validator_index(),
 			signature: statement.signature().clone(),
 		};
-		/*
-			protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into())
-				.get_metadata();
-		*/
+
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone()),
@@ -1803,10 +1796,6 @@ fn peer_cant_flood_with_large_statements() {
 			signature: statement.signature().clone(),
 		};
 
-		/*
-			protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into())
-				.get_metadata();
-		*/
 		for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
 			handle
 				.send(FromOverseer::Communication {

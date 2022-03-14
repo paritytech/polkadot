@@ -339,9 +339,8 @@ pub mod v1 {
 					statement.unchecked_payload().to_compact(),
 					statement.unchecked_validator_index(),
 				),
-				Self::LargeStatement(meta) => {
-					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by)
-				},
+				Self::LargeStatement(meta) =>
+					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
 			}
 		}
 
