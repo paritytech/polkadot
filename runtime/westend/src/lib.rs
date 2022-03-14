@@ -42,9 +42,8 @@ use primitives::v2::{
 	ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
+	paras_sudo_wrapper, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
@@ -89,6 +88,8 @@ pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
+
+impl_runtime_weights!(westend_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -356,7 +357,7 @@ parameter_types! {
 	pub const VoterSnapshotPerBlock: u32 = 22_500;
 }
 
-sp_npos_elections::generate_solution_type!(
+frame_election_provider_support::generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,

@@ -5,7 +5,8 @@
 # current reference machine: https://github.com/paritytech/substrate/pull/5848
 
 runtime="$1"
-standard_args="--release --locked --features=runtime-benchmarks"
+profile="$2"
+standard_args="--profile $profile --locked --features=runtime-benchmarks"
 
 echo "[+] Running all benchmarks for $runtime"
 

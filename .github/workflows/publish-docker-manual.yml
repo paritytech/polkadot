@@ -5,7 +5,7 @@ on:
     inputs:
       version:
         description: version to build/release
-        default: v0.9.17
+        default: v0.9.18
         required: true
       date:
         description: release date of version

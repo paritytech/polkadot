@@ -50,7 +50,7 @@ pub use self::metrics::*;
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "parachain::availability";
+const LOG_TARGET: &str = "parachain::availability-store";
 
 /// The following constants are used under normal conditions:
 

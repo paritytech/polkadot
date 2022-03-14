@@ -45,7 +45,7 @@ use polkadot_primitives::v2::{
 };
 use polkadot_subsystem::{
 	messages::{
-		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
@@ -277,6 +277,14 @@ impl TestState {
 							panic!("Unexpected runtime request: {:?}", req);
 						},
 					}
+				},
+				AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
+					let chain = &self.relay_chain;
+					let maybe_block_position = chain.iter().position(|h| *h == hash);
+					let ancestors = maybe_block_position
+						.map(|idx| chain[..idx].iter().rev().take(k).copied().collect())
+						.unwrap_or_default();
+					response_channel.send(Ok(ancestors)).expect("Receiver is expected to be alive");
 				},
 				_ => {},
 			}

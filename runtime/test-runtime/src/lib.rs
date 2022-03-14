@@ -52,7 +52,8 @@ use primitives::v2::{
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
+	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
+	SlowAdjustingFeeUpdate,
 };
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
@@ -83,6 +84,8 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use test_runtime_constants::{currency::*, fee::*, time::*};
 pub mod xcm_config;
+
+impl_runtime_weights!(test_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
