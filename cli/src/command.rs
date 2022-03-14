@@ -394,7 +394,14 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
+				let revert_aux = Box::new(move |_blocks| {
+					// TODO: babe + grandpa revert
+					Ok(())
+				});
+				Ok((
+					cmd.run(client, backend, Some(revert_aux)).map_err(Error::SubstrateCli),
+					task_manager,
+				))
 			})?)
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
