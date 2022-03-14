@@ -14,7 +14,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-gum = { package = "tracing-gum", path = "../gum/" }
+gum = { package = "tracing-gum", path = "../../gum" }
 thiserror = "1.0.30"
 
 [dev-dependencies]

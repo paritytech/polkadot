@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-gum = { package = "tracing-gum", path = "../gum/" }
+gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

@@ -17,7 +17,7 @@
 //! A wrapper around `tracing` macros, to provide semi automatic
 //! `traceID` annotation without codebase turnover.
 
-pub use gum::{enabled, event, Level};
+pub use tracing::{enabled, event, Level};
 
 pub use jaeger::hash_to_trace_identifier;
 

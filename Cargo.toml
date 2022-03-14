@@ -94,7 +94,7 @@ members = [
 	"node/subsystem-util",
 	"node/jaeger",
 	"node/gum",
-	"node/gumproc-macro",
+	"node/gum/proc-macro",
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
