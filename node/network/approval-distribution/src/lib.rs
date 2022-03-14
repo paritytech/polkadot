@@ -294,6 +294,20 @@ impl State {
 		);
 
 		{
+			for (peer_id, view) in self.peer_views.iter() {
+				let intersection = view.iter().filter(|h| new_hashes.contains(h));
+				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
+				Self::unify_with_peer(
+					ctx,
+					&self.gossip_peers,
+					metrics,
+					&mut self.blocks,
+					peer_id.clone(),
+					view_intersection,
+				)
+					.await;
+			}
+
 			let pending_now_known = self
 				.pending_known
 				.keys()
@@ -326,13 +340,6 @@ impl State {
 				for (peer_id, message) in to_import {
 					match message {
 						PendingMessage::Assignment(assignment, claimed_index) => {
-							// Since we have received a pending message about this block,
-							// we can safely assume that a peer is aware of that block even
-							// if the view update message from a peer has been received before
-							// our own view update
-							if let Some(block_entry) = self.blocks.get_mut(&assignment.block_hash) {
-								block_entry.known_by.entry(peer_id).or_default();
-							}
 							self.import_and_circulate_assignment(
 								ctx,
 								metrics,
@@ -343,11 +350,6 @@ impl State {
 							.await;
 						},
 						PendingMessage::Approval(approval_vote) => {
-							if let Some(block_entry) =
-								self.blocks.get_mut(&approval_vote.block_hash)
-							{
-								block_entry.known_by.entry(peer_id).or_default();
-							}
 							self.import_and_circulate_approval(
 								ctx,
 								metrics,
@@ -359,20 +361,6 @@ impl State {
 					}
 				}
 			}
-		}
-
-		for (peer_id, view) in self.peer_views.iter() {
-			let intersection = view.iter().filter(|h| new_hashes.contains(h));
-			let view_intersection = View::new(intersection.cloned(), view.finalized_number);
-			Self::unify_with_peer(
-				ctx,
-				&self.gossip_peers,
-				metrics,
-				&mut self.blocks,
-				peer_id.clone(),
-				view_intersection,
-			)
-			.await;
 		}
 	}
 
