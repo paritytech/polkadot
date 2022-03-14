@@ -44,7 +44,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo<T> {
 	fn process_upward_message(s: u32, ) -> Weight {
-		(3_398_000 as Weight)
+		(3_661_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_000 as Weight).saturating_mul(s as Weight))
 	}
@@ -53,13 +53,13 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	// Storage: Ump RelayDispatchQueues (r:0 w:1)
 	// Storage: Ump RelayDispatchQueueSize (r:0 w:1)
 	fn clean_ump_after_outgoing() -> Weight {
-		(6_798_000 as Weight)
+		(6_776_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: Ump Overweight (r:1 w:1)
 	fn service_overweight() -> Weight {
-		(16_053_000 as Weight)
+		(16_507_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
