@@ -106,11 +106,7 @@ impl RuntimeMetricsProvider {
 		F: FnOnce(MutexGuard<'_, HashMap<String, Counter<U64>>>) -> Result<(), PrometheusError>,
 	{
 		let _ = self.1.counters.lock().map(do_something).or_else(|error| {
-			gum::error!(
-				target: LOG_TARGET,
-				"Cannot acquire the counter hashmap lock: {:?}",
-				error
-			);
+			gum::error!(target: LOG_TARGET, "Cannot acquire the counter hashmap lock: {:?}", error);
 			Err(error)
 		});
 	}
