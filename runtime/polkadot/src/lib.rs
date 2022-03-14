@@ -444,6 +444,7 @@ parameter_types! {
 	// Each good submission will get 1 DOT as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
+	pub SignedMaxRefunds: Option<u32>  = Some(0);
 
 	// 4 hour session, 1 hour unsigned phase, 32 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 32;
@@ -475,6 +476,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
 	type SignedMaxWeight = Self::MinerMaxWeight;
+	type SignedMaxRefunds = SignedMaxRefunds;
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
