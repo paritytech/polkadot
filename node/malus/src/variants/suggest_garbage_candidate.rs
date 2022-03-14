@@ -133,7 +133,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 				let keystore = keystore.clone();
 				async move {
 					gum::info!(
-						target = MALUS,
+						target: MALUS,
 						"Replacing seconded candidate pov with something else"
 					);
 

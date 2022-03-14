@@ -171,14 +171,14 @@ where
 								);
 							} else {
 								gum::info!(
-									target = MALUS,
+									target: MALUS,
 									"Could not get availability data, can't back"
 								);
 							}
 						}),
 					);
 				} else {
-					gum::info!(target = MALUS, "No CandidateReceipt available to work with");
+					gum::info!(target: MALUS, "No CandidateReceipt available to work with");
 				}
 				None
 			},
