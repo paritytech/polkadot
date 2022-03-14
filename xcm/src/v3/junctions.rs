@@ -32,6 +32,7 @@ pub(crate) const MAX_JUNCTIONS: usize = 8;
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,
