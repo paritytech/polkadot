@@ -1,13 +1,29 @@
 # tracing-gum
 
-"gum" to make `tracing::{warn,info,..}` and `mick-jaeger` stick together, to be cross referenced in grafana with zero additional loc in the source code.
+"gum" to make `tracing::{warn,info,..}` and `mick-jaeger` stick together, to be
+cross referenced in grafana with zero additional loc in the source code.
 
 ## Architecture Decision Record (ADR)
 
 ### Context
 
-For the cross referencing in grafana to work, an explicit `traceID` of type `u128` has to be provided, both in the log line and the `jaeger::Span`.
-Before this PR, no such `traceID` annotations could be made easily accross the codebase.
+For cross referencing spans and logs in grafana loki and tempo, a shared
+`traceID` or `TraceIdentifier` is required. All logs must be annotated with such
+meta information.
+
+In most cases `CandidateHash` is the primary identifier of the `jaeger::Span`
+and hence the source from which the `traceID` is derived. For cases where it is
+_not_ the primary identifier, a helper tag named `traceID` is added to those
+spans (out of scope, this is already present as a convenience measure).
+
+Log lines on the other hand side, use `warn!,info!,debug!,trace!,..` API
+provided by the `tracing` crate. Many of these, contain a `candidate_hash`,
+which is _not_ equivalent to the `traceID` (256bits vs 128bits), and hence must
+be derived.
+
+To achieve the cross ref, either all instances of `candidate_hash` could be
+added or this could be approached more systematically by providing a `macro` to
+automatically do so.
 
 Related issues:
 
@@ -15,14 +31,23 @@ Related issues:
 
 ### Decision
 
-The various options are to add ~2 lines per tracing line including a `candidate_hash` reference, to derive the `TraceIdentifier` from that.
-This would have avoided the complexity introduced by adding another proc-macro to the codebase.
-The visual overhead and friction and required diligence to keep the 100s of `tracing::{warn!,info!,debug!,..}` up is unreasonably high in the mid/long run especially with the context of more people joining the team.
+Adding approx. 2 lines per tracing line including a `candidate_hash` reference,
+to derive the `TraceIdentifier` from that, and printing that as part of the
+key-value section in the `tracing::*` macros. The visual overhead and friction
+and required diligence to keep the 100s of `tracing::{warn!,info!,debug!,..}` up
+is unreasonably high in the mid/long run. This is especially true, in the
+context of more people joining the team. Hence the a proc-macro is introduced
+which abstracts this away, and does so automagically at the cost of
+one-more-proc-macro in the codebase.
 
 ### Consequences
 
-Minimal training/impact is required to name `CandidateHash` as `candidate_hash` when providing to any of the log macros (`warn!`, `info!`, etc.).
+Minimal training/impact is required to name `CandidateHash` as `candidate_hash`
+when providing to any of the log macros (`warn!`, `info!`, etc.).
 
-The crate has to be used throughout the entire codebase to work consistently, to disambiguate, the prefix `gum::` is used.
+The crate has to be used throughout the entire codebase to work consistently, to
+disambiguate, the prefix `gum::` is used.
 
-Feature parity with `tracing::{warn!,..}` is not desired. We want consistency more than anything else. All currently used features _are_ supported with _gum_ as well.
+Feature parity with `tracing::{warn!,..}` is not desired. We want consistency
+more than anything. All currently used features _are_ supported with _gum_ as
+well.
