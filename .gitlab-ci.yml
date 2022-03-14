@@ -689,6 +689,7 @@ zombienet-tests-parachains-pvf:
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-pvf.feature"
   allow_failure:                   false
+  retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
@@ -718,6 +719,7 @@ zombienet-tests-parachains-disputes:
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.feature"
   allow_failure:                   false
+  retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
