@@ -288,6 +288,20 @@ impl State {
 		);
 
 		{
+			for (peer_id, view) in self.peer_views.iter() {
+				let intersection = view.iter().filter(|h| new_hashes.contains(h));
+				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
+				Self::unify_with_peer(
+					ctx,
+					&self.gossip_peers,
+					metrics,
+					&mut self.blocks,
+					peer_id.clone(),
+					view_intersection,
+				)
+				.await;
+			}
+
 			let pending_now_known = self
 				.pending_known
 				.keys()
@@ -341,20 +355,6 @@ impl State {
 					}
 				}
 			}
-		}
-
-		for (peer_id, view) in self.peer_views.iter() {
-			let intersection = view.iter().filter(|h| new_hashes.contains(h));
-			let view_intersection = View::new(intersection.cloned(), view.finalized_number);
-			Self::unify_with_peer(
-				ctx,
-				&self.gossip_peers,
-				metrics,
-				&mut self.blocks,
-				peer_id.clone(),
-				view_intersection,
-			)
-			.await;
 		}
 	}
 
