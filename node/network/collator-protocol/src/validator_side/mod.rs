@@ -131,6 +131,13 @@ impl Metrics {
 			.as_ref()
 			.map(|metrics| metrics.collator_peer_count.set(collator_peers as u64));
 	}
+
+	/// Provide a timer for `PerRequest` structure which observes on drop.
+	fn time_collation_request_duration(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.collation_request_duration.start_timer())
+	}
 }
 
 #[derive(Clone)]
@@ -139,6 +146,7 @@ struct MetricsInner {
 	process_msg: prometheus::Histogram,
 	handle_collation_request_result: prometheus::Histogram,
 	collator_peer_count: prometheus::Gauge<prometheus::U64>,
+	collation_request_duration: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -181,6 +189,15 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			collation_request_duration: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_collator_protocol_validator_collation_request_duration",
+						"Lifetime of the `PerRequest` structure",
+					)
+				)?,
+				registry,
+			)?,
 		};
 
 		Ok(Metrics(Some(metrics)))
@@ -194,6 +211,8 @@ struct PerRequest {
 	to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
 	/// A jaeger span corresponding to the lifetime of the request.
 	span: Option<jaeger::Span>,
+	/// A metric histogram for the lifetime of the request
+	_lifetime_timer: Option<metrics::prometheus::prometheus::HistogramTimer>,
 }
 
 #[derive(Debug)]
@@ -762,6 +781,7 @@ async fn request_collation<Context>(
 			.span_per_relay_parent
 			.get(&relay_parent)
 			.map(|s| s.child("collation-request").with_para_id(para_id)),
+		_lifetime_timer: state.metrics.time_collation_request_duration(),
 	};
 
 	state
