@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-gum = { package = "tracing-gum", path = "../gum/" }
+gum = { package = "tracing-gum", path = "../../gum" }
 parity-scale-codec = { version = "3.0.0", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
