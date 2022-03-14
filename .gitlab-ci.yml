@@ -529,11 +529,13 @@ update_polkadot_weights:           &update-weights
 update_kusama_weights:
   <<:                              *update-weights
   variables:
+    PROFILE:                       production
     RUNTIME:                       kusama
 
 update_westend_weights:
   <<:                              *update-weights
   variables:
+    PROFILE:                       production
     RUNTIME:                       westend
 
 #### stage:                        stage3
