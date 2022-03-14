@@ -305,7 +305,7 @@ impl State {
 					peer_id.clone(),
 					view_intersection,
 				)
-					.await;
+				.await;
 			}
 
 			let pending_now_known = self
