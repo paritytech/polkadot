@@ -980,7 +980,7 @@ fn sends_assignments_even_when_state_is_approved() {
 /// 1. Receive remote peer view update with an unknown head
 /// 2. Receive assignments for that unknown head
 /// 3. Update our view and import the new block
-/// 4. Expect that no reputation with COST_UNEXPECTED_MESSAGE is applied
+/// 4. Expect that no reputation with `COST_UNEXPECTED_MESSAGE` is applied
 #[test]
 fn race_condition_in_local_vs_remote_view_update() {
 	let parent_hash = Hash::repeat_byte(0xFF);
