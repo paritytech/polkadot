@@ -1469,12 +1469,12 @@ sp_api::impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (Weight, Weight) {
+		fn on_runtime_upgrade() -> (frame_support::weights::Weight, frame_support::weights::Weight) {
 			log::info!("try-runtime::on_runtime_upgrade westend.");
 			let weight = Executive::try_runtime_upgrade().unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
-		fn execute_block_no_check(block: Block) -> Weight {
+		fn execute_block_no_check(block: Block) -> frame_support::weights::Weight {
 			Executive::execute_block_no_check(block)
 		}
 	}
