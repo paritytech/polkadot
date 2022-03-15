@@ -519,7 +519,7 @@ update_polkadot_weights:           &update-weights
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   script:
-    - ./scripts/run_benches_for_runtime.sh $RUNTIME $PROFILE
+    - ./scripts/run_benches_for_runtime.sh $RUNTIME
     - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   # uses the "shell" executors
   tags:
