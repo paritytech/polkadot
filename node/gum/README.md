@@ -36,7 +36,7 @@ to derive the `TraceIdentifier` from that, and printing that as part of the
 key-value section in the `tracing::*` macros. The visual overhead and friction
 and required diligence to keep the 100s of `tracing::{warn!,info!,debug!,..}` up
 is unreasonably high in the mid/long run. This is especially true, in the
-context of more people joining the team. Hence the a proc-macro is introduced
+context of more people joining the team. Hence a proc-macro is introduced
 which abstracts this away, and does so automagically at the cost of
 one-more-proc-macro in the codebase.
 
