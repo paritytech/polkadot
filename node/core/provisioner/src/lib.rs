@@ -511,9 +511,10 @@ async fn select_candidates(
 
 	gum::debug!(
 		target: LOG_TARGET,
-		"Selected {} candidates for {} cores",
-		candidates.len(),
-		availability_cores.len()
+		n_candidates = candidates.len(),
+		n_cores = availability_cores.len(),
+		?relay_parent,
+		"Selected candidates for cores",
 	);
 
 	Ok(candidates)
