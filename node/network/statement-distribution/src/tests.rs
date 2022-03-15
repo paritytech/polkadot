@@ -1865,7 +1865,7 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 	}
 }
 
-fn get_metadata(
+fn get_metadata_assuming_seconded(
 	hash: Hash,
 	statement: UncheckedSignedFullStatement,
 ) -> protocol_v1::StatementMetadata {
