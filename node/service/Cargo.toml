@@ -195,4 +195,4 @@ runtime-metrics = [
 	"polkadot-runtime/runtime-metrics",
 	"polkadot-runtime-parachains/runtime-metrics"
 ]
-with-tracing = ["polkadot-client/runtime-metrics", "kusama-runtime/runtime-metrics", "westend-runtime/runtime-metrics"]
+with-tracing = ["polkadot-runtime/with-tracing", "kusama-runtime/with-tracing", "westend-runtime/with-tracing"]
