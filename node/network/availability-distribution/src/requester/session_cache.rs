@@ -107,16 +107,16 @@ impl SessionCache {
 		F: FnOnce(&SessionInfo) -> R,
 	{
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
-			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
+			gum::trace!(target: LOG_TARGET, session_index, "Got session from lru");
 			return Ok(Some(with_info(o_info)))
 		}
 
 		if let Some(info) =
 			self.query_info_from_runtime(ctx, runtime, parent, session_index).await?
 		{
-			tracing::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
+			gum::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
 			let r = with_info(&info);
-			tracing::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
+			gum::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
 			self.session_info_cache.put(session_index, info);
 			Ok(Some(r))
 		} else {
@@ -130,7 +130,7 @@ impl SessionCache {
 	/// subsystem on this.
 	pub fn report_bad_log(&mut self, report: BadValidators) {
 		if let Err(err) = self.report_bad(report) {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err = ?err,
 				"Reporting bad validators failed with error"

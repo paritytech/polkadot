@@ -372,7 +372,7 @@ fn test_log_output() {
 		m
 	};
 	let pretty = PrettyAuthorities(unconnected_authorities.iter());
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		unconnected_authorities = %pretty,
 		"Connectivity Report"

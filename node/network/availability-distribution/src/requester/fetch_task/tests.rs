@@ -262,7 +262,7 @@ impl TestRun {
 				return true
 			},
 			_ => {
-				tracing::debug!(target: LOG_TARGET, "Unexpected message");
+				gum::debug!(target: LOG_TARGET, "Unexpected message");
 				return false
 			},
 		}

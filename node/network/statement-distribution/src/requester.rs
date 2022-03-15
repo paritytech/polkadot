@@ -103,7 +103,7 @@ pub async fn fetch(
 				.feed(RequesterMessage::SendRequest(Requests::StatementFetching(outgoing)))
 				.await
 			{
-				tracing::info!(
+				gum::info!(
 					target: LOG_TARGET,
 					?err,
 					"Sending request failed, node might be shutting down - exiting."
@@ -122,7 +122,7 @@ pub async fn fetch(
 						if let Err(err) =
 							sender.feed(RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)).await
 						{
-							tracing::warn!(
+							gum::warn!(
 								target: LOG_TARGET,
 								?err,
 								"Sending reputation change failed: This should not happen."
@@ -142,7 +142,7 @@ pub async fn fetch(
 						})
 						.await
 					{
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							?err,
 							"Sending task response failed: This should not happen."
@@ -155,7 +155,7 @@ pub async fn fetch(
 					return
 				},
 				Err(err) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?err,
 						"Receiving response failed with error - trying next peer."
@@ -174,7 +174,7 @@ pub async fn fetch(
 		// All our peers failed us - try getting new ones before trying again:
 		match try_get_new_peers(relay_parent, candidate_hash, &mut sender, &span).await {
 			Ok(Some(mut peers)) => {
-				tracing::trace!(target: LOG_TARGET, ?peers, "Received new peers.");
+				gum::trace!(target: LOG_TARGET, ?peers, "Received new peers.");
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
 			},
@@ -205,7 +205,7 @@ async fn try_get_new_peers(
 		.send(RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx })
 		.await
 	{
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?err,
 			"Failed sending background task message, subsystem probably moved on."
@@ -215,7 +215,7 @@ async fn try_get_new_peers(
 
 	match rx.timeout(RETRY_TIMEOUT).await.transpose() {
 		Err(_) => {
-			tracing::debug!(target: LOG_TARGET, "Failed fetching more peers.");
+			gum::debug!(target: LOG_TARGET, "Failed fetching more peers.");
 			Err(())
 		},
 		Ok(val) => Ok(val),
