@@ -289,6 +289,11 @@ impl RunningTask {
 					gum::debug!(
 						target: LOG_TARGET,
 						validator = ?validator,
+						relay_parent = ?self.relay_parent,
+						group_index = ?self.group_index,
+						session_index = ?self.session_index,
+						chunk_index = ?self.request.index,
+						candidate_hash = ?self.request.candidate_hash,
 						"Validator did not have our chunk"
 					);
 					bad_validators.push(validator);
@@ -340,6 +345,11 @@ impl RunningTask {
 				gum::warn!(
 					target: LOG_TARGET,
 					origin= ?validator,
+					relay_parent = ?self.relay_parent,
+					group_index = ?self.group_index,
+					session_index = ?self.session_index,
+					chunk_index = ?self.request.index,
+					candidate_hash = ?self.request.candidate_hash,
 					err= ?err,
 					"Peer sent us invalid erasure chunk data"
 				);
@@ -349,15 +359,27 @@ impl RunningTask {
 				gum::debug!(
 					target: LOG_TARGET,
 					origin= ?validator,
+					relay_parent = ?self.relay_parent,
+					group_index = ?self.group_index,
+					session_index = ?self.session_index,
+					chunk_index = ?self.request.index,
+					candidate_hash = ?self.request.candidate_hash,
 					err= ?err,
 					"Some network error occurred when fetching erasure chunk"
 				);
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
-				gum::debug!(target: LOG_TARGET,
-							   origin= ?validator,
-							   "Erasure chunk request got canceled");
+				gum::debug!(
+					target: LOG_TARGET,
+					origin= ?validator,
+					relay_parent = ?self.relay_parent,
+					group_index = ?self.group_index,
+					session_index = ?self.session_index,
+					chunk_index = ?self.request.index,
+					candidate_hash = ?self.request.candidate_hash,
+					"Erasure chunk request got canceled"
+				);
 				Err(TaskError::PeerError)
 			},
 		}
