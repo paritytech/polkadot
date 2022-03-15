@@ -242,12 +242,15 @@ construct_runtime! {
 		Collective: pallet_collective = 80,
 		Membership: pallet_membership = 81,
 
+		// Utilities
 		Utility: pallet_utility = 90,
 		Proxy: pallet_proxy = 91,
 		Multisig: pallet_multisig,
+		// TODO fix the pallet number/order?
 		Scheduler: pallet_scheduler,
 		Preimage: pallet_preimage,
-
+		Identity: pallet_identity,
+	
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
 
@@ -964,6 +967,34 @@ impl pallet_sudo::Config for Runtime {
 impl validator_manager::Config for Runtime {
 	type Event = Event;
 	type PrivilegedOrigin = EnsureRoot<AccountId>;
+}
+
+parameter_types! {
+	// Minimum 100 bytes/UNIT deposited (1 CENT/byte)
+	pub const BasicDeposit: Balance = 1000 * CENTS;       // 258 bytes on-chain
+	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
+	pub const SubAccountDeposit: Balance = 200 * CENTS;   // 53 bytes on-chain
+	pub const MaxSubAccounts: u32 = 100;
+	pub const MaxAdditionalFields: u32 = 100;
+	pub const MaxRegistrars: u32 = 20;
+}
+
+impl pallet_identity::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Slashed = ();
+	type BasicDeposit = BasicDeposit;
+	type FieldDeposit = FieldDeposit;
+	type SubAccountDeposit = SubAccountDeposit;
+	type MaxSubAccounts = MaxSubAccounts;
+	type MaxAdditionalFields = MaxAdditionalFields;
+	type MaxRegistrars = MaxRegistrars;
+	type RegistrarOrigin = frame_system::EnsureRoot<AccountId>;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	// TODO benchmarks
+	// type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
+	type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
+	
 }
 
 impl pallet_utility::Config for Runtime {

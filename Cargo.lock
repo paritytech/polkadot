@@ -8414,6 +8414,7 @@ dependencies = [
  "pallet-bridge-messages",
  "pallet-collective",
  "pallet-grandpa",
+ "pallet-identity",
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
