@@ -1142,6 +1142,7 @@ mod benches {
 		[pallet_multisig, Multisig]
 		[pallet_proxy, Proxy]
 		[pallet_timestamp, Timestamp]
+		[frame_system, SystemBench::<Runtime>]
 		// [pallet_utility, Utility]
 	);
 }
@@ -1606,6 +1607,8 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
+			use frame_system_benchmarking::Pallet as SystemBench;
+
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
 
@@ -1620,6 +1623,9 @@ sp_api::impl_runtime_apis! {
 			sp_runtime::RuntimeString,
 		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			use frame_system_benchmarking::Pallet as SystemBench;
+
+			impl frame_system_benchmarking::Config for Runtime {}
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let whitelist: Vec<TrackedStorageKey> = vec![

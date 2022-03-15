@@ -83,6 +83,7 @@ pallet-bridge-messages = { path = "../../bridges/modules/messages", default-feat
 # Benchmarking Dependencies
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.4", optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -179,6 +180,7 @@ runtime-benchmarks = [
 	"pallet-multisig/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"hex-literal",
+	"frame-system-benchmarking",
 	"runtime-parachains/runtime-benchmarks",
 ]
 try-runtime = [

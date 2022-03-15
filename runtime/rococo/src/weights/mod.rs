@@ -14,6 +14,8 @@
 // limitations under the License.
 
 //! A list of the different weight modules for our runtime.
+
+pub mod frame_system;
 pub mod pallet_balances;
 pub mod runtime_parachains_disputes;
 pub mod pallet_im_online;
