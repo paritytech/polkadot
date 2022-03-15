@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use ss58_registry::{Token as WrappedToken, TokenAmount};
+pub use ss58_registry::{Token as WrappedToken, TokenAmount, TokenRegistry};
 
-static mut TOKEN: WrappedToken = TokenRegistry::Dot.into();
+static mut TOKEN: WrappedToken = WrappedToken { name: "polkadot", decimals: 10 };
 
 pub struct Token;
 

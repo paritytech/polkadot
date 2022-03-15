@@ -40,7 +40,7 @@ use std::str::FromStr;
 
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
-pub(crate) use ss58_registry::{Token, TokenRegistry};
+pub(crate) use token::{Token, TokenRegistry, WrappedToken};
 
 use clap::Parser;
 use frame_election_provider_support::NposSolver;
@@ -608,7 +608,7 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
-			Token::set(TokenRegistry::Dot.into());
+			Token::init(TokenRegistry::Dot.into());
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
@@ -619,7 +619,7 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormatRegistry::KusamaAccount.into(),
 			);
-			Token::set(TokenRegistry::Ksm.into());
+			Token::init(TokenRegistry::Ksm.into());
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
@@ -630,7 +630,7 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
-			Token::set(Token { name: "WND", decimals: 12 });
+			Token::init(WrappedToken { name: "WND", decimals: 12 });
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
