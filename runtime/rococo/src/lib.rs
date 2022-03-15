@@ -1121,7 +1121,7 @@ mod benches {
 		[pallet_proxy, Proxy]
 		[pallet_timestamp, Timestamp]
 		[frame_system, SystemBench::<Runtime>]
-		// [pallet_utility, Utility]
+		[pallet_utility, Utility]
 	);
 }
 
