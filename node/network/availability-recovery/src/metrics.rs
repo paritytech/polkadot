@@ -16,10 +16,7 @@
 
 use polkadot_node_subsystem_util::metrics::{
 	self,
-	prometheus::{
-		self, Counter, CounterVec, Histogram, Opts, PrometheusError,
-		Registry, U64,
-	},
+	prometheus::{self, Counter, CounterVec, Histogram, Opts, PrometheusError, Registry, U64},
 };
 
 /// Availability Distribution metrics.
