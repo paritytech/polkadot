@@ -1053,7 +1053,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.expect("should be signed")
 		};
 
-		let metadata = get_metadata(hash_a, statement.clone().into());
+		let metadata = get_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
 			.send(FromOverseer::Communication {
@@ -1590,7 +1590,7 @@ fn share_prioritizes_backing_group() {
 			.expect("should be signed")
 		};
 
-		let metadata = get_metadata(hash_a, statement.clone().into());
+		let metadata = get_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
 			.send(FromOverseer::Communication {
@@ -1779,7 +1779,7 @@ fn peer_cant_flood_with_large_statements() {
 			.expect("should be signed")
 		};
 
-		let metadata = get_metadata(hash_a, statement.clone().into());
+		let metadata = get_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
 			handle
