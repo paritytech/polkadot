@@ -26,9 +26,9 @@ use polkadot_node_network_protocol::{
 	},
 	view, ObservedRole,
 };
-use polkadot_node_primitives::Statement;
+use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{SessionInfo, ValidationCode};
+use polkadot_primitives::v2::{SessionInfo, ValidationCode, Hash};
 use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
@@ -1053,12 +1053,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.expect("should be signed")
 		};
 
-		let metadata = protocol_v1::StatementMetadata {
-			relay_parent: hash_a,
-			candidate_hash: statement.payload().candidate_hash(),
-			signed_by: statement.validator_index(),
-			signature: statement.signature().clone(),
-		};
+		let metadata = get_metadata(hash_a, statement.clone().into());
 
 		handle
 			.send(FromOverseer::Communication {
@@ -1595,12 +1590,7 @@ fn share_prioritizes_backing_group() {
 			.expect("should be signed")
 		};
 
-		let metadata = protocol_v1::StatementMetadata {
-			relay_parent: hash_a,
-			candidate_hash: statement.payload().candidate_hash(),
-			signed_by: statement.validator_index(),
-			signature: statement.signature().clone(),
-		};
+		let metadata = get_metadata(hash_a, statement.clone().into());
 
 		handle
 			.send(FromOverseer::Communication {
@@ -1789,12 +1779,7 @@ fn peer_cant_flood_with_large_statements() {
 			.expect("should be signed")
 		};
 
-		let metadata = protocol_v1::StatementMetadata {
-			relay_parent: hash_a,
-			candidate_hash: statement.payload().candidate_hash(),
-			signed_by: statement.validator_index(),
-			signature: statement.signature().clone(),
-		};
+		let metadata = get_metadata(hash_a, statement.clone().into());
 
 		for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
 			handle
@@ -1877,5 +1862,17 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		active_validator_indices: Vec::new(),
 		dispute_period: 6,
 		random_seed: [0u8; 32],
+	}
+}
+
+fn get_metadata(
+	hash: Hash,
+	statement: UncheckedSignedFullStatement,
+) -> protocol_v1::StatementMetadata {
+	protocol_v1::StatementMetadata {
+		relay_parent: hash,
+		candidate_hash: statement.unchecked_payload().candidate_hash(),
+		signed_by: statement.unchecked_validator_index(),
+		signature: statement.unchecked_signature().clone(),
 	}
 }
