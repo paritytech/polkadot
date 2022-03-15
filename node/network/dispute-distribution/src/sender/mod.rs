@@ -89,11 +89,7 @@ impl DisputeSender {
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
 			Entry::Occupied(_) => {
-				tracing::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					"Dispute sending already active."
-				);
+				gum::trace!(target: LOG_TARGET, ?candidate_hash, "Dispute sending already active.");
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {
@@ -168,7 +164,7 @@ impl DisputeSender {
 		let task = match self.disputes.get_mut(&candidate_hash) {
 			None => {
 				// Can happen when a dispute ends, with messages still in queue:
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?result,
 					"Received `FromSendingTask::Finished` for non existing dispute."
@@ -215,7 +211,7 @@ impl DisputeSender {
 			.await?;
 		let our_index = match info.validator_info.our_index {
 			None => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					"Not a validator in that session - not starting dispute sending."
 				);
@@ -226,7 +222,7 @@ impl DisputeSender {
 
 		let votes = match get_candidate_votes(ctx, session_index, candidate_hash).await? {
 			None => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?session_index,
 					?candidate_hash,

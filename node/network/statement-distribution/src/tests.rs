@@ -1275,7 +1275,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					),
 				)
 			) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?recipients,
 					"Recipients received"
@@ -1613,7 +1613,7 @@ fn share_prioritizes_backing_group() {
 					),
 				)
 			) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?recipients,
 					"Recipients received"

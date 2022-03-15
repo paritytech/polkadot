@@ -82,7 +82,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				};
 
 				if let Err(subsystem_name) = res {
-					#support_crate ::tracing::debug!(
+					#support_crate ::gum::debug!(
 						target: LOG_TARGET,
 						"Failed to send (bounded) a message to {} subsystem",
 						subsystem_name
@@ -114,7 +114,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				};
 
 				if let Err(subsystem_name) = res {
-					#support_crate ::tracing::debug!(
+					#support_crate ::gum::debug!(
 						target: LOG_TARGET,
 						"Failed to send_unbounded a message to {} subsystem",
 						subsystem_name

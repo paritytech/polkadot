@@ -168,7 +168,7 @@ where
 			match log_error(self.run_inner().await) {
 				Ok(()) => {},
 				Err(fatal) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						error = ?fatal,
 						"Shutting down"
@@ -212,7 +212,7 @@ where
 		// Immediately drop requests from peers that already have requests in flight or have
 		// been banned recently (flood protection):
 		if self.pending_imports.peer_is_pending(&peer) || self.banned_peers.contains(&peer) {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?peer,
 				"Dropping message from peer (banned/pending import)"

@@ -51,7 +51,7 @@ pub async fn run_pov_receiver<Sender>(
 				answer_pov_request_log(&mut sender, msg, &metrics).await;
 			},
 			Err(fatal) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					error = ?fatal,
 					"Shutting down POV receiver."
@@ -59,7 +59,7 @@ pub async fn run_pov_receiver<Sender>(
 				return
 			},
 			Ok(Err(jfyi)) => {
-				tracing::debug!(target: LOG_TARGET, error = ?jfyi, "Error decoding incoming PoV request.");
+				gum::debug!(target: LOG_TARGET, error = ?jfyi, "Error decoding incoming PoV request.");
 			},
 		}
 	}
@@ -79,7 +79,7 @@ pub async fn run_chunk_receiver<Sender>(
 				answer_chunk_request_log(&mut sender, msg, &metrics).await;
 			},
 			Err(fatal) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					error = ?fatal,
 					"Shutting down chunk receiver."
@@ -87,7 +87,7 @@ pub async fn run_chunk_receiver<Sender>(
 				return
 			},
 			Ok(Err(jfyi)) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					error = ?jfyi,
 					"Error decoding incoming chunk request."
@@ -111,7 +111,7 @@ pub async fn answer_pov_request_log<Sender>(
 	match res {
 		Ok(result) => metrics.on_served_pov(if result { SUCCEEDED } else { NOT_FOUND }),
 		Err(err) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err= ?err,
 				"Serving PoV failed with error"
@@ -136,7 +136,7 @@ where
 	match res {
 		Ok(result) => metrics.on_served_chunk(if result { SUCCEEDED } else { NOT_FOUND }),
 		Err(err) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err= ?err,
 				"Serving chunk failed with error"
@@ -192,7 +192,7 @@ where
 
 	let result = chunk.is_some();
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		hash = ?req.payload.candidate_hash,
 		index = ?req.payload.index,
@@ -227,7 +227,7 @@ where
 		.await;
 
 	let result = rx.await.map_err(|e| {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?validator_index,
 			?candidate_hash,
