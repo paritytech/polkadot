@@ -1613,7 +1613,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	CrowdloanIndexMigration,
+	(CrowdloanIndexMigration, InitializePolkadotBridge),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1632,6 +1632,38 @@ impl OnRuntimeUpgrade for CrowdloanIndexMigration {
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
 		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
+	}
+}
+
+/// Initialize with-Polkadot bridge.
+pub struct InitializePolkadotBridge;
+
+impl OnRuntimeUpgrade for InitializePolkadotBridge {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		let with_polkadot_grandpa_pallet_owner_id = AccountId::from([0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9, 0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7, 0xa5, 0x6d, 0xa2, 0x7d]); // TODO: update me
+		pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::put(
+			with_polkadot_grandpa_pallet_owner_id,
+		);
+		let with_polkadot_messages_pallet_owner_id = AccountId::from([0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9, 0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7, 0xa5, 0x6d, 0xa2, 0x7d]); // TODO: update me
+		pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::put(
+			with_polkadot_messages_pallet_owner_id,
+		);
+
+		<Runtime as frame_system::Config>::DbWeight::get().writes(2)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		ensure!(pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_none());
+		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get().is_none());
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		ensure!(pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_some());
+		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get().is_some());
+		Ok(())
 	}
 }
 
