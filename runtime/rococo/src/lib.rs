@@ -24,7 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, KeyOwnerProofSystem, Randomness},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	PalletId,
 };
 use frame_system::EnsureRoot;
@@ -36,9 +36,9 @@ use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInf
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
-	Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
 	ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
@@ -51,7 +51,7 @@ use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		self, AccountIdLookup, BlakeTwo256, Block as BlockT, Extrinsic as ExtrinsicT, Keccak256,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, Extrinsic as ExtrinsicT, Keccak256,
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -75,14 +75,8 @@ use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
 
-pub use pallet_balances::Call as BalancesCall;
-
-use polkadot_parachain::primitives::Id as ParaId;
-
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
-
-use frame_support::traits::{InstanceFilter, OnRuntimeUpgrade};
 
 mod bridge_messages;
 mod validator_manager;
@@ -715,11 +709,6 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
-/// An insecure randomness beacon that uses the parent block hash as random material.
-///
-/// THIS SHOULD ONLY BE USED FOR TESTING PURPOSES.
-pub struct ParentHashRandomness;
-
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 }
@@ -727,7 +716,7 @@ impl pallet_beefy::Config for Runtime {
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
-	type Hash = <Keccak256 as traits::Hash>::Output;
+	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
 	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
@@ -913,17 +902,6 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 	type MessageDispatch = crate::bridge_messages::FromWococoMessageDispatch;
 }
 
-impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
-	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
-		(
-			(System::parent_hash(), subject)
-				.using_encoded(sp_io::hashing::blake2_256)
-				.into(),
-			System::block_number(),
-		)
-	}
-}
-
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	pub const SampleLength: BlockNumber = 1;
@@ -935,7 +913,7 @@ impl auctions::Config for Runtime {
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
-	type Randomness = ParentHashRandomness;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
 }
@@ -1201,7 +1179,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::availability_cores::<Runtime>()
 		}
 
-		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
@@ -1217,7 +1195,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn check_validation_outputs(
-			para_id: Id,
+			para_id: ParaId,
 			outputs: primitives::v2::CandidateCommitments,
 		) -> bool {
 			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
@@ -1227,12 +1205,12 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::session_index_for_child::<Runtime>()
 		}
 
-		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode> {
 			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
-		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
 
@@ -1247,17 +1225,17 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_info(index: SessionIndex) -> Option<SessionInfoData> {
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
 			runtime_api_impl::session_info::<Runtime>(index)
 		}
 
-		fn dmq_contents(recipient: Id) -> Vec<InboundDownwardMessage<BlockNumber>> {
+		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
 		fn inbound_hrmp_channels_contents(
-			recipient: Id
-		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			recipient: ParaId
+		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
