@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{SessionInfo, ValidationCode, Hash};
+use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
