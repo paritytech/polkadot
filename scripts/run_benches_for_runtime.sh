@@ -24,7 +24,8 @@ cargo +nightly build --profile production --locked --features=runtime-benchmarks
 while read -r line; do
   pallet="$(echo "$line" | cut -d' ' -f1)";
   echo "Runtime: $runtime. Pallet: $pallet";
-  ./target/production/polkadot benchmark \
+  # '!' has the side effect of bypassing errexit / set -e
+  ! ./target/production/polkadot benchmark \
     --chain="${runtime}-dev" \
     --steps=50 \
     --repeat=20 \
