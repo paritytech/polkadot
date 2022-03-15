@@ -6778,6 +6778,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
+ "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "sp-api",
@@ -6971,6 +6972,8 @@ dependencies = [
  "polkadot-primitives-test-helpers",
  "sc-client-api",
  "sp-api",
+ "sp-authority-discovery",
+ "sp-consensus-babe",
  "sp-core",
  "tracing",
 ]
