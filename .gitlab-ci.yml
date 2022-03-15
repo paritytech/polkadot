@@ -32,7 +32,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.14"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.19"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
@@ -514,12 +514,13 @@ update_polkadot_weights:           &update-weights
   stage:                           stage2
   when:                            manual
   variables:
+    PROFILE:                       production
     RUNTIME:                       polkadot
   artifacts:
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   script:
-    - ./scripts/run_benches_for_runtime.sh $RUNTIME
+    - ./scripts/run_benches_for_runtime.sh $RUNTIME $PROFILE
     - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   # uses the "shell" executors
   tags:
@@ -528,11 +529,13 @@ update_polkadot_weights:           &update-weights
 update_kusama_weights:
   <<:                              *update-weights
   variables:
+    PROFILE:                       production
     RUNTIME:                       kusama
 
 update_westend_weights:
   <<:                              *update-weights
   variables:
+    PROFILE:                       production
     RUNTIME:                       westend
 
 #### stage:                        stage3
@@ -688,7 +691,7 @@ zombienet-tests-parachains-pvf:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-pvf.feature"
-  allow_failure:                   true
+  allow_failure:                   false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
@@ -718,7 +721,7 @@ zombienet-tests-parachains-disputes:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.feature"
-  allow_failure:                   true
+  allow_failure:                   false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
