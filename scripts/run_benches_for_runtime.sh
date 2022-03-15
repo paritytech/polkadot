@@ -12,7 +12,7 @@ echo "[+] Running all benchmarks for $runtime"
 
 cargo +nightly build --profile production --locked --features=runtime-benchmarks
 
-target/production/polkadot benchmark \
+./target/production/polkadot benchmark \
     --chain "${runtime}-dev" \
     --list |\
   tail -n+2 |\
@@ -24,7 +24,7 @@ target/production/polkadot benchmark \
 while read -r line; do
   pallet="$(echo "$line" | cut -d' ' -f1)";
   echo "Runtime: $runtime. Pallet: $pallet";
-  target/production/polkadot benchmark \
+  ./target/production/polkadot benchmark \
     --chain="${runtime}-dev" \
     --steps=50 \
     --repeat=20 \
