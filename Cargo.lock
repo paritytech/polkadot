@@ -12550,7 +12550,6 @@ dependencies = [
  "assert_matches",
  "frame-support",
  "frame-system",
- "impl-trait-for-tuples",
  "log",
  "pallet-balances",
  "pallet-transaction-payment",
