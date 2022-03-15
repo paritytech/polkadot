@@ -144,7 +144,7 @@ impl metrics::Metrics for Metrics {
 			time_chunk_request: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_availability_recovery_time_chunk_request",
-					"Time spent waiting f requesting  for a response to a chunk requestor a response to a chunk request",
+					"Time spent waiting for a response to a chunk request",
 				))?,
 				registry,
 			)?,
