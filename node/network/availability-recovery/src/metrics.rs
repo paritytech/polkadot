@@ -46,10 +46,10 @@ struct MetricsInner {
 	/// The duration of request to response.
 	time_chunk_request: Histogram,
 
-	/// Time the pure recovery and verification duration.
+	/// The duration between the pure recovery and verification.
 	time_erasure_recovery: Histogram,
 
-	/// Time the time from the first request, to having a sufficient number to recover.
+	/// The duration between the first request and the time when we have a sufficient number of chunks to recover.
 	time_erasure_recovery_becomes_possible: Histogram,
 }
 
@@ -111,7 +111,7 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.time_erasure_recovery.start_timer())
 	}
 
-	/// Get a timer to time until a sufficient amount of chunks were available to attempt recovery.
+	/// Get a timer to measure the time duration until a sufficient amount of chunks were available to attempt recovery.
 	pub fn time_erasure_recovery_becomes_possible(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
