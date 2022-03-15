@@ -269,6 +269,15 @@ impl ProvisionerJob {
 			self.metrics.on_inherent_data_request(Err(()));
 		} else {
 			self.metrics.on_inherent_data_request(Ok(()));
+			gum::debug!(
+				target: LOG_TARGET,
+				signed_bitfield_count = self.signed_bitfields.len(),
+				signed_bitfields = ?self.signed_bitfields,
+				backed_candidates_count = self.backed_candidates.len(),
+				backed_candidates = ?self.backed_candidates,
+				disputes_enabled,
+				"inherent data sent successfully"
+			);
 		}
 	}
 
@@ -335,6 +344,18 @@ async fn send_inherent_data(
 	};
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, leaf.hash, from_job).await?;
+
+	gum::debug!(
+		target: LOG_TARGET,
+		disputes_enabled = disputes_enabled,
+		candidates = ?candidates,
+		availability_cores = ?availability_cores,
+		disputes_count = disputes.len(),
+		bitfields = ?bitfields,
+		bitfields_count = bitfields.len(),
+		candidates_count = candidates.len(),
+		"inherent data prepared",
+	);
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
