@@ -9,7 +9,7 @@ build = "build.rs"
 [dependencies]
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
 
 [features]
 default = [ "std" ]

@@ -12,9 +12,9 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
 
 [features]
 default = ["std"]

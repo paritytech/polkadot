@@ -17,8 +17,8 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }

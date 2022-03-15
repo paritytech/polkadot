@@ -7,25 +7,25 @@ edition = "2021"
 [dependencies]
 jsonrpc-core = "18.0.0"
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }

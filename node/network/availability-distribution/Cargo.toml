@@ -14,8 +14,8 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "kpp-libp2p-0.43" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
 thiserror = "1.0.30"
 rand = "0.8.5"
 derive_more = "0.99.17"
@@ -24,10 +24,10 @@ fatality = "0.0.6"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "kpp-libp2p-0.43" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

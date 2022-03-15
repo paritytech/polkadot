@@ -9,14 +9,14 @@ version = "0.9.18"
 impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "3.1.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
 log = { version = "0.4.14", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kpp-libp2p-0.43" }
 
 [features]
 default = ["std"]

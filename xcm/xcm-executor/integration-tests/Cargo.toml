@@ -6,20 +6,20 @@ description = "Integration tests for the XCM Executor"
 version = "0.9.18"
 
 [dependencies]
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
 futures = "0.3.21"
 pallet-xcm = { path = "../../pallet-xcm" }
 polkadot-test-client = { path = "../../../node/test/client" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-test-service = { path = "../../../node/test/service" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
 xcm = { path = "../..", default-features = false }
 xcm-executor = { path = ".." }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.43" }
 
 [features]
 default = ["std"]

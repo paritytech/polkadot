@@ -10,10 +10,10 @@ bp-header-chain = { path = "../header-chain", default-features = false  }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 ed25519-dalek = { version = "1.0", default-features = false, features = ["u64_backend"] }
 finality-grandpa = { version = "0.15.0", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false  }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "kpp-libp2p-0.43" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.43" }
 
 [features]
 default = ["std"]
