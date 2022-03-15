@@ -243,4 +243,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn clear_topic() -> Weight {
 		XcmGeneric::<Runtime>::clear_topic()
 	}
+	fn alias_origin(_: &MultiLocation) -> Weight {
+		Weight::MAX // todo fix
+	}
 }
