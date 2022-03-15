@@ -194,7 +194,7 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_collator_protocol_validator_collation_request_duration",
 						"Lifetime of the `PerRequest` structure",
-					)
+					).buckets(vec![0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0, 1.2, 1.5, 1.75]),
 				)?,
 				registry,
 			)?,
