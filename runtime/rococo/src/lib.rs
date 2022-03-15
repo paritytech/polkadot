@@ -245,6 +245,8 @@ construct_runtime! {
 		Utility: pallet_utility = 90,
 		Proxy: pallet_proxy = 91,
 		Multisig: pallet_multisig,
+		Scheduler: pallet_scheduler,
+		Preimage: pallet_preimage,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
@@ -289,6 +291,47 @@ impl frame_system::Config for Runtime {
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
+}
+
+parameter_types! {
+	pub MaximumSchedulerWeight: frame_support::weights::Weight = Perbill::from_percent(80) *
+		BlockWeights::get().max_block;
+	pub const MaxScheduledPerBlock: u32 = 50;
+	pub const NoPreimagePostponement: Option<u32> = Some(10);
+}
+
+impl pallet_scheduler::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
+	type Call = Call;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type MaxScheduledPerBlock = MaxScheduledPerBlock;
+	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
+	// TODO: run benchmarks
+	// type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
+	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
+	type PreimageProvider = Preimage;
+	type NoPreimagePostponement = NoPreimagePostponement;
+}
+
+parameter_types! {
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = deposit(2, 64);
+	pub const PreimageByteDeposit: Balance = deposit(0, 1);
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+	// TODO: run benchmarks
+	// type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
+	type Event = Event;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type MaxSize = PreimageMaxSize;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
 }
 
 parameter_types! {
@@ -957,6 +1000,9 @@ parameter_types! {
 )]
 pub enum ProxyType {
 	Any,
+	NonTransfer,
+	SudoBalances,
+	// IdentityJudgement,
 	CancelProxy,
 	Auction,
 }
@@ -969,21 +1015,61 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
+			ProxyType::NonTransfer => matches!(
+				c,
+				Call::System(..) |
+				Call::Babe(..) |
+				Call::Timestamp(..) |
+				Call::Indices(pallet_indices::Call::claim{..}) |
+				Call::Indices(pallet_indices::Call::free{..}) |
+				Call::Indices(pallet_indices::Call::freeze{..}) |
+				// Specifically omitting Indices `transfer`, `force_transfer`
+				// Specifically omitting the entire Balances pallet
+				Call::Authorship(..) |
+				Call::Session(..) |
+				Call::Grandpa(..) |
+				Call::ImOnline(..) |
+				Call::Utility(..) |
+				// Call::Identity(..) |
+				Call::Scheduler(..) |
+				// Specifically omitting Sudo pallet
+				Call::Proxy(..) |
+				Call::Multisig(..) |
+				Call::Registrar(paras_registrar::Call::register{..}) |
+				Call::Registrar(paras_registrar::Call::deregister{..}) |
+				// Specifically omitting Registrar `swap`
+				Call::Registrar(paras_registrar::Call::reserve{..}) |
+				Call::Crowdloan(..) |
+				Call::Slots(..) |
+				Call::Auctions(..)
+				// Specifically omitting the entire XCM Pallet
+			),
+			ProxyType::SudoBalances => match c {
+				Call::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
+					matches!(x.as_ref(), &Call::Balances(..))
+				},
+				Call::Utility(..) => true,
+				_ => false,
+			},
+			// ProxyType::IdentityJudgement => matches!(
+			// 	c,
+			// 	Call::Identity(pallet_identity::Call::provide_judgement { .. }) | Call::Utility(..)
+			// ),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				Call::Auctions { .. } |
-					Call::Crowdloan { .. } |
-					Call::Registrar { .. } |
-					Call::Multisig(..) | Call::Slots { .. }
+				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
 			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
 		match (self, o) {
+			(x, y) if x == y => true,
 			(ProxyType::Any, _) => true,
+			(_, ProxyType::Any) => false,
+			(ProxyType::NonTransfer, _) => true,
 			_ => false,
 		}
 	}
