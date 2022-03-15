@@ -354,7 +354,7 @@ parameter_types! {
 	// Each good submission will get 1 WND as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
-	pub SignedMaxRefunds: Option<u32> = Some(128);
+	pub SignedMaxRefunds: u32 = 1;
 
 	// 1 hour session, 15 minutes unsigned phase, 4 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 4;

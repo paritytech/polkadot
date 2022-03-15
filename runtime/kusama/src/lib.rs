@@ -402,7 +402,7 @@ parameter_types! {
 	// Each good submission will get 1/10 KSM as reward
 	pub SignedRewardBase: Balance =  UNITS / 10;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
-	pub SignedMaxRefunds: Option<u32> = Some(16);
+	pub SignedMaxRefunds: u32 = 16;
 
 	// 1 hour session, 15 minutes unsigned phase, 8 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
