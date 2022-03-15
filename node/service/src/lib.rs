@@ -731,11 +731,7 @@ where
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let disputes_enabled = chain_spec.is_rococo() ||
-		chain_spec.is_kusama() ||
-		chain_spec.is_westend() ||
-		chain_spec.is_versi() ||
-		chain_spec.is_wococo();
+	let disputes_enabled = false;
 
 	let pvf_checker_enabled = !is_collator.is_collator() && chain_spec.is_versi();
 
