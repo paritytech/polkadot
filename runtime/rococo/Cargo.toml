@@ -209,3 +209,4 @@ try-runtime = [
 fast-runtime = []
 
 runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]
+with-tracing = ["frame-executive/with-tracing", "sp-io/with-tracing"]
