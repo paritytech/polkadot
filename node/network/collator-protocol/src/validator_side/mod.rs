@@ -660,15 +660,25 @@ async fn fetch_collation<Context>(
 		.collation_fetch_timeouts
 		.push(timeout(id.clone(), relay_parent.clone()).boxed());
 
-	if state.peer_data.get(&peer_id).map_or(false, |d| d.has_advertised(&relay_parent)) {
-		request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
+	if let Some(peer_data) = state.peer_data.get(&peer_id) {
+		if peer_data.has_advertised(&relay_parent) {
+			request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
+		} else {
+			gum::debug!(
+				target: LOG_TARGET,
+				?peer_id,
+				?para_id,
+				?relay_parent,
+				"Collation is not advertised for the relay parent by the peer, do not request it",
+			);
+		}
 	} else {
-		gum::debug!(
+		gum::warn!(
 			target: LOG_TARGET,
 			?peer_id,
 			?para_id,
 			?relay_parent,
-			"Collation is not advertised for the relay parent by the peer, do not request it",
+			"Requested to fetch a collation from an unknown peer",
 		);
 	}
 
@@ -913,7 +923,7 @@ async fn process_incoming_peer_message<Context>(
 						target: LOG_TARGET,
 						peer_id = ?origin,
 						?relay_parent,
-						"Unknown peer",
+						"Advertise collation message has been received from an unknown peer",
 					);
 					modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 					return
