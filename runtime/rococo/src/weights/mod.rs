@@ -24,7 +24,7 @@ pub mod pallet_multisig;
 pub mod pallet_proxy;
 pub mod pallet_session;
 pub mod pallet_timestamp;
-// pub mod pallet_utility;
+pub mod pallet_utility;
 pub mod runtime_common_auctions;
 pub mod runtime_common_crowdloan;
 pub mod runtime_common_paras_registrar;
