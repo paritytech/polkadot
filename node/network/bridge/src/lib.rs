@@ -374,7 +374,7 @@ where
 			msg = ctx.recv().fuse() => match msg {
 				Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
 					let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						action = "ActiveLeaves",
 						has_activated = activated.is_some(),
@@ -413,7 +413,7 @@ where
 					}
 				}
 				Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						action = "BlockFinalized"
 					);
@@ -431,7 +431,7 @@ where
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
 						if !rep.is_benefit() {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								?peer,
 								?rep,
@@ -441,7 +441,7 @@ where
 						network_service.report_peer(peer, rep);
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "DisconnectPeer",
 							?peer,
@@ -450,7 +450,7 @@ where
 						network_service.disconnect_peer(peer, peer_set);
 					}
 					NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendValidationMessages",
 							num_messages = 1,
@@ -465,7 +465,7 @@ where
 						);
 					}
 					NetworkBridgeMessage::SendValidationMessages(msgs) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendValidationMessages",
 							num_messages = %msgs.len(),
@@ -482,7 +482,7 @@ where
 						}
 					}
 					NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendCollationMessages",
 							num_messages = 1,
@@ -497,7 +497,7 @@ where
 						);
 					}
 					NetworkBridgeMessage::SendCollationMessages(msgs) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendCollationMessages",
 							num_messages = %msgs.len(),
@@ -514,7 +514,7 @@ where
 						}
 					}
 					NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendRequests",
 							num_requests = %reqs.len(),
@@ -531,7 +531,7 @@ where
 						peer_set,
 						failed,
 					} => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "ConnectToValidators",
 							peer_set = ?peer_set,
@@ -556,7 +556,7 @@ where
 						validator_addrs,
 						peer_set,
 					} => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "ConnectToPeers",
 							peer_set = ?peer_set,
@@ -576,7 +576,7 @@ where
 					NetworkBridgeMessage::NewGossipTopology {
 						our_neighbors,
 					} => {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							action = "NewGossipTopology",
 							neighbors = our_neighbors.len(),
@@ -632,7 +632,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					Some(peer_set) => peer_set,
 				};
 
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					action = "PeerConnected",
 					peer_set = ?peer_set,
@@ -716,7 +716,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					Some(peer_set) => peer_set,
 				};
 
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					action = "PeerDisconnected",
 					peer_set = ?peer_set,
@@ -766,7 +766,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 				let v_messages = match v_messages {
 					Err(_) => {
-						tracing::debug!(target: LOG_TARGET, action = "ReportPeer");
+						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
 
 						network_service.report_peer(remote, MALFORMED_MESSAGE_COST);
 						continue
@@ -784,7 +784,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 				match c_messages {
 					Err(_) => {
-						tracing::debug!(target: LOG_TARGET, action = "ReportPeer");
+						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
 
 						network_service.report_peer(remote, MALFORMED_MESSAGE_COST);
 						continue
@@ -793,7 +793,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 						if v_messages.is_empty() && c_messages.is_empty() {
 							continue
 						} else {
-							tracing::trace!(
+							gum::trace!(
 								target: LOG_TARGET,
 								action = "PeerMessages",
 								peer = ?remote,
@@ -896,7 +896,7 @@ where
 	{
 		Ok(()) => Ok(()),
 		Err(UnexpectedAbort::SubsystemError(err)) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err = ?err,
 				"Shutting down Network Bridge due to error"
@@ -908,7 +908,7 @@ where
 			)))
 		},
 		Err(UnexpectedAbort::EventStreamConcluded) => {
-			tracing::info!(
+			gum::info!(
 				target: LOG_TARGET,
 				"Shutting down Network Bridge: underlying request stream concluded"
 			);

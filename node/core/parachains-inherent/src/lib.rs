@@ -88,7 +88,7 @@ impl ParachainsInherentDataProvider {
 				parent_header,
 			},
 			Err(err) => {
-				tracing::debug!(
+				gum::debug!(
 					?err,
 					"Could not get provisioner inherent data; injecting default data",
 				);

@@ -166,7 +166,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 const TIMEOUT: Duration = Duration::from_millis(200);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: CollatorProtocolMessage) {
-	tracing::trace!("Sending message:\n{:?}", &msg);
+	gum::trace!("Sending message:\n{:?}", &msg);
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -179,7 +179,7 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 		.await
 		.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
 
-	tracing::trace!("Received message:\n{:?}", &msg);
+	gum::trace!("Received message:\n{:?}", &msg);
 
 	msg
 }
@@ -188,7 +188,7 @@ async fn overseer_recv_with_timeout(
 	overseer: &mut VirtualOverseer,
 	timeout: Duration,
 ) -> Option<AllMessages> {
-	tracing::trace!("Waiting for message...");
+	gum::trace!("Waiting for message...");
 	overseer.recv().timeout(timeout).await
 }
 
@@ -350,7 +350,7 @@ fn act_on_advertisement() {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pair = CollatorPair::generate().0;
-		tracing::trace!("activating");
+		gum::trace!("activating");
 
 		overseer_send(
 			&mut virtual_overseer,

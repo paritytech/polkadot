@@ -1877,6 +1877,7 @@ dependencies = [
  "fs-err",
  "proc-macro2",
  "quote",
+ "syn",
 ]
 
 [[package]]
@@ -4464,6 +4465,7 @@ dependencies = [
  "log",
  "thiserror",
  "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6271,7 +6273,7 @@ dependencies = [
  "rand_core 0.5.1",
  "schnorrkel",
  "sp-core",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6292,7 +6294,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6321,7 +6323,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6350,7 +6352,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6433,7 +6435,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6476,7 +6478,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6515,7 +6517,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-tracing",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6539,7 +6541,7 @@ dependencies = [
  "sp-consensus",
  "sp-core",
  "sp-keyring",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6558,7 +6560,7 @@ dependencies = [
  "sp-core",
  "sp-maybe-compressed-blob",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6595,7 +6597,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-runtime",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6623,7 +6625,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6648,7 +6650,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6663,7 +6665,7 @@ dependencies = [
  "polkadot-primitives-test-helpers",
  "sp-keystore",
  "thiserror",
- "tracing",
+ "tracing-gum",
  "wasm-timer",
 ]
 
@@ -6686,7 +6688,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-maybe-compressed-blob",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6705,7 +6707,7 @@ dependencies = [
  "sc-consensus-babe",
  "sp-blockchain",
  "sp-core",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6726,7 +6728,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6751,7 +6753,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6767,7 +6769,7 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6787,7 +6789,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-keystore",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6820,7 +6822,7 @@ dependencies = [
  "tempfile",
  "test-parachain-adder",
  "test-parachain-halt",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6843,7 +6845,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6864,7 +6866,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-keyring",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -6909,7 +6911,7 @@ dependencies = [
  "substrate-test-utils",
  "tempfile",
  "tokio",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -7033,7 +7035,7 @@ dependencies = [
  "sp-keystore",
  "tempfile",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -7058,7 +7060,7 @@ dependencies = [
  "sc-client-api",
  "sp-api",
  "sp-core",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -7074,7 +7076,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-overseer-gen-proc-macro",
  "thiserror",
- "tracing",
+ "tracing-gum",
  "trybuild",
 ]
 
@@ -7505,7 +7507,7 @@ dependencies = [
  "sp-trie",
  "substrate-prometheus-endpoint",
  "thiserror",
- "tracing",
+ "tracing-gum",
  "westend-runtime",
  "westend-runtime-constants",
 ]
@@ -7537,7 +7539,7 @@ dependencies = [
  "sp-staking",
  "sp-tracing",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -7599,7 +7601,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "sp-keystore",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -7720,7 +7722,7 @@ dependencies = [
  "tempfile",
  "test-runtime-constants",
  "tokio",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -11503,6 +11505,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-gum"
+version = "0.9.17"
+dependencies = [
+ "polkadot-node-jaeger",
+ "polkadot-primitives",
+ "tracing",
+ "tracing-gum-proc-macro",
+]
+
+[[package]]
+name = "tracing-gum-proc-macro"
+version = "0.9.17"
+dependencies = [
+ "assert_matches",
+ "expander 0.0.6",
+ "proc-macro-crate 1.1.3",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "tracing-log"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12721,7 +12745,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite",
- "tracing",
+ "tracing-gum",
  "url 2.2.2",
 ]
 
