@@ -845,6 +845,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.topic = None;
 				Ok(())
 			},
+			AliasOrigin(_) => Err(XcmError::NoPermission),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
