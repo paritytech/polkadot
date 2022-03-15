@@ -93,6 +93,8 @@ members = [
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
+	"node/gum",
+	"node/gum/proc-macro",
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",

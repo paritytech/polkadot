@@ -624,9 +624,9 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 			let fut = Box::pin(async move {
 				if let Err(e) = future.await {
-					#support_crate ::tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
+					#support_crate ::gum::error!(subsystem=name, err = ?e, "subsystem exited with error");
 				} else {
-					#support_crate ::tracing::debug!(subsystem=name, "subsystem exited without an error");
+					#support_crate ::gum::debug!(subsystem=name, "subsystem exited without an error");
 				}
 				let _ = tx.send(());
 			});
@@ -635,7 +635,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 			futures.push(Box::pin(
 				rx.map(|e| {
-					tracing::warn!(err = ?e, "dropping error");
+					gum::warn!(err = ?e, "dropping error");
 					Ok(())
 				})
 			));

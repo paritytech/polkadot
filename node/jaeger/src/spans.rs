@@ -174,7 +174,7 @@ pub(crate) type TraceIdentifier = u128;
 /// A helper to convert the hash to the fixed size representation
 /// needed for jaeger.
 #[inline]
-fn hash_to_identifier(hash: Hash) -> TraceIdentifier {
+pub fn hash_to_trace_identifier(hash: Hash) -> TraceIdentifier {
 	let mut buf = [0u8; 16];
 	buf.copy_from_slice(&hash.as_ref()[0..16]);
 	// The slice bytes are copied in reading order, so if interpreted
@@ -197,13 +197,13 @@ pub trait LazyIdent {
 
 impl<'a> LazyIdent for &'a [u8] {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(BlakeTwo256::hash_of(self))
+		hash_to_trace_identifier(BlakeTwo256::hash_of(self))
 	}
 }
 
 impl LazyIdent for &PoV {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(self.hash())
+		hash_to_trace_identifier(self.hash())
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -213,7 +213,7 @@ impl LazyIdent for &PoV {
 
 impl LazyIdent for Hash {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(*self)
+		hash_to_trace_identifier(*self)
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -223,7 +223,7 @@ impl LazyIdent for Hash {
 
 impl LazyIdent for &Hash {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(**self)
+		hash_to_trace_identifier(**self)
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -233,7 +233,7 @@ impl LazyIdent for &Hash {
 
 impl LazyIdent for CandidateHash {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(self.0)
+		hash_to_trace_identifier(self.0)
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -472,7 +472,7 @@ mod tests {
 	#[test]
 	fn hash_derived_identifier_is_leading_16bytes() {
 		let candidate_hash = dbg!(Hash::from(&RAW));
-		let trace_id = dbg!(hash_to_identifier(candidate_hash));
+		let trace_id = dbg!(hash_to_trace_identifier(candidate_hash));
 		for (idx, (a, b)) in candidate_hash
 			.as_bytes()
 			.iter()
@@ -488,7 +488,7 @@ mod tests {
 	fn extra_tags_do_not_change_trace_id() {
 		Jaeger::test_setup();
 		let candidate_hash = dbg!(Hash::from(&RAW));
-		let trace_id = hash_to_identifier(candidate_hash);
+		let trace_id = hash_to_trace_identifier(candidate_hash);
 
 		let span = Span::new(candidate_hash, "foo");
 

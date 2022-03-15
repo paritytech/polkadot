@@ -179,7 +179,7 @@ impl BitfieldDistribution {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
-					tracing::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
 					return
 				},
 			};
@@ -187,7 +187,7 @@ impl BitfieldDistribution {
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
 				} => {
-					tracing::trace!(target: LOG_TARGET, ?hash, "Processing DistributeBitfield");
+					gum::trace!(target: LOG_TARGET, ?hash, "Processing DistributeBitfield");
 					handle_bitfield_distribution(
 						&mut ctx,
 						&mut state,
@@ -200,7 +200,7 @@ impl BitfieldDistribution {
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
-					tracing::trace!(target: LOG_TARGET, "Processing NetworkMessage");
+					gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await;
 				},
@@ -213,7 +213,7 @@ impl BitfieldDistribution {
 					for activated in activated {
 						let relay_parent = activated.hash;
 
-						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
+						gum::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
 						let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
 						let _span = span.child("query-basics");
 
@@ -231,17 +231,17 @@ impl BitfieldDistribution {
 								);
 							},
 							Err(e) => {
-								tracing::warn!(target: LOG_TARGET, err = ?e, "query_basics has failed");
+								gum::warn!(target: LOG_TARGET, err = ?e, "query_basics has failed");
 							},
 							_ => {},
 						}
 					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
-					tracing::trace!(target: LOG_TARGET, hash = %hash, number = %number, "block finalized");
+					gum::trace!(target: LOG_TARGET, hash = %hash, number = %number, "block finalized");
 				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					tracing::trace!(target: LOG_TARGET, "Conclude");
+					gum::trace!(target: LOG_TARGET, "Conclude");
 					return
 				},
 			}
@@ -254,7 +254,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	tracing::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
+	gum::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
 
 	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
@@ -278,7 +278,7 @@ async fn handle_bitfield_distribution<Context>(
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			relay_parent = %relay_parent,
 			"Not supposed to work on relay parent related data",
@@ -288,7 +288,7 @@ async fn handle_bitfield_distribution<Context>(
 	};
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
-		tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "validator set is empty");
+		gum::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "validator set is empty");
 		return
 	}
 
@@ -296,11 +296,7 @@ async fn handle_bitfield_distribution<Context>(
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		tracing::trace!(
-			target: LOG_TARGET,
-			"Could not find a validator for index {}",
-			validator_index
-		);
+		gum::trace!(target: LOG_TARGET, "Could not find a validator for index {}", validator_index);
 		return
 	};
 
@@ -374,7 +370,7 @@ async fn relay_message<Context>(
 	drop(_span);
 
 	if interested_peers.is_empty() {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			relay_parent = %message.relay_parent,
 			"no peers are interested in gossip for relay parent",
@@ -400,7 +396,7 @@ async fn process_incoming_peer_message<Context>(
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) = message;
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		peer_id = %origin,
 		?relay_parent,
@@ -432,7 +428,7 @@ async fn process_incoming_peer_message<Context>(
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			relay_parent = %relay_parent,
 			?origin,
@@ -460,7 +456,7 @@ async fn process_incoming_peer_message<Context>(
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
-		tracing::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
+		gum::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
 		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 		return
 	};
@@ -469,7 +465,7 @@ async fn process_incoming_peer_message<Context>(
 
 	// only relay_message a message of a validator once
 	if let Some(old_message) = one_per_validator.get(&validator) {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?validator_index,
 			"already received a message for validator",
@@ -512,12 +508,12 @@ async fn handle_network_msg<Context>(
 
 	match bridge_message {
 		NetworkBridgeEvent::PeerConnected(peerid, role, _) => {
-			tracing::trace!(target: LOG_TARGET, ?peerid, ?role, "Peer connected");
+			gum::trace!(target: LOG_TARGET, ?peerid, ?role, "Peer connected");
 			// insert if none already present
 			state.peer_views.entry(peerid).or_default();
 		},
 		NetworkBridgeEvent::PeerDisconnected(peerid) => {
-			tracing::trace!(target: LOG_TARGET, ?peerid, "Peer disconnected");
+			gum::trace!(target: LOG_TARGET, ?peerid, "Peer disconnected");
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
 		},
@@ -531,11 +527,11 @@ async fn handle_network_msg<Context>(
 			}
 		},
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			tracing::trace!(target: LOG_TARGET, ?peerid, ?view, "Peer view change");
+			gum::trace!(target: LOG_TARGET, ?peerid, ?view, "Peer view change");
 			handle_peer_view_change(ctx, state, peerid, view).await;
 		},
 		NetworkBridgeEvent::OurViewChange(view) => {
-			tracing::trace!(target: LOG_TARGET, ?view, "Our view change");
+			gum::trace!(target: LOG_TARGET, ?view, "Our view change");
 			handle_our_view_change(state, view);
 		},
 		NetworkBridgeEvent::PeerMessage(remote, message) =>
@@ -549,7 +545,7 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 
 	for added in state.view.difference(&old_view) {
 		if !state.per_relay_parent.contains_key(&added) {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				added = %added,
 				"Our view contains {} but the overseer never told use we should work on this",
@@ -589,7 +585,7 @@ async fn handle_peer_view_change<Context>(
 		);
 
 	if !lucky {
-		tracing::trace!(target: LOG_TARGET, ?origin, "Peer view change is ignored");
+		gum::trace!(target: LOG_TARGET, ?origin, "Peer view change is ignored");
 		return
 	}
 
@@ -637,7 +633,7 @@ async fn send_tracked_gossip_message<Context>(
 	};
 
 	let _span = job_data.span.child("gossip");
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		?dest,
 		?validator,
@@ -699,7 +695,7 @@ where
 		(Ok(v), Ok(s)) =>
 			Ok(Some((v, SigningContext { parent_hash: relay_parent, session_index: s }))),
 		(Err(e), _) | (_, Err(e)) => {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API");
+			gum::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API");
 			Ok(None)
 		},
 	}

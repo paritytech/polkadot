@@ -586,7 +586,7 @@ where
 			)
 			.await
 			{
-				tracing::error!(
+				gum::error!(
 					job = Job::NAME,
 					parent_hash = %hash,
 					err = ?e,
@@ -732,7 +732,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							}
 						}
 						Err(err) => {
-							tracing::error!(
+							gum::error!(
 								job = Job::NAME,
 								err = ?err,
 								"error receiving message from subsystem context for job",
@@ -751,7 +751,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 					};
 
 					if let Err(e) = res {
-						tracing::warn!(err = ?e, "failed to handle command from job");
+						gum::warn!(err = ?e, "failed to handle command from job");
 					}
 				}
 				complete => break,

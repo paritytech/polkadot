@@ -133,7 +133,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext,
 {
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		rep = ?rep,
 		peer_id = %peer,

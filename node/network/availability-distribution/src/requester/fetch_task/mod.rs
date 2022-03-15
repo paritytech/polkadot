@@ -271,7 +271,7 @@ impl RunningTask {
 			let resp = match self.do_request(&validator).await {
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
-					tracing::info!(
+					gum::info!(
 						target: LOG_TARGET,
 						"Node seems to be shutting down, canceling fetch task"
 					);
@@ -286,7 +286,7 @@ impl RunningTask {
 			let chunk = match resp {
 				ChunkFetchingResponse::Chunk(resp) => resp.recombine_into_chunk(&self.request),
 				ChunkFetchingResponse::NoSuchChunk => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						validator = ?validator,
 						"Validator did not have our chunk"
@@ -337,7 +337,7 @@ impl RunningTask {
 		match response_recv.await {
 			Ok(resp) => Ok(resp),
 			Err(RequestError::InvalidResponse(err)) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					origin= ?validator,
 					err= ?err,
@@ -346,7 +346,7 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					origin= ?validator,
 					err= ?err,
@@ -355,7 +355,7 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
-				tracing::debug!(target: LOG_TARGET,
+				gum::debug!(target: LOG_TARGET,
 							   origin= ?validator,
 							   "Erasure chunk request got canceled");
 				Err(TaskError::PeerError)
@@ -368,7 +368,7 @@ impl RunningTask {
 			match branch_hash(&self.erasure_root, chunk.proof(), chunk.index.0 as usize) {
 				Ok(hash) => hash,
 				Err(e) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						candidate_hash = ?self.request.candidate_hash,
 						origin = ?validator,
@@ -380,7 +380,7 @@ impl RunningTask {
 			};
 		let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 		if anticipated_hash != erasure_chunk_hash {
-			tracing::warn!(target: LOG_TARGET, origin = ?validator,  "Received chunk does not match merkle tree");
+			gum::warn!(target: LOG_TARGET, origin = ?validator,  "Received chunk does not match merkle tree");
 			return false
 		}
 		true
@@ -400,11 +400,11 @@ impl RunningTask {
 			)))
 			.await;
 		if let Err(err) = r {
-			tracing::error!(target: LOG_TARGET, err= ?err, "Storing erasure chunk failed, system shutting down?");
+			gum::error!(target: LOG_TARGET, err= ?err, "Storing erasure chunk failed, system shutting down?");
 		}
 
 		if let Err(oneshot::Canceled) = rx.await {
-			tracing::error!(target: LOG_TARGET, "Storing erasure chunk failed");
+			gum::error!(target: LOG_TARGET, "Storing erasure chunk failed");
 		}
 	}
 
@@ -420,7 +420,7 @@ impl RunningTask {
 			})
 		};
 		if let Err(err) = self.sender.send(FromFetchTask::Concluded(payload)).await {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err= ?err,
 				"Sending concluded message for task failed"
@@ -431,7 +431,7 @@ impl RunningTask {
 	async fn conclude_fail(&mut self) {
 		if let Err(err) = self.sender.send(FromFetchTask::Failed(self.request.candidate_hash)).await
 		{
-			tracing::warn!(target: LOG_TARGET, ?err, "Sending `Failed` message for task failed");
+			gum::warn!(target: LOG_TARGET, ?err, "Sending `Failed` message for task failed");
 		}
 	}
 }

@@ -70,6 +70,14 @@ pub type Hash = sp_core::H256;
 pub struct CandidateHash(pub Hash);
 
 #[cfg(feature = "std")]
+impl std::ops::Deref for CandidateHash {
+	type Target = Hash;
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+#[cfg(feature = "std")]
 impl std::fmt::Display for CandidateHash {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.0.fmt(f)
