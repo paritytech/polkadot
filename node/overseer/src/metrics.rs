@@ -28,11 +28,11 @@ struct MetricsInner {
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
 
-	to_subsystem_bounded_tof: prometheus::HistogramVec<prometheus::U64>,
+	to_subsystem_bounded_tof: prometheus::HistogramVec,
 	to_subsystem_bounded_sent: prometheus::GaugeVec<prometheus::U64>,
 	to_subsystem_bounded_received: prometheus::GaugeVec<prometheus::U64>,
 
-	to_subsystem_unbounded_tof: prometheus::HistogramVec<prometheus::U64>,
+	to_subsystem_unbounded_tof: prometheus::HistogramVec,
 	to_subsystem_unbounded_sent: prometheus::GaugeVec<prometheus::U64>,
 	to_subsystem_unbounded_received: prometheus::GaugeVec<prometheus::U64>,
 
