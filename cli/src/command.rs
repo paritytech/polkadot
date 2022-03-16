@@ -20,7 +20,7 @@ use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
-use std::{net::ToSocketAddrs, sync::Arc};
+use std::net::ToSocketAddrs;
 
 pub use crate::{error::Error, service::BlockId};
 pub use polkadot_performance_test::PerfCheckError;

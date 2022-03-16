@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::process::Command;
+use std::{process::Command, result::Result};
 use tempfile::tempdir;
 
 static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend", "rococo", "wococo", "versi"];
@@ -27,7 +27,7 @@ static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend", "rococo",
 #[cfg(unix)]
 fn benchmark_overhead_works() {
 	for runtime in RUNTIMES {
-		benchmark_overhead(format!("{}-dev", runtime))
+		assert!(benchmark_overhead(format!("{}-dev", runtime)).is_ok());
 	}
 }
 
@@ -36,18 +36,11 @@ fn benchmark_overhead_works() {
 #[cfg(unix)]
 fn benchmark_overhead_rejects_non_dev_runtimes() {
 	for runtime in RUNTIMES {
-		let tmp_dir = tempdir().expect("could not create a temp dir");
-		let status = Command::new(cargo_bin("polkadot"))
-			.args(["benchmark-overhead", "--chain", runtime, "-d"])
-			.arg(tmp_dir.path())
-			.status()
-			.unwrap();
-
-		assert!(!status.success());
+		assert!(benchmark_overhead(runtime.into()).is_err());
 	}
 }
 
-fn benchmark_overhead(runtime: String) {
+fn benchmark_overhead(runtime: String) -> Result<(), String> {
 	let tmp_dir = tempdir().expect("could not create a temp dir");
 	let base_path = tmp_dir.path();
 
@@ -63,10 +56,14 @@ fn benchmark_overhead(runtime: String) {
 		.args(["--add", "100", "--mul", "1.2", "--metric", "p75"])
 		.args(["--max-ext-per-block", "5"])
 		.status()
-		.unwrap();
-	assert!(status.success());
+		.map_err(|e| format!("command failed: {:?}", e))?;
+
+	if !status.success() {
+		return Err("Command failed".into())
+	}
 
 	// Weight files have been created.
 	assert!(base_path.join("block_weights.rs").exists());
 	assert!(base_path.join("extrinsic_weights.rs").exists());
+	Ok(())
 }
