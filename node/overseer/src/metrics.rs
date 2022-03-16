@@ -27,10 +27,15 @@ struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
+
+	to_subsystem_bounded_tof: prometheus::HistogramVec<prometheus::U64>,
 	to_subsystem_bounded_sent: prometheus::GaugeVec<prometheus::U64>,
 	to_subsystem_bounded_received: prometheus::GaugeVec<prometheus::U64>,
+
+	to_subsystem_unbounded_tof: prometheus::HistogramVec<prometheus::U64>,
 	to_subsystem_unbounded_sent: prometheus::GaugeVec<prometheus::U64>,
 	to_subsystem_unbounded_received: prometheus::GaugeVec<prometheus::U64>,
+
 	signals_sent: prometheus::GaugeVec<prometheus::U64>,
 	signals_received: prometheus::GaugeVec<prometheus::U64>,
 
@@ -105,6 +110,21 @@ impl Metrics {
 						.signals_received
 						.with_label_values(&[name])
 						.set(readouts.signals.received as u64);
+
+					let hist_bounded = metrics.to_subsystem_bounded_tof.with_label_values(&[name]);
+
+					for tof in readouts.bounded.tof {
+						hist_bounded.observe(tof.as_secs_f64());
+					}
+
+					// TODO update readouts.unbounded.tof
+					// let hist_unbounded = metrics
+					// 	.to_subsystem_unbounded_tof
+					// 	.with_label_values(&[name]);
+
+					// for tof in readouts.unbounded.tof {
+					// 	hist_unbounded.observe(tof.as_secs_f64());
+					// }
 				});
 		}
 	}
@@ -134,6 +154,13 @@ impl MetricsTrait for Metrics {
 				)?,
 				registry,
 			)?,
+			to_subsystem_bounded_tof: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_subsystem_bounded_tof",
+					"Duration spent in a particular channel from entrance to removal",
+				))?,
+				registry,
+			)?,
 			to_subsystem_bounded_sent: prometheus::register(
 				prometheus::GaugeVec::<prometheus::U64>::new(
 					prometheus::Opts::new(
@@ -152,6 +179,13 @@ impl MetricsTrait for Metrics {
 					),
 					&["subsystem_name"],
 				)?,
+				registry,
+			)?,
+			to_subsystem_unbounded_tof: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_subsystem_unbounded_tof",
+					"Duration spent in a particular channel from entrance to removal",
+				))?,
 				registry,
 			)?,
 			to_subsystem_unbounded_sent: prometheus::register(
