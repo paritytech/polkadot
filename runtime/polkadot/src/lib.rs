@@ -436,7 +436,7 @@ parameter_types! {
 	);
 
 	// signed config
-	pub const SignedMaxSubmissions: u32 = 16;
+	pub const SignedMaxSubmissions: u32 = 8;
 	// 40 DOTs fixed deposit..
 	pub const SignedDepositBase: Balance = deposit(2, 0);
 	// 0.01 DOT per KB of solution data.
