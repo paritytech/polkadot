@@ -555,7 +555,7 @@ where
 		// We combine the amount of messages from subsystems to the overseer
 		// as well as the amount of messages from external sources to the overseer
 		// into one `to_overseer` value.
-		metronome_metrics.channel_fill_level_snapshot(
+		metronome_metrics.channel_metrics_snapshot(
 			subsystem_meters
 				.iter()
 				.cloned()

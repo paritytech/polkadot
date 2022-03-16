@@ -73,7 +73,7 @@ impl Metrics {
 		}
 	}
 
-	pub(crate) fn channel_fill_level_snapshot(
+	pub(crate) fn channel_metrics_snapshot(
 		&self,
 		collection: impl IntoIterator<Item = (&'static str, SubsystemMeterReadouts)>,
 	) {
@@ -112,19 +112,16 @@ impl Metrics {
 						.set(readouts.signals.received as u64);
 
 					let hist_bounded = metrics.to_subsystem_bounded_tof.with_label_values(&[name]);
-
 					for tof in readouts.bounded.tof {
 						hist_bounded.observe(tof.as_secs_f64());
 					}
 
-					// TODO update readouts.unbounded.tof
-					// let hist_unbounded = metrics
-					// 	.to_subsystem_unbounded_tof
-					// 	.with_label_values(&[name]);
-
-					// for tof in readouts.unbounded.tof {
-					// 	hist_unbounded.observe(tof.as_secs_f64());
-					// }
+					let hist_unbounded = metrics
+						.to_subsystem_unbounded_tof
+						.with_label_values(&[name]);
+					for tof in readouts.unbounded.tof {
+						hist_unbounded.observe(tof.as_secs_f64());
+					}
 				});
 		}
 	}
