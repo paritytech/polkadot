@@ -900,8 +900,16 @@ async fn circulate_statement_and_dependents(
 		match active_head.note_statement(statement) {
 			NotedStatement::Fresh(stored) => Some((
 				*stored.compact().candidate_hash(),
-				circulate_statement(gossip_peers, peers, ctx, relay_parent, stored, priority_peers)
-					.await,
+				circulate_statement(
+					gossip_peers,
+					peers,
+					ctx,
+					relay_parent,
+					stored,
+					priority_peers,
+					metrics,
+				)
+				.await,
 			)),
 			_ => None,
 		}
@@ -930,11 +938,18 @@ async fn circulate_statement_and_dependents(
 	}
 }
 
+/// Create a networke message from a given statement.
 fn statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
+	metrics: &Metrics,
 ) -> protocol_v1::ValidationProtocol {
-	let msg = if is_statement_large(&statement) {
+	let (is_large, size) = is_statement_large(&statement);
+	if let Some(size) = size {
+		metrics.on_created_message(size);
+	}
+
+	let msg = if is_large {
 		protocol_v1::StatementDistributionMessage::LargeStatement(StatementMetadata {
 			relay_parent,
 			candidate_hash: statement.payload().candidate_hash(),
@@ -949,23 +964,24 @@ fn statement_message(
 }
 
 /// Check whether a statement should be treated as large statement.
-fn is_statement_large(statement: &SignedFullStatement) -> bool {
+///
+/// Also report size of statement - if it is a `Seconded` statement, otherwise `None`.
+fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) {
 	match &statement.payload() {
 		Statement::Seconded(committed) => {
+			let size = statement.as_unchecked().encoded_size();
 			// Runtime upgrades will always be large and even if not - no harm done.
 			if committed.commitments.new_validation_code.is_some() {
-				return true
+				return (true, Some(size))
 			}
-			// No runtime upgrade, now we need to be more nuanced:
-			let size = statement.as_unchecked().encoded_size();
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
 				PeerSet::Validation.get_info(IsAuthority::Yes).max_notification_size as usize / 2;
 
-			size >= threshold
+			(size >= threshold, Some(size))
 		},
-		Statement::Valid(_) => false,
+		Statement::Valid(_) => (false, None),
 	}
 }
 
@@ -978,6 +994,7 @@ async fn circulate_statement<'a>(
 	relay_parent: Hash,
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
+	metrics: &Metrics,
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
@@ -1032,7 +1049,7 @@ async fn circulate_statement<'a>(
 
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {
-		let payload = statement_message(relay_parent, stored.statement.clone());
+		let payload = statement_message(relay_parent, stored.statement.clone(), metrics);
 		gum::trace!(
 			target: LOG_TARGET,
 			?peers_to_send,
@@ -1069,7 +1086,7 @@ async fn send_statements_about(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone());
+		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1104,7 +1121,7 @@ async fn send_statements(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone());
+		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1288,8 +1305,16 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// statement before a `Seconded` statement. `Seconded` statements are the only ones
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
-		let _ = circulate_statement(gossip_peers, peers, ctx, relay_parent, statement, Vec::new())
-			.await;
+		let _ = circulate_statement(
+			gossip_peers,
+			peers,
+			ctx,
+			relay_parent,
+			statement,
+			Vec::new(),
+			metrics,
+		)
+		.await;
 	}
 }
 
@@ -1897,7 +1922,7 @@ impl StatementDistributionSubsystem {
 					let _timer = metrics.time_share();
 
 					// Make sure we have data in cache:
-					if is_statement_large(&statement) {
+					if is_statement_large(&statement).0 {
 						if let Statement::Seconded(committed) = &statement.payload() {
 							let active_head = active_heads
 								.get_mut(&relay_parent)
