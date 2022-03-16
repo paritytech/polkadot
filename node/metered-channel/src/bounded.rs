@@ -23,54 +23,9 @@ use futures::{
 	task::{Context, Poll},
 };
 
-use std::{ops::Deref, pin::Pin, result, time::Instant};
+use std::{pin::Pin, result, time::Instant};
 
-use super::Meter;
-
-/// Must be base 2.
-
-const TOF_MEASURE_EVERY_NTH: usize = if cfg!(test) { 2 } else { 16 };
-
-/// Determine if this instance shall be measured
-#[inline(always)]
-fn measure_tof_check(nth: usize) -> bool {
-	((TOF_MEASURE_EVERY_NTH - 1_usize) & nth) == 0
-}
-
-/// Measure the time of flight between insertion and removal
-/// of a single type `T`
-
-#[derive(Debug)]
-pub enum MaybeTimeOfFlight<T> {
-	Bare(T),
-	WithTimeOfFlight(T, Instant),
-}
-
-impl<T> From<T> for MaybeTimeOfFlight<T> {
-	fn from(value: T) -> Self {
-		Self::Bare(value)
-	}
-}
-
-// Has some unexplicable conflict with a wildcard impl of std
-impl<T> MaybeTimeOfFlight<T> {
-	fn into(self) -> T {
-		match self {
-			Self::Bare(value) => value,
-			Self::WithTimeOfFlight(value, _tof_start) => value,
-		}
-	}
-}
-
-impl<T> Deref for MaybeTimeOfFlight<T> {
-	type Target = T;
-	fn deref(&self) -> &Self::Target {
-		match self {
-			Self::Bare(ref value) => value,
-			Self::WithTimeOfFlight(ref value, _tof_start) => value,
-		}
-	}
-}
+use super::{measure_tof_check, MaybeTimeOfFlight, Meter};
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {

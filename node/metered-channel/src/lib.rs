@@ -30,6 +30,10 @@ mod unbounded;
 pub use self::{bounded::*, unbounded::*};
 
 pub use std::time::Duration;
+use std::time::Instant;
+
+#[cfg(test)]
+mod tests;
 
 /// A peek into the inner state of a meter.
 #[derive(Debug, Clone)]
@@ -100,119 +104,44 @@ impl Meter {
 	}
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use assert_matches::assert_matches;
-	use futures::{executor::block_on, StreamExt};
+/// Determine if this instance shall be measured
+#[inline(always)]
+fn measure_tof_check(nth: usize) -> bool {
+	const TOF_MEASURE_EVERY_NTH: usize = if cfg!(test) { 2 } else { 16 };
+	((TOF_MEASURE_EVERY_NTH - 1_usize) & nth) == 0
+}
 
-	#[derive(Clone, Copy, Debug, Default)]
-	struct Msg {
-		val: u8,
+/// Measure the time of flight between insertion and removal
+/// of a single type `T`
+
+#[derive(Debug)]
+pub enum MaybeTimeOfFlight<T> {
+	Bare(T),
+	WithTimeOfFlight(T, Instant),
+}
+
+impl<T> From<T> for MaybeTimeOfFlight<T> {
+	fn from(value: T) -> Self {
+		Self::Bare(value)
 	}
+}
 
-	#[test]
-	fn try_send_try_next() {
-		block_on(async move {
-			let (mut tx, mut rx) = channel::<Msg>(5);
-			let msg = Msg::default();
-			assert_matches!(rx.meter().read(), Readout { sent: 0, received: 0, .. });
-			tx.try_send(msg).unwrap();
-			assert_matches!(tx.meter().read(), Readout { sent: 1, received: 0, .. });
-			tx.try_send(msg).unwrap();
-			tx.try_send(msg).unwrap();
-			tx.try_send(msg).unwrap();
-			assert_matches!(tx.meter().read(), Readout { sent: 4, received: 0, .. });
-			rx.try_next().unwrap();
-			assert_matches!(rx.meter().read(), Readout { sent: 4, received: 1, .. });
-			rx.try_next().unwrap();
-			rx.try_next().unwrap();
-			assert_matches!(tx.meter().read(), Readout { sent: 4, received: 3, tof } => {
-				// every second in test, consumed before
-				assert_eq!(dbg!(tof).len(), 1);
-			});
-			rx.try_next().unwrap();
-			assert_matches!(rx.meter().read(), Readout { sent: 4, received: 4, tof } => {
-				// every second in test, consumed before
-				assert_eq!(dbg!(tof).len(), 0);
-			});
-			assert!(rx.try_next().is_err());
-		});
+// Has some unexplicable conflict with a wildcard impl of std
+impl<T> MaybeTimeOfFlight<T> {
+	fn into(self) -> T {
+		match self {
+			Self::Bare(value) => value,
+			Self::WithTimeOfFlight(value, _tof_start) => value,
+		}
 	}
+}
 
-	#[test]
-	fn with_tasks() {
-		let (ready, go) = futures::channel::oneshot::channel();
-
-		let (mut tx, mut rx) = channel::<Msg>(5);
-		block_on(async move {
-			futures::join!(
-				async move {
-					let msg = Msg::default();
-					assert_matches!(tx.meter().read(), Readout { sent: 0, received: 0, .. });
-					tx.try_send(msg).unwrap();
-					assert_matches!(tx.meter().read(), Readout { sent: 1, received: 0, .. });
-					tx.try_send(msg).unwrap();
-					tx.try_send(msg).unwrap();
-					tx.try_send(msg).unwrap();
-					ready.send(()).expect("Helper oneshot channel must work. qed");
-				},
-				async move {
-					go.await.expect("Helper oneshot channel must work. qed");
-					assert_matches!(rx.meter().read(), Readout { sent: 4, received: 0, .. });
-					rx.try_next().unwrap();
-					assert_matches!(rx.meter().read(), Readout { sent: 4, received: 1, .. });
-					rx.try_next().unwrap();
-					rx.try_next().unwrap();
-					assert_matches!(rx.meter().read(), Readout { sent: 4, received: 3, .. });
-					rx.try_next().unwrap();
-					assert_matches!(dbg!(rx.meter().read()), Readout { sent: 4, received: 4, .. });
-				}
-			)
-		});
-	}
-
-	use futures_timer::Delay;
-	use std::time::Duration;
-
-	#[test]
-	fn stream_and_sink() {
-		let (mut tx, mut rx) = channel::<Msg>(5);
-
-		block_on(async move {
-			futures::join!(
-				async move {
-					for i in 0..15 {
-						println!("Sent #{} with a backlog of {} items", i + 1, tx.meter().read());
-						let msg = Msg { val: i as u8 + 1u8 };
-						tx.send(msg).await.unwrap();
-						assert!(tx.meter().read().sent > 0usize);
-						Delay::new(Duration::from_millis(20)).await;
-					}
-					()
-				},
-				async move {
-					while let Some(msg) = rx.next().await {
-						println!("rx'd one {} with {} backlogged", msg.val, rx.meter().read());
-						Delay::new(Duration::from_millis(29)).await;
-					}
-				}
-			)
-		});
-	}
-
-	#[test]
-	fn failed_send_does_not_inc_sent() {
-		let (mut bounded, _) = channel::<Msg>(5);
-		let (unbounded, _) = unbounded::<Msg>();
-
-		block_on(async move {
-			assert!(bounded.send(Msg::default()).await.is_err());
-			assert!(bounded.try_send(Msg::default()).is_err());
-			assert_matches!(bounded.meter().read(), Readout { sent: 0, received: 0, .. });
-
-			assert!(unbounded.unbounded_send(Msg::default()).is_err());
-			assert_matches!(unbounded.meter().read(), Readout { sent: 0, received: 0, .. });
-		});
+impl<T> std::ops::Deref for MaybeTimeOfFlight<T> {
+	type Target = T;
+	fn deref(&self) -> &Self::Target {
+		match self {
+			Self::Bare(ref value) => value,
+			Self::WithTimeOfFlight(ref value, _tof_start) => value,
+		}
 	}
 }
