@@ -352,7 +352,7 @@ pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 /// `u32`.
 pub struct TestUmpSink;
 impl UmpSink for TestUmpSink {
-	fn process_upward_message(
+	fn sink_process_upward_message(
 		actual_origin: ParaId,
 		actual_msg: &[u8],
 		max_weight: Weight,

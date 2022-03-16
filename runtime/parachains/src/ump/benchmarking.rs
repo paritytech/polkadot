@@ -81,12 +81,12 @@ frame_benchmarking::benchmarks! {
 	// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
 	// measure the size-dependent weight. But as we use the weight function **in** the benchmarked function we
 	// are taking call and control-flow overhead into account twice.
-	process_upward_message {
+	sink_process_upward_message {
 		let s in 0..MAX_UPWARD_MESSAGE_SIZE_BOUND;
 		let para = ParaId::from(1978);
 		let data = create_message_min_size::<T>(s);
 	}: {
-		assert!(T::UmpSink::process_upward_message(para, &data[..], Weight::MAX).is_ok());
+		assert!(T::UmpSink::sink_process_upward_message(para, &data[..], Weight::MAX).is_ok());
 	}
 
 	clean_ump_after_outgoing {
@@ -113,7 +113,7 @@ frame_benchmarking::benchmarks! {
 		// max_weight parameter to the extrinsic's weight in the weight calculation.
 		// The size of the message influences decoding time, so we create a min-sized message here
 		// and take the decoding weight into account by adding it to the extrinsic execution weight
-		// in the process_upward_message function.
+		// in the sink_process_upward_message function.
 		let msg = create_message_overweight::<T>();
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.

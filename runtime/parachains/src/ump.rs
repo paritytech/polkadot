@@ -60,7 +60,7 @@ pub trait UmpSink {
 	/// it did not begin processing a message since it would otherwise exceed `max_weight`.
 	///
 	/// See the trait docs for more details.
-	fn process_upward_message(
+	fn sink_process_upward_message(
 		origin: ParaId,
 		msg: &[u8],
 		max_weight: Weight,
@@ -70,7 +70,7 @@ pub trait UmpSink {
 /// An implementation of a sink that just swallows the message without consuming any weight. Returns
 /// `Some(0)` indicating that no messages existed for it to process.
 impl UmpSink for () {
-	fn process_upward_message(
+	fn sink_process_upward_message(
 		_: ParaId,
 		_: &[u8],
 		_: Weight,
@@ -96,7 +96,7 @@ fn upward_message_id(data: &[u8]) -> MessageId {
 }
 
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
-	fn process_upward_message(
+	fn sink_process_upward_message(
 		origin: ParaId,
 		mut data: &[u8],
 		max_weight: Weight,
@@ -357,7 +357,7 @@ pub mod pallet {
 
 			let (sender, data) =
 				Overweight::<T>::get(index).ok_or(Error::<T>::UnknownMessageIndex)?;
-			let used = T::UmpSink::process_upward_message(sender, &data[..], weight_limit)
+			let used = T::UmpSink::sink_process_upward_message(sender, &data[..], weight_limit)
 				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
 			Self::deposit_event(Event::OverweightServiced(index, used));
@@ -531,7 +531,7 @@ impl<T: Config> Pallet<T> {
 			// our remaining weight limit, then consume it.
 			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
 			if let Some(upward_message) = maybe_next {
-				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
+				match T::UmpSink::sink_process_upward_message(dispatchee, upward_message, max_weight) {
 					Ok(used) => {
 						weight_used += used;
 						let _ = queue_cache.consume_front::<T>(dispatchee);
