@@ -394,7 +394,11 @@ fn select_availability_bitfields(
 
 	'a: for bitfield in bitfields.iter().cloned() {
 		if bitfield.payload().0.len() != cores.len() {
-			tracing::debug!(target: LOG_TARGET, ?leaf_hash, "dropping bitfield due to length mismatch");
+			tracing::debug!(
+				target: LOG_TARGET,
+				?leaf_hash,
+				"dropping bitfield due to length mismatch"
+			);
 			continue
 		}
 
