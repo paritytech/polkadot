@@ -272,9 +272,7 @@ impl ProvisionerJob {
 			gum::debug!(
 				target: LOG_TARGET,
 				signed_bitfield_count = self.signed_bitfields.len(),
-				signed_bitfields = ?self.signed_bitfields,
 				backed_candidates_count = self.backed_candidates.len(),
-				backed_candidates = ?self.backed_candidates,
 				disputes_enabled,
 				"inherent data sent successfully"
 			);
@@ -348,10 +346,8 @@ async fn send_inherent_data(
 	gum::debug!(
 		target: LOG_TARGET,
 		disputes_enabled = disputes_enabled,
-		candidates = ?candidates,
-		availability_cores = ?availability_cores,
+		availability_cores_len = availability_cores.len(),
 		disputes_count = disputes.len(),
-		bitfields = ?bitfields,
 		bitfields_count = bitfields.len(),
 		candidates_count = candidates.len(),
 		"inherent data prepared",
@@ -385,8 +381,15 @@ fn select_availability_bitfields(
 ) -> Vec<SignedAvailabilityBitfield> {
 	let mut selected: BTreeMap<ValidatorIndex, SignedAvailabilityBitfield> = BTreeMap::new();
 
+	gum::debug!(
+		target: LOG_TARGET,
+		bitfields_count = bitfields.len(),
+		"bitfields count before selection"
+	);
+
 	'a: for bitfield in bitfields.iter().cloned() {
 		if bitfield.payload().0.len() != cores.len() {
+			gum::debug!(target: LOG_TARGET, "dropping bitfield due to length mismatch");
 			continue
 		}
 
@@ -395,18 +398,35 @@ fn select_availability_bitfields(
 			.map_or(true, |b| b.payload().0.count_ones() < bitfield.payload().0.count_ones());
 
 		if !is_better {
+			gum::debug!(
+				target: LOG_TARGET,
+				val_idx = bitfield.validator_index().0,
+				"dropping bitfield due to duplication - the better one is kept"
+			);
 			continue
 		}
 
 		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
 			// Bit is set for an unoccupied core - invalid
 			if *bitfield.payload().0.get(idx).as_deref().unwrap_or(&false) {
+				gum::debug!(
+					target: LOG_TARGET,
+					val_idx = bitfield.validator_index().0,
+					"dropping invalid bitfield - bit is set for an unoccupied core"
+				);
 				continue 'a
 			}
 		}
 
 		let _ = selected.insert(bitfield.validator_index(), bitfield);
 	}
+
+	gum::debug!(
+		target: LOG_TARGET,
+		"selected {} of all {} bitfields (each bitfield is from a unique validator)",
+		selected.len(),
+		bitfields.len()
+	);
 
 	selected.into_iter().map(|(_, b)| b).collect()
 }
@@ -423,6 +443,8 @@ async fn select_candidates(
 
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
+
+	gum::debug!(target: LOG_TARGET, "{} candidates before selection", candidates.len());
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
