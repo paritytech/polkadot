@@ -20,7 +20,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 1024
 
 // Executed Command:
-// target/production/polkadot
+// ./target/production/polkadot
 // benchmark
 // --chain=kusama-dev
 // --steps=50
@@ -58,7 +58,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	}
 	// Storage: Paras Heads (r:0 w:1)
 	fn force_set_current_head(s: u32, ) -> Weight {
-		(7_839_000 as Weight)
+		(11_215_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
@@ -85,7 +85,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn force_note_new_head(s: u32, ) -> Weight {
-		(12_108_000 as Weight)
+		(14_968_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
@@ -94,7 +94,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	fn force_queue_action() -> Weight {
-		(17_679_000 as Weight)
+		(17_635_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -110,7 +110,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras CodeByHashRefs (r:1 w:0)
 	// Storage: Paras CodeByHash (r:0 w:1)
 	fn poke_unused_validation_code() -> Weight {
-		(2_768_000 as Weight)
+		(2_669_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
