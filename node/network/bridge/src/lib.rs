@@ -103,7 +103,7 @@ impl Metrics {
 			metrics
 				.peer_count
 				.with_label_values(&[peer_set.get_protocol_name_static()])
-				.set(count as u64)
+				.observe(count as f64)
 		});
 	}
 
@@ -147,7 +147,7 @@ impl Metrics {
 
 #[derive(Clone)]
 struct MetricsInner {
-	peer_count: prometheus::GaugeVec<prometheus::U64>,
+	peer_count: prometheus::HistogramVec,
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
 	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
@@ -165,11 +165,11 @@ impl metrics::Metrics for Metrics {
 	) -> std::result::Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			peer_count: prometheus::register(
-				prometheus::GaugeVec::new(
-					prometheus::Opts::new(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
 						"polkadot_parachain_peer_count",
-						"The number of peers on a parachain-related peer-set",
-					),
+						"Number of connected peers across all peer sets",
+					).buckets(vec![0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0]),
 					&["protocol"]
 				)?,
 				registry,
