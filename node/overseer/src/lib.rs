@@ -465,19 +465,19 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(ApprovalDistributionMessage)]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, ApprovalVotingMessage)]
+	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
 	approval_voting: ApprovalVoting,
 
 	#[subsystem(GossipSupportMessage)]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
+	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage)]
 	dispute_coordinator: DisputeCoordinator,
 
 	#[subsystem(no_dispatch, DisputeDistributionMessage)]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, ChainSelectionMessage)]
+	#[subsystem(no_dispatch, blocking, ChainSelectionMessage)]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
