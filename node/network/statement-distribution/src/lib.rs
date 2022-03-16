@@ -938,7 +938,7 @@ async fn circulate_statement_and_dependents(
 	}
 }
 
-/// Create a networke message from a given statement.
+/// Create a network message from a given statement.
 fn statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
