@@ -128,7 +128,8 @@ impl<T> From<T> for MaybeTimeOfFlight<T> {
 
 // Has some unexplicable conflict with a wildcard impl of std
 impl<T> MaybeTimeOfFlight<T> {
-	fn into(self) -> T {
+	/// Extract the inner `T` value.
+	pub fn into(self) -> T {
 		match self {
 			Self::Bare(value) => value,
 			Self::WithTimeOfFlight(value, _tof_start) => value,
