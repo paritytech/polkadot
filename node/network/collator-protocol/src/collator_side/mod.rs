@@ -610,13 +610,13 @@ where
 {
 	use CollatorProtocolMessage::*;
 
-	let _timer = state.metrics.time_process_msg();
-
 	match msg {
 		CollateOn(id) => {
 			state.collating_on = Some(id);
 		},
 		DistributeCollation(receipt, pov, result_sender) => {
+			// We should count only this shoulder in the histogram, as other shoulders are just rubbish
+			let _timer = state.metrics.time_process_msg();
 			let _span1 = state
 				.span_per_relay_parent
 				.get(&receipt.descriptor.relay_parent)
