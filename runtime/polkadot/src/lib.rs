@@ -1696,6 +1696,7 @@ mod benches {
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
 		[runtime_common::claims, Claims]
 		[runtime_common::crowdloan, Crowdloan]
 		[runtime_common::slots, Slots]
