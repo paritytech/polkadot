@@ -645,7 +645,7 @@ async fn fetch_collation<Context>(
 		if peer_data.has_advertised(&relay_parent) {
 			request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
 		} else {
-			gum::debug!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				?peer_id,
 				?para_id,
@@ -654,7 +654,7 @@ async fn fetch_collation<Context>(
 			);
 		}
 	} else {
-		gum::warn!(
+		tracing::warn!(
 			target: LOG_TARGET,
 			?peer_id,
 			?para_id,
@@ -823,7 +823,7 @@ async fn process_incoming_peer_message<Context>(
 			let peer_data = match state.peer_data.get_mut(&origin) {
 				Some(p) => p,
 				None => {
-					gum::debug!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						peer_id = ?origin,
 						?para_id,
@@ -835,7 +835,7 @@ async fn process_incoming_peer_message<Context>(
 			};
 
 			if peer_data.is_collating() {
-				gum::debug!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
 					?para_id,
@@ -846,7 +846,7 @@ async fn process_incoming_peer_message<Context>(
 			}
 
 			if !signature.verify(&*protocol_v1::declare_signature_payload(&origin), &collator_id) {
-				gum::debug!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
 					?para_id,
@@ -899,7 +899,7 @@ async fn process_incoming_peer_message<Context>(
 
 			let peer_data = match state.peer_data.get_mut(&origin) {
 				None => {
-					gum::debug!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						peer_id = ?origin,
 						?relay_parent,
@@ -928,7 +928,7 @@ async fn process_incoming_peer_message<Context>(
 
 					match collations.status {
 						CollationStatus::Fetching | CollationStatus::WaitingOnValidation => {
-							gum::trace!(
+							tracing::trace!(
 								target: LOG_TARGET,
 								peer_id = ?origin,
 								%para_id,
@@ -944,7 +944,7 @@ async fn process_incoming_peer_message<Context>(
 							fetch_collation(ctx, state, pending_collation.clone(), id).await;
 						},
 						CollationStatus::Seconded => {
-							gum::trace!(
+							tracing::trace!(
 								target: LOG_TARGET,
 								peer_id = ?origin,
 								%para_id,
@@ -1304,7 +1304,7 @@ async fn dequeue_next_collation_and_fetch(
 		);
 		fetch_collation(ctx, state, next, id).await;
 	} else {
-		gum::debug!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
 			previous_collator = ?previous_fetch,
