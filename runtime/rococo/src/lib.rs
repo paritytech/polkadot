@@ -75,6 +75,9 @@ use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
 
+#[cfg(feature = "std")]
+pub use frame_system::Call as SystemCall;
+
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
