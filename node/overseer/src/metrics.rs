@@ -116,9 +116,8 @@ impl Metrics {
 						hist_bounded.observe(tof.as_secs_f64());
 					}
 
-					let hist_unbounded = metrics
-						.to_subsystem_unbounded_tof
-						.with_label_values(&[name]);
+					let hist_unbounded =
+						metrics.to_subsystem_unbounded_tof.with_label_values(&[name]);
 					for tof in readouts.unbounded.tof {
 						hist_unbounded.observe(tof.as_secs_f64());
 					}
