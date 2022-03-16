@@ -459,7 +459,12 @@ async fn select_candidates(
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
 
-	gum::debug!(target: LOG_TARGET, leaf_hash=?relay_parent, "{} candidates before selection", candidates.len());
+	gum::debug!(
+		target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		n_candidates = candidates.len(),
+		"Candidate receipts (before selection)",
+	);
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
@@ -512,10 +517,10 @@ async fn select_candidates(
 			gum::trace!(
 				target: LOG_TARGET,
 				leaf_hash=?relay_parent,
-				"Selecting candidate {}. para_id={} core={}",
 				candidate_hash,
-				candidate.descriptor.para_id,
-				core_idx,
+				para = candidate.descriptor.para_id,
+				core = core_idx,
+				"Selected candidate receipt",
 			);
 
 			selected_candidates.push(candidate_hash);
@@ -573,7 +578,7 @@ async fn select_candidates(
 		n_candidates = candidates.len(),
 		n_cores = availability_cores.len(),
 		?relay_parent,
-		"Selected candidates for cores",
+		"Selected backed candidates",
 	);
 
 	Ok(candidates)
