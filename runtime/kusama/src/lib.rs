@@ -418,6 +418,7 @@ frame_election_provider_support::generate_solution_type!(
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		SizeBound = VoterSnapshotPerBlock,
 	>(24)
 );
 
