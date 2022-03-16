@@ -21,7 +21,7 @@ use std::sync::{
 	Arc,
 };
 
-use derive_more::{Add, Display};
+use derive_more::Display;
 
 mod bounded;
 pub mod oneshot;
@@ -29,24 +29,40 @@ mod unbounded;
 
 pub use self::{bounded::*, unbounded::*};
 
+pub use std::time::Duration;
+
 /// A peek into the inner state of a meter.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Meter {
 	// Number of sends on this channel.
 	sent: Arc<AtomicUsize>,
 	// Number of receives on this channel.
 	received: Arc<AtomicUsize>,
+	// Atomic ringbuffer of tha last 50 time of flight values
+	tof: Arc<crossbeam_queue::ArrayQueue<Duration>>,
+}
+
+impl std::default::Default for Meter {
+	fn default() -> Self {
+		Self {
+			sent: Arc::new(AtomicUsize::new(0)),
+			received: Arc::new(AtomicUsize::new(0)),
+			tof: Arc::new(crossbeam_queue::ArrayQueue::new(100)),
+		}
+	}
 }
 
 /// A readout of sizes from the meter. Note that it is possible, due to asynchrony, for received
 /// to be slightly higher than sent.
-#[derive(Debug, Add, Display, Clone, Default, PartialEq)]
+#[derive(Debug, Display, Clone, Default, PartialEq)]
 #[display(fmt = "(sent={} received={})", sent, received)]
 pub struct Readout {
 	/// The amount of messages sent on the channel, in aggregate.
 	pub sent: usize,
 	/// The amount of messages received on the channel, in aggregate.
 	pub received: usize,
+	/// Time of flight in micro seconds (us)
+	pub tof: Vec<Duration>,
 }
 
 impl Meter {
@@ -57,11 +73,18 @@ impl Meter {
 		Readout {
 			sent: self.sent.load(Ordering::Relaxed),
 			received: self.received.load(Ordering::Relaxed),
+			tof: {
+				let mut acc = Vec::with_capacity(self.tof.len());
+				while let Some(value) = self.tof.pop() {
+					acc.push(value)
+				}
+				acc
+			},
 		}
 	}
 
-	fn note_sent(&self) {
-		self.sent.fetch_add(1, Ordering::Relaxed);
+	fn note_sent(&self) -> usize {
+		self.sent.fetch_add(1, Ordering::Relaxed)
 	}
 
 	fn retract_sent(&self) {
@@ -71,11 +94,16 @@ impl Meter {
 	fn note_received(&self) {
 		self.received.fetch_add(1, Ordering::Relaxed);
 	}
+
+	fn note_time_of_flight(&self, tof: Duration) {
+		let _ = self.tof.force_push(tof);
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use assert_matches::assert_matches;
 	use futures::{executor::block_on, StreamExt};
 
 	#[derive(Clone, Copy, Debug, Default)]
@@ -88,20 +116,26 @@ mod tests {
 		block_on(async move {
 			let (mut tx, mut rx) = channel::<Msg>(5);
 			let msg = Msg::default();
-			assert_eq!(rx.meter().read(), Readout { sent: 0, received: 0 });
+			assert_matches!(rx.meter().read(), Readout { sent: 0, received: 0, .. });
 			tx.try_send(msg).unwrap();
-			assert_eq!(tx.meter().read(), Readout { sent: 1, received: 0 });
+			assert_matches!(tx.meter().read(), Readout { sent: 1, received: 0, .. });
 			tx.try_send(msg).unwrap();
 			tx.try_send(msg).unwrap();
 			tx.try_send(msg).unwrap();
-			assert_eq!(tx.meter().read(), Readout { sent: 4, received: 0 });
+			assert_matches!(tx.meter().read(), Readout { sent: 4, received: 0, .. });
 			rx.try_next().unwrap();
-			assert_eq!(rx.meter().read(), Readout { sent: 4, received: 1 });
+			assert_matches!(rx.meter().read(), Readout { sent: 4, received: 1, .. });
 			rx.try_next().unwrap();
 			rx.try_next().unwrap();
-			assert_eq!(tx.meter().read(), Readout { sent: 4, received: 3 });
+			assert_matches!(tx.meter().read(), Readout { sent: 4, received: 3, tof } => {
+				// every second in test, consumed before
+				assert_eq!(dbg!(tof).len(), 1);
+			});
 			rx.try_next().unwrap();
-			assert_eq!(rx.meter().read(), Readout { sent: 4, received: 4 });
+			assert_matches!(rx.meter().read(), Readout { sent: 4, received: 4, tof } => {
+				// every second in test, consumed before
+				assert_eq!(dbg!(tof).len(), 0);
+			});
 			assert!(rx.try_next().is_err());
 		});
 	}
@@ -115,9 +149,9 @@ mod tests {
 			futures::join!(
 				async move {
 					let msg = Msg::default();
-					assert_eq!(tx.meter().read(), Readout { sent: 0, received: 0 });
+					assert_matches!(tx.meter().read(), Readout { sent: 0, received: 0, .. });
 					tx.try_send(msg).unwrap();
-					assert_eq!(tx.meter().read(), Readout { sent: 1, received: 0 });
+					assert_matches!(tx.meter().read(), Readout { sent: 1, received: 0, .. });
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
@@ -125,14 +159,14 @@ mod tests {
 				},
 				async move {
 					go.await.expect("Helper oneshot channel must work. qed");
-					assert_eq!(rx.meter().read(), Readout { sent: 4, received: 0 });
+					assert_matches!(rx.meter().read(), Readout { sent: 4, received: 0, .. });
 					rx.try_next().unwrap();
-					assert_eq!(rx.meter().read(), Readout { sent: 4, received: 1 });
+					assert_matches!(rx.meter().read(), Readout { sent: 4, received: 1, .. });
 					rx.try_next().unwrap();
 					rx.try_next().unwrap();
-					assert_eq!(rx.meter().read(), Readout { sent: 4, received: 3 });
+					assert_matches!(rx.meter().read(), Readout { sent: 4, received: 3, .. });
 					rx.try_next().unwrap();
-					assert_eq!(dbg!(rx.meter().read()), Readout { sent: 4, received: 4 });
+					assert_matches!(dbg!(rx.meter().read()), Readout { sent: 4, received: 4, .. });
 				}
 			)
 		});
@@ -175,10 +209,10 @@ mod tests {
 		block_on(async move {
 			assert!(bounded.send(Msg::default()).await.is_err());
 			assert!(bounded.try_send(Msg::default()).is_err());
-			assert_eq!(bounded.meter().read(), Readout { sent: 0, received: 0 });
+			assert_matches!(bounded.meter().read(), Readout { sent: 0, received: 0, .. });
 
 			assert!(unbounded.unbounded_send(Msg::default()).is_err());
-			assert_eq!(unbounded.meter().read(), Readout { sent: 0, received: 0 });
+			assert_matches!(unbounded.meter().read(), Readout { sent: 0, received: 0, .. });
 		});
 	}
 }
