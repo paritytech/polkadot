@@ -547,11 +547,11 @@ impl CollationsPerRelayParent {
 	/// the passed in `finished_one` is the currently `waiting_collation`.
 	pub fn get_next_collation_to_fetch(
 		&mut self,
-		finished_one: Option<CollatorId>,
+		finished_one: Option<&CollatorId>,
 	) -> Option<(PendingCollation, CollatorId)> {
 		// If finished one does not match waiting_collation, then we already dequeued another fetch
 		// to replace it.
-		if self.waiting_collation != finished_one {
+		if self.waiting_collation.as_ref() != finished_one {
 			gum::trace!(
 				target: LOG_TARGET,
 				waiting_collation = ?self.waiting_collation,
@@ -660,8 +660,26 @@ async fn fetch_collation<Context>(
 		.collation_fetch_timeouts
 		.push(timeout(id.clone(), relay_parent.clone()).boxed());
 
-	if state.peer_data.get(&peer_id).map_or(false, |d| d.has_advertised(&relay_parent)) {
-		request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
+	if let Some(peer_data) = state.peer_data.get(&peer_id) {
+		if peer_data.has_advertised(&relay_parent) {
+			request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
+		} else {
+			gum::debug!(
+				target: LOG_TARGET,
+				?peer_id,
+				?para_id,
+				?relay_parent,
+				"Collation is not advertised for the relay parent by the peer, do not request it",
+			);
+		}
+	} else {
+		gum::warn!(
+			target: LOG_TARGET,
+			?peer_id,
+			?para_id,
+			?relay_parent,
+			"Requested to fetch a collation from an unknown peer",
+		);
 	}
 
 	state.collation_fetches.push(rx.map(|r| ((id, pc), r)).boxed());
@@ -825,17 +843,35 @@ async fn process_incoming_peer_message<Context>(
 			let peer_data = match state.peer_data.get_mut(&origin) {
 				Some(p) => p,
 				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						peer_id = ?origin,
+						?para_id,
+						"Unknown peer",
+					);
 					modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 					return
 				},
 			};
 
 			if peer_data.is_collating() {
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?para_id,
+					"Peer is not in the collating state",
+				);
 				modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 				return
 			}
 
 			if !signature.verify(&*protocol_v1::declare_signature_payload(&origin), &collator_id) {
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?para_id,
+					"Signature verification failure",
+				);
 				modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
 				return
 			}
@@ -883,6 +919,12 @@ async fn process_incoming_peer_message<Context>(
 
 			let peer_data = match state.peer_data.get_mut(&origin) {
 				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						peer_id = ?origin,
+						?relay_parent,
+						"Advertise collation message has been received from an unknown peer",
+					);
 					modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 					return
 				},
@@ -905,15 +947,31 @@ async fn process_incoming_peer_message<Context>(
 						state.collations_per_relay_parent.entry(relay_parent).or_default();
 
 					match collations.status {
-						CollationStatus::Fetching | CollationStatus::WaitingOnValidation =>
-							collations.unfetched_collations.push((pending_collation, id)),
+						CollationStatus::Fetching | CollationStatus::WaitingOnValidation => {
+							gum::trace!(
+								target: LOG_TARGET,
+								peer_id = ?origin,
+								%para_id,
+								?relay_parent,
+								"Added collation to the pending list"
+							);
+							collations.unfetched_collations.push((pending_collation, id));
+						},
 						CollationStatus::Waiting => {
 							collations.status = CollationStatus::Fetching;
 							collations.waiting_collation = Some(id.clone());
 
 							fetch_collation(ctx, state, pending_collation.clone(), id).await;
 						},
-						CollationStatus::Seconded => {},
+						CollationStatus::Seconded => {
+							gum::trace!(
+								target: LOG_TARGET,
+								peer_id = ?origin,
+								%para_id,
+								?relay_parent,
+								"Valid seconded collation"
+							);
+						},
 					}
 				},
 				Err(error) => {
@@ -996,7 +1054,12 @@ where
 		// declare.
 		if let Some(para_id) = peer_data.collating_para() {
 			if !state.active_paras.is_current(&para_id) {
-				gum::trace!(target: LOG_TARGET, "Disconnecting peer on view change");
+				gum::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					?para_id,
+					"Disconnecting peer on view change (not current parachain id)"
+				);
 				disconnect_peer(ctx, peer_id.clone()).await;
 			}
 		}
@@ -1251,7 +1314,7 @@ async fn dequeue_next_collation_and_fetch(
 	if let Some((next, id)) = state
 		.collations_per_relay_parent
 		.get_mut(&relay_parent)
-		.and_then(|c| c.get_next_collation_to_fetch(Some(previous_fetch)))
+		.and_then(|c| c.get_next_collation_to_fetch(Some(&previous_fetch)))
 	{
 		gum::debug!(
 			target: LOG_TARGET,
@@ -1260,6 +1323,13 @@ async fn dequeue_next_collation_and_fetch(
 			"Successfully dequeued next advertisement - fetching ..."
 		);
 		fetch_collation(ctx, state, next, id).await;
+	} else {
+		gum::debug!(
+			target: LOG_TARGET,
+			?relay_parent,
+			previous_collator = ?previous_fetch,
+			"No collations are available to fetch"
+		);
 	}
 }
 
