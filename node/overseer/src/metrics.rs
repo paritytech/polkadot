@@ -151,10 +151,13 @@ impl MetricsTrait for Metrics {
 				registry,
 			)?,
 			to_subsystem_bounded_tof: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_subsystem_bounded_tof",
-					"Duration spent in a particular channel from entrance to removal",
-				))?,
+				prometheus::HistogramVec::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_subsystem_bounded_tof",
+						"Duration spent in a particular channel from entrance to removal",
+					),
+					&["subsystem_name"],
+				)?,
 				registry,
 			)?,
 			to_subsystem_bounded_sent: prometheus::register(
@@ -178,10 +181,13 @@ impl MetricsTrait for Metrics {
 				registry,
 			)?,
 			to_subsystem_unbounded_tof: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_subsystem_unbounded_tof",
-					"Duration spent in a particular channel from entrance to removal",
-				))?,
+				prometheus::HistogramVec::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_subsystem_unbounded_tof",
+						"Duration spent in a particular channel from entrance to removal",
+					),
+					&["subsystem_name"],
+				)?,
 				registry,
 			)?,
 			to_subsystem_unbounded_sent: prometheus::register(
