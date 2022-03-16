@@ -273,6 +273,7 @@ impl ProvisionerJob {
 				target: LOG_TARGET,
 				signed_bitfield_count = self.signed_bitfields.len(),
 				backed_candidates_count = self.backed_candidates.len(),
+				leaf_hash = ?self.leaf.hash,
 				disputes_enabled,
 				"inherent data sent successfully"
 			);
@@ -337,7 +338,8 @@ async fn send_inherent_data(
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
 	let bitfields = match leaf.status {
-		LeafStatus::Fresh => select_availability_bitfields(&availability_cores, bitfields),
+		LeafStatus::Fresh =>
+			select_availability_bitfields(&availability_cores, bitfields, &leaf.hash),
 		LeafStatus::Stale => Vec::new(),
 	};
 	let candidates =
@@ -350,6 +352,7 @@ async fn send_inherent_data(
 		disputes_count = disputes.len(),
 		bitfields_count = bitfields.len(),
 		candidates_count = candidates.len(),
+		leaf_hash = ?leaf.hash,
 		"inherent data prepared",
 	);
 
@@ -378,6 +381,7 @@ async fn send_inherent_data(
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
+	leaf_hash: &Hash,
 ) -> Vec<SignedAvailabilityBitfield> {
 	let mut selected: BTreeMap<ValidatorIndex, SignedAvailabilityBitfield> = BTreeMap::new();
 
@@ -389,7 +393,7 @@ fn select_availability_bitfields(
 
 	'a: for bitfield in bitfields.iter().cloned() {
 		if bitfield.payload().0.len() != cores.len() {
-			gum::debug!(target: LOG_TARGET, "dropping bitfield due to length mismatch");
+			gum::debug!(target: LOG_TARGET, ?leaf_hash, "dropping bitfield due to length mismatch");
 			continue
 		}
 
@@ -398,9 +402,10 @@ fn select_availability_bitfields(
 			.map_or(true, |b| b.payload().0.count_ones() < bitfield.payload().0.count_ones());
 
 		if !is_better {
-			gum::debug!(
+			gum::trace!(
 				target: LOG_TARGET,
 				val_idx = bitfield.validator_index().0,
+				?leaf_hash,
 				"dropping bitfield due to duplication - the better one is kept"
 			);
 			continue
@@ -412,6 +417,7 @@ fn select_availability_bitfields(
 				gum::debug!(
 					target: LOG_TARGET,
 					val_idx = bitfield.validator_index().0,
+					?leaf_hash,
 					"dropping invalid bitfield - bit is set for an unoccupied core"
 				);
 				continue 'a
@@ -423,6 +429,7 @@ fn select_availability_bitfields(
 
 	gum::debug!(
 		target: LOG_TARGET,
+		?leaf_hash,
 		"selected {} of all {} bitfields (each bitfield is from a unique validator)",
 		selected.len(),
 		bitfields.len()
