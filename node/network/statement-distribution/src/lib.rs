@@ -169,7 +169,7 @@ impl VcPerPeerTracker {
 	/// based on a message that we have sent it from our local pool.
 	fn note_local(&mut self, h: CandidateHash) {
 		if !note_hash(&mut self.local_observed, h) {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Statement distribution is erroneously attempting to distribute more \
 				than {} candidate(s) per validator index. Ignoring",
@@ -703,7 +703,7 @@ impl ActiveHeadData {
 			CompactStatement::Seconded(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
 				if *seconded_so_far >= VC_THRESHOLD {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
@@ -714,7 +714,7 @@ impl ActiveHeadData {
 
 				self.candidates.insert(h);
 				if let Some(old) = self.statements.insert(comparator.clone(), statement) {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?old,
@@ -724,7 +724,7 @@ impl ActiveHeadData {
 				} else {
 					*seconded_so_far += 1;
 
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?self.statements.last().expect("Just inserted").1,
@@ -741,7 +741,7 @@ impl ActiveHeadData {
 			},
 			CompactStatement::Valid(h) => {
 				if !self.candidates.contains(&h) {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
@@ -751,7 +751,7 @@ impl ActiveHeadData {
 				}
 
 				if let Some(old) = self.statements.insert(comparator.clone(), statement) {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?old,
@@ -759,7 +759,7 @@ impl ActiveHeadData {
 					);
 					NotedStatement::UsefulButKnown
 				} else {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						statement = ?self.statements.last().expect("Just inserted").1,
@@ -795,7 +795,7 @@ impl ActiveHeadData {
 			CompactStatement::Seconded(_) => {
 				let seconded_so_far = self.seconded_counts.get(&validator_index).unwrap_or(&0);
 				if *seconded_so_far >= VC_THRESHOLD {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
@@ -805,7 +805,7 @@ impl ActiveHeadData {
 				}
 
 				if self.statements.contains_key(&comparator) {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
@@ -816,7 +816,7 @@ impl ActiveHeadData {
 			},
 			CompactStatement::Valid(h) => {
 				if !self.candidates.contains(&h) {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
@@ -826,7 +826,7 @@ impl ActiveHeadData {
 				}
 
 				if self.statements.contains_key(&comparator) {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?validator_index,
 						?statement,
@@ -1033,7 +1033,7 @@ async fn circulate_statement<'a>(
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {
 		let payload = statement_message(relay_parent, stored.statement.clone());
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?peers_to_send,
 			?relay_parent,
@@ -1071,7 +1071,7 @@ async fn send_statements_about(
 		peer_data.send(&relay_parent, &fingerprint);
 		let payload = statement_message(relay_parent, statement.statement.clone());
 
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?peer,
 			?relay_parent,
@@ -1106,7 +1106,7 @@ async fn send_statements(
 		peer_data.send(&relay_parent, &fingerprint);
 		let payload = statement_message(relay_parent, statement.statement.clone());
 
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?peer,
 			?relay_parent,
@@ -1244,7 +1244,7 @@ async fn launch_request(
 
 	let result = ctx.spawn("large-statement-fetcher", task.boxed());
 	if let Err(err) = result {
-		tracing::error!(target: LOG_TARGET, ?err, "Spawning task failed.");
+		gum::error!(target: LOG_TARGET, ?err, "Spawning task failed.");
 		return None
 	}
 	let available_peers = {
@@ -1312,7 +1312,7 @@ async fn handle_incoming_message<'a>(
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
 		None => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				%relay_parent,
 				"our view out-of-sync with active heads; head not found",
@@ -1324,13 +1324,7 @@ async fn handle_incoming_message<'a>(
 
 	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
 		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?peer,
-				?message,
-				?rep,
-				"Unexpected large statement.",
-			);
+			gum::debug!(target: LOG_TARGET, ?peer, ?message, ?rep, "Unexpected large statement.",);
 			report_peer(ctx, peer, rep).await;
 			return None
 		}
@@ -1355,7 +1349,7 @@ async fn handle_incoming_message<'a>(
 		// reputation change flood.
 		let unexpected_count = peer_data.receive_unexpected(&relay_parent);
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
 			?peer,
@@ -1406,12 +1400,7 @@ async fn handle_incoming_message<'a>(
 		// check the signature on the statement.
 		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
 			Err(statement) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?peer,
-					?statement,
-					"Invalid statement signature"
-				);
+				gum::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
 				report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
 				return None
 			},
@@ -1431,7 +1420,7 @@ async fn handle_incoming_message<'a>(
 	// This fails if the payload doesn't encode correctly.
 	let statement: SignedFullStatement = match checked_compact.convert_to_superpayload(payload) {
 		Err((compact, _)) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?peer,
 				?compact,
@@ -1453,7 +1442,7 @@ async fn handle_incoming_message<'a>(
 			unreachable!("checked in `check_can_receive` above; qed");
 		},
 		Ok(true) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, ?statement, "Statement accepted");
+			gum::trace!(target: LOG_TARGET, ?peer, ?statement, "Statement accepted");
 			// Send the peer all statements concerning the candidate that we have,
 			// since it appears to have just learned about the candidate.
 			send_statements_about(
@@ -1544,7 +1533,7 @@ async fn handle_network_update(
 ) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
+			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			peers.insert(
 				peer,
 				PeerData {
@@ -1560,7 +1549,7 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
+			gum::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
 			if let Some(auth_ids) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
 				auth_ids.into_iter().for_each(|a| {
 					authorities.remove(&a);
@@ -1600,7 +1589,7 @@ async fn handle_network_update(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
+			gum::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
 					update_peer_view_and_maybe_send_unlocked(
@@ -1670,7 +1659,7 @@ impl StatementDistributionSubsystem {
 					match result.into_nested()? {
 						Ok(true) => break,
 						Ok(false) => {},
-						Err(jfyi) => tracing::debug!(target: LOG_TARGET, error = ?jfyi),
+						Err(jfyi) => gum::debug!(target: LOG_TARGET, error = ?jfyi),
 					}
 				},
 				MuxedMessage::Requester(result) => {
@@ -1820,7 +1809,7 @@ impl StatementDistributionSubsystem {
 					Some(LargeStatementStatus::Fetching(info)) => info,
 					Some(LargeStatementStatus::FetchedOrShared(_)) => {
 						// This task is going to die soon - no need to send it anything.
-						tracing::debug!(target: LOG_TARGET, "Zombie task wanted more peers.");
+						gum::debug!(target: LOG_TARGET, "Zombie task wanted more peers.");
 						return Ok(())
 					},
 					None =>
@@ -1867,7 +1856,7 @@ impl StatementDistributionSubsystem {
 
 				for deactivated in deactivated {
 					if active_heads.remove(&deactivated).is_some() {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							hash = ?deactivated,
 							"Deactivating leaf",
@@ -1878,7 +1867,7 @@ impl StatementDistributionSubsystem {
 				for activated in activated {
 					let relay_parent = activated.hash;
 					let span = PerLeafSpan::new(activated.span, "statement-distribution");
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						hash = ?relay_parent,
 						"New active leaf",

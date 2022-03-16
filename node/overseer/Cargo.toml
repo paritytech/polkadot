@@ -16,7 +16,7 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
-tracing = "0.1.32"
+gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
 

@@ -236,7 +236,7 @@ pub(crate) fn compute_assignments(
 		config.assignment_keys.is_empty() ||
 		config.validator_groups.is_empty()
 	{
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			n_cores = config.n_cores,
 			has_assignment_keys = !config.assignment_keys.is_empty(),
@@ -255,7 +255,7 @@ pub(crate) fn compute_assignments(
 				Err(sc_keystore::Error::Unavailable) => None,
 				Err(sc_keystore::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
 				Err(e) => {
-					tracing::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
+					gum::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
 					None
 				},
 			}
@@ -263,7 +263,7 @@ pub(crate) fn compute_assignments(
 
 		match key {
 			None => {
-				tracing::trace!(target: LOG_TARGET, "No assignment key");
+				gum::trace!(target: LOG_TARGET, "No assignment key");
 				return HashMap::new()
 			},
 			Some(k) => k,
@@ -277,7 +277,7 @@ pub(crate) fn compute_assignments(
 		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		assignable_cores = leaving_cores.len(),
 		"Assigning to candidates from different backing groups"
@@ -333,7 +333,7 @@ fn compute_relay_vrf_modulo_assignments(
 					if let Some((candidate_hash, _)) =
 						leaving_cores.clone().into_iter().find(|(_, c)| c == core)
 					{
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							?candidate_hash,
 							?core,
@@ -415,7 +415,7 @@ fn compute_relay_vrf_delay_assignments(
 		};
 
 		if used {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?candidate_hash,
 				?core,

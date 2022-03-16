@@ -212,7 +212,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> proc_macro2::Token
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
-							#support_crate ::tracing::error!(
+							#support_crate ::gum::error!(
 								target: LOG_TARGET,
 								%origin,
 								"Subsystem {} appears unresponsive.",
