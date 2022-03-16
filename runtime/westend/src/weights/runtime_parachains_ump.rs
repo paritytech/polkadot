@@ -20,7 +20,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("westend-dev"), DB CACHE: 1024
 
 // Executed Command:
-// target/production/polkadot
+// ./target/production/polkadot
 // benchmark
 // --chain=westend-dev
 // --steps=50
@@ -44,7 +44,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo<T> {
 	fn process_upward_message(s: u32, ) -> Weight {
-		(4_554_000 as Weight)
+		(4_269_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_000 as Weight).saturating_mul(s as Weight))
 	}
@@ -53,13 +53,13 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	// Storage: Ump RelayDispatchQueues (r:0 w:1)
 	// Storage: Ump RelayDispatchQueueSize (r:0 w:1)
 	fn clean_ump_after_outgoing() -> Weight {
-		(6_717_000 as Weight)
+		(6_677_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: Ump Overweight (r:1 w:1)
 	fn service_overweight() -> Weight {
-		(17_652_000 as Weight)
+		(17_287_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
