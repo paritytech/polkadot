@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{
 	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
 	JobSubsystem, JobTrait,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
 	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
 	SignedAvailabilityBitfield, ValidatorIndex,
@@ -265,7 +265,7 @@ impl ProvisionerJob {
 		)
 		.await
 		{
-			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+			gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
 			self.metrics.on_inherent_data_request(Err(()));
 		} else {
 			self.metrics.on_inherent_data_request(Ok(()));
@@ -291,7 +291,7 @@ impl ProvisionerJob {
 	}
 }
 
-type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
+type CoreAvailability = BitVec<u8, bitvec::order::Lsb0>;
 
 /// The provisioner is the subsystem best suited to choosing which specific
 /// backed candidates and availability bitfields should be assembled into the
@@ -451,7 +451,7 @@ async fn select_candidates(
 				descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
 			let candidate_hash = candidate.hash();
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				"Selecting candidate {}. para_id={} core={}",
 				candidate_hash,
@@ -509,11 +509,12 @@ async fn select_candidates(
 		true
 	});
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
-		"Selected {} candidates for {} cores",
-		candidates.len(),
-		availability_cores.len()
+		n_candidates = candidates.len(),
+		n_cores = availability_cores.len(),
+		?relay_parent,
+		"Selected candidates for cores",
 	);
 
 	Ok(candidates)
@@ -556,7 +557,7 @@ fn bitfields_indicate_availability(
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
 				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					validator_idx = %validator_idx,
 					availability_len = %availability_len,
@@ -597,7 +598,7 @@ async fn request_disputes(
 	let recent_disputes = match rx.await {
 		Ok(r) => r,
 		Err(oneshot::Canceled) => {
-			tracing::warn!(target: LOG_TARGET, "Unable to gather {:?} disputes", active_or_recent);
+			gum::warn!(target: LOG_TARGET, "Unable to gather {:?} disputes", active_or_recent);
 			Vec::new()
 		},
 	};
@@ -617,7 +618,7 @@ async fn request_votes(
 	match rx.await {
 		Ok(v) => v,
 		Err(oneshot::Canceled) => {
-			tracing::warn!(target: LOG_TARGET, "Unable to query candidate votes");
+			gum::warn!(target: LOG_TARGET, "Unable to query candidate votes");
 			Vec::new()
 		},
 	}
@@ -665,7 +666,7 @@ async fn select_disputes(
 	// If the active ones are already exceeding the bounds, randomly select a subset.
 	let recent = request_disputes(sender, RequestType::Recent).await;
 	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-		tracing::warn!(
+		gum::warn!(
 			target: LOG_TARGET,
 			"Recent disputes are excessive ({} > {}), reduce to active ones, and selected",
 			recent.len(),

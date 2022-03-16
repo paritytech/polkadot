@@ -26,9 +26,9 @@ use polkadot_node_network_protocol::{
 	},
 	view, ObservedRole,
 };
-use polkadot_node_primitives::Statement;
+use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::{v1::ValidationCode, v2::SessionInfo};
+use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
@@ -105,14 +105,16 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.ok()
 	.flatten()
 	.expect("should be signed");
-	assert!(head_data.check_useful_or_unknown(&a_seconded_val_0.clone().into()).is_ok());
+	assert!(head_data
+		.check_useful_or_unknown(&a_seconded_val_0.clone().convert_payload().into())
+		.is_ok());
 	let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note A (duplicate)
 	assert_eq!(
-		head_data.check_useful_or_unknown(&a_seconded_val_0.clone().into()),
+		head_data.check_useful_or_unknown(&a_seconded_val_0.clone().convert_payload().into()),
 		Err(DeniedStatement::UsefulButKnown),
 	);
 	let noted = head_data.note_statement(a_seconded_val_0);
@@ -130,7 +132,9 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.ok()
 	.flatten()
 	.expect("should be signed");
-	assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
+	assert!(head_data
+		.check_useful_or_unknown(&statement.clone().convert_payload().into())
+		.is_ok());
 	let noted = head_data.note_statement(statement);
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -146,7 +150,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.flatten()
 	.expect("should be signed");
 	assert_eq!(
-		head_data.check_useful_or_unknown(&statement.clone().into()),
+		head_data.check_useful_or_unknown(&statement.clone().convert_payload().into()),
 		Err(DeniedStatement::NotUseful),
 	);
 	let noted = head_data.note_statement(statement);
@@ -163,7 +167,9 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.ok()
 	.flatten()
 	.expect("should be signed");
-	assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
+	assert!(head_data
+		.check_useful_or_unknown(&statement.clone().convert_payload().into())
+		.is_ok());
 	let noted = head_data.note_statement(statement);
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -178,7 +184,9 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.ok()
 	.flatten()
 	.expect("should be signed");
-	assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
+	assert!(head_data
+		.check_useful_or_unknown(&statement.clone().convert_payload().into())
+		.is_ok());
 	let noted = head_data.note_statement(statement);
 	assert_matches!(noted, NotedStatement::Fresh(_));
 }
@@ -273,11 +281,11 @@ fn per_peer_relay_parent_knowledge_receive() {
 
 	assert_eq!(
 		knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE),
 	);
 	assert_eq!(
 		knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE),
 	);
 
 	assert!(knowledge
@@ -336,11 +344,11 @@ fn per_peer_relay_parent_knowledge_receive() {
 
 	assert_eq!(
 		knowledge.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_REMOTE),
 	);
 	assert_eq!(
 		knowledge.receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
-		Err(COST_UNEXPECTED_STATEMENT),
+		Err(COST_UNEXPECTED_STATEMENT_REMOTE),
 	);
 
 	// Last, make sure that already-known statements are disregarded.
@@ -428,7 +436,9 @@ fn peer_view_update_sends_messages() {
 		.ok()
 		.flatten()
 		.expect("should be signed");
-		assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
+		assert!(data
+			.check_useful_or_unknown(&statement.clone().convert_payload().into())
+			.is_ok());
 		let noted = data.note_statement(statement);
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
@@ -443,7 +453,9 @@ fn peer_view_update_sends_messages() {
 		.ok()
 		.flatten()
 		.expect("should be signed");
-		assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
+		assert!(data
+			.check_useful_or_unknown(&statement.clone().convert_payload().into())
+			.is_ok());
 		let noted = data.note_statement(statement);
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
@@ -458,7 +470,9 @@ fn peer_view_update_sends_messages() {
 		.ok()
 		.flatten()
 		.expect("should be signed");
-		assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
+		assert!(data
+			.check_useful_or_unknown(&statement.clone().convert_payload().into())
+			.is_ok());
 		let noted = data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1039,9 +1053,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.expect("should be signed")
 		};
 
-		let metadata =
-			protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into())
-				.get_metadata();
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
 			.send(FromOverseer::Communication {
@@ -1261,7 +1273,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					),
 				)
 			) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?recipients,
 					"Recipients received"
@@ -1578,9 +1590,7 @@ fn share_prioritizes_backing_group() {
 			.expect("should be signed")
 		};
 
-		let metadata =
-			protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into())
-				.get_metadata();
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
 			.send(FromOverseer::Communication {
@@ -1599,7 +1609,7 @@ fn share_prioritizes_backing_group() {
 					),
 				)
 			) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?recipients,
 					"Recipients received"
@@ -1769,9 +1779,7 @@ fn peer_cant_flood_with_large_statements() {
 			.expect("should be signed")
 		};
 
-		let metadata =
-			protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into())
-				.get_metadata();
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
 			handle
@@ -1854,5 +1862,17 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		active_validator_indices: Vec::new(),
 		dispute_period: 6,
 		random_seed: [0u8; 32],
+	}
+}
+
+fn derive_metadata_assuming_seconded(
+	hash: Hash,
+	statement: UncheckedSignedFullStatement,
+) -> protocol_v1::StatementMetadata {
+	protocol_v1::StatementMetadata {
+		relay_parent: hash,
+		candidate_hash: statement.unchecked_payload().candidate_hash(),
+		signed_by: statement.unchecked_validator_index(),
+		signature: statement.unchecked_signature().clone(),
 	}
 }

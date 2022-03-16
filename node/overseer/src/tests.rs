@@ -28,7 +28,7 @@ use polkadot_node_subsystem_types::{
 	messages::{NetworkBridgeEvent, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateHash, CollatorPair, InvalidDisputeStatementKind, ValidDisputeStatementKind,
 	ValidatorIndex,
 };
@@ -47,7 +47,6 @@ use sp_core::crypto::Pair as _;
 use super::*;
 
 fn block_info_to_pair(blocks: impl IntoIterator<Item = BlockInfo>) -> Vec<(Hash, BlockNumber)> {
-	use std::iter::FromIterator;
 	Vec::from_iter(
 		blocks
 			.into_iter()

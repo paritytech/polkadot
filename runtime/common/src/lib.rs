@@ -37,25 +37,21 @@ mod integration_tests;
 #[cfg(test)]
 mod mock;
 
-pub use frame_support::weights::constants::{
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-};
 use frame_support::{
 	parameter_types,
 	traits::{ConstU32, Currency, OneSessionHandler},
-	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, Weight},
+	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use frame_system::limits;
-use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
-use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
+use primitives::v2::{AssignmentId, BlockNumber, ValidatorId};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
-pub use elections::{OffchainSolutionLengthLimit, OffchainSolutionWeightLimit};
 pub use pallet_balances::Call as BalancesCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
+use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -71,7 +67,7 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
 pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 /// We allow for 2 seconds of compute with a 6 second average block time.
 pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
@@ -92,26 +88,7 @@ parameter_types! {
 	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
 	/// Maximum length of block. Up to 5MB.
 	pub BlockLength: limits::BlockLength =
-		limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
-	/// Block weights base values and limits.
-	pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
-		.base_block(BlockExecutionWeight::get())
-		.for_class(DispatchClass::all(), |weights| {
-			weights.base_extrinsic = ExtrinsicBaseWeight::get();
-		})
-		.for_class(DispatchClass::Normal, |weights| {
-			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
-		})
-		.for_class(DispatchClass::Operational, |weights| {
-			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
-			// Operational transactions have an extra reserved space, so that they
-			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-			weights.reserved = Some(
-				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
-			);
-		})
-		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
-		.build_or_panic();
+	limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
 }
 
 /// Parameterized slow adjusting fee updated based on
@@ -119,11 +96,59 @@ parameter_types! {
 pub type SlowAdjustingFeeUpdate<R> =
 	TargetedFeeAdjustment<R, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
 
+/// Implements the weight types for a runtime.
+/// It expects the passed runtime constants to contain a `weights` module.
+/// The generated weight types were formerly part of the common
+/// runtime but are now runtime dependant.
+#[macro_export]
+macro_rules! impl_runtime_weights {
+	($runtime:ident) => {
+		use frame_support::weights::{DispatchClass, Weight};
+		use frame_system::limits;
+		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
+		pub use runtime_common::{
+			impl_elections_weights, AVERAGE_ON_INITIALIZE_RATIO, MAXIMUM_BLOCK_WEIGHT,
+			NORMAL_DISPATCH_RATIO,
+		};
+		use sp_runtime::{FixedPointNumber, Perquintill};
+
+		// Implement the weight types of the elections module.
+		impl_elections_weights!($runtime);
+
+		// Expose the weight from the runtime constants module.
+		pub use $runtime::weights::{
+			BlockExecutionWeight, ExtrinsicBaseWeight, ParityDbWeight, RocksDbWeight,
+		};
+
+		parameter_types! {
+			/// Block weights base values and limits.
+			pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
+				.base_block($runtime::weights::BlockExecutionWeight::get())
+				.for_class(DispatchClass::all(), |weights| {
+					weights.base_extrinsic = $runtime::weights::ExtrinsicBaseWeight::get();
+				})
+				.for_class(DispatchClass::Normal, |weights| {
+					weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+				})
+				.for_class(DispatchClass::Operational, |weights| {
+					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+					// Operational transactions have an extra reserved space, so that they
+					// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+					weights.reserved = Some(
+						MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
+					);
+				})
+				.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+				.build_or_panic();
+		}
+	};
+}
+
 /// The type used for currency conversion.
 ///
 /// This must only be used as long as the balance type is `u128`.
 pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
-static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
+static_assertions::assert_eq_size!(primitives::v2::Balance, u128);
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
 /// keys.
@@ -222,7 +247,10 @@ macro_rules! prod_or_fast {
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
-	use frame_support::{parameter_types, weights::Weight};
+	use frame_support::{
+		parameter_types,
+		weights::{DispatchClass, Weight},
+	};
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,

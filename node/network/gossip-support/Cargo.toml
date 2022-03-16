@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-gossip-support"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -17,9 +17,9 @@ polkadot-primitives = { path = "../../../primitives" }
 
 futures = "0.3.21"
 futures-timer = "3.0.2"
-rand = { version = "0.8.3", default-features = false }
+rand = { version = "0.8.5", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
-tracing = "0.1.29"
+gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
