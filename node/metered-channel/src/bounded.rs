@@ -61,15 +61,7 @@ impl<T> Stream for MeteredReceiver<T> {
 	type Item = T;
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
-			Poll::Ready(maybe) => {
-				self.meter.note_received();
-				if let Some(value) = maybe {
-					self.maybe_meter_tof(&value);
-					Poll::Ready(Some(value.into()))
-				} else {
-					Poll::Ready(None)
-				}
-			},
+			Poll::Ready(maybe_value) => Poll::Ready(self.maybe_meter_tof(maybe_value)),
 			Poll::Pending => Poll::Pending,
 		}
 	}
@@ -81,15 +73,20 @@ impl<T> Stream for MeteredReceiver<T> {
 }
 
 impl<T> MeteredReceiver<T> {
-	fn maybe_meter_tof(&mut self, value: &MaybeTimeOfFlight<T>) {
-		match value {
-			MaybeTimeOfFlight::<T>::WithTimeOfFlight(_, tof_start) => {
-				// do not use `.elapsed()`, it may panic
-				let duration = Instant::now().saturating_duration_since(*tof_start);
-				self.meter.note_time_of_flight(duration);
-			},
-			MaybeTimeOfFlight::<T>::Bare(_) => {},
-		}
+	fn maybe_meter_tof(&mut self, maybe_value: Option<MaybeTimeOfFlight<T>>) -> Option<T> {
+		self.meter.note_received();
+		maybe_value.map(|value| {
+			match value {
+				MaybeTimeOfFlight::<T>::WithTimeOfFlight(value, tof_start) => {
+					// do not use `.elapsed()`, it may panic
+					let duration = Instant::now().saturating_duration_since(tof_start);
+					self.meter.note_time_of_flight(duration);
+					value
+				},
+				MaybeTimeOfFlight::<T>::Bare(value) => value,
+			}
+			.into()
+		})
 	}
 
 	/// Get an updated accessor object for all metrics collected.
@@ -100,11 +97,7 @@ impl<T> MeteredReceiver<T> {
 	/// Attempt to receive the next item.
 	pub fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
 		match self.inner.try_next()? {
-			Some(value) => {
-				self.meter.note_received();
-				self.maybe_meter_tof(&value);
-				Ok(Some(value.into()))
-			},
+			Some(value) => Ok(self.maybe_meter_tof(Some(value))),
 			None => Ok(None),
 		}
 	}
@@ -144,7 +137,7 @@ impl<T> std::ops::DerefMut for MeteredSender<T> {
 }
 
 impl<T> MeteredSender<T> {
-	fn prepare_with_tof(&mut self, item: T) -> MaybeTimeOfFlight<T> {
+	fn prepare_with_tof(&self, item: T) -> MaybeTimeOfFlight<T> {
 		let previous = self.meter.note_sent();
 		let item = if measure_tof_check(previous) {
 			MaybeTimeOfFlight::WithTimeOfFlight(item, Instant::now())
