@@ -96,6 +96,11 @@ impl Metrics {
 	fn time_process_msg(&self) -> Option<prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_msg.start_timer())
 	}
+
+	/// Provide a timer for `distribute_collation` which observes on drop.
+	fn time_collation_distribution(&self, label: &'static str) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.collation_distribution_time.with_label_values(&[label]).start_timer())
+	}
 }
 
 #[derive(Clone)]
@@ -104,6 +109,7 @@ struct MetricsInner {
 	collations_sent: prometheus::Counter<prometheus::U64>,
 	collations_send_requested: prometheus::Counter<prometheus::U64>,
 	process_msg: prometheus::Histogram,
+	collation_distribution_time: prometheus::HistogramVec,
 }
 
 impl metrics::Metrics for Metrics {
@@ -137,6 +143,14 @@ impl metrics::Metrics for Metrics {
 					"polkadot_parachain_collator_protocol_collator_process_msg",
 					"Time spent within `collator_protocol_collator::process_msg`",
 				).buckets(vec![0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]))?,
+				registry,
+			)?,
+			collation_distribution_time: prometheus::register(
+				prometheus::HistogramVec::new(prometheus::HistogramOpts::new(
+					"polkadot_parachain_collator_protocol_collator_distribution_time",
+					"Time spent within `collator_protocol_collator::distribute_collation`",
+				).buckets(vec![0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]),
+				&["state"])?,
 				registry,
 			)?,
 		};
@@ -356,6 +370,11 @@ where
 
 	// We have already seen collation for this relay parent.
 	if state.collations.contains_key(&relay_parent) {
+		gum::debug!(
+			target: LOG_TARGET,
+			?relay_parent,
+			"Already seen collation for this relay parent",
+		);
 		return Ok(())
 	}
 
@@ -615,8 +634,6 @@ where
 			state.collating_on = Some(id);
 		},
 		DistributeCollation(receipt, pov, result_sender) => {
-			// We should count only this shoulder in the histogram, as other shoulders are just rubbish
-			let _timer = state.metrics.time_process_msg();
 			let _span1 = state
 				.span_per_relay_parent
 				.get(&receipt.descriptor.relay_parent)
@@ -634,6 +651,7 @@ where
 					);
 				},
 				Some(id) => {
+					let _ = state.metrics.time_collation_distribution("distribute");
 					distribute_collation(ctx, runtime, state, id, receipt, pov, result_sender)
 						.await?;
 				},
@@ -653,6 +671,8 @@ where
 			);
 		},
 		NetworkBridgeUpdateV1(event) => {
+			// We should count only this shoulder in the histogram, as other shoulders are just introducing noise
+			let _ = state.metrics.time_process_msg();
 			if let Err(e) = handle_network_msg(ctx, runtime, state, event).await {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -773,9 +793,17 @@ where
 						target: LOG_TARGET,
 						?statement,
 						?origin,
-						"received a `CollationSeconded`",
+						"received a valid `CollationSeconded`",
 					);
 					let _ = sender.send(CollationSecondedSignal { statement, relay_parent });
+				}
+				else {
+					gum::warn!(
+						target: LOG_TARGET,
+						?statement,
+						?origin,
+						"received an unexpected `CollationSeconded`: unknown statement",
+					);
 				}
 			}
 		},
@@ -836,6 +864,8 @@ where
 				waiting.waiting.push_back(req);
 			} else {
 				waiting.collation_fetch_active = true;
+				// Obtain a timer for sending collation
+				let _ = state.metrics.time_collation_distribution("send");
 				send_collation(state, req, receipt, pov).await;
 			}
 		},
