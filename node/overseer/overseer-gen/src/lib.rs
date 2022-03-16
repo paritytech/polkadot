@@ -196,13 +196,14 @@ pub struct SignalsReceived(Arc<AtomicUsize>);
 impl SignalsReceived {
 	/// Load the current value of received signals.
 	pub fn load(&self) -> usize {
-		// off by a few is ok
-		self.0.load(atomic::Ordering::Relaxed)
+		// It's imperative that we don't underestimate the amount
+		// of signals received.
+		self.0.load(atomic::Ordering::Acquire)
 	}
 
 	/// Increase the number of signals by one.
 	pub fn inc(&self) {
-		self.0.fetch_add(1, atomic::Ordering::Acquire);
+		self.0.fetch_add(1, atomic::Ordering::AcqRel);
 	}
 }
 
