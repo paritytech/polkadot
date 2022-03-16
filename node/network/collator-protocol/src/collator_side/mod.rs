@@ -98,8 +98,13 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `distribute_collation` which observes on drop.
-	fn time_collation_distribution(&self, label: &'static str) -> Option<prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.collation_distribution_time.with_label_values(&[label]).start_timer())
+	fn time_collation_distribution(
+		&self,
+		label: &'static str,
+	) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.collation_distribution_time.with_label_values(&[label]).start_timer()
+		})
 	}
 }
 
@@ -139,18 +144,30 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			process_msg: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_collator_protocol_collator_process_msg",
-					"Time spent within `collator_protocol_collator::process_msg`",
-				).buckets(vec![0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]))?,
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_collator_protocol_collator_process_msg",
+						"Time spent within `collator_protocol_collator::process_msg`",
+					)
+					.buckets(vec![
+						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75,
+						1.0,
+					]),
+				)?,
 				registry,
 			)?,
 			collation_distribution_time: prometheus::register(
-				prometheus::HistogramVec::new(prometheus::HistogramOpts::new(
-					"polkadot_parachain_collator_protocol_collator_distribution_time",
-					"Time spent within `collator_protocol_collator::distribute_collation`",
-				).buckets(vec![0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]),
-				&["state"])?,
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_collator_protocol_collator_distribution_time",
+						"Time spent within `collator_protocol_collator::distribute_collation`",
+					)
+					.buckets(vec![
+						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75,
+						1.0,
+					]),
+					&["state"],
+				)?,
 				registry,
 			)?,
 		};
@@ -796,8 +813,7 @@ where
 						"received a valid `CollationSeconded`",
 					);
 					let _ = sender.send(CollationSecondedSignal { statement, relay_parent });
-				}
-				else {
+				} else {
 					gum::warn!(
 						target: LOG_TARGET,
 						?statement,
