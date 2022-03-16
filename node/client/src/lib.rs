@@ -514,20 +514,6 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			}
 		}
 	}
-
-	fn state_migration_status(
-		&self,
-		id: &BlockId<Block>,
-	) -> sp_blockchain::Result<(u64, u64)> {
-		with_client! {
-			self,
-			client,
-			{
-				client.state_migration_status(id)
-			}
-		}
-	}
-
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {

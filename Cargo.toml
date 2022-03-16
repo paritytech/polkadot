@@ -219,7 +219,6 @@ sp-consensus-slots ={git = "https://github.com/cheme/substrate" ,branch = "rpc-s
 sp-consensus-vrf ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
 frame-election-provider-support ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
 sp-npos-elections ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
-sp-npos-elections-solution-type ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
 substrate-test-utils ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
 substrate-test-utils-derive ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
 sc-service ={git = "https://github.com/cheme/substrate" ,branch = "rpc-state-migration" }
