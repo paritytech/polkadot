@@ -20,7 +20,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 1024
 
 // Executed Command:
-// target/production/polkadot
+// ./target/production/polkadot
 // benchmark
 // --chain=kusama-dev
 // --steps=50
@@ -76,9 +76,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_variable_disputes(v: u32, ) -> Weight {
-		(403_848_000 as Weight)
-			// Standard Error: 14_000
-			.saturating_add((48_299_000 as Weight).saturating_mul(v as Weight))
+		(407_507_000 as Weight)
+			// Standard Error: 15_000
+			.saturating_add((48_097_000 as Weight).saturating_mul(v as Weight))
 			.saturating_add(T::DbWeight::get().reads(30 as Weight))
 			.saturating_add(T::DbWeight::get().writes(18 as Weight))
 	}
@@ -114,7 +114,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_bitfields() -> Weight {
-		(396_118_000 as Weight)
+		(388_276_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(27 as Weight))
 			.saturating_add(T::DbWeight::get().writes(17 as Weight))
 	}
@@ -151,9 +151,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_backed_candidates_variable(v: u32, ) -> Weight {
-		(1_030_824_000 as Weight)
-			// Standard Error: 32_000
-			.saturating_add((47_890_000 as Weight).saturating_mul(v as Weight))
+		(1_030_406_000 as Weight)
+			// Standard Error: 31_000
+			.saturating_add((47_779_000 as Weight).saturating_mul(v as Weight))
 			.saturating_add(T::DbWeight::get().reads(30 as Weight))
 			.saturating_add(T::DbWeight::get().writes(16 as Weight))
 	}
@@ -192,7 +192,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		(43_946_134_000 as Weight)
+		(43_323_857_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(32 as Weight))
 			.saturating_add(T::DbWeight::get().writes(16 as Weight))
 	}
