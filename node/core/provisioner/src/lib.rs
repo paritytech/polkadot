@@ -213,11 +213,10 @@ impl ProvisionerJob {
 		disputes_enabled: bool,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
-		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
 		loop {
 			futures::select! {
 				msg = self.receiver.next() => match msg {
-					Some(RequestInherentData(_, return_sender)) => {
+					Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
 						let _span = span.child("req-inherent-data");
 						let _timer = self.metrics.time_request_inherent_data();
 
@@ -227,7 +226,7 @@ impl ProvisionerJob {
 							self.awaiting_inherent.push(return_sender);
 						}
 					}
-					Some(ProvisionableData(_, data)) => {
+					Some(ProvisionerMessage::ProvisionableData(_, data)) => {
 						let span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
@@ -289,8 +288,16 @@ impl ProvisionerJob {
 			ProvisionableData::Bitfield(_, signed_bitfield) =>
 				self.signed_bitfields.push(signed_bitfield),
 			ProvisionableData::BackedCandidate(backed_candidate) => {
+				let candidate_hash = backed_candidate.hash();
+				gum::debug!(
+					target: LOG_TARGET,
+					candidate_hash,
+					para = backed_candidate.descriptor().para_id,
+					"noted backed candidate",
+				);
 				let _span = span
 					.child("provisionable-backed")
+					.with_candidate(candidate_hash)
 					.with_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			},
