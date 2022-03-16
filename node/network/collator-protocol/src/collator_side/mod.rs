@@ -136,7 +136,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_collator_protocol_collator_process_msg",
 					"Time spent within `collator_protocol_collator::process_msg`",
-				).buckets(vec![0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.5]))?,
+				).buckets(vec![0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]))?,
 				registry,
 			)?,
 		};
