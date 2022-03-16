@@ -388,6 +388,7 @@ fn select_availability_bitfields(
 	gum::debug!(
 		target: LOG_TARGET,
 		bitfields_count = bitfields.len(),
+		?leaf_hash,
 		"bitfields count before selection"
 	);
 
@@ -451,7 +452,7 @@ async fn select_candidates(
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
 
-	gum::debug!(target: LOG_TARGET, "{} candidates before selection", candidates.len());
+	gum::debug!(target: LOG_TARGET, leaf_hash=?relay_parent, "{} candidates before selection", candidates.len());
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
@@ -503,6 +504,7 @@ async fn select_candidates(
 			let candidate_hash = candidate.hash();
 			gum::trace!(
 				target: LOG_TARGET,
+				leaf_hash=?relay_parent,
 				"Selecting candidate {}. para_id={} core={}",
 				candidate_hash,
 				candidate.descriptor.para_id,
