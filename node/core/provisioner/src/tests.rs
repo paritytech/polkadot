@@ -84,7 +84,8 @@ mod select_availability_bitfields {
 			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
 		];
 
-		let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		let mut selected_bitfields =
+			select_availability_bitfields(&cores, &bitfields, &Hash::repeat_byte(0));
 		selected_bitfields.sort_by_key(|bitfield| bitfield.validator_index());
 
 		assert_eq!(selected_bitfields.len(), 2);
@@ -122,7 +123,8 @@ mod select_availability_bitfields {
 			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
 		];
 
-		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		let selected_bitfields =
+			select_availability_bitfields(&cores, &bitfields, &Hash::repeat_byte(0));
 
 		// selects only the valid bitfield
 		assert_eq!(selected_bitfields.len(), 1);
@@ -145,7 +147,8 @@ mod select_availability_bitfields {
 			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
-		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		let selected_bitfields =
+			select_availability_bitfields(&cores, &bitfields, &Hash::repeat_byte(0));
 		assert_eq!(selected_bitfields.len(), 1);
 		assert_eq!(selected_bitfields[0].payload().0, bitvec1.clone());
 	}
@@ -182,7 +185,8 @@ mod select_availability_bitfields {
 			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
-		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		let selected_bitfields =
+			select_availability_bitfields(&cores, &bitfields, &Hash::repeat_byte(0));
 		assert_eq!(selected_bitfields.len(), 4);
 		assert_eq!(selected_bitfields[0].payload().0, bitvec0);
 		assert_eq!(selected_bitfields[1].payload().0, bitvec1);
