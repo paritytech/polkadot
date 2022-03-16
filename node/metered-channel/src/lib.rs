@@ -42,7 +42,7 @@ pub struct Meter {
 	sent: Arc<AtomicUsize>,
 	// Number of receives on this channel.
 	received: Arc<AtomicUsize>,
-	// Atomic ringbuffer of tha last 50 time of flight values
+	// Atomic ringbuffer of the last 50 time of flight values
 	tof: Arc<crossbeam_queue::ArrayQueue<Duration>>,
 }
 
