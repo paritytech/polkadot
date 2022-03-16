@@ -196,8 +196,9 @@ pub struct SignalsReceived(Arc<AtomicUsize>);
 impl SignalsReceived {
 	/// Load the current value of received signals.
 	pub fn load(&self) -> usize {
-		// It's imperative that we don't underestimate the amount
-		// of signals received.
+		// It's imperative that we prevent reading a stale value from memory because of reordering. 
+		// Memory barrier to ensure that no reads or writes in the current thread before this load are reordered.
+		// All writes in other threads using release semantics become visible to the current thread.
 		self.0.load(atomic::Ordering::Acquire)
 	}
 
