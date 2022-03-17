@@ -31,7 +31,6 @@ pub use self::{bounded::*, unbounded::*};
 
 pub use std::time::Duration;
 use std::time::Instant;
-use rand::Rng;
 
 #[cfg(test)]
 mod tests;
@@ -108,10 +107,16 @@ impl Meter {
 /// Determine if this instance shall be measured
 #[inline(always)]
 fn measure_tof_check(nth: usize) -> bool {
-	let mut rng = rand::thread_rng();
-	let val = rng.gen_range(0..1000);
-	const TOF_MEASURE_EVERY_NTH: usize = if cfg!(test) { 2 } else { 17 };
-	val == 0 && ((TOF_MEASURE_EVERY_NTH - 1_usize) & nth) == 0
+	if cfg!(test) {
+		// for tests, be deterministic and pick every second
+		nth & 0x01 == 0
+	} else {
+		use nanorand::Rng;
+		let mut rng = nanorand::WyRand::new_seed(nth as u64);
+		let pick = rng.generate_range(1_usize..=1000);
+		// measure 5.3%
+		pick <= 53
+	}
 }
 
 /// Measure the time of flight between insertion and removal

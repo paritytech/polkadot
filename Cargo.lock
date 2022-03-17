@@ -4474,7 +4474,7 @@ dependencies = [
  "futures 0.3.21",
  "futures-timer",
  "log",
- "rand 0.8.5",
+ "nanorand",
  "thiserror",
  "tracing",
  "tracing-gum",
@@ -4714,6 +4714,12 @@ checksum = "10a8690bf09abf659851e58cd666c3d37ac6af07c2bd7a9e332cfba471715775"
 dependencies = [
  "rand 0.8.5",
 ]
+
+[[package]]
+name = "nanorand"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
 
 [[package]]
 name = "native-tls"
