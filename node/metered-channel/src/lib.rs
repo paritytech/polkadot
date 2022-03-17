@@ -31,6 +31,7 @@ pub use self::{bounded::*, unbounded::*};
 
 pub use std::time::Duration;
 use std::time::Instant;
+use rand::Rng;
 
 #[cfg(test)]
 mod tests;
@@ -107,8 +108,10 @@ impl Meter {
 /// Determine if this instance shall be measured
 #[inline(always)]
 fn measure_tof_check(nth: usize) -> bool {
-	const TOF_MEASURE_EVERY_NTH: usize = if cfg!(test) { 2 } else { 16 };
-	((TOF_MEASURE_EVERY_NTH - 1_usize) & nth) == 0
+	let mut rng = rand::thread_rng();
+	let val = rng.gen_range(0..1000);
+	const TOF_MEASURE_EVERY_NTH: usize = if cfg!(test) { 2 } else { 17 };
+	val == 0 && ((TOF_MEASURE_EVERY_NTH - 1_usize) & nth) == 0
 }
 
 /// Measure the time of flight between insertion and removal
