@@ -1296,8 +1296,17 @@ async fn handle_incoming_message_and_circulate<'a>(
 ) {
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) =>
-			handle_incoming_message(peer, data, active_heads, recent_outdated_heads, ctx, message, req_sender, metrics)
-				.await,
+			handle_incoming_message(
+				peer,
+				data,
+				active_heads,
+				recent_outdated_heads,
+				ctx,
+				message,
+				req_sender,
+				metrics,
+			)
+			.await,
 		None => None,
 	};
 
