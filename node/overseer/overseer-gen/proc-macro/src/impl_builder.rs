@@ -594,7 +594,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		struct Blocking;
 		impl TaskKind for Blocking {
 			fn launch_task<S: SpawnNamed>(spawner: &mut S, task_name: &'static str, subsystem_name: &'static str, future: BoxFuture<'static, ()>) {
-				spawner.spawn(task_name, Some(subsystem_name), future)
+				spawner.spawn_blocking(task_name, Some(subsystem_name), future)
 			}
 		}
 
