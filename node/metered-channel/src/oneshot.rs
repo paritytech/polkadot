@@ -312,6 +312,7 @@ impl<T> Deref for OutputWithMeasurements<T> {
 mod tests {
 	use assert_matches::assert_matches;
 	use futures::{executor::ThreadPool, task::SpawnExt};
+	use std::time::Duration;
 
 	use super::*;
 
@@ -342,7 +343,7 @@ mod tests {
 			let handle_sender = pool.spawn_with_handle(gen_sender_test(tx)).unwrap();
 			futures::future::select(
 				futures::future::join(handle_sender, handle_receiver),
-				Delay::new(CoarseDuration::from_secs(5)),
+				Delay::new(Duration::from_secs(5)),
 			)
 			.await;
 		});
@@ -371,7 +372,7 @@ mod tests {
 		test_launch(
 			"cancel_by_drop",
 			|tx| async move {
-				Delay::new(CoarseDuration::from_secs(2)).await;
+				Delay::new(Duration::from_secs(2)).await;
 				drop(tx);
 			},
 			|rx| async move {
@@ -387,7 +388,7 @@ mod tests {
 		test_launch(
 			"starve_till_timeout",
 			|tx| async move {
-				Delay::new(CoarseDuration::from_secs(4)).await;
+				Delay::new(Duration::from_secs(4)).await;
 				let _ = tx.send(DummyItem::default());
 			},
 			|rx| async move {
@@ -405,7 +406,7 @@ mod tests {
 		test_launch(
 			"starve_till_soft_timeout_then_food",
 			|tx| async move {
-				Delay::new(CoarseDuration::from_secs(2)).await;
+				Delay::new(Duration::from_secs(2)).await;
 				let _ = tx.send(DummyItem::default());
 			},
 			|rx| async move {
