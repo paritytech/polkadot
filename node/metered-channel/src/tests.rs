@@ -85,7 +85,7 @@ fn with_tasks() {
 }
 
 use futures_timer::Delay;
-use std::time::Duration;
+use std::time::CoarseDuration;
 
 #[test]
 fn stream_and_sink() {
@@ -99,14 +99,14 @@ fn stream_and_sink() {
 					let msg = Msg { val: i as u8 + 1u8 };
 					tx.send(msg).await.unwrap();
 					assert!(tx.meter().read().sent > 0usize);
-					Delay::new(Duration::from_millis(20)).await;
+					Delay::new(CoarseDuration::from_millis(20)).await;
 				}
 				()
 			},
 			async move {
 				while let Some(msg) = rx.next().await {
 					println!("rx'd one {} with {} backlogged", msg.val, rx.meter().read());
-					Delay::new(Duration::from_millis(29)).await;
+					Delay::new(CoarseDuration::from_millis(29)).await;
 				}
 			}
 		)

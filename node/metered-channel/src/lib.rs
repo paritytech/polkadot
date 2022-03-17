@@ -29,8 +29,8 @@ mod unbounded;
 
 pub use self::{bounded::*, unbounded::*};
 
-pub use coarsetime::Duration;
-use coarsetime::Instant;
+pub use coarsetime::{Duration as CoarseDuration};
+use coarsetime::{Instant as CoarseInstant};
 
 #[cfg(test)]
 mod tests;
@@ -43,7 +43,7 @@ pub struct Meter {
 	// Number of receives on this channel.
 	received: Arc<AtomicUsize>,
 	// Atomic ringbuffer of the last 50 time of flight values
-	tof: Arc<crossbeam_queue::ArrayQueue<Duration>>,
+	tof: Arc<crossbeam_queue::ArrayQueue<CoarseDuration>>,
 }
 
 impl std::default::Default for Meter {
@@ -66,7 +66,7 @@ pub struct Readout {
 	/// The amount of messages received on the channel, in aggregate.
 	pub received: usize,
 	/// Time of flight in micro seconds (us)
-	pub tof: Vec<Duration>,
+	pub tof: Vec<CoarseDuration>,
 }
 
 impl Meter {
@@ -99,7 +99,7 @@ impl Meter {
 		self.received.fetch_add(1, Ordering::Relaxed);
 	}
 
-	fn note_time_of_flight(&self, tof: Duration) {
+	fn note_time_of_flight(&self, tof: CoarseDuration) {
 		let _ = self.tof.force_push(tof);
 	}
 }
@@ -125,7 +125,7 @@ fn measure_tof_check(nth: usize) -> bool {
 #[derive(Debug)]
 pub enum MaybeTimeOfFlight<T> {
 	Bare(T),
-	WithTimeOfFlight(T, Instant),
+	WithTimeOfFlight(T, CoarseInstant),
 }
 
 impl<T> From<T> for MaybeTimeOfFlight<T> {

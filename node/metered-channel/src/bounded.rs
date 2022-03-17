@@ -25,7 +25,7 @@ use futures::{
 
 use std::{pin::Pin, result};
 
-use super::{measure_tof_check, MaybeTimeOfFlight, Meter, Instant};
+use super::{measure_tof_check, CoarseInstant, MaybeTimeOfFlight, Meter};
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
@@ -79,7 +79,7 @@ impl<T> MeteredReceiver<T> {
 			match value {
 				MaybeTimeOfFlight::<T>::WithTimeOfFlight(value, tof_start) => {
 					// do not use `.elapsed()` of `std::time`, it may panic
-					// `coarsetime` does a saturating sub for all `Instant` substractions
+					// `coarsetime` does a saturating sub for all `CoarseInstant` substractions
 					let duration = tof_start.elapsed();
 					self.meter.note_time_of_flight(duration);
 					value
@@ -141,7 +141,7 @@ impl<T> MeteredSender<T> {
 	fn prepare_with_tof(&self, item: T) -> MaybeTimeOfFlight<T> {
 		let previous = self.meter.note_sent();
 		let item = if measure_tof_check(previous) {
-			MaybeTimeOfFlight::WithTimeOfFlight(item, Instant::now())
+			MaybeTimeOfFlight::WithTimeOfFlight(item, CoarseInstant::now())
 		} else {
 			MaybeTimeOfFlight::Bare(item)
 		};
