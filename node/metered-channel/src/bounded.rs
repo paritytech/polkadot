@@ -23,9 +23,9 @@ use futures::{
 	task::{Context, Poll},
 };
 
-use std::{pin::Pin, result, time::Instant};
+use std::{pin::Pin, result};
 
-use super::{measure_tof_check, MaybeTimeOfFlight, Meter};
+use super::{measure_tof_check, MaybeTimeOfFlight, Meter, Instant};
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
@@ -78,8 +78,9 @@ impl<T> MeteredReceiver<T> {
 		maybe_value.map(|value| {
 			match value {
 				MaybeTimeOfFlight::<T>::WithTimeOfFlight(value, tof_start) => {
-					// do not use `.elapsed()`, it may panic
-					let duration = Instant::now().saturating_duration_since(tof_start);
+					// do not use `.elapsed()` of `std::time`, it may panic
+					// `coarsetime` does a saturating sub for all `Instant` substractions
+					let duration = tof_start.elapsed();
 					self.meter.note_time_of_flight(duration);
 					value
 				},

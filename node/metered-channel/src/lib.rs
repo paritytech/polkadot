@@ -29,8 +29,8 @@ mod unbounded;
 
 pub use self::{bounded::*, unbounded::*};
 
-pub use std::time::Duration;
-use std::time::Instant;
+pub use coarsetime::Duration;
+use coarsetime::Instant;
 
 #[cfg(test)]
 mod tests;
