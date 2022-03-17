@@ -27,17 +27,17 @@ use futures::{channel::oneshot, FutureExt};
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	MIN_GOSSIP_PEERS,
-};
+use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use std::collections::{HashMap, HashSet};
+
+use self::metrics::Metrics;
+
+mod metrics;
 
 #[cfg(test)]
 mod tests;
@@ -692,100 +692,16 @@ where
 	.await;
 
 	match (validators_rx.await?, session_rx.await?) {
-		(Ok(v), Ok(s)) =>
-			Ok(Some((v, SigningContext { parent_hash: relay_parent, session_index: s }))),
-		(Err(e), _) | (_, Err(e)) => {
-			gum::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API");
+		(Ok(validators), Ok(session_index)) =>
+			Ok(Some((validators, SigningContext { parent_hash: relay_parent, session_index }))),
+		(Err(err), _) | (_, Err(err)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?err,
+				"Failed to fetch basics from runtime API"
+			);
 			Ok(None)
 		},
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	gossipped_own_availability_bitfields: prometheus::Counter<prometheus::U64>,
-	received_availability_bitfields: prometheus::Counter<prometheus::U64>,
-	active_leaves_update: prometheus::Histogram,
-	handle_bitfield_distribution: prometheus::Histogram,
-	handle_network_msg: prometheus::Histogram,
-}
-
-/// Bitfield Distribution metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_own_bitfield_gossipped(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.gossipped_own_availability_bitfields.inc();
-		}
-	}
-
-	fn on_bitfield_received(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.received_availability_bitfields.inc();
-		}
-	}
-
-	/// Provide a timer for `active_leaves_update` which observes on drop.
-	fn time_active_leaves_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.active_leaves_update.start_timer())
-	}
-
-	/// Provide a timer for `handle_bitfield_distribution` which observes on drop.
-	fn time_handle_bitfield_distribution(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.handle_bitfield_distribution.start_timer())
-	}
-
-	/// Provide a timer for `handle_network_msg` which observes on drop.
-	fn time_handle_network_msg(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.handle_network_msg.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			gossipped_own_availability_bitfields: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_gossipped_own_availabilty_bitfields_total",
-					"Number of own availability bitfields sent to other peers.",
-				)?,
-				registry,
-			)?,
-			received_availability_bitfields: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_received_availabilty_bitfields_total",
-					"Number of valid availability bitfields received from other peers.",
-				)?,
-				registry,
-			)?,
-			active_leaves_update: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_bitfield_distribution_active_leaves_update",
-					"Time spent within `bitfield_distribution::active_leaves_update`",
-				))?,
-				registry,
-			)?,
-			handle_bitfield_distribution: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_bitfield_distribution_handle_bitfield_distribution",
-					"Time spent within `bitfield_distribution::handle_bitfield_distribution`",
-				))?,
-				registry,
-			)?,
-			handle_network_msg: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_bitfield_distribution_handle_network_msg",
-					"Time spent within `bitfield_distribution::handle_network_msg`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
 	}
 }
