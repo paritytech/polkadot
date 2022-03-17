@@ -29,8 +29,8 @@ mod unbounded;
 
 pub use self::{bounded::*, unbounded::*};
 
-pub use coarsetime::{Duration as CoarseDuration};
-use coarsetime::{Instant as CoarseInstant};
+pub use coarsetime::Duration as CoarseDuration;
+use coarsetime::Instant as CoarseInstant;
 
 #[cfg(test)]
 mod tests;
