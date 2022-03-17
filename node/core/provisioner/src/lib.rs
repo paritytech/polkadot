@@ -291,8 +291,8 @@ impl ProvisionerJob {
 				let candidate_hash = backed_candidate.hash();
 				gum::debug!(
 					target: LOG_TARGET,
-					candidate_hash,
-					para = backed_candidate.descriptor().para_id,
+					?candidate_hash,
+					para = ?backed_candidate.descriptor().para_id,
 					"noted backed candidate",
 				);
 				let _span = span
@@ -517,8 +517,8 @@ async fn select_candidates(
 			gum::trace!(
 				target: LOG_TARGET,
 				leaf_hash=?relay_parent,
-				candidate_hash,
-				para = candidate.descriptor.para_id,
+				?candidate_hash,
+				para = ?candidate.descriptor.para_id,
 				core = core_idx,
 				"Selected candidate receipt",
 			);
