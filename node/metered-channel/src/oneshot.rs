@@ -43,9 +43,9 @@ pub enum Reason {
 /// Obtained measurements by the `Receiver` side of the `MeteredOneshot`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Measurements {
-	/// CoarseDuration between first poll and polling termination.
+	/// Duration between first poll and polling termination.
 	first_poll_till_end: CoarseDuration,
-	/// CoarseDuration starting with creation until polling termination.
+	/// Duration starting with creation until polling termination.
 	creation_till_end: CoarseDuration,
 	/// Reason for resolving the future.
 	reason: Reason,
