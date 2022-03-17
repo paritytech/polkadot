@@ -25,6 +25,7 @@ struct MetricsInner {
 	share: prometheus::Histogram,
 	network_bridge_update_v1: prometheus::Histogram,
 	statements_unexpected: prometheus::CounterVec<prometheus::U64>,
+	created_message_size: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Statement Distribution metrics.
@@ -97,6 +98,13 @@ impl Metrics {
 			metrics.statements_unexpected.with_label_values(&["large"]).inc();
 		}
 	}
+
+	/// Report size of a created message.
+	pub fn on_created_message(&self, size: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.created_message_size.set(size as u64);
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -157,6 +165,13 @@ impl metrics::Metrics for Metrics {
 					),
 					&["type"],
 				)?,
+				registry,
+			)?,
+			created_message_size: prometheus::register(
+				prometheus::Gauge::with_opts(prometheus::Opts::new(
+					"polkadot_parachain_statement_distribution_created_message_size",
+					"Size of created messages containing Seconded statements.",
+				))?,
 				registry,
 			)?,
 		};
