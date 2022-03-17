@@ -251,7 +251,7 @@ fn subset_generation_check() {
 	let values = (0_u8..=25).collect::<Vec<_>>();
 	// 12 even numbers exist
 	let chosen = choose_random_subset::<u8, _>(|v| v & 0x01 == 0, values, 12);
-	for (idx, v) in chosen.enumerate() {
+	for (idx, v) in chosen.into_iter().enumerate() {
 		assert_eq!(v, idx * 2);
 	}
 }

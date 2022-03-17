@@ -142,15 +142,15 @@ impl PerRelayParentData {
 	fn message_from_validator_needed_by_peer(
 		&self,
 		peer: &PeerId,
-		validator: &ValidatorId,
+		signed_by: &ValidatorId,
 	) -> bool {
 		self.message_sent_to_peer
 			.get(peer)
-			.map(|v| !v.contains(validator))
+			.map(|pubkeys| !pubkeys.contains(signed_by))
 			.unwrap_or(true) &&
 			self.message_received_from_peer
 				.get(peer)
-				.map(|v| !v.contains(validator))
+				.map(|pubkeys| !pubkeys.contains(signed_by))
 				.unwrap_or(true)
 	}
 }
@@ -287,7 +287,7 @@ async fn handle_bitfield_distribution<Context>(
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		gum::trace!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
 			"Not supposed to work on relay parent related data",
@@ -297,7 +297,7 @@ async fn handle_bitfield_distribution<Context>(
 	};
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
-		gum::trace!(target: LOG_TARGET, ?relay_parent, "validator set is empty");
+		gum::debug!(target: LOG_TARGET, ?relay_parent, "validator set is empty");
 		return
 	}
 
@@ -305,7 +305,7 @@ async fn handle_bitfield_distribution<Context>(
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		gum::trace!(target: LOG_TARGET, validator_index, "Could not find a validator for index");
+		gum::debug!(target: LOG_TARGET, validator_index, "Could not find a validator for index");
 		return
 	};
 
