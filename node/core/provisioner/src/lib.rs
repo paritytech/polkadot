@@ -289,7 +289,7 @@ impl ProvisionerJob {
 				self.signed_bitfields.push(signed_bitfield),
 			ProvisionableData::BackedCandidate(backed_candidate) => {
 				let candidate_hash = backed_candidate.hash();
-				gum::debug!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					para = ?backed_candidate.descriptor().para_id,
