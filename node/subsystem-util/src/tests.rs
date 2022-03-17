@@ -252,6 +252,6 @@ fn subset_generation_check() {
 	// 12 even numbers exist
 	let chosen = choose_random_subset::<u8, _>(|v| v & 0x01 == 0, values, 12);
 	for (idx, v) in chosen.into_iter().enumerate() {
-		assert_eq!(v, idx * 2);
+		assert_eq!(v as usize, idx * 2);
 	}
 }
