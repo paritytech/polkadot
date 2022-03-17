@@ -16,7 +16,7 @@
 
 //! Over-bridge messaging support for Polkadot <> Kusama bridge.
 
-use crate::{AccountId, Balance, Balances, Call, Origin, OriginCaller, RootAccountForPayments, Runtime};
+use crate::{AccountId, Call, Origin, OriginCaller, Runtime};
 
 use bp_messages::{
 	source_chain::{LaneMessageVerifier, SenderOrigin, TargetHeaderChain},
@@ -157,8 +157,13 @@ impl MessageBridge for WithKusamaMessageBridge {
 	type ThisChain = Polkadot;
 	type BridgedChain = Kusama;
 
-	fn bridged_balance_to_this_balance(bridged_balance: bp_kusama::Balance) -> bp_polkadot::Balance {
-		bp_polkadot::Balance::try_from(KusamaToPolkadotConversionRate::get().saturating_mul_int(bridged_balance))
+	fn bridged_balance_to_this_balance(
+		bridged_balance: bp_kusama::Balance,
+		kusama_to_polkadot_conversion_rate_override: Option<FixedU128>,
+	) -> bp_polkadot::Balance {
+		let conversion_rate = kusama_to_polkadot_conversion_rate_override
+			.unwrap_or_else(|| KusamaToPolkadotConversionRate::get());
+		bp_polkadot::Balance::try_from(conversion_rate.saturating_mul_int(bridged_balance))
 			.unwrap_or(bp_polkadot::Balance::MAX)
 	}
 }

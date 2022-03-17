@@ -69,7 +69,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify, Zero,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -1380,7 +1380,6 @@ parameter_types! {
 		bp_kusama::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX;
 	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
 		bp_kusama::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX;
-	pub const RootAccountForPayments: Option<AccountId> = None;
 	pub const KusamaChainId: bp_runtime::ChainId = bp_runtime::KUSAMA_CHAIN_ID;
 }
 
@@ -2070,10 +2069,12 @@ sp_api::impl_runtime_apis! {
 		fn estimate_message_delivery_and_dispatch_fee(
 			_lane_id: bp_messages::LaneId,
 			payload: kusama_messages::ToKusamaMessagePayload,
+			kusama_to_polkadot_conversion_rate_override: Option<FixedU128>,
 		) -> Option<Balance> {
 			estimate_message_dispatch_and_delivery_fee::<kusama_messages::WithKusamaMessageBridge>(
 				&payload,
 				kusama_messages::WithKusamaMessageBridge::RELAYER_FEE_PERCENT,
+				kusama_to_polkadot_conversion_rate_override,
 			).ok()
 		}
 
@@ -2087,12 +2088,6 @@ sp_api::impl_runtime_apis! {
 				WithKusamaMessagesInstance,
 				kusama_messages::WithKusamaMessageBridge,
 			>(lane, begin, end)
-		}
-	}
-
-	impl bp_kusama::FromKusamaInboundLaneApi<Block> for Runtime {
-		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
-			BridgeKusamaMessages::inbound_unrewarded_relayers_state(lane)
 		}
 	}
 
