@@ -213,11 +213,10 @@ impl ProvisionerJob {
 		disputes_enabled: bool,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
-		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
 		loop {
 			futures::select! {
 				msg = self.receiver.next() => match msg {
-					Some(RequestInherentData(_, return_sender)) => {
+					Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
 						let _span = span.child("req-inherent-data");
 						let _timer = self.metrics.time_request_inherent_data();
 
@@ -227,7 +226,7 @@ impl ProvisionerJob {
 							self.awaiting_inherent.push(return_sender);
 						}
 					}
-					Some(ProvisionableData(_, data)) => {
+					Some(ProvisionerMessage::ProvisionableData(_, data)) => {
 						let span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
@@ -269,6 +268,14 @@ impl ProvisionerJob {
 			self.metrics.on_inherent_data_request(Err(()));
 		} else {
 			self.metrics.on_inherent_data_request(Ok(()));
+			gum::debug!(
+				target: LOG_TARGET,
+				signed_bitfield_count = self.signed_bitfields.len(),
+				backed_candidates_count = self.backed_candidates.len(),
+				leaf_hash = ?self.leaf.hash,
+				disputes_enabled,
+				"inherent data sent successfully"
+			);
 		}
 	}
 
@@ -281,8 +288,16 @@ impl ProvisionerJob {
 			ProvisionableData::Bitfield(_, signed_bitfield) =>
 				self.signed_bitfields.push(signed_bitfield),
 			ProvisionableData::BackedCandidate(backed_candidate) => {
+				let candidate_hash = backed_candidate.hash();
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					para = ?backed_candidate.descriptor().para_id,
+					"noted backed candidate",
+				);
 				let _span = span
 					.child("provisionable-backed")
+					.with_candidate(candidate_hash)
 					.with_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			},
@@ -330,11 +345,23 @@ async fn send_inherent_data(
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
 	let bitfields = match leaf.status {
-		LeafStatus::Fresh => select_availability_bitfields(&availability_cores, bitfields),
+		LeafStatus::Fresh =>
+			select_availability_bitfields(&availability_cores, bitfields, &leaf.hash),
 		LeafStatus::Stale => Vec::new(),
 	};
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, leaf.hash, from_job).await?;
+
+	gum::debug!(
+		target: LOG_TARGET,
+		disputes_enabled = disputes_enabled,
+		availability_cores_len = availability_cores.len(),
+		disputes_count = disputes.len(),
+		bitfields_count = bitfields.len(),
+		candidates_count = candidates.len(),
+		leaf_hash = ?leaf.hash,
+		"inherent data prepared",
+	);
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
@@ -361,11 +388,20 @@ async fn send_inherent_data(
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
+	leaf_hash: &Hash,
 ) -> Vec<SignedAvailabilityBitfield> {
 	let mut selected: BTreeMap<ValidatorIndex, SignedAvailabilityBitfield> = BTreeMap::new();
 
+	gum::debug!(
+		target: LOG_TARGET,
+		bitfields_count = bitfields.len(),
+		?leaf_hash,
+		"bitfields count before selection"
+	);
+
 	'a: for bitfield in bitfields.iter().cloned() {
 		if bitfield.payload().0.len() != cores.len() {
+			gum::debug!(target: LOG_TARGET, ?leaf_hash, "dropping bitfield due to length mismatch");
 			continue
 		}
 
@@ -374,18 +410,38 @@ fn select_availability_bitfields(
 			.map_or(true, |b| b.payload().0.count_ones() < bitfield.payload().0.count_ones());
 
 		if !is_better {
+			gum::trace!(
+				target: LOG_TARGET,
+				val_idx = bitfield.validator_index().0,
+				?leaf_hash,
+				"dropping bitfield due to duplication - the better one is kept"
+			);
 			continue
 		}
 
 		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
 			// Bit is set for an unoccupied core - invalid
 			if *bitfield.payload().0.get(idx).as_deref().unwrap_or(&false) {
+				gum::debug!(
+					target: LOG_TARGET,
+					val_idx = bitfield.validator_index().0,
+					?leaf_hash,
+					"dropping invalid bitfield - bit is set for an unoccupied core"
+				);
 				continue 'a
 			}
 		}
 
 		let _ = selected.insert(bitfield.validator_index(), bitfield);
 	}
+
+	gum::debug!(
+		target: LOG_TARGET,
+		?leaf_hash,
+		"selected {} of all {} bitfields (each bitfield is from a unique validator)",
+		selected.len(),
+		bitfields.len()
+	);
 
 	selected.into_iter().map(|(_, b)| b).collect()
 }
@@ -402,6 +458,13 @@ async fn select_candidates(
 
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
+
+	gum::debug!(
+		target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		n_candidates = candidates.len(),
+		"Candidate receipts (before selection)",
+	);
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
@@ -453,10 +516,11 @@ async fn select_candidates(
 			let candidate_hash = candidate.hash();
 			gum::trace!(
 				target: LOG_TARGET,
-				"Selecting candidate {}. para_id={} core={}",
-				candidate_hash,
-				candidate.descriptor.para_id,
-				core_idx,
+				leaf_hash=?relay_parent,
+				?candidate_hash,
+				para = ?candidate.descriptor.para_id,
+				core = core_idx,
+				"Selected candidate receipt",
 			);
 
 			selected_candidates.push(candidate_hash);
@@ -514,7 +578,7 @@ async fn select_candidates(
 		n_candidates = candidates.len(),
 		n_cores = availability_cores.len(),
 		?relay_parent,
-		"Selected candidates for cores",
+		"Selected backed candidates",
 	);
 
 	Ok(candidates)

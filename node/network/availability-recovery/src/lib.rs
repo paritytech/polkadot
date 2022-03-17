@@ -458,6 +458,8 @@ impl RequestChunksFromValidators {
 		params: &RecoveryParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
+		let metrics = &params.metrics;
+
 		// First query the store for any chunks we've got.
 		{
 			let (tx, rx) = oneshot::channel();
@@ -504,6 +506,7 @@ impl RequestChunksFromValidators {
 				return Err(RecoveryError::Unavailable)
 			}
 
+			let recovery_possible = metrics.time_erasure_recovery_becomes_possible();
 			self.launch_parallel_requests(params, sender).await;
 			self.wait_for_chunks(params).await;
 
@@ -511,6 +514,9 @@ impl RequestChunksFromValidators {
 			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
 			// return Err(RecoveryError::Invalid)
 			if self.received_chunks.len() >= params.threshold {
+				drop(recovery_possible);
+				let recovery_duration = metrics.time_erasure_recovery();
+
 				return match polkadot_erasure_coding::reconstruct_v1(
 					params.validators.len(),
 					self.received_chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
@@ -530,6 +536,7 @@ impl RequestChunksFromValidators {
 
 							Ok(data)
 						} else {
+							recovery_duration.map(|rd| rd.stop_and_discard());
 							gum::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
@@ -541,6 +548,7 @@ impl RequestChunksFromValidators {
 						}
 					},
 					Err(err) => {
+						recovery_duration.map(|rd| rd.stop_and_discard());
 						gum::trace!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
@@ -552,6 +560,8 @@ impl RequestChunksFromValidators {
 						Err(RecoveryError::Invalid)
 					},
 				}
+			} else {
+				recovery_possible.map(|rp| rp.stop_and_discard());
 			}
 		}
 	}
