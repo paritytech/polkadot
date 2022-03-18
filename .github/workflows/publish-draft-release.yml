@@ -118,7 +118,7 @@ jobs:
 
           cd polkadot/scripts/changelog
 
-          ./bin/changelog
+          ./bin/changelog ${GITHUB_REF}
           ls -al release-notes.md
           ls -al context.json
 
