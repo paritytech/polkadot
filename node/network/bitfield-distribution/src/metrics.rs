@@ -18,7 +18,7 @@ use polkadot_node_subsystem_util::metrics::{prometheus, Metrics as MetricsTrait}
 
 #[derive(Clone)]
 struct MetricsInner {
-	gossipped_own_availability_bitfields: prometheus::Counter<prometheus::U64>,
+	sent_own_availability_bitfields: prometheus::Counter<prometheus::U64>,
 	received_availability_bitfields: prometheus::Counter<prometheus::U64>,
 	active_leaves_update: prometheus::Histogram,
 	handle_bitfield_distribution: prometheus::Histogram,
@@ -32,7 +32,7 @@ pub struct Metrics(Option<MetricsInner>);
 impl Metrics {
 	pub(crate) fn on_own_bitfield_gossipped(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.gossipped_own_availability_bitfields.inc();
+			metrics.sent_own_availability_bitfields.inc();
 		}
 	}
 
