@@ -254,7 +254,7 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_write_notification_time",
 						"Time spent within sc_network::NetworkService::write_notification()",
-					)
+					).buckets(vec![0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.0001, 0.0002, 0.001, 0.002, 0.003, 0.004, 0.005, 0.010, 0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5,  1.0, 2.0])
 				)?,
 				registry,
 			)?,
