@@ -30,7 +30,7 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	pub(crate) fn on_own_bitfield_gossipped(&self) {
+	pub(crate) fn on_own_bitfield_sent(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.sent_own_availability_bitfields.inc();
 		}

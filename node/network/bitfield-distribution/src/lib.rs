@@ -315,7 +315,7 @@ async fn handle_bitfield_distribution<Context>(
 	let peer_views = &mut state.peer_views;
 	relay_message(ctx, job_data, gossip_peers, peer_views, validator, msg).await;
 
-	metrics.on_own_bitfield_gossipped();
+	metrics.on_own_bitfield_sent();
 }
 
 /// Distribute a given valid and signature checked bitfield message.
