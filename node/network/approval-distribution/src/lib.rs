@@ -66,14 +66,16 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
+/// Contains recently finalized
+/// or those pruned due to finalization.
 #[derive(Default)]
-struct RecentlyFinalized {
+struct RecentlyOutdated {
 	buf: VecDeque<Hash>,
 }
 
-impl RecentlyFinalized {
-	fn note_finalized(&mut self, hash: Hash) {
-		const MAX_BUF_LEN: usize = 10;
+impl RecentlyOutdated {
+	fn note_outdated(&mut self, hash: Hash) {
+		const MAX_BUF_LEN: usize = 20;
 
 		self.buf.push_back(hash);
 
@@ -82,7 +84,7 @@ impl RecentlyFinalized {
 		}
 	}
 
-	fn is_recent_finalized(&self, hash: &Hash) -> bool {
+	fn is_recent_outdated(&self, hash: &Hash) -> bool {
 		self.buf.contains(hash)
 	}
 }
@@ -113,7 +115,7 @@ struct State {
 	gossip_peers: HashSet<PeerId>,
 
 	/// Tracks recently finalized blocks.
-	recent_finalized_blocks: RecentlyFinalized,
+	recent_outdated_blocks: RecentlyOutdated,
 }
 
 /// A short description of a validator's assignment or approval.
@@ -530,7 +532,7 @@ impl State {
 
 		// now that we pruned `self.blocks_by_number`, let's clean up `self.blocks` too
 		old_blocks.values().flatten().for_each(|relay_block| {
-			self.recent_finalized_blocks.note_finalized(relay_block);
+			self.recent_outdated_blocks.note_outdated(relay_block);
 			self.blocks.remove(relay_block);
 		});
 	}
@@ -558,7 +560,7 @@ impl State {
 						?validator_index,
 						"Unexpected assignment",
 					);
-					if !self.recent_finalized_blocks.is_recent_finalized(&block_hash) {
+					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
 						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
@@ -774,7 +776,7 @@ impl State {
 			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
-					if !self.recent_finalized_blocks.is_recent_finalized(&block_hash) {
+					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
 						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
