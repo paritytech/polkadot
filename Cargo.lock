@@ -6794,6 +6794,7 @@ dependencies = [
  "kvdb-memorydb",
  "lru 0.7.3",
  "parity-scale-codec",
+ "polkadot-node-core-approval-voting",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",

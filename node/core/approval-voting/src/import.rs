@@ -299,7 +299,6 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -349,7 +348,7 @@ pub(crate) async fn handle_new_head(
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
-	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
+	let lower_bound_number = header.number.saturating_sub(crate::MAX_HEADS_LOOK_BACK);
 	let lower_bound_number = finalized_number.unwrap_or(lower_bound_number).max(lower_bound_number);
 
 	let new_blocks = determine_new_blocks(

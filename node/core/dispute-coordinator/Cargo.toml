@@ -17,6 +17,7 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-core-approval-voting = { path = "../approval-voting" }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

@@ -47,15 +47,16 @@ use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,
 };
+use polkadot_node_core_approval_voting::MAX_HEADS_LOOK_BACK;
 use std::sync::Arc;
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking
 /// or disputes.
 ///
 /// This is a safety net that should be removed at some point in the future.
-// Until it's not, make sure to also update `MAX_HEADS_LOOK_BACK` in `approval-voting`
-// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator` when changing its value.
-const MAX_FINALITY_LAG: polkadot_primitives::v2::BlockNumber = 500;
+// In sync with `MAX_HEADS_LOOK_BACK` in `approval-voting`
+// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`.
+const MAX_FINALITY_LAG: polkadot_primitives::v2::BlockNumber = MAX_HEADS_LOOK_BACK;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 

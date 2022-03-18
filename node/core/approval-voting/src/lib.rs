@@ -99,6 +99,7 @@ mod tests;
 
 pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
 
+pub const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
