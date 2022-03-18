@@ -30,9 +30,7 @@
 
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
-	approval::{
-	self as approval_types, BlockApprovalMeta, RelayVRFStory,
-	},
+	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
 	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
