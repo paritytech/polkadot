@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, AssignmentCheckError, AssignmentCheckResult,
 		AvailabilityRecoveryMessage, BlockDescription, CandidateValidationMessage, ChainApiMessage,
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
-		ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
+		RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer::{self, SubsystemSender as _},
 	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
@@ -953,7 +953,9 @@ async fn handle_actions(
 				dispute_statement,
 				validator_index,
 			} => {
-				let (pending_confirmation, confirmation_rx) = oneshot::channel();
+				// TODO: Log confirmation results in an efficient way:
+				// https://github.com/paritytech/polkadot/issues/5156
+				let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
@@ -962,17 +964,6 @@ async fn handle_actions(
 					pending_confirmation,
 				})
 				.await;
-
-				match confirmation_rx.await {
-					Err(oneshot::Canceled) => {
-						tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
-					},
-					Ok(ImportStatementsResult::ValidImport) => {},
-					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
-						target: LOG_TARGET,
-						"Failed to import statements of validity",
-					),
-				}
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
