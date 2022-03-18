@@ -271,7 +271,7 @@ impl PeerRelayParentKnowledge {
 
 				let was_known = self.is_known_candidate(h);
 				self.sent_candidates.insert(h.clone());
-				was_known
+				!was_known
 			},
 			CompactStatement::Valid(_) => false,
 		};
@@ -340,7 +340,7 @@ impl PeerRelayParentKnowledge {
 					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
-				(h, self.is_known_candidate(h))
+				(h, !self.is_known_candidate(h))
 			},
 			CompactStatement::Valid(ref h) => {
 				if !self.is_known_candidate(h) {
