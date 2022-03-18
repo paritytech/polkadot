@@ -269,7 +269,9 @@ impl PeerRelayParentKnowledge {
 			CompactStatement::Seconded(ref h) => {
 				self.seconded_counts.entry(fingerprint.1).or_default().note_local(h.clone());
 
-				self.sent_candidates.insert(h.clone())
+				let was_known = self.is_known_candidate(h);
+				self.sent_candidates.insert(h.clone());
+				!was_known
 			},
 			CompactStatement::Valid(_) => false,
 		};
@@ -291,7 +293,7 @@ impl PeerRelayParentKnowledge {
 
 		match fingerprint.0 {
 			CompactStatement::Valid(ref h) => {
-				// The peer can only accept Valid and Invalid statements for which it is aware
+				// The peer can only accept Valid statements for which it is aware
 				// of the corresponding candidate.
 				self.is_known_candidate(h)
 			},
@@ -326,7 +328,7 @@ impl PeerRelayParentKnowledge {
 			return Err(COST_DUPLICATE_STATEMENT)
 		}
 
-		let candidate_hash = match fingerprint.0 {
+		let (candidate_hash, fresh) = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
 				let allowed_remote = self
 					.seconded_counts
@@ -338,14 +340,14 @@ impl PeerRelayParentKnowledge {
 					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
-				h
+				(h, !self.is_known_candidate(h))
 			},
 			CompactStatement::Valid(ref h) => {
-				if !self.is_known_candidate(&h) {
+				if !self.is_known_candidate(h) {
 					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
-				h
+				(h, false)
 			},
 		};
 
@@ -361,7 +363,8 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		Ok(self.received_candidates.insert(candidate_hash.clone()))
+		self.received_candidates.insert(candidate_hash.clone());
+		Ok(fresh)
 	}
 
 	/// Note a received large statement metadata.
