@@ -67,7 +67,7 @@ impl Metrics {
 impl MetricsTrait for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			gossipped_own_availability_bitfields: prometheus::register(
+			sent_own_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
 					"polkadot_parachain_sent_own_availabilty_bitfields_total",
 					"Number of own availability bitfields sent to other peers.",
