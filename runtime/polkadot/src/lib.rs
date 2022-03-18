@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, CurrencyToVote,
+	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
 use runtime_parachains::{
@@ -160,6 +160,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Proxy(_) |
 			Call::Multisig(_) |
 			Call::Bounties(_) |
+			Call::ChildBounties(_) |
 			Call::Tips(_) |
 			Call::ElectionProviderMultiPhase(_) |
 			Call::Configuration(_) |
@@ -454,7 +455,7 @@ parameter_types! {
 	pub const VoterSnapshotPerBlock: u32 = 22_500;
 }
 
-sp_npos_elections::generate_solution_type!(
+frame_election_provider_support::generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,
@@ -547,7 +548,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 16
-	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -825,10 +826,25 @@ impl pallet_bounties::Config for Runtime {
 	type BountyUpdatePeriod = BountyUpdatePeriod;
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
-	type ChildBountyManager = ();
+	type ChildBountyManager = ChildBounties;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub const MaxActiveChildBountyCount: u32 = 100;
+	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
+	// This will be 1% of the bounty value.
+	pub const ChildBountyCuratorDepositBase: Permill = Permill::from_percent(1);
+}
+
+impl pallet_child_bounties::Config for Runtime {
+	type Event = Event;
+	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
+	type ChildBountyValueMinimum = ChildBountyValueMinimum;
+	type ChildBountyCuratorDepositBase = ChildBountyCuratorDepositBase;
+	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
 }
 
 impl pallet_tips::Config for Runtime {
@@ -1113,6 +1129,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
 				Call::Bounties(..) |
+				Call::ChildBounties(..) |
 				Call::Tips(..) |
 				Call::Claims(..) |
 				Call::Vesting(pallet_vesting::Call::vest{..}) |
@@ -1137,7 +1154,8 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Council(..) | Call::TechnicalCommittee(..) |
 					Call::PhragmenElection(..) |
 					Call::Treasury(..) | Call::Bounties(..) |
-					Call::Tips(..) | Call::Utility(..)
+					Call::Tips(..) | Call::Utility(..) |
+					Call::ChildBounties(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
@@ -1390,8 +1408,9 @@ construct_runtime! {
 		// Multisig dispatch. Late addition.
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 30,
 
-		// Bounties module.
+		// Bounties modules.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 34,
+		ChildBounties: pallet_child_bounties = 38,
 
 		// Tips module.
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 35,
@@ -1685,6 +1704,7 @@ mod benches {
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
 		[runtime_common::claims, Claims]
 		[runtime_common::crowdloan, Crowdloan]
 		[runtime_common::slots, Slots]
@@ -1700,6 +1720,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
+		[pallet_child_bounties, ChildBounties]
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
@@ -2124,6 +2145,7 @@ mod test_fees {
 	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
+	use runtime_common::MinimumMultiplier;
 	use separator::Separatable;
 	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
 

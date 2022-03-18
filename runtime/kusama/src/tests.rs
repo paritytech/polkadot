@@ -21,6 +21,7 @@ use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
+use runtime_common::MinimumMultiplier;
 use separator::Separatable;
 use sp_runtime::FixedPointNumber;
 

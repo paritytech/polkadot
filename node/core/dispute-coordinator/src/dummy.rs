@@ -65,14 +65,14 @@ where
 		let res = run_until_error(&mut ctx, &subsystem).await;
 		match res.into_nested() {
 			Err(fatal) => {
-				tracing::error!(target: LOG_TARGET, "Observed fatal issue: {:?}", fatal);
+				gum::error!(target: LOG_TARGET, "Observed fatal issue: {:?}", fatal);
 				break
 			},
 			Ok(Err(jfyi)) => {
-				tracing::debug!(target: LOG_TARGET, "Observed issue: {:?}", jfyi);
+				gum::debug!(target: LOG_TARGET, "Observed issue: {:?}", jfyi);
 			},
 			Ok(Ok(())) => {
-				tracing::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
+				gum::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 				break
 			},
 		}

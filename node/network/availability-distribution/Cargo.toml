@@ -6,8 +6,8 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.32"
-parity-scale-codec = { version = "3.0.0", features = ["std"] }
+gum = { package = "tracing-gum", path = "../../gum" }
+parity-scale-codec = { version = "3.1.2", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
