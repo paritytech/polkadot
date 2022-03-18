@@ -31,7 +31,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
-	DISPUTE_WINDOW,
+	DISPUTE_WINDOW, MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -48,7 +48,6 @@ use polkadot_primitives::v2::{
 	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
-use polkadot_node_core_approval_voting::MAX_HEADS_LOOK_BACK;
 
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
@@ -71,8 +70,8 @@ use super::{
 
 // The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
 const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500;
-// This is in sync with `MAX_FINALITY_LAG` in relay chain selection.
-const MAX_BATCH_SCRAPE_ANCESTORS: u32 = MAX_HEADS_LOOK_BACK;
+// This is in sync with `MAX_FINALITY_LAG` in relay chain selection & node primitives.
+const MAX_BATCH_SCRAPE_ANCESTORS: u32 = MAX_FINALITY_LAG;
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
