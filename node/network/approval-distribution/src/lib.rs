@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature,
 };
-use std::collections::{hash_map, BTreeMap, HashMap, HashSet};
+use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
 use self::metrics::Metrics;
 
@@ -66,6 +66,33 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
+/// Tracks recent outdated heads.
+///
+/// If a head is tracked in here, it's not
+/// considered worth a reputation change
+/// message, to assure inter subsystem
+/// latency is kept low.
+#[derive(Default)]
+struct RecentOutdatedHeads {
+	buf: VecDeque<Hash>,
+}
+
+impl RecentOutdatedHeads {
+	fn note_outdated(&mut self, hash: Hash) {
+		const MAX_BUF_LEN: usize = 10;
+
+		self.buf.push_back(hash);
+
+		while self.buf.len() > MAX_BUF_LEN {
+			let _ = self.buf.pop_front();
+		}
+	}
+
+	fn is_recent_outdated(&self, hash: &Hash) -> bool {
+		self.buf.contains(hash)
+	}
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -90,6 +117,9 @@ struct State {
 	/// Track all our neighbors in the current gossip topology.
 	/// We're not necessarily connected to all of them.
 	gossip_peers: HashSet<PeerId>,
+
+	/// Tracks recently outdated heads.
+	recent_outdated_heads: RecentOutdatedHeads,
 }
 
 /// A short description of a validator's assignment or approval.
@@ -528,11 +558,13 @@ impl State {
 					gum::trace!(
 						target: LOG_TARGET,
 						?peer_id,
-						?block_hash,
+						hash = ?block_hash,
 						?validator_index,
 						"Unexpected assignment",
 					);
-					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					if !self.recent_outdated_heads.is_recent_outdated(&block_hash) {
+						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					}
 				}
 				return
 			},
@@ -548,16 +580,17 @@ impl State {
 				hash_map::Entry::Occupied(mut peer_knowledge) => {
 					let peer_knowledge = peer_knowledge.get_mut();
 					if peer_knowledge.contains(&fingerprint) {
-						if peer_knowledge.received.contains(&fingerprint) {
+						// wasn't included before
+						if !peer_knowledge.received.insert(fingerprint.clone()) {
 							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
+								hash = ?block_hash,
 								?fingerprint,
 								"Duplicate assignment",
 							);
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
-						peer_knowledge.received.insert(fingerprint);
 						return
 					}
 				},
@@ -565,6 +598,7 @@ impl State {
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
+						hash = ?block_hash,
 						?fingerprint,
 						"Assignment from a peer is out of view",
 					);
@@ -601,7 +635,7 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(target: LOG_TARGET, ?source, ?fingerprint, ?result, "Checked assignment",);
+			gum::trace!(target: LOG_TARGET, hash = ?block_hash, ?source, ?fingerprint, ?result, "Checked assignment",);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -618,7 +652,7 @@ impl State {
 						peer_knowledge.received.insert(fingerprint);
 					}
 					gum::debug!(
-						target: LOG_TARGET,
+						target: LOG_TARGET, hash = ?block_hash,
 						?peer_id,
 						"Got an `AcceptedDuplicate` assignment",
 					);
@@ -626,16 +660,17 @@ impl State {
 				},
 				AssignmentCheckResult::TooFarInFuture => {
 					gum::debug!(
-						target: LOG_TARGET,
+						target: LOG_TARGET, hash = ?block_hash,
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
+					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
+							.await;
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
 					gum::info!(
-						target: LOG_TARGET,
+						target: LOG_TARGET, hash = ?block_hash,
 						?peer_id,
 						%error,
 						"Got a bad assignment from peer",
@@ -1224,10 +1259,14 @@ impl ApprovalDistribution {
 				FromOverseer::Communication { msg } =>
 					Self::handle_incoming(&mut ctx, state, msg, self.metrics.clone()).await,
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					deactivated,
 					..
 				})) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
 					// handled by NewBlocks
+					for deactivated in deactivated {
+						state.recent_outdated_heads.note_outdated(deactivated);
+					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
 					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
