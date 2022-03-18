@@ -53,7 +53,6 @@ pub mod crowdloan_index_migration {
 				total_balance >= fund.raised,
 				"Total balance is not equal to the funds raised."
 			);
-			ensure!(total_balance > Zero::zero(), "Total balance is equal to zero.");
 		}
 
 		Ok(())
