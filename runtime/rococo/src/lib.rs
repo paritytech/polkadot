@@ -1329,9 +1329,13 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block> for Runtime {
+	impl beefy_primitives::BeefyApi<Block, BlockNumber> for Runtime {
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			Beefy::validator_set()
+		}
+
+		fn get_session_boundary() -> BlockNumber {
+			Session::get_session_boundary()
 		}
 	}
 
