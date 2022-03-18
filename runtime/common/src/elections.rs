@@ -66,7 +66,7 @@ pub type OnOnChainAccuracy = sp_runtime::Perbill;
 
 /// The election provider of the genesis
 pub type GenesisElectionOf<T> =
-	frame_election_provider_support::onchain::UnboundedSequentialPhragmen<T>;
+	frame_election_provider_support::onchain::UnboundedOnchainExecution<T>;
 
 /// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
 /// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary

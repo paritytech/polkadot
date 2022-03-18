@@ -45,6 +45,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_election_provider_support::{
+	generate_solution_type, onchain::BoundedOnchainExecution, NposSolution, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -412,7 +415,7 @@ parameter_types! {
 	pub const VoterSnapshotPerBlock: u32 = 22_500;
 }
 
-frame_election_provider_support::generate_solution_type!(
+generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution24::<
 		VoterIndex = u32,
@@ -442,18 +445,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
-	type Fallback = frame_election_provider_support::onchain::BoundedOnChainSequentialPhragmen<
+	type Fallback = BoundedOnchainExecution<
 		Self,
 		frame_support::traits::ConstU32<20_000>,
 		frame_support::traits::ConstU32<2_000>,
 	>;
-	type GovernanceFallback =
-		frame_election_provider_support::onchain::BoundedOnChainSequentialPhragmen<
-			Self,
-			frame_support::traits::ConstU32<20_000>,
-			frame_support::traits::ConstU32<2_000>,
-		>;
-	type Solver = frame_election_provider_support::SequentialPhragmen<
+	type GovernanceFallback = BoundedOnchainExecution<
+		Self,
+		frame_support::traits::ConstU32<20_000>,
+		frame_support::traits::ConstU32<2_000>,
+	>;
+	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
 		(),
@@ -551,7 +553,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
-	pub const MaxNominations: u32 = <NposCompactSolution24 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -560,7 +562,7 @@ type SlashCancelOrigin = EnsureOneOf<
 >;
 
 impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
+	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnOnChainAccuracy>;
 	type DataProvider = Staking;
 }
 
