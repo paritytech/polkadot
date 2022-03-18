@@ -35,15 +35,15 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	MIN_GOSSIP_PEERS,
-};
+use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature,
 };
 use std::collections::{hash_map, BTreeMap, HashMap, HashSet};
+
+use self::metrics::Metrics;
+
+mod metrics;
 
 #[cfg(test)]
 mod tests;
@@ -1221,56 +1221,8 @@ impl ApprovalDistribution {
 				},
 			};
 			match message {
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(event),
-				} => {
-					state.handle_network_msg(&mut ctx, &self.metrics, event).await;
-				},
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::NewBlocks(metas),
-				} => {
-					gum::debug!(target: LOG_TARGET, "Processing NewBlocks");
-					state.handle_new_blocks(&mut ctx, &self.metrics, metas).await;
-				},
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
-				} => {
-					gum::debug!(
-						target: LOG_TARGET,
-						"Distributing our assignment on candidate (block={}, index={})",
-						cert.block_hash,
-						candidate_index,
-					);
-
-					state
-						.import_and_circulate_assignment(
-							&mut ctx,
-							&self.metrics,
-							MessageSource::Local,
-							cert,
-							candidate_index,
-						)
-						.await;
-				},
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::DistributeApproval(vote),
-				} => {
-					gum::debug!(
-						target: LOG_TARGET,
-						"Distributing our approval vote on candidate (block={}, index={})",
-						vote.block_hash,
-						vote.candidate_index,
-					);
-
-					state
-						.import_and_circulate_approval(
-							&mut ctx,
-							&self.metrics,
-							MessageSource::Local,
-							vote,
-						)
-						.await;
-				},
+				FromOverseer::Communication { msg } =>
+					Self::handle_incoming(&mut ctx, state, msg, self.metrics.clone()).await,
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					..
 				})) => {
@@ -1285,6 +1237,55 @@ impl ApprovalDistribution {
 			}
 		}
 	}
+
+	async fn handle_incoming<Context>(
+		ctx: &mut Context,
+		state: &mut State,
+		msg: ApprovalDistributionMessage,
+		metrics: Metrics,
+	) where
+		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
+	{
+		match msg {
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(event) => {
+				state.handle_network_msg(ctx, &metrics, event).await;
+			},
+			ApprovalDistributionMessage::NewBlocks(metas) => {
+				state.handle_new_blocks(ctx, &metrics, metas).await;
+			},
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our assignment on candidate (block={}, index={})",
+					cert.block_hash,
+					candidate_index,
+				);
+
+				state
+					.import_and_circulate_assignment(
+						ctx,
+						&metrics,
+						MessageSource::Local,
+						cert,
+						candidate_index,
+					)
+					.await;
+			},
+			ApprovalDistributionMessage::DistributeApproval(vote) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our approval vote on candidate (block={}, index={})",
+					vote.block_hash,
+					vote.candidate_index,
+				);
+
+				state
+					.import_and_circulate_approval(ctx, &metrics, MessageSource::Local, vote)
+					.await;
+			},
+		}
+	}
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalDistribution
@@ -1296,110 +1297,5 @@ where
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "approval-distribution-subsystem", future }
-	}
-}
-
-/// Approval Distribution metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-#[derive(Clone)]
-struct MetricsInner {
-	assignments_imported_total: prometheus::Counter<prometheus::U64>,
-	approvals_imported_total: prometheus::Counter<prometheus::U64>,
-	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
-
-	time_unify_with_peer: prometheus::Histogram,
-	time_import_pending_now_known: prometheus::Histogram,
-	time_awaiting_approval_voting: prometheus::Histogram,
-}
-
-impl Metrics {
-	fn on_assignment_imported(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.assignments_imported_total.inc();
-		}
-	}
-
-	fn on_approval_imported(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.approvals_imported_total.inc();
-		}
-	}
-
-	fn on_unify_with_peer(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.unified_with_peer_total.inc();
-		}
-	}
-
-	fn time_unify_with_peer(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.time_unify_with_peer.start_timer())
-	}
-
-	fn time_import_pending_now_known(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.time_import_pending_now_known.start_timer())
-	}
-
-	fn time_awaiting_approval_voting(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.time_awaiting_approval_voting.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			assignments_imported_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_assignments_imported_total",
-					"Number of valid assignments imported locally or from other peers.",
-				)?,
-				registry,
-			)?,
-			approvals_imported_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_approvals_imported_total",
-					"Number of valid approvals imported locally or from other peers.",
-				)?,
-				registry,
-			)?,
-			unified_with_peer_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_unified_with_peer_total",
-					"Number of times `unify_with_peer` is called.",
-				)?,
-				registry,
-			)?,
-			time_unify_with_peer: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_unify_with_peer",
-					"Time spent within fn `unify_with_peer`.",
-				))?,
-				registry,
-			)?,
-			time_import_pending_now_known: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_import_pending_now_known",
-					"Time spent on importing pending assignments and approvals.",
-				))?,
-				registry,
-			)?,
-			time_awaiting_approval_voting: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_awaiting_approval_voting",
-					"Time spent awaiting a reply from the Approval Voting Subsystem.",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
 	}
 }
