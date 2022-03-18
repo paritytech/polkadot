@@ -1,0 +1,67 @@
+[settings]
+timeout = 1000
+bootnode = true
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 1
+  needed_approvals = 3
+
+[relaychain]
+chain = "rococo-local"
+chain_spec_command = "../polkadot/target/testnet/polkadot build-spec --chain rococo-local"
+default_command = "../polkadot/target/testnet/polkadot"
+
+  [[relaychain.node_groups]]
+  name = "a"
+  args = [ "-lparachain=debug" ]
+  command = "../polkadot/target/testnet/polkadot"
+  count = 5
+
+# {% for id in range(2000,2001) %}
+# [[parachains]]
+# id = {{id}}
+# addToGenesis = true
+# genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=20000 --pvf-complexity=100"
+
+#   [parachains.collator]
+#   name = "collator{{id}}"
+#   command = "../polkadot/target/release/undying-collator"
+#   args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id={{id}}", "--pvf-complexity=100"]
+#   count = 25
+
+# {% endfor %}
+
+# {% for id in range(2000,2005) %}
+
+# [[parachains]]
+# id = {{id}}
+# addToGenesis = true
+# genesis_state_generator = "../cumulus/target/release/polkadot-collator export-genesis-state"
+
+  # [parachains.collator]
+  # name = "collator"
+  # command = "../cumulus/target/release/polkadot-collator"
+  # args = ["-lparachain=debug", "--parachain-id {{id}}"]
+  # count = 1
+
+# {% endfor %}
+
+{% for id in range(2000,2003) %}
+[[parachains]]
+id = {{id}}
+addToGenesis = true
+cumulus_based = true
+
+  [[parachains.collator_groups]]
+    count = 3
+    [parachains.collator_groups.collator]
+    name = "collator"
+    command = "../cumulus/target/release/polkadot-collator"
+    args = [ "-lparachain=debug" ]
+
+{% endfor %}
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"

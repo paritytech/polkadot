@@ -1,0 +1,40 @@
+[settings]
+timeout = 1000
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 3
+  needed_approvals = 10
+
+[relaychain]
+chain = "rococo-local"
+chain_spec_command = "../polkadot/target/testnet/polkadot build-spec --chain rococo-local --disable-default-bootnode"
+default_command = "../polkadot/target/testnet/polkadot"
+
+  [[relaychain.node_groups]]
+  name = "malus-validator"
+  args = [ "-lparachain=debug" ]
+  command = "../polkadot/target/testnet/malus  --fake-approval-validation=invalid dispute-ancestor"
+  count = 5
+
+  [[relaychain.node_groups]]
+  name = "honest-validator"
+  args = [ "-lparachain=debug" ]
+  count = 11
+
+{% for id in range(2000,2004) %}
+[[parachains]]
+id = {{id}}
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/testnet/undying-collator export-genesis-state --pov-size={{(id - 1999)*1000}} --pvf-complexity={{(id - 1999)*10}}"
+
+  [parachains.collator]
+  name = "collator"
+  command = "../polkadot/target/testnet/undying-collator"
+  args = ["--pov-size={{(id - 1999)*1000}}", "--pvf-complexity={{(id - 1999)*10}}", "-lparachain=debug", "--parachain-id {{id}}"]
+  count = 1
+{% endfor %}
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"

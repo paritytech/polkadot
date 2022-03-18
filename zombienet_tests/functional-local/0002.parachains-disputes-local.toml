@@ -1,0 +1,99 @@
+[settings]
+timeout = 1000
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 2
+  needed_approvals = 3
+
+[relaychain]
+chain = "rococo-local"
+chain_spec_command = "../polkadot/target/testnet/polkadot build-spec --chain rococo-local --disable-default-bootnode"
+default_command = "../polkadot/target/testnet/polkadot"
+  
+  [[relaychain.nodes]]
+  name = "alice"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--alice"]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--bob"]
+  
+  [[relaychain.nodes]]
+  name = "charlie"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--charlie"]
+
+  [[relaychain.nodes]]
+  name = "dave"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--dave"]
+
+  [[relaychain.nodes]]
+  name = "ferdie"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--ferdie" ]
+
+  [[relaychain.nodes]]
+  name = "eve"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--eve"]
+
+  [[relaychain.nodes]]
+  name = "one"
+  # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  extra_args = [ "--one" ]
+
+  # [[relaychain.nodes]]
+  # name = "two"
+  # # command = "../polkadot/target/testnet/malus dispute-ancestor"
+  # extra_args = [ "--two", "-lparachain=debug"]
+  [[relaychain.nodes.env]]
+    name = "RUST_LOG"
+    value = "parachain=debug,runtime=debug"
+
+[[parachains]]
+id = 2000
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1"
+
+  [parachains.collator]
+  name = "collator01"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=100000", "--pvf-complexity=1", "--parachain-id=2000"]
+
+[[parachains]]
+id = 2001
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=2"
+
+  [parachains.collator]
+  name = "collator02"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=100000", "--parachain-id=2001", "--pvf-complexity=2"]
+
+[[parachains]]
+id = 2002
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=10"
+
+  [parachains.collator]
+  name = "collator03"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=100000", "--parachain-id=2002", "--pvf-complexity=10"]
+
+[[parachains]]
+id = 2003
+addToGenesis = true
+genesis_state_generator = "../polkadot/target/release/undying-collator export-genesis-state --pov-size=20000 --pvf-complexity=1000"
+
+  [parachains.collator]
+  name = "collator04"
+  command = "../polkadot/target/release/undying-collator"
+  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2003", "--pvf-complexity=1000"]
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"
