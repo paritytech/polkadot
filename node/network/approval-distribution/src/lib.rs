@@ -1263,7 +1263,7 @@ impl ApprovalDistribution {
 					..
 				})) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// the relay chain blocks relevant to the approval subsytems
+					// the relay chain blocks relevant to the approval subsystems
 					// are those that are available, but not finalized yet
 					// actived and deactivated heads hence are irrelevant to this subsystem
 				},
