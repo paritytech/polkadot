@@ -69,7 +69,7 @@ use super::{
 };
 
 // The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500;
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = MAX_FINALITY_LAG as usize;
 // This is in sync with `MAX_FINALITY_LAG` in relay chain selection & node primitives.
 const MAX_BATCH_SCRAPE_ANCESTORS: u32 = MAX_FINALITY_LAG;
 
