@@ -69,7 +69,7 @@ impl MetricsTrait for Metrics {
 		let metrics = MetricsInner {
 			gossipped_own_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
-					"polkadot_parachain_gossipped_own_availabilty_bitfields_total",
+					"polkadot_parachain_sent_own_availabilty_bitfields_total",
 					"Number of own availability bitfields sent to other peers.",
 				)?,
 				registry,
