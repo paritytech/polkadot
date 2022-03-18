@@ -143,8 +143,15 @@ impl Metrics {
 				.set(size as u64)
 		});
 	}
+
 	fn time_write_notification(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.write_notification_timer.start_timer())
+	}
+
+	fn on_report_event(&self) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.report_events.inc()
+		}
 	}
 }
 
@@ -154,6 +161,7 @@ struct MetricsInner {
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
 	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
+	report_events: prometheus::Counter<prometheus::U64>,
 
 	notifications_received: prometheus::CounterVec<prometheus::U64>,
 	notifications_sent: prometheus::CounterVec<prometheus::U64>,
@@ -206,6 +214,13 @@ impl metrics::Metrics for Metrics {
 						"The number of peers that the local node is expected to connect to on a parachain-related peer-set (either including or not including unresolvable authorities, depending on whether `ConnectToValidators` or `ConnectToValidatorsResolved` was used.)",
 					),
 					&["protocol"]
+				)?,
+				registry,
+			)?,
+			report_events: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_network_report_events_total",
+					"The amount of reputation changes issued by subsystems",
 				)?,
 				registry,
 			)?,
@@ -452,6 +467,8 @@ where
 								action = "ReportPeer"
 							);
 						}
+
+						metrics.on_report_event();
 						network_service.report_peer(peer, rep);
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
