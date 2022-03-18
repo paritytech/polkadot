@@ -1308,6 +1308,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// statement before a `Seconded` statement. `Seconded` statements are the only ones
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
+		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
 		let _ = circulate_statement(
 			gossip_peers,
 			peers,
@@ -1336,6 +1337,7 @@ async fn handle_incoming_message<'a>(
 	metrics: &Metrics,
 ) -> Option<(Hash, StoredStatement<'a>)> {
 	let relay_parent = message.get_relay_parent();
+	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
@@ -1585,6 +1587,7 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
 			*gossip_peers = new_peers;
 			for peer in newly_added {
@@ -1617,6 +1620,7 @@ async fn handle_network_update(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
+			let _ = metrics.time_network_bridge_update_v1("peer_view_change");
 			gum::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
@@ -1976,8 +1980,6 @@ impl StatementDistributionSubsystem {
 					.await;
 				},
 				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
-					let _timer = metrics.time_network_bridge_update_v1();
-
 					handle_network_update(
 						peers,
 						gossip_peers,
