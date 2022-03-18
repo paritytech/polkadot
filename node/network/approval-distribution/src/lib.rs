@@ -66,19 +66,13 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
-/// Tracks recent outdated heads.
-///
-/// If a head is tracked in here, it's not
-/// considered worth a reputation change
-/// message, to assure inter subsystem
-/// latency is kept low.
 #[derive(Default)]
-struct RecentOutdatedHeads {
+struct RecentlyFinalized {
 	buf: VecDeque<Hash>,
 }
 
-impl RecentOutdatedHeads {
-	fn note_outdated(&mut self, hash: Hash) {
+impl RecentlyFinalized {
+	fn note_finalized(&mut self, hash: Hash) {
 		const MAX_BUF_LEN: usize = 10;
 
 		self.buf.push_back(hash);
@@ -88,7 +82,7 @@ impl RecentOutdatedHeads {
 		}
 	}
 
-	fn is_recent_outdated(&self, hash: &Hash) -> bool {
+	fn is_recent_finalized(&self, hash: &Hash) -> bool {
 		self.buf.contains(hash)
 	}
 }
@@ -118,8 +112,8 @@ struct State {
 	/// We're not necessarily connected to all of them.
 	gossip_peers: HashSet<PeerId>,
 
-	/// Tracks recently outdated heads.
-	recent_outdated_heads: RecentOutdatedHeads,
+	/// Tracks recently finalized blocks.
+	recent_finalized_blocks: RecentlyFinalized,
 }
 
 /// A short description of a validator's assignment or approval.
@@ -530,12 +524,14 @@ impl State {
 		// split_off returns everything after the given key, including the key
 		let split_point = finalized_number.saturating_add(1);
 		let mut old_blocks = self.blocks_by_number.split_off(&split_point);
+
 		// after split_off old_blocks actually contains new blocks, we need to swap
 		std::mem::swap(&mut self.blocks_by_number, &mut old_blocks);
 
 		// now that we pruned `self.blocks_by_number`, let's clean up `self.blocks` too
-		old_blocks.values().flatten().for_each(|h| {
-			self.blocks.remove(h);
+		old_blocks.values().flatten().for_each(|relay_block| {
+			self.recent_finalized_blocks.note_finalized(relay_block);
+			self.blocks.remove(relay_block);
 		});
 	}
 
@@ -562,7 +558,7 @@ impl State {
 						?validator_index,
 						"Unexpected assignment",
 					);
-					if !self.recent_outdated_heads.is_recent_outdated(&block_hash) {
+					if !self.recent_finalized_blocks.is_recent_finalized(&block_hash) {
 						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
@@ -664,8 +660,7 @@ impl State {
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
-							.await;
+					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
@@ -776,7 +771,7 @@ impl State {
 			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
-					if !self.recent_outdated_heads.is_recent_outdated(&block_hash) {
+					if !self.recent_finalized_blocks.is_recent_finalized(&block_hash) {
 						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
@@ -871,7 +866,7 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					if !self.recent_outdated_heads.is_recent_outdated(&block_hash) {
+					if !self.recent_finalized_blocks.is_recent_finalized(&block_hash) {
 						modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					}
 					gum::info!(
@@ -1262,14 +1257,12 @@ impl ApprovalDistribution {
 				FromOverseer::Communication { msg } =>
 					Self::handle_incoming(&mut ctx, state, msg, self.metrics.clone()).await,
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					deactivated,
 					..
 				})) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// handled by NewBlocks
-					for deactivated in deactivated {
-						state.recent_outdated_heads.note_outdated(deactivated);
-					}
+					// the relay chain blocks relevant to the approval subsytems
+					// are those that are available, but not finalized yet
+					// actived and deactivated heads hence are irrelevant to this subsystem
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
 					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
