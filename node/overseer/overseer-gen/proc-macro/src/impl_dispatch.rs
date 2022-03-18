@@ -44,7 +44,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> TokenStream {
 			impl #message_wrapper {
 				/// Generated dispatch iterator generator.
 				pub fn dispatch_iter(extern_msg: #extern_network_ty) -> impl Iterator<Item=Self> + Send {
-					::std::array::IntoIter::new([
+					[
 					#(
 						extern_msg
 							// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
@@ -59,7 +59,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> TokenStream {
 								)
 							}),
 					)*
-					])
+					]
 					.into_iter()
 					.filter_map(|x: Option<_>| x)
 				}

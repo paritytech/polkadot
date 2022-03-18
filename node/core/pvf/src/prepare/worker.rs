@@ -72,7 +72,7 @@ pub async fn start_work(
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %pid,
 		"starting prepare for {}",
@@ -81,7 +81,7 @@ pub async fn start_work(
 
 	with_tmp_file(pid, cache_path, |tmp_file| async move {
 		if let Err(err) = send_request(&mut stream, code, &tmp_file).await {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				"failed to send a prepare request: {:?}",
@@ -109,7 +109,7 @@ pub async fn start_work(
 					// By convention we expect encoded `PrepareResult`.
 					if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
 						if result.is_ok() {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
 								"promoting WIP artifact {} to {}",
@@ -121,7 +121,7 @@ pub async fn start_work(
 								.await
 								.map(|_| Selected::Done(result))
 								.unwrap_or_else(|err| {
-									tracing::warn!(
+									gum::warn!(
 										target: LOG_TARGET,
 										worker_pid = %pid,
 										"failed to rename the artifact from {} to {}: {:?}",
@@ -137,7 +137,7 @@ pub async fn start_work(
 					} else {
 						// We received invalid bytes from the worker.
 						let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							worker_pid = %pid,
 							"received unexpected response from the prepare worker: {}",
@@ -148,7 +148,7 @@ pub async fn start_work(
 				},
 				Ok(Err(err)) => {
 					// Communication error within the time limit.
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						worker_pid = %pid,
 						"failed to recv a prepare response: {:?}",
@@ -184,7 +184,7 @@ where
 	let tmp_file = match tmpfile_in("prepare-artifact-", cache_path).await {
 		Ok(f) => f,
 		Err(err) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				"failed to create a temp file for the artifact: {:?}",
@@ -205,7 +205,7 @@ where
 		Ok(()) => (),
 		Err(err) if err.kind() == std::io::ErrorKind::NotFound => (),
 		Err(err) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				"failed to remove the tmp file: {:?}",
@@ -246,7 +246,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 		loop {
 			let (code, dest) = recv_request(&mut stream).await?;
 
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: preparing artifact",
@@ -267,7 +267,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 					let artifact_bytes = compiled_artifact.encode();
 
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						worker_pid = %std::process::id(),
 						"worker: writing artifact to {}",

@@ -1,12 +1,12 @@
 [package]
 name = "staking-miner"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-clap = { version = "3.0", features = ["derive", "env"] }
-codec = { package = "parity-scale-codec", version = "2.0.0" }
+codec = { package = "parity-scale-codec", version = "3.0.0" }
+clap = { version = "3.1", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.9", features = ["env-filter"]   }
 jsonrpsee = { version = "0.8", features = ["ws-client", "macros"] }
 log = "0.4.11"
@@ -24,7 +24,6 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -44,4 +43,4 @@ westend-runtime = { path = "../../runtime/westend" }
 sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
 
 [dev-dependencies]
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+assert_cmd = "2.0.2"

@@ -28,13 +28,13 @@ use std::{
 
 use futures::{channel::oneshot, future, select, FutureExt};
 use futures_timer::Delay;
-use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 use polkadot_subsystem::{
@@ -50,7 +50,7 @@ pub use self::metrics::*;
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "parachain::availability";
+const LOG_TARGET: &str = "parachain::availability-store";
 
 /// The following constants are used under normal conditions:
 
@@ -148,11 +148,11 @@ enum State {
 struct CandidateMeta {
 	state: State,
 	data_available: bool,
-	chunks_stored: BitVec<BitOrderLsb0, u8>,
+	chunks_stored: BitVec<u8, BitOrderLsb0>,
 }
 
 fn query_inner<D: Decode>(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	column: u32,
 	key: &[u8],
 ) -> Result<Option<D>, Error> {
@@ -163,7 +163,7 @@ fn query_inner<D: Decode>(
 		},
 		Ok(None) => Ok(None),
 		Err(err) => {
-			tracing::warn!(target: LOG_TARGET, ?err, "Error reading from the availability store");
+			gum::warn!(target: LOG_TARGET, ?err, "Error reading from the availability store");
 			Err(err.into())
 		},
 	}
@@ -181,7 +181,7 @@ fn write_available_data(
 }
 
 fn load_available_data(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	hash: &CandidateHash,
 ) -> Result<Option<AvailableData>, Error> {
@@ -197,7 +197,7 @@ fn delete_available_data(tx: &mut DBTransaction, config: &Config, hash: &Candida
 }
 
 fn load_chunk(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
@@ -231,7 +231,7 @@ fn delete_chunk(
 }
 
 fn load_meta(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	hash: &CandidateHash,
 ) -> Result<Option<CandidateMeta>, Error> {
@@ -384,10 +384,10 @@ impl Error {
 		match self {
 			// don't spam the log with spurious errors
 			Self::RuntimeApi(_) | Self::Oneshot(_) => {
-				tracing::debug!(target: LOG_TARGET, err = ?self)
+				gum::debug!(target: LOG_TARGET, err = ?self)
 			},
 			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
+			_ => gum::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -443,7 +443,7 @@ impl Clock for SystemClock {
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	config: Config,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	known_blocks: KnownUnfinalizedBlocks,
 	finalized_number: Option<BlockNumber>,
 	metrics: Metrics,
@@ -452,7 +452,7 @@ pub struct AvailabilityStoreSubsystem {
 
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
-	pub fn new(db: Arc<dyn KeyValueDB>, config: Config, metrics: Metrics) -> Self {
+	pub fn new(db: Arc<dyn Database>, config: Config, metrics: Metrics) -> Self {
 		Self::with_pruning_config_and_clock(
 			db,
 			config,
@@ -464,7 +464,7 @@ impl AvailabilityStoreSubsystem {
 
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	fn with_pruning_config_and_clock(
-		db: Arc<dyn KeyValueDB>,
+		db: Arc<dyn Database>,
 		config: Config,
 		pruning_config: PruningConfig,
 		clock: Box<dyn Clock>,
@@ -544,7 +544,7 @@ where
 				}
 			},
 			Ok(true) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break
 			},
 			Ok(false) => continue,
@@ -661,7 +661,7 @@ where
 
 async fn process_new_head<Context>(
 	ctx: &mut Context,
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
 	pruning_config: &PruningConfig,
@@ -711,7 +711,7 @@ where
 }
 
 fn note_block_backed(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
 	pruning_config: &PruningConfig,
@@ -721,13 +721,13 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed");
+	gum::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed");
 
 	if load_meta(db, config, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
 			data_available: false,
-			chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			chunks_stored: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 		};
 
 		let prune_at = now + pruning_config.keep_unavailable_for;
@@ -740,7 +740,7 @@ fn note_block_backed(
 }
 
 fn note_block_included(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
 	pruning_config: &PruningConfig,
@@ -753,7 +753,7 @@ fn note_block_included(
 		None => {
 			// This is alarming. We've observed a block being included without ever seeing it backed.
 			// Warn and ignore.
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?candidate_hash,
 				"Candidate included without being backed?",
@@ -762,7 +762,7 @@ fn note_block_included(
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
 
-			tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included");
+			gum::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included");
 
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
@@ -856,7 +856,7 @@ where
 
 			match rx.await? {
 				Err(err) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						batch_num,
 						?err,
@@ -866,7 +866,7 @@ where
 					break
 				},
 				Ok(None) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"Availability store was informed that block #{} is finalized, \
 						but chain API has no finalized hash.",
@@ -944,7 +944,7 @@ fn update_blocks_at_finalized_height(
 	for (candidate_hash, is_finalized) in candidates {
 		let mut meta = match load_meta(&subsystem.db, &subsystem.config, &candidate_hash)? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					"Dangling candidate metadata for {}",
 					candidate_hash,
@@ -1061,7 +1061,7 @@ fn process_message(
 						)? {
 							Some(c) => chunks.push(c),
 							None => {
-								tracing::warn!(
+								gum::warn!(
 									target: LOG_TARGET,
 									?candidate,
 									index,
@@ -1128,7 +1128,7 @@ fn process_message(
 
 // Ok(true) on success, Ok(false) on failure, and Err on internal error.
 fn store_chunk(
-	db: &Arc<dyn KeyValueDB>,
+	db: &Arc<dyn Database>,
 	config: &Config,
 	candidate_hash: CandidateHash,
 	chunk: ErasureChunk,
@@ -1151,7 +1151,7 @@ fn store_chunk(
 		None => return Ok(false), // out of bounds.
 	}
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?candidate_hash,
 		chunk_index = %chunk.index.0,
@@ -1210,19 +1210,19 @@ fn store_available_data(
 	}
 
 	meta.data_available = true;
-	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
+	meta.chunks_stored = bitvec::bitvec![u8, BitOrderLsb0; 1; n_validators];
 
 	write_meta(&mut tx, &subsystem.config, &candidate_hash, &meta);
 	write_available_data(&mut tx, &subsystem.config, &candidate_hash, &available_data);
 
 	subsystem.db.write(tx)?;
 
-	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks");
+	gum::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks");
 
 	Ok(())
 }
 
-fn prune_all(db: &Arc<dyn KeyValueDB>, config: &Config, clock: &dyn Clock) -> Result<(), Error> {
+fn prune_all(db: &Arc<dyn Database>, config: &Config, clock: &dyn Clock) -> Result<(), Error> {
 	let now = clock.now()?;
 	let (range_start, range_end) = pruning_range(now);
 

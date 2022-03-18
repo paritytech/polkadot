@@ -21,9 +21,8 @@ use futures::FutureExt;
 use polkadot_node_network_protocol::jaeger;
 use polkadot_node_primitives::{BlockData, ErasureChunk, PoV, SpawnNamed};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::{
-	v1::{BlockNumber, CoreState, GroupIndex, Hash, Id, ScheduledCore, SessionIndex},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	BlockNumber, CoreState, GroupIndex, Hash, Id, ScheduledCore, SessionIndex, SessionInfo,
 };
 
 use polkadot_subsystem::{

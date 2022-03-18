@@ -29,8 +29,8 @@ use futures::{
 	future::{self, BoxFuture},
 };
 
-use kvdb::KeyValueDB;
 use parity_scale_codec::Encode;
+use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
@@ -54,13 +54,10 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::{
-	v1::{
-		BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash,
-		HashT, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SigningContext,
-		ValidatorId, ValidatorIndex,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, HashT,
+	Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	SigningContext, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -83,7 +80,7 @@ fn make_keystore(seeds: impl Iterator<Item = String>) -> LocalKeystore {
 
 	for s in seeds {
 		store
-			.sr25519_generate_new(polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID, Some(&s))
+			.sr25519_generate_new(polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID, Some(&s))
 			.unwrap();
 	}
 
@@ -125,7 +122,7 @@ struct TestState {
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	master_keystore: Arc<sc_keystore::LocalKeystore>,
 	subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	config: Config,
 	clock: MockClock,
 	headers: HashMap<Hash, Header>,
@@ -166,7 +163,9 @@ impl Default for TestState {
 		let subsystem_keystore =
 			make_keystore(vec![Sr25519Keyring::Alice.to_seed()].into_iter()).into();
 
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = kvdb_memorydb::create(1);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db = Arc::new(db);
 		let config = Config { col_data: 0 };
 
 		TestState {
@@ -1297,7 +1296,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
@@ -1417,7 +1416,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
@@ -1515,7 +1514,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(2, candidate_hash, session, true)

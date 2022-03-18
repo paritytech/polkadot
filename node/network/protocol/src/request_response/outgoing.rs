@@ -15,14 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::{channel::oneshot, prelude::Future};
-use thiserror::Error;
 
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 
 use sc_network as network;
 use sc_network::PeerId;
 
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 use super::{v1, IsRequest, Protocol};
 
@@ -79,19 +78,19 @@ impl Requests {
 pub type ResponseSender = oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>;
 
 /// Any error that can occur when sending a request.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum RequestError {
 	/// Response could not be decoded.
 	#[error("Response could not be decoded: {0}")]
-	InvalidResponse(#[source] DecodingError),
+	InvalidResponse(#[from] DecodingError),
 
 	/// Some error in substrate/libp2p happened.
 	#[error("{0}")]
-	NetworkError(#[source] network::RequestFailure),
+	NetworkError(#[from] network::RequestFailure),
 
 	/// Response got canceled by networking.
 	#[error("Response channel got canceled")]
-	Canceled(#[source] oneshot::Canceled),
+	Canceled(#[from] oneshot::Canceled),
 }
 
 impl RequestError {
@@ -179,22 +178,4 @@ where
 {
 	let raw = rec.await??;
 	Ok(Decode::decode(&mut raw.as_ref())?)
-}
-
-impl From<DecodingError> for RequestError {
-	fn from(err: DecodingError) -> Self {
-		Self::InvalidResponse(err)
-	}
-}
-
-impl From<network::RequestFailure> for RequestError {
-	fn from(err: network::RequestFailure) -> Self {
-		Self::NetworkError(err)
-	}
-}
-
-impl From<oneshot::Canceled> for RequestError {
-	fn from(err: oneshot::Canceled) -> Self {
-		Self::Canceled(err)
-	}
 }

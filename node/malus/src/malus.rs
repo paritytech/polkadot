@@ -16,7 +16,7 @@
 
 //! A malus or nemesis node launch code.
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
 
@@ -40,11 +40,11 @@ enum NemesisVariant {
 	DisputeAncestor(RunCmd),
 
 	#[allow(missing_docs)]
-	#[clap(name = "prepare-worker", setting = AppSettings::Hidden)]
+	#[clap(name = "prepare-worker", hide = true)]
 	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
-	#[clap(name = "execute-worker", setting = AppSettings::Hidden)]
+	#[clap(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 

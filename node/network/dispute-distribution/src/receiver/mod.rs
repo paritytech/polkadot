@@ -32,7 +32,7 @@ use lru::LruCache;
 use polkadot_node_network_protocol::{
 	authority_discovery::AuthorityDiscovery,
 	request_response::{
-		incoming::{OutgoingResponse, OutgoingResponseSender},
+		incoming::{self, OutgoingResponse, OutgoingResponseSender},
 		v1::{DisputeRequest, DisputeResponse},
 		IncomingRequest, IncomingRequestReceiver,
 	},
@@ -51,7 +51,7 @@ use crate::{
 };
 
 mod error;
-use self::error::{log_error, NonFatal, NonFatalResult, Result};
+use self::error::{log_error, JfyiError, JfyiErrorResult, Result};
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded.");
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid.");
@@ -101,7 +101,7 @@ enum MuxedMessage {
 	/// - We need to make sure responses are actually sent (therefore we need to await futures
 	/// promptly).
 	/// - We need to update `banned_peers` accordingly to the result.
-	ConfirmedImport(NonFatalResult<(PeerId, ImportStatementsResult)>),
+	ConfirmedImport(JfyiErrorResult<(PeerId, ImportStatementsResult)>),
 
 	/// A new request has arrived and should be handled.
 	NewRequest(IncomingRequest<DisputeRequest>),
@@ -117,7 +117,7 @@ impl MuxedMessage {
 			pin_mut!(next_req);
 			if let Poll::Ready(r) = next_req.poll(ctx) {
 				return match r {
-					Err(e) => Poll::Ready(Err(e.into())),
+					Err(e) => Poll::Ready(Err(incoming::Error::from(e).into())),
 					Ok(v) => Poll::Ready(Ok(Self::NewRequest(v))),
 				}
 			}
@@ -168,7 +168,7 @@ where
 			match log_error(self.run_inner().await) {
 				Ok(()) => {},
 				Err(fatal) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						error = ?fatal,
 						"Shutting down"
@@ -204,15 +204,15 @@ where
 					reputation_changes: vec![COST_NOT_A_VALIDATOR],
 					sent_feedback: None,
 				})
-				.map_err(|_| NonFatal::SendResponse(peer))?;
+				.map_err(|_| JfyiError::SendResponse(peer))?;
 
-			return Err(NonFatal::NotAValidator(peer).into())
+			return Err(JfyiError::NotAValidator(peer).into())
 		}
 
 		// Immediately drop requests from peers that already have requests in flight or have
 		// been banned recently (flood protection):
 		if self.pending_imports.peer_is_pending(&peer) || self.banned_peers.contains(&peer) {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?peer,
 				"Dropping message from peer (banned/pending import)"
@@ -255,9 +255,9 @@ where
 						reputation_changes: vec![COST_INVALID_SIGNATURE],
 						sent_feedback: None,
 					})
-					.map_err(|_| NonFatal::SetPeerReputation(peer))?;
+					.map_err(|_| JfyiError::SetPeerReputation(peer))?;
 
-				return Err(From::from(NonFatal::InvalidSignature(peer)))
+				return Err(From::from(JfyiError::InvalidSignature(peer)))
 			},
 			Ok(votes) => votes,
 		};
@@ -285,8 +285,8 @@ where
 	/// In addition we report import metrics.
 	fn ban_bad_peer(
 		&mut self,
-		result: NonFatalResult<(PeerId, ImportStatementsResult)>,
-	) -> NonFatalResult<()> {
+		result: JfyiErrorResult<(PeerId, ImportStatementsResult)>,
+	) -> JfyiErrorResult<()> {
 		match result? {
 			(_, ImportStatementsResult::ValidImport) => {
 				self.metrics.on_imported(SUCCEEDED);
@@ -303,7 +303,8 @@ where
 /// Manage pending imports in a way that preserves invariants.
 struct PendingImports {
 	/// Futures in flight.
-	futures: FuturesUnordered<BoxFuture<'static, (PeerId, NonFatalResult<ImportStatementsResult>)>>,
+	futures:
+		FuturesUnordered<BoxFuture<'static, (PeerId, JfyiErrorResult<ImportStatementsResult>)>>,
 	/// Peers whose requests are currently in flight.
 	peers: HashSet<PeerId>,
 }
@@ -341,7 +342,7 @@ impl PendingImports {
 }
 
 impl Stream for PendingImports {
-	type Item = NonFatalResult<(PeerId, ImportStatementsResult)>;
+	type Item = JfyiErrorResult<(PeerId, ImportStatementsResult)>;
 	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match Pin::new(&mut self.futures).poll_next(ctx) {
 			Poll::Pending => Poll::Pending,
@@ -368,8 +369,8 @@ async fn respond_to_request(
 	peer: PeerId,
 	handled: oneshot::Receiver<ImportStatementsResult>,
 	pending_response: OutgoingResponseSender<DisputeRequest>,
-) -> NonFatalResult<ImportStatementsResult> {
-	let result = handled.await.map_err(|_| NonFatal::ImportCanceled(peer))?;
+) -> JfyiErrorResult<ImportStatementsResult> {
+	let result = handled.await.map_err(|_| JfyiError::ImportCanceled(peer))?;
 
 	let response = match result {
 		ImportStatementsResult::ValidImport => OutgoingResponse {
@@ -386,7 +387,7 @@ async fn respond_to_request(
 
 	pending_response
 		.send_outgoing_response(response)
-		.map_err(|_| NonFatal::SendResponse(peer))?;
+		.map_err(|_| JfyiError::SendResponse(peer))?;
 
 	Ok(result)
 }
