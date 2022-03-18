@@ -62,10 +62,15 @@ pub(crate) fn send_message<M>(
 	// network used `Bytes` this would not be necessary.
 	let last_peer = peers.pop();
 	peers.into_iter().for_each(|peer| {
+		let write_timer = metrics.time_write_notification();
 		net.write_notification(peer, peer_set, message.clone());
+		drop(write_timer);
 	});
+
 	if let Some(peer) = last_peer {
+		let write_timer = metrics.time_write_notification();
 		net.write_notification(peer, peer_set, message);
+		drop(write_timer);
 	}
 }
 

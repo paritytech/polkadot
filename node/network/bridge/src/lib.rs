@@ -143,6 +143,9 @@ impl Metrics {
 				.set(size as u64)
 		});
 	}
+	fn time_write_notification(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.write_notification_timer.start_timer())
+	}
 }
 
 #[derive(Clone)]
@@ -157,6 +160,8 @@ struct MetricsInner {
 
 	bytes_received: prometheus::CounterVec<prometheus::U64>,
 	bytes_sent: prometheus::CounterVec<prometheus::U64>,
+
+	write_notification_timer: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -241,6 +246,15 @@ impl metrics::Metrics for Metrics {
 						"The number of bytes sent on a parachain notification protocol",
 					),
 					&["protocol"]
+				)?,
+				registry,
+			)?,
+			write_notification_timer: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_write_notification_time",
+						"Time spent within sc_network::NetworkService::write_notification()",
+					)
 				)?,
 				registry,
 			)?,
