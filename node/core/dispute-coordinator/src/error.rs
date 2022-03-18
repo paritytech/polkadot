@@ -150,7 +150,7 @@ impl NonFatal {
 		match self {
 			// don't spam the log with spurious errors
 			Self::Runtime(_) | Self::Oneshot(_) | Self::DisputeImportOneshotSend => {
-				gum::debug!(target: LOG_TARGET, error = ?self)
+				tracing::debug!(target: LOG_TARGET, error = ?self)
 			},
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, error = ?self),
