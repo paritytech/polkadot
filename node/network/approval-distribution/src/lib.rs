@@ -648,7 +648,7 @@ impl State {
 						peer_knowledge.received.insert(fingerprint);
 					}
 					gum::debug!(
-						target: LOG_TARGET
+						target: LOG_TARGET,
 						hash = ?block_hash,
 						?peer_id,
 						"Got an `AcceptedDuplicate` assignment",
@@ -657,7 +657,7 @@ impl State {
 				},
 				AssignmentCheckResult::TooFarInFuture => {
 					gum::debug!(
-						target: LOG_TARGET
+						target: LOG_TARGET,
 						hash = ?block_hash,
 						?peer_id,
 						"Got an assignment too far in the future",
@@ -667,7 +667,7 @@ impl State {
 				},
 				AssignmentCheckResult::Bad(error) => {
 					gum::info!(
-						target: LOG_TARGET
+						target: LOG_TARGET,
 						hash = ?block_hash,
 						?peer_id,
 						%error,
