@@ -869,9 +869,7 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					if !self.recent_finalized_blocks.is_recent_finalized(&block_hash) {
-						modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
-					}
+					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
