@@ -776,7 +776,9 @@ impl State {
 			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
-					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					if !self.recent_outdated_heads.is_recent_outdated(&block_hash) {
+						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					}
 				}
 				return
 			},
@@ -809,7 +811,7 @@ impl State {
 				hash_map::Entry::Occupied(mut knowledge) => {
 					let peer_knowledge = knowledge.get_mut();
 					if peer_knowledge.contains(&fingerprint) {
-						if peer_knowledge.received.contains(&fingerprint) {
+						if !peer_knowledge.received.insert(fingerprint.clone()) {
 							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
@@ -819,7 +821,6 @@ impl State {
 
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
-						peer_knowledge.received.insert(fingerprint);
 						return
 					}
 				},
@@ -870,7 +871,9 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					if !self.recent_outdated_heads.is_recent_outdated(&block_hash) {
+						modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					}
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
