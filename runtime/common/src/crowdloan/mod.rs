@@ -2014,7 +2014,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
-			frame_system::Pallet::<T>::set_block_number(200u32.into());
+			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
@@ -2034,7 +2034,7 @@ mod benchmarking {
 			}
 
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Pallet::<T>::set_block_number(200u32.into());
+			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AllRefunded(fund_index).into());

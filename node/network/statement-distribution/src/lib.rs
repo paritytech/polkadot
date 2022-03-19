@@ -58,7 +58,7 @@ use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::SyncCryptoStorePtr;
 use util::runtime::RuntimeInfo;
 
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use fatality::Nested;
 
@@ -150,6 +150,27 @@ impl StatementDistributionSubsystem {
 		metrics: Metrics,
 	) -> Self {
 		Self { keystore, req_receiver: Some(req_receiver), metrics }
+	}
+}
+
+#[derive(Default)]
+struct RecentOutdatedHeads {
+	buf: VecDeque<Hash>,
+}
+
+impl RecentOutdatedHeads {
+	fn note_outdated(&mut self, hash: Hash) {
+		const MAX_BUF_LEN: usize = 10;
+
+		self.buf.push_back(hash);
+
+		while self.buf.len() > MAX_BUF_LEN {
+			let _ = self.buf.pop_front();
+		}
+	}
+
+	fn is_recent_outdated(&self, hash: &Hash) -> bool {
+		self.buf.contains(hash)
 	}
 }
 
@@ -269,7 +290,9 @@ impl PeerRelayParentKnowledge {
 			CompactStatement::Seconded(ref h) => {
 				self.seconded_counts.entry(fingerprint.1).or_default().note_local(h.clone());
 
-				self.sent_candidates.insert(h.clone())
+				let was_known = self.is_known_candidate(h);
+				self.sent_candidates.insert(h.clone());
+				!was_known
 			},
 			CompactStatement::Valid(_) => false,
 		};
@@ -291,7 +314,7 @@ impl PeerRelayParentKnowledge {
 
 		match fingerprint.0 {
 			CompactStatement::Valid(ref h) => {
-				// The peer can only accept Valid and Invalid statements for which it is aware
+				// The peer can only accept Valid statements for which it is aware
 				// of the corresponding candidate.
 				self.is_known_candidate(h)
 			},
@@ -326,7 +349,7 @@ impl PeerRelayParentKnowledge {
 			return Err(COST_DUPLICATE_STATEMENT)
 		}
 
-		let candidate_hash = match fingerprint.0 {
+		let (candidate_hash, fresh) = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
 				let allowed_remote = self
 					.seconded_counts
@@ -338,14 +361,14 @@ impl PeerRelayParentKnowledge {
 					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
-				h
+				(h, !self.is_known_candidate(h))
 			},
 			CompactStatement::Valid(ref h) => {
-				if !self.is_known_candidate(&h) {
+				if !self.is_known_candidate(h) {
 					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
-				h
+				(h, false)
 			},
 		};
 
@@ -361,7 +384,8 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		Ok(self.received_candidates.insert(candidate_hash.clone()))
+		self.received_candidates.insert(candidate_hash.clone());
+		Ok(fresh)
 	}
 
 	/// Note a received large statement metadata.
@@ -900,8 +924,16 @@ async fn circulate_statement_and_dependents(
 		match active_head.note_statement(statement) {
 			NotedStatement::Fresh(stored) => Some((
 				*stored.compact().candidate_hash(),
-				circulate_statement(gossip_peers, peers, ctx, relay_parent, stored, priority_peers)
-					.await,
+				circulate_statement(
+					gossip_peers,
+					peers,
+					ctx,
+					relay_parent,
+					stored,
+					priority_peers,
+					metrics,
+				)
+				.await,
 			)),
 			_ => None,
 		}
@@ -930,11 +962,18 @@ async fn circulate_statement_and_dependents(
 	}
 }
 
+/// Create a network message from a given statement.
 fn statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
+	metrics: &Metrics,
 ) -> protocol_v1::ValidationProtocol {
-	let msg = if is_statement_large(&statement) {
+	let (is_large, size) = is_statement_large(&statement);
+	if let Some(size) = size {
+		metrics.on_created_message(size);
+	}
+
+	let msg = if is_large {
 		protocol_v1::StatementDistributionMessage::LargeStatement(StatementMetadata {
 			relay_parent,
 			candidate_hash: statement.payload().candidate_hash(),
@@ -949,23 +988,24 @@ fn statement_message(
 }
 
 /// Check whether a statement should be treated as large statement.
-fn is_statement_large(statement: &SignedFullStatement) -> bool {
+///
+/// Also report size of statement - if it is a `Seconded` statement, otherwise `None`.
+fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) {
 	match &statement.payload() {
 		Statement::Seconded(committed) => {
+			let size = statement.as_unchecked().encoded_size();
 			// Runtime upgrades will always be large and even if not - no harm done.
 			if committed.commitments.new_validation_code.is_some() {
-				return true
+				return (true, Some(size))
 			}
-			// No runtime upgrade, now we need to be more nuanced:
-			let size = statement.as_unchecked().encoded_size();
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
 				PeerSet::Validation.get_info(IsAuthority::Yes).max_notification_size as usize / 2;
 
-			size >= threshold
+			(size >= threshold, Some(size))
 		},
-		Statement::Valid(_) => false,
+		Statement::Valid(_) => (false, None),
 	}
 }
 
@@ -978,6 +1018,7 @@ async fn circulate_statement<'a>(
 	relay_parent: Hash,
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
+	metrics: &Metrics,
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
@@ -1032,7 +1073,7 @@ async fn circulate_statement<'a>(
 
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {
-		let payload = statement_message(relay_parent, stored.statement.clone());
+		let payload = statement_message(relay_parent, stored.statement.clone(), metrics);
 		gum::trace!(
 			target: LOG_TARGET,
 			?peers_to_send,
@@ -1069,7 +1110,7 @@ async fn send_statements_about(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone());
+		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1104,7 +1145,7 @@ async fn send_statements(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone());
+		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1267,6 +1308,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1274,8 +1316,17 @@ async fn handle_incoming_message_and_circulate<'a>(
 ) {
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) =>
-			handle_incoming_message(peer, data, active_heads, ctx, message, req_sender, metrics)
-				.await,
+			handle_incoming_message(
+				peer,
+				data,
+				active_heads,
+				recent_outdated_heads,
+				ctx,
+				message,
+				req_sender,
+				metrics,
+			)
+			.await,
 		None => None,
 	};
 
@@ -1288,8 +1339,17 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// statement before a `Seconded` statement. `Seconded` statements are the only ones
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
-		let _ = circulate_statement(gossip_peers, peers, ctx, relay_parent, statement, Vec::new())
-			.await;
+		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
+		let _ = circulate_statement(
+			gossip_peers,
+			peers,
+			ctx,
+			relay_parent,
+			statement,
+			Vec::new(),
+			metrics,
+		)
+		.await;
 	}
 }
 
@@ -1302,12 +1362,14 @@ async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<(Hash, StoredStatement<'a>)> {
 	let relay_parent = message.get_relay_parent();
+	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
@@ -1317,7 +1379,11 @@ async fn handle_incoming_message<'a>(
 				%relay_parent,
 				"our view out-of-sync with active heads; head not found",
 			);
-			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+
+			if !recent_outdated_heads.is_recent_outdated(&relay_parent) {
+				report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+			}
+
 			return None
 		},
 	};
@@ -1526,6 +1592,7 @@ async fn handle_network_update(
 	gossip_peers: &mut HashSet<PeerId>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
+	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
@@ -1557,6 +1624,7 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
 			*gossip_peers = new_peers;
 			for peer in newly_added {
@@ -1581,6 +1649,7 @@ async fn handle_network_update(
 				gossip_peers,
 				peers,
 				active_heads,
+				&*recent_outdated_heads,
 				ctx,
 				message,
 				req_sender,
@@ -1589,6 +1658,7 @@ async fn handle_network_update(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
+			let _ = metrics.time_network_bridge_update_v1("peer_view_change");
 			gum::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
@@ -1621,6 +1691,7 @@ impl StatementDistributionSubsystem {
 		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
+		let mut recent_outdated_heads = RecentOutdatedHeads::default();
 
 		let mut runtime = RuntimeInfo::new(Some(self.keystore.clone()));
 
@@ -1652,6 +1723,7 @@ impl StatementDistributionSubsystem {
 							&mut gossip_peers,
 							&mut authorities,
 							&mut active_heads,
+							&mut recent_outdated_heads,
 							&req_sender,
 							result?,
 						)
@@ -1669,6 +1741,7 @@ impl StatementDistributionSubsystem {
 							&gossip_peers,
 							&mut peers,
 							&mut active_heads,
+							&recent_outdated_heads,
 							&req_sender,
 							result.ok_or(FatalError::RequesterReceiverFinished)?,
 						)
@@ -1735,6 +1808,7 @@ impl StatementDistributionSubsystem {
 		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		recent_outdated_heads: &RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: RequesterMessage,
 	) -> JfyiErrorResult<()> {
@@ -1782,6 +1856,7 @@ impl StatementDistributionSubsystem {
 							gossip_peers,
 							peers,
 							active_heads,
+							recent_outdated_heads,
 							ctx,
 							message,
 							req_sender,
@@ -1842,6 +1917,7 @@ impl StatementDistributionSubsystem {
 		gossip_peers: &mut HashSet<PeerId>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
 	) -> Result<bool> {
@@ -1861,6 +1937,8 @@ impl StatementDistributionSubsystem {
 							hash = ?deactivated,
 							"Deactivating leaf",
 						);
+
+						recent_outdated_heads.note_outdated(deactivated);
 					}
 				}
 
@@ -1897,7 +1975,7 @@ impl StatementDistributionSubsystem {
 					let _timer = metrics.time_share();
 
 					// Make sure we have data in cache:
-					if is_statement_large(&statement) {
+					if is_statement_large(&statement).0 {
 						if let Statement::Seconded(committed) = &statement.payload() {
 							let active_head = active_heads
 								.get_mut(&relay_parent)
@@ -1948,13 +2026,12 @@ impl StatementDistributionSubsystem {
 					.await;
 				},
 				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
-					let _timer = metrics.time_network_bridge_update_v1();
-
 					handle_network_update(
 						peers,
 						gossip_peers,
 						authorities,
 						active_heads,
+						&*recent_outdated_heads,
 						ctx,
 						req_sender,
 						event,

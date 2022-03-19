@@ -213,11 +213,10 @@ impl ProvisionerJob {
 		disputes_enabled: bool,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
-		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
 		loop {
 			futures::select! {
 				msg = self.receiver.next() => match msg {
-					Some(RequestInherentData(_, return_sender)) => {
+					Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
 						let _span = span.child("req-inherent-data");
 						let _timer = self.metrics.time_request_inherent_data();
 
@@ -227,7 +226,7 @@ impl ProvisionerJob {
 							self.awaiting_inherent.push(return_sender);
 						}
 					}
-					Some(ProvisionableData(_, data)) => {
+					Some(ProvisionerMessage::ProvisionableData(_, data)) => {
 						let span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
@@ -289,8 +288,16 @@ impl ProvisionerJob {
 			ProvisionableData::Bitfield(_, signed_bitfield) =>
 				self.signed_bitfields.push(signed_bitfield),
 			ProvisionableData::BackedCandidate(backed_candidate) => {
+				let candidate_hash = backed_candidate.hash();
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					para = ?backed_candidate.descriptor().para_id,
+					"noted backed candidate",
+				);
 				let _span = span
 					.child("provisionable-backed")
+					.with_candidate(candidate_hash)
 					.with_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			},
@@ -452,7 +459,12 @@ async fn select_candidates(
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
 
-	gum::debug!(target: LOG_TARGET, leaf_hash=?relay_parent, "{} candidates before selection", candidates.len());
+	gum::debug!(
+		target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		n_candidates = candidates.len(),
+		"Candidate receipts (before selection)",
+	);
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
@@ -505,10 +517,10 @@ async fn select_candidates(
 			gum::trace!(
 				target: LOG_TARGET,
 				leaf_hash=?relay_parent,
-				"Selecting candidate {}. para_id={} core={}",
-				candidate_hash,
-				candidate.descriptor.para_id,
-				core_idx,
+				?candidate_hash,
+				para = ?candidate.descriptor.para_id,
+				core = core_idx,
+				"Selected candidate receipt",
 			);
 
 			selected_candidates.push(candidate_hash);
@@ -566,7 +578,7 @@ async fn select_candidates(
 		n_candidates = candidates.len(),
 		n_cores = availability_cores.len(),
 		?relay_parent,
-		"Selected candidates for cores",
+		"Selected backed candidates",
 	);
 
 	Ok(candidates)

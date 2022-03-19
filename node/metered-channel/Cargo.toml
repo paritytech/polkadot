@@ -11,6 +11,9 @@ futures-timer = "3.0.2"
 derive_more = "0.99"
 gum = { package = "tracing-gum", path = "../gum" }
 thiserror = "1.0.30"
+crossbeam-queue = "0.3.5"
+nanorand = { version = "0.7.0", default-features = false, features = ["wyrand"] }
+coarsetime = "0.1.21"
 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
