@@ -27,7 +27,9 @@ use polkadot_primitives::v2::{
 	CollatorId, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
 use polkadot_subsystem::{
-	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		CollatorProtocolMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
+	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
 use sp_application_crypto::AppKey;
