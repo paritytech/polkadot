@@ -318,14 +318,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 }
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Solver = frame_election_provider_support::SequentialPhragmen<
-		AccountId,
-		runtime_common::elections::OnOnChainAccuracy,
-	>;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
@@ -345,10 +337,13 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider =
-		frame_election_provider_support::onchain::UnboundedOnchainExecution<Self>;
+	type ElectionProvider = frame_election_provider_support::onchain::UnboundedOnchainExecution<
+		runtime_common::elections::OnChainSequentialPhragmen<Self, Staking>,
+	>;
 	type GenesisElectionProvider =
-		frame_election_provider_support::onchain::UnboundedOnchainExecution<Self>;
+		frame_election_provider_support::onchain::UnboundedOnchainExecution<
+			runtime_common::elections::OnChainSequentialPhragmen<Self, Staking>,
+		>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;

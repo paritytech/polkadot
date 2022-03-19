@@ -29,8 +29,9 @@ use primitives::v2::{
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, elections::OnChainSequentialPhragmen, impl_runtime_weights,
+	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
+	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -445,16 +446,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
-	type Fallback = BoundedOnchainExecution<
-		Self,
-		frame_support::traits::ConstU32<20_000>,
-		frame_support::traits::ConstU32<2_000>,
-	>;
-	type GovernanceFallback = BoundedOnchainExecution<
-		Self,
-		frame_support::traits::ConstU32<20_000>,
-		frame_support::traits::ConstU32<2_000>,
-	>;
+	type Fallback = BoundedOnchainExecution<OnChainSequentialPhragmen<Self, Staking>>;
+	type GovernanceFallback = BoundedOnchainExecution<OnChainSequentialPhragmen<Self, Staking>>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -561,18 +554,13 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnOnChainAccuracy>;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
+	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
