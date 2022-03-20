@@ -68,11 +68,11 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 pub type OnOnChainAccuracy = sp_runtime::Perbill;
 
 /// Election Configuration parameters
-pub struct OnChainSequentialPhragmen<T: frame_system::Config, S>(PhantomData<(T, S)>);
+pub struct OnChainSeqPhragmen<T: frame_system::Config, S>(PhantomData<(T, S)>);
 impl<
 		T: frame_system::Config,
 		S: ElectionDataProvider<AccountId = T::AccountId, BlockNumber = T::BlockNumber>,
-	> ExecutionConfig for OnChainSequentialPhragmen<T, S>
+	> ExecutionConfig for OnChainSeqPhragmen<T, S>
 {
 	type System = T;
 	type Solver = SequentialPhragmen<T::AccountId, OnOnChainAccuracy>;
@@ -82,14 +82,14 @@ impl<
 impl<
 		T: frame_system::Config,
 		S: ElectionDataProvider<AccountId = T::AccountId, BlockNumber = T::BlockNumber>,
-	> BoundedExecutionConfig for OnChainSequentialPhragmen<T, S>
+	> BoundedExecutionConfig for OnChainSeqPhragmen<T, S>
 {
 	type VotersBound = crate::ConstU32<20_000>;
 	type TargetsBound = crate::ConstU32<2_000>;
 }
 
 /// The election provider of the genesis
-pub type GenesisElectionOf<T, S> = UnboundedOnchainExecution<OnChainSequentialPhragmen<T, S>>;
+pub type GenesisElectionOf<T, S> = UnboundedOnchainExecution<OnChainSeqPhragmen<T, S>>;
 
 /// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
 /// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary

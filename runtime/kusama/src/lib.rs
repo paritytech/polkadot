@@ -29,7 +29,7 @@ use primitives::v2::{
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, elections::OnChainSequentialPhragmen, impl_runtime_weights,
+	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
 	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
 	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
@@ -448,8 +448,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
-	type Fallback = BoundedOnchainExecution<OnChainSequentialPhragmen<Self, Staking>>;
-	type GovernanceFallback = BoundedOnchainExecution<OnChainSequentialPhragmen<Self, Staking>>;
+	type Fallback = BoundedOnchainExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type GovernanceFallback = BoundedOnchainExecution<OnChainSeqPhragmen<Self, Staking>>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
