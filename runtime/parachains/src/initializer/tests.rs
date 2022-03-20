@@ -18,7 +18,7 @@ use super::*;
 use crate::mock::{
 	new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo, System,
 };
-use primitives::v1::{HeadData, Id as ParaId};
+use primitives::v2::{HeadData, Id as ParaId};
 use test_helpers::dummy_validation_code;
 
 use frame_support::{

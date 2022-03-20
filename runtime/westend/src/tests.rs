@@ -32,7 +32,8 @@ fn sample_size_is_sensible() {
 	use runtime_common::auctions::WeightInfo;
 	// Need to clean up all samples at the end of an auction.
 	let samples: BlockNumber = EndingPeriod::get() / SampleLength::get();
-	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
+	let max_weight: frame_support::weights::Weight =
+		RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
 	assert!(

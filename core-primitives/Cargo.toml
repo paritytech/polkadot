@@ -1,16 +1,16 @@
 [package]
 name = "polkadot-core-primitives"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-parity-scale-codec = { version = "2.3.1", default-features = false, features = [ "derive" ] }
-parity-util-mem = { version = "0.10.0", default-features = false, optional = true }
+scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = [ "derive" ] }
+parity-util-mem = { version = "0.11.0", default-features = false, optional = true }
 
 [features]
 default = [ "std" ]

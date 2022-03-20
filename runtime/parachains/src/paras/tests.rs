@@ -17,10 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::{
-	v0::PARACHAIN_KEY_TYPE_ID,
-	v1::{BlockNumber, ValidatorId},
-};
+use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -116,7 +113,7 @@ fn check_code_is_not_stored(validation_code: &ValidationCode) {
 /// An utility for checking that certain events were deposited.
 struct EventValidator {
 	events:
-		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v1::Hash>>,
+		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v2::Hash>>,
 }
 
 impl EventValidator {
@@ -1020,6 +1017,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 
 	let a = ParaId::from(111);
 	let b = ParaId::from(222);
+	let existing_code: ValidationCode = vec![1, 2, 3].into();
 	let validation_code: ValidationCode = vec![3, 2, 1].into();
 
 	let paras = vec![(
@@ -1027,7 +1025,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		ParaGenesisArgs {
 			parachain: true,
 			genesis_head: Default::default(),
-			validation_code: ValidationCode(vec![]), // valid since in genesis
+			validation_code: existing_code,
 		},
 	)];
 
@@ -1159,6 +1157,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 #[test]
 fn pvf_check_upgrade_reject() {
 	let a = ParaId::from(111);
+	let old_code: ValidationCode = vec![1, 2, 3].into();
 	let new_code: ValidationCode = vec![3, 2, 1].into();
 
 	let paras = vec![(
@@ -1166,7 +1165,7 @@ fn pvf_check_upgrade_reject() {
 		ParaGenesisArgs {
 			parachain: false,
 			genesis_head: Default::default(),
-			validation_code: ValidationCode(vec![]), // valid since in genesis
+			validation_code: old_code,
 		},
 	)];
 
@@ -1543,7 +1542,7 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 
 #[test]
 fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(2020);
 
@@ -1559,7 +1558,7 @@ fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
 
 #[test]
 fn verify_upgrade_restriction_signal_is_externally_accessible() {
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(2020);
 

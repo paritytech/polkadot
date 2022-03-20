@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-primitives"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-serde = { version = "1.0.132", optional = true, features = ["derive"] }
-scale-info = { version = "1.0", default-features = false, features = ["bit-vec", "derive"] }
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+serde = { version = "1.0.136", optional = true, features = ["derive"] }
+scale-info = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -24,10 +24,10 @@ runtime_primitives = { package = "sp-runtime", git = "https://github.com/parityt
 polkadot-parachain = { path = "../parachain", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 hex-literal = "0.3.4"
-parity-util-mem = { version = "0.10.0", default-features = false, optional = true }
+parity-util-mem = { version = "0.11.0", default-features = false, optional = true }
 
 [features]
 default = ["std"]

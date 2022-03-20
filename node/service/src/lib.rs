@@ -36,6 +36,7 @@ mod tests;
 use {
 	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
+	gum::info,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
@@ -47,7 +48,6 @@ use {
 	polkadot_overseer::BlockInfo,
 	sc_client_api::{BlockBackend, ExecutorProvider},
 	sp_trie::PrefixedMemoryDB,
-	tracing::info,
 };
 
 pub use sp_core::traits::SpawnNamed;
@@ -94,7 +94,7 @@ pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
+pub use polkadot_primitives::v2::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -418,7 +418,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
 			),
 			grandpa::SharedVoterState,
-			std::time::Duration, // slot-duration
+			sp_consensus_babe::SlotDuration,
 			Option<Telemetry>,
 		),
 	>,
@@ -473,7 +473,7 @@ where
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 					*timestamp,
 					slot_duration,
 				);
@@ -665,6 +665,10 @@ where
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
+///
+/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
+/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
+/// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
@@ -674,6 +678,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
+	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -851,10 +856,31 @@ where
 		);
 	}
 
-	let parachains_db = crate::parachains_db::open_creating(
-		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
-		crate::parachains_db::CacheSizes::default(),
-	)?;
+	let parachains_db = match &config.database {
+		DatabaseSource::RocksDb { path, .. } => crate::parachains_db::open_creating_rocksdb(
+			path.clone(),
+			crate::parachains_db::CacheSizes::default(),
+		)?,
+		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating_paritydb(
+			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+			crate::parachains_db::CacheSizes::default(),
+		)?,
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+			if paritydb_path.is_dir() && paritydb_path.exists() {
+				crate::parachains_db::open_creating_paritydb(
+					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+					crate::parachains_db::CacheSizes::default(),
+				)?
+			} else {
+				crate::parachains_db::open_creating_rocksdb(
+					rocksdb_path.clone(),
+					crate::parachains_db::CacheSizes::default(),
+				)?
+			},
+		DatabaseSource::Custom { .. } => {
+			unimplemented!("No polkadot subsystem db for custom source.");
+		},
+	};
 
 	let availability_config = AvailabilityConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
@@ -909,14 +935,14 @@ where
 	let active_leaves =
 		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if auth_or_collator {
+	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
 		use sc_network::Event;
 
 		let authority_discovery_role = if role.is_authority() {
 			sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore())
 		} else {
-			// don't publish our addresses when we're only a collator
+			// don't publish our addresses when we're not an authority (collator, cumulus, ..)
 			sc_authority_discovery::Role::Discover
 		};
 		let dht_event_stream =
@@ -949,7 +975,7 @@ where
 	};
 
 	if local_keystore.is_none() {
-		tracing::info!("Cannot run as validator without local keystore.");
+		gum::info!("Cannot run as validator without local keystore.");
 	}
 
 	let maybe_params =
@@ -985,7 +1011,7 @@ where
 				},
 			)
 			.map_err(|e| {
-				tracing::error!("Failed to init overseer: {}", e);
+				gum::error!("Failed to init overseer: {}", e);
 				e
 			})?;
 		let handle = Handle::new(overseer_handle.clone());
@@ -1066,7 +1092,7 @@ where
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
@@ -1252,6 +1278,14 @@ pub fn new_chain_ops(
 	Err(Error::NoRuntime)
 }
 
+/// Build a full node.
+///
+/// The actual "flavor", aka if it will use `Polkadot`, `Rococo` or `Kusama` is determined based on
+/// [`IdentifyVariant`] using the chain spec.
+///
+/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
+/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
+/// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
@@ -1260,6 +1294,7 @@ pub fn build_full(
 	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
@@ -1275,6 +1310,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Rococo))
@@ -1290,6 +1326,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Kusama))
@@ -1305,6 +1342,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Westend))
@@ -1320,6 +1358,7 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
 		.map(|full| full.with_client(Client::Polkadot))

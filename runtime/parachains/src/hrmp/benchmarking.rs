@@ -17,7 +17,7 @@
 use crate::{
 	configuration::Pallet as Configuration,
 	hrmp::{Pallet as Hrmp, *},
-	paras::Pallet as Paras,
+	paras::{Pallet as Paras, ParachainsCache},
 	shared::Pallet as Shared,
 };
 use frame_support::{assert_ok, traits::Currency};
@@ -26,14 +26,16 @@ type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>) {
-	assert_ok!(Paras::<T>::initialize_para_now(
+	let mut parachains = ParachainsCache::new();
+	Paras::<T>::initialize_para_now(
+		&mut parachains,
 		id,
-		crate::paras::ParaGenesisArgs {
+		&crate::paras::ParaGenesisArgs {
 			parachain: true,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},
-	));
+	);
 	T::Currency::make_free_balance_be(&id.into_account(), balance);
 }
 

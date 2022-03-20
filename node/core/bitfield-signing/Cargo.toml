@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-node-core-bitfield-signing"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.19"
-tracing = "0.1.29"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

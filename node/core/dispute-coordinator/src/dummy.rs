@@ -20,11 +20,12 @@ use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
 };
-use polkadot_primitives::v1::BlockNumber;
+use polkadot_primitives::v2::BlockNumber;
 
 use futures::prelude::*;
 
-use crate::error::{Error, Result};
+use crate::error::Result;
+use fatality::Nested;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
@@ -62,13 +63,16 @@ where
 {
 	loop {
 		let res = run_until_error(&mut ctx, &subsystem).await;
-		match res {
-			Err(e) =>
-				if let Error::Fatal(_) = e {
-					break
-				},
-			Ok(()) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+		match res.into_nested() {
+			Err(fatal) => {
+				gum::error!(target: LOG_TARGET, "Observed fatal issue: {:?}", fatal);
+				break
+			},
+			Ok(Err(jfyi)) => {
+				gum::debug!(target: LOG_TARGET, "Observed issue: {:?}", jfyi);
+			},
+			Ok(Ok(())) => {
+				gum::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 				break
 			},
 		}

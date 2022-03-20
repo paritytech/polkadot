@@ -77,7 +77,7 @@ impl Broadcaster {
 
 		let sender = zombienet_bkc.ws_tx.clone();
 		sender.send(backchannel_item).map_err(|e| {
-			tracing::error!(target = ZOMBIENET, "Error sending new item: {}", e);
+			gum::error!(target: ZOMBIENET, "Error sending new item: {}", e);
 			BackchannelError::SendItemFail
 		})?;
 
@@ -102,7 +102,7 @@ impl ZombienetBackchannel {
 			};
 
 			let ws_url = format!("ws://{}:{}/ws", backchannel_host, backchannel_port);
-			tracing::debug!(target = ZOMBIENET, "Connecting to : {}", &ws_url);
+			gum::debug!(target: ZOMBIENET, "Connecting to : {}", &ws_url);
 			let (ws_stream, _) =
 				connect_async(ws_url).await.map_err(|_| BackchannelError::CantConnectToWS)?;
 			let (mut write, mut read) = ws_stream.split();
@@ -117,11 +117,11 @@ impl ZombienetBackchannel {
 					match serde_json::from_str::<BackchannelItem>(&text) {
 						Ok(backchannel_item) =>
 							if tx1.send(backchannel_item).is_err() {
-								tracing::error!("Error sending through the channel");
+								gum::error!(target: ZOMBIENET, "Error sending through the channel");
 								return
 							},
 						Err(_) => {
-							tracing::error!("Invalid payload received");
+							gum::error!(target: ZOMBIENET, "Invalid payload received");
 						},
 					}
 				}
@@ -135,7 +135,7 @@ impl ZombienetBackchannel {
 						.await
 						.is_err()
 					{
-						tracing::error!("Error sending through ws");
+						gum::error!(target: ZOMBIENET, "Error sending through ws");
 					}
 				}
 			});

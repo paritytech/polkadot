@@ -25,7 +25,7 @@ use futures::future::Future;
 use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
-use polkadot_primitives::v1::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
+use polkadot_primitives::v2::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use polkadot_service::{
@@ -43,7 +43,7 @@ use sc_network::{
 };
 use sc_service::{
 	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager, TransactionStorageMode,
+	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager,
 };
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
@@ -95,6 +95,7 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		false,
 		polkadot_service::RealOverseerGen,
 	)
 }
@@ -172,7 +173,6 @@ pub fn node_config(
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),
 		keep_blocks: KeepBlocks::All,
-		transaction_storage: TransactionStorageMode::BlockBody,
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Compiled,
 		wasm_runtime_overrides: Default::default(),
@@ -372,7 +372,7 @@ pub fn construct_extrinsic(
 	UncheckedExtrinsic::new_signed(
 		function.clone(),
 		polkadot_test_runtime::Address::Id(caller.public().into()),
-		polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
+		polkadot_primitives::v2::Signature::Sr25519(signature.clone()),
 		extra.clone(),
 	)
 }

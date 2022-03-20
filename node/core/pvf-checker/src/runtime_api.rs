@@ -21,9 +21,8 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	SubsystemSender,
 };
-use polkadot_primitives::{
-	v1::{Hash, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorSignature},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorSignature,
 };
 
 pub(crate) async fn session_index_for_child(
@@ -86,7 +85,7 @@ pub(crate) async fn runtime_api_request<T>(
 	receiver
 		.await
 		.map_err(|_| {
-			tracing::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
+			gum::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
 			RuntimeRequestError::CommunicationError
 		})
 		.and_then(|res| {
@@ -94,7 +93,7 @@ pub(crate) async fn runtime_api_request<T>(
 				use RuntimeApiSubsystemError::*;
 				match e {
 					Execution { .. } => {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?relay_parent,
 							err = ?e,

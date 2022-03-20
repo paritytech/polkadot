@@ -1,11 +1,11 @@
 [package]
 name = "polkadot-node-core-backing"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
@@ -13,8 +13,8 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-tracing = "0.1.29"
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
+gum = { package = "tracing-gum", path = "../../gum" }
 thiserror = "1.0.30"
 
 [dev-dependencies]
@@ -23,7 +23,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.19", features = ["thread-pool"] }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

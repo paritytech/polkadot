@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_primitives::v1::{Hash, ValidationCodeHash};
+use polkadot_primitives::v2::{Hash, ValidationCodeHash};
 use std::collections::{
 	btree_map::{self, BTreeMap},
 	HashSet,

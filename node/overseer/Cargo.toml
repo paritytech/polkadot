@@ -1,32 +1,33 @@
 [package]
 name = "polkadot-overseer"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3.0.2"
-parking_lot = "0.11.1"
+parking_lot = "0.12.0"
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
-tracing = "0.1.29"
+gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
-parity-util-mem = { version = ">= 0.10.1", default-features = false }
+parity-util-mem = { version = "0.11.0", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.19", features = ["thread-pool"] }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.1.1"
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 
 [features]
 default = []
+expand = ["polkadot-overseer-gen/expand"]

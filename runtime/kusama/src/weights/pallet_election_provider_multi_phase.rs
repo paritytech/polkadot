@@ -110,10 +110,9 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: TransactionPayment NextFeeMultiplier (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase SignedSubmissionNextIndex (r:1 w:1)
 	// Storage: ElectionProviderMultiPhase SignedSubmissionsMap (r:0 w:1)
-	fn submit(c: u32) -> Weight {
+	fn submit() -> Weight {
 		(77_368_000 as Weight)
 			// Standard Error: 9_000
-			.saturating_add((369_000 as Weight).saturating_mul(c as Weight))
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}

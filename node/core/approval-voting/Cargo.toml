@@ -1,19 +1,19 @@
 [package]
 name = "polkadot-node-core-approval-voting"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3.0.2"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
-tracing = "0.1.29"
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
+gum = { package = "tracing-gum", path = "../../gum" }
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 lru = "0.7"
 merlin = "2.0"
 schnorrkel = "0.9.1"
-kvdb = "0.10.0"
+kvdb = "0.11.0"
 derive_more = "0.99.17"
 
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -30,7 +30,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
-parking_lot = "0.11.1"
+parking_lot = "0.12.0"
 rand_core = "0.5.1" #                                                                       should match schnorrkel
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -38,5 +38,5 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-kvdb-memorydb = "0.10.0"
+kvdb-memorydb = "0.11.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

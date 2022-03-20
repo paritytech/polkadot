@@ -1,14 +1,14 @@
 [package]
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
-version = "0.9.16"
+version = "0.9.18"
 
 [dependencies]
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.19"
+futures = "0.3.21"
 pallet-xcm = { path = "../../pallet-xcm" }
 polkadot-test-client = { path = "../../../node/test/client" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }

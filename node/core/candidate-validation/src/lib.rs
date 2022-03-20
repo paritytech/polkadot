@@ -40,7 +40,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
@@ -242,13 +242,13 @@ where
 	receiver
 		.await
 		.map_err(|_| {
-			tracing::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
+			gum::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
 
 			RuntimeRequestFailed
 		})
 		.and_then(|res| {
 			res.map_err(|e| {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
 					err = ?e,
@@ -295,7 +295,7 @@ where
 				// during pre-checking voting the relay-chain will pin the code. In case the code
 				// actually is not there, we issue failed since this looks more like a bug. This
 				// leads to us abstaining.
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?relay_parent,
 					?validation_code_hash,
@@ -311,7 +311,7 @@ where
 	) {
 		Ok(code) => Pvf::from_code(code.into_owned()),
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
+			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
 		},
 	};
@@ -481,7 +481,7 @@ async fn validate_candidate_exhaustive(
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
 		para_id = ?descriptor.para_id,
@@ -503,7 +503,7 @@ async fn validate_candidate_exhaustive(
 	) {
 		Ok(code) => code,
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			gum::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
 
 			// If the validation code is invalid, the candidate certainly is.
 			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
@@ -514,7 +514,7 @@ async fn validate_candidate_exhaustive(
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
 			Err(e) => {
-				tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+				gum::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
 
 				// If the PoV is invalid, the candidate certainly is.
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
@@ -533,7 +533,7 @@ async fn validate_candidate_exhaustive(
 		.await;
 
 	if let Err(ref e) = result {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			error = ?e,
 			"Failed to validate candidate",
