@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.32"
+gum = { package = "tracing-gum", path = "../../gum" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -17,7 +17,7 @@ sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
 maplit = "1.0.2"
-parity-scale-codec = "3.1.0"
+parity-scale-codec = "3.1.2"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

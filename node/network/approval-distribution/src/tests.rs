@@ -72,7 +72,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
-	tracing::trace!(msg = ?msg, "Sending message");
+	gum::trace!(msg = ?msg, "Sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -81,7 +81,7 @@ async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistribution
 }
 
 async fn overseer_signal_block_finalized(overseer: &mut VirtualOverseer, number: BlockNumber) {
-	tracing::trace!(?number, "Sending a finalized signal");
+	gum::trace!(?number, "Sending a finalized signal");
 	// we don't care about the block hash
 	overseer
 		.send(FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::zero(), number)))
@@ -91,10 +91,10 @@ async fn overseer_signal_block_finalized(overseer: &mut VirtualOverseer, number:
 }
 
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
-	tracing::trace!("Waiting for a message");
+	gum::trace!("Waiting for a message");
 	let msg = overseer.recv().timeout(TIMEOUT).await.expect("msg recv timeout");
 
-	tracing::trace!(msg = ?msg, "Received message");
+	gum::trace!(msg = ?msg, "Received message");
 
 	msg
 }

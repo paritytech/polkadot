@@ -176,14 +176,12 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 
 		let peer_id = match peer_id {
 			None => {
-				tracing::debug!(target: LOG_TARGET, "Discovering authority failed");
+				gum::debug!(target: LOG_TARGET, "Discovering authority failed");
 				match pending_response
 					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
 				{
-					Err(_) => tracing::debug!(
-						target: LOG_TARGET,
-						"Sending failed request response failed."
-					),
+					Err(_) =>
+						gum::debug!(target: LOG_TARGET, "Sending failed request response failed."),
 					Ok(_) => {},
 				}
 				return

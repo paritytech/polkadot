@@ -639,13 +639,13 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		"PVF pruning: {} artifacts reached their end of life",
 		to_remove.len(),
 	);
 	for artifact_id in to_remove {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			validation_code_hash = ?artifact_id.code_hash,
 			"pruning artifact",
@@ -664,7 +664,7 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 			None => break,
 			Some(condemned) => {
 				let result = async_std::fs::remove_file(&condemned).await;
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?result,
 					"Sweeping the artifact file {}",
