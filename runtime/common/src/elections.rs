@@ -17,7 +17,7 @@
 //! Code for elections.
 
 use frame_election_provider_support::{
-	onchain::{BoundedExecutionConfig, ExecutionConfig, UnboundedOnchainExecution},
+	onchain::{BoundedExecutionConfig, ExecutionConfig, UnboundedExecution},
 	ElectionDataProvider, SequentialPhragmen, SortedListProvider,
 };
 use sp_std::{boxed::Box, marker::PhantomData};
@@ -89,7 +89,7 @@ impl<
 }
 
 /// The election provider of the genesis
-pub type GenesisElectionOf<T, S> = UnboundedOnchainExecution<OnChainSeqPhragmen<T, S>>;
+pub type GenesisElectionOf<T, S> = UnboundedExecution<OnChainSeqPhragmen<T, S>>;
 
 /// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
 /// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary
