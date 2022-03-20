@@ -139,8 +139,8 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
-	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
-		Weight::MAX // todo fix
+	fn exchange_asset(give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
+		give.weigh_multi_assets(XcmGeneic::<Runtime>::exchange_asset())
 	}
 	fn initiate_reserve_withdraw(
 		assets: &MultiAssetFilter,

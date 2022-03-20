@@ -173,4 +173,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub(crate) fn clear_topic() -> Weight {
 		(3_268_000 as Weight)
 	}
+	pub(crate) fn exchange_asset() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
 }

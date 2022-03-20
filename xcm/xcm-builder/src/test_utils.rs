@@ -25,7 +25,7 @@ use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
-	traits::{ConvertOrigin, OnResponse, TransactAsset},
+	traits::{AssetExchange, ConvertOrigin, OnResponse, TransactAsset},
 	Assets, Config,
 };
 
@@ -94,6 +94,19 @@ impl ClaimAssets for TestAssetTrap {
 			}
 		}
 		false
+	}
+}
+
+pub struct TestAssetExchanger;
+
+impl AssetExchange for TestAssetExchanger {
+	fn exchange_asset(
+		_origin: Option<&MultiLocation>,
+		_give: Assets,
+		want: &MultiAssets,
+		_maximal: bool,
+	) -> Result<Assets, Assets> {
+		Ok(want.clone().into())
 	}
 }
 

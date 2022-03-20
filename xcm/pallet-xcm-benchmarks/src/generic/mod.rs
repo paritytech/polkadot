@@ -20,6 +20,15 @@ pub mod pallet {
 		///	The response which causes the most runtime weight.
 		fn worst_case_response() -> (u64, Response);
 
+		/// The pair of asset collections which causes the most runtime weight if demanded to be
+		/// exchanged.
+		///
+		/// The first element in the returned tuple represents the assets that are being exchanged
+		/// from, whereas the second element represents the assets that are being exchanged to.
+		///
+		/// If set to `None`, benchmarks which rely on an `exchange_asset` will be skipped.
+		fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError>;
+
 		/// The `MultiLocation` used for successful transaction XCMs.
 		///
 		/// If set to `None`, benchmarks which rely on a `transact_origin` will be skipped.

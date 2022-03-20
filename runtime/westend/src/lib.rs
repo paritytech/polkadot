@@ -1574,6 +1574,11 @@ sp_api::impl_runtime_apis! {
 					(0u64, Response::Version(Default::default()))
 				}
 
+				fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
+					// Westend doesn't support asset exchanges
+					Err(BenchmarkError::Skip)
+				}
+
 				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
 				}

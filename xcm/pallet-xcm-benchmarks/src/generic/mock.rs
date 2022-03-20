@@ -29,7 +29,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::{
-	test_utils::{Assets, TestAssetTrap, TestSubscriptionService},
+	test_utils::{Assets, TestAssetExchanger, TestAssetTrap, TestSubscriptionService},
 	AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
@@ -117,7 +117,7 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
 	type AssetLocker = ();
-	type AssetExchanger = ();
+	type AssetExchanger = TestAssetExchanger;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
 	type PalletInstancesInfo = AllPalletsWithSystem;
@@ -151,6 +151,10 @@ impl generic::Config for Test {
 	fn worst_case_response() -> (u64, Response) {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		(0, Response::Assets(assets))
+	}
+
+	fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
+		Ok(Default::default())
 	}
 
 	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
