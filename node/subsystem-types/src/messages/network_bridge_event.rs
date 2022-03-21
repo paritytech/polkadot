@@ -82,15 +82,11 @@ impl<M> NetworkBridgeEvent<M> {
 				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
 				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::NewGossipTopology {
-				ref our_neighbors_x,
-				ref our_neighbors_y,
-			} => {
+			NetworkBridgeEvent::NewGossipTopology { ref our_neighbors_x, ref our_neighbors_y } =>
 				NetworkBridgeEvent::NewGossipTopology {
 					our_neighbors_x: our_neighbors_x.clone(),
 					our_neighbors_y: our_neighbors_y.clone(),
-				}
-			},
+				},
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>

@@ -523,7 +523,8 @@ async fn handle_network_msg<Context>(
 			// get rid of superfluous data
 			state.peer_views.remove(&peer);
 		},
-		NetworkBridgeEvent::NewGossipTopology(peers) => {
+		NetworkBridgeEvent::NewGossipTopology { our_neighbors_x, our_neighbors_y } => {
+			let peers: HashSet<_> = our_neighbors_x.union(&our_neighbors_y).cloned().collect();
 			let newly_added: Vec<PeerId> = peers.difference(&state.gossip_peers).cloned().collect();
 			state.gossip_peers = peers;
 			for new_peer in newly_added {

@@ -1623,7 +1623,8 @@ async fn handle_network_update(
 				});
 			}
 		},
-		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+		NetworkBridgeEvent::NewGossipTopology { our_neighbors_x, our_neighbors_y } => {
+			let new_peers: HashSet<_> = our_neighbors_x.union(&our_neighbors_y).cloned().collect();
 			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
 			*gossip_peers = new_peers;

@@ -378,7 +378,7 @@ where
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
-			NetworkBridgeEvent::NewGossipTopology(_) => {},
+			NetworkBridgeEvent::NewGossipTopology { .. } => {},
 			NetworkBridgeEvent::PeerMessage(_, v) => {
 				match v {};
 			},
@@ -500,8 +500,8 @@ where
 	ctx.send_message(NetworkBridgeMessage::NewGossipTopology {
 		our_neighbors_x: row_neighbors,
 		our_neighbors_y: column_neighbors,
-	 })
-		.await;
+	})
+	.await;
 
 	Ok(())
 }

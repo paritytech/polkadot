@@ -216,7 +216,8 @@ impl State {
 					entry.known_by.remove(&peer_id);
 				})
 			},
-			NetworkBridgeEvent::NewGossipTopology(peers) => {
+			NetworkBridgeEvent::NewGossipTopology { our_neighbors_x, our_neighbors_y } => {
+				let peers: HashSet<_> = our_neighbors_x.union(&our_neighbors_y).cloned().collect();
 				let newly_added: Vec<PeerId> =
 					peers.difference(&self.gossip_peers).cloned().collect();
 				self.gossip_peers = peers;

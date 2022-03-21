@@ -54,7 +54,7 @@ lazy_static! {
 		Sr25519Keyring::Two.public().into(),
 	];
 
-    // [2 6]
+	// [2 6]
 	// [4 5]
 	// [1 3]
 	// [0  ]
