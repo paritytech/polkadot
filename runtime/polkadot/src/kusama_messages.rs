@@ -344,7 +344,7 @@ fn verify_inbound_messages_lane(
 impl SenderOrigin<AccountId> for Origin {
 	fn linked_account(&self) -> Option<AccountId> {
 		match self.caller {
-			OriginCaller::Council(_) => AllowedMessageSender::get(), // TODO: rename to council account,
+			OriginCaller::Council(_) => AllowedMessageSender::get(),
 				_ => None,
 		}
 	}
@@ -462,9 +462,7 @@ impl MessagesConfig<crate::WithKusamaMessagesInstance> for Runtime {
 #[cfg(test)]
 mod tests {
 	use bp_messages::{target_chain::ProvedLaneMessages, MessageData, MessageKey};
-	use bridge_runtime_common::messages::source::estimate_message_dispatch_and_delivery_fee;
 	use frame_support::weights::GetDispatchInfo;
-	use runtime_common::RocksDbWeight;
 	use crate::*;
 	use super::*;
 
@@ -492,7 +490,7 @@ mod tests {
 			bp_polkadot::ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT,
 			bp_polkadot::MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT,
 			bp_polkadot::PAY_INBOUND_DISPATCH_FEE_WEIGHT,
-			RocksDbWeight::get(),
+			<Runtime as frame_system::Config>::DbWeight::get(),
 		);
 
 		let max_incoming_message_proof_size = bp_kusama::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
@@ -517,7 +515,7 @@ mod tests {
 			max_incoming_inbound_lane_data_proof_size,
 			bp_polkadot::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX,
 			bp_polkadot::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX,
-			RocksDbWeight::get(),
+			<Runtime as frame_system::Config>::DbWeight::get(),
 		);
 	}
 
@@ -525,8 +523,9 @@ mod tests {
 	fn message_by_invalid_submitter_are_rejected() {
 		sp_io::TestExternalities::new(Default::default()).execute_with(|| {
 			let invalid_sender = bp_polkadot::AccountId::from([1u8; 32]);
-			let valid_sender = bp_polkadot::AccountId::from([2u8; 32]);
-			AllowedMessageSender::set(&Some(valid_sender.clone()));
+			let allowed_sender = bp_polkadot::AccountId::from([2u8; 32]);
+			let council_member = bp_polkadot::AccountId::from([3u8; 32]);
+			AllowedMessageSender::set(&Some(allowed_sender.clone()));
 
 			assert_eq!(
 				ToKusamaMessageVerifier::verify_message(
@@ -540,11 +539,31 @@ mod tests {
 			);
 			assert_eq!(
 				ToKusamaMessageVerifier::verify_message(
-					&frame_system::RawOrigin::Signed(valid_sender.clone()).into(),
+					&frame_system::RawOrigin::Signed(allowed_sender.clone()).into(),
 					&bp_polkadot::Balance::MAX,
 					&Default::default(),
 					&Default::default(),
-					&message_payload(valid_sender),
+					&message_payload(allowed_sender),
+				),
+				Err(NOT_ALLOWED_MESSAGE_SENDER),
+			);
+			assert_eq!(
+				ToKusamaMessageVerifier::verify_message(
+					&OriginCaller::Council(pallet_collective::RawOrigin::Members(1, 1)).into(),
+					&bp_polkadot::Balance::MAX,
+					&Default::default(),
+					&Default::default(),
+					&message_payload(council_member.clone()),
+				),
+				Ok(()),
+			);
+			assert_eq!(
+				ToKusamaMessageVerifier::verify_message(
+					&OriginCaller::Council(pallet_collective::RawOrigin::Member(council_member.clone())).into(),
+					&bp_polkadot::Balance::MAX,
+					&Default::default(),
+					&Default::default(),
+					&message_payload(council_member),
 				),
 				Ok(()),
 			);
@@ -589,22 +608,5 @@ mod tests {
 			verify_inbound_messages_lane(proved_messages),
 			Err(INBOUND_LANE_DISABLED),
 		);
-	}
-
-	#[test]
-	#[ignore]
-	fn estimate_polkadot_to_kusama_message_fee() {
-		sp_io::TestExternalities::new(Default::default()).execute_with(|| {
-			KusamaToPolkadotConversionRate::set(&FixedU128::from_float(0.11188793806675539));
-			let fee = estimate_message_dispatch_and_delivery_fee::<WithKusamaMessageBridge>(
-				&message_payload(bp_kusama::AccountId::from([1u8; 32])),
-				WithKusamaMessageBridge::RELAYER_FEE_PERCENT,
-			).unwrap();
-			println!(
-				"Message fee for balances::transfer call is: {} ({} DOT)",
-				fee,
-				FixedU128::saturating_from_rational(fee, polkadot_runtime_constants::currency::UNITS).to_float(),
-			);
-		});
 	}
 }
