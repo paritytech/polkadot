@@ -154,7 +154,10 @@ enum NetworkBridgeEvent<M> {
 	///
 	/// Note, that the distribution subsystems need to handle the last
 	/// view update of the newly added gossip peers manually.
-	NewGossipTopology(HashSet<PeerId>),
+	NewGossipTopology {
+		our_neighbors_x: HashSet<PeerId>,
+		our_neighbors_y: HashSet<PeerId>,
+	}
 	/// We received a message from the given peer.
 	PeerMessage(PeerId, M),
 	/// The given peer has updated its description of its view.
