@@ -18,7 +18,6 @@
 
 use crate::cli::{encode_message, CliChain};
 use anyhow::anyhow;
-use frame_support::weights::Weight;
 use relay_westend_client::Westend;
 use sp_version::RuntimeVersion;
 
@@ -29,11 +28,10 @@ impl CliChain for Westend {
 	type MessagePayload = ();
 
 	fn ss58_format() -> u16 {
-		42
-	}
-
-	fn max_extrinsic_weight() -> Weight {
-		0
+		sp_core::crypto::Ss58AddressFormat::from(
+			sp_core::crypto::Ss58AddressFormatRegistry::SubstrateAccount,
+		)
+		.into()
 	}
 
 	fn encode_message(

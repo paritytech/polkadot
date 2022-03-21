@@ -233,6 +233,9 @@ pub struct ClientState<SelfHeaderId, PeerHeaderId> {
 	/// Best finalized header id of the peer chain read at the best block of this chain (at
 	/// `best_finalized_self`).
 	pub best_finalized_peer_at_best_self: PeerHeaderId,
+	/// Header id of the peer chain with the number, matching the
+	/// `best_finalized_peer_at_best_self`.
+	pub actual_best_finalized_peer_at_best_self: PeerHeaderId,
 }
 
 /// State of source client in one-way message lane.
@@ -843,12 +846,14 @@ pub(crate) mod tests {
 					best_self: HeaderId(0, 0),
 					best_finalized_self: HeaderId(0, 0),
 					best_finalized_peer_at_best_self: HeaderId(0, 0),
+					actual_best_finalized_peer_at_best_self: HeaderId(0, 0),
 				},
 				source_latest_generated_nonce: 1,
 				target_state: ClientState {
 					best_self: HeaderId(0, 0),
 					best_finalized_self: HeaderId(0, 0),
 					best_finalized_peer_at_best_self: HeaderId(0, 0),
+					actual_best_finalized_peer_at_best_self: HeaderId(0, 0),
 				},
 				target_latest_received_nonce: 0,
 				..Default::default()
@@ -888,12 +893,14 @@ pub(crate) mod tests {
 					best_self: HeaderId(10, 10),
 					best_finalized_self: HeaderId(10, 10),
 					best_finalized_peer_at_best_self: HeaderId(0, 0),
+					actual_best_finalized_peer_at_best_self: HeaderId(0, 0),
 				},
 				source_latest_generated_nonce: 10,
 				target_state: ClientState {
 					best_self: HeaderId(0, 0),
 					best_finalized_self: HeaderId(0, 0),
 					best_finalized_peer_at_best_self: HeaderId(0, 0),
+					actual_best_finalized_peer_at_best_self: HeaderId(0, 0),
 				},
 				target_latest_received_nonce: 0,
 				..Default::default()

@@ -22,11 +22,14 @@ use std::time::Duration;
 
 pub mod conversion_rate_update;
 pub mod error;
+pub mod finality_guards;
 pub mod finality_pipeline;
+pub mod finality_source;
 pub mod finality_target;
 pub mod headers_initialize;
 pub mod helpers;
 pub mod messages_lane;
+pub mod messages_metrics;
 pub mod messages_source;
 pub mod messages_target;
 pub mod on_demand_headers;
@@ -39,3 +42,12 @@ pub mod on_demand_headers;
 /// blockchains) blocks. So 1 hour seems to be a good guess for (even congested) chains to mine
 /// transaction, or remove it from the pool.
 pub const STALL_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+
+/// Transaction creation parameters.
+#[derive(Clone, Debug)]
+pub struct TransactionParams<TS> {
+	/// Transactions author.
+	pub signer: TS,
+	/// Transactions mortality.
+	pub mortality: Option<u32>,
+}

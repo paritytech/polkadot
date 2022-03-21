@@ -64,8 +64,7 @@ pub mod pallet {
 			+ MaybeSerializeDeserialize
 			+ Debug
 			+ MaybeDisplay
-			+ Ord
-			+ Default;
+			+ Ord;
 		/// Type of account public key on target chain.
 		type TargetChainAccountPublic: Parameter + IdentifyAccount<AccountId = Self::AccountId>;
 		/// Type of signature that may prove that the message has been signed by
@@ -520,6 +519,7 @@ mod tests {
 		type DbWeight = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	impl Config for TestRuntime {
@@ -649,11 +649,11 @@ mod tests {
 	fn should_fail_on_weight_mismatch() {
 		new_test_ext().execute_with(|| {
 			let id = [0; 4];
-			let call = Call::System(frame_system::Call::remark { remark: vec![1, 2, 3] });
+			let call = Call::System(frame_system::Call::set_heap_pages { pages: 42 });
 			let call_weight = call.get_dispatch_info().weight;
 			let mut message = prepare_root_message(call);
 			message.weight = 7;
-			assert!(call_weight != 7, "needed for test to actually trigger a weight mismatch");
+			assert!(call_weight > 7, "needed for test to actually trigger a weight mismatch");
 
 			System::set_block_number(1);
 			let result = Dispatch::dispatch(

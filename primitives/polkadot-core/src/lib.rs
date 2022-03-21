@@ -17,7 +17,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use bp_messages::MessageNonce;
-use bp_runtime::Chain;
+use bp_runtime::{Chain, EncodedOrDecodedCall};
 use frame_support::{
 	dispatch::Dispatchable,
 	parameter_types,
@@ -33,7 +33,8 @@ use scale_info::{StaticTypeInfo, TypeInfo};
 use sp_core::Hasher as HasherT;
 use sp_runtime::{
 	generic,
-	traits::{BlakeTwo256, IdentifyAccount, Verify},
+	traits::{BlakeTwo256, DispatchInfoOf, IdentifyAccount, Verify},
+	transaction_validity::TransactionValidityError,
 	MultiAddress, MultiSignature, OpaqueExtrinsic,
 };
 use sp_std::prelude::Vec;
@@ -115,31 +116,17 @@ parameter_types! {
 		.build_or_panic();
 }
 
-/// Get the maximum weight (compute time) that a Normal extrinsic on the Polkadot-like chain can
-/// use.
-pub fn max_extrinsic_weight() -> Weight {
-	BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.unwrap_or(Weight::MAX)
-}
-
-/// Get the maximum length in bytes that a Normal extrinsic on the Polkadot-like chain requires.
-pub fn max_extrinsic_size() -> u32 {
-	*BlockLength::get().max.get(DispatchClass::Normal)
-}
-
 // TODO [#78] may need to be updated after https://github.com/paritytech/parity-bridges-common/issues/78
 /// Maximal number of messages in single delivery transaction.
 pub const MAX_MESSAGES_IN_DELIVERY_TRANSACTION: MessageNonce = 128;
 
 /// Maximal number of unrewarded relayer entries at inbound lane.
-pub const MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE: MessageNonce = 128;
+pub const MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX: MessageNonce = 128;
 
 // TODO [#438] should be selected keeping in mind:
 // finality delay on both chains + reward payout cost + messages throughput.
 /// Maximal number of unconfirmed messages at inbound lane.
-pub const MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE: MessageNonce = 8192;
+pub const MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX: MessageNonce = 8192;
 
 // One important thing about weight-related constants here is that actually we may have
 // different weights on different Polkadot-like chains. But now all deployments are
@@ -241,25 +228,34 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type Balance = u128;
 
 /// Unchecked Extrinsic type.
-pub type UncheckedExtrinsic<Call> =
-	generic::UncheckedExtrinsic<AccountAddress, Call, Signature, SignedExtensions<Call>>;
+pub type UncheckedExtrinsic<Call> = generic::UncheckedExtrinsic<
+	AccountAddress,
+	EncodedOrDecodedCall<Call>,
+	Signature,
+	SignedExtensions<Call>,
+>;
 
 /// Account address, used by the Polkadot-like chain.
 pub type Address = MultiAddress<AccountId, ()>;
 
 /// A type of the data encoded as part of the transaction.
-pub type SignedExtra = ((), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
+pub type SignedExtra =
+	((), (), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
 
 /// Parameters which are part of the payload used to produce transaction signature,
 /// but don't end up in the transaction itself (i.e. inherent part of the runtime).
-pub type AdditionalSigned = (u32, u32, Hash, Hash, (), (), ());
+pub type AdditionalSigned = ((), u32, u32, Hash, Hash, (), (), ());
 
 /// A simplified version of signed extensions meant for producing signed transactions
 /// and signed payload in the client code.
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo)]
 pub struct SignedExtensions<Call> {
 	encode_payload: SignedExtra,
-	additional_signed: AdditionalSigned,
+	// It may be set to `None` if extensions are decoded. We are never reconstructing transactions
+	// (and it makes no sense to do that) => decoded version of `SignedExtensions` is only used to
+	// read fields of `encode_payload`. And when resigning transaction, we're reconstructing
+	// `SignedExtensions` from the scratch.
+	additional_signed: Option<AdditionalSigned>,
 	_data: sp_std::marker::PhantomData<Call>,
 }
 
@@ -271,15 +267,20 @@ impl<Call> parity_scale_codec::Encode for SignedExtensions<Call> {
 
 impl<Call> parity_scale_codec::Decode for SignedExtensions<Call> {
 	fn decode<I: parity_scale_codec::Input>(
-		_input: &mut I,
+		input: &mut I,
 	) -> Result<Self, parity_scale_codec::Error> {
-		unimplemented!("SignedExtensions are never meant to be decoded, they are only used to create transaction");
+		SignedExtra::decode(input).map(|encode_payload| SignedExtensions {
+			encode_payload,
+			additional_signed: None,
+			_data: Default::default(),
+		})
 	}
 }
 
 impl<Call> SignedExtensions<Call> {
 	pub fn new(
-		version: sp_version::RuntimeVersion,
+		spec_version: u32,
+		transaction_version: u32,
 		era: bp_runtime::TransactionEraOf<PolkadotLike>,
 		genesis_hash: Hash,
 		nonce: Nonce,
@@ -287,6 +288,7 @@ impl<Call> SignedExtensions<Call> {
 	) -> Self {
 		Self {
 			encode_payload: (
+				(),              // non-zero sender
 				(),              // spec version
 				(),              // tx version
 				(),              // genesis
@@ -295,15 +297,16 @@ impl<Call> SignedExtensions<Call> {
 				(),              // Check weight
 				tip.into(),      // transaction payment / tip (compact encoding)
 			),
-			additional_signed: (
-				version.spec_version,
-				version.transaction_version,
+			additional_signed: Some((
+				(),
+				spec_version,
+				transaction_version,
 				genesis_hash,
 				era.signed_payload(genesis_hash),
 				(),
 				(),
 				(),
-			),
+			)),
 			_data: Default::default(),
 		}
 	}
@@ -312,12 +315,12 @@ impl<Call> SignedExtensions<Call> {
 impl<Call> SignedExtensions<Call> {
 	/// Return signer nonce, used to craft transaction.
 	pub fn nonce(&self) -> Nonce {
-		self.encode_payload.4.into()
+		self.encode_payload.5.into()
 	}
 
 	/// Return transaction tip.
 	pub fn tip(&self) -> Balance {
-		self.encode_payload.6.into()
+		self.encode_payload.7.into()
 	}
 }
 
@@ -343,7 +346,23 @@ where
 	fn additional_signed(
 		&self,
 	) -> Result<Self::AdditionalSigned, frame_support::unsigned::TransactionValidityError> {
-		Ok(self.additional_signed)
+		// we shall not ever see this error in relay, because we are never signing decoded
+		// transactions. Instead we're constructing and signing new transactions. So the error code
+		// is kinda random here
+		self.additional_signed
+			.ok_or(frame_support::unsigned::TransactionValidityError::Unknown(
+				frame_support::unsigned::UnknownTransaction::Custom(0xFF),
+			))
+	}
+
+	fn pre_dispatch(
+		self,
+		_who: &Self::AccountId,
+		_call: &Self::Call,
+		_info: &DispatchInfoOf<Self::Call>,
+		_len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(())
 	}
 }
 
@@ -361,6 +380,17 @@ impl Chain for PolkadotLike {
 	type Balance = Balance;
 	type Index = Index;
 	type Signature = Signature;
+
+	fn max_extrinsic_size() -> u32 {
+		*BlockLength::get().max.get(DispatchClass::Normal)
+	}
+
+	fn max_extrinsic_weight() -> Weight {
+		BlockWeights::get()
+			.get(DispatchClass::Normal)
+			.max_extrinsic
+			.unwrap_or(Weight::MAX)
+	}
 }
 
 /// Convert a 256-bit hash into an AccountId.
@@ -401,7 +431,7 @@ mod tests {
 
 	#[test]
 	fn maximal_encoded_account_id_size_is_correct() {
-		let actual_size = AccountId::default().encode().len();
+		let actual_size = AccountId::from([0u8; 32]).encode().len();
 		assert!(
 			actual_size <= MAXIMAL_ENCODED_ACCOUNT_ID_SIZE as usize,
 			"Actual size of encoded account id for Polkadot-like chains ({}) is larger than expected {}",

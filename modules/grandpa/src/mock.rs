@@ -77,6 +77,7 @@ impl frame_system::Config for TestRuntime {
 	type BlockLength = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -106,6 +107,13 @@ impl Chain for TestBridgedChain {
 	type Balance = u64;
 	type Index = u64;
 	type Signature = Signature;
+
+	fn max_extrinsic_size() -> u32 {
+		unreachable!()
+	}
+	fn max_extrinsic_weight() -> Weight {
+		unreachable!()
+	}
 }
 
 pub fn run_test<T>(test: impl FnOnce() -> T) -> T {
