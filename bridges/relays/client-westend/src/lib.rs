@@ -16,7 +16,8 @@
 
 //! Types used to connect to the Westend chain.
 
-use relay_substrate_client::{Chain, ChainBase, ChainWithBalances};
+use frame_support::weights::Weight;
+use relay_substrate_client::{Chain, ChainBase, ChainWithBalances, ChainWithGrandpa};
 use sp_core::storage::StorageKey;
 use std::time::Duration;
 
@@ -40,10 +41,21 @@ impl ChainBase for Westend {
 	type Balance = bp_westend::Balance;
 	type Index = bp_westend::Nonce;
 	type Signature = bp_westend::Signature;
+
+	fn max_extrinsic_size() -> u32 {
+		bp_westend::Westend::max_extrinsic_size()
+	}
+
+	fn max_extrinsic_weight() -> Weight {
+		bp_westend::Westend::max_extrinsic_weight()
+	}
 }
 
 impl Chain for Westend {
 	const NAME: &'static str = "Westend";
+	const TOKEN_ID: Option<&'static str> = None;
+	const BEST_FINALIZED_HEADER_ID_METHOD: &'static str =
+		bp_westend::BEST_FINALIZED_WESTEND_HEADER_METHOD;
 	const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_secs(6);
 	const STORAGE_PROOF_OVERHEAD: u32 = bp_westend::EXTRA_STORAGE_PROOF_SIZE;
 	const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = bp_westend::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE;
@@ -51,6 +63,11 @@ impl Chain for Westend {
 	type SignedBlock = bp_westend::SignedBlock;
 	type Call = bp_westend::Call;
 	type WeightToFee = bp_westend::WeightToFee;
+}
+
+impl ChainWithGrandpa for Westend {
+	const WITH_CHAIN_GRANDPA_PALLET_NAME: &'static str =
+		bp_westend::WITH_WESTEND_GRANDPA_PALLET_NAME;
 }
 
 impl ChainWithBalances for Westend {

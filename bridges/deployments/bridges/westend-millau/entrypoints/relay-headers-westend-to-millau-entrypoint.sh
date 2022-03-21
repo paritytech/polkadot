@@ -1,9 +1,7 @@
 #!/bin/bash
 set -xeu
 
-sleep 60
-curl -v http://millau-node-alice:9933/health
-curl -v https://westend-rpc.polkadot.io:443/health
+sleep 15
 
 /home/user/substrate-relay init-bridge westend-to-millau \
 	--source-host westend-rpc.polkadot.io \

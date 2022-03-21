@@ -17,9 +17,9 @@
 //! Types that are specific to the Wococo runtime.
 
 use bp_messages::{LaneId, UnrewardedRelayersState};
-use bp_polkadot_core::PolkadotLike;
+use bp_polkadot_core::{AccountAddress, Balance, PolkadotLike};
 use bp_runtime::Chain;
-use codec::{Decode, Encode};
+use codec::{Compact, Decode, Encode};
 use frame_support::weights::Weight;
 use scale_info::TypeInfo;
 
@@ -66,12 +66,15 @@ pub enum Call {
 	/// System pallet.
 	#[codec(index = 0)]
 	System(SystemCall),
+	/// Balances pallet.
+	#[codec(index = 4)]
+	Balances(BalancesCall),
 	/// Rococo bridge pallet.
 	#[codec(index = 40)]
 	BridgeGrandpaRococo(BridgeGrandpaRococoCall),
 	/// Rococo messages pallet.
 	#[codec(index = 43)]
-	BridgeMessagesRococo(BridgeMessagesRococoCall),
+	BridgeRococoMessages(BridgeRococoMessagesCall),
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
@@ -79,6 +82,13 @@ pub enum Call {
 pub enum SystemCall {
 	#[codec(index = 1)]
 	remark(Vec<u8>),
+}
+
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
+#[allow(non_camel_case_types)]
+pub enum BalancesCall {
+	#[codec(index = 0)]
+	transfer(AccountAddress, Compact<Balance>),
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
@@ -95,7 +105,7 @@ pub enum BridgeGrandpaRococoCall {
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
 #[allow(non_camel_case_types)]
-pub enum BridgeMessagesRococoCall {
+pub enum BridgeRococoMessagesCall {
 	#[codec(index = 3)]
 	send_message(
 		LaneId,
