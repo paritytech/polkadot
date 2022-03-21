@@ -532,7 +532,7 @@ impl State {
 
 		// now that we pruned `self.blocks_by_number`, let's clean up `self.blocks` too
 		old_blocks.values().flatten().for_each(|relay_block| {
-			self.recent_outdated_blocks.note_outdated(relay_block);
+			self.recent_outdated_blocks.note_outdated(*relay_block);
 			self.blocks.remove(relay_block);
 		});
 	}
@@ -1258,7 +1258,7 @@ impl ApprovalDistribution {
 			};
 			match message {
 				FromOverseer::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, msg, self.metrics.clone()).await,
+					Self::handle_incoming(&mut ctx, state, msg, &self.metrics).await,
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					..
 				})) => {
@@ -1280,17 +1280,17 @@ impl ApprovalDistribution {
 		ctx: &mut Context,
 		state: &mut State,
 		msg: ApprovalDistributionMessage,
-		metrics: Metrics,
+		metrics: &Metrics,
 	) where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
 		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
 		match msg {
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(event) => {
-				state.handle_network_msg(ctx, &metrics, event).await;
+				state.handle_network_msg(ctx, metrics, event).await;
 			},
 			ApprovalDistributionMessage::NewBlocks(metas) => {
-				state.handle_new_blocks(ctx, &metrics, metas).await;
+				state.handle_new_blocks(ctx, metrics, metas).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
 				gum::debug!(
@@ -1319,7 +1319,7 @@ impl ApprovalDistribution {
 				);
 
 				state
-					.import_and_circulate_approval(ctx, &metrics, MessageSource::Local, vote)
+					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
 					.await;
 			},
 		}
