@@ -590,30 +590,48 @@ where
 						).await;
 					}
 					NetworkBridgeMessage::NewGossipTopology {
-						our_neighbors,
+						our_neighbors_x,
+						our_neighbors_y,
 					} => {
 						gum::debug!(
 							target: LOG_TARGET,
 							action = "NewGossipTopology",
-							neighbors = our_neighbors.len(),
+							neighbors_x = our_neighbors_x.len(),
+							neighbors_y = our_neighbors_y.len(),
 							"Gossip topology has changed",
 						);
 
 						let ads = &mut authority_discovery_service;
-						let mut gossip_peers = HashSet::with_capacity(our_neighbors.len());
-						for authority in our_neighbors {
+						let mut gossip_peers_x = HashSet::with_capacity(our_neighbors_x.len());
+						let mut gossip_peers_y = HashSet::with_capacity(our_neighbors_y.len());
+
+						for authority in our_neighbors_x {
 							let addr = get_peer_id_by_authority_id(
 								ads,
 								authority.clone(),
 							).await;
 
 							if let Some(peer_id) = addr {
-								gossip_peers.insert(peer_id);
+								gossip_peers_x.insert(peer_id);
+							}
+						}
+
+						for authority in our_neighbors_y {
+							let addr = get_peer_id_by_authority_id(
+								ads,
+								authority.clone(),
+							).await;
+
+							if let Some(peer_id) = addr {
+								gossip_peers_y.insert(peer_id);
 							}
 						}
 
 						dispatch_validation_event_to_all_unbounded(
-							NetworkBridgeEvent::NewGossipTopology(gossip_peers),
+							NetworkBridgeEvent::NewGossipTopology {
+								our_neighbors_x: gossip_peers_x,
+								our_neighbors_y: gossip_peers_y,
+							},
 							ctx.sender(),
 						);
 					}
