@@ -66,6 +66,18 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum GridDimension {
+	Row,
+	Column,
+}
+
+#[derive(Default)]
+struct PeerData {
+	view: View,
+	shared_dimension: Option<GridDimension>,
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -84,8 +96,8 @@ struct State {
 	/// also a race that occurs typically on local networks.
 	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
 
-	/// Peer view data is partially stored here, and partially inline within the [`BlockEntry`]s
-	peer_views: HashMap<PeerId, View>,
+	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
+	peer_data: HashMap<PeerId, PeerData>,
 
 	/// Track all our neighbors in the current gossip topology.
 	/// We're not necessarily connected to all of them.
@@ -154,18 +166,12 @@ enum ApprovalState {
 	Approved(AssignmentCert, ValidatorSignature),
 }
 
-#[derive(Debug, Clone, Copy)]
-enum LocalSource {
-	Yes,
-	No,
-}
-
 /// Information about candidates in the context of a particular block they are included in.
 /// In other words, multiple `CandidateEntry`s may exist for the same candidate,
 /// if it is included by multiple blocks - this is likely the case when there are forks.
 #[derive(Debug, Default)]
 struct CandidateEntry {
-	approvals: HashMap<ValidatorIndex, (ApprovalState, LocalSource)>,
+	approvals: HashMap<ValidatorIndex, ApprovalState>,
 }
 
 #[derive(Debug, Clone)]
@@ -179,13 +185,6 @@ impl MessageSource {
 		match self {
 			Self::Peer(id) => Some(id.clone()),
 			Self::Local => None,
-		}
-	}
-
-	fn as_local_source(&self) -> LocalSource {
-		match self {
-			Self::Local => LocalSource::Yes,
-			_ => LocalSource::No,
 		}
 	}
 }
@@ -207,11 +206,11 @@ impl State {
 			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
-				self.peer_views.entry(peer_id).or_default();
+				self.peer_data.entry(peer_id).or_default();
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
-				self.peer_views.remove(&peer_id);
+				self.peer_data.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				})
@@ -222,8 +221,8 @@ impl State {
 					peers.difference(&self.gossip_peers).cloned().collect();
 				self.gossip_peers = peers;
 				for peer_id in newly_added {
-					if let Some(view) = self.peer_views.remove(&peer_id) {
-						self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
+					if let Some(peer_data) = self.peer_data.remove(&peer_id) {
+						self.handle_peer_view_change(ctx, metrics, peer_id, peer_data.view).await;
 					}
 				}
 			},
@@ -295,9 +294,10 @@ impl State {
 		);
 
 		{
-			for (peer_id, view) in self.peer_views.iter() {
-				let intersection = view.iter().filter(|h| new_hashes.contains(h));
-				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
+			for (peer_id, peer_data) in self.peer_data.iter() {
+				let intersection = peer_data.view.iter().filter(|h| new_hashes.contains(h));
+				let view_intersection =
+					View::new(intersection.cloned(), peer_data.view.finalized_number);
 				Self::unify_with_peer(
 					ctx,
 					&self.gossip_peers,
@@ -453,6 +453,8 @@ impl State {
 		}
 	}
 
+	// handle a peer view change: requires that the peer is already connected
+	// and has an entry in the `PeerData` struct.
 	async fn handle_peer_view_change(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
@@ -463,7 +465,10 @@ impl State {
 	) {
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
-		let old_view = self.peer_views.insert(peer_id.clone(), view.clone());
+		let old_view = self
+			.peer_data
+			.get_mut(&peer_id)
+			.map(|d| std::mem::replace(&mut d.view, view.clone()));
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -659,8 +664,6 @@ impl State {
 			}
 		}
 
-		let local_source = source.as_local_source();
-
 		// Invariant: none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
@@ -668,9 +671,10 @@ impl State {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
-				candidate_entry.approvals.entry(validator_index).or_insert_with(|| {
-					(ApprovalState::Assigned(assignment.cert.clone()), local_source)
-				});
+				candidate_entry
+					.approvals
+					.entry(validator_index)
+					.or_insert_with(|| ApprovalState::Assigned(assignment.cert.clone()));
 			},
 			None => {
 				gum::warn!(
@@ -711,7 +715,7 @@ impl State {
 				target: LOG_TARGET,
 				?block_hash,
 				?claimed_candidate_index,
-				?local_source,
+				local = source.peer_id().is_none(),
 				num_peers = peers.len(),
 				"Sending an assignment to peers",
 			);
@@ -860,8 +864,6 @@ impl State {
 			}
 		}
 
-		let local_source = source.as_local_source();
-
 		// Invariant: none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
 
@@ -870,13 +872,13 @@ impl State {
 				// set the approval state for validator_index to Approved
 				// it should be in assigned state already
 				match candidate_entry.approvals.remove(&validator_index) {
-					Some((ApprovalState::Assigned(cert), _local)) => {
+					Some(ApprovalState::Assigned(cert)) => {
 						candidate_entry.approvals.insert(
 							validator_index,
-							(ApprovalState::Approved(cert, vote.signature.clone()), local_source),
+							ApprovalState::Approved(cert, vote.signature.clone()),
 						);
 					},
-					Some((ApprovalState::Approved(..), _)) => {
+					Some(ApprovalState::Approved(..)) => {
 						unreachable!(
 							"we only insert it after the fingerprint, checked the fingerprint above; qed"
 						);
@@ -933,7 +935,7 @@ impl State {
 				target: LOG_TARGET,
 				?block_hash,
 				?candidate_index,
-				?local_source,
+				local = source.peer_id().is_none(),
 				num_peers = peers.len(),
 				"Sending an approval to peers",
 			);
@@ -1052,9 +1054,7 @@ impl State {
 
 			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
 				let candidate_index = candidate_index as u32;
-				for (validator_index, (approval_state, _is_local)) in
-					candidate_entry.approvals.iter()
-				{
+				for (validator_index, approval_state) in candidate_entry.approvals.iter() {
 					let assignment_fingerprint = MessageFingerprint::Assignment(
 						block.clone(),
 						candidate_index,

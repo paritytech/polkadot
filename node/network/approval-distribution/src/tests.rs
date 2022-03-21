@@ -1052,3 +1052,13 @@ fn race_condition_in_local_vs_remote_view_update() {
 		virtual_overseer
 	});
 }
+
+// TODO [now]: test propagation of message from issuer - unshared dimension
+
+// TODO [now]: test that messages are propagated to necessary peers after they connect
+
+// TODO [now]: test that first receipt of message broadcasts to random peers
+
+// TODO [now]: test that new gossip topology re-evaluates all messages
+
+// TODO [now]: test that when a block takes a long time to be finalized, we broadcast more aggressively.
