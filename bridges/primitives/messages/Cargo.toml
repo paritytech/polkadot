@@ -19,10 +19,10 @@ bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/dashmap" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/dashmap" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/dashmap" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/dashmap" }
 
 [dev-dependencies]
 hex = "0.4"

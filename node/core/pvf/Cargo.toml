@@ -23,15 +23,15 @@ parity-scale-codec = { version = "3.1.2", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "sandreim/dashmap" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
