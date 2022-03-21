@@ -98,36 +98,13 @@ pub(crate) fn impl_overseer_gen(
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_dispatch(&info));
 
-	// Write to a file for expansion, and then use it via `include!()`
-	// in order to obtain better compiler errors when modifying `overlord`.
-	if cfg!(feature = "expansion") {
-		use std::io::Write;
+	let ts = expander::Expander::new("overlord-expansion")
+		.add_comment("Generated overseer code by `#[overlord(..)]`".to_owned())
+		.dry(!cfg!(feature = "expand"))
+		.verbose(false)
+		.fmt(expander::Edition::_2021)
+		.write_to_out_dir(additive)
+		.expect("Expander does not fail due to IO in OUT_DIR. qed");
 
-		let out = env!("OUT_DIR");
-		let out = std::path::PathBuf::from(out);
-		let path = out.join("overlord-expansion.rs");
-		let mut f = std::fs::OpenOptions::new()
-			.write(true)
-			.create(true)
-			.truncate(true)
-			.open(&path)
-			.expect("File exists. qed");
-		f.write_all(
-			&mut format!("// {:?} \n{}", std::time::SystemTime::now(), additive).as_bytes(),
-		)
-		.expect("Got permissions to write to file. qed");
-		std::process::Command::new("rustfmt")
-			.arg("--edition=2018")
-			.arg(&path)
-			.current_dir(out)
-			.spawn()
-			.expect("Running rustfmt works. qed");
-
-		let path = path.display().to_string();
-		Ok(quote! {
-			include!( #path );
-		})
-	} else {
-		Ok(additive)
-	}
+	Ok(ts)
 }

@@ -17,10 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::{
-	v0::PARACHAIN_KEY_TYPE_ID,
-	v1::{BlockNumber, ValidatorId},
-};
+use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -111,6 +108,49 @@ fn check_code_is_stored(validation_code: &ValidationCode) {
 fn check_code_is_not_stored(validation_code: &ValidationCode) {
 	assert!(!<Paras as Store>::CodeByHashRefs::contains_key(validation_code.hash()));
 	assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+}
+
+/// An utility for checking that certain events were deposited.
+struct EventValidator {
+	events:
+		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v2::Hash>>,
+}
+
+impl EventValidator {
+	fn new() -> Self {
+		Self { events: Vec::new() }
+	}
+
+	fn started(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
+		self.events.push(frame_system::EventRecord {
+			phase: frame_system::Phase::Initialization,
+			event: Event::PvfCheckStarted(code.hash(), id).into(),
+			topics: vec![],
+		});
+		self
+	}
+
+	fn rejected(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
+		self.events.push(frame_system::EventRecord {
+			phase: frame_system::Phase::Initialization,
+			event: Event::PvfCheckRejected(code.hash(), id).into(),
+			topics: vec![],
+		});
+		self
+	}
+
+	fn accepted(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
+		self.events.push(frame_system::EventRecord {
+			phase: frame_system::Phase::Initialization,
+			event: Event::PvfCheckAccepted(code.hash(), id).into(),
+			topics: vec![],
+		});
+		self
+	}
+
+	fn check(&self) {
+		assert_eq!(&frame_system::Pallet::<Test>::events(), &self.events);
+	}
 }
 
 #[test]
@@ -977,6 +1017,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 
 	let a = ParaId::from(111);
 	let b = ParaId::from(222);
+	let existing_code: ValidationCode = vec![1, 2, 3].into();
 	let validation_code: ValidationCode = vec![3, 2, 1].into();
 
 	let paras = vec![(
@@ -984,7 +1025,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		ParaGenesisArgs {
 			parachain: true,
 			genesis_head: Default::default(),
-			validation_code: ValidationCode(vec![]), // valid since in genesis
+			validation_code: existing_code,
 		},
 	)];
 
@@ -1048,6 +1089,14 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 			<Paras as Store>::FutureCodeUpgrades::get(&a),
 			Some(RELAY_PARENT + validation_upgrade_delay),
 		);
+
+		// Verify that the required events were emitted.
+		EventValidator::new()
+			.started(&validation_code, b)
+			.started(&validation_code, a)
+			.accepted(&validation_code, b)
+			.accepted(&validation_code, a)
+			.check();
 	});
 }
 
@@ -1108,6 +1157,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 #[test]
 fn pvf_check_upgrade_reject() {
 	let a = ParaId::from(111);
+	let old_code: ValidationCode = vec![1, 2, 3].into();
 	let new_code: ValidationCode = vec![3, 2, 1].into();
 
 	let paras = vec![(
@@ -1115,7 +1165,7 @@ fn pvf_check_upgrade_reject() {
 		ParaGenesisArgs {
 			parachain: false,
 			genesis_head: Default::default(),
-			validation_code: ValidationCode(vec![]), // valid since in genesis
+			validation_code: old_code,
 		},
 	)];
 
@@ -1157,6 +1207,50 @@ fn pvf_check_upgrade_reject() {
 		assert!(<Paras as Store>::PvfActiveVoteMap::get(&new_code.hash()).is_none());
 		assert!(Paras::pvfs_require_precheck().is_empty());
 		assert!(<Paras as Store>::FutureCodeHash::get(&a).is_none());
+
+		// Verify that the required events were emitted.
+		EventValidator::new().started(&new_code, a).rejected(&new_code, a).check();
+	});
+}
+
+#[test]
+fn pvf_check_submit_vote_while_disabled() {
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: HostConfiguration { pvf_checking_enabled: false, ..Default::default() },
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	new_test_ext(genesis_config).execute_with(|| {
+		// This will set the session index to 1 and seed the validators.
+		run_to_block(1, Some(vec![1]));
+
+		let stmt = PvfCheckStatement {
+			accept: false,
+			subject: ValidationCode(vec![1, 2, 3]).hash(),
+			session_index: 1,
+			validator_index: 1.into(),
+		};
+
+		let signature: ValidatorSignature =
+			Sr25519Keyring::Alice.sign(&stmt.signing_payload()).into();
+
+		let call =
+			Call::include_pvf_check_statement { stmt: stmt.clone(), signature: signature.clone() };
+
+		let validate_unsigned =
+			<Paras as ValidateUnsigned>::validate_unsigned(TransactionSource::InBlock, &call);
+		assert_eq!(
+			validate_unsigned,
+			InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
+		);
+
+		assert_err!(
+			Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone()),
+			Error::<Test>::PvfCheckDisabled
+		);
 	});
 }
 
@@ -1398,6 +1492,12 @@ fn add_trusted_validation_code_insta_approval() {
 			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
 			Some(1 + validation_upgrade_delay)
 		);
+
+		// Verify that the required events were emitted.
+		EventValidator::new()
+			.started(&validation_code, para_id)
+			.accepted(&validation_code, para_id)
+			.check();
 	});
 }
 
@@ -1442,7 +1542,7 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 
 #[test]
 fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(2020);
 
@@ -1458,7 +1558,7 @@ fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
 
 #[test]
 fn verify_upgrade_restriction_signal_is_externally_accessible() {
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(2020);
 

@@ -6,21 +6,24 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.13"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 rust-version = "1.57.0" # custom profiles
 readme = "README.md"
 
 [dependencies]
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
-color-eyre = { version = "0.5.11", default-features = false }
-parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
+color-eyre = { version = "0.6.1", default-features = false }
+parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
+tokio = "1.17.0"
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
 members = [
@@ -31,12 +34,18 @@ members = [
 	"primitives/test-helpers",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
+	"runtime/metrics",
 	"runtime/parachains",
 	"runtime/polkadot",
+	"runtime/polkadot/constants",
 	"runtime/kusama",
+	"runtime/kusama/constants",
 	"runtime/rococo",
+	"runtime/rococo/constants",
 	"runtime/westend",
+	"runtime/westend/constants",
 	"runtime/test-runtime",
+	"runtime/test-runtime/constants",
 	"statement-table",
 	"xcm",
 	"xcm/xcm-builder",
@@ -84,18 +93,22 @@ members = [
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
+	"node/gum",
+	"node/gum/proc-macro",
 	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
 	"node/test/performance-test",
 	"node/test/service",
-	"node/test/polkadot-simnet/common",
-	"node/test/polkadot-simnet/node",
-	"node/test/polkadot-simnet/test",
 	"node/zombienet-backchannel",
+	"rpc",
+	"parachain",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
+	"parachain/test-parachains/halt",
+	"parachain/test-parachains/undying",
+	"parachain/test-parachains/undying/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
@@ -108,18 +121,20 @@ exclude = ["bridges/relays/bin-substrate", "bridges/bin/rialto/runtime", "bridge
 [badges]
 maintenance = { status = "actively-developed" }
 
-# make sure dev builds with backtrace do
-# not slow us down
-[profile.dev.package.backtrace]
-opt-level = 3
-
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+opt-level = 3
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+inherits = "release"
 
 [profile.production]
 inherits = "release"
 lto = true
+codegen-units = 1
 
 [profile.testnet]
 inherits = "release"
@@ -130,8 +145,9 @@ overflow-checks = true
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
+fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
-
+pyroscope = ["polkadot-cli/pyroscope"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

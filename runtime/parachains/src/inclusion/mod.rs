@@ -21,15 +21,13 @@
 //! to included.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield},
-	scheduler::CoreAssignment,
-	shared, ump,
+	configuration, disputes, dmp, hrmp, paras, paras_inherent::DisputedBitfield,
+	scheduler::CoreAssignment, shared, ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
+use primitives::v2::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
 	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
@@ -58,7 +56,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 
 /// Determines if all checks should be applied or if a subset was already completed
 /// in a code path that will be executed afterwards or was already executed before.
-#[derive(Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub(crate) enum FullCheck {
 	/// Yes, do a full check, skip nothing.
 	Yes,
@@ -80,9 +78,9 @@ pub struct CandidatePendingAvailability<H, N> {
 	/// The candidate descriptor.
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
-	availability_votes: BitVec<BitOrderLsb0, u8>,
+	availability_votes: BitVec<u8, BitOrderLsb0>,
 	/// The backers of the candidate pending availability.
-	backers: BitVec<BitOrderLsb0, u8>,
+	backers: BitVec<u8, BitOrderLsb0>,
 	/// The block number of the relay-parent of the receipt.
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
@@ -93,7 +91,7 @@ pub struct CandidatePendingAvailability<H, N> {
 
 impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the availability votes on the candidate.
-	pub(crate) fn availability_votes(&self) -> &BitVec<BitOrderLsb0, u8> {
+	pub(crate) fn availability_votes(&self) -> &BitVec<u8, BitOrderLsb0> {
 		&self.availability_votes
 	}
 
@@ -122,8 +120,8 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		core: CoreIndex,
 		hash: CandidateHash,
 		descriptor: CandidateDescriptor<H>,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
-		backers: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
+		backers: BitVec<u8, BitOrderLsb0>,
 		relay_parent_number: N,
 		backed_in_number: N,
 		backing_group: GroupIndex,
@@ -170,6 +168,9 @@ impl<H> Default for ProcessedCandidates<H> {
 }
 
 /// Number of backing votes we need for a valid backing.
+///
+/// WARNING: This check has to be kept in sync with the node side check in the backing
+/// subsystem.
 pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// For considerations on this value see:
 	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
@@ -184,6 +185,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -214,8 +216,18 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// Validator indices are out of order or contains duplicates.
+		UnsortedOrDuplicateValidatorIndices,
+		/// Dispute statement sets are out of order or contain duplicates.
+		UnsortedOrDuplicateDisputeStatementSet,
+		/// Backed candidates are out of order (core index) or contain duplicates.
+		UnsortedOrDuplicateBackedCandidates,
+		/// A different relay parent was provided compared to the on-chain stored one.
+		UnexpectedRelayParent,
 		/// Availability bitfield has unexpected size.
 		WrongBitfieldSize,
+		/// Bitfield consists of zeros only.
+		BitfieldAllZeros,
 		/// Multiple bitfields submitted by same validator or validators out of order by index.
 		BitfieldDuplicateOrUnordered,
 		/// Validator index out of bounds.
@@ -311,11 +323,12 @@ impl<T: Config> Pallet<T> {
 	/// Extract the freed cores based on cores that became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
-	pub(crate) fn update_pending_availability_and_get_freed_cores<F, const ON_CHAIN_USE: bool>(
+	pub(crate) fn update_pending_availability_and_get_freed_cores<F>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: F,
+		enact_candidate: bool,
 	) -> Vec<(CoreIndex, CandidateHash)>
 	where
 		F: Fn(CoreIndex) -> Option<ParaId>,
@@ -387,7 +400,7 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				if ON_CHAIN_USE {
+				if enact_candidate {
 					let receipt = CommittedCandidateReceipt {
 						descriptor: pending_availability.descriptor,
 						commitments,
@@ -420,29 +433,31 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Vec<(CoreIndex, CandidateHash)> {
+		full_check: FullCheck,
+	) -> Result<Vec<(CoreIndex, CandidateHash)>, crate::inclusion::Error<T>> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T>(
+		let checked_bitfields = crate::paras_inherent::assure_sanity_bitfields::<T>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
 			parent_hash,
 			session_index,
 			&validators[..],
-			FullCheck::Yes,
-		);
+			full_check,
+		)?;
 
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
+		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_>(
 			expected_bits,
 			&validators[..],
 			checked_bitfields,
 			core_lookup,
+			true,
 		);
 
-		freed_cores
+		Ok(freed_cores)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -455,7 +470,6 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
-		full_check: FullCheck,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -511,16 +525,29 @@ impl<T: Config> Pallet<T> {
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
 				candidates.iter().enumerate()
 			{
-				if let FullCheck::Yes = full_check {
-					check_ctx.verify_backed_candidate(
-						parent_hash,
-						candidate_idx,
-						backed_candidate,
-					)?;
+				match check_ctx.verify_backed_candidate(
+					parent_hash,
+					parent_storage_root,
+					candidate_idx,
+					backed_candidate,
+				)? {
+					Err(FailedToCreatePVD) => {
+						log::debug!(
+							target: LOG_TARGET,
+							"Failed to create PVD for candidate {} on relay parent {:?}",
+							candidate_idx,
+							parent_hash,
+						);
+						// We don't want to error out here because it will
+						// brick the relay-chain. So we return early without
+						// doing anything.
+						return Ok(ProcessedCandidates::default())
+					},
+					Ok(rpn) => rpn,
 				}
 
 				let para_id = backed_candidate.descriptor().para_id;
-				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -530,32 +557,6 @@ impl<T: Config> Pallet<T> {
 							ensure!(
 								required_collator == &backed_candidate.descriptor().collator,
 								Error::<T>::WrongCollator,
-							);
-						}
-
-						{
-							// this should never fail because the para is registered
-							let persisted_validation_data =
-								match crate::util::make_persisted_validation_data::<T>(
-									para_id,
-									relay_parent_number,
-									parent_storage_root,
-								) {
-									Some(l) => l,
-									None => {
-										// We don't want to error out here because it will
-										// brick the relay-chain. So we return early without
-										// doing anything.
-										return Ok(ProcessedCandidates::default())
-									},
-								};
-
-							let expected = persisted_validation_data.hash();
-
-							ensure!(
-								expected ==
-									backed_candidate.descriptor().persisted_validation_data_hash,
-								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
 
@@ -573,7 +574,7 @@ impl<T: Config> Pallet<T> {
 
 						// check the signatures in the backing and that it is a majority.
 						{
-							let maybe_amount_validated = primitives::v1::check_candidate_backing(
+							let maybe_amount_validated = primitives::v2::check_candidate_backing(
 								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
@@ -651,8 +652,8 @@ impl<T: Config> Pallet<T> {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.
-			let availability_votes: BitVec<BitOrderLsb0, u8> =
-				bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+			let availability_votes: BitVec<u8, BitOrderLsb0> =
+				bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
@@ -691,7 +692,7 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
-		validation_outputs: primitives::v1::CandidateCommitments,
+		validation_outputs: primitives::v2::CandidateCommitments,
 	) -> bool {
 		// This function is meant to be called from the runtime APIs against the relay-parent, hence
 		// `relay_parent_number` is equal to `now`.
@@ -723,8 +724,8 @@ impl<T: Config> Pallet<T> {
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
-		backers: BitVec<BitOrderLsb0, u8>,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		backers: BitVec<u8, BitOrderLsb0>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 		core_index: CoreIndex,
 		backing_group: GroupIndex,
 	) -> Weight {
@@ -940,6 +941,10 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 	relay_parent_number: T::BlockNumber,
 }
 
+/// An error indicating that creating Persisted Validation Data failed
+/// while checking a candidate's validity.
+pub(crate) struct FailedToCreatePVD;
+
 impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
@@ -955,10 +960,32 @@ impl<T: Config> CandidateCheckContext<T> {
 	pub(crate) fn verify_backed_candidate(
 		&self,
 		parent_hash: <T as frame_system::Config>::Hash,
+		parent_storage_root: T::Hash,
 		candidate_idx: usize,
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
-	) -> Result<(), Error<T>> {
+	) -> Result<Result<(), FailedToCreatePVD>, Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
+		let now = <frame_system::Pallet<T>>::block_number();
+		let relay_parent_number = now - One::one();
+
+		{
+			// this should never fail because the para is registered
+			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+				parent_storage_root,
+			) {
+				Some(l) => l,
+				None => return Ok(Err(FailedToCreatePVD)),
+			};
+
+			let expected = persisted_validation_data.hash();
+
+			ensure!(
+				expected == backed_candidate.descriptor().persisted_validation_data_hash,
+				Error::<T>::ValidationDataHashMismatch,
+			);
+		}
 
 		// we require that the candidate is in the context of the parent block.
 		ensure!(
@@ -1002,7 +1029,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			);
 			Err(err.strip_into_dispatch_err::<T>())?;
 		};
-		Ok(())
+		Ok(Ok(()))
 	}
 
 	/// Check the given outputs after candidate validation on whether it passes the acceptance
@@ -1011,11 +1038,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		&self,
 		para_id: ParaId,
 		head_data: &HeadData,
-		new_validation_code: &Option<primitives::v1::ValidationCode>,
+		new_validation_code: &Option<primitives::v2::ValidationCode>,
 		processed_downward_messages: u32,
-		upward_messages: &[primitives::v1::UpwardMessage],
+		upward_messages: &[primitives::v2::UpwardMessage],
 		hrmp_watermark: T::BlockNumber,
-		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
+		horizontal_messages: &[primitives::v2::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,

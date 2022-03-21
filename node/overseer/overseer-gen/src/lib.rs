@@ -63,11 +63,11 @@
 pub use polkadot_overseer_gen_proc_macro::overlord;
 
 #[doc(hidden)]
+pub use gum;
+#[doc(hidden)]
 pub use metered;
 #[doc(hidden)]
 pub use polkadot_node_primitives::SpawnNamed;
-#[doc(hidden)]
-pub use tracing;
 
 #[doc(hidden)]
 pub use async_trait::async_trait;
@@ -196,13 +196,15 @@ pub struct SignalsReceived(Arc<AtomicUsize>);
 impl SignalsReceived {
 	/// Load the current value of received signals.
 	pub fn load(&self) -> usize {
-		// off by a few is ok
-		self.0.load(atomic::Ordering::Relaxed)
+		// It's imperative that we prevent reading a stale value from memory because of reordering.
+		// Memory barrier to ensure that no reads or writes in the current thread before this load are reordered.
+		// All writes in other threads using release semantics become visible to the current thread.
+		self.0.load(atomic::Ordering::Acquire)
 	}
 
 	/// Increase the number of signals by one.
 	pub fn inc(&self) {
-		self.0.fetch_add(1, atomic::Ordering::Acquire);
+		self.0.fetch_add(1, atomic::Ordering::AcqRel);
 	}
 }
 

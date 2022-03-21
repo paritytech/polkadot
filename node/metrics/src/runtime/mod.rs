@@ -24,7 +24,7 @@
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
-use primitives::v1::{
+use primitives::v2::{
 	metric_definitions::{CounterDefinition, CounterVecDefinition},
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
@@ -106,11 +106,7 @@ impl RuntimeMetricsProvider {
 		F: FnOnce(MutexGuard<'_, HashMap<String, Counter<U64>>>) -> Result<(), PrometheusError>,
 	{
 		let _ = self.1.counters.lock().map(do_something).or_else(|error| {
-			tracing::error!(
-				target: LOG_TARGET,
-				"Cannot acquire the counter hashmap lock: {:?}",
-				error
-			);
+			gum::error!(target: LOG_TARGET, "Cannot acquire the counter hashmap lock: {:?}", error);
 			Err(error)
 		});
 	}
@@ -120,7 +116,7 @@ impl RuntimeMetricsProvider {
 		F: FnOnce(MutexGuard<'_, HashMap<String, CounterVec<U64>>>) -> Result<(), PrometheusError>,
 	{
 		let _ = self.1.counter_vecs.lock().map(do_something).or_else(|error| {
-			tracing::error!(
+			gum::error!(
 				target: LOG_TARGET,
 				"Cannot acquire the countervec hashmap lock: {:?}",
 				error
@@ -154,7 +150,7 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 					self.parse_metric_update(update_op);
 				},
 				Err(e) => {
-					tracing::error!(target: LOG_TARGET, "TraceEvent decode failed: {:?}", e);
+					gum::error!(target: LOG_TARGET, "TraceEvent decode failed: {:?}", e);
 				},
 			}
 		}
@@ -195,7 +191,7 @@ impl RuntimeMetricsProvider {
 pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
 	|logger_builder, config| {
 		if config.prometheus_registry().is_none() {
-			tracing::debug!(target: LOG_TARGET, "Prometheus registry is not configured.",);
+			gum::debug!(target: LOG_TARGET, "Prometheus registry is not configured.",);
 			return
 		}
 		let registry = config.prometheus_registry().cloned().unwrap();

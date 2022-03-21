@@ -27,7 +27,6 @@
 use std::{collections::HashSet, sync::Arc};
 
 use futures::FutureExt;
-use kvdb::KeyValueDB;
 
 use sc_keystore::LocalKeystore;
 
@@ -36,17 +35,19 @@ use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
+use polkadot_node_subsystem_util::{
+	database::Database, rolling_session_window::RollingSessionWindow,
+};
+use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair};
 
 use crate::{
-	error::{Error, FatalResult, NonFatal, Result},
+	error::{FatalResult, JfyiError, Result},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
-
 use backend::{Backend, OverlayedBackend};
 use db::v1::DbBackend;
+use fatality::Split;
 
 use self::{
 	ordering::CandidateComparator,
@@ -100,7 +101,7 @@ mod tests;
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
 	config: Config,
-	store: Arc<dyn KeyValueDB>,
+	store: Arc<dyn Database>,
 	keystore: Arc<LocalKeystore>,
 	metrics: Metrics,
 }
@@ -139,7 +140,7 @@ where
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(
-		store: Arc<dyn KeyValueDB>,
+		store: Arc<dyn Database>,
 		config: Config,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
@@ -193,15 +194,18 @@ impl DisputeCoordinatorSubsystem {
 			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
 				Ok(Some(update)) => update,
 				Ok(None) => {
-					tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+					gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 					return Ok(None)
 				},
-				Err(Error::Fatal(f)) => return Err(f),
-				Err(Error::NonFatal(e)) => {
-					e.log();
+				Err(e) => {
+					e.split()?.log();
 					continue
 				},
 			};
+
+			// Before we move to the initialized state we need to check if we got at
+			// least on finality notification to prevent large ancestry block scraping,
+			// when the node is syncing.
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, spam_slots, ordering_provider) = match self
@@ -215,9 +219,8 @@ impl DisputeCoordinatorSubsystem {
 				.await
 			{
 				Ok(v) => v,
-				Err(Error::Fatal(f)) => return Err(f),
-				Err(Error::NonFatal(e)) => {
-					e.log();
+				Err(e) => {
+					e.split()?.log();
 					continue
 				},
 			};
@@ -264,11 +267,7 @@ impl DisputeCoordinatorSubsystem {
 				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
 			Err(e) => {
-				tracing::error!(
-					target: LOG_TARGET,
-					"Failed initial load of recent disputes: {:?}",
-					e
-				);
+				gum::error!(target: LOG_TARGET, "Failed initial load of recent disputes: {:?}", e);
 				return Err(e.into())
 			},
 		};
@@ -282,7 +281,7 @@ impl DisputeCoordinatorSubsystem {
 					Ok(Some(votes)) => votes.into(),
 					Ok(None) => continue,
 					Err(e) => {
-						tracing::error!(
+						gum::error!(
 							target: LOG_TARGET,
 							"Failed initial load of candidate votes: {:?}",
 							e
@@ -293,7 +292,7 @@ impl DisputeCoordinatorSubsystem {
 
 			let validators = match rolling_session_window.session_info(session) {
 				None => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						session,
 						"Missing info for session which has an active dispute",
@@ -367,7 +366,7 @@ where
 			leaf.clone(),
 			RollingSessionWindow::new(ctx, DISPUTE_WINDOW, leaf.hash)
 				.await
-				.map_err(NonFatal::RollingSessionWindow)?,
+				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
 	} else {
 		Ok(None)
@@ -390,16 +389,20 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-			// Note: It seems we really should not receive any messages before the first
-			// `ActiveLeavesUpdate`, if that proves wrong over time and we do receive
-			// messages before the first `ActiveLeavesUpdate` that should not be dropped,
-			// this can easily be fixed by collecting those messages and passing them on to
-			// `Initialized::new()`.
-				tracing::warn!(
+			// NOTE: We could technically actually handle a couple of message types, even if
+			// not initialized (e.g. all requests that only query the database). The problem
+			// is, we would deliver potentially outdated information, especially in the event
+			// of bugs where initialization fails for a while (e.g. `SessionInfo`s are not
+			// available). So instead of telling subsystems, everything is fine, because of an
+			// hour old database state, we should rather cancel contained oneshots and delay
+			// finality until we are fully functional.
+			{
+				gum::warn!(
 					target: LOG_TARGET,
 					?msg,
 					"Received msg before first active leaves update. This is not expected - message will be dropped."
-				),
+				)
+			},
 		}
 	}
 }

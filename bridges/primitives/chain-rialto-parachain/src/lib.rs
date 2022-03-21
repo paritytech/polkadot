@@ -17,8 +17,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // RuntimeApi generated functions
 #![allow(clippy::too_many_arguments)]
-// Runtime-generated DecodeLimit::decode_all_With_depth_limit
-#![allow(clippy::unnecessary_mut_passed)]
 
 use bp_runtime::Chain;
 use frame_support::{
@@ -92,6 +90,17 @@ impl Chain for RialtoParachain {
 	type Balance = Balance;
 	type Index = Index;
 	type Signature = Signature;
+
+	fn max_extrinsic_size() -> u32 {
+		*BlockLength::get().max.get(DispatchClass::Normal)
+	}
+
+	fn max_extrinsic_weight() -> Weight {
+		BlockWeights::get()
+			.get(DispatchClass::Normal)
+			.max_extrinsic
+			.unwrap_or(Weight::MAX)
+	}
 }
 
 frame_support::parameter_types! {
@@ -112,17 +121,4 @@ frame_support::parameter_types! {
 		// This parameter is used to derive maximal size of a single extrinsic.
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
-}
-
-/// Get the maximum weight (compute time) that a Normal extrinsic on the Millau chain can use.
-pub fn max_extrinsic_weight() -> Weight {
-	BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.unwrap_or(Weight::MAX)
-}
-
-/// Get the maximum length in bytes that a Normal extrinsic on the Millau chain requires.
-pub fn max_extrinsic_size() -> u32 {
-	*BlockLength::get().max.get(DispatchClass::Normal)
 }

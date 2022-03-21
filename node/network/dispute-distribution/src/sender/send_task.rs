@@ -27,7 +27,7 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
 use polkadot_subsystem::{
@@ -35,7 +35,7 @@ use polkadot_subsystem::{
 	SubsystemContext,
 };
 
-use super::error::{Fatal, Result};
+use super::error::{FatalError, Result};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
@@ -159,7 +159,7 @@ impl SendTask {
 	pub fn on_finished_send(&mut self, authority: &AuthorityDiscoveryId, result: TaskResult) {
 		match result {
 			TaskResult::Failed(err) => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?authority,
 					candidate_hash = %self.request.0.candidate_receipt.hash(),
@@ -176,7 +176,7 @@ impl SendTask {
 					None => {
 						// Can happen when a sending became irrelevant while the response was already
 						// queued.
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							candidate = ?self.request.0.candidate_receipt.hash(),
 							?authority,
@@ -204,7 +204,8 @@ impl SendTask {
 		active_sessions: &HashMap<SessionIndex, Hash>,
 	) -> Result<HashSet<AuthorityDiscoveryId>> {
 		let ref_head = self.request.0.candidate_receipt.descriptor.relay_parent;
-		// Parachain validators:
+		// Retrieve all authorities which participated in the parachain consensus of the session
+		// in which the candidate was backed.
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), ref_head, self.request.0.session_index)
 			.await?;
@@ -219,7 +220,8 @@ impl SendTask {
 			.map(|(_, v)| v.clone())
 			.collect();
 
-		// Current authorities:
+		// Retrieve all authorities for the current session as indicated by the active
+		// heads we are tracking.
 		for (session_index, head) in active_sessions.iter() {
 			let info =
 				runtime.get_session_info_by_index(ctx.sender(), *head, *session_index).await?;
@@ -264,7 +266,7 @@ async fn send_requests<Context: SubsystemContext>(
 		);
 
 		let (remote, remote_handle) = fut.remote_handle();
-		ctx.spawn("dispute-sender", remote.boxed()).map_err(Fatal::SpawnTask)?;
+		ctx.spawn("dispute-sender", remote.boxed()).map_err(FatalError::SpawnTask)?;
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 
@@ -288,7 +290,7 @@ async fn wait_response_task(
 			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded },
 	};
 	if let Err(err) = tx.feed(msg).await {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			%err,
 			"Failed to notify susystem about dispute sending result."

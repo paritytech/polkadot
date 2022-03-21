@@ -18,6 +18,7 @@ use crate::{
 	cli::{bridge::FullBridge, AccountId, CliChain, HexBytes},
 	select_full_bridge,
 };
+use frame_support::weights::Weight;
 use structopt::StructOpt;
 use strum::VariantNames;
 
@@ -37,6 +38,12 @@ pub enum MessagePayload {
 		/// SS58 encoded Source account that will send the payload.
 		#[structopt(long)]
 		sender: AccountId,
+		/// Weight of the call.
+		///
+		/// It must be specified if the chain runtime is not bundled with the relay, or if
+		/// you want to override bundled weight.
+		#[structopt(long)]
+		dispatch_weight: Option<Weight>,
 	},
 }
 
@@ -97,6 +104,8 @@ mod tests {
 			"call",
 			"--sender",
 			&sender,
+			"--dispatch-weight",
+			"42",
 			"remark",
 			"--remark-size",
 			"12",
@@ -106,6 +115,6 @@ mod tests {
 		let hex = encode_message.encode().unwrap();
 
 		// then
-		assert_eq!(format!("{:?}", hex), "0x0100000010f108000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c000130000000000000000000000000");
+		assert_eq!(format!("{:?}", hex), "0x010000002a0000000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c000130000000000000000000000000");
 	}
 }

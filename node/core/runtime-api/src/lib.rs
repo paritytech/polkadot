@@ -23,10 +23,7 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::{
-	v1::{Block, BlockId, Hash},
-	v2::ParachainHost,
-};
+use polkadot_primitives::v2::{Block, BlockId, Hash, ParachainHost};
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -147,7 +144,9 @@ where
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
 			SessionInfo(_relay_parent, session_index, info) =>
-				self.requests_cache.cache_session_info(session_index, info),
+				if let Some(info) = info {
+					self.requests_cache.cache_session_info(session_index, info);
+				},
 			DmqContents(relay_parent, para_id, messages) =>
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
 			InboundHrmpChannelsContents(relay_parent, para_id, contents) => self
@@ -163,6 +162,8 @@ where
 			ValidationCodeHash(relay_parent, para_id, assumption, hash) => self
 				.requests_cache
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
+			Version(relay_parent, version) =>
+				self.requests_cache.cache_version(relay_parent, version),
 		}
 	}
 
@@ -193,6 +194,8 @@ where
 		}
 
 		match request {
+			Request::Version(sender) =>
+				query!(version(), sender).map(|sender| Request::Version(sender)),
 			Request::Authorities(sender) =>
 				query!(authorities(), sender).map(|sender| Request::Authorities(sender)),
 			Request::Validators(sender) =>
@@ -235,8 +238,15 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
-			Request::SessionInfo(index, sender) => query!(session_info(index), sender)
-				.map(|sender| Request::SessionInfo(index, sender)),
+			Request::SessionInfo(index, sender) => {
+				if let Some(info) = self.requests_cache.session_info(index) {
+					self.metrics.on_cached_request();
+					let _ = sender.send(Ok(Some(info.clone())));
+					None
+				} else {
+					Some(Request::SessionInfo(index, sender))
+				}
+			},
 			Request::DmqContents(id, sender) =>
 				query!(dmq_contents(id), sender).map(|sender| Request::DmqContents(id, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>
@@ -281,7 +291,7 @@ where
 			self.waiting_requests.push_back((request, receiver));
 
 			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					"{} runtime API requests waiting to be executed.",
 					self.waiting_requests.len(),
@@ -351,6 +361,8 @@ where
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
+	use sp_api::ApiExt;
+
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
@@ -358,10 +370,9 @@ where
 			let sender = $sender;
 			let api = client.runtime_api();
 
-			use sp_api::ApiExt;
 			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
 				.unwrap_or_else(|e| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"cannot query the runtime API version: {}",
 						e,
@@ -369,7 +380,7 @@ where
 					Some(0)
 				})
 				.unwrap_or_else(|| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"no runtime version is reported"
 					);
@@ -395,6 +406,24 @@ where
 	}
 
 	match request {
+		Request::Version(sender) => {
+			let api = client.runtime_api();
+
+			let runtime_version = match api
+				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+			{
+				Ok(Some(v)) => Ok(v),
+				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
+				Err(e) => Err(RuntimeApiError::Execution {
+					runtime_api_name: "api_version",
+					source: std::sync::Arc::new(e),
+				}),
+			};
+
+			let _ = sender.send(runtime_version.clone());
+			runtime_version.ok().map(|v| RequestResult::Version(relay_parent, v))
+		},
+
 		Request::Authorities(sender) => query!(Authorities, authorities(), ver = 1, sender),
 		Request::Validators(sender) => query!(Validators, validators(), ver = 1, sender),
 		Request::ValidatorGroups(sender) =>
@@ -439,8 +468,6 @@ where
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
 		Request::SessionInfo(index, sender) => {
-			use sp_api::ApiExt;
-
 			let api = client.runtime_api();
 			let block_id = BlockId::Hash(relay_parent);
 

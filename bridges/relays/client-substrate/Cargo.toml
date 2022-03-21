@@ -2,25 +2,27 @@
 name = "relay-substrate-client"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
 async-std = { version = "1.6.5", features = ["attributes"] }
 async-trait = "0.1.40"
-codec = { package = "parity-scale-codec", version = "2.2.0" }
-jsonrpsee-proc-macros = "0.3.1"
-jsonrpsee-ws-client = "0.3.1"
+codec = { package = "parity-scale-codec", version = "3.0.0" }
+jsonrpsee = { version = "0.8", features = ["macros", "ws-client"] }
 log = "0.4.11"
 num-traits = "0.2"
 rand = "0.7"
-tokio = "1.8"
+serde = { version = "1.0" }
+tokio = { version = "1.8", features = ["rt-multi-thread"] }
 thiserror = "1.0.26"
 
 # Bridge dependencies
 
 bp-header-chain = { path = "../../primitives/header-chain" }
+bp-messages = { path = "../../primitives/messages" }
 bp-runtime = { path = "../../primitives/runtime" }
+pallet-bridge-messages = { path = "../../modules/messages" }
 finality-relay = { path = "../finality" }
 relay-utils = { path = "../utils" }
 
@@ -31,9 +33,10 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

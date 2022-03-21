@@ -16,10 +16,10 @@
 
 //! Polkadot CLI library.
 
-use structopt::StructOpt;
+use clap::Parser;
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Build a chain specification.
 	BuildSpec(sc_cli::BuildSpecCmd),
@@ -43,16 +43,19 @@ pub enum Subcommand {
 	Revert(sc_cli::RevertCmd),
 
 	#[allow(missing_docs)]
-	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	#[clap(name = "prepare-worker", hide = true)]
 	PvfPrepareWorker(ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
-	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	#[clap(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(ValidationWorkerCommand),
 
 	/// The custom benchmark subcommand benchmarking runtime pallets.
-	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
+	#[clap(name = "benchmark", about = "Benchmark runtime pallets.")]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	#[clap(name = "benchmark-storage", about = "Benchmark storage speed.")]
+	BenchmarkStorage(frame_benchmarking_cli::StorageCmd),
 
 	/// Runs performance checks such as PVF compilation in order to measure machine
 	/// capabilities of running a validator.
@@ -67,33 +70,34 @@ pub enum Subcommand {
 	TryRuntime,
 
 	/// Key management CLI utilities
+	#[clap(subcommand)]
 	Key(sc_cli::KeySubcommand),
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct ValidationWorkerCommand {
 	/// The path to the validation host's socket.
 	pub socket_path: String,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
 	/// Force using Kusama native runtime.
-	#[structopt(long = "force-kusama")]
+	#[clap(long = "force-kusama")]
 	pub force_kusama: bool,
 
 	/// Force using Westend native runtime.
-	#[structopt(long = "force-westend")]
+	#[clap(long = "force-westend")]
 	pub force_westend: bool,
 
 	/// Force using Rococo native runtime.
-	#[structopt(long = "force-rococo")]
+	#[clap(long = "force-rococo")]
 	pub force_rococo: bool,
 
 	/// Setup a GRANDPA scheduled voting pause.
@@ -102,26 +106,33 @@ pub struct RunCmd {
 	/// blocks). After the given block number is finalized the GRANDPA voter
 	/// will temporarily stop voting for new blocks until the given delay has
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
-	#[structopt(long = "grandpa-pause", number_of_values(2))]
+	#[clap(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
 
 	/// Enable the BEEFY gadget (only on Rococo or Wococo for now).
-	#[structopt(long)]
+	#[clap(long)]
 	pub beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`
 	/// commonly `127.0.0.1:6831`.
-	#[structopt(long)]
-	pub jaeger_agent: Option<std::net::SocketAddr>,
+	#[clap(long)]
+	pub jaeger_agent: Option<String>,
+
+	/// Add the destination address to the `pyroscope` agent.
+	///
+	/// Must be valid socket address, of format `IP:Port`
+	/// commonly `127.0.0.1:4040`.
+	#[clap(long)]
+	pub pyroscope_server: Option<String>,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Cli {
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	pub subcommand: Option<Subcommand>,
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub run: RunCmd,
 }

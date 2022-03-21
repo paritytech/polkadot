@@ -24,7 +24,7 @@
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
 use polkadot_node_primitives::BlockWeight;
-use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_primitives::v2::{BlockNumber, Hash};
 
 use std::collections::HashMap;
 
@@ -140,7 +140,7 @@ fn propagate_viability_update(
 			BlockEntryRef::Explicit(entry) => entry,
 			BlockEntryRef::Hash(hash) => match backend.load_block_entry(&hash)? {
 				None => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						block_hash = ?hash,
 						"Missing expected block entry"
@@ -360,7 +360,7 @@ fn apply_reversions(
 		let mut ancestor_entry =
 			match load_ancestor(backend, block_hash, block_number, revert_number)? {
 				None => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						?block_hash,
 						block_number,
@@ -373,7 +373,7 @@ fn apply_reversions(
 					continue
 				},
 				Some(ancestor_entry) => {
-					tracing::info!(
+					gum::info!(
 						target: LOG_TARGET,
 						?block_hash,
 						block_number,
@@ -480,7 +480,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 
 			propagate_viability_update(&mut backend, child)?;
 		} else {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?finalized_hash,
 				finalized_number,
@@ -515,7 +515,7 @@ pub(super) fn approve_block(
 			backend.write_block_entry(entry);
 		}
 	} else {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			block_hash = ?approved_hash,
 			"Missing entry for freshly-approved block. Ignoring"

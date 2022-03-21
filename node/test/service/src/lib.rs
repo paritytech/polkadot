@@ -25,10 +25,12 @@ use futures::future::Future;
 use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
-use polkadot_primitives::v1::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
+use polkadot_primitives::v2::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
-use polkadot_service::{ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull};
+use polkadot_service::{
+	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
+};
 use polkadot_test_runtime::{
 	ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall, UncheckedExtrinsic,
 	VERSION,
@@ -39,16 +41,20 @@ use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
-use service::{
+use sc_service::{
 	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager, TransactionStorageMode,
+	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager,
 };
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+	net::{Ipv4Addr, SocketAddr},
+	path::PathBuf,
+	sync::Arc,
+};
 use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
@@ -89,6 +95,7 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		false,
 		polkadot_service::RealOverseerGen,
 	)
 }
@@ -100,6 +107,14 @@ impl ClientHandle for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
 	}
+}
+
+/// Returns a prometheus config usable for testing.
+pub fn test_prometheus_config(port: u16) -> PrometheusConfig {
+	PrometheusConfig::new_with_default_registry(
+		SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port),
+		"test-chain".to_string(),
+	)
 }
 
 /// Create a Polkadot `Configuration`.
@@ -158,9 +173,8 @@ pub fn node_config(
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),
 		keep_blocks: KeepBlocks::All,
-		transaction_storage: TransactionStorageMode::BlockBody,
 		chain_spec: Box::new(spec),
-		wasm_method: WasmExecutionMethod::Interpreted,
+		wasm_method: WasmExecutionMethod::Compiled,
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
@@ -195,21 +209,11 @@ pub fn node_config(
 	}
 }
 
-/// Run a test validator node that uses the test runtime.
-///
-/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
-/// want it to be connected to other nodes.
-///
-/// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustments to the runtime genesis storage.
+/// Run a test validator node that uses the test runtime and specified `config`.
 pub fn run_validator_node(
-	tokio_handle: tokio::runtime::Handle,
-	key: Sr25519Keyring,
-	storage_update_func: impl Fn(),
-	boot_nodes: Vec<MultiaddrWithPeerId>,
+	config: Configuration,
 	worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
-	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::No, worker_program_path)
@@ -368,7 +372,7 @@ pub fn construct_extrinsic(
 	UncheckedExtrinsic::new_signed(
 		function.clone(),
 		polkadot_test_runtime::Address::Id(caller.public().into()),
-		polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
+		polkadot_primitives::v2::Signature::Sr25519(signature.clone()),
 		extra.clone(),
 	)
 }

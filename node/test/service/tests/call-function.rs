@@ -19,8 +19,10 @@ use sp_keyring::Sr25519Keyring::{Alice, Bob, Charlie};
 
 #[substrate_test_utils::test]
 async fn call_function_actually_work() {
-	let alice =
-		run_validator_node(tokio::runtime::Handle::current(), Alice, || {}, Vec::new(), None);
+	let alice_config =
+		node_config(|| {}, tokio::runtime::Handle::current(), Alice, Vec::new(), true);
+
+	let alice = run_validator_node(alice_config, None);
 
 	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
 		dest: Charlie.to_account_id().into(),

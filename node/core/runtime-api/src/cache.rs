@@ -20,15 +20,12 @@ use memory_lru::{MemoryLruCache, ResidentSize};
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 use sp_consensus_babe::Epoch;
 
-use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, ScrapedOnChainVotes, SessionIndex, ValidationCode,
-		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v2::{PvfCheckStatement, SessionInfo},
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
+	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -49,6 +46,7 @@ const CURRENT_BABE_EPOCH_CACHE_SIZE: usize = 64 * 1024;
 const ON_CHAIN_VOTES_CACHE_SIZE: usize = 3 * 1024;
 const PVFS_REQUIRE_PRECHECK_SIZE: usize = 1024;
 const VALIDATION_CODE_HASH_CACHE_SIZE: usize = 64 * 1024;
+const VERSION_CACHE_SIZE: usize = 4 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -102,7 +100,7 @@ pub(crate) struct RequestResultCache {
 	candidate_pending_availability:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
-	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<Option<SessionInfo>>>,
+	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<SessionInfo>>,
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
 	inbound_hrmp_channels_contents: MemoryLruCache<
@@ -116,6 +114,7 @@ pub(crate) struct RequestResultCache {
 		(Hash, ParaId, OccupiedCoreAssumption),
 		ResidentSizeOf<Option<ValidationCodeHash>>,
 	>,
+	version: MemoryLruCache<Hash, ResidentSizeOf<u32>>,
 }
 
 impl Default for RequestResultCache {
@@ -142,6 +141,7 @@ impl Default for RequestResultCache {
 			on_chain_votes: MemoryLruCache::new(ON_CHAIN_VOTES_CACHE_SIZE),
 			pvfs_require_precheck: MemoryLruCache::new(PVFS_REQUIRE_PRECHECK_SIZE),
 			validation_code_hash: MemoryLruCache::new(VALIDATION_CODE_HASH_CACHE_SIZE),
+			version: MemoryLruCache::new(VERSION_CACHE_SIZE),
 		}
 	}
 }
@@ -309,14 +309,11 @@ impl RequestResultCache {
 		self.candidate_events.insert(relay_parent, ResidentSizeOf(events));
 	}
 
-	pub(crate) fn session_info(
-		&mut self,
-		key: (Hash, SessionIndex),
-	) -> Option<&Option<SessionInfo>> {
-		self.session_info.get(&key.1).map(|v| &v.0)
+	pub(crate) fn session_info(&mut self, key: SessionIndex) -> Option<&SessionInfo> {
+		self.session_info.get(&key).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_session_info(&mut self, key: SessionIndex, value: Option<SessionInfo>) {
+	pub(crate) fn cache_session_info(&mut self, key: SessionIndex, value: SessionInfo) {
 		self.session_info.insert(key, ResidentSizeOf(value));
 	}
 
@@ -402,6 +399,14 @@ impl RequestResultCache {
 	) {
 		self.validation_code_hash.insert(key, ResidentSizeOf(value));
 	}
+
+	pub(crate) fn version(&mut self, relay_parent: &Hash) -> Option<&u32> {
+		self.version.get(&relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_version(&mut self, key: Hash, value: u32) {
+		self.version.insert(key, ResidentSizeOf(value));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -436,4 +441,5 @@ pub(crate) enum RequestResult {
 	// This is a request with side-effects and no result, hence ().
 	SubmitPvfCheckStatement(Hash, PvfCheckStatement, ValidatorSignature, ()),
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
+	Version(Hash, u32),
 }

@@ -49,13 +49,17 @@ use polkadot_node_subsystem::{
 		RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
+	SubsystemError, SubsystemSender,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, SessionIndex};
 
 #[cfg(test)]
 mod tests;
+
+mod metrics;
+
+use metrics::Metrics;
 
 const LOG_TARGET: &str = "parachain::gossip-support";
 // How much time should we wait to reissue a connection request
@@ -104,6 +108,9 @@ pub struct GossipSupport<AD> {
 	connected_authorities_by_peer_id: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 	/// Authority discovery service.
 	authority_discovery: AD,
+
+	/// Subsystem metrics.
+	metrics: Metrics,
 }
 
 impl<AD> GossipSupport<AD>
@@ -111,7 +118,11 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
+		// Initialize metrics to `0`.
+		metrics.on_is_not_authority();
+		metrics.on_is_not_parachain_validator();
+
 		Self {
 			keystore,
 			last_session_index: None,
@@ -121,6 +132,7 @@ where
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
 			authority_discovery,
+			metrics,
 		}
 	}
 
@@ -144,7 +156,7 @@ where
 					match result {
 						Ok(message) => message,
 						Err(e) => {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								err = ?e,
 								"Failed to receive a message from Overseer, exiting",
@@ -161,11 +173,11 @@ where
 					activated,
 					..
 				})) => {
-					tracing::trace!(target: LOG_TARGET, "active leaves signal");
+					gum::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
 					if let Err(e) = self.handle_active_leaves(&mut ctx, leaves).await {
-						tracing::debug!(target: LOG_TARGET, error = ?e);
+						gum::debug!(target: LOG_TARGET, error = ?e);
 					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
@@ -203,7 +215,7 @@ where
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
 				let is_new_session = maybe_new_session.is_some();
 				if is_new_session {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						%session_index,
 						"New session detected",
@@ -223,10 +235,60 @@ where
 
 				if is_new_session {
 					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
+					self.update_authority_status_metrics(leaf, ctx.sender()).await?;
 				}
 			}
 		}
+		Ok(())
+	}
 
+	async fn update_authority_status_metrics(
+		&mut self,
+		leaf: Hash,
+		sender: &mut impl SubsystemSender,
+	) -> Result<(), util::Error> {
+		if let Some(session_info) = util::request_session_info(
+			leaf,
+			self.last_session_index
+				.expect("Last session index is always set on every session index change"),
+			sender,
+		)
+		.await
+		.await??
+		{
+			let maybe_index = match ensure_i_am_an_authority(
+				&self.keystore,
+				&session_info.discovery_keys,
+			)
+			.await
+			{
+				Ok(index) => {
+					self.metrics.on_is_authority();
+					Some(index)
+				},
+				Err(util::Error::NotAValidator) => {
+					self.metrics.on_is_not_authority();
+					self.metrics.on_is_not_parachain_validator();
+					None
+				},
+				// Don't update on runtime errors.
+				Err(_) => None,
+			};
+
+			if let Some(validator_index) = maybe_index {
+				// The subset of authorities participating in parachain consensus.
+				let parachain_validators_this_session = session_info.validators;
+
+				// First `maxValidators` entries are the parachain validators. We'll check
+				// if our index is in this set to avoid searching for the keys.
+				// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
+				if validator_index < parachain_validators_this_session.len() {
+					self.metrics.on_is_parachain_validator();
+				} else {
+					self.metrics.on_is_not_parachain_validator();
+				}
+			}
+		}
 		Ok(())
 	}
 
@@ -250,7 +312,7 @@ where
 				resolved.insert(authority, addrs);
 			} else {
 				failures += 1;
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Couldn't resolve addresses of authority: {:?}",
 					authority
@@ -258,7 +320,7 @@ where
 			}
 		}
 		self.resolved_authorities = resolved;
-		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
+		gum::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
 		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
 			validator_addrs,
@@ -273,7 +335,7 @@ where
 			match self.failure_start {
 				None => self.failure_start = Some(timestamp),
 				Some(first) if first.elapsed() >= LOW_CONNECTIVITY_WARN_DELAY => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						connected = ?(num - failures),
 						target = ?num,
@@ -281,7 +343,7 @@ where
 					);
 				},
 				Some(_) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						connected = ?(num - failures),
 						target = ?num,
@@ -337,13 +399,13 @@ where
 		// we already know it is broken.
 		// https://github.com/paritytech/polkadot/issues/3921
 		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
 			);
 		}
 		let pretty = PrettyAuthorities(unconnected_authorities);
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?connected_ratio,
 			?absolute_connected,
@@ -363,7 +425,7 @@ where
 	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 {
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		authority_count = ?authorities.len(),
 		"Determined relevant authorities",

@@ -81,5 +81,5 @@ pub mod metrics {
 	}
 }
 
-#[cfg(test)]
+#[cfg(all(feature = "runtime-metrics", not(feature = "runtime-benchmarks"), test))]
 mod tests;

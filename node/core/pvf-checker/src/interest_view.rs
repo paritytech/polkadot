@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_primitives::v1::{Hash, ValidationCodeHash};
+use polkadot_primitives::v2::{Hash, ValidationCodeHash};
 use std::collections::{
 	btree_map::{self, BTreeMap},
 	HashSet,
@@ -70,6 +70,14 @@ impl PvfData {
 	}
 }
 
+/// The result of [`InterestView::on_leaves_update`].
+pub struct OnLeavesUpdateOutcome {
+	/// The list of PVFs that we first seen in the activated block.
+	pub newcomers: Vec<ValidationCodeHash>,
+	/// The number of PVFs that were removed from the view.
+	pub left_num: usize,
+}
+
 /// A structure that keeps track of relevant PVFs and judgements about them. A relevant PVF is one
 /// that resides in at least a single active leaf.
 #[derive(Debug)]
@@ -87,7 +95,7 @@ impl InterestView {
 		&mut self,
 		activated: Option<(Hash, Vec<ValidationCodeHash>)>,
 		deactivated: &[Hash],
-	) -> Vec<ValidationCodeHash> {
+	) -> OnLeavesUpdateOutcome {
 		let mut newcomers = Vec::new();
 
 		if let Some((leaf, pending_pvfs)) = activated {
@@ -105,19 +113,21 @@ impl InterestView {
 			self.active_leaves.entry(leaf).or_default().extend(pending_pvfs);
 		}
 
+		let mut left_num = 0;
 		for leaf in deactivated {
 			let pvfs = self.active_leaves.remove(leaf);
 			for pvf in pvfs.into_iter().flatten() {
 				if let btree_map::Entry::Occupied(mut o) = self.pvfs.entry(pvf) {
 					let now_empty = o.get_mut().remove_origin(leaf);
 					if now_empty {
+						left_num += 1;
 						o.remove();
 					}
 				}
 			}
 		}
 
-		newcomers
+		OnLeavesUpdateOutcome { newcomers, left_num }
 	}
 
 	/// Handles a new judgement for the given `pvf`.

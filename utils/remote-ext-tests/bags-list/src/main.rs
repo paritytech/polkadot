@@ -16,43 +16,40 @@
 
 //! Remote tests for bags-list pallet.
 
-use clap::arg_enum;
+use clap::{ArgEnum, Parser};
 use std::convert::TryInto;
-use structopt::StructOpt;
 
-arg_enum! {
-	#[derive(Debug)]
-	enum Command {
-		CheckMigration,
-		SanityCheck,
-		Snapshot,
-	}
+#[derive(Clone, Debug, ArgEnum)]
+#[clap(rename_all = "PascalCase")]
+enum Command {
+	CheckMigration,
+	SanityCheck,
+	Snapshot,
 }
 
-arg_enum! {
-	#[derive(Debug)]
-	enum Runtime {
-		Polkadot,
-		Kusama,
-		Westend,
-	}
+#[derive(Clone, Debug, ArgEnum)]
+#[clap(rename_all = "PascalCase")]
+enum Runtime {
+	Polkadot,
+	Kusama,
+	Westend,
 }
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Cli {
-	#[structopt(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
+	#[clap(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
 	uri: String,
-	#[structopt(long, short, case_insensitive = true, possible_values = &Runtime::variants(), default_value = "kusama")]
+	#[clap(long, short, ignore_case = true, arg_enum, default_value = "kusama")]
 	runtime: Runtime,
-	#[structopt(long, short, case_insensitive = true, possible_values = &Command::variants(), default_value = "SanityCheck")]
+	#[clap(long, short, ignore_case = true, arg_enum, default_value = "SanityCheck")]
 	command: Command,
-	#[structopt(long, short)]
+	#[clap(long, short)]
 	snapshot_limit: Option<usize>,
 }
 
 #[tokio::main]
 async fn main() {
-	let options = Cli::from_args();
+	let options = Cli::parse();
 	sp_tracing::try_init_simple();
 
 	log::info!(

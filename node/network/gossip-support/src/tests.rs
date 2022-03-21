@@ -91,14 +91,14 @@ impl MockAuthorityDiscovery {
 impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
-		authority: polkadot_primitives::v1::AuthorityDiscoveryId,
+		authority: polkadot_primitives::v2::AuthorityDiscoveryId,
 	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
 	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<HashSet<polkadot_primitives::v1::AuthorityDiscoveryId>> {
+	) -> Option<HashSet<polkadot_primitives::v2::AuthorityDiscoveryId>> {
 		self.authorities.get(&peer_id).cloned()
 	}
 }
@@ -126,7 +126,11 @@ async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, Hash
 }
 
 fn make_subsystem() -> GossipSupport<MockAuthorityDiscovery> {
-	GossipSupport::new(make_ferdie_keystore(), MOCK_AUTHORITY_DISCOVERY.clone())
+	GossipSupport::new(
+		make_ferdie_keystore(),
+		MOCK_AUTHORITY_DISCOVERY.clone(),
+		Metrics::new_dummy(),
+	)
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(
@@ -230,6 +234,7 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(1)).unwrap();
 			}
 		);
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -253,6 +258,17 @@ fn issues_a_connection_request_on_new_session() {
 		);
 
 		test_neighbors(overseer).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(1, sender),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				sender.send(Ok(None)).unwrap();
+			}
+		);
 
 		virtual_overseer
 	});
@@ -296,6 +312,7 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(2)).unwrap();
 			}
 		);
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -319,6 +336,17 @@ fn issues_a_connection_request_on_new_session() {
 		);
 
 		test_neighbors(overseer).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(2, sender),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				sender.send(Ok(None)).unwrap();
+			}
+		);
 
 		virtual_overseer
 	});
@@ -344,7 +372,7 @@ fn test_log_output() {
 		m
 	};
 	let pretty = PrettyAuthorities(unconnected_authorities.iter());
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		unconnected_authorities = %pretty,
 		"Connectivity Report"
@@ -378,6 +406,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					tx.send(Ok(1)).unwrap();
 				}
 			);
+
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -405,6 +434,17 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			);
 
 			test_neighbors(overseer).await;
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionInfo(1, sender),
+				)) => {
+					assert_eq!(relay_parent, hash);
+					sender.send(Ok(None)).unwrap();
+				}
+			);
 
 			virtual_overseer
 		})

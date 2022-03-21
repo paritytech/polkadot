@@ -200,7 +200,7 @@ cargo build # Builds all native code
 You can run the tests if you like:
 
 ```bash
-cargo test --all
+cargo test --all --release
 ```
 
 You can start a development chain with:

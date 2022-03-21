@@ -43,7 +43,7 @@ use polkadot_node_subsystem_util::{
 	determine_new_blocks,
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
 };
@@ -138,7 +138,7 @@ async fn imported_block_info(
 			.as_ref()
 			.map_or(true, |s| session_index < s.earliest_session())
 		{
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
 				block_hash,
@@ -188,11 +188,7 @@ async fn imported_block_info(
 	{
 		Some(s) => s,
 		None => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Session info unavailable for block {}",
-				block_hash,
-			);
+			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
 
 			return Ok(None)
 		},
@@ -227,7 +223,7 @@ async fn imported_block_info(
 				}
 			},
 			None => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"BABE VRF info unavailable for block {}",
 					block_hash,
@@ -238,12 +234,12 @@ async fn imported_block_info(
 		}
 	};
 
-	tracing::trace!(target: LOG_TARGET, n_assignments = assignments.len(), "Produced assignments");
+	gum::trace!(target: LOG_TARGET, n_assignments = assignments.len(), "Produced assignments");
 
 	let force_approve =
 		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item(l) {
 			Ok(Some(ConsensusLog::ForceApprove(num))) if num < block_header.number => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?block_hash,
 					current_number = block_header.number,
@@ -256,7 +252,7 @@ async fn imported_block_info(
 			Ok(Some(_)) => None,
 			Ok(None) => None,
 			Err(err) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?err,
 					?block_hash,
@@ -303,7 +299,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	// Update session info based on most recent head.
+	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -313,7 +309,7 @@ pub(crate) async fn handle_new_head(
 
 		match h_rx.await? {
 			Err(e) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Chain API subsystem temporarily unreachable {}",
 					e,
@@ -322,16 +318,17 @@ pub(crate) async fn handle_new_head(
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
-				tracing::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => h,
 		}
 	};
 
+	// Update session info based on most recent head.
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?head,
 				?e,
@@ -341,7 +338,7 @@ pub(crate) async fn handle_new_head(
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
-			tracing::info!(
+			gum::info!(
 				target: LOG_TARGET,
 				update = ?a,
 				"Advanced session window for approvals",
@@ -350,9 +347,10 @@ pub(crate) async fn handle_new_head(
 		Ok(_) => {},
 	}
 
-	// If we've just started the node and haven't yet received any finality notifications,
-	// we don't do any look-back. Approval voting is only for nodes were already online.
-	let lower_bound_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
+	// If we've just started the node and are far behind,
+	// import at most `MAX_HEADS_LOOK_BACK` blocks.
+	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
+	let lower_bound_number = finalized_number.unwrap_or(lower_bound_number).max(lower_bound_number);
 
 	let new_blocks = determine_new_blocks(
 		ctx.sender(),
@@ -402,7 +400,7 @@ pub(crate) async fn handle_new_head(
 					if !lost_to_finality {
 						// Such errors are likely spurious, but this prevents us from getting gaps
 						// in the approval-db.
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							"Unable to gather info about imported block {:?}. Skipping chain.",
 							(block_hash, block_header.number),
@@ -417,7 +415,7 @@ pub(crate) async fn handle_new_head(
 		imported_blocks_and_info
 	};
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		imported_blocks = imported_blocks_and_info.len(),
 		"Inserting imported blocks into database"
@@ -456,14 +454,14 @@ pub(crate) async fn handle_new_head(
 		let num_candidates = included_candidates.len();
 		let approved_bitfield = {
 			if needed_approvals == 0 {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
 				);
-				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
+				bitvec::bitvec![u8, BitOrderLsb0; 1; num_candidates]
 			} else {
-				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
+				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
@@ -474,7 +472,7 @@ pub(crate) async fn handle_new_head(
 					}
 				}
 				if result.any() {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						block_hash = ?block_hash,
 						"Insta-approving {}/{} candidates as the number of validators is too low",
@@ -508,7 +506,7 @@ pub(crate) async fn handle_new_head(
 		};
 
 		if let Some(up_to) = force_approve {
-			tracing::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
+			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
 
 			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
@@ -519,7 +517,7 @@ pub(crate) async fn handle_new_head(
 			}
 		}
 
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?block_hash,
 			block_number = block_header.number,
@@ -559,7 +557,7 @@ pub(crate) async fn handle_new_head(
 		});
 	}
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		head = ?head,
 		chain_length = approval_meta.len(),
@@ -577,12 +575,12 @@ pub(crate) mod tests {
 	use crate::approval_db::v1::DbBackend;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use kvdb::KeyValueDB;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::{v1::ValidatorIndex, v2::SessionInfo};
+	use polkadot_node_subsystem_util::database::Database;
+	use polkadot_primitives::v2::{SessionInfo, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -644,21 +642,21 @@ pub(crate) mod tests {
 			_config: &criteria::Config,
 			_leaving_cores: Vec<(
 				CandidateHash,
-				polkadot_primitives::v1::CoreIndex,
-				polkadot_primitives::v1::GroupIndex,
+				polkadot_primitives::v2::CoreIndex,
+				polkadot_primitives::v2::GroupIndex,
 			)>,
-		) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
+		) -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment> {
 			HashMap::new()
 		}
 
 		fn check_assignment_cert(
 			&self,
-			_claimed_core_index: polkadot_primitives::v1::CoreIndex,
-			_validator_index: polkadot_primitives::v1::ValidatorIndex,
+			_claimed_core_index: polkadot_primitives::v2::CoreIndex,
+			_validator_index: polkadot_primitives::v2::ValidatorIndex,
 			_config: &criteria::Config,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-			_backing_group: polkadot_primitives::v1::GroupIndex,
+			_backing_group: polkadot_primitives::v2::GroupIndex,
 		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 			Ok(0)
 		}
@@ -1123,7 +1121,9 @@ pub(crate) mod tests {
 
 	#[test]
 	fn insta_approval_works() {
-		let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db_writer: Arc<dyn Database> = Arc::new(db);
 		let mut db = DbBackend::new(db_writer.clone(), TEST_CONFIG);
 		let mut overlay_db = OverlayedBackend::new(&db);
 

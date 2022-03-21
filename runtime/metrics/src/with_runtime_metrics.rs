@@ -23,7 +23,7 @@
 const TRACING_TARGET: &'static str = "metrics";
 
 use parity_scale_codec::Encode;
-use primitives::v1::{
+use primitives::v2::{
 	metric_definitions::{CounterDefinition, CounterVecDefinition},
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
@@ -31,7 +31,7 @@ use primitives::v1::{
 use sp_std::prelude::*;
 
 /// Holds a set of counters that have different values for their labels,
-/// like Prometheus CounterVec.
+/// like Prometheus `CounterVec`.
 pub struct CounterVec {
 	name: &'static str,
 }
@@ -87,7 +87,7 @@ impl CounterVec {
 		CounterVec { name: definition.name }
 	}
 
-	/// Returns a LabeledMetric instance that provides an interface for incrementing
+	/// Returns a `LabeledMetric` instance that provides an interface for incrementing
 	/// the metric.
 	pub fn with_label_values(&self, label_values: &[&'static str]) -> LabeledMetric {
 		LabeledMetric { name: self.name, label_values: label_values.into() }

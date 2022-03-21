@@ -25,11 +25,9 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, RuntimeApiError,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::{
-	v1::{
-		BlockNumber, Hash, Header, SessionIndex, ValidationCode, ValidationCodeHash, ValidatorId,
-	},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	BlockNumber, Hash, Header, PvfCheckStatement, SessionIndex, ValidationCode, ValidationCodeHash,
+	ValidatorId,
 };
 use sp_application_crypto::AppKey;
 use sp_core::testing::TaskExecutor;
@@ -372,7 +370,7 @@ fn test_harness(test: impl FnOnce(TestState, VirtualOverseer) -> BoxFuture<'stat
 	)
 	.expect("Generating keys for our node failed");
 
-	let subsystem_task = crate::run(ctx, keystore).map(|x| x.unwrap());
+	let subsystem_task = crate::run(ctx, keystore, crate::Metrics::default()).map(|x| x.unwrap());
 
 	let test_state = TestState::new();
 	let test_task = test(test_state, handle);
