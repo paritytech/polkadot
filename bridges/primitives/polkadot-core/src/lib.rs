@@ -424,8 +424,7 @@ pub fn account_info_storage_key(id: &AccountId) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use parity_scale_codec::Decode;
-	use sp_runtime::{codec::Encode, traits::TrailingZeroInput};
+	use sp_runtime::codec::Encode;
 
 	#[test]
 	fn maximal_encoded_account_id_size_is_correct() {
