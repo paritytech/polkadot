@@ -378,9 +378,14 @@ pub enum NetworkBridgeMessage {
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
-		/// Ids of our neighbors in the new gossip topology.
-		/// We're not necessarily connected to all of them, but we should.
-		our_neighbors: HashSet<AuthorityDiscoveryId>,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology.
+		/// We're not necessarily connected to all of them, but we should
+		/// try to be.
+		our_neighbors_x: HashSet<AuthorityDiscoveryId>,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology.
+		/// We're not necessarily connected to all of them, but we should
+		/// try to be.
+		our_neighbors_y: HashSet<AuthorityDiscoveryId>,
 	},
 }
 

@@ -493,16 +493,29 @@ where
 		.expect("our_index < len; indices contains it; qed");
 
 	let neighbors = matrix_neighbors(our_shuffled_position, len);
-	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
+	let row_neighbors = neighbors.row_neighbors.map(|i| authorities[indices[i]].clone()).collect();
+	let column_neighbors =
+		neighbors.column_neighbors.map(|i| authorities[indices[i]].clone()).collect();
 
-	ctx.send_message(NetworkBridgeMessage::NewGossipTopology { our_neighbors })
+	ctx.send_message(NetworkBridgeMessage::NewGossipTopology {
+		our_neighbors_x: row_neighbors,
+		our_neighbors_y: column_neighbors,
+	 })
 		.await;
 
 	Ok(())
 }
 
+struct MatrixNeighbors<R, C> {
+	row_neighbors: R,
+	column_neighbors: C,
+}
+
 /// Compute our row and column neighbors in a matrix
-fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize> {
+fn matrix_neighbors(
+	our_index: usize,
+	len: usize,
+) -> MatrixNeighbors<impl Iterator<Item = usize>, impl Iterator<Item = usize>> {
 	assert!(our_index < len, "our_index is computed using `enumerate`; qed");
 
 	// e.g. for size 11 the matrix would be
@@ -520,7 +533,10 @@ fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize>
 	let row_neighbors = our_row * sqrt..std::cmp::min(our_row * sqrt + sqrt, len);
 	let column_neighbors = (our_column..len).step_by(sqrt);
 
-	row_neighbors.chain(column_neighbors).filter(move |i| *i != our_index)
+	MatrixNeighbors {
+		row_neighbors: row_neighbors.filter(move |i| *i != our_index),
+		column_neighbors: column_neighbors.filter(move |i| *i != our_index),
+	}
 }
 
 impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for GossipSupport<AD>

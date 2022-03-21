@@ -53,9 +53,18 @@ lazy_static! {
 		Sr25519Keyring::One.public().into(),
 		Sr25519Keyring::Two.public().into(),
 	];
-	static ref NEIGHBORS: Vec<AuthorityDiscoveryId> = vec![
-		Sr25519Keyring::Two.public().into(),
+
+    // [2 6]
+	// [4 5]
+	// [1 3]
+	// [0  ]
+
+	static ref ROW_NEIGHBORS: Vec<AuthorityDiscoveryId> = vec![
 		Sr25519Keyring::Charlie.public().into(),
+	];
+
+	static ref COLUMN_NEIGHBORS: Vec<AuthorityDiscoveryId> = vec![
+		Sr25519Keyring::Two.public().into(),
 		Sr25519Keyring::Eve.public().into(),
 	];
 }
@@ -209,11 +218,15 @@ async fn test_neighbors(overseer: &mut VirtualOverseer) {
 	assert_matches!(
 		overseer_recv(overseer).await,
 		AllMessages::NetworkBridge(NetworkBridgeMessage::NewGossipTopology {
-			our_neighbors,
+			our_neighbors_x,
+			our_neighbors_y,
 		}) => {
-			let mut got: Vec<_> = our_neighbors.into_iter().collect();
-			got.sort();
-			assert_eq!(got, NEIGHBORS.clone());
+			let mut got_row: Vec<_> = our_neighbors_x.into_iter().collect();
+			let mut got_column: Vec<_> = our_neighbors_y.into_iter().collect();
+			got_row.sort();
+			got_column.sort();
+			assert_eq!(got_row, ROW_NEIGHBORS.clone());
+			assert_eq!(got_column, COLUMN_NEIGHBORS.clone());
 		}
 	);
 }
@@ -504,18 +517,23 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 #[test]
 fn test_matrix_neighbors() {
-	for (our_index, len, expected) in vec![
-		(0usize, 1usize, vec![]),
-		(1, 2, vec![0usize]),
-		(0, 9, vec![1, 2, 3, 6]),
-		(9, 10, vec![0, 3, 6]),
-		(10, 11, vec![1, 4, 7, 9]),
-		(7, 11, vec![1, 4, 6, 8, 10]),
+	for (our_index, len, expected_row, expected_column) in vec![
+		(0usize, 1usize, vec![], vec![]),
+		(1, 2, vec![], vec![0usize]),
+		(0, 9, vec![1, 2], vec![3, 6]),
+		(9, 10, vec![], vec![0, 3, 6]),
+		(10, 11, vec![9], vec![1, 4, 7]),
+		(7, 11, vec![6, 8], vec![1, 4, 10]),
 	]
 	.into_iter()
 	{
-		let mut result: Vec<_> = matrix_neighbors(our_index, len).collect();
-		result.sort();
-		assert_eq!(result, expected);
+		let matrix = matrix_neighbors(our_index, len);
+		let mut row_result: Vec<_> = matrix.row_neighbors.collect();
+		let mut column_result: Vec<_> = matrix.column_neighbors.collect();
+		row_result.sort();
+		column_result.sort();
+
+		assert_eq!(row_result, expected_row);
+		assert_eq!(column_result, expected_column);
 	}
 }
