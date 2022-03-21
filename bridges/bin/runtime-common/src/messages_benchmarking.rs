@@ -107,7 +107,6 @@ where
 	BHH: Hasher<Out = HashOf<BridgedChain<B>>>,
 	AccountIdOf<ThisChain<B>>: PartialEq + sp_std::fmt::Debug,
 	AccountIdOf<BridgedChain<B>>: From<[u8; 32]>,
-	AccountIdOf<ThisChain<B>>: PartialEq + sp_std::fmt::Debug,
 	BalanceOf<ThisChain<B>>: Debug + MaybeSerializeDeserialize,
 	CallOf<ThisChain<B>>: From<frame_system::Call<R>> + GetDispatchInfo,
 	HashOf<BridgedChain<B>>: Copy + Default,
