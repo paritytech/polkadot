@@ -349,7 +349,7 @@ test-node-metrics:
       artifacts:                   false
   <<:                              *docker-env
   <<:                              *compiler-info
-  <<:                              *common-refs
+  <<:                              *test-refs
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
