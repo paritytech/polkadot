@@ -22,7 +22,7 @@
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_election_provider_support::{onchain::BoundedExecution, SequentialPhragmen};
+use frame_election_provider_support::{onchain::UnboundedExecution, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
@@ -390,8 +390,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
-	type Fallback = BoundedExecution<OnChainSeqPhragmen<Self, Staking>>;
-	type GovernanceFallback = BoundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,

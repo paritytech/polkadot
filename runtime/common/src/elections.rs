@@ -17,7 +17,7 @@
 //! Code for elections.
 
 use frame_election_provider_support::{
-	onchain::{BoundedExecutionConfig, ExecutionConfig, UnboundedExecution},
+	onchain::{ExecutionConfig, UnboundedExecution},
 	ElectionDataProvider, SequentialPhragmen, SortedListProvider,
 };
 use sp_std::{boxed::Box, marker::PhantomData};
@@ -77,15 +77,6 @@ impl<
 	type System = T;
 	type Solver = SequentialPhragmen<T::AccountId, OnOnChainAccuracy>;
 	type DataProvider = S;
-}
-
-impl<
-		T: frame_system::Config,
-		S: ElectionDataProvider<AccountId = T::AccountId, BlockNumber = T::BlockNumber>,
-	> BoundedExecutionConfig for OnChainSeqPhragmen<T, S>
-{
-	type VotersBound = crate::ConstU32<20_000>;
-	type TargetsBound = crate::ConstU32<2_000>;
 }
 
 /// The election provider of the genesis
