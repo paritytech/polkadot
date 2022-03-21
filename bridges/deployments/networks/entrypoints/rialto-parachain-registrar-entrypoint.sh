@@ -1,9 +1,7 @@
 #!/bin/bash
 set -xeu
 
-sleep 60
-curl -v http://rialto-node-alice:9933/health
-curl -v http://rialto-parachain-collator-alice:9933/health
+sleep 15
 
 /home/user/substrate-relay register-parachain rialto-parachain \
 	--parachain-host rialto-parachain-collator-alice \

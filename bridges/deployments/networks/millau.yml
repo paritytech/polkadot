@@ -17,6 +17,7 @@ services:
       - --alice
       - --node-key=0f900c89f4e626f4a217302ab8c7d213737d00627115f318ad6fb169717ac8e0
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     environment:
@@ -35,6 +36,7 @@ services:
       - --bob
       - --node-key=db383639ff2905d79f8e936fd5dc4416ef46b514b2f83823ec3c42753d7557bb
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     ports:
@@ -50,11 +52,14 @@ services:
       - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
       - --charlie
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
+      - --prometheus-external
     ports:
       - "20133:9933"
       - "20144:9944"
+      - "20615:9615"
 
   millau-node-dave:
     <<: *millau-bridge-node
@@ -65,6 +70,7 @@ services:
       - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
       - --dave
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     ports:
@@ -80,8 +86,16 @@ services:
       - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
       - --eve
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     ports:
       - "20333:9933"
       - "20344:9944"
+
+  # Note: These are being overridden from the top level `monitoring` compose file.
+  prometheus-metrics:
+    volumes:
+      - ./networks/dashboard/prometheus/millau-targets.yml:/etc/prometheus/targets-millau-nodes.yml
+    depends_on:
+      - millau-node-charlie

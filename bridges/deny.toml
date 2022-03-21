@@ -48,21 +48,17 @@ notice = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-	# yaml-rust < clap. Not feasible to upgrade and also not possible to trigger in practice.
-	"RUSTSEC-2018-0006",
     "RUSTSEC-2020-0070",
     # Comes from honggfuzz via storage-proof-fuzzer: 'memmap'
     "RUSTSEC-2020-0077",
-    # Comes from time: 'stweb' (will be fixed in upcoming time 0.3)
-    "RUSTSEC-2020-0056",
     # net2 (origin: Substrate RPC crates)
     "RUSTSEC-2020-0016",
-    # Wasmtime (origin: Substrate executor crates)
-    "RUSTSEC-2021-0110",
     # time (origin: Substrate RPC + benchmarking crates)
     "RUSTSEC-2020-0071",
     # chrono (origin: Substrate benchmarking + cli + ...)
     "RUSTSEC-2020-0159",
+    # lru 0.6.6 (origin: libp2p)
+    "RUSTSEC-2021-0130",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
