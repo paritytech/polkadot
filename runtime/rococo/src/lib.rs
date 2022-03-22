@@ -312,9 +312,7 @@ impl pallet_scheduler::Config for Runtime {
 	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
-	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
-	// TODO: run benchmarks
-	// type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
 	type PreimageProvider = Preimage;
 	type NoPreimagePostponement = NoPreimagePostponement;
@@ -327,9 +325,7 @@ parameter_types! {
 }
 
 impl pallet_preimage::Config for Runtime {
-	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
-	// TODO: run benchmarks
-	// type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
 	type Event = Event;
 	type Currency = Balances;
 	type ManagerOrigin = EnsureRoot<AccountId>;
@@ -992,9 +988,7 @@ impl pallet_identity::Config for Runtime {
 	type MaxRegistrars = MaxRegistrars;
 	type RegistrarOrigin = frame_system::EnsureRoot<AccountId>;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-	// TODO benchmarks
-	// type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
-	type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
 impl pallet_utility::Config for Runtime {
@@ -1190,8 +1184,6 @@ impl pallet_recovery::Config for Runtime {
 	type FriendDepositFactor = FriendDepositFactor;
 	type MaxFriends = MaxFriends;
 	type RecoveryDeposit = RecoveryDeposit;
-	// TODO benchmarks
-	// type WeightInfo = weights::pallet_recovery::WeightInfo<Runtime>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
