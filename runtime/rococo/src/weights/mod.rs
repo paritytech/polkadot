@@ -15,6 +15,9 @@
 
 //! A list of the different weight modules for our runtime.
 
+pub mod pallet_identity;
+pub mod pallet_preimage;
+pub mod pallet_scheduler;
 pub mod runtime_parachains_configuration;
 pub mod runtime_parachains_disputes;
 pub mod runtime_parachains_hrmp;
