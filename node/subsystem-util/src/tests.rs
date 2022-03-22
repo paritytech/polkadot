@@ -248,10 +248,10 @@ fn tick_tack_metronome() {
 
 #[test]
 fn subset_generation_check() {
-	let values = (0_u8..=25).collect::<Vec<_>>();
+	let mut values = (0_u8..=25).collect::<Vec<_>>();
 	// 12 even numbers exist
-	let mut chosen = choose_random_subset::<u8, _>(|v| v & 0x01 == 0, values, 12);
-	chosen.sort();
+	choose_random_subset::<u8, _>(|v| v & 0x01 == 0, &mut values, 12);
+	values.sort();
 	for (idx, v) in dbg!(chosen).into_iter().enumerate() {
 		assert_eq!(v as usize, idx * 2);
 	}

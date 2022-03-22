@@ -278,25 +278,32 @@ pub fn find_validator_group(
 /// But always include `is_priority` elements.
 pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(
 	is_priority: F,
-	mut v: Vec<T>,
-	min: usize,
-) -> Vec<T> {
+	v: &mut Vec<T>,
+	min: usize) {
+	choose_random_subset_with_rng(is_priority, v, &mut rand::thread_rng(), min)
+}
+
+/// Choose a random subset of `min` elements.
+/// But always include `is_priority` elements.
+pub fn choose_random_subset_with_rng<T, F: FnMut(&T) -> bool, R: rand::Rng>(
+	is_priority: F,
+	v: &mut Vec<T>,
+	rng: &mut R,
+	min: usize) {
 	use rand::seq::SliceRandom as _;
 
 	// partition the elements into priority first
 	// the returned index is when non_priority elements start
-	let i = itertools::partition(&mut v, is_priority);
+	let i = itertools::partition(v.iter_mut(), is_priority);
 
 	if i >= min || v.len() <= i {
 		v.truncate(i);
-		return v
+		return;
 	}
 
-	let mut rng = rand::thread_rng();
-	v[i..].shuffle(&mut rng);
+	v[i..].shuffle(rng);
 
 	v.truncate(min);
-	v
 }
 
 /// Returns a `bool` with a probability of `a / b` of being true.

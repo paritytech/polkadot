@@ -1041,8 +1041,7 @@ async fn circulate_statement<'a>(
 	let priority_set: HashSet<&PeerId> = priority_peers.iter().collect();
 	peers_to_send.retain(|p| !priority_set.contains(p));
 
-	let mut peers_to_send =
-		util::choose_random_subset(|e| gossip_peers.contains(e), peers_to_send, MIN_GOSSIP_PEERS);
+	util::choose_random_subset(|e| gossip_peers.contains(e), &mut peers_to_send, MIN_GOSSIP_PEERS);
 	// We don't want to use less peers, than we would without any priority peers:
 	let min_size = std::cmp::max(peers_to_send.len(), MIN_GOSSIP_PEERS);
 	// Make set full:
