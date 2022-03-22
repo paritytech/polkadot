@@ -250,7 +250,7 @@ construct_runtime! {
 		Scheduler: pallet_scheduler,
 		Preimage: pallet_preimage,
 		Identity: pallet_identity,
-	
+
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
 
@@ -994,7 +994,6 @@ impl pallet_identity::Config for Runtime {
 	// TODO benchmarks
 	// type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 	type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
-	
 }
 
 impl pallet_utility::Config for Runtime {
@@ -1072,8 +1071,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Registrar(paras_registrar::Call::reserve{..}) |
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
-				Call::Auctions(..)
-				// Specifically omitting the entire XCM Pallet
+				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
@@ -1181,6 +1179,11 @@ mod benches {
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::paras, Paras]
 		[runtime_parachains::ump, Ump]
+
+		// Substrate
+		[pallet_identity, Identity]
+		[pallet_scheduler, Scheduler]
+		[pallet_preimage, Preimage]
 	);
 }
 
