@@ -161,7 +161,6 @@ pub mod paritydb_impl {
 	pub struct DbAdapter {
 		db: Db,
 		indexed_columns: BTreeSet<u32>,
-		write_lock: Arc<Mutex<()>>,
 	}
 
 	impl parity_util_mem::MallocSizeOf for DbAdapter {
@@ -259,8 +258,6 @@ pub mod paritydb_impl {
 				}
 			});
 
-			// Locking is required due to possible racy change of the content of a deleted prefix.
-			let _lock = self.write_lock.lock();
 			map_err(self.db.commit(transaction))
 		}
 	}
@@ -274,8 +271,7 @@ pub mod paritydb_impl {
 	impl DbAdapter {
 		/// Implementation of of `Database` for parity-db adapter.
 		pub fn new(db: Db, indexed_columns: &[u32]) -> Self {
-			let write_lock = Arc::new(Mutex::new(()));
-			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect(), write_lock }
+			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect() }
 		}
 	}
 
