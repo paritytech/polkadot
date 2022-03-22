@@ -23,9 +23,6 @@ mod upgrade;
 
 #[cfg(any(test, feature = "full-node"))]
 pub(crate) mod columns {
-	pub mod v0 {
-		pub const NUM_COLUMNS: u32 = 3;
-	}
 	pub const NUM_COLUMNS: u32 = 5;
 
 	pub const COL_AVAILABILITY_DATA: u32 = 0;
@@ -82,41 +79,6 @@ impl Default for CacheSizes {
 #[cfg(feature = "full-node")]
 pub(crate) fn other_io_error(err: String) -> io::Error {
 	io::Error::new(io::ErrorKind::Other, err)
-}
-
-/// Open the database on disk, creating it if it doesn't exist.
-#[cfg(feature = "full-node")]
-pub fn open_creating_rocksdb(
-	root: PathBuf,
-	cache_sizes: CacheSizes,
-) -> io::Result<Arc<dyn Database>> {
-	use kvdb_rocksdb::{Database, DatabaseConfig};
-
-	let path = root.join("parachains").join("db");
-
-	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
-
-	let _ = db_config
-		.memory_budget
-		.insert(columns::COL_AVAILABILITY_DATA, cache_sizes.availability_data);
-	let _ = db_config
-		.memory_budget
-		.insert(columns::COL_AVAILABILITY_META, cache_sizes.availability_meta);
-	let _ = db_config
-		.memory_budget
-		.insert(columns::COL_APPROVAL_DATA, cache_sizes.approval_data);
-
-	let path_str = path
-		.to_str()
-		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
-
-	std::fs::create_dir_all(&path_str)?;
-	upgrade::try_upgrade_db(&path)?;
-	let db = Database::open(&db_config, &path_str)?;
-	let db =
-		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
-
-	Ok(Arc::new(db))
 }
 
 /// Open a parity db database.
