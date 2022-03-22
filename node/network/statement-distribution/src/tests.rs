@@ -1856,18 +1856,14 @@ fn peer_cant_flood_with_large_statements() {
 // is useful but known.
 #[test]
 fn handle_multiple_seconded_statements() {
-	let hash_a = Hash::repeat_byte(1);
+	let relay_parent_hash = Hash::repeat_byte(1);
 
-	let candidate = {
-		let mut c = dummy_committed_candidate_receipt(hash_a);
-		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
-		c
-	};
+	let candidate = dummy_committed_candidate_receipt(relay_parent_hash);
 	let candidate_hash = candidate.hash();
 
 	let peer_a = PeerId::random();
 	let peer_b = PeerId::random();
+	assert_ne!(peer_a, peer_b);
 
 	let validators = vec![
 		Sr25519Keyring::Alice.pair(),
@@ -1884,7 +1880,7 @@ fn handle_multiple_seconded_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
-	let bg = async move {
+	let virtual_overseer_fut = async move {
 		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
@@ -1898,7 +1894,7 @@ fn handle_multiple_seconded_statements() {
 		handle
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_a,
+					hash: relay_parent_hash,
 					number: 1,
 					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
@@ -1911,7 +1907,7 @@ fn handle_multiple_seconded_statements() {
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
 			)
-				if r == hash_a
+				if r == relay_parent_hash
 			=> {
 				let _ = tx.send(Ok(session_index));
 			}
@@ -1922,7 +1918,7 @@ fn handle_multiple_seconded_statements() {
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
 			)
-				if r == hash_a && sess_index == session_index
+				if r == relay_parent_hash && sess_index == session_index
 			=> {
 				let _ = tx.send(Ok(Some(session_info)));
 			}
@@ -1948,7 +1944,7 @@ fn handle_multiple_seconded_statements() {
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![relay_parent_hash]),
 				),
 			})
 			.await;
@@ -1956,7 +1952,7 @@ fn handle_multiple_seconded_statements() {
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![relay_parent_hash]),
 				),
 			})
 			.await;
@@ -1964,7 +1960,7 @@ fn handle_multiple_seconded_statements() {
 		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
 		// candidate backing.
 		let statement = {
-			let signing_context = SigningContext { parent_hash: hash_a, session_index };
+			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 
 			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 			let alice_public = CryptoStore::sr25519_generate_new(
@@ -1995,7 +1991,7 @@ fn handle_multiple_seconded_statements() {
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
 						protocol_v1::StatementDistributionMessage::Statement(
-							hash_a,
+							relay_parent_hash,
 							statement.clone().into(),
 						),
 					),
@@ -2015,7 +2011,7 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			) if r == relay_parent_hash && s == statement => {}
 		);
 
 		assert_matches!(
@@ -2029,7 +2025,7 @@ fn handle_multiple_seconded_statements() {
 				)
 			) => {
 				assert_eq!(recipients, vec![peer_b.clone()]);
-				assert_eq!(r, hash_a);
+				assert_eq!(r, relay_parent_hash);
 				assert_eq!(s, statement.clone().into());
 			}
 		);
@@ -2041,7 +2037,7 @@ fn handle_multiple_seconded_statements() {
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
 						protocol_v1::StatementDistributionMessage::Statement(
-							hash_a,
+							relay_parent_hash,
 							statement.clone().into(),
 						),
 					),
@@ -2058,7 +2054,7 @@ fn handle_multiple_seconded_statements() {
 
 		// Create a `Valid` statement
 		let statement = {
-			let signing_context = SigningContext { parent_hash: hash_a, session_index };
+			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 
 			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 			let alice_public = CryptoStore::sr25519_generate_new(
@@ -2089,7 +2085,7 @@ fn handle_multiple_seconded_statements() {
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
 						protocol_v1::StatementDistributionMessage::Statement(
-							hash_a,
+							relay_parent_hash,
 							statement.clone().into(),
 						),
 					),
@@ -2108,7 +2104,7 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			) if r == relay_parent_hash && s == statement => {}
 		);
 
 		assert_matches!(
@@ -2122,7 +2118,7 @@ fn handle_multiple_seconded_statements() {
 				)
 			) => {
 				assert_eq!(recipients, vec![peer_b.clone()]);
-				assert_eq!(r, hash_a);
+				assert_eq!(r, relay_parent_hash);
 				assert_eq!(s, statement.clone().into());
 			}
 		);
@@ -2134,7 +2130,7 @@ fn handle_multiple_seconded_statements() {
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
 						protocol_v1::StatementDistributionMessage::Statement(
-							hash_a,
+							relay_parent_hash,
 							statement.clone().into(),
 						),
 					),
@@ -2155,9 +2151,9 @@ fn handle_multiple_seconded_statements() {
 	};
 
 	futures::pin_mut!(test_fut);
-	futures::pin_mut!(bg);
+	futures::pin_mut!(virtual_overseer_fut);
 
-	executor::block_on(future::join(test_fut, bg));
+	executor::block_on(future::join(test_fut, virtual_overseer_fut));
 }
 
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
