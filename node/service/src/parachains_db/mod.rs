@@ -90,7 +90,7 @@ pub fn open_creating_rocksdb(
 	root: PathBuf,
 	cache_sizes: CacheSizes,
 ) -> io::Result<Arc<dyn Database>> {
-/*	use kvdb_rocksdb::{Database, DatabaseConfig};
+	use kvdb_rocksdb::{Database, DatabaseConfig};
 
 	let path = root.join("parachains").join("db");
 
@@ -116,8 +116,7 @@ pub fn open_creating_rocksdb(
 	let db =
 		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
 
-	Ok(Arc::new(db))*/
-	open_creating_paritydb(root, cache_sizes)
+	Ok(Arc::new(db))
 }
 
 /// Open a parity db database.
