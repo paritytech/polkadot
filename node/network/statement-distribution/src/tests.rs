@@ -1842,6 +1842,18 @@ fn peer_cant_flood_with_large_statements() {
 	executor::block_on(future::join(test_fut, bg));
 }
 
+// This test addresses an issue when received knowledge is not updated on a
+// subsequent `Seconded` statements
+//
+// To trigger this issue, one should modify `circulate_statement` function
+// where there is a selection of lucky/unlucky peers to make all peers unlucky.
+// It could be done, for example, by avoiding calling to `peer_knowledge.send`:
+// `let peers_to_send: Vec<(PeerId, bool)> = peers_to_send` <--- here
+//
+// Secondly, the proposed change to update received knowledge of a peer in the
+// function `handle_incoming_message` must also be removed to reproduce the issue.
+// This is done after `active_head.check_useful_or_unknown` check where a statement
+// is useful but known.
 #[test]
 fn handle_multiple_seconded_statements() {
 	let hash_a = Hash::repeat_byte(1);
@@ -1960,8 +1972,8 @@ fn handle_multiple_seconded_statements() {
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-				.await
-				.unwrap();
+			.await
+			.unwrap();
 
 			SignedFullStatement::sign(
 				&keystore,
@@ -1970,10 +1982,10 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-				.await
-				.ok()
-				.flatten()
-				.expect("should be signed")
+			.await
+			.ok()
+			.flatten()
+			.expect("should be signed")
 		};
 
 		// `PeerA` sends a `Seconded` message
@@ -2054,8 +2066,8 @@ fn handle_multiple_seconded_statements() {
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-				.await
-				.unwrap();
+			.await
+			.unwrap();
 
 			SignedFullStatement::sign(
 				&keystore,
@@ -2064,10 +2076,10 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-				.await
-				.ok()
-				.flatten()
-				.expect("should be signed")
+			.await
+			.ok()
+			.flatten()
+			.expect("should be signed")
 		};
 
 		// `PeerA` sends a `Valid` message
@@ -2138,7 +2150,6 @@ fn handle_multiple_seconded_statements() {
 				NetworkBridgeMessage::ReportPeer(p, r)
 			) if p == peer_b && r == BENEFIT_VALID_STATEMENT => {}
 		);
-
 
 		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
