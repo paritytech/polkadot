@@ -245,10 +245,12 @@ construct_runtime! {
 		// Utilities
 		Utility: pallet_utility = 90,
 		Proxy: pallet_proxy = 91,
+		// TODO fix the pallet number/order?
 		Multisig: pallet_multisig = 92,
 		Scheduler: pallet_scheduler = 93,
 		Preimage: pallet_preimage = 94,
 		Identity: pallet_identity = 95,
+		Recovery: pallet_recovery = 96,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
@@ -1060,6 +1062,13 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::ImOnline(..) |
 				Call::Utility(..) |
 				// Call::Identity(..) |
+				Call::Recovery(pallet_recovery::Call::as_recovered{..}) |
+				Call::Recovery(pallet_recovery::Call::vouch_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::claim_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::close_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::remove_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::cancel_recovered{..}) |
+				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
 				Call::Scheduler(..) |
 				// Specifically omitting Sudo pallet
 				Call::Proxy(..) |
@@ -1164,6 +1173,25 @@ impl pallet_multisig::Config for Runtime {
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
 	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const ConfigDepositBase: Balance = 500 * CENTS;
+	pub const FriendDepositFactor: Balance = 50 * CENTS;
+	pub const MaxFriends: u16 = 9;
+	pub const RecoveryDeposit: Balance = 500 * CENTS;
+}
+
+impl pallet_recovery::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type ConfigDepositBase = ConfigDepositBase;
+	type FriendDepositFactor = FriendDepositFactor;
+	type MaxFriends = MaxFriends;
+	type RecoveryDeposit = RecoveryDeposit;
+	// TODO benchmarks
+	// type WeightInfo = weights::pallet_recovery::WeightInfo<Runtime>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]

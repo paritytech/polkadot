@@ -8424,6 +8424,7 @@ dependencies = [
  "pallet-offences",
  "pallet-preimage",
  "pallet-proxy",
+ "pallet-recovery",
  "pallet-scheduler",
  "pallet-session",
  "pallet-staking",
