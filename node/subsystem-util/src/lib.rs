@@ -276,10 +276,7 @@ pub fn find_validator_group(
 
 /// Choose a random subset of `min` elements.
 /// But always include `is_priority` elements.
-pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(
-	is_priority: F,
-	v: &mut Vec<T>,
-	min: usize) {
+pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, v: &mut Vec<T>, min: usize) {
 	choose_random_subset_with_rng(is_priority, v, &mut rand::thread_rng(), min)
 }
 
@@ -289,7 +286,8 @@ pub fn choose_random_subset_with_rng<T, F: FnMut(&T) -> bool, R: rand::Rng>(
 	is_priority: F,
 	v: &mut Vec<T>,
 	rng: &mut R,
-	min: usize) {
+	min: usize,
+) {
 	use rand::seq::SliceRandom as _;
 
 	// partition the elements into priority first
@@ -298,7 +296,7 @@ pub fn choose_random_subset_with_rng<T, F: FnMut(&T) -> bool, R: rand::Rng>(
 
 	if i >= min || v.len() <= i {
 		v.truncate(i);
-		return;
+		return
 	}
 
 	v[i..].shuffle(rng);

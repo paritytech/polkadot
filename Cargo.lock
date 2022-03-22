@@ -7219,6 +7219,7 @@ name = "polkadot-primitives-test-helpers"
 version = "0.9.18"
 dependencies = [
  "polkadot-primitives",
+ "rand 0.8.5",
  "sp-application-crypto",
  "sp-keyring",
  "sp-runtime",
