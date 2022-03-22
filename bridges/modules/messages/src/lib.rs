@@ -170,12 +170,14 @@ pub mod pallet {
 		type TargetHeaderChain: TargetHeaderChain<Self::OutboundPayload, Self::AccountId>;
 		/// Message payload verifier.
 		type LaneMessageVerifier: LaneMessageVerifier<
+			Self::Origin,
 			Self::AccountId,
 			Self::OutboundPayload,
 			Self::OutboundMessageFee,
 		>;
 		/// Message delivery payment.
 		type MessageDeliveryAndDispatchPayment: MessageDeliveryAndDispatchPayment<
+			Self::Origin,
 			Self::AccountId,
 			Self::OutboundMessageFee,
 		>;
@@ -276,16 +278,12 @@ pub mod pallet {
 			payload: T::OutboundPayload,
 			delivery_and_dispatch_fee: T::OutboundMessageFee,
 		) -> DispatchResultWithPostInfo {
-			crate::send_message::<T, I>(
-				origin.into().map_err(|_| BadOrigin)?,
-				lane_id,
-				payload,
-				delivery_and_dispatch_fee,
+			crate::send_message::<T, I>(origin, lane_id, payload, delivery_and_dispatch_fee).map(
+				|sent_message| PostDispatchInfo {
+					actual_weight: Some(sent_message.weight),
+					pays_fee: Pays::Yes,
+				},
 			)
-			.map(|sent_message| PostDispatchInfo {
-				actual_weight: Some(sent_message.weight),
-				pays_fee: Pays::Yes,
-			})
 		}
 
 		/// Pay additional fee for the message.
@@ -313,17 +311,15 @@ pub mod pallet {
 			);
 
 			// withdraw additional fee from submitter
-			let submitter = origin.into().map_err(|_| BadOrigin)?;
 			T::MessageDeliveryAndDispatchPayment::pay_delivery_and_dispatch_fee(
-				&submitter,
+				&origin,
 				&additional_fee,
 				&relayer_fund_account_id::<T::AccountId, T::AccountIdConverter>(),
 			)
 			.map_err(|err| {
 				log::trace!(
 					target: "runtime::bridge-messages",
-					"Submitter {:?} can't pay additional fee {:?} for the message {:?}/{:?} to {:?}: {:?}",
-					submitter,
+					"Submitter can't pay additional fee {:?} for the message {:?}/{:?} to {:?}: {:?}",
 					additional_fee,
 					lane_id,
 					nonce,
@@ -764,67 +760,6 @@ pub mod pallet {
 		) -> Option<MessageData<T::OutboundMessageFee>> {
 			OutboundMessages::<T, I>::get(MessageKey { lane_id: lane, nonce })
 		}
-
-		/// Get nonce of the latest generated message at given outbound lane.
-		pub fn outbound_latest_generated_nonce(lane: LaneId) -> MessageNonce {
-			OutboundLanes::<T, I>::get(&lane).latest_generated_nonce
-		}
-
-		/// Get nonce of the latest confirmed message at given outbound lane.
-		pub fn outbound_latest_received_nonce(lane: LaneId) -> MessageNonce {
-			OutboundLanes::<T, I>::get(&lane).latest_received_nonce
-		}
-
-		/// Get nonce of the latest received message at given inbound lane.
-		pub fn inbound_latest_received_nonce(lane: LaneId) -> MessageNonce {
-			InboundLanes::<T, I>::get(&lane).last_delivered_nonce()
-		}
-
-		/// Get nonce of the latest confirmed message at given inbound lane.
-		pub fn inbound_latest_confirmed_nonce(lane: LaneId) -> MessageNonce {
-			InboundLanes::<T, I>::get(&lane).last_confirmed_nonce
-		}
-
-		/// Get state of unrewarded relayers set.
-		pub fn inbound_unrewarded_relayers_state(
-			lane: bp_messages::LaneId,
-		) -> bp_messages::UnrewardedRelayersState {
-			let relayers = InboundLanes::<T, I>::get(&lane).relayers;
-			bp_messages::UnrewardedRelayersState {
-				unrewarded_relayer_entries: relayers.len() as _,
-				messages_in_oldest_entry: relayers
-					.front()
-					.map(|entry| 1 + entry.messages.end - entry.messages.begin)
-					.unwrap_or(0),
-				total_messages: total_unrewarded_messages(&relayers).unwrap_or(MessageNonce::MAX),
-			}
-		}
-	}
-}
-
-/// Getting storage keys for messages and lanes states. These keys are normally used when building
-/// messages and lanes states proofs.
-pub mod storage_keys {
-	use super::*;
-	use sp_core::storage::StorageKey;
-
-	/// Storage key of the outbound message in the runtime storage.
-	pub fn message_key(pallet_prefix: &str, lane: &LaneId, nonce: MessageNonce) -> StorageKey {
-		bp_runtime::storage_map_final_key_blake2_128concat(
-			pallet_prefix,
-			"OutboundMessages",
-			&MessageKey { lane_id: *lane, nonce }.encode(),
-		)
-	}
-
-	/// Storage key of the outbound message lane state in the runtime storage.
-	pub fn outbound_lane_data_key(pallet_prefix: &str, lane: &LaneId) -> StorageKey {
-		bp_runtime::storage_map_final_key_blake2_128concat(pallet_prefix, "OutboundLanes", lane)
-	}
-
-	/// Storage key of the inbound message lane state in the runtime storage.
-	pub fn inbound_lane_data_key(pallet_prefix: &str, lane: &LaneId) -> StorageKey {
-		bp_runtime::storage_map_final_key_blake2_128concat(pallet_prefix, "InboundLanes", lane)
 	}
 }
 
@@ -841,6 +776,7 @@ pub fn relayer_fund_account_id<AccountId, AccountIdConverter: Convert<H256, Acco
 
 impl<T, I>
 	bp_messages::source_chain::MessagesBridge<
+		T::Origin,
 		T::AccountId,
 		T::OutboundMessageFee,
 		T::OutboundPayload,
@@ -852,7 +788,7 @@ where
 	type Error = sp_runtime::DispatchErrorWithPostInfo<PostDispatchInfo>;
 
 	fn send_message(
-		sender: bp_messages::source_chain::Sender<T::AccountId>,
+		sender: T::Origin,
 		lane: LaneId,
 		message: T::OutboundPayload,
 		delivery_and_dispatch_fee: T::OutboundMessageFee,
@@ -863,7 +799,7 @@ where
 
 /// Function that actually sends message.
 fn send_message<T: Config<I>, I: 'static>(
-	submitter: bp_messages::source_chain::Sender<T::AccountId>,
+	submitter: T::Origin,
 	lane_id: LaneId,
 	payload: T::OutboundPayload,
 	delivery_and_dispatch_fee: T::OutboundMessageFee,
@@ -917,9 +853,8 @@ fn send_message<T: Config<I>, I: 'static>(
 	.map_err(|err| {
 		log::trace!(
 			target: "runtime::bridge-messages",
-			"Message to lane {:?} is rejected because submitter {:?} is unable to pay fee {:?}: {:?}",
+			"Message to lane {:?} is rejected because submitter is unable to pay fee {:?}: {:?}",
 			lane_id,
-			submitter,
 			delivery_and_dispatch_fee,
 			err,
 		);
@@ -1160,14 +1095,31 @@ mod tests {
 		REGULAR_PAYLOAD, TEST_LANE_ID, TEST_RELAYER_A, TEST_RELAYER_B,
 	};
 	use bp_messages::{UnrewardedRelayer, UnrewardedRelayersState};
-	use frame_support::{assert_noop, assert_ok, weights::Weight};
+	use frame_support::{
+		assert_noop, assert_ok,
+		storage::generator::{StorageMap, StorageValue},
+		weights::Weight,
+	};
 	use frame_system::{EventRecord, Pallet as System, Phase};
-	use hex_literal::hex;
 	use sp_runtime::DispatchError;
 
 	fn get_ready_for_events() {
 		System::<TestRuntime>::set_block_number(1);
 		System::<TestRuntime>::reset_events();
+	}
+
+	fn inbound_unrewarded_relayers_state(
+		lane: bp_messages::LaneId,
+	) -> bp_messages::UnrewardedRelayersState {
+		let relayers = InboundLanes::<TestRuntime, ()>::get(&lane).relayers;
+		bp_messages::UnrewardedRelayersState {
+			unrewarded_relayer_entries: relayers.len() as _,
+			messages_in_oldest_entry: relayers
+				.front()
+				.map(|entry| 1 + entry.messages.end - entry.messages.begin)
+				.unwrap_or(0),
+			total_messages: total_unrewarded_messages(&relayers).unwrap_or(MessageNonce::MAX),
+		}
 	}
 
 	fn send_regular_message() -> Weight {
@@ -1614,7 +1566,7 @@ mod tests {
 				},
 			);
 			assert_eq!(
-				Pallet::<TestRuntime>::inbound_unrewarded_relayers_state(TEST_LANE_ID),
+				inbound_unrewarded_relayers_state(TEST_LANE_ID),
 				UnrewardedRelayersState {
 					unrewarded_relayer_entries: 2,
 					messages_in_oldest_entry: 1,
@@ -1649,7 +1601,7 @@ mod tests {
 				},
 			);
 			assert_eq!(
-				Pallet::<TestRuntime>::inbound_unrewarded_relayers_state(TEST_LANE_ID),
+				inbound_unrewarded_relayers_state(TEST_LANE_ID),
 				UnrewardedRelayersState {
 					unrewarded_relayer_entries: 2,
 					messages_in_oldest_entry: 1,
@@ -1888,45 +1840,6 @@ mod tests {
 
 			assert_eq!(InboundLanes::<TestRuntime>::get(&TEST_LANE_ID).last_delivered_nonce(), 3,);
 		});
-	}
-
-	#[test]
-	fn storage_message_key_computed_properly() {
-		// If this test fails, then something has been changed in module storage that is breaking
-		// all previously crafted messages proofs.
-		let storage_key = storage_keys::message_key("BridgeMessages", &*b"test", 42).0;
-		assert_eq!(
-			storage_key,
-			hex!("dd16c784ebd3390a9bc0357c7511ed018a395e6242c6813b196ca31ed0547ea79446af0e09063bd4a7874aef8a997cec746573742a00000000000000").to_vec(),
-			"Unexpected storage key: {}",
-			hex::encode(&storage_key),
-		);
-	}
-
-	#[test]
-	fn outbound_lane_data_key_computed_properly() {
-		// If this test fails, then something has been changed in module storage that is breaking
-		// all previously crafted outbound lane state proofs.
-		let storage_key = storage_keys::outbound_lane_data_key("BridgeMessages", &*b"test").0;
-		assert_eq!(
-			storage_key,
-			hex!("dd16c784ebd3390a9bc0357c7511ed0196c246acb9b55077390e3ca723a0ca1f44a8995dd50b6657a037a7839304535b74657374").to_vec(),
-			"Unexpected storage key: {}",
-			hex::encode(&storage_key),
-		);
-	}
-
-	#[test]
-	fn inbound_lane_data_key_computed_properly() {
-		// If this test fails, then something has been changed in module storage that is breaking
-		// all previously crafted inbound lane state proofs.
-		let storage_key = storage_keys::inbound_lane_data_key("BridgeMessages", &*b"test").0;
-		assert_eq!(
-			storage_key,
-			hex!("dd16c784ebd3390a9bc0357c7511ed01e5f83cf83f2127eb47afdc35d6e43fab44a8995dd50b6657a037a7839304535b74657374").to_vec(),
-			"Unexpected storage key: {}",
-			hex::encode(&storage_key),
-		);
 	}
 
 	#[test]
@@ -2361,5 +2274,31 @@ mod tests {
 				crate::mock::DbWeight::get().reads(1).saturating_add(prune_weight)
 			);
 		});
+	}
+
+	#[test]
+	fn storage_keys_computed_properly() {
+		assert_eq!(
+			PalletOperatingMode::<TestRuntime>::storage_value_final_key().to_vec(),
+			bp_messages::storage_keys::operating_mode_key("Messages").0,
+		);
+
+		assert_eq!(
+			OutboundMessages::<TestRuntime>::storage_map_final_key(MessageKey {
+				lane_id: TEST_LANE_ID,
+				nonce: 42
+			}),
+			bp_messages::storage_keys::message_key("Messages", &TEST_LANE_ID, 42).0,
+		);
+
+		assert_eq!(
+			OutboundLanes::<TestRuntime>::storage_map_final_key(TEST_LANE_ID),
+			bp_messages::storage_keys::outbound_lane_data_key("Messages", &TEST_LANE_ID).0,
+		);
+
+		assert_eq!(
+			InboundLanes::<TestRuntime>::storage_map_final_key(TEST_LANE_ID),
+			bp_messages::storage_keys::inbound_lane_data_key("Messages", &TEST_LANE_ID).0,
+		);
 	}
 }

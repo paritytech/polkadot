@@ -16,6 +16,10 @@
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
+/// Buckets more suitable for checking the typical latency values
+const HISTOGRAM_LATENCY_BUCKETS: &[f64] =
+	&[0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0, 1.2, 1.5, 1.75];
+
 #[derive(Clone)]
 struct MetricsInner {
 	statements_distributed: prometheus::Counter<prometheus::U64>,
@@ -23,8 +27,9 @@ struct MetricsInner {
 	received_responses: prometheus::CounterVec<prometheus::U64>,
 	active_leaves_update: prometheus::Histogram,
 	share: prometheus::Histogram,
-	network_bridge_update_v1: prometheus::Histogram,
+	network_bridge_update_v1: prometheus::HistogramVec,
 	statements_unexpected: prometheus::CounterVec<prometheus::U64>,
+	created_message_size: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Statement Distribution metrics.
@@ -73,8 +78,14 @@ impl Metrics {
 	/// Provide a timer for `network_bridge_update_v1` which observes on drop.
 	pub fn time_network_bridge_update_v1(
 		&self,
+		message_type: &'static str,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
+		self.0.as_ref().map(|metrics| {
+			metrics
+				.network_bridge_update_v1
+				.with_label_values(&[message_type])
+				.start_timer()
+		})
 	}
 
 	/// Update the out-of-view statements counter for unexpected valid statements
@@ -95,6 +106,13 @@ impl Metrics {
 	pub fn on_unexpected_statement_large(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.statements_unexpected.with_label_values(&["large"]).inc();
+		}
+	}
+
+	/// Report size of a created message.
+	pub fn on_created_message(&self, size: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.created_message_size.set(size as u64);
 		}
 	}
 }
@@ -129,24 +147,34 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			active_leaves_update: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_statement_distribution_active_leaves_update",
-					"Time spent within `statement_distribution::active_leaves_update`",
-				))?,
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_statement_distribution_active_leaves_update",
+						"Time spent within `statement_distribution::active_leaves_update`",
+					)
+					.buckets(HISTOGRAM_LATENCY_BUCKETS.into()),
+				)?,
 				registry,
 			)?,
 			share: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_statement_distribution_share",
-					"Time spent within `statement_distribution::share`",
-				))?,
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_statement_distribution_share",
+						"Time spent within `statement_distribution::share`",
+					)
+					.buckets(HISTOGRAM_LATENCY_BUCKETS.into()),
+				)?,
 				registry,
 			)?,
 			network_bridge_update_v1: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_statement_distribution_network_bridge_update_v1",
-					"Time spent within `statement_distribution::network_bridge_update_v1`",
-				))?,
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_statement_distribution_network_bridge_update_v1",
+						"Time spent within `statement_distribution::network_bridge_update_v1`",
+					)
+					.buckets(HISTOGRAM_LATENCY_BUCKETS.into()),
+					&["message_type"],
+				)?,
 				registry,
 			)?,
 			statements_unexpected: prometheus::register(
@@ -157,6 +185,13 @@ impl metrics::Metrics for Metrics {
 					),
 					&["type"],
 				)?,
+				registry,
+			)?,
+			created_message_size: prometheus::register(
+				prometheus::Gauge::with_opts(prometheus::Opts::new(
+					"polkadot_parachain_statement_distribution_created_message_size",
+					"Size of created messages containing Seconded statements.",
+				))?,
 				registry,
 			)?,
 		};

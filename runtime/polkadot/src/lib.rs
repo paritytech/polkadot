@@ -22,8 +22,9 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
+	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
+	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
 use runtime_parachains::{
@@ -37,6 +38,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_election_provider_support::{
+	generate_solution_type, onchain::UnboundedExecution, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -160,6 +164,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Proxy(_) |
 			Call::Multisig(_) |
 			Call::Bounties(_) |
+			Call::ChildBounties(_) |
 			Call::Tips(_) |
 			Call::ElectionProviderMultiPhase(_) |
 			Call::Configuration(_) |
@@ -448,18 +453,20 @@ parameter_types! {
 	// 4 hour session, 1 hour unsigned phase, 32 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 32;
 
-	/// Whilst `UseNominatorsAndUpdateBagsList` or `UseNominatorsMap` is in use, this can still be a
-	/// very large value. Once the `BagsList` is in full motion, staking might open its door to many
-	/// more nominators, and this value should instead be what is a "safe" number (e.g. 22500).
-	pub const VoterSnapshotPerBlock: u32 = 22_500;
+	/// We take the top 22500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 22_500;
+	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
+	/// shall not increase the size of the validator intentions.
+	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
-frame_election_provider_support::generate_solution_type!(
+generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
 	>(16)
 );
 
@@ -485,9 +492,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
-	type Solver = frame_election_provider_support::SequentialPhragmen<
+	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
 		(),
@@ -498,7 +504,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
+	type MaxElectingVoters = MaxElectingVoters;
+	type MaxElectableTargets = MaxElectableTargets;
 }
 
 parameter_types! {
@@ -539,18 +546,13 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 16
-	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 >;
-
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
-}
 
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
@@ -572,8 +574,8 @@ impl pallet_staking::Config for Runtime {
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	type SortedListProvider = BagsList;
+	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
+	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
@@ -774,12 +776,6 @@ parameter_types! {
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
 	pub const DataDepositPerByte: Balance = 1 * CENTS;
-	pub const BountyDepositBase: Balance = 1 * DOLLARS;
-	pub const BountyDepositPayoutDelay: BlockNumber = 8 * DAYS;
-	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
-	pub const MaximumReasonLength: u32 = 16384;
-	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
 	pub const MaxApprovals: u32 = 100;
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
@@ -810,17 +806,42 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	pub const BountyDepositBase: Balance = 1 * DOLLARS;
+	pub const BountyDepositPayoutDelay: BlockNumber = 8 * DAYS;
+	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
+	pub const MaximumReasonLength: u32 = 16384;
+	pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
+	pub const CuratorDepositMin: Balance = 10 * DOLLARS;
+	pub const CuratorDepositMax: Balance = 200 * DOLLARS;
+	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
+}
+
 impl pallet_bounties::Config for Runtime {
 	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
-	type BountyCuratorDeposit = BountyCuratorDeposit;
+	type CuratorDepositMultiplier = CuratorDepositMultiplier;
+	type CuratorDepositMin = CuratorDepositMin;
+	type CuratorDepositMax = CuratorDepositMax;
 	type BountyValueMinimum = BountyValueMinimum;
-	type ChildBountyManager = ();
+	type ChildBountyManager = ChildBounties;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub const MaxActiveChildBountyCount: u32 = 100;
+	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
+}
+
+impl pallet_child_bounties::Config for Runtime {
+	type Event = Event;
+	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
+	type ChildBountyValueMinimum = ChildBountyValueMinimum;
+	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
 }
 
 impl pallet_tips::Config for Runtime {
@@ -1105,6 +1126,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
 				Call::Bounties(..) |
+				Call::ChildBounties(..) |
 				Call::Tips(..) |
 				Call::Claims(..) |
 				Call::Vesting(pallet_vesting::Call::vest{..}) |
@@ -1129,7 +1151,8 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Council(..) | Call::TechnicalCommittee(..) |
 					Call::PhragmenElection(..) |
 					Call::Treasury(..) | Call::Bounties(..) |
-					Call::Tips(..) | Call::Utility(..)
+					Call::Tips(..) | Call::Utility(..) |
+					Call::ChildBounties(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
@@ -1206,7 +1229,8 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type Event = Event;
-	type UmpSink = ();
+	type UmpSink =
+		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = parachains_ump::TestWeightInfo;
@@ -1382,8 +1406,9 @@ construct_runtime! {
 		// Multisig dispatch. Late addition.
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 30,
 
-		// Bounties module.
+		// Bounties modules.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 34,
+		ChildBounties: pallet_child_bounties = 38,
 
 		// Tips module.
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 35,
@@ -1451,7 +1476,11 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(FixCouncilDepositMigration, CrowdloanIndexMigration),
+	(
+		FixCouncilDepositMigration,
+		CrowdloanIndexMigration,
+		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
+	),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1677,6 +1706,7 @@ mod benches {
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
 		[runtime_common::claims, Claims]
 		[runtime_common::crowdloan, Crowdloan]
 		[runtime_common::slots, Slots]
@@ -1692,6 +1722,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
+		[pallet_child_bounties, ChildBounties]
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]

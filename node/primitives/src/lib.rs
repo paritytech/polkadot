@@ -76,6 +76,11 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// dispute participants.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
 
+/// Linked to `MAX_FINALITY_LAG` in relay chain selection,
+/// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
+/// `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`
+pub const MAX_FINALITY_LAG: u32 = 500;
+
 /// Type of a session window size.
 ///
 /// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global

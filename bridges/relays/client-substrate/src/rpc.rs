@@ -16,8 +16,7 @@
 
 //! The most generic Substrate node RPC interface.
 
-use crate::chain::Chain;
-
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use pallet_transaction_payment_rpc_runtime_api::FeeDetails;
 use sc_rpc_api::{state::ReadProof, system::Health};
 use sp_core::{
@@ -27,33 +26,51 @@ use sp_core::{
 use sp_rpc::number::NumberOrHex;
 use sp_version::RuntimeVersion;
 
-jsonrpsee_proc_macros::rpc_client_api! {
-	pub(crate) Substrate<C: Chain> {
-		#[rpc(method = "system_health", positional_params)]
-		fn system_health() -> Health;
-		#[rpc(method = "chain_getHeader", positional_params)]
-		fn chain_get_header(block_hash: Option<C::Hash>) -> C::Header;
-		#[rpc(method = "chain_getFinalizedHead", positional_params)]
-		fn chain_get_finalized_head() -> C::Hash;
-		#[rpc(method = "chain_getBlock", positional_params)]
-		fn chain_get_block(block_hash: Option<C::Hash>) -> C::SignedBlock;
-		#[rpc(method = "chain_getBlockHash", positional_params)]
-		fn chain_get_block_hash(block_number: Option<C::BlockNumber>) -> C::Hash;
-		#[rpc(method = "system_accountNextIndex", positional_params)]
-		fn system_account_next_index(account_id: C::AccountId) -> C::Index;
-		#[rpc(method = "author_submitExtrinsic", positional_params)]
-		fn author_submit_extrinsic(extrinsic: Bytes) -> C::Hash;
-		#[rpc(method = "author_pendingExtrinsics", positional_params)]
-		fn author_pending_extrinsics() -> Vec<Bytes>;
-		#[rpc(method = "state_call", positional_params)]
-		fn state_call(method: String, data: Bytes, at_block: Option<C::Hash>) -> Bytes;
-		#[rpc(method = "state_getStorage", positional_params)]
-		fn state_get_storage(key: StorageKey, at_block: Option<C::Hash>) -> Option<StorageData>;
-		#[rpc(method = "state_getReadProof", positional_params)]
-		fn state_prove_storage(keys: Vec<StorageKey>, hash: Option<C::Hash>) -> ReadProof<C::Hash>;
-		#[rpc(method = "state_getRuntimeVersion", positional_params)]
-		fn state_runtime_version() -> RuntimeVersion;
-		#[rpc(method = "payment_queryFeeDetails", positional_params)]
-		fn payment_query_fee_details(extrinsic: Bytes, at_block: Option<C::Hash>) -> FeeDetails<NumberOrHex>;
-	}
+#[rpc(client)]
+pub(crate) trait Substrate<AccountId, BlockNumber, Hash, Header, Index, SignedBlock> {
+	#[method(name = "system_health", param_kind = array)]
+	async fn system_health(&self) -> RpcResult<Health>;
+	#[method(name = "system_properties", param_kind = array)]
+	async fn system_properties(&self) -> RpcResult<sc_chain_spec::Properties>;
+	#[method(name = "chain_getHeader", param_kind = array)]
+	async fn chain_get_header(&self, block_hash: Option<Hash>) -> RpcResult<Header>;
+	#[method(name = "chain_getFinalizedHead", param_kind = array)]
+	async fn chain_get_finalized_head(&self) -> RpcResult<Hash>;
+	#[method(name = "chain_getBlock", param_kind = array)]
+	async fn chain_get_block(&self, block_hash: Option<Hash>) -> RpcResult<SignedBlock>;
+	#[method(name = "chain_getBlockHash", param_kind = array)]
+	async fn chain_get_block_hash(&self, block_number: Option<BlockNumber>) -> RpcResult<Hash>;
+	#[method(name = "system_accountNextIndex", param_kind = array)]
+	async fn system_account_next_index(&self, account_id: AccountId) -> RpcResult<Index>;
+	#[method(name = "author_submitExtrinsic", param_kind = array)]
+	async fn author_submit_extrinsic(&self, extrinsic: Bytes) -> RpcResult<Hash>;
+	#[method(name = "author_pendingExtrinsics", param_kind = array)]
+	async fn author_pending_extrinsics(&self) -> RpcResult<Vec<Bytes>>;
+	#[method(name = "state_call", param_kind = array)]
+	async fn state_call(
+		&self,
+		method: String,
+		data: Bytes,
+		at_block: Option<Hash>,
+	) -> RpcResult<Bytes>;
+	#[method(name = "state_getStorage", param_kind = array)]
+	async fn state_get_storage(
+		&self,
+		key: StorageKey,
+		at_block: Option<Hash>,
+	) -> RpcResult<Option<StorageData>>;
+	#[method(name = "state_getReadProof", param_kind = array)]
+	async fn state_prove_storage(
+		&self,
+		keys: Vec<StorageKey>,
+		hash: Option<Hash>,
+	) -> RpcResult<ReadProof<Hash>>;
+	#[method(name = "state_getRuntimeVersion", param_kind = array)]
+	async fn state_runtime_version(&self) -> RpcResult<RuntimeVersion>;
+	#[method(name = "payment_queryFeeDetails", param_kind = array)]
+	async fn payment_query_fee_details(
+		&self,
+		extrinsic: Bytes,
+		at_block: Option<Hash>,
+	) -> RpcResult<FeeDetails<NumberOrHex>>;
 }

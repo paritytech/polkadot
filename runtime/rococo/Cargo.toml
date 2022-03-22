@@ -7,12 +7,12 @@ build = "build.rs"
 
 [dependencies]
 hex-literal = { version = "0.3.4", optional = true }
-parity-scale-codec = { version = "3.1.0", default-features = false, features = ["derive", "max-encoded-len"] }
+log = { version = "0.4.14", default-features = false }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.136", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
-log = { version = "0.4.14", default-features = false }
 
 # Substrate
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -136,6 +136,7 @@ std = [
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-sudo/std",
+	"pallet-utility/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
@@ -171,6 +172,7 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system-benchmarking",
+	"frame-system-benchmarking",
 	"frame-system/runtime-benchmarks",
 	"hex-literal",
 	"pallet-babe/runtime-benchmarks",
@@ -180,6 +182,7 @@ runtime-benchmarks = [
 	"pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
+	"pallet-membership/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
@@ -188,6 +191,7 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"runtime-common/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
