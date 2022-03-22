@@ -63,6 +63,7 @@ async fn purge_chain_rocksdb_works() {
 	assert!(!tmpdir.path().join("chains/dev/db/full").exists());
 }
 
+#[ignore]
 #[tokio::test]
 #[cfg(unix)]
 async fn purge_chain_paritydb_works() {
