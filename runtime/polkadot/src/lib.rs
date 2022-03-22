@@ -37,7 +37,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use bridge_runtime_common::messages::{source::estimate_message_dispatch_and_delivery_fee, MessageBridge};
+use bridge_runtime_common::messages::{
+	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -1405,12 +1407,13 @@ impl pallet_bridge_messages::Config<WithKusamaMessagesInstance> for Runtime {
 
 	type TargetHeaderChain = kusama_messages::Kusama;
 	type LaneMessageVerifier = kusama_messages::ToKusamaMessageVerifier;
-	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-		Runtime,
-		WithKusamaMessagesInstance,
-		pallet_balances::Pallet<Runtime>,
-		kusama_messages::GetDeliveryConfirmationTransactionFee,
-	>;
+	type MessageDeliveryAndDispatchPayment =
+		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+			Runtime,
+			WithKusamaMessagesInstance,
+			pallet_balances::Pallet<Runtime>,
+			kusama_messages::GetDeliveryConfirmationTransactionFee,
+		>;
 	type OnMessageAccepted = ();
 	type OnDeliveryConfirmed = ();
 
@@ -1788,16 +1791,18 @@ impl OnRuntimeUpgrade for InitializeKusamaBridge {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		// 12pPqadtXfkC4Jz16Lhyx33KZabx1N3ioUNkrwUQUwvvRRvT
 		let with_kusama_grandpa_pallet_owner_id = AccountId::from([
-			0x50, 0x61, 0xa5, 0x47, 0x7e, 0x45, 0xdc, 0x62, 0xda, 0x52, 0xc9, 0x79, 0x86, 0x64, 0xc4, 0xdf,
-			0xc8, 0xaa, 0x15, 0x27, 0x96, 0x77, 0xc6, 0xa2, 0x7a, 0xd2, 0xd5, 0x07, 0x8b, 0xa7, 0x7f, 0x03,
+			0x50, 0x61, 0xa5, 0x47, 0x7e, 0x45, 0xdc, 0x62, 0xda, 0x52, 0xc9, 0x79, 0x86, 0x64,
+			0xc4, 0xdf, 0xc8, 0xaa, 0x15, 0x27, 0x96, 0x77, 0xc6, 0xa2, 0x7a, 0xd2, 0xd5, 0x07,
+			0x8b, 0xa7, 0x7f, 0x03,
 		]);
 		pallet_bridge_grandpa::PalletOwner::<Runtime, KusamaGrandpaInstance>::put(
 			with_kusama_grandpa_pallet_owner_id,
 		);
 		// 1jhfovJDjGJz8vR75QqwgBsXn62USqW8xpY6KZus3mmACJA
 		let with_kusama_messages_pallet_owner_id = AccountId::from([
-			0x20, 0x91, 0x36, 0x21, 0x33, 0xf8, 0xaf, 0x3a, 0x2d, 0xf4, 0x71, 0x34, 0xe0, 0xd2, 0xf0, 0x62,
-			0x58, 0xc0, 0x68, 0x38, 0x13, 0xf4, 0x5d, 0xb8, 0xa6, 0x02, 0x87, 0xd2, 0xcd, 0xce, 0x98, 0x7e,
+			0x20, 0x91, 0x36, 0x21, 0x33, 0xf8, 0xaf, 0x3a, 0x2d, 0xf4, 0x71, 0x34, 0xe0, 0xd2,
+			0xf0, 0x62, 0x58, 0xc0, 0x68, 0x38, 0x13, 0xf4, 0x5d, 0xb8, 0xa6, 0x02, 0x87, 0xd2,
+			0xcd, 0xce, 0x98, 0x7e,
 		]);
 		pallet_bridge_messages::PalletOwner::<Runtime, WithKusamaMessagesInstance>::put(
 			with_kusama_messages_pallet_owner_id,
@@ -1808,15 +1813,21 @@ impl OnRuntimeUpgrade for InitializeKusamaBridge {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		ensure!(pallet_bridge_grandpa::PalletOwner::<Runtime, KusamaGrandpaInstance>::get().is_none());
-		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithKusamaMessagesInstance>::get().is_none());
+		ensure!(
+			pallet_bridge_grandpa::PalletOwner::<Runtime, KusamaGrandpaInstance>::get().is_none()
+		);
+		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithKusamaMessagesInstance>::get()
+			.is_none());
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		ensure!(pallet_bridge_grandpa::PalletOwner::<Runtime, KusamaGrandpaInstance>::get().is_some());
-		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithKusamaMessagesInstance>::get().is_some());
+		ensure!(
+			pallet_bridge_grandpa::PalletOwner::<Runtime, KusamaGrandpaInstance>::get().is_some()
+		);
+		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithKusamaMessagesInstance>::get()
+			.is_some());
 		Ok(())
 	}
 }

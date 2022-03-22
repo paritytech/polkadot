@@ -21,22 +21,22 @@ use crate::{AccountId, Call, Origin, OriginCaller, Runtime};
 use bp_messages::{
 	source_chain::{LaneMessageVerifier, SenderOrigin, TargetHeaderChain},
 	target_chain::{ProvedMessages, SourceHeaderChain},
-	InboundLaneData, LaneId, Message, MessageNonce, OutboundLaneData, Parameter as MessagesParameter,
+	InboundLaneData, LaneId, Message, MessageNonce, OutboundLaneData,
+	Parameter as MessagesParameter,
 };
-use bp_runtime::{Chain, ChainId, POLKADOT_CHAIN_ID, KUSAMA_CHAIN_ID};
+use bp_runtime::{Chain, ChainId, KUSAMA_CHAIN_ID, POLKADOT_CHAIN_ID};
 use bridge_runtime_common::messages::{
-	source as messages_source, target as messages_target,
-	BridgedChainWithMessages, ChainWithMessages, MessageBridge,
-	MessageTransaction, ThisChainWithMessages,
-	transaction_payment,
+	source as messages_source, target as messages_target, transaction_payment,
+	BridgedChainWithMessages, ChainWithMessages, MessageBridge, MessageTransaction,
+	ThisChainWithMessages,
 };
-use parity_scale_codec::{Decode, Encode};
 use frame_support::{
 	parameter_types,
 	traits::{Contains, Get},
 	weights::{DispatchClass, Weight, WeightToFeePolynomial},
 	RuntimeDebug,
 };
+use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_std::{convert::TryFrom, ops::RangeInclusive};
@@ -47,23 +47,19 @@ use crate::{Balances, Event};
 use bp_polkadot::{Hasher, Header};
 #[cfg(feature = "runtime-benchmarks")]
 use bridge_runtime_common::messages_benchmarking::{
-	dispatch_account,
-	prepare_message_delivery_proof,
-	prepare_message_proof,
+	dispatch_account, prepare_message_delivery_proof, prepare_message_proof,
 	prepare_outbound_message,
 };
 #[cfg(feature = "runtime-benchmarks")]
 use frame_support::traits::Currency;
 #[cfg(feature = "runtime-benchmarks")]
 use pallet_bridge_messages::benchmarking::{
-	Config as MessagesConfig,
-	MessageDeliveryProofParams,
-	MessageParams,
-	MessageProofParams,
+	Config as MessagesConfig, MessageDeliveryProofParams, MessageParams, MessageProofParams,
 };
 
 /// Initial value of `KusamaToPolkadotConversionRate` parameter.
-pub const INITIAL_KUSAMA_TO_POLKADOT_CONVERSION_RATE: FixedU128 = FixedU128::from_inner(FixedU128::DIV);
+pub const INITIAL_KUSAMA_TO_POLKADOT_CONVERSION_RATE: FixedU128 =
+	FixedU128::from_inner(FixedU128::DIV);
 /// Initial value of `KusamaFeeMultiplier` parameter.
 pub const INITIAL_KUSAMA_FEE_MULTIPLIER: FixedU128 = FixedU128::from_inner(FixedU128::DIV);
 
@@ -77,10 +73,12 @@ parameter_types! {
 }
 
 /// Message payload for Polkadot -> Kusama messages.
-pub type ToKusamaMessagePayload = messages_source::FromThisChainMessagePayload<WithKusamaMessageBridge>;
+pub type ToKusamaMessagePayload =
+	messages_source::FromThisChainMessagePayload<WithKusamaMessageBridge>;
 
 /// Message payload for Kusama -> Polkadot messages.
-pub type FromKusamaMessagePayload = messages_target::FromBridgedChainMessagePayload<WithKusamaMessageBridge>;
+pub type FromKusamaMessagePayload =
+	messages_target::FromBridgedChainMessagePayload<WithKusamaMessageBridge>;
 
 /// Encoded Polkadot Call as it comes from Kusama.
 pub type FromKusamaEncodedCall = messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
@@ -103,12 +101,14 @@ const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disaled.";
 #[derive(RuntimeDebug)]
 pub struct ToKusamaMessageVerifier;
 
-impl LaneMessageVerifier<
-	Origin,
-	bp_polkadot::AccountId,
-	ToKusamaMessagePayload,
-	bp_polkadot::Balance,
-> for ToKusamaMessageVerifier {
+impl
+	LaneMessageVerifier<
+		Origin,
+		bp_polkadot::AccountId,
+		ToKusamaMessagePayload,
+		bp_polkadot::Balance,
+	> for ToKusamaMessageVerifier
+{
 	type Error = &'static str;
 
 	fn verify_message(
@@ -128,7 +128,9 @@ impl LaneMessageVerifier<
 		#[cfg(not(feature = "runtime-benchmarks"))]
 		{
 			match allowed_sender {
-				Some(ref allowed_sender) if submitter.linked_account().as_ref() == Some(allowed_sender) => (),
+				Some(ref allowed_sender)
+					if submitter.linked_account().as_ref() == Some(allowed_sender) =>
+					(),
 				_ => return Err(NOT_ALLOWED_MESSAGE_SENDER),
 			}
 		}
@@ -152,7 +154,8 @@ impl MessageBridge for WithKusamaMessageBridge {
 	const RELAYER_FEE_PERCENT: u32 = 10;
 	const THIS_CHAIN_ID: ChainId = POLKADOT_CHAIN_ID;
 	const BRIDGED_CHAIN_ID: ChainId = KUSAMA_CHAIN_ID;
-	const BRIDGED_MESSAGES_PALLET_NAME: &'static str = bp_polkadot::WITH_POLKADOT_MESSAGES_PALLET_NAME;
+	const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
+		bp_polkadot::WITH_POLKADOT_MESSAGES_PALLET_NAME;
 
 	type ThisChain = Polkadot;
 	type BridgedChain = Kusama;
@@ -297,7 +300,8 @@ impl BridgedChainWithMessages for Kusama {
 
 impl TargetHeaderChain<ToKusamaMessagePayload, bp_kusama::AccountId> for Kusama {
 	type Error = &'static str;
-	type MessagesDeliveryProof = messages_source::FromBridgedChainMessagesDeliveryProof<bp_kusama::Hash>;
+	type MessagesDeliveryProof =
+		messages_source::FromBridgedChainMessagesDeliveryProof<bp_kusama::Hash>;
 
 	fn verify_message(payload: &ToKusamaMessagePayload) -> Result<(), Self::Error> {
 		messages_source::verify_chain_message::<WithKusamaMessageBridge>(payload)
@@ -326,7 +330,8 @@ impl SourceHeaderChain<bp_kusama::Balance> for Kusama {
 			WithKusamaMessageBridge,
 			Runtime,
 			crate::KusamaGrandpaInstance,
-		>(proof, messages_count).and_then(verify_inbound_messages_lane)
+		>(proof, messages_count)
+		.and_then(verify_inbound_messages_lane)
 	}
 }
 
@@ -336,7 +341,7 @@ fn verify_inbound_messages_lane(
 ) -> Result<ProvedMessages<Message<bp_polkadot::Balance>>, &'static str> {
 	let allowed_incoming_lanes = [[0, 0, 0, 0]];
 	if messages.keys().any(|lane_id| !allowed_incoming_lanes.contains(lane_id)) {
-		return Err(INBOUND_LANE_DISABLED);
+		return Err(INBOUND_LANE_DISABLED)
 	}
 	Ok(messages)
 }
@@ -350,7 +355,7 @@ impl SenderOrigin<AccountId> for Origin {
 				Some(submitter.clone()),
 
 			OriginCaller::Council(_) => AllowedMessageSender::get(),
-				_ => None,
+			_ => None,
 		}
 	}
 }
@@ -369,7 +374,9 @@ pub enum WithKusamaMessageBridgeParameter {
 impl MessagesParameter for WithKusamaMessageBridgeParameter {
 	fn save(&self) {
 		match *self {
-			WithKusamaMessageBridgeParameter::KusamaToPolkadotConversionRate(ref conversion_rate) => {
+			WithKusamaMessageBridgeParameter::KusamaToPolkadotConversionRate(
+				ref conversion_rate,
+			) => {
 				KusamaToPolkadotConversionRate::set(conversion_rate);
 			},
 			WithKusamaMessageBridgeParameter::KusamaFeeMultiplier(ref fee_multiplier) => {
@@ -377,7 +384,7 @@ impl MessagesParameter for WithKusamaMessageBridgeParameter {
 			},
 			WithKusamaMessageBridgeParameter::AllowedMessageSender(ref message_sender) => {
 				AllowedMessageSender::set(message_sender);
-			}
+			},
 		}
 	}
 }
@@ -455,21 +462,23 @@ impl MessagesConfig<crate::WithKusamaMessagesInstance> for Runtime {
 		frame_system::Pallet::<Runtime>::events()
 			.into_iter()
 			.map(|event_record| event_record.event)
-			.any(|event| matches!(
-				event,
-				Event::BridgeKusamaMessagesDispatch(pallet_bridge_dispatch::Event::<Runtime, _>::MessageDispatched(
-					_, ([0, 0, 0, 0], nonce_from_event), _,
-				)) if nonce_from_event == nonce
-			))
+			.any(|event| {
+				matches!(
+					event,
+					Event::BridgeKusamaMessagesDispatch(pallet_bridge_dispatch::Event::<Runtime, _>::MessageDispatched(
+						_, ([0, 0, 0, 0], nonce_from_event), _,
+					)) if nonce_from_event == nonce
+				)
+			})
 	}
 }
 
 #[cfg(test)]
 mod tests {
+	use super::*;
+	use crate::*;
 	use bp_messages::{target_chain::ProvedLaneMessages, MessageData, MessageKey};
 	use frame_support::weights::GetDispatchInfo;
-	use crate::*;
-	use super::*;
 
 	fn message_payload(sender: bp_polkadot::AccountId) -> ToKusamaMessagePayload {
 		let call = Call::Balances(pallet_balances::Call::<Runtime>::transfer {
@@ -499,21 +508,26 @@ mod tests {
 		);
 
 		let max_incoming_message_proof_size = bp_kusama::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
-			messages_target::maximal_incoming_message_size(bp_polkadot::Polkadot::max_extrinsic_size()),
+			messages_target::maximal_incoming_message_size(
+				bp_polkadot::Polkadot::max_extrinsic_size(),
+			),
 		);
 		pallet_bridge_messages::ensure_able_to_receive_message::<Weights>(
 			bp_polkadot::Polkadot::max_extrinsic_size(),
 			bp_polkadot::Polkadot::max_extrinsic_weight(),
 			max_incoming_message_proof_size,
-			messages_target::maximal_incoming_message_dispatch_weight(bp_polkadot::Polkadot::max_extrinsic_weight()),
+			messages_target::maximal_incoming_message_dispatch_weight(
+				bp_polkadot::Polkadot::max_extrinsic_weight(),
+			),
 		);
 
-		let max_incoming_inbound_lane_data_proof_size = bp_messages::InboundLaneData::<()>::encoded_size_hint(
-			bp_polkadot::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
-			bp_polkadot::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX as _,
-			bp_polkadot::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX as _,
-		)
-		.unwrap_or(u32::MAX);
+		let max_incoming_inbound_lane_data_proof_size =
+			bp_messages::InboundLaneData::<()>::encoded_size_hint(
+				bp_polkadot::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
+				bp_polkadot::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX as _,
+				bp_polkadot::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX as _,
+			)
+			.unwrap_or(u32::MAX);
 		pallet_bridge_messages::ensure_able_to_receive_confirmation::<Weights>(
 			bp_polkadot::Polkadot::max_extrinsic_size(),
 			bp_polkadot::Polkadot::max_extrinsic_weight(),
@@ -564,7 +578,10 @@ mod tests {
 			);
 			assert_eq!(
 				ToKusamaMessageVerifier::verify_message(
-					&OriginCaller::Council(pallet_collective::RawOrigin::Member(council_member.clone())).into(),
+					&OriginCaller::Council(pallet_collective::RawOrigin::Member(
+						council_member.clone()
+					))
+					.into(),
 					&bp_polkadot::Balance::MAX,
 					&Default::default(),
 					&Default::default(),
@@ -576,18 +593,18 @@ mod tests {
 	}
 
 	fn proved_messages(lane_id: LaneId) -> ProvedMessages<Message<bp_kusama::Balance>> {
-		vec![
-			(
-				lane_id,
-				ProvedLaneMessages {
-					lane_state: None,
-					messages: vec![Message {
-						key: MessageKey { lane_id, nonce: 0 },
-						data: MessageData { payload: vec![], fee: 0 },
-					}],
-				},
-			)
-		].into_iter().collect()
+		vec![(
+			lane_id,
+			ProvedLaneMessages {
+				lane_state: None,
+				messages: vec![Message {
+					key: MessageKey { lane_id, nonce: 0 },
+					data: MessageData { payload: vec![], fee: 0 },
+				}],
+			},
+		)]
+		.into_iter()
+		.collect()
 	}
 
 	#[test]
@@ -609,9 +626,6 @@ mod tests {
 			.into_iter()
 			.chain(proved_messages([0, 0, 0, 1]))
 			.collect();
-		assert_eq!(
-			verify_inbound_messages_lane(proved_messages),
-			Err(INBOUND_LANE_DISABLED),
-		);
+		assert_eq!(verify_inbound_messages_lane(proved_messages), Err(INBOUND_LANE_DISABLED),);
 	}
 }

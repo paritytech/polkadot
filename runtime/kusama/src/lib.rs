@@ -45,7 +45,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use bridge_runtime_common::messages::{source::estimate_message_dispatch_and_delivery_fee, MessageBridge};
+use bridge_runtime_common::messages::{
+	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -1438,12 +1440,13 @@ impl pallet_bridge_messages::Config<WithPolkadotMessagesInstance> for Runtime {
 
 	type TargetHeaderChain = polkadot_messages::Polkadot;
 	type LaneMessageVerifier = polkadot_messages::ToPolkadotMessageVerifier;
-	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-		Runtime,
-		WithPolkadotMessagesInstance,
-		pallet_balances::Pallet<Runtime>,
-		polkadot_messages::GetDeliveryConfirmationTransactionFee,
-	>;
+	type MessageDeliveryAndDispatchPayment =
+		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+			Runtime,
+			WithPolkadotMessagesInstance,
+			pallet_balances::Pallet<Runtime>,
+			polkadot_messages::GetDeliveryConfirmationTransactionFee,
+		>;
 	type OnMessageAccepted = ();
 	type OnDeliveryConfirmed = ();
 
@@ -1641,16 +1644,18 @@ impl OnRuntimeUpgrade for InitializePolkadotBridge {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		// JHCUXbnaxTgZ8XgJvzKpV14q5iZjVemLadcLoARdRXwCob2
 		let with_polkadot_grandpa_pallet_owner_id = AccountId::from([
-			0xfc, 0x5a, 0x85, 0xac, 0x73, 0xea, 0x4d, 0xa6, 0xa5, 0xc1, 0x80, 0xb9, 0xde, 0x40, 0xfd, 0x96,
-			0x5b, 0x1e, 0xde, 0x62, 0x2e, 0xea, 0x1d, 0xe8, 0xeb, 0xc5, 0x97, 0x6d, 0x92, 0x89, 0x39, 0x77,
+			0xfc, 0x5a, 0x85, 0xac, 0x73, 0xea, 0x4d, 0xa6, 0xa5, 0xc1, 0x80, 0xb9, 0xde, 0x40,
+			0xfd, 0x96, 0x5b, 0x1e, 0xde, 0x62, 0x2e, 0xea, 0x1d, 0xe8, 0xeb, 0xc5, 0x97, 0x6d,
+			0x92, 0x89, 0x39, 0x77,
 		]);
 		pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::put(
 			with_polkadot_grandpa_pallet_owner_id,
 		);
 		// GU7SWSBoawXon8qbgR582KLP1h3q5YtNheKQwXtojnoCqXF
 		let with_polkadot_messages_pallet_owner_id = AccountId::from([
-			0xac, 0x34, 0xce, 0x53, 0x4f, 0x13, 0xbd, 0xef, 0x57, 0xfa, 0x02, 0xec, 0x63, 0x8b, 0x23, 0xd8,
-			0xe0, 0xf7, 0x87, 0xdd, 0x1c, 0xd9, 0x40, 0x7f, 0xb2, 0xb8, 0xe9, 0x92, 0xf2, 0x25, 0xe6, 0x2f,
+			0xac, 0x34, 0xce, 0x53, 0x4f, 0x13, 0xbd, 0xef, 0x57, 0xfa, 0x02, 0xec, 0x63, 0x8b,
+			0x23, 0xd8, 0xe0, 0xf7, 0x87, 0xdd, 0x1c, 0xd9, 0x40, 0x7f, 0xb2, 0xb8, 0xe9, 0x92,
+			0xf2, 0x25, 0xe6, 0x2f,
 		]);
 		pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::put(
 			with_polkadot_messages_pallet_owner_id,
@@ -1661,15 +1666,23 @@ impl OnRuntimeUpgrade for InitializePolkadotBridge {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		ensure!(pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_none());
-		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get().is_none());
+		ensure!(
+			pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_none()
+		);
+		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get(
+		)
+		.is_none());
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		ensure!(pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_some());
-		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get().is_some());
+		ensure!(
+			pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_some()
+		);
+		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get(
+		)
+		.is_some());
 		Ok(())
 	}
 }
