@@ -92,7 +92,7 @@ pub type FromKusamaMessageDispatch = messages_target::FromBridgedChainMessageDis
 >;
 
 /// Error that happens when message is sent by anyone but `AllowedMessageSender`.
-#[cfg(any(not(feature = "runtime-benchmarks"), test))]
+#[cfg(not(feature = "runtime-benchmarks"))]
 const NOT_ALLOWED_MESSAGE_SENDER: &str = "Cannot accept message from this account";
 /// Error that happens when we are receiving incoming message via unexpected lane.
 const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disaled.";
@@ -354,9 +354,15 @@ impl SenderOrigin<AccountId> for Origin {
 			crate::OriginCaller::system(frame_system::RawOrigin::Signed(ref submitter)) =>
 				Some(submitter.clone()),
 
-			OriginCaller::Council(_) => AllowedMessageSender::get(),
-			_ => None,
+			_ => map_council_origin(&self.caller),
 		}
+	}
+}
+
+fn map_council_origin(origin: &OriginCaller) -> Option<AccountId> {
+	match *origin {
+		OriginCaller::Council(_) => AllowedMessageSender::get(),
+		_ => None,
 	}
 }
 
@@ -547,25 +553,20 @@ mod tests {
 			AllowedMessageSender::set(&Some(allowed_sender.clone()));
 
 			assert_eq!(
-				ToKusamaMessageVerifier::verify_message(
-					&frame_system::RawOrigin::Signed(invalid_sender.clone()).into(),
-					&bp_polkadot::Balance::MAX,
-					&Default::default(),
-					&Default::default(),
-					&message_payload(invalid_sender),
-				),
-				Err(NOT_ALLOWED_MESSAGE_SENDER),
+				map_council_origin(&frame_system::RawOrigin::Signed(invalid_sender.clone()).into()),
+				None,
 			);
 			assert_eq!(
-				ToKusamaMessageVerifier::verify_message(
-					&frame_system::RawOrigin::Signed(allowed_sender.clone()).into(),
-					&bp_polkadot::Balance::MAX,
-					&Default::default(),
-					&Default::default(),
-					&message_payload(allowed_sender),
-				),
-				Err(NOT_ALLOWED_MESSAGE_SENDER),
+				map_council_origin(&frame_system::RawOrigin::Signed(allowed_sender.clone()).into()),
+				None,
 			);
+			assert_eq!(
+				map_council_origin(
+					&OriginCaller::Council(pallet_collective::RawOrigin::Members(1, 1)).into()
+				),
+				Some(allowed_sender.clone()),
+			);
+
 			assert_eq!(
 				ToKusamaMessageVerifier::verify_message(
 					&OriginCaller::Council(pallet_collective::RawOrigin::Members(1, 1)).into(),
