@@ -152,6 +152,7 @@ std = [
 	"xcm-executor/std",
 	"xcm-builder/std",
 	"pallet-xcm/std",
+	"pallet-utility/std",
 	"log/std",
 	"pallet-multisig/std",
 ]
