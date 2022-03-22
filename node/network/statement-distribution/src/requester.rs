@@ -83,6 +83,13 @@ pub async fn fetch(
 		.with_relay_parent(relay_parent)
 		.with_stage(Stage::StatementDistribution);
 
+	gum::debug!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		?relay_parent,
+		"Fetch for large statement started",
+	);
+
 	// Peers we already tried (and failed).
 	let mut tried_peers = Vec::new();
 	// Peers left for trying out.

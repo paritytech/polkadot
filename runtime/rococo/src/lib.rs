@@ -55,7 +55,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId,
 };
 use sp_staking::SessionIndex;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -735,7 +735,7 @@ impl pallet_bridge_grandpa::Config for Runtime {
 	type MaxRequests = MaxRequests;
 	type HeadersToKeep = HeadersToKeep;
 
-	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>;
 }
 
 pub type WococoGrandpaInstance = pallet_bridge_grandpa::Instance1;
@@ -744,7 +744,7 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 	type MaxRequests = MaxRequests;
 	type HeadersToKeep = HeadersToKeep;
 
-	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>;
 }
 
 // Instance that is "deployed" at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
@@ -778,9 +778,9 @@ impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runt
 parameter_types! {
 	pub const MaxMessagesToPruneAtOnce: bp_messages::MessageNonce = 8;
 	pub const MaxUnrewardedRelayerEntriesAtInboundLane: bp_messages::MessageNonce =
-		bp_rococo::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE;
+		bp_rococo::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX;
 	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
-		bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+		bp_rococo::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX;
 	pub const RootAccountForPayments: Option<AccountId> = None;
 	pub const RococoChainId: bp_runtime::ChainId = bp_runtime::ROCOCO_CHAIN_ID;
 	pub const WococoChainId: bp_runtime::ChainId = bp_runtime::WOCOCO_CHAIN_ID;
@@ -792,7 +792,7 @@ pub type AtWococoWithRococoMessagesInstance = ();
 impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runtime {
 	type Event = Event;
 	type BridgedChainId = RococoChainId;
-	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_messages::weights::MillauWeight<Runtime>;
 	type Parameter = ();
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
@@ -815,7 +815,6 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 			AtWococoWithRococoMessagesInstance,
 			pallet_balances::Pallet<Runtime>,
 			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-			RootAccountForPayments,
 		>;
 	type OnDeliveryConfirmed = ();
 	type OnMessageAccepted = ();
@@ -830,7 +829,7 @@ pub type AtRococoWithWococoMessagesInstance = pallet_bridge_messages::Instance1;
 impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runtime {
 	type Event = Event;
 	type BridgedChainId = WococoChainId;
-	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_messages::weights::MillauWeight<Runtime>;
 	type Parameter = ();
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
@@ -853,7 +852,6 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 			AtRococoWithWococoMessagesInstance,
 			pallet_balances::Pallet<Runtime>,
 			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-			RootAccountForPayments,
 		>;
 	type OnDeliveryConfirmed = ();
 	type OnMessageAccepted = ();
@@ -1373,10 +1371,6 @@ sp_api::impl_runtime_apis! {
 			let header = BridgeRococoGrandpa::best_finalized();
 			(header.number, header.hash())
 		}
-
-		fn is_known_header(hash: bp_rococo::Hash) -> bool {
-			BridgeRococoGrandpa::is_known_header(hash)
-		}
 	}
 
 	impl bp_wococo::WococoFinalityApi<Block> for Runtime {
@@ -1384,20 +1378,18 @@ sp_api::impl_runtime_apis! {
 			let header = BridgeWococoGrandpa::best_finalized();
 			(header.number, header.hash())
 		}
-
-		fn is_known_header(hash: bp_wococo::Hash) -> bool {
-			BridgeWococoGrandpa::is_known_header(hash)
-		}
 	}
 
 	impl bp_rococo::ToRococoOutboundLaneApi<Block, Balance, bridge_messages::ToRococoMessagePayload> for Runtime {
 		fn estimate_message_delivery_and_dispatch_fee(
 			_lane_id: bp_messages::LaneId,
 			payload: bridge_messages::ToWococoMessagePayload,
+			rococo_to_wococo_conversion_rate: Option<FixedU128>,
 		) -> Option<Balance> {
 			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtWococoWithRococoMessageBridge>(
 				&payload,
 				bridge_messages::AtWococoWithRococoMessageBridge::RELAYER_FEE_PERCENT,
+				rococo_to_wococo_conversion_rate,
 			).ok()
 		}
 
@@ -1421,38 +1413,18 @@ sp_api::impl_runtime_apis! {
 			})
 			.collect()
 		}
-
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::outbound_latest_received_nonce(lane)
-		}
-
-		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::outbound_latest_generated_nonce(lane)
-		}
-	}
-
-	impl bp_rococo::FromRococoInboundLaneApi<Block> for Runtime {
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::inbound_latest_received_nonce(lane)
-		}
-
-		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::inbound_latest_confirmed_nonce(lane)
-		}
-
-		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
-			BridgeRococoMessages::inbound_unrewarded_relayers_state(lane)
-		}
 	}
 
 	impl bp_wococo::ToWococoOutboundLaneApi<Block, Balance, bridge_messages::ToWococoMessagePayload> for Runtime {
 		fn estimate_message_delivery_and_dispatch_fee(
 			_lane_id: bp_messages::LaneId,
 			payload: bridge_messages::ToWococoMessagePayload,
+			wococo_to_rococo_conversion_rate: Option<FixedU128>,
 		) -> Option<Balance> {
 			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtRococoWithWococoMessageBridge>(
 				&payload,
 				bridge_messages::AtRococoWithWococoMessageBridge::RELAYER_FEE_PERCENT,
+				wococo_to_rococo_conversion_rate,
 			).ok()
 		}
 
@@ -1475,28 +1447,6 @@ sp_api::impl_runtime_apis! {
 				})
 			})
 			.collect()
-		}
-
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::outbound_latest_received_nonce(lane)
-		}
-
-		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::outbound_latest_generated_nonce(lane)
-		}
-	}
-
-	impl bp_wococo::FromWococoInboundLaneApi<Block> for Runtime {
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::inbound_latest_received_nonce(lane)
-		}
-
-		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::inbound_latest_confirmed_nonce(lane)
-		}
-
-		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
-			BridgeWococoMessages::inbound_unrewarded_relayers_state(lane)
 		}
 	}
 
