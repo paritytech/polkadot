@@ -1651,7 +1651,6 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
-			use pallet_session_benchmarking::Pallet as SessionBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
