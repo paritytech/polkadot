@@ -1062,23 +1062,26 @@ mod benches {
 		// the that path resolves correctly in the generated file.
 		[runtime_common::auctions, Auctions]
 		[runtime_common::crowdloan, Crowdloan]
-		[runtime_parachains::disputes, ParasDisputes]
 		[runtime_common::paras_registrar, Registrar]
 		[runtime_common::slots, Slots]
 		[runtime_parachains::configuration, Configuration]
 		[runtime_parachains::hrmp, Hrmp]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
+		[runtime_parachains::disputes, ParasDisputes]
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::ump, Ump]
 		// Substrate
+		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_balances, Balances]
+		[pallet_collective, Collective]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
+		[pallet_membership, Membership]
 		[pallet_multisig, Multisig]
 		[pallet_proxy, Proxy]
-		[pallet_timestamp, Timestamp]
 		[frame_system, SystemBench::<Runtime>]
+		[pallet_timestamp, Timestamp]
 		[pallet_utility, Utility]
 	);
 }
@@ -1496,6 +1499,7 @@ sp_api::impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
@@ -1512,8 +1516,10 @@ sp_api::impl_runtime_apis! {
 		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			impl frame_system_benchmarking::Config for Runtime {}
+			impl frame_benchmarking::baseline::Config for Runtime {}
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let whitelist: Vec<TrackedStorageKey> = vec![
