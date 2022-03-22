@@ -1859,7 +1859,7 @@ fn handle_multiple_seconded_statements() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = dummy_committed_candidate_receipt(dummy_hash());
+		let mut c = dummy_committed_candidate_receipt(hash_a);
 		c.descriptor.relay_parent = hash_a;
 		c.descriptor.para_id = 1.into();
 		c

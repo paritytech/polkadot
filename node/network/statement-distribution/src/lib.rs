@@ -1464,7 +1464,7 @@ async fn handle_incoming_message<'a>(
 				// peer in this case.
 				peer_data
 					.receive(&relay_parent, &fingerprint, max_message_count)
-					.unwrap_or_else(|_| unreachable!("checked in `check_can_receive` above; qed"));
+					.expect("checked in `check_can_receive` above; qed");
 
 				return None
 			},
