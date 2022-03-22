@@ -245,11 +245,10 @@ construct_runtime! {
 		// Utilities
 		Utility: pallet_utility = 90,
 		Proxy: pallet_proxy = 91,
-		Multisig: pallet_multisig,
-		// TODO fix the pallet number/order?
-		Scheduler: pallet_scheduler,
-		Preimage: pallet_preimage,
-		Identity: pallet_identity,
+		Multisig: pallet_multisig = 92,
+		Scheduler: pallet_scheduler = 93,
+		Preimage: pallet_preimage = 94,
+		Identity: pallet_identity = 9,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
