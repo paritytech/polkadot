@@ -6,6 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
+hex-literal = { version = "0.3.4", optional = true }
 parity-scale-codec = { version = "3.1.0", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.136", default-features = false }
@@ -13,55 +14,57 @@ serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
 log = { version = "0.4.14", default-features = false }
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-
+# Substrate
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 rococo-runtime-constants = { package = "rococo-runtime-constants", path = "./constants", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -84,10 +87,6 @@ pallet-bridge-dispatch = { path = "../../bridges/modules/dispatch", default-feat
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../bridges/modules/messages", default-features = false }
 
-# Benchmarking Dependencies
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.3.4", optional = true }
-
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -97,49 +96,58 @@ no_std = []
 std = [
 	"authority-discovery-primitives/std",
 	"babe-primitives/std",
+	"beefy-primitives/std",
+	"block-builder-api/std",
 	"bp-messages/std",
 	"bp-rococo/std",
 	"bp-runtime/std",
 	"bp-wococo/std",
 	"bridge-runtime-common/std",
-	"parity-scale-codec/std",
-	"scale-info/std",
 	"frame-executive/std",
+	"frame-support/std",
+	"frame-system-rpc-runtime-api/std",
+	"frame-system/std",
+	"inherents/std",
+	"log/std",
+	"offchain-primitives/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-babe/std",
-	"beefy-primitives/std",
 	"pallet-balances/std",
+	"pallet-beefy-mmr/std",
+	"pallet-beefy/std",
 	"pallet-bridge-dispatch/std",
 	"pallet-bridge-grandpa/std",
 	"pallet-bridge-messages/std",
 	"pallet-collective/std",
-	"pallet-beefy/std",
-	"pallet-beefy-mmr/std",
 	"pallet-grandpa/std",
-	"pallet-sudo/std",
-	"pallet-membership/std",
-	"pallet-mmr/std",
-	"pallet-mmr-primitives/std",
-	"pallet-preimage/std",
-	"pallet-indices/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
+	"pallet-indices/std",
+	"pallet-membership/std",
+	"pallet-mmr-primitives/std",
+	"pallet-mmr/std",
+	"pallet-multisig/std",
+	"pallet-offences/std",
+	"pallet-preimage/std",
+	"pallet-proxy/std",
+	"pallet-recovery/std",
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-staking/std",
-	"pallet-offences/std",
-	"pallet-proxy/std",
-	"pallet-recovery/std",
+	"pallet-sudo/std",
 	"pallet-timestamp/std",
-	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
-	"inherents/std",
-	"frame-support/std",
+	"pallet-transaction-payment/std",
+	"pallet-xcm/std",
+	"parity-scale-codec/std",
 	"polkadot-parachain/std",
 	"primitives/std",
 	"runtime-common/std",
 	"runtime-parachains/std",
+	"scale-info/std",
+	"serde_derive",
+	"serde/std",
 	"sp-api/std",
 	"sp-core/std",
 	"sp-io/std",
@@ -147,20 +155,11 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"sp-std/std",
-	"frame-system/std",
-	"frame-system-rpc-runtime-api/std",
-	"offchain-primitives/std",
-	"block-builder-api/std",
-	"tx-pool-api/std",
 	"sp-version/std",
-	"serde_derive",
-	"serde/std",
-	"xcm/std",
-	"xcm-executor/std",
+	"tx-pool-api/std",
 	"xcm-builder/std",
-	"pallet-xcm/std",
-	"log/std",
-	"pallet-multisig/std",
+	"xcm-executor/std",
+	"xcm/std",
 ]
 # When enabled, the runtime API will not be build.
 #
@@ -169,29 +168,31 @@ std = [
 # in WASM.
 disable-runtime-api = []
 runtime-benchmarks = [
-	"runtime-common/runtime-benchmarks",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking",
 	"frame-system/runtime-benchmarks",
-	"sp-runtime/runtime-benchmarks",
+	"hex-literal",
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
-	"pallet-im-online/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
+	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	# "pallet-recovery/runtime-benchmarks", # https://github.com/paritytech/substrate/issues/11093
 	"pallet-scheduler/runtime-benchmarks",
+	"pallet-session-benchmarking",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
-	"xcm-builder/runtime-benchmarks",
-	"pallet-multisig/runtime-benchmarks",
-	"frame-benchmarking/runtime-benchmarks",
-	"hex-literal",
+	"runtime-common/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",

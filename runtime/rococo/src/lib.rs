@@ -1190,7 +1190,7 @@ impl pallet_recovery::Config for Runtime {
 	type FriendDepositFactor = FriendDepositFactor;
 	type MaxFriends = MaxFriends;
 	type RecoveryDeposit = RecoveryDeposit;
-	// TODO benchmarks
+	// TODO benchmarks, blocked by https://github.com/paritytech/substrate/issues/11093
 	// type WeightInfo = weights::pallet_recovery::WeightInfo<Runtime>;
 }
 
@@ -1211,6 +1211,7 @@ mod benches {
 		[pallet_identity, Identity]
 		[pallet_scheduler, Scheduler]
 		[pallet_preimage, Preimage]
+		// [pallet_session, SessionBench::<Runtime>]
 	);
 }
 
@@ -1665,6 +1666,18 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[cfg(feature = "try-runtime")]
+	impl frame_try_runtime::TryRuntime<Block> for Runtime {
+		fn on_runtime_upgrade() -> (frame_support::weights::Weight, frame_support::weights::Weight) {
+			log::info!("try-runtime::on_runtime_upgrade westend.");
+			let weight = Executive::try_runtime_upgrade().unwrap();
+			(weight, BlockWeights::get().max_block)
+		}
+		fn execute_block_no_check(block: Block) -> frame_support::weights::Weight {
+			Executive::execute_block_no_check(block)
+		}
+	}
+
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn benchmark_metadata(extra: bool) -> (
@@ -1673,6 +1686,9 @@ sp_api::impl_runtime_apis! {
 		) {
 			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
+
+			use pallet_session_benchmarking::Pallet as SessionBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
@@ -1688,6 +1704,13 @@ sp_api::impl_runtime_apis! {
 			sp_runtime::RuntimeString,
 		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
+			// To get around that, we separated the benchmarks into its own crate.
+			use pallet_session_benchmarking::Pallet as SessionBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
+
+			impl pallet_session_benchmarking::Config for Runtime {}
+			impl frame_system_benchmarking::Config for Runtime {}
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let whitelist: Vec<TrackedStorageKey> = vec![
