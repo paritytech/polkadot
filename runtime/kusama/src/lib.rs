@@ -1666,23 +1666,29 @@ impl OnRuntimeUpgrade for InitializePolkadotBridge {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		ensure!(
-			pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_none()
+		frame_support::ensure!(
+			pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_none(),
+			"Bridge grandpa pallet owner is already set",
 		);
-		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get(
-		)
-		.is_none());
+		frame_support::ensure!(
+			pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get()
+				.is_none(),
+			"Bridge messages pallet owner is already set",
+		);
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		ensure!(
-			pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_some()
+		frame_support::ensure!(
+			pallet_bridge_grandpa::PalletOwner::<Runtime, PolkadotGrandpaInstance>::get().is_some(),
+			"Bridge grandpa pallet owner is not initialized during upgrade",
 		);
-		ensure!(pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get(
-		)
-		.is_some());
+		frame_support::ensure!(
+			pallet_bridge_messages::PalletOwner::<Runtime, WithPolkadotMessagesInstance>::get()
+				.is_some(),
+			"Bridge messages pallet owner is not initialized during upgrade",
+		);
 		Ok(())
 	}
 }
