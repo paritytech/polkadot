@@ -85,7 +85,7 @@ pub(crate) fn other_io_error(err: String) -> io::Error {
 #[cfg(feature = "full-node")]
 pub fn open_creating_paritydb(
 	root: PathBuf,
-	_cache_sizes: CacheSizes,
+	cache_sizes: CacheSizes,
 ) -> io::Result<Arc<dyn Database>> {
 	let path = root.join("parachains");
 	let path_str = path
@@ -102,9 +102,15 @@ pub fn open_creating_paritydb(
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
 
+	let mut cache_sizes_col = [0; columns::NUM_COLUMNS as usize];
+	cache_sizes_col[columns::COL_AVAILABILITY_DATA as usize] = cache_sizes.availability_data * 10_000_000;
+	cache_sizes_col[columns::COL_AVAILABILITY_META as usize] = cache_sizes.availability_meta * 10_000_000;
+	cache_sizes_col[columns::COL_APPROVAL_DATA as usize] = cache_sizes.approval_data * 10_000_000;
+
 	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
 		db,
 		columns::ORDERED_COL,
+		&cache_sizes_col[..],
 	);
 	Ok(Arc::new(db))
 }
