@@ -248,7 +248,7 @@ construct_runtime! {
 		Multisig: pallet_multisig = 92,
 		Scheduler: pallet_scheduler = 93,
 		Preimage: pallet_preimage = 94,
-		Identity: pallet_identity = 9,
+		Identity: pallet_identity = 95,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
