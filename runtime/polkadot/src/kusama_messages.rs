@@ -92,7 +92,7 @@ pub type FromKusamaMessageDispatch = messages_target::FromBridgedChainMessageDis
 >;
 
 /// Error that happens when message is sent by anyone but `AllowedMessageSender`.
-#[cfg(not(feature = "runtime-benchmarks"))]
+#[cfg(any(not(feature = "runtime-benchmarks"), test))]
 const NOT_ALLOWED_MESSAGE_SENDER: &str = "Cannot accept message from this account";
 /// Error that happens when we are receiving incoming message via unexpected lane.
 const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disaled.";
