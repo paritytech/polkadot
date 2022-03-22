@@ -1460,8 +1460,6 @@ async fn handle_incoming_message<'a>(
 			Err(DeniedStatement::UsefulButKnown) => {
 				report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
 				// Note a received statement in the peer data
-				// TODO: Understand if we need to share our active statements with the
-				// peer in this case.
 				peer_data
 					.receive(&relay_parent, &fingerprint, max_message_count)
 					.expect("checked in `check_can_receive` above; qed");
