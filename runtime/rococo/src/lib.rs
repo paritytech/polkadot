@@ -250,6 +250,7 @@ construct_runtime! {
 		Scheduler: pallet_scheduler,
 		Preimage: pallet_preimage,
 		Identity: pallet_identity,
+		Recovery: pallet_recovery,
 	
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm = 99,
@@ -1062,6 +1063,13 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::ImOnline(..) |
 				Call::Utility(..) |
 				// Call::Identity(..) |
+				Call::Recovery(pallet_recovery::Call::as_recovered{..}) |
+				Call::Recovery(pallet_recovery::Call::vouch_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::claim_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::close_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::remove_recovery{..}) |
+				Call::Recovery(pallet_recovery::Call::cancel_recovered{..}) |
+				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
 				Call::Scheduler(..) |
 				// Specifically omitting Sudo pallet
 				Call::Proxy(..) |
@@ -1167,6 +1175,25 @@ impl pallet_multisig::Config for Runtime {
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
 	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const ConfigDepositBase: Balance = 500 * CENTS;
+	pub const FriendDepositFactor: Balance = 50 * CENTS;
+	pub const MaxFriends: u16 = 9;
+	pub const RecoveryDeposit: Balance = 500 * CENTS;
+}
+
+impl pallet_recovery::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type ConfigDepositBase = ConfigDepositBase;
+	type FriendDepositFactor = FriendDepositFactor;
+	type MaxFriends = MaxFriends;
+	type RecoveryDeposit = RecoveryDeposit;
+	// TODO benchmarks
+	// type WeightInfo = weights::pallet_recovery::WeightInfo<Runtime>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
