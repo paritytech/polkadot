@@ -1842,6 +1842,313 @@ fn peer_cant_flood_with_large_statements() {
 	executor::block_on(future::join(test_fut, bg));
 }
 
+#[test]
+fn handle_multiple_seconded_statements() {
+	let hash_a = Hash::repeat_byte(1);
+
+	let candidate = {
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
+		c.descriptor.relay_parent = hash_a;
+		c.descriptor.para_id = 1.into();
+		c
+	};
+	let candidate_hash = candidate.hash();
+
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+
+	let validators = vec![
+		Sr25519Keyring::Alice.pair(),
+		Sr25519Keyring::Bob.pair(),
+		Sr25519Keyring::Charlie.pair(),
+	];
+
+	let session_info = make_session_info(validators, vec![]);
+
+	let session_index = 1;
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
+
+	let bg = async move {
+		let s = StatementDistributionSubsystem::new(
+			Arc::new(LocalKeystore::in_memory()),
+			statement_req_receiver,
+			Default::default(),
+		);
+		s.run(ctx).await.unwrap();
+	};
+
+	let test_fut = async move {
+		// register our active heads.
+		handle
+			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}),
+			)))
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Ok(session_index));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+			)
+				if r == hash_a && sess_index == session_index
+			=> {
+				let _ = tx.send(Ok(Some(session_info)));
+			}
+		);
+
+		// notify of peers and view
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
+				),
+			})
+			.await;
+
+		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
+		// candidate backing.
+		let statement = {
+			let signing_context = SigningContext { parent_hash: hash_a, session_index };
+
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = CryptoStore::sr25519_generate_new(
+				&*keystore,
+				ValidatorId::ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+				.await
+				.unwrap();
+
+			SignedFullStatement::sign(
+				&keystore,
+				Statement::Seconded(candidate.clone()),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			)
+				.await
+				.ok()
+				.flatten()
+				.expect("should be signed")
+		};
+
+		// `PeerA` sends a `Seconded` message
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						protocol_v1::StatementDistributionMessage::Statement(
+							hash_a,
+							statement.clone().into(),
+						),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+		);
+
+		// After the first valid statement, we expect messages to be circulated
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::Statement(r, s)
+			) if r == hash_a && s == statement => {}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendValidationMessage(
+					recipients,
+					protocol_v1::ValidationProtocol::StatementDistribution(
+						protocol_v1::StatementDistributionMessage::Statement(r, s)
+					),
+				)
+			) => {
+				assert_eq!(recipients, vec![peer_b.clone()]);
+				assert_eq!(r, hash_a);
+				assert_eq!(s, statement.clone().into());
+			}
+		);
+
+		// `PeerB` sends a `Seconded` message: valid but known
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::StatementDistributionMessage::Statement(
+							hash_a,
+							statement.clone().into(),
+						),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) if p == peer_b && r == BENEFIT_VALID_STATEMENT => {}
+		);
+
+		// Create a `Valid` statement
+		let statement = {
+			let signing_context = SigningContext { parent_hash: hash_a, session_index };
+
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = CryptoStore::sr25519_generate_new(
+				&*keystore,
+				ValidatorId::ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+				.await
+				.unwrap();
+
+			SignedFullStatement::sign(
+				&keystore,
+				Statement::Valid(candidate_hash),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			)
+				.await
+				.ok()
+				.flatten()
+				.expect("should be signed")
+		};
+
+		// `PeerA` sends a `Valid` message
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						protocol_v1::StatementDistributionMessage::Statement(
+							hash_a,
+							statement.clone().into(),
+						),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::Statement(r, s)
+			) if r == hash_a && s == statement => {}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendValidationMessage(
+					recipients,
+					protocol_v1::ValidationProtocol::StatementDistribution(
+						protocol_v1::StatementDistributionMessage::Statement(r, s)
+					),
+				)
+			) => {
+				assert_eq!(recipients, vec![peer_b.clone()]);
+				assert_eq!(r, hash_a);
+				assert_eq!(s, statement.clone().into());
+			}
+		);
+
+		// `PeerB` sends a `Valid` message
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::StatementDistributionMessage::Statement(
+							hash_a,
+							statement.clone().into(),
+						),
+					),
+				),
+			})
+			.await;
+
+		// We expect that this is still valid despite the fact that `PeerB` was not
+		// the first when sending `Seconded`
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) if p == peer_b && r == BENEFIT_VALID_STATEMENT => {}
+		);
+
+
+		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(bg);
+
+	executor::block_on(future::join(test_fut, bg));
+}
+
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
 	let validator_groups: Vec<Vec<ValidatorIndex>> = groups
 		.iter()
