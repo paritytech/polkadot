@@ -141,7 +141,8 @@ pub mod paritydb_impl {
 	use super::{DBTransaction, DBValue, Database, KeyValueDB};
 	use kvdb::{DBOp, IoStats, IoStatsKind};
 	use parity_db::Db;
-	use std::{collections::BTreeSet, io::Result};
+	use parking_lot::Mutex;
+	use std::{collections::BTreeSet, io::Result, sync::Arc};
 
 	fn handle_err<T>(result: parity_db::Result<T>) -> T {
 		match result {
@@ -160,6 +161,7 @@ pub mod paritydb_impl {
 	pub struct DbAdapter {
 		db: Db,
 		indexed_columns: BTreeSet<u32>,
+		write_lock: Arc<Mutex<()>>,
 	}
 
 	impl parity_util_mem::MallocSizeOf for DbAdapter {
@@ -257,6 +259,8 @@ pub mod paritydb_impl {
 				}
 			});
 
+			// Locking is required due to possible racy change of the content of a deleted prefix.
+			let _lock = self.write_lock.lock();
 			map_err(self.db.commit(transaction))
 		}
 	}
@@ -270,7 +274,8 @@ pub mod paritydb_impl {
 	impl DbAdapter {
 		/// Implementation of of `Database` for parity-db adapter.
 		pub fn new(db: Db, indexed_columns: &[u32]) -> Self {
-			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect() }
+			let write_lock = Arc::new(Mutex::new(()));
+			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect(), write_lock }
 		}
 	}
 
