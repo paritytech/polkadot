@@ -140,12 +140,9 @@ pub mod kvdb_impl {
 pub mod paritydb_impl {
 	use super::{DBTransaction, DBValue, Database, KeyValueDB};
 	use kvdb::{DBOp, IoStats, IoStatsKind};
-	use linked_hash_map::{Entry, LinkedHashMap};
 	use parity_db::Db;
-	use parking_lot::{Mutex, RwLock};
-	use std::{collections::BTreeSet, hash::Hash as StdHash, io::Result, sync::Arc};
-
-	type ColumnId = u32;
+	use parking_lot::Mutex;
+	use std::{collections::BTreeSet, io::Result, sync::Arc};
 
 	fn handle_err<T>(result: parity_db::Result<T>) -> T {
 		match result {
@@ -165,7 +162,6 @@ pub mod paritydb_impl {
 		db: Db,
 		indexed_columns: BTreeSet<u32>,
 		write_lock: Arc<Mutex<()>>,
-		cache: Cache,
 	}
 
 	impl parity_util_mem::MallocSizeOf for DbAdapter {
@@ -180,14 +176,7 @@ pub mod paritydb_impl {
 		}
 
 		fn get(&self, col: u32, key: &[u8]) -> Result<Option<DBValue>> {
-			if let Some(res) = self.cache.get(col, key) {
-				return Ok(res)
-			}
-			let res = map_err(self.db.get(col as u8, key));
-			if let Ok(res) = res.as_ref() {
-				self.cache.add_val(col, key, res.as_ref());
-			}
-			res
+			map_err(self.db.get(col as u8, key))
 		}
 
 		fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
@@ -242,7 +231,6 @@ pub mod paritydb_impl {
 		}
 
 		fn write(&self, transaction: DBTransaction) -> std::io::Result<()> {
-			self.cache.write(&transaction)?;
 			let mut ops = transaction.ops.into_iter();
 			// TODO using a key iterator or native delete here would be faster.
 			let mut current_prefix_iter: Option<(parity_db::BTreeIterator, u8, Vec<u8>)> = None;
@@ -285,293 +273,12 @@ pub mod paritydb_impl {
 
 	impl DbAdapter {
 		/// Implementation of of `Database` for parity-db adapter.
-		pub fn new(db: Db, indexed_columns: &[u32], cache_sizes: &[usize]) -> Self {
+		pub fn new(db: Db, indexed_columns: &[u32]) -> Self {
 			let write_lock = Arc::new(Mutex::new(()));
-			let mut cache = Cache::new();
-			for (i, c) in cache_sizes.iter().enumerate() {
-				if c > &0 {
-					cache.configure_cache(i as u32, Some(*c));
-				}
-			}
-
-			DbAdapter {
-				db,
-				indexed_columns: indexed_columns.iter().cloned().collect(),
-				write_lock,
-				cache,
-			}
+			DbAdapter { db, indexed_columns: indexed_columns.iter().cloned().collect(), write_lock }
 		}
 	}
 
-	/// Simple lru cache for a colum.
-	#[derive(Clone)]
-	struct Cache {
-		has_lru: BTreeSet<ColumnId>,
-		// Note that design really only work for trie node (we do not cache
-		// deletion).
-		// TODO a RwLock per column!!
-		lru: Option<Arc<RwLock<Vec<Option<LRUMap<Vec<u8>, Option<Vec<u8>>>>>>>>,
-	}
-
-	impl Cache {
-		/// New db with unconfigured cache.
-		pub fn new() -> Self {
-			Cache { has_lru: Default::default(), lru: None }
-		}
-
-		/// define cache for a given column.
-		pub fn configure_cache(&mut self, column: ColumnId, size: Option<usize>) {
-			if size.is_some() {
-				self.has_lru.insert(column);
-			} else {
-				self.has_lru.remove(&column);
-			}
-			let new_cache = size.map(|size| LRUMap::new(size));
-			if self.lru.is_none() {
-				if new_cache.is_none() {
-					return
-				}
-				let mut caches = Vec::with_capacity(column as usize + 1);
-				while caches.len() < column as usize + 1 {
-					caches.push(None);
-				}
-				caches[column as usize] = new_cache;
-				self.lru = Some(Arc::new(RwLock::new(caches)));
-			} else {
-				self.lru.as_ref().map(|lru| {
-					let mut lru = lru.write();
-					while lru.len() < column as usize + 1 {
-						lru.push(None);
-					}
-					lru[column as usize] = new_cache;
-				});
-			}
-		}
-
-		fn add_val(&self, col: ColumnId, key: &[u8], value: Option<&Vec<u8>>) {
-			if let Some(lru) = self.lru.as_ref() {
-				if self.has_lru.contains(&col) {
-					let mut lru = lru.write();
-					if let Some(Some(lru)) = lru.get_mut(col as usize) {
-						lru.add(key.to_vec(), value.cloned());
-					}
-				}
-			}
-		}
-		/*
-				fn add_val_slice(&self, col: ColumnId, key: &[u8], value: &[u8]) {
-					if let Some(lru) = self.lru.as_ref()  {
-						if self.has_lru.contains(&col) {
-							let mut lru = lru.write();
-							if let Some(Some(lru)) = lru.get_mut(col as usize) {
-								lru.add(key.to_vec(), Some(value.to_vec()));
-							}
-						}
-					}
-				}
-		*/
-		fn write(&self, transaction: &DBTransaction) -> Result<()> {
-			let mut delete_prefix = BTreeSet::<u32>::new();
-			let cache_update: Vec<_> = if self.lru.is_some() {
-				transaction
-					.ops
-					.iter()
-					.filter_map(|change| {
-						if let DBOp::Insert { col, key, value } = change {
-							self.has_lru
-								.contains(&col)
-								.then(|| (col, key.clone(), Some(value.clone())))
-						} else if let DBOp::Delete { col, key } = change {
-							self.has_lru.contains(&col).then(|| (col, key.clone(), None))
-						} else if let DBOp::DeletePrefix { col, .. } = change {
-							delete_prefix.insert(*col);
-							None
-						} else {
-							None
-						}
-					})
-					.collect()
-			} else {
-				Vec::new()
-			};
-
-			// TODO can also clear cache on commit error (those are rare enough to avoid putting all
-			// update in mem.
-			if let Some(lru) = self.lru.as_ref() {
-				let mut lru = lru.write();
-				for (col, key, value) in cache_update {
-					if !delete_prefix.contains(col) {
-						if let Some(Some(lru)) = lru.get_mut(*col as usize) {
-							if value.is_some() {
-								lru.add(key.to_vec(), value);
-							} else {
-								// small change it will be queried again, remove.
-								lru.remove(&key.to_vec());
-							}
-						}
-					}
-				}
-				for col in delete_prefix {
-					if let Some(Some(lru)) = lru.get_mut(col as usize) {
-						lru.clear();
-					}
-				}
-			}
-
-			Ok(())
-		}
-
-		fn get(&self, col: ColumnId, key: &[u8]) -> Option<Option<Vec<u8>>> {
-			if let Some(lru) = self.lru.as_ref() {
-				if self.has_lru.contains(&col) {
-					let mut lru = lru.write();
-					if let Some(Some(lru)) = lru.get_mut(col as usize) {
-						if let Some(node) = lru.get(key) {
-							return Some(node.clone())
-						}
-					}
-				}
-			}
-			None
-		}
-		/*
-				fn contains(&self, col: ColumnId, key: &[u8]) -> Option<bool> {
-					if let Some(lru) = self.lru.as_ref()  {
-						if self.has_lru.contains(&col) {
-							let mut lru = lru.write();
-							if let Some(Some(lru)) = lru.get_mut(col as usize) {
-								if let Some(cache) = lru.get(key) {
-									return Some(cache.is_some());
-								}
-							}
-						}
-					}
-
-					None
-				}
-
-				fn value_size(&self, col: ColumnId, key: &[u8]) -> Option<Option<usize>> {
-					if let Some(lru) = self.lru.as_ref()  {
-						if self.has_lru.contains(&col) {
-							let mut lru = lru.write();
-							if let Some(Some(lru)) = lru.get_mut(col as usize) {
-								if let Some(node) = lru.get(key) {
-									return Some(node.as_ref().map(|value| value.len()));
-								}
-							}
-						}
-					}
-
-					None
-				}
-		*/
-	}
-
-	struct LRUMap<K, V>(LinkedHashMap<K, V>, usize, usize);
-
-	impl<K, V> LRUMap<K, V>
-	where
-		K: std::hash::Hash + Eq,
-	{
-		pub(crate) fn new(size_limit: usize) -> Self {
-			LRUMap(LinkedHashMap::new(), 0, size_limit)
-		}
-	}
-
-	/// Internal trait similar to `heapsize` but using
-	/// a simply estimation.
-	///
-	/// This should not be made public, it is implementation
-	/// detail trait. If it need to become public please
-	/// consider using `malloc_size_of`.
-	pub(crate) trait EstimateSize {
-		/// Return a size estimation of additional size needed
-		/// to cache this struct (in bytes).
-		fn estimate_size(&self) -> usize;
-	}
-
-	impl EstimateSize for Vec<u8> {
-		fn estimate_size(&self) -> usize {
-			self.capacity()
-		}
-	}
-
-	impl EstimateSize for Option<Vec<u8>> {
-		fn estimate_size(&self) -> usize {
-			self.as_ref().map(|v| v.capacity()).unwrap_or(0)
-		}
-	}
-
-	struct OptionHOut<T: AsRef<[u8]>>(Option<T>);
-
-	impl<T: AsRef<[u8]>> EstimateSize for OptionHOut<T> {
-		fn estimate_size(&self) -> usize {
-			// capacity would be better
-			self.0.as_ref().map(|v| v.as_ref().len()).unwrap_or(0)
-		}
-	}
-
-	impl<T: EstimateSize> EstimateSize for (T, T) {
-		fn estimate_size(&self) -> usize {
-			self.0.estimate_size() + self.1.estimate_size()
-		}
-	}
-
-	impl<K: EstimateSize + Eq + StdHash, V: EstimateSize> LRUMap<K, V> {
-		fn clear(&mut self) {
-			self.0.clear();
-			self.1 = 0;
-		}
-
-		fn remove(&mut self, k: &K) {
-			let map = &mut self.0;
-			let storage_used_size = &mut self.1;
-			if let Some(v) = map.remove(k) {
-				*storage_used_size -= k.estimate_size();
-				*storage_used_size -= v.estimate_size();
-			}
-		}
-
-		pub(crate) fn add(&mut self, k: K, v: V) {
-			let lmap = &mut self.0;
-			let storage_used_size = &mut self.1;
-			let limit = self.2;
-			let klen = k.estimate_size();
-			*storage_used_size += v.estimate_size();
-			// TODO assert k v size fit into limit?? to avoid insert remove?
-			match lmap.entry(k) {
-				Entry::Occupied(mut entry) => {
-					// note that in this case we are not running pure lru as
-					// it would require to remove first
-					*storage_used_size -= entry.get().estimate_size();
-					entry.insert(v);
-				},
-				Entry::Vacant(entry) => {
-					*storage_used_size += klen;
-					entry.insert(v);
-				},
-			};
-
-			while *storage_used_size > limit {
-				if let Some((k, v)) = lmap.pop_front() {
-					*storage_used_size -= k.estimate_size();
-					*storage_used_size -= v.estimate_size();
-				} else {
-					// can happen fairly often as we get value from multiple lru
-					// and only remove from a single lru
-					break
-				}
-			}
-		}
-
-		pub(crate) fn get<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
-		where
-			K: std::borrow::Borrow<Q>,
-			Q: StdHash + Eq,
-		{
-			self.0.get_refresh(k)
-		}
-	}
 	#[cfg(test)]
 	mod tests {
 		use super::*;

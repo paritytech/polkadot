@@ -7075,7 +7075,6 @@ dependencies = [
  "kvdb",
  "kvdb-shared-tests",
  "lazy_static",
- "linked-hash-map",
  "log",
  "lru 0.7.3",
  "metered-channel",
