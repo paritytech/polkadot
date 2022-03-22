@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::*;
+use super::{metrics::Metrics, *};
 use assert_matches::assert_matches;
 use futures::executor::{self, block_on};
 use futures_timer::Delay;
@@ -539,7 +539,8 @@ fn peer_view_update_sends_messages() {
 		for statement in active_head.statements_about(candidate_hash) {
 			let message = handle.recv().await;
 			let expected_to = vec![peer.clone()];
-			let expected_payload = statement_message(hash_c, statement.statement.clone());
+			let expected_payload =
+				statement_message(hash_c, statement.statement.clone(), &Metrics::default());
 
 			assert_matches!(
 				message,
@@ -638,6 +639,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			hash_b,
 			statement,
 			Vec::new(),
+			&Metrics::default(),
 		)
 		.await;
 
@@ -680,7 +682,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 				assert_eq!(
 					payload,
-					statement_message(hash_b, statement.statement.clone()),
+					statement_message(hash_b, statement.statement.clone(), &Metrics::default()),
 				);
 			}
 		)

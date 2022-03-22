@@ -2,7 +2,7 @@
 name = "storage-proof-fuzzer"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -19,6 +19,7 @@ bp-runtime = { path = "../../primitives/runtime" }
 # Substrate Dependencies
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
