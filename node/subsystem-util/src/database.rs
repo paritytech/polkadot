@@ -141,8 +141,7 @@ pub mod paritydb_impl {
 	use super::{DBTransaction, DBValue, Database, KeyValueDB};
 	use kvdb::{DBOp, IoStats, IoStatsKind};
 	use parity_db::Db;
-	use parking_lot::Mutex;
-	use std::{collections::BTreeSet, io::Result, sync::Arc};
+	use std::{collections::BTreeSet, io::Result};
 
 	fn handle_err<T>(result: parity_db::Result<T>) -> T {
 		match result {
