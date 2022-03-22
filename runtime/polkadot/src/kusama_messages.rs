@@ -42,7 +42,7 @@ use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_std::{convert::TryFrom, ops::RangeInclusive};
 
 #[cfg(feature = "runtime-benchmarks")]
-use crate::Event;
+use crate::{Balances, Event};
 #[cfg(feature = "runtime-benchmarks")]
 use bp_polkadot::{Hasher, Header};
 #[cfg(feature = "runtime-benchmarks")]
@@ -344,6 +344,11 @@ fn verify_inbound_messages_lane(
 impl SenderOrigin<AccountId> for Origin {
 	fn linked_account(&self) -> Option<AccountId> {
 		match self.caller {
+			// in benchmarks we accept messages from regular users
+			#[cfg(feature = "runtime-benchmarks")]
+			crate::OriginCaller::system(frame_system::RawOrigin::Signed(ref submitter)) =>
+				Some(submitter.clone()),
+
 			OriginCaller::Council(_) => AllowedMessageSender::get(),
 				_ => None,
 		}
@@ -418,12 +423,12 @@ impl MessagesConfig<crate::WithKusamaMessagesInstance> for Runtime {
 	}
 
 	fn endow_account(account: &Self::AccountId) {
-		Balances::make_free_balance_be(account, Balance::MAX / 100);
+		Balances::make_free_balance_be(account, bp_polkadot::Balance::MAX / 100);
 	}
 
 	fn prepare_outbound_message(
 		params: MessageParams<Self::AccountId>,
-	) -> (ToKusamaMessagePayload, Balance) {
+	) -> (ToKusamaMessagePayload, bp_polkadot::Balance) {
 		(prepare_outbound_message::<WithKusamaMessageBridge>(params), Self::message_fee())
 	}
 
@@ -434,7 +439,7 @@ impl MessagesConfig<crate::WithKusamaMessagesInstance> for Runtime {
 		prepare_message_proof::<Runtime, (), (), WithKusamaMessageBridge, Header, Hasher>(
 			params,
 			&crate::VERSION,
-			Balance::MAX / 100,
+			bp_polkadot::Balance::MAX / 100,
 		)
 	}
 
