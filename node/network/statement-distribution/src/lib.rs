@@ -121,7 +121,7 @@ pub struct StatementDistributionSubsystem<R: rand::Rng> {
 	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
 	/// Prometheus metrics
 	metrics: Metrics,
-	/// PRG for peers selection logic
+	/// Pseudo-random generator for peers selection logic
 	rng: R,
 }
 
