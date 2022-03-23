@@ -56,7 +56,7 @@ frame_support::construct_runtime! {
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Event<T>},
-		TokenSwap: pallet_bridge_token_swap::{Pallet, Call, Event<T>},
+		TokenSwap: pallet_bridge_token_swap::{Pallet, Call, Event<T>, Origin<T>},
 	}
 }
 
@@ -143,22 +143,34 @@ impl bp_runtime::Chain for BridgedChain {
 	type Balance = BridgedBalance;
 	type Index = u64;
 	type Signature = BridgedAccountSignature;
+
+	fn max_extrinsic_size() -> u32 {
+		unreachable!()
+	}
+	fn max_extrinsic_weight() -> Weight {
+		unreachable!()
+	}
 }
 
 pub struct TestMessagesBridge;
 
-impl MessagesBridge<AccountId, Balance, MessagePayloadOf<TestRuntime, ()>> for TestMessagesBridge {
+impl MessagesBridge<Origin, AccountId, Balance, MessagePayloadOf<TestRuntime, ()>>
+	for TestMessagesBridge
+{
 	type Error = ();
 
 	fn send_message(
-		sender: frame_system::RawOrigin<AccountId>,
+		sender: Origin,
 		lane: LaneId,
 		message: MessagePayloadOf<TestRuntime, ()>,
 		delivery_and_dispatch_fee: Balance,
 	) -> Result<SendMessageArtifacts, Self::Error> {
-		assert_ne!(sender, frame_system::RawOrigin::Signed(THIS_CHAIN_ACCOUNT));
 		assert_eq!(lane, OutboundMessageLaneId::get());
 		assert_eq!(delivery_and_dispatch_fee, SWAP_DELIVERY_AND_DISPATCH_FEE);
+		match sender.caller {
+			OriginCaller::TokenSwap(_) => (),
+			_ => panic!("unexpected origin"),
+		}
 		match message.call[0] {
 			OK_TRANSFER_CALL => Ok(SendMessageArtifacts { nonce: MESSAGE_NONCE, weight: 0 }),
 			BAD_TRANSFER_CALL => Err(()),

@@ -55,7 +55,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId,
 };
 use sp_staking::SessionIndex;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -285,7 +285,7 @@ impl frame_system::Config for Runtime {
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
+	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
@@ -388,7 +388,7 @@ impl pallet_im_online::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 	type MaxKeys = MaxKeys;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
@@ -409,7 +409,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxLocks = MaxLocks;
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -442,7 +442,7 @@ impl pallet_timestamp::Config for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_timestamp::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -523,7 +523,7 @@ impl pallet_indices::Config for Runtime {
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
 	type Event = Event;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_indices::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -568,7 +568,7 @@ impl pallet_authorship::Config for Runtime {
 impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
-	type WeightInfo = parachains_configuration::TestWeightInfo;
+	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
 }
 
 impl parachains_shared::Config for Runtime {}
@@ -618,7 +618,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
-	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Self>;
+	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Runtime>;
 }
 
 impl parachains_paras_inherent::Config for Runtime {
@@ -630,7 +630,7 @@ impl parachains_scheduler::Config for Runtime {}
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type WeightInfo = weights::runtime_parachains_initializer::WeightInfo<Runtime>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -666,7 +666,7 @@ impl paras_registrar::Config for Runtime {
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
-	type WeightInfo = paras_registrar::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
 impl pallet_beefy::Config for Runtime {
@@ -735,7 +735,7 @@ impl pallet_bridge_grandpa::Config for Runtime {
 	type MaxRequests = MaxRequests;
 	type HeadersToKeep = HeadersToKeep;
 
-	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>;
 }
 
 pub type WococoGrandpaInstance = pallet_bridge_grandpa::Instance1;
@@ -744,7 +744,7 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 	type MaxRequests = MaxRequests;
 	type HeadersToKeep = HeadersToKeep;
 
-	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>;
 }
 
 // Instance that is "deployed" at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
@@ -778,9 +778,9 @@ impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runt
 parameter_types! {
 	pub const MaxMessagesToPruneAtOnce: bp_messages::MessageNonce = 8;
 	pub const MaxUnrewardedRelayerEntriesAtInboundLane: bp_messages::MessageNonce =
-		bp_rococo::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE;
+		bp_rococo::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX;
 	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
-		bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+		bp_rococo::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX;
 	pub const RootAccountForPayments: Option<AccountId> = None;
 	pub const RococoChainId: bp_runtime::ChainId = bp_runtime::ROCOCO_CHAIN_ID;
 	pub const WococoChainId: bp_runtime::ChainId = bp_runtime::WOCOCO_CHAIN_ID;
@@ -792,7 +792,7 @@ pub type AtWococoWithRococoMessagesInstance = ();
 impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runtime {
 	type Event = Event;
 	type BridgedChainId = RococoChainId;
-	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_messages::weights::MillauWeight<Runtime>;
 	type Parameter = ();
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
@@ -815,7 +815,6 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 			AtWococoWithRococoMessagesInstance,
 			pallet_balances::Pallet<Runtime>,
 			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-			RootAccountForPayments,
 		>;
 	type OnDeliveryConfirmed = ();
 	type OnMessageAccepted = ();
@@ -830,7 +829,7 @@ pub type AtRococoWithWococoMessagesInstance = pallet_bridge_messages::Instance1;
 impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runtime {
 	type Event = Event;
 	type BridgedChainId = WococoChainId;
-	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
+	type WeightInfo = pallet_bridge_messages::weights::MillauWeight<Runtime>;
 	type Parameter = ();
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
@@ -853,7 +852,6 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 			AtRococoWithWococoMessagesInstance,
 			pallet_balances::Pallet<Runtime>,
 			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-			RootAccountForPayments,
 		>;
 	type OnDeliveryConfirmed = ();
 	type OnMessageAccepted = ();
@@ -875,7 +873,7 @@ impl auctions::Config for Runtime {
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = auctions::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -889,7 +887,7 @@ impl slots::Config for Runtime {
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
 	type ForceOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = slots::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -910,7 +908,7 @@ impl crowdloan::Config for Runtime {
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
 	type MaxMemoLength = MaxMemoLength;
-	type WeightInfo = crowdloan::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_crowdloan::WeightInfo<Runtime>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -927,7 +925,7 @@ impl pallet_utility::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type PalletsOrigin = OriginCaller;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -997,7 +995,7 @@ impl pallet_proxy::Config for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_proxy::WeightInfo<Runtime>;
 	type MaxPending = MaxPending;
 	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
@@ -1018,7 +1016,7 @@ impl pallet_collective::Config for Runtime {
 	type MaxProposals = MaxProposals;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type MaxMembers = MaxMembers;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
 }
 
 impl pallet_membership::Config for Runtime {
@@ -1031,7 +1029,7 @@ impl pallet_membership::Config for Runtime {
 	type MembershipInitialized = Collective;
 	type MembershipChanged = Collective;
 	type MaxMembers = MaxMembers;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_membership::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1049,7 +1047,7 @@ impl pallet_multisig::Config for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_multisig::WeightInfo<Runtime>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1059,11 +1057,32 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
 	define_benchmarks!(
+		// Polkadot
+		// NOTE: Make sure to prefix these with `runtime_common::` so
+		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
+		[runtime_common::crowdloan, Crowdloan]
+		[runtime_common::paras_registrar, Registrar]
+		[runtime_common::slots, Slots]
 		[runtime_parachains::configuration, Configuration]
+		[runtime_parachains::hrmp, Hrmp]
+		[runtime_parachains::initializer, Initializer]
+		[runtime_parachains::paras, Paras]
 		[runtime_parachains::disputes, ParasDisputes]
 		[runtime_parachains::paras_inherent, ParaInherent]
-		[runtime_parachains::paras, Paras]
 		[runtime_parachains::ump, Ump]
+		// Substrate
+		[frame_benchmarking::baseline, Baseline::<Runtime>]
+		[pallet_balances, Balances]
+		[pallet_collective, Collective]
+		[pallet_im_online, ImOnline]
+		[pallet_indices, Indices]
+		[pallet_membership, Membership]
+		[pallet_multisig, Multisig]
+		[pallet_proxy, Proxy]
+		[frame_system, SystemBench::<Runtime>]
+		[pallet_timestamp, Timestamp]
+		[pallet_utility, Utility]
 	);
 }
 
@@ -1373,10 +1392,6 @@ sp_api::impl_runtime_apis! {
 			let header = BridgeRococoGrandpa::best_finalized();
 			(header.number, header.hash())
 		}
-
-		fn is_known_header(hash: bp_rococo::Hash) -> bool {
-			BridgeRococoGrandpa::is_known_header(hash)
-		}
 	}
 
 	impl bp_wococo::WococoFinalityApi<Block> for Runtime {
@@ -1384,20 +1399,18 @@ sp_api::impl_runtime_apis! {
 			let header = BridgeWococoGrandpa::best_finalized();
 			(header.number, header.hash())
 		}
-
-		fn is_known_header(hash: bp_wococo::Hash) -> bool {
-			BridgeWococoGrandpa::is_known_header(hash)
-		}
 	}
 
 	impl bp_rococo::ToRococoOutboundLaneApi<Block, Balance, bridge_messages::ToRococoMessagePayload> for Runtime {
 		fn estimate_message_delivery_and_dispatch_fee(
 			_lane_id: bp_messages::LaneId,
 			payload: bridge_messages::ToWococoMessagePayload,
+			rococo_to_wococo_conversion_rate: Option<FixedU128>,
 		) -> Option<Balance> {
 			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtWococoWithRococoMessageBridge>(
 				&payload,
 				bridge_messages::AtWococoWithRococoMessageBridge::RELAYER_FEE_PERCENT,
+				rococo_to_wococo_conversion_rate,
 			).ok()
 		}
 
@@ -1421,38 +1434,18 @@ sp_api::impl_runtime_apis! {
 			})
 			.collect()
 		}
-
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::outbound_latest_received_nonce(lane)
-		}
-
-		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::outbound_latest_generated_nonce(lane)
-		}
-	}
-
-	impl bp_rococo::FromRococoInboundLaneApi<Block> for Runtime {
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::inbound_latest_received_nonce(lane)
-		}
-
-		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeRococoMessages::inbound_latest_confirmed_nonce(lane)
-		}
-
-		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
-			BridgeRococoMessages::inbound_unrewarded_relayers_state(lane)
-		}
 	}
 
 	impl bp_wococo::ToWococoOutboundLaneApi<Block, Balance, bridge_messages::ToWococoMessagePayload> for Runtime {
 		fn estimate_message_delivery_and_dispatch_fee(
 			_lane_id: bp_messages::LaneId,
 			payload: bridge_messages::ToWococoMessagePayload,
+			wococo_to_rococo_conversion_rate: Option<FixedU128>,
 		) -> Option<Balance> {
 			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtRococoWithWococoMessageBridge>(
 				&payload,
 				bridge_messages::AtRococoWithWococoMessageBridge::RELAYER_FEE_PERCENT,
+				wococo_to_rococo_conversion_rate,
 			).ok()
 		}
 
@@ -1475,28 +1468,6 @@ sp_api::impl_runtime_apis! {
 				})
 			})
 			.collect()
-		}
-
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::outbound_latest_received_nonce(lane)
-		}
-
-		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::outbound_latest_generated_nonce(lane)
-		}
-	}
-
-	impl bp_wococo::FromWococoInboundLaneApi<Block> for Runtime {
-		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::inbound_latest_received_nonce(lane)
-		}
-
-		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
-			BridgeWococoMessages::inbound_latest_confirmed_nonce(lane)
-		}
-
-		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
-			BridgeWococoMessages::inbound_unrewarded_relayers_state(lane)
 		}
 	}
 
@@ -1527,6 +1498,9 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
+			use frame_system_benchmarking::Pallet as SystemBench;
+			use frame_benchmarking::baseline::Pallet as Baseline;
+
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
 
@@ -1541,6 +1515,11 @@ sp_api::impl_runtime_apis! {
 			sp_runtime::RuntimeString,
 		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			use frame_system_benchmarking::Pallet as SystemBench;
+			use frame_benchmarking::baseline::Pallet as Baseline;
+
+			impl frame_system_benchmarking::Config for Runtime {}
+			impl frame_benchmarking::baseline::Config for Runtime {}
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let whitelist: Vec<TrackedStorageKey> = vec![

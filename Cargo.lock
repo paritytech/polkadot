@@ -726,9 +726,12 @@ name = "bp-header-chain"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "bp-runtime",
  "bp-test-utils",
  "finality-grandpa",
  "frame-support",
+ "hex",
+ "hex-literal",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -757,10 +760,13 @@ dependencies = [
  "bp-runtime",
  "frame-support",
  "frame-system",
+ "hex",
+ "hex-literal",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-std",
 ]
 
@@ -853,18 +859,23 @@ dependencies = [
  "bp-runtime",
  "ed25519-dalek",
  "frame-support",
+ "frame-system",
  "hash-db",
+ "pallet-balances",
  "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "scale-info",
+ "sp-api",
  "sp-core",
  "sp-runtime",
  "sp-state-machine",
  "sp-std",
  "sp-trie",
+ "sp-version",
+ "static_assertions",
 ]
 
 [[package]]
@@ -5256,8 +5267,6 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "hex",
- "hex-literal",
  "log",
  "num-traits",
  "pallet-balances",
@@ -5939,9 +5948,9 @@ dependencies = [
 
 [[package]]
 name = "parity-db"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "865edee5b792f537356d9e55cbc138e7f4718dc881a7ea45a18b37bf61c21e3d"
+checksum = "3d121a9af17a43efd0a38c6afa508b927ba07785bd4709efb2ac03bf77efef8d"
 dependencies = [
  "blake2-rfc",
  "crc32fast",
@@ -8456,6 +8465,7 @@ dependencies = [
  "frame-executive",
  "frame-support",
  "frame-system",
+ "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "log",

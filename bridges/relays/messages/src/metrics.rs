@@ -22,6 +22,7 @@ use crate::{
 };
 
 use bp_messages::MessageNonce;
+use finality_relay::SyncLoopMetrics;
 use relay_utils::metrics::{
 	metric_name, register, GaugeVec, Metric, Opts, PrometheusError, Registry, U64,
 };
@@ -31,8 +32,10 @@ use relay_utils::metrics::{
 /// Cloning only clones references.
 #[derive(Clone)]
 pub struct MessageLaneLoopMetrics {
+	/// Best finalized block numbers - "source", "source_at_target", "target_at_source".
+	source_to_target_finality_metrics: SyncLoopMetrics,
 	/// Best finalized block numbers - "source", "target", "source_at_target", "target_at_source".
-	best_block_numbers: GaugeVec<U64>,
+	target_to_source_finality_metrics: SyncLoopMetrics,
 	/// Lane state nonces: "source_latest_generated", "source_latest_confirmed",
 	/// "target_latest_received", "target_latest_confirmed".
 	lane_state_nonces: GaugeVec<U64>,
@@ -42,12 +45,15 @@ impl MessageLaneLoopMetrics {
 	/// Create and register messages loop metrics.
 	pub fn new(prefix: Option<&str>) -> Result<Self, PrometheusError> {
 		Ok(MessageLaneLoopMetrics {
-			best_block_numbers: GaugeVec::new(
-				Opts::new(
-					metric_name(prefix, "best_block_numbers"),
-					"Best finalized block numbers",
-				),
-				&["type"],
+			source_to_target_finality_metrics: SyncLoopMetrics::new(
+				prefix,
+				"source",
+				"source_at_target",
+			)?,
+			target_to_source_finality_metrics: SyncLoopMetrics::new(
+				prefix,
+				"target",
+				"target_at_source",
 			)?,
 			lane_state_nonces: GaugeVec::new(
 				Opts::new(metric_name(prefix, "lane_state_nonces"), "Nonces of the lane state"),
@@ -58,22 +64,28 @@ impl MessageLaneLoopMetrics {
 
 	/// Update source client state metrics.
 	pub fn update_source_state<P: MessageLane>(&self, source_client_state: SourceClientState<P>) {
-		self.best_block_numbers
-			.with_label_values(&["source"])
-			.set(source_client_state.best_self.0.into());
-		self.best_block_numbers
-			.with_label_values(&["target_at_source"])
-			.set(source_client_state.best_finalized_peer_at_best_self.0.into());
+		self.source_to_target_finality_metrics
+			.update_best_block_at_source(source_client_state.best_self.0.into());
+		self.target_to_source_finality_metrics.update_best_block_at_target(
+			source_client_state.best_finalized_peer_at_best_self.0.into(),
+		);
+		self.target_to_source_finality_metrics.update_using_same_fork(
+			source_client_state.best_finalized_peer_at_best_self.1 ==
+				source_client_state.actual_best_finalized_peer_at_best_self.1,
+		);
 	}
 
 	/// Update target client state metrics.
 	pub fn update_target_state<P: MessageLane>(&self, target_client_state: TargetClientState<P>) {
-		self.best_block_numbers
-			.with_label_values(&["target"])
-			.set(target_client_state.best_self.0.into());
-		self.best_block_numbers
-			.with_label_values(&["source_at_target"])
-			.set(target_client_state.best_finalized_peer_at_best_self.0.into());
+		self.target_to_source_finality_metrics
+			.update_best_block_at_source(target_client_state.best_self.0.into());
+		self.source_to_target_finality_metrics.update_best_block_at_target(
+			target_client_state.best_finalized_peer_at_best_self.0.into(),
+		);
+		self.source_to_target_finality_metrics.update_using_same_fork(
+			target_client_state.best_finalized_peer_at_best_self.1 ==
+				target_client_state.actual_best_finalized_peer_at_best_self.1,
+		);
 	}
 
 	/// Update latest generated nonce at source.
@@ -119,7 +131,8 @@ impl MessageLaneLoopMetrics {
 
 impl Metric for MessageLaneLoopMetrics {
 	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
-		register(self.best_block_numbers.clone(), registry)?;
+		self.source_to_target_finality_metrics.register(registry)?;
+		self.target_to_source_finality_metrics.register(registry)?;
 		register(self.lane_state_nonces.clone(), registry)?;
 		Ok(())
 	}
