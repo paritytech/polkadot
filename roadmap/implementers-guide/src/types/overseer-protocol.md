@@ -553,6 +553,8 @@ enum NetworkBridgeMessage {
     /// Inform the distribution subsystems about the new
     /// gossip network topology formed.
     NewGossipTopology {
+        /// The session this topology corresponds to.
+        session: SessionIndex,
         /// Ids of our neighbors in the X dimension of the new gossip topology.
         /// We're not necessarily connected to all of them, but we should try to be.
         our_neighbors_x: HashSet<AuthorityDiscoveryId>,
