@@ -278,9 +278,9 @@ dependencies = [
 
 [[package]]
 name = "async-std"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8056f1455169ab86dd47b47391e4ab0cbd25410a70e9fe675544f49bafaf952"
+checksum = "52580991739c5cdb36cde8b2a516371c0a3b70dda36d916cc08b82372916808c"
 dependencies = [
  "async-attributes",
  "async-channel",
@@ -726,9 +726,12 @@ name = "bp-header-chain"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "bp-runtime",
  "bp-test-utils",
  "finality-grandpa",
  "frame-support",
+ "hex",
+ "hex-literal",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -757,10 +760,13 @@ dependencies = [
  "bp-runtime",
  "frame-support",
  "frame-system",
+ "hex",
+ "hex-literal",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-std",
 ]
 
@@ -853,18 +859,23 @@ dependencies = [
  "bp-runtime",
  "ed25519-dalek",
  "frame-support",
+ "frame-system",
  "hash-db",
+ "pallet-balances",
  "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "scale-info",
+ "sp-api",
  "sp-core",
  "sp-runtime",
  "sp-state-machine",
  "sp-std",
  "sp-trie",
+ "sp-version",
+ "static_assertions",
 ]
 
 [[package]]
@@ -2908,9 +2919,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.17"
+version = "0.14.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "043f0e083e9901b6cc658a77d1eb86f4fc650bbb977a4337dd63192826aa85dd"
+checksum = "b26ae0a80afebe130861d90abf98e3814a4f28a4c6ffeb5ab8ebb2be311e0ef2"
 dependencies = [
  "bytes 1.1.0",
  "futures-channel",
@@ -5262,8 +5273,6 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "hex",
- "hex-literal",
  "log",
  "num-traits",
  "pallet-balances",
@@ -8461,6 +8470,7 @@ dependencies = [
  "frame-executive",
  "frame-support",
  "frame-system",
+ "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "log",

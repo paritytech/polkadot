@@ -16,10 +16,12 @@
 
 //! Types used to connect to the Wococo-Substrate chain.
 
+use bp_messages::MessageNonce;
 use codec::Encode;
+use frame_support::weights::Weight;
 use relay_substrate_client::{
-	Chain, ChainBase, ChainWithBalances, TransactionEraOf, TransactionSignScheme,
-	UnsignedTransaction,
+	Chain, ChainBase, ChainWithBalances, ChainWithGrandpa, ChainWithMessages,
+	Error as SubstrateError, SignParam, TransactionSignScheme, UnsignedTransaction,
 };
 use sp_core::{storage::StorageKey, Pair};
 use sp_runtime::{generic::SignedPayload, traits::IdentifyAccount};
@@ -47,10 +49,21 @@ impl ChainBase for Wococo {
 	type Balance = bp_wococo::Balance;
 	type Index = bp_wococo::Nonce;
 	type Signature = bp_wococo::Signature;
+
+	fn max_extrinsic_size() -> u32 {
+		bp_wococo::Wococo::max_extrinsic_size()
+	}
+
+	fn max_extrinsic_weight() -> Weight {
+		bp_wococo::Wococo::max_extrinsic_weight()
+	}
 }
 
 impl Chain for Wococo {
 	const NAME: &'static str = "Wococo";
+	const TOKEN_ID: Option<&'static str> = None;
+	const BEST_FINALIZED_HEADER_ID_METHOD: &'static str =
+		bp_wococo::BEST_FINALIZED_WOCOCO_HEADER_METHOD;
 	const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_secs(6);
 	const STORAGE_PROOF_OVERHEAD: u32 = bp_wococo::EXTRA_STORAGE_PROOF_SIZE;
 	const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = bp_wococo::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE;
@@ -58,6 +71,24 @@ impl Chain for Wococo {
 	type SignedBlock = bp_wococo::SignedBlock;
 	type Call = crate::runtime::Call;
 	type WeightToFee = bp_wococo::WeightToFee;
+}
+
+impl ChainWithGrandpa for Wococo {
+	const WITH_CHAIN_GRANDPA_PALLET_NAME: &'static str = bp_wococo::WITH_WOCOCO_GRANDPA_PALLET_NAME;
+}
+
+impl ChainWithMessages for Wococo {
+	const WITH_CHAIN_MESSAGES_PALLET_NAME: &'static str =
+		bp_wococo::WITH_WOCOCO_MESSAGES_PALLET_NAME;
+	const TO_CHAIN_MESSAGE_DETAILS_METHOD: &'static str =
+		bp_wococo::TO_WOCOCO_MESSAGE_DETAILS_METHOD;
+	const PAY_INBOUND_DISPATCH_FEE_WEIGHT_AT_CHAIN: Weight =
+		bp_wococo::PAY_INBOUND_DISPATCH_FEE_WEIGHT;
+	const MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX: MessageNonce =
+		bp_wococo::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX;
+	const MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX: MessageNonce =
+		bp_wococo::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX;
+	type WeightInfo = ();
 }
 
 impl ChainWithBalances for Wococo {
@@ -71,34 +102,30 @@ impl TransactionSignScheme for Wococo {
 	type AccountKeyPair = sp_core::sr25519::Pair;
 	type SignedTransaction = crate::runtime::UncheckedExtrinsic;
 
-	fn sign_transaction(
-		genesis_hash: <Self::Chain as ChainBase>::Hash,
-		signer: &Self::AccountKeyPair,
-		era: TransactionEraOf<Self::Chain>,
-		unsigned: UnsignedTransaction<Self::Chain>,
-	) -> Self::SignedTransaction {
+	fn sign_transaction(param: SignParam<Self>) -> Result<Self::SignedTransaction, SubstrateError> {
 		let raw_payload = SignedPayload::new(
-			unsigned.call,
+			param.unsigned.call.clone(),
 			bp_wococo::SignedExtensions::new(
-				bp_wococo::VERSION,
-				era,
-				genesis_hash,
-				unsigned.nonce,
-				unsigned.tip,
+				param.spec_version,
+				param.transaction_version,
+				param.era,
+				param.genesis_hash,
+				param.unsigned.nonce,
+				param.unsigned.tip,
 			),
 		)
 		.expect("SignedExtension never fails.");
 
-		let signature = raw_payload.using_encoded(|payload| signer.sign(payload));
-		let signer: sp_runtime::MultiSigner = signer.public().into();
+		let signature = raw_payload.using_encoded(|payload| param.signer.sign(payload));
+		let signer: sp_runtime::MultiSigner = param.signer.public().into();
 		let (call, extra, _) = raw_payload.deconstruct();
 
-		bp_wococo::UncheckedExtrinsic::new_signed(
+		Ok(bp_wococo::UncheckedExtrinsic::new_signed(
 			call,
 			sp_runtime::MultiAddress::Id(signer.into_account()),
 			signature.into(),
 			extra,
-		)
+		))
 	}
 
 	fn is_signed(tx: &Self::SignedTransaction) -> bool {
