@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `runtime_parachains::ump`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo<T> {
-	fn sink_process_upward_message(s: u32, ) -> Weight {
+	fn process_upward_message(s: u32, ) -> Weight {
 		(4_768_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_000 as Weight).saturating_mul(s as Weight))
