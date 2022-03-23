@@ -404,7 +404,7 @@ parameter_types! {
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// 1 hour session, 15 minutes unsigned phase, 8 offchain executions.
-	pub OffchainRepeat: BlockNumber = Unsigned
+	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
 
 	/// We take the top 12500 nominators as electing voters..
 	pub const MaxElectingVoters: u32 = 12_500;
