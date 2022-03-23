@@ -2020,7 +2020,10 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+			) => {
+				assert_eq!(p, peer_a);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+			}
 		);
 
 		// After the first valid statement, we expect messages to be circulated
@@ -2028,7 +2031,10 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == relay_parent_hash && s == statement => {}
+			) => {
+				assert_eq!(r, relay_parent_hash);
+				assert_eq!(s, statement);
+			}
 		);
 
 		assert_matches!(
@@ -2066,7 +2072,10 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::ReportPeer(p, r)
-			) if p == peer_b && r == BENEFIT_VALID_STATEMENT => {}
+			) => {
+				assert_eq!(p, peer_b);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+			}
 		);
 
 		// Create a `Valid` statement
@@ -2114,14 +2123,20 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+			) => {
+				assert_eq!(p, peer_a);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+			}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == relay_parent_hash && s == statement => {}
+			) => {
+				assert_eq!(r, relay_parent_hash);
+				assert_eq!(s, statement);
+			}
 		);
 
 		assert_matches!(
@@ -2161,7 +2176,10 @@ fn handle_multiple_seconded_statements() {
 			handle.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::ReportPeer(p, r)
-			) if p == peer_b && r == BENEFIT_VALID_STATEMENT => {}
+			) => {
+				assert_eq!(p, peer_b);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+			}
 		);
 
 		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
