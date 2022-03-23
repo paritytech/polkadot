@@ -174,11 +174,8 @@ impl JobTrait for ProvisionerJob {
 		async move {
 			let job = ProvisionerJob::new(leaf, metrics, receiver);
 
-			job.run_loop(
-				sender.subsystem_sender(),
-				PerLeafSpan::new(span, "provisioner"),
-			)
-			.await
+			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
+				.await
 		}
 		.boxed()
 	}
