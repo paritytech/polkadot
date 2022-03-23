@@ -130,31 +130,53 @@ struct State {
 	recent_outdated_blocks: RecentlyOutdated,
 }
 
-/// A short description of a validator's assignment or approval.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-enum MessageFingerprint {
-	Assignment(Hash, CandidateIndex, ValidatorIndex),
-	Approval(Hash, CandidateIndex, ValidatorIndex),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MessageKind {
+	Assignment,
+	Approval,
 }
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct MessageSubject(Hash, CandidateIndex, ValidatorIndex);
 
 #[derive(Debug, Clone, Default)]
 struct Knowledge {
-	known_messages: HashSet<MessageFingerprint>,
+	// When there is no entry, this means the message is unknown
+	// When there is an entry with `MessageKind::Assignment`, the assignment is known.
+	// When there is an entry with `MessageKind::Approval`, the assignment and approval are known.
+	known_messages: HashMap<MessageSubject, MessageKind>,
 }
 
 impl Knowledge {
-	fn contains(&self, fingerprint: &MessageFingerprint) -> bool {
-		self.known_messages.contains(fingerprint)
+	fn contains(&self, message: &MessageSubject, kind: MessageKind) -> bool {
+		match (kind, self.known_messages.get(message)) {
+			(_, None) => false,
+			(MessageKind::Assignment, Some(_)) => true,
+			(MessageKind::Approval, Some(MessageKind::Assignment)) => false,
+			(MessageKind::Approval, Some(MessageKind::Approval)) => true,
+		}
 	}
 
-	fn insert(&mut self, fingerprint: MessageFingerprint) -> bool {
-		self.known_messages.insert(fingerprint)
+	fn insert(&mut self, message: MessageSubject, kind: MessageKind) -> bool {
+		match self.known_messages.entry(message) {
+			hash_map::Entry::Vacant(vacant) => {
+				vacant.insert(kind);
+				true
+			}
+			hash_map::Entry::Occupied(mut occupied) => {
+				match (*occupied.get(), kind) {
+					(MessageKind::Assignment, MessageKind::Assignment) => false,
+					(MessageKind::Approval, MessageKind::Approval) => false,
+					(MessageKind::Approval, MessageKind::Assignment) => false,
+					(MessageKind::Assignment, MessageKind::Approval) => {
+						*occupied.get_mut() = MessageKind::Approval;
+						true
+					}
+				}
+			}
+		}
 	}
 }
-
-/// The difference of our knowledge and peer's knowledge
-/// that is used to send the missing information.
-type MissingKnowledge = HashSet<MessageFingerprint>;
 
 /// Information that has been circulated to and from a peer.
 #[derive(Debug, Clone, Default)]
@@ -166,8 +188,8 @@ struct PeerKnowledge {
 }
 
 impl PeerKnowledge {
-	fn contains(&self, fingerprint: &MessageFingerprint) -> bool {
-		self.sent.contains(fingerprint) || self.received.contains(fingerprint)
+	fn contains(&self, message: &MessageSubject, kind: MessageKind) -> bool {
+		self.sent.contains(message, kind) || self.received.contains(message, kind)
 	}
 }
 
@@ -337,8 +359,6 @@ impl State {
 				let view_intersection =
 					View::new(intersection.cloned(), peer_data.view.finalized_number);
 				Self::unify_with_peer(
-					ctx,
-					&self.gossip_peers,
 					metrics,
 					&mut self.blocks,
 					peer_id.clone(),
@@ -421,7 +441,7 @@ impl State {
 				);
 				for (assignment, claimed_index) in assignments.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
-						let fingerprint = MessageFingerprint::Assignment(
+						let message_subject = MessageSubject(
 							assignment.block_hash,
 							claimed_index,
 							assignment.validator,
@@ -430,7 +450,7 @@ impl State {
 						gum::trace!(
 							target: LOG_TARGET,
 							%peer_id,
-							?fingerprint,
+							?message_subject,
 							"Pending assignment",
 						);
 
@@ -461,7 +481,7 @@ impl State {
 				);
 				for approval_vote in approvals.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
-						let fingerprint = MessageFingerprint::Approval(
+						let message_subject = MessageSubject(
 							approval_vote.block_hash,
 							approval_vote.candidate_index,
 							approval_vote.validator,
@@ -470,7 +490,7 @@ impl State {
 						gum::trace!(
 							target: LOG_TARGET,
 							%peer_id,
-							?fingerprint,
+							?message_subject,
 							"Pending approval",
 						);
 
@@ -495,7 +515,7 @@ impl State {
 	// and has an entry in the `PeerData` struct.
 	async fn handle_peer_view_change(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
+		_ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
 		peer_id: PeerId,
@@ -528,8 +548,6 @@ impl State {
 		}
 
 		Self::unify_with_peer(
-			ctx,
-			&self.gossip_peers,
 			metrics,
 			&mut self.blocks,
 			peer_id.clone(),
@@ -586,23 +604,22 @@ impl State {
 			},
 		};
 
-		// compute a fingerprint of the assignment
-		let fingerprint =
-			MessageFingerprint::Assignment(block_hash, claimed_candidate_index, validator_index);
+		// compute metadata on the assignment.
+		let message_subject = MessageSubject(block_hash, claimed_candidate_index, validator_index);
+		let message_kind = MessageKind::Assignment;
 
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(mut peer_knowledge) => {
 					let peer_knowledge = peer_knowledge.get_mut();
-					if peer_knowledge.contains(&fingerprint) {
+					if peer_knowledge.contains(&message_subject, message_kind) {
 						// wasn't included before
-						if !peer_knowledge.received.insert(fingerprint.clone()) {
+						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
 							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
-								hash = ?block_hash,
-								?fingerprint,
+								?message_subject,
 								"Duplicate assignment",
 							);
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
@@ -614,8 +631,7 @@ impl State {
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
-						hash = ?block_hash,
-						?fingerprint,
+						?message_subject,
 						"Assignment from a peer is out of view",
 					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
@@ -623,11 +639,11 @@ impl State {
 			}
 
 			// if the assignment is known to be valid, reward the peer
-			if entry.knowledge.known_messages.contains(&fingerprint) {
+			if entry.knowledge.contains(&message_subject, message_kind) {
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-					gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known assignment");
-					peer_knowledge.received.insert(fingerprint.clone());
+					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
+					peer_knowledge.received.insert(message_subject, message_kind);
 				}
 				return
 			}
@@ -651,13 +667,13 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(target: LOG_TARGET, hash = ?block_hash, ?source, ?fingerprint, ?result, "Checked assignment",);
+			gum::trace!(target: LOG_TARGET, ?source, ?message_subject, ?result, "Checked assignment",);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
-					entry.knowledge.known_messages.insert(fingerprint.clone());
+					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(fingerprint.clone());
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
 				},
 				AssignmentCheckResult::AcceptedDuplicate => {
@@ -665,7 +681,7 @@ impl State {
 					// There is more than one way each validator can be assigned to each core.
 					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(fingerprint);
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
 					gum::debug!(
 						target: LOG_TARGET,
@@ -698,20 +714,20 @@ impl State {
 				},
 			}
 		} else {
-			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
+			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an assignment, there is no need to distribute it again
 				gum::warn!(
 					target: LOG_TARGET,
-					?fingerprint,
+					?message_subject,
 					"Importing locally an already known assignment",
 				);
 				return
 			} else {
-				gum::debug!(target: LOG_TARGET, ?fingerprint, "Importing locally a new assignment",);
+				gum::debug!(target: LOG_TARGET, ?message_subject, "Importing locally a new assignment",);
 			}
 		}
 
-		// Invariant: none of the peers except for the `source` know about the assignment.
+		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
 		match entry.candidates.get_mut(claimed_candidate_index as usize) {
@@ -749,11 +765,11 @@ impl State {
 		let peers =
 			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
 
-		// Add the fingerprint of the assignment to the knowledge of each peer.
+		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
 			if let Some(peer_knowledge) = entry.known_by.get_mut(peer) {
-				peer_knowledge.sent.insert(fingerprint.clone());
+				peer_knowledge.sent.insert(message_subject.clone(), message_kind);
 			}
 		}
 
@@ -801,22 +817,16 @@ impl State {
 			},
 		};
 
-		// compute a fingerprint of the approval
-		let fingerprint =
-			MessageFingerprint::Approval(block_hash.clone(), candidate_index, validator_index);
+		// compute metadata on the assignment.
+		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
+		let message_kind = MessageKind::Approval;
 
 		if let Some(peer_id) = source.peer_id() {
-			let assignment_fingerprint = MessageFingerprint::Assignment(
-				block_hash.clone(),
-				candidate_index,
-				validator_index,
-			);
-
-			if !entry.knowledge.known_messages.contains(&assignment_fingerprint) {
+			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
 				gum::debug!(
 					target: LOG_TARGET,
 					?peer_id,
-					?fingerprint,
+					?message_subject,
 					"Unknown approval assignment",
 				);
 				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
@@ -827,12 +837,12 @@ impl State {
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(mut knowledge) => {
 					let peer_knowledge = knowledge.get_mut();
-					if peer_knowledge.contains(&fingerprint) {
-						if !peer_knowledge.received.insert(fingerprint.clone()) {
+					if peer_knowledge.contains(&message_subject, message_kind) {
+						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
 							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
-								?fingerprint,
+								?message_subject,
 								"Duplicate approval",
 							);
 
@@ -845,7 +855,7 @@ impl State {
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
-						?fingerprint,
+						?message_subject,
 						"Approval from a peer is out of view",
 					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
@@ -853,11 +863,11 @@ impl State {
 			}
 
 			// if the approval is known to be valid, reward the peer
-			if entry.knowledge.contains(&fingerprint) {
-				gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known approval");
+			if entry.knowledge.contains(&message_subject, message_kind) {
+				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-					peer_knowledge.received.insert(fingerprint.clone());
+					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
 				return
 			}
@@ -877,14 +887,14 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, ?result, "Checked approval",);
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, ?result, "Checked approval",);
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
-					entry.knowledge.insert(fingerprint.clone());
+					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(fingerprint.clone());
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
@@ -899,20 +909,20 @@ impl State {
 				},
 			}
 		} else {
-			if !entry.knowledge.insert(fingerprint.clone()) {
+			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an approval, there is no need to distribute it again
 				gum::warn!(
 					target: LOG_TARGET,
-					?fingerprint,
+					?message_subject,
 					"Importing locally an already known approval",
 				);
 				return
 			} else {
-				gum::debug!(target: LOG_TARGET, ?fingerprint, "Importing locally a new approval",);
+				gum::debug!(target: LOG_TARGET, ?message_subject, "Importing locally a new approval",);
 			}
 		}
 
-		// Invariant: none of the peers except for the `source` know about the approval.
+		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
 
 		match entry.candidates.get_mut(candidate_index as usize) {
@@ -928,7 +938,7 @@ impl State {
 					},
 					Some(ApprovalState::Approved(..)) => {
 						unreachable!(
-							"we only insert it after the fingerprint, checked the fingerprint above; qed"
+							"we only insert it after the metadata, checked the metadata above; qed"
 						);
 					},
 					None => {
@@ -969,11 +979,11 @@ impl State {
 		let peers =
 			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
 
-		// Add the fingerprint of the assignment to the knowledge of each peer.
+		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
 			if let Some(entry) = entry.known_by.get_mut(peer) {
-				entry.sent.insert(fingerprint.clone());
+				entry.sent.insert(message_subject.clone(), message_kind);
 			}
 		}
 
@@ -999,9 +1009,6 @@ impl State {
 	}
 
 	async fn unify_with_peer(
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
-		gossip_peers: &HashSet<PeerId>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
@@ -1009,216 +1016,21 @@ impl State {
 	) {
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
-		let mut to_send: Vec<(Hash, MissingKnowledge)> = Vec::new();
 
 		let view_finalized_number = view.finalized_number;
 		for head in view.into_iter() {
 			let mut block = head;
-			let interesting_blocks = std::iter::from_fn(|| {
-				// step 2.
+			loop {
+				// TODO [now]: send messages based on required routing and grid dimension.
+
 				let entry = match entries.get_mut(&block) {
 					Some(entry) if entry.number > view_finalized_number => entry,
-					_ => return None,
+					_ => break,
 				};
-				let missing_knowledge = match entry.known_by.entry(peer_id.clone()) {
-					hash_map::Entry::Occupied(e) => {
-						let missing: MissingKnowledge = entry
-							.knowledge
-							.known_messages
-							.iter()
-							.filter(|m| !e.get().contains(m))
-							.cloned()
-							.collect();
-						// step 3.
-						// We assume if peer's knowledge is complete for block N,
-						// this is also true for its ancestors.
-						// This safeguard is needed primarily in case of long finality stalls
-						// so we don't waste time in a loop for every peer.
-						if missing.is_empty() {
-							gum::trace!(
-								target: LOG_TARGET,
-								?block,
-								?peer_id,
-								"Stopping at this block, because peer knows all",
-							);
-							return None
-						}
-						missing
-					},
-					// step 4.
-					hash_map::Entry::Vacant(vacant) => {
-						let knowledge = PeerKnowledge::default();
-						vacant.insert(knowledge);
-						entry.knowledge.known_messages.clone()
-					},
-				};
-				// step 5.
-				let interesting_block = block;
+
+				entry.known_by.entry(peer_id.clone()).or_default();
 				block = entry.parent_hash.clone();
-				Some((interesting_block, missing_knowledge))
-			});
-			to_send.extend(interesting_blocks);
-		}
-
-		let is_gossip_peer = gossip_peers.contains(&peer_id);
-		let lucky = is_gossip_peer ||
-			util::gen_ratio(
-				util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
-				util::MIN_GOSSIP_PEERS,
-			);
-		if !lucky {
-			gum::trace!(target: LOG_TARGET, ?peer_id, "Unlucky peer");
-			return
-		}
-
-		// step 6.
-		// send all assignments and approvals for all candidates in those blocks to the peer
-		Self::send_gossip_messages_to_peer(entries, ctx, peer_id, to_send).await;
-	}
-
-	async fn send_gossip_messages_to_peer(
-		entries: &mut HashMap<Hash, BlockEntry>,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
-		peer_id: PeerId,
-		blocks: Vec<(Hash, MissingKnowledge)>,
-	) {
-		let mut assignments = Vec::new();
-		let mut approvals = Vec::new();
-		let num_blocks = blocks.len();
-
-		for (block, missing) in blocks.into_iter() {
-			let entry = match entries.get_mut(&block) {
-				Some(entry) => entry,
-				None => continue, // should be unreachable
-			};
-
-			gum::trace!(
-				target: LOG_TARGET,
-				"Sending all assignments and approvals in block {} to peer {}",
-				block,
-				peer_id,
-			);
-
-			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
-				let candidate_index = candidate_index as u32;
-				for (validator_index, approval_state) in candidate_entry.approvals.iter() {
-					let assignment_fingerprint = MessageFingerprint::Assignment(
-						block.clone(),
-						candidate_index,
-						validator_index.clone(),
-					);
-
-					match approval_state {
-						ApprovalState::Assigned(cert) => {
-							if !missing.contains(&assignment_fingerprint) {
-								gum::trace!(
-									target: LOG_TARGET,
-									?block,
-									?validator_index,
-									?candidate_index,
-									"Skipping sending known assignment",
-								);
-								continue
-							}
-							if let Some(p) = entry.known_by.get_mut(&peer_id) {
-								p.sent.insert(assignment_fingerprint);
-							}
-							assignments.push((
-								IndirectAssignmentCert {
-									block_hash: block.clone(),
-									validator: validator_index.clone(),
-									cert: cert.clone(),
-								},
-								candidate_index.clone(),
-							));
-						},
-						ApprovalState::Approved(assignment_cert, signature) => {
-							let fingerprint = MessageFingerprint::Approval(
-								block.clone(),
-								candidate_index,
-								validator_index.clone(),
-							);
-							if missing.contains(&assignment_fingerprint) {
-								if let Some(p) = entry.known_by.get_mut(&peer_id) {
-									p.sent.insert(assignment_fingerprint);
-								}
-								assignments.push((
-									IndirectAssignmentCert {
-										block_hash: block.clone(),
-										validator: validator_index.clone(),
-										cert: assignment_cert.clone(),
-									},
-									candidate_index.clone(),
-								));
-							} else {
-								gum::trace!(
-									target: LOG_TARGET,
-									?block,
-									?validator_index,
-									?candidate_index,
-									"Skipping sending known assignment",
-								);
-							}
-							if missing.contains(&fingerprint) {
-								if let Some(p) = entry.known_by.get_mut(&peer_id) {
-									p.sent.insert(fingerprint);
-								}
-								approvals.push(IndirectSignedApprovalVote {
-									block_hash: block.clone(),
-									validator: validator_index.clone(),
-									candidate_index: candidate_index.clone(),
-									signature: signature.clone(),
-								});
-							} else {
-								gum::trace!(
-									target: LOG_TARGET,
-									?block,
-									?validator_index,
-									?candidate_index,
-									"Skipping sending known approval",
-								);
-							}
-						},
-					}
-				}
 			}
-		}
-
-		if !assignments.is_empty() {
-			gum::trace!(
-				target: LOG_TARGET,
-				num = assignments.len(),
-				?num_blocks,
-				?peer_id,
-				"Sending assignments to a peer",
-			);
-
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id.clone()],
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
-				),
-			))
-			.await;
-		}
-
-		if !approvals.is_empty() {
-			gum::trace!(
-				target: LOG_TARGET,
-				num = approvals.len(),
-				?num_blocks,
-				?peer_id,
-				"Sending approvals to a peer",
-			);
-
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id],
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
-				),
-			))
-			.await;
 		}
 	}
 }
