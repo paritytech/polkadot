@@ -30,41 +30,41 @@ pallet-shift-session-manager = { path = "../../../modules/shift-session-manager"
 
 # Substrate Dependencies
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.18" }
-frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-beefy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-offchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "sandreim/task_idle_metric" }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-beefy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-offchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 
 [features]
 default = ["std"]

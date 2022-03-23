@@ -23,15 +23,15 @@ parity-scale-codec = { version = "3.0.0", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

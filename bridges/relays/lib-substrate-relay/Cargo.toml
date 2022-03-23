@@ -34,10 +34,10 @@ bp-messages = { path = "../../primitives/messages" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 
 [dev-dependencies]
 bp-millau = { path = "../../primitives/chain-millau" }

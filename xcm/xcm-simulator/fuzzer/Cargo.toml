@@ -10,13 +10,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "2.0.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

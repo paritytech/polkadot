@@ -14,13 +14,13 @@ scale-info = { version = "2.0.0", default-features = false, features = ["derive"
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
 
 [dev-dependencies]
 hex-literal = "0.3"

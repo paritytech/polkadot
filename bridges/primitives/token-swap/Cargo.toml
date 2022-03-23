@@ -12,9 +12,9 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
 
 [features]
 default = ["std"]

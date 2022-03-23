@@ -12,11 +12,11 @@ parking_lot = "0.12.0"
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }

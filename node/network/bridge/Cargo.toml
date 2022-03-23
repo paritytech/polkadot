@@ -10,8 +10,8 @@ futures = "0.3.21"
 tracing = "0.1.31"
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-node-network-protocol = { path = "../protocol" }
@@ -21,7 +21,7 @@ parking_lot = "0.12.0"
 [dev-dependencies]
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 futures-timer = "3"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

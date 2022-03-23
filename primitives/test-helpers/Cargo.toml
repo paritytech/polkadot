@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.18" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "sandreim/task_idle_metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 polkadot-primitives = { path = "../" }

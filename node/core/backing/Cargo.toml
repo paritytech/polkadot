@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -18,11 +18,11 @@ tracing = "0.1.31"
 thiserror = "1.0.30"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.18" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "sandreim/task_idle_metric" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
