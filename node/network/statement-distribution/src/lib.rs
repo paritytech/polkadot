@@ -61,6 +61,7 @@ use util::runtime::RuntimeInfo;
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use fatality::Nested;
+
 mod error;
 pub use error::{Error, FatalError, JfyiError, Result};
 
@@ -114,7 +115,7 @@ const LOG_TARGET: &str = "parachain::statement-distribution";
 const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
-pub struct StatementDistributionSubsystem<R: rand::Rng> {
+pub struct StatementDistributionSubsystem<R> {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
