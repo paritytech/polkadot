@@ -312,7 +312,9 @@ impl State {
 						parent_hash: meta.parent_hash.clone(),
 						knowledge: Knowledge::default(),
 						candidates,
+						session: meta.session,
 					});
+
 					new_hashes.insert(meta.hash.clone());
 
 					// In case there are duplicates, we should only set this if the entry
