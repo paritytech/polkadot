@@ -16,33 +16,35 @@
 
 //! Code for elections.
 
-use super::{BlockExecutionWeight, BlockLength, BlockWeights};
-use frame_election_provider_support::{SortedListProvider, VoteWeight};
-use frame_support::{
-	parameter_types,
-	weights::{DispatchClass, Weight},
-};
-use sp_runtime::Perbill;
-use sp_std::{boxed::Box, convert::From, marker::PhantomData};
+use frame_election_provider_support::SortedListProvider;
+use sp_std::{boxed::Box, marker::PhantomData};
 
-parameter_types! {
-	/// A limit for off-chain phragmen unsigned solution submission.
-	///
-	/// We want to keep it as high as possible, but can't risk having it reject,
-	/// so we always subtract the base block execution weight.
-	pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.expect("Normal extrinsics have weight limit configured by default; qed")
-		.saturating_sub(BlockExecutionWeight::get());
+/// Implements the weight types for the elections module and a specific
+/// runtime.
+/// This macro should not be called directly; use [`impl_runtime_weights`] instead.
+#[macro_export]
+macro_rules! impl_elections_weights {
+	($runtime:ident) => {
+		parameter_types! {
+			/// A limit for off-chain phragmen unsigned solution submission.
+			///
+			/// We want to keep it as high as possible, but can't risk having it reject,
+			/// so we always subtract the base block execution weight.
+			pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
+				.get(DispatchClass::Normal)
+				.max_extrinsic
+				.expect("Normal extrinsics have weight limit configured by default; qed")
+				.saturating_sub($runtime::weights::BlockExecutionWeight::get());
 
-	/// A limit for off-chain phragmen unsigned solution length.
-	///
-	/// We allow up to 90% of the block's size to be consumed by the solution.
-	pub OffchainSolutionLengthLimit: u32 = Perbill::from_rational(90_u32, 100) *
-		*BlockLength::get()
-		.max
-		.get(DispatchClass::Normal);
+			/// A limit for off-chain phragmen unsigned solution length.
+			///
+			/// We allow up to 90% of the block's size to be consumed by the solution.
+			pub OffchainSolutionLengthLimit: u32 = Perbill::from_rational(90_u32, 100) *
+				*BlockLength::get()
+				.max
+				.get(DispatchClass::Normal);
+		}
+	};
 }
 
 /// The numbers configured here could always be more than the the maximum limits of staking pallet
@@ -66,33 +68,6 @@ pub type OnOnChainAccuracy = sp_runtime::Perbill;
 pub type GenesisElectionOf<T> =
 	frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
 
-/// Maximum number of iterations for balancing that will be executed in the embedded miner of
-/// pallet-election-provider-multi-phase.
-pub const MINER_MAX_ITERATIONS: u32 = 10;
-
-/// A source of random balance for the NPoS Solver, which is meant to be run by the off-chain worker
-/// election miner.
-pub struct OffchainRandomBalancing;
-impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
-	for OffchainRandomBalancing
-{
-	fn get() -> Option<(usize, sp_npos_elections::ExtendedBalance)> {
-		use sp_runtime::{codec::Decode, traits::TrailingZeroInput};
-		let iters = match MINER_MAX_ITERATIONS {
-			0 => 0,
-			max @ _ => {
-				let seed = sp_io::offchain::random_seed();
-				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed") %
-					max.saturating_add(1);
-				random as usize
-			},
-		};
-
-		Some((iters, 0))
-	}
-}
-
 /// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
 /// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary
 /// implementation for runtimes to "test" out the bags-list by keeping it up to date, but not yet
@@ -103,6 +78,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 	for UseNominatorsAndUpdateBagsList<T>
 {
 	type Error = pallet_bags_list::Error;
+	type Score = <T as pallet_bags_list::Config>::Score;
 
 	fn iter() -> Box<dyn Iterator<Item = T::AccountId>> {
 		Box::new(pallet_staking::Nominators::<T>::iter().map(|(n, _)| n))
@@ -116,11 +92,11 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 		pallet_bags_list::Pallet::<T>::contains(id)
 	}
 
-	fn on_insert(id: T::AccountId, weight: VoteWeight) -> Result<(), Self::Error> {
+	fn on_insert(id: T::AccountId, weight: Self::Score) -> Result<(), Self::Error> {
 		pallet_bags_list::Pallet::<T>::on_insert(id, weight)
 	}
 
-	fn on_update(id: &T::AccountId, new_weight: VoteWeight) {
+	fn on_update(id: &T::AccountId, new_weight: Self::Score) {
 		pallet_bags_list::Pallet::<T>::on_update(id, new_weight);
 	}
 
@@ -130,7 +106,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 
 	fn unsafe_regenerate(
 		all: impl IntoIterator<Item = T::AccountId>,
-		weight_of: Box<dyn Fn(&T::AccountId) -> VoteWeight>,
+		weight_of: Box<dyn Fn(&T::AccountId) -> Self::Score>,
 	) -> u32 {
 		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
 	}
@@ -141,10 +117,5 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 
 	fn unsafe_clear() {
 		pallet_bags_list::Pallet::<T>::unsafe_clear()
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn weight_update_worst_case(who: &T::AccountId, is_increase: bool) -> VoteWeight {
-		pallet_bags_list::Pallet::<T>::weight_update_worst_case(who, is_increase)
 	}
 }

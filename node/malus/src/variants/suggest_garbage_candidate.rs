@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use crate::interceptor::*;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, Hash,
 	Signed,
 };
@@ -132,8 +132,8 @@ impl OverseerGen for SuggestGarbageCandidate {
 			move |(mut subsystem_sender, hash, candidate_receipt): (_, Hash, CandidateReceipt)| {
 				let keystore = keystore.clone();
 				async move {
-					tracing::info!(
-						target = MALUS,
+					gum::info!(
+						target: MALUS,
 						"Replacing seconded candidate pov with something else"
 					);
 
@@ -160,7 +160,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 							))
 							.await;
 					} else {
-						tracing::info!("We are not a validator. Not siging anything.");
+						gum::info!("We are not a validator. Not siging anything.");
 					}
 				}
 			},

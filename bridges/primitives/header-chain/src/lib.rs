@@ -29,6 +29,7 @@ use sp_runtime::{generic::OpaqueDigestItemId, traits::Header as HeaderT, Runtime
 use sp_std::boxed::Box;
 
 pub mod justification;
+pub mod storage_keys;
 
 /// A type that can be used as a parameter in a dispatchable function.
 ///

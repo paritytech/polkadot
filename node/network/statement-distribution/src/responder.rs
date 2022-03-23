@@ -20,15 +20,16 @@ use futures::{
 	SinkExt, StreamExt,
 };
 
+use fatality::Nested;
 use polkadot_node_network_protocol::{
 	request_response::{
-		incoming::{self, OutgoingResponse},
+		incoming::OutgoingResponse,
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		IncomingRequestReceiver, MAX_PARALLEL_STATEMENT_REQUESTS,
 	},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
+use polkadot_primitives::v2::{CandidateHash, CommittedCandidateReceipt, Hash};
 
 use crate::LOG_TARGET;
 
@@ -74,16 +75,16 @@ pub async fn respond(
 			pending_out.next().await;
 		}
 
-		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
-			Err(incoming::Error::Fatal(f)) => {
-				tracing::debug!(target: LOG_TARGET, error = ?f, "Shutting down request responder");
+		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(v)) => v,
+			Err(fatal) => {
+				gum::debug!(target: LOG_TARGET, error = ?fatal, "Shutting down request responder");
 				return
 			},
-			Err(incoming::Error::NonFatal(err)) => {
-				tracing::debug!(target: LOG_TARGET, ?err, "Decoding request failed");
+			Ok(Err(jfyi)) => {
+				gum::debug!(target: LOG_TARGET, error = ?jfyi, "Decoding request failed");
 				continue
 			},
-			Ok(v) => v,
 		};
 
 		let (tx, rx) = oneshot::channel();
@@ -96,12 +97,12 @@ pub async fn respond(
 			})
 			.await
 		{
-			tracing::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
+			gum::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
 			return
 		}
 		let response = match rx.await {
 			Err(err) => {
-				tracing::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
+				gum::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
 				Err(())
 			},
 			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
@@ -114,7 +115,7 @@ pub async fn respond(
 		};
 		pending_out.push(pending_sent_rx);
 		if let Err(_) = req.send_outgoing_response(response) {
-			tracing::debug!(target: LOG_TARGET, "Sending response failed");
+			gum::debug!(target: LOG_TARGET, "Sending response failed");
 		}
 	}
 }

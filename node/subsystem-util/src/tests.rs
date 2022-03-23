@@ -24,7 +24,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, SpawnedSubsystem,
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v2::Hash;
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use std::{
 	pin::Pin,
@@ -244,4 +244,15 @@ fn tick_tack_metronome() {
 			_ = f2 => (),
 		)
 	});
+}
+
+#[test]
+fn subset_generation_check() {
+	let values = (0_u8..=25).collect::<Vec<_>>();
+	// 12 even numbers exist
+	let mut chosen = choose_random_subset::<u8, _>(|v| v & 0x01 == 0, values, 12);
+	chosen.sort();
+	for (idx, v) in dbg!(chosen).into_iter().enumerate() {
+		assert_eq!(v as usize, idx * 2);
+	}
 }

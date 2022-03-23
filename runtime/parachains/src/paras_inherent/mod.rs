@@ -39,7 +39,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, CurrentBlockRandomness};
-use primitives::v1::{
+use primitives::v2::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
@@ -81,10 +81,10 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 /// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-pub(crate) struct DisputedBitfield(pub(crate) BitVec<bitvec::order::Lsb0, u8>);
+pub(crate) struct DisputedBitfield(pub(crate) BitVec<u8, bitvec::order::Lsb0>);
 
-impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
-	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
+impl From<BitVec<u8, bitvec::order::Lsb0>> for DisputedBitfield {
+	fn from(inner: BitVec<u8, bitvec::order::Lsb0>) -> Self {
 		Self(inner)
 	}
 }
@@ -93,7 +93,7 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 impl DisputedBitfield {
 	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
-		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
+		Self::from(BitVec::<u8, bitvec::order::Lsb0>::repeat(false, n))
 	}
 }
 
@@ -156,15 +156,15 @@ pub mod pallet {
 		crate::paras_inherent::OnChainVotes::<T>::mutate(move |value| {
 			let disputes =
 				checked_disputes.into_iter().map(DisputeStatementSet::from).collect::<Vec<_>>();
-			if let Some(ref mut value) = value {
-				value.disputes = disputes;
-			} else {
-				*value = Some(ScrapedOnChainVotes::<T::Hash> {
-					backing_validators_per_candidate: Vec::new(),
-					disputes,
-					session,
-				});
-			}
+			let backing_validators_per_candidate = match value.take() {
+				Some(v) => v.backing_validators_per_candidate,
+				None => Vec::new(),
+			};
+			*value = Some(ScrapedOnChainVotes::<T::Hash> {
+				backing_validators_per_candidate,
+				disputes,
+				session,
+			});
 		})
 	}
 
@@ -177,16 +177,15 @@ pub mod pallet {
 		)>,
 	) {
 		crate::paras_inherent::OnChainVotes::<T>::mutate(move |value| {
-			if let Some(ref mut value) = value {
-				value.backing_validators_per_candidate.clear();
-				value.backing_validators_per_candidate.extend(backing_validators_per_candidate);
-			} else {
-				*value = Some(ScrapedOnChainVotes::<T::Hash> {
-					backing_validators_per_candidate,
-					disputes: MultiDisputeStatementSet::default(),
-					session,
-				});
-			}
+			let disputes = match value.take() {
+				Some(v) => v.disputes,
+				None => MultiDisputeStatementSet::default(),
+			};
+			*value = Some(ScrapedOnChainVotes::<T::Hash> {
+				backing_validators_per_candidate,
+				disputes,
+				session,
+			});
 		})
 	}
 
@@ -965,7 +964,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 		return vec![]
 	}
 
-	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
+	let all_zeros = BitVec::<u8, bitvec::order::Lsb0>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
 		// Find and skip invalid bitfields.

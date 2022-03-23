@@ -48,7 +48,7 @@ pub async fn spawn_with_program_path(
 		let socket_path = socket_path.to_owned();
 		async move {
 			let listener = UnixListener::bind(&socket_path).await.map_err(|err| {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					%debug_id,
 					"cannot bind unix socket: {:?}",
@@ -59,7 +59,7 @@ pub async fn spawn_with_program_path(
 
 			let handle =
 				WorkerHandle::spawn(program_path, extra_args, socket_path).map_err(|err| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
 						"cannot spawn a worker: {:?}",
@@ -71,7 +71,7 @@ pub async fn spawn_with_program_path(
 			futures::select! {
 				accept_result = listener.accept().fuse() => {
 					let (stream, _) = accept_result.map_err(|err| {
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							%debug_id,
 							"cannot accept a worker: {:?}",
@@ -160,7 +160,7 @@ where
 	})
 	.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %std::process::id(),
 		"pvf worker ({}): {:?}",

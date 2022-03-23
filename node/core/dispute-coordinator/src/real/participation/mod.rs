@@ -27,14 +27,12 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
-use crate::{
-	error::{Fatal, FatalResult, NonFatal, Result},
-	LOG_TARGET,
-};
+use crate::real::LOG_TARGET;
 
 use super::ordering::CandidateComparator;
+use crate::error::{FatalError, FatalResult, JfyiError, Result};
 
 #[cfg(test)]
 mod tests;
@@ -43,7 +41,7 @@ pub use tests::{participation_full_happy_path, participation_missing_availabilit
 
 mod queues;
 use queues::Queues;
-pub use queues::{Error as QueueError, ParticipationRequest};
+pub use queues::{ParticipationRequest, QueueError};
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -161,7 +159,7 @@ impl Participation {
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		Ok(self.queue.queue(comparator, req).map_err(NonFatal::QueueError)?)
+		Ok(self.queue.queue(comparator, req).map_err(JfyiError::QueueError)?)
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -239,7 +237,7 @@ impl Participation {
 				"participation-worker",
 				participate(self.worker_sender.clone(), sender, recent_head, req).boxed(),
 			)
-			.map_err(Fatal::SpawnFailed)?;
+			.map_err(FatalError::SpawnFailed)?;
 		}
 		Ok(())
 	}
@@ -268,7 +266,7 @@ async fn participate(
 
 	let available_data = match recover_available_data_rx.await {
 		Err(oneshot::Canceled) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"`Oneshot` got cancelled when recovering available data {:?}",
 				req.candidate_hash(),
@@ -300,7 +298,7 @@ async fn participate(
 	{
 		Ok(Some(code)) => code,
 		Ok(None) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Validation code unavailable for code hash {:?} in the state of block {:?}",
 				req.candidate_receipt().descriptor.validation_code_hash,
@@ -311,7 +309,7 @@ async fn participate(
 			return
 		},
 		Err(err) => {
-			tracing::warn!(target: LOG_TARGET, ?err, "Error when fetching validation code.");
+			gum::warn!(target: LOG_TARGET, ?err, "Error when fetching validation code.");
 			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 			return
 		},
@@ -335,14 +333,14 @@ async fn participate(
 
 	match store_available_data_rx.await {
 		Err(oneshot::Canceled) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"`Oneshot` got cancelled when storing available data {:?}",
 				req.candidate_hash(),
 			);
 		},
 		Ok(Err(err)) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?err,
 				"Failed to store available data for candidate {:?}",
@@ -377,7 +375,7 @@ async fn participate(
 	// the validation and if valid, whether the commitments hash matches
 	match validation_rx.await {
 		Err(oneshot::Canceled) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"`Oneshot` got cancelled when validating candidate {:?}",
 				req.candidate_hash(),
@@ -386,7 +384,7 @@ async fn participate(
 			return
 		},
 		Ok(Err(err)) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Candidate {:?} validation failed with: {:?}",
 				req.candidate_hash(),
@@ -396,7 +394,7 @@ async fn participate(
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
 		Ok(Ok(ValidationResult::Invalid(invalid))) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Candidate {:?} considered invalid: {:?}",
 				req.candidate_hash(),
@@ -407,7 +405,7 @@ async fn participate(
 		},
 		Ok(Ok(ValidationResult::Valid(commitments, _))) => {
 			if commitments.hash() != req.candidate_receipt().commitments_hash {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					expected = ?req.candidate_receipt().commitments_hash,
 					got = ?commitments.hash(),
@@ -429,7 +427,7 @@ async fn send_result(
 	outcome: ParticipationOutcome,
 ) {
 	if let Err(err) = sender.feed(WorkerMessage::from_request(req, outcome)).await {
-		tracing::error!(
+		gum::error!(
 			target: LOG_TARGET,
 			?err,
 			"Sending back participation result failed. Dispute coordinator not working properly!"

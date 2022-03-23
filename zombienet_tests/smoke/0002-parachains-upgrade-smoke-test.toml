@@ -1,0 +1,37 @@
+[settings]
+timeout = 1000
+bootnode = true
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+command = "polkadot"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  extra_args = [ "--alice" ]
+
+  [[relaychain.nodes.env]]
+  name = "RUST_LOG"
+  value = "runtime=debug,parachain=trace,cumulus-collator=trace,aura=trace"
+
+  [[relaychain.nodes]]
+  name = "bob"
+  extra_args = [ "--bob" ]
+
+  [[relaychain.nodes.env]]
+  name = "RUST_LOG"
+  value = "runtime=debug,parachain=trace,cumulus-collator=trace,aura=trace"
+
+[[parachains]]
+id = 100
+addToGenesis = true
+
+  [parachains.collator]
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
+  commandWithArgs = "polkadot-collator --collator --alice --force-authoring --tmp --parachain-id 100 --rpc-cors all --unsafe-rpc-external --rpc-methods unsafe --unsafe-ws-external -- --execution wasm --chain /cfg/rococo-local.json --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
+
+  [[parachains.collator.env]]
+  name = "RUST_LOG"
+  value = "runtime=debug,parachain=trace,cumulus-collator=trace,aura=trace"

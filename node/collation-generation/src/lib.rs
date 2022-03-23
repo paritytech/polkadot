@@ -31,7 +31,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
 	request_validation_code_hash, request_validators,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
 	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
 	ValidationCodeHash,
@@ -129,7 +129,7 @@ impl CollationGenerationSubsystem {
 					)
 					.await
 					{
-						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
+						gum::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
 					}
 				}
 
@@ -140,7 +140,7 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					tracing::error!(target: LOG_TARGET, "double initialization");
+					gum::error!(target: LOG_TARGET, "double initialization");
 				} else {
 					self.config = Some(Arc::new(config));
 				}
@@ -148,7 +148,7 @@ impl CollationGenerationSubsystem {
 			},
 			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
-				tracing::error!(
+				gum::error!(
 					target: LOG_TARGET,
 					err = ?err,
 					"error receiving message from subsystem context: {:?}",
@@ -207,7 +207,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
@@ -216,7 +216,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					continue
 				},
 				CoreState::Free => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
 						"core is free. Keep going.",
@@ -226,7 +226,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			};
 
 			if scheduled_core.para_id != config.para_id {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					core_idx = %core_idx,
 					relay_parent = ?relay_parent,
@@ -252,7 +252,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			{
 				Some(v) => v,
 				None => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
@@ -274,7 +274,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			{
 				Some(v) => v,
 				None => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
@@ -298,7 +298,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						match (task_config.collator)(relay_parent, &validation_data).await {
 							Some(collation) => collation.into_inner(),
 							None => {
-								tracing::debug!(
+								gum::debug!(
 									target: LOG_TARGET,
 									para_id = %scheduled_core.para_id,
 									"collator returned no collation on collate",
@@ -309,9 +309,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 					// Apply compression to the block data.
 					let pov = {
-						let pov = polkadot_node_primitives::maybe_compress_pov(
-							collation.proof_of_validity,
-						);
+						let pov = collation.proof_of_validity.into_compressed();
 						let encoded_size = pov.encoded_size();
 
 						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
@@ -320,7 +318,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						// As such, honest collators never produce an uncompressed PoV which starts with
 						// a compression magic number, which would lead validators to reject the collation.
 						if encoded_size > validation_data.max_pov_size as usize {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								para_id = %scheduled_core.para_id,
 								size = encoded_size,
@@ -348,7 +346,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						match erasure_root(n_validators, validation_data, pov.clone()) {
 							Ok(erasure_root) => erasure_root,
 							Err(err) => {
-								tracing::error!(
+								gum::error!(
 									target: LOG_TARGET,
 									para_id = %scheduled_core.para_id,
 									err = ?err,
@@ -382,7 +380,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						},
 					};
 
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?ccr.hash(),
 						?pov_hash,
@@ -398,7 +396,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						))
 						.await
 					{
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							para_id = %scheduled_core.para_id,
 							err = ?err,

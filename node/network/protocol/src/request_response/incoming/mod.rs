@@ -29,7 +29,7 @@ use super::IsRequest;
 use crate::UnifiedReputationChange;
 
 mod error;
-pub use error::{Error, Fatal, NonFatal, Result};
+pub use error::{Error, FatalError, JfyiError, Result};
 
 /// A request coming in, including a sender for sending responses.
 ///
@@ -84,7 +84,7 @@ where
 	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> std::result::Result<Self, NonFatal> {
+	) -> std::result::Result<Self, JfyiError> {
 		let sc_network::config::IncomingRequest { payload, peer, pending_response } = raw;
 		let payload = match Req::decode(&mut payload.as_ref()) {
 			Ok(payload) => payload,
@@ -98,9 +98,9 @@ where
 				};
 
 				if let Err(_) = pending_response.send(response) {
-					return Err(NonFatal::DecodingErrorNoReputationChange(peer, err))
+					return Err(JfyiError::DecodingErrorNoReputationChange(peer, err))
 				}
-				return Err(NonFatal::DecodingError(peer, err))
+				return Err(JfyiError::DecodingError(peer, err))
 			},
 		};
 		Ok(Self::new(peer, payload, pending_response))
@@ -224,7 +224,7 @@ where
 		F: FnOnce() -> Vec<UnifiedReputationChange>,
 	{
 		let req = match self.raw.next().await {
-			None => return Err(Fatal::RequestChannelExhausted.into()),
+			None => return Err(FatalError::RequestChannelExhausted.into()),
 			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes())?,
 		};
 		Ok(req)
