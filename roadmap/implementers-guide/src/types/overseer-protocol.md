@@ -175,6 +175,8 @@ struct BlockApprovalMeta {
     candidates: Vec<CandidateHash>,
     /// The consensus slot of the block.
     slot: Slot,
+    /// The session of the block.
+    session: SessionIndex,
 }
 
 enum ApprovalDistributionMessage {

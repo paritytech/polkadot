@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
-	BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature, SessionIndex,
 };
 use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -184,6 +184,8 @@ struct BlockEntry {
 	knowledge: Knowledge,
 	/// A votes entry for each candidate indexed by [`CandidateIndex`].
 	candidates: Vec<CandidateEntry>,
+	/// The session index of this block.
+	session: SessionIndex,
 }
 
 #[derive(Debug)]

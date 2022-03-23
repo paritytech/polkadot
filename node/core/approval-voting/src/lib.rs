@@ -1006,6 +1006,7 @@ fn distribution_messages_for_activation(
 			parent_hash: block_entry.parent_hash(),
 			candidates: block_entry.candidates().iter().map(|(_, c_hash)| *c_hash).collect(),
 			slot: block_entry.slot(),
+			session: block_entry.session(),
 		});
 
 		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
