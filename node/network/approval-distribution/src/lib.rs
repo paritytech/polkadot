@@ -215,12 +215,16 @@ impl State {
 					entry.known_by.remove(&peer_id);
 				})
 			},
-			NetworkBridgeEvent::NewGossipTopology { our_neighbors_x, our_neighbors_y } => {
+			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				// TODO [now]: update shared dimension of all peers.
 				// TODO [now]: update broadcast dimensions of all messages
 				// TODO [now]: broadcast messages along new dimensions.
+				let peers: HashSet<PeerId> = topology.our_neighbors_x
+					.values()
+					.chain(topology.our_neighbors_y.values())
+					.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())
+					.collect();
 
-				let peers: HashSet<_> = our_neighbors_x.union(&our_neighbors_y).cloned().collect();
 				let newly_added: Vec<PeerId> =
 					peers.difference(&self.gossip_peers).cloned().collect();
 				self.gossip_peers = peers;
