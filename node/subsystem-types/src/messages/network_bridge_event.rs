@@ -14,12 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashSet, convert::TryFrom};
+use std::{collections::{HashMap, HashSet}, convert::TryFrom};
 
 pub use sc_network::{PeerId, ReputationChange};
 
 use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+
+/// Information about a peer in the gossip topology for a session.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TopologyPeerInfo {
+	/// The validator's known peer IDs.
+	pub peer_ids: Vec<PeerId>,
+	/// The index of the validator in the discovery keys of the corresponding
+	/// `SessionInfo`.
+	pub validator_index: ValidatorIndex,
+}
+
+/// A struct indicating new gossip topology.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewGossipTopology {
+	/// The session index this topology corresponds to.
+	pub session: SessionIndex,
+	/// Neighbors in the 'X' dimension of the grid.
+	pub our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// Neighbors in the 'Y' dimension of the grid.
+	pub our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+}
 
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]
@@ -30,19 +51,14 @@ pub enum NetworkBridgeEvent<M> {
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
 
-	/// Our neighbors in the new gossip topology.
+	/// Our neighbors in the new gossip topology for the session.
 	/// We're not necessarily connected to all of them.
 	///
 	/// This message is issued only on the validation peer set.
 	///
 	/// Note, that the distribution subsystems need to handle the last
 	/// view update of the newly added gossip peers manually.
-	NewGossipTopology {
-		/// Neighbors in the 'X' dimension of the grid.
-		our_neighbors_x: HashSet<PeerId>,
-		/// Neighbors in the 'Y' dimension of the grid.
-		our_neighbors_y: HashSet<PeerId>,
-	},
+	NewGossipTopology(NewGossipTopology),
 
 	/// Peer has sent a message.
 	PeerMessage(PeerId, M),
@@ -82,11 +98,8 @@ impl<M> NetworkBridgeEvent<M> {
 				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
 				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::NewGossipTopology { ref our_neighbors_x, ref our_neighbors_y } =>
-				NetworkBridgeEvent::NewGossipTopology {
-					our_neighbors_x: our_neighbors_x.clone(),
-					our_neighbors_y: our_neighbors_y.clone(),
-				},
+			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
+				NetworkBridgeEvent::NewGossipTopology(topology.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>

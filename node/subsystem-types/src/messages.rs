@@ -49,7 +49,7 @@ use polkadot_primitives::v2::{
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
-	collections::{BTreeMap, HashSet},
+	collections::{BTreeMap, HashSet, HashMap},
 	sync::Arc,
 	time::Duration,
 };
@@ -378,14 +378,20 @@ pub enum NetworkBridgeMessage {
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
-		/// Ids of our neighbors in the X dimensions of the new gossip topology.
+		/// The session info this gossip topology is concerned with.
+		session: SessionIndex,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology,
+		/// along with their validator indices within the session.
+		///
 		/// We're not necessarily connected to all of them, but we should
 		/// try to be.
-		our_neighbors_x: HashSet<AuthorityDiscoveryId>,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology.
+		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology,
+		/// along with their validator indices within the session.
+		///
 		/// We're not necessarily connected to all of them, but we should
 		/// try to be.
-		our_neighbors_y: HashSet<AuthorityDiscoveryId>,
+		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
 	},
 }
 
