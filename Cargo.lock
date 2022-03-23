@@ -1137,10 +1137,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "coarsetime-saturated"
+name = "coarsetime"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c1e811b54264be28501f02ac5c79205efced8f15556c061b9dd4dbf2af2101e"
+checksum = "441947d9f3582f20b35fdd2bc5ada3a8c74c9ea380d66268607cb399b510ee08"
 dependencies = [
  "libc",
  "once_cell",
@@ -4494,7 +4494,7 @@ name = "metered-channel"
 version = "0.9.18"
 dependencies = [
  "assert_matches",
- "coarsetime-saturated",
+ "coarsetime",
  "crossbeam-queue",
  "derive_more",
  "env_logger 0.9.0",
