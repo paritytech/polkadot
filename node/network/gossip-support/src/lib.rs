@@ -524,12 +524,14 @@ where
 	let neighbors = matrix_neighbors(our_shuffled_position, len);
 	let row_neighbors = neighbors
 		.row_neighbors
-		.map(|i| (authorities[indices[i]].clone(), ValidatorIndex::from(i as u32)))
+		.map(|i| indices[i])
+		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
 		.collect();
 
 	let column_neighbors = neighbors
 		.column_neighbors
-		.map(|i| (authorities[indices[i]].clone(), ValidatorIndex::from(i as u32)))
+		.map(|i| indices[i])
+		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
 		.collect();
 
 	ctx.send_message(NetworkBridgeMessage::NewGossipTopology {
