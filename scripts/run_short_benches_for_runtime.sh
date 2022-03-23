@@ -15,8 +15,7 @@ echo "[+] Running all benchmarks for $runtime"
     --list |\
   tail -n+2 |\
   cut -d',' -f1 |\
-  uniq | \
-  grep -v frame_system > "${runtime}_pallets"
+  uniq > "${runtime}_pallets"
 
 # For each pallet found in the previous command, run benches on each function
 while read -r line; do
