@@ -49,14 +49,11 @@ use futures::{
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
 
-use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-		GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-		PersistedValidationData, SessionIndex, Signed, SigningContext, ValidationCode,
-		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, ByteArray};
@@ -86,6 +83,9 @@ pub mod reexports {
 pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+
+/// Database trait for subsystem.
+pub mod database;
 
 mod determine_new_blocks;
 
@@ -586,7 +586,7 @@ where
 			)
 			.await
 			{
-				tracing::error!(
+				gum::error!(
 					job = Job::NAME,
 					parent_hash = %hash,
 					err = ?e,
@@ -732,7 +732,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							}
 						}
 						Err(err) => {
-							tracing::error!(
+							gum::error!(
 								job = Job::NAME,
 								err = ?err,
 								"error receiving message from subsystem context for job",
@@ -751,7 +751,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 					};
 
 					if let Err(e) = res {
-						tracing::warn!(err = ?e, "failed to handle command from job");
+						gum::warn!(err = ?e, "failed to handle command from job");
 					}
 				}
 				complete => break,

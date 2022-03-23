@@ -31,7 +31,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::CollatorPair;
+use polkadot_primitives::v2::CollatorPair;
 
 use polkadot_subsystem::{
 	errors::SubsystemError,
@@ -133,7 +133,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext,
 {
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		rep = ?rep,
 		peer_id = %peer,

@@ -29,15 +29,21 @@ pub fn initialize_relay() {
 
 /// Initialize Relay logger instance.
 pub fn initialize_logger(with_timestamp: bool) {
+	let format = time::format_description::parse(
+		"[year]-[month]-[day] \
+		[hour repr:24]:[minute]:[second] [offset_hour sign:mandatory]",
+	)
+	.expect("static format string is valid");
+
 	let mut builder = env_logger::Builder::new();
 	builder.filter_level(log::LevelFilter::Warn);
 	builder.filter_module("bridge", log::LevelFilter::Info);
 	builder.parse_default_env();
 	if with_timestamp {
 		builder.format(move |buf, record| {
-			let timestamp = time::OffsetDateTime::try_now_local()
-				.unwrap_or_else(|_| time::OffsetDateTime::now_utc())
-				.format("%Y-%m-%d %H:%M:%S %z");
+			let timestamp = time::OffsetDateTime::now_local()
+				.unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+			let timestamp = timestamp.format(&format).unwrap_or_else(|_| timestamp.to_string());
 
 			let log_level = color_level(record.level());
 			let log_target = color_target(record.target());

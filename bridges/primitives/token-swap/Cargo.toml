@@ -3,25 +3,36 @@ name = "bp-token-swap"
 description = "Primitives of the pallet-bridge-token-swap pallet"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+
+# Bridge Dependencies
+
+bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Dependencies
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+[dev-dependencies]
+hex = "0.4"
+hex-literal = "0.3"
 
 [features]
 default = ["std"]
 std = [
+	"bp-runtime/std",
 	"codec/std",
 	"frame-support/std",
 	"scale-info/std",
 	"sp-core/std",
+	"sp-io/std",
 	"sp-std/std",
 ]

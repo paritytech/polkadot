@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -16,10 +16,10 @@ assert_matches = "1.4.0"
 futures = "0.3.21"
 futures-timer = "3.0.2"
 slotmap = "1.0"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../../gum" }
 pin-project = "1.0.9"
 rand = "0.8.5"
-parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}

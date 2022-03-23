@@ -62,11 +62,19 @@ pub type JfyiErrorResult<T> = std::result::Result<T, JfyiError>;
 pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {
 	match result.into_nested()? {
 		Err(error @ JfyiError::ImportCanceled(_)) => {
-			tracing::debug!(target: LOG_TARGET, error = ?error);
+			gum::debug!(target: LOG_TARGET, error = ?error);
+			Ok(())
+		},
+		Err(JfyiError::NotAValidator(peer)) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				?peer,
+				"Dropping message from peer (unknown authority id)"
+			);
 			Ok(())
 		},
 		Err(error) => {
-			tracing::warn!(target: LOG_TARGET, error = ?error);
+			gum::warn!(target: LOG_TARGET, error = ?error);
 			Ok(())
 		},
 		Ok(()) => Ok(()),

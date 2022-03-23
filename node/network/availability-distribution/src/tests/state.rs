@@ -39,13 +39,13 @@ use polkadot_node_network_protocol::{
 	request_response::{v1, IncomingRequest, OutgoingRequest, Requests},
 };
 use polkadot_node_primitives::ErasureChunk;
-use polkadot_primitives::{
-	v1::{CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, ValidatorIndex},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
+	ValidatorIndex,
 };
 use polkadot_subsystem::{
 	messages::{
-		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
@@ -211,7 +211,7 @@ impl TestState {
 		);
 
 		while remaining_stores > 0 {
-			tracing::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
+			gum::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
 			let msg = overseer_recv(&mut rx).await;
 			match msg {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
@@ -255,7 +255,7 @@ impl TestState {
 						"Only valid chunks should ever get stored."
 					);
 					tx.send(Ok(())).expect("Receiver is expected to be alive");
-					tracing::trace!(target: LOG_TARGET, "'Stored' fetched chunk.");
+					gum::trace!(target: LOG_TARGET, "'Stored' fetched chunk.");
 					remaining_stores -= 1;
 				},
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, req)) => {
@@ -269,7 +269,7 @@ impl TestState {
 								.expect("Receiver should be alive.");
 						},
 						RuntimeApiRequest::AvailabilityCores(tx) => {
-							tracing::trace!(target: LOG_TARGET, cores= ?self.cores[&hash], hash = ?hash, "Sending out cores for hash");
+							gum::trace!(target: LOG_TARGET, cores= ?self.cores[&hash], hash = ?hash, "Sending out cores for hash");
 							tx.send(Ok(self.cores[&hash].clone()))
 								.expect("Receiver should still be alive");
 						},
@@ -277,6 +277,14 @@ impl TestState {
 							panic!("Unexpected runtime request: {:?}", req);
 						},
 					}
+				},
+				AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
+					let chain = &self.relay_chain;
+					let maybe_block_position = chain.iter().position(|h| *h == hash);
+					let ancestors = maybe_block_position
+						.map(|idx| chain[..idx].iter().rev().take(k).copied().collect())
+						.unwrap_or_default();
+					response_channel.send(Ok(ancestors)).expect("Receiver is expected to be alive");
 				},
 				_ => {},
 			}
@@ -291,12 +299,12 @@ async fn overseer_signal(
 	msg: impl Into<OverseerSignal>,
 ) {
 	let msg = msg.into();
-	tracing::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
+	gum::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
 	tx.send(FromOverseer::Signal(msg)).await.expect("Test subsystem no longer live");
 }
 
 async fn overseer_recv(rx: &mut mpsc::UnboundedReceiver<AllMessages>) -> AllMessages {
-	tracing::trace!(target: LOG_TARGET, "waiting for message ...");
+	gum::trace!(target: LOG_TARGET, "waiting for message ...");
 	rx.next().await.expect("Test subsystem no longer live")
 }
 
