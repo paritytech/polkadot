@@ -108,8 +108,6 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
-	/// Enable to disputes.
-	pub disputes_enabled: bool,
 	/// Enable PVF pre-checking
 	pub pvf_checker_enabled: bool,
 }
@@ -138,7 +136,6 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
-		disputes_enabled,
 		pvf_checker_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
@@ -243,7 +240,7 @@ where
 		))
 		.provisioner(ProvisionerSubsystem::new(
 			spawner.clone(),
-			ProvisionerConfig { disputes_enabled },
+			ProvisionerConfig,
 			Metrics::register(registry)?,
 		))
 		.runtime_api(RuntimeApiSubsystem::new(
@@ -269,16 +266,12 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.dispute_coordinator(if disputes_enabled {
-			DisputeCoordinatorSubsystem::new(
-				parachains_db.clone(),
-				dispute_coordinator_config,
-				keystore.clone(),
-				Metrics::register(registry)?,
-			)
-		} else {
-			DisputeCoordinatorSubsystem::dummy()
-		})
+		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
+			parachains_db.clone(),
+			dispute_coordinator_config,
+			keystore.clone(),
+			Metrics::register(registry)?,
+		))
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,
