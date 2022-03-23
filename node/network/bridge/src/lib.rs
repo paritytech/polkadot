@@ -34,7 +34,10 @@ use polkadot_overseer::gen::{OverseerError, Subsystem};
 use polkadot_primitives::v2::{BlockNumber, Hash};
 use polkadot_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
+	messages::{
+		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
+		AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemSender,
 };
@@ -45,7 +48,7 @@ use polkadot_subsystem::{
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::{
-	collections::{hash_map, HashMap, HashSet},
+	collections::{hash_map, HashMap},
 	sync::Arc,
 };
 
@@ -590,6 +593,7 @@ where
 						).await;
 					}
 					NetworkBridgeMessage::NewGossipTopology {
+						session,
 						our_neighbors_x,
 						our_neighbors_y,
 					} => {
@@ -602,36 +606,45 @@ where
 						);
 
 						let ads = &mut authority_discovery_service;
-						let mut gossip_peers_x = HashSet::with_capacity(our_neighbors_x.len());
-						let mut gossip_peers_y = HashSet::with_capacity(our_neighbors_y.len());
+						let mut gossip_peers_x = HashMap::with_capacity(our_neighbors_x.len());
+						let mut gossip_peers_y = HashMap::with_capacity(our_neighbors_y.len());
 
-						for authority in our_neighbors_x {
+						for (authority, validator_index) in our_neighbors_x {
 							let addr = get_peer_id_by_authority_id(
 								ads,
 								authority.clone(),
 							).await;
 
 							if let Some(peer_id) = addr {
-								gossip_peers_x.insert(peer_id);
+								gossip_peers_x.insert(authority, TopologyPeerInfo {
+									peer_ids: vec![peer_id],
+									validator_index,
+								});
 							}
 						}
 
-						for authority in our_neighbors_y {
+						for (authority, validator_index) in our_neighbors_y {
 							let addr = get_peer_id_by_authority_id(
 								ads,
 								authority.clone(),
 							).await;
 
 							if let Some(peer_id) = addr {
-								gossip_peers_y.insert(peer_id);
+								gossip_peers_y.insert(authority, TopologyPeerInfo {
+									peer_ids: vec![peer_id],
+									validator_index,
+								});
 							}
 						}
 
 						dispatch_validation_event_to_all_unbounded(
-							NetworkBridgeEvent::NewGossipTopology {
-								our_neighbors_x: gossip_peers_x,
-								our_neighbors_y: gossip_peers_y,
-							},
+							NetworkBridgeEvent::NewGossipTopology(
+								NewGossipTopology {
+									session,
+									our_neighbors_x: gossip_peers_x,
+									our_neighbors_y: gossip_peers_y,
+								}
+							),
 							ctx.sender(),
 						);
 					}
