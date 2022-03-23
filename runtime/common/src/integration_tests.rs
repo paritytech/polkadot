@@ -239,7 +239,7 @@ impl auctions::Config for Test {
 
 parameter_types! {
 	pub const LeasePeriod: BlockNumber = 100;
-	pub static LeaseOffset: BlockNumber = 0;
+	pub static LeaseOffset: BlockNumber = 5;
 }
 
 impl slots::Config for Test {
@@ -319,6 +319,11 @@ fn test_validation_code(size: usize) -> ValidationCode {
 
 fn para_origin(id: u32) -> ParaOrigin {
 	ParaOrigin::Parachain(id.into())
+}
+
+fn add_blocks(n: u32) {
+	let block_number = System::block_number();
+	run_to_block(block_number + n);
 }
 
 fn run_to_block(n: u32) {
@@ -1307,19 +1312,25 @@ fn gap_bids_work() {
 		));
 
 		// Finish the auction
-		run_to_block(110);
+		run_to_block(110 + LeaseOffset::get());
 
 		// Should have won the lease periods
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// -- 1 --- 2 --- 3 ---------- 4 -------------- 5 -------------- 6 -------------- 7 -------
 			vec![
+				// LP 1
 				None,
+				// LP 2
 				None,
+				// LP 3
 				None,
+				// LP 4
 				Some((account_id(10), 100)),
+				// LP 5
 				Some((account_id(20), 800)),
+				// LP 6
 				Some((account_id(20), 200)),
+				// LP 7
 				Some((account_id(10), 400))
 			],
 		);
@@ -1330,14 +1341,17 @@ fn gap_bids_work() {
 
 		// Progress through the leases and note the correct amount of balance is reserved.
 
-		run_to_block(400);
+		add_blocks(300 + LeaseOffset::get());
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// --------- 4 -------------- 5 -------------- 6 -------------- 7 -------
 			vec![
+				// LP 4
 				Some((account_id(10), 100)),
+				// LP 5
 				Some((account_id(20), 800)),
+				// LP 6
 				Some((account_id(20), 200)),
+				// LP 7
 				Some((account_id(10), 400))
 			],
 		);
@@ -1346,13 +1360,15 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 800);
 
 		// Lease period 4 is done, but nothing is unreserved since user 1 has a debt on lease 7
-		run_to_block(500);
+		add_blocks(100);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// --------- 5 -------------- 6 -------------- 7 -------
 			vec![
+				// LP 5
 				Some((account_id(20), 800)),
+				// LP 6
 				Some((account_id(20), 200)),
+				// LP 7
 				Some((account_id(10), 400))
 			],
 		);
@@ -1361,7 +1377,7 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 800);
 
 		// Lease period 5 is done, and 20 will unreserve down to 200.
-		run_to_block(600);
+		add_blocks(100);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// --------- 6 -------------- 7 -------
@@ -1371,7 +1387,7 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 200);
 
 		// Lease period 6 is done, and 20 will unreserve everything.
-		run_to_block(700);
+		add_blocks(100);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// --------- 7 -------
@@ -1381,7 +1397,7 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 0);
 
 		// All leases are done. Everything is unreserved.
-		run_to_block(800);
+		add_blocks(100);
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2000)), vec![]);
 		assert_eq!(Balances::reserved_balance(&account_id(10)), 0);
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 0);

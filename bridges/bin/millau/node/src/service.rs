@@ -30,14 +30,13 @@
 // =====================================================================================
 
 use millau_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::ExecutorProvider;
+use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_consensus::SlotData;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 
@@ -66,6 +65,7 @@ type FullClient =
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
+#[allow(clippy::type_complexity)]
 pub fn new_partial(
 	config: &Configuration,
 ) -> Result<
@@ -89,7 +89,7 @@ pub fn new_partial(
 	ServiceError,
 > {
 	if config.keystore_remote.is_some() {
-		return Err(ServiceError::Other(format!("Remote Keystores are not supported.")))
+		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
 	}
 
 	let telemetry = config
@@ -112,7 +112,7 @@ pub fn new_partial(
 
 	let (client, backend, keystore_container, task_manager) =
 		sc_service::new_full_parts::<Block, RuntimeApi, _>(
-			&config,
+			config,
 			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
 			executor,
 		)?;
@@ -140,7 +140,7 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let slot_duration = sc_consensus_aura::slot_duration(&*client)?.slot_duration();
+	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
 		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _, _>(ImportQueueParams {
@@ -151,7 +151,7 @@ pub fn new_partial(
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 				let slot =
-					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_duration(
+					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 						*timestamp,
 						slot_duration,
 					);
@@ -179,7 +179,7 @@ pub fn new_partial(
 	})
 }
 
-fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
+fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 	// FIXME: here would the concrete keystore be built,
 	//        must return a concrete type (NOT `LocalKeystore`) that
 	//        implements `CryptoStore` and `SyncCryptoStore`
@@ -210,8 +210,27 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		};
 	}
 
-	config.network.extra_sets.push(sc_finality_grandpa::grandpa_peers_set_config());
-	config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
+	// anything in terms of behaviour, but makes the logs more consistent with the other
+	// Substrate nodes.
+	let grandpa_protocol_name = sc_finality_grandpa::protocol_standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
+	config
+		.network
+		.extra_sets
+		.push(sc_finality_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+
+	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
+	config
+		.network
+		.extra_sets
+		.push(beefy_gadget::beefy_peers_set_config(beefy_protocol_name.clone()));
+
 	let warp_sync = Arc::new(sc_finality_grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		grandpa_link.shared_authority_set().clone(),
@@ -245,8 +264,10 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 	let enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
 	let shared_voter_state = SharedVoterState::empty();
-	let (signed_commitment_sender, signed_commitment_stream) =
-		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+	let (beefy_commitment_link, beefy_commitment_stream) =
+		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
+	let (beefy_best_block_link, beefy_best_block_stream) =
+		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
 
 	let rpc_extensions_builder = {
 		use sc_finality_grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
@@ -287,10 +308,12 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 				finality_proof_provider.clone(),
 			)));
 			io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-				beefy_gadget_rpc::BeefyRpcHandler::new(
-					signed_commitment_stream.clone(),
+				beefy_gadget_rpc::BeefyRpcHandler::<Block>::new(
+					beefy_commitment_stream.clone(),
+					beefy_best_block_stream.clone(),
 					subscription_executor,
-				),
+				)
+				.map_err(|e| sc_service::Error::Other(format!("{}", e)))?,
 			));
 			io.extend_with(pallet_mmr_rpc::MmrApi::to_delegate(pallet_mmr_rpc::Mmr::new(
 				client.clone(),
@@ -325,7 +348,6 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-		let raw_slot_duration = slot_duration.slot_duration();
 
 		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _, _>(
 			StartAuraParams {
@@ -338,9 +360,9 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
-						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
-							raw_slot_duration,
+							slot_duration,
 						);
 
 					Ok((timestamp, slot))
@@ -374,9 +396,11 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		backend,
 		key_store: keystore.clone(),
 		network: network.clone(),
-		signed_commitment_sender,
+		signed_commitment_sender: beefy_commitment_link,
+		beefy_best_block_sender: beefy_best_block_link,
 		min_block_delta: 4,
 		prometheus_registry: prometheus_registry.clone(),
+		protocol_name: beefy_protocol_name,
 	};
 
 	// Start the BEEFY bridge gadget.
@@ -395,6 +419,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		keystore,
 		local_role: role,
 		telemetry: telemetry.as_ref().map(|x| x.handle()),
+		protocol_name: grandpa_protocol_name,
 	};
 
 	if enable_grandpa {

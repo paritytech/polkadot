@@ -64,7 +64,7 @@ pub type FatalResult<T> = std::result::Result<T, FatalError>;
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), FatalError> {
 	match result.into_nested()? {
 		Err(jfyi) => {
-			tracing::warn!(target: LOG_TARGET, error = ?jfyi, ctx);
+			gum::warn!(target: LOG_TARGET, error = ?jfyi, ctx);
 			Ok(())
 		},
 		Ok(()) => Ok(()),

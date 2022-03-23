@@ -16,6 +16,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod weights;
+
 /// Money matters.
 pub mod currency {
 	use primitives::v2::Balance;
@@ -53,11 +55,11 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
 	use primitives::v2::Balance;
-	use runtime_common::ExtrinsicBaseWeight;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
 
@@ -97,8 +99,9 @@ mod tests {
 		currency::{CENTS, MILLICENTS},
 		fee::WeightToFee,
 	};
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::WeightToFeePolynomial;
-	use runtime_common::{ExtrinsicBaseWeight, MAXIMUM_BLOCK_WEIGHT};
+	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
 	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct

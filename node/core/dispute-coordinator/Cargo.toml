@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.32"
-parity-scale-codec = "3.0.0"
+gum = { package = "tracing-gum", path = "../../gum" }
+parity-scale-codec = "3.1.2"
 kvdb = "0.11.0"
 thiserror = "1.0.30"
 lru = "0.7.3"

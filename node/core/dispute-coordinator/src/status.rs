@@ -152,7 +152,7 @@ impl Clock for SystemClock {
 		match SystemTime::now().duration_since(UNIX_EPOCH) {
 			Ok(d) => d.as_secs(),
 			Err(e) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					err = ?e,
 					"Current time is before unix epoch. Validation will not work correctly."

@@ -16,6 +16,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod weights;
+
 /// Money matters.
 pub mod currency {
 	use primitives::v2::Balance;
@@ -53,11 +55,11 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
 	use primitives::v2::Balance;
-	use runtime_common::ExtrinsicBaseWeight;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
 
@@ -97,15 +99,16 @@ mod tests {
 		currency::{CENTS, DOLLARS, MILLICENTS},
 		fee::WeightToFee,
 	};
-	use frame_support::weights::{DispatchClass, WeightToFeePolynomial};
-	use runtime_common::BlockWeights;
+	use crate::weights::ExtrinsicBaseWeight;
+	use frame_support::weights::WeightToFeePolynomial;
+	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
-	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
+	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
 	fn full_block_fee_is_correct() {
 		// A full block should cost 16 DOLLARS
-		println!("Base: {}", BlockWeights::get().get(DispatchClass::Normal).base_extrinsic);
-		let x = WeightToFee::calc(&BlockWeights::get().max_block);
+		println!("Base: {}", ExtrinsicBaseWeight::get());
+		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
 		let y = 16 * DOLLARS;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}
@@ -114,9 +117,8 @@ mod tests {
 	// This function tests that the fee for `ExtrinsicBaseWeight` of weight is correct
 	fn extrinsic_base_fee_is_correct() {
 		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
-		let base_weight = BlockWeights::get().get(DispatchClass::Normal).base_extrinsic;
-		println!("Base: {}", base_weight);
-		let x = WeightToFee::calc(&base_weight);
+		println!("Base: {}", ExtrinsicBaseWeight::get());
+		let x = WeightToFee::calc(&ExtrinsicBaseWeight::get());
 		let y = CENTS / 10;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}

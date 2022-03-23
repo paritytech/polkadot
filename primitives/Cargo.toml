@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-primitives"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 scale-info = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
-parity-scale-codec = { version = "3.0.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
