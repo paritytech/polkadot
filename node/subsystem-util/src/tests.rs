@@ -260,7 +260,7 @@ fn subset_generation_check() {
 #[test]
 fn subset_predefined_generation_check() {
 	let mut values = (0_u8..=25).collect::<Vec<_>>();
-	choose_random_subset_with_rng::<u8, _, _>(|_| false, &mut values, &mut AlwaysZeroRng {}, 12);
+	choose_random_subset_with_rng::<u8, _, _>(|_| false, &mut values, &mut AlwaysZeroRng, 12);
 	assert_eq!(values.len(), 12);
 	for (idx, v) in dbg!(values).into_iter().enumerate() {
 		// Since shuffle actually shuffles the indexes from 1..len, then

@@ -228,7 +228,7 @@ impl TestCandidateBuilder {
 
 /// A special `Rng` that always returns zero for testing something that implied
 /// to be random but should not be random in the tests
-pub struct AlwaysZeroRng {}
+pub struct AlwaysZeroRng;
 
 impl Default for AlwaysZeroRng {
 	fn default() -> Self {

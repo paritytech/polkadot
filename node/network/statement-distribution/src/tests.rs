@@ -29,7 +29,9 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
-use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng};
+use polkadot_primitives_test_helpers::{
+	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
+};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
@@ -511,7 +513,7 @@ fn peer_view_update_sends_messages() {
 			&active_heads,
 			new_view.clone(),
 			&Default::default(),
-			&mut AlwaysZeroRng{}
+			&mut AlwaysZeroRng,
 		)
 		.await;
 
@@ -641,6 +643,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			statement,
 			Vec::new(),
 			&Metrics::default(),
+			&mut AlwaysZeroRng,
 		)
 		.await;
 
@@ -720,11 +723,11 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
+		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
-			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -913,11 +916,11 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
-			Default::default()
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1411,11 +1414,11 @@ fn share_prioritizes_backing_group() {
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
-			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1695,11 +1698,11 @@ fn peer_cant_flood_with_large_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
-			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1866,9 +1869,28 @@ fn handle_multiple_seconded_statements() {
 	let candidate = dummy_committed_candidate_receipt(relay_parent_hash);
 	let candidate_hash = candidate.hash();
 
+	// We want to ensure that our peers are not lucky
+	let mut all_peers: Vec<PeerId> = Vec::with_capacity(MIN_GOSSIP_PEERS + 3);
 	let peer_a = PeerId::random();
 	let peer_b = PeerId::random();
 	assert_ne!(peer_a, peer_b);
+
+	for _ in 0..MIN_GOSSIP_PEERS + 1 {
+		all_peers.push(PeerId::random());
+	}
+	all_peers.push(peer_a.clone());
+	all_peers.push(peer_b.clone());
+
+	let mut lucky_peers = all_peers.clone();
+	util::choose_random_subset_with_rng(
+		|_| false,
+		&mut lucky_peers,
+		&mut AlwaysZeroRng,
+		MIN_GOSSIP_PEERS,
+	);
+	assert_eq!(lucky_peers.len(), MIN_GOSSIP_PEERS);
+	assert!(!lucky_peers.contains(&peer_a));
+	assert!(!lucky_peers.contains(&peer_b));
 
 	let validators = vec![
 		Sr25519Keyring::Alice.pair(),
@@ -1886,11 +1908,11 @@ fn handle_multiple_seconded_statements() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let virtual_overseer_fut = async move {
-		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
+		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
-			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1931,37 +1953,22 @@ fn handle_multiple_seconded_statements() {
 		);
 
 		// notify of peers and view
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None),
-				),
-			})
-			.await;
-
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
-				),
-			})
-			.await;
-
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![relay_parent_hash]),
-				),
-			})
-			.await;
-
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![relay_parent_hash]),
-				),
-			})
-			.await;
+		for peer in all_peers.iter() {
+			handle
+				.send(FromOverseer::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
+					),
+				})
+				.await;
+			handle
+				.send(FromOverseer::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerViewChange(peer.clone(), view![relay_parent_hash]),
+					),
+				})
+				.await;
+		}
 
 		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
 		// candidate backing.
@@ -2030,7 +2037,7 @@ fn handle_multiple_seconded_statements() {
 					),
 				)
 			) => {
-				assert_eq!(recipients, vec![peer_b.clone()]);
+				assert_eq!(recipients.clone().sort(), lucky_peers.clone().sort());
 				assert_eq!(r, relay_parent_hash);
 				assert_eq!(s, statement.clone().into());
 			}
@@ -2123,7 +2130,7 @@ fn handle_multiple_seconded_statements() {
 					),
 				)
 			) => {
-				assert_eq!(recipients, vec![peer_b.clone()]);
+				assert_eq!(recipients.clone().sort(), lucky_peers.clone().sort());
 				assert_eq!(r, relay_parent_hash);
 				assert_eq!(s, statement.clone().into());
 			}

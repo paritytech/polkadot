@@ -32,7 +32,7 @@ use polkadot_node_network_protocol::{
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
-use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS, rand};
+use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
@@ -125,7 +125,8 @@ pub struct StatementDistributionSubsystem<R: rand::Rng> {
 	rng: R,
 }
 
-impl<Context, R: rand::Rng + Send + Sync + 'static> overseer::Subsystem<Context, SubsystemError> for StatementDistributionSubsystem<R>
+impl<Context, R: rand::Rng + Send + Sync + 'static> overseer::Subsystem<Context, SubsystemError>
+	for StatementDistributionSubsystem<R>
 where
 	Context: SubsystemContext<Message = StatementDistributionMessage>,
 	Context: overseer::SubsystemContext<Message = StatementDistributionMessage>,
@@ -896,6 +897,7 @@ async fn circulate_statement_and_dependents(
 	statement: SignedFullStatement,
 	priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
+	rng: &mut impl rand::Rng,
 ) {
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(res) => res,
@@ -922,6 +924,7 @@ async fn circulate_statement_and_dependents(
 					stored,
 					priority_peers,
 					metrics,
+					rng,
 				)
 				.await,
 			)),
@@ -1009,6 +1012,7 @@ async fn circulate_statement<'a>(
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
+	rng: &mut impl rand::Rng,
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
@@ -1031,7 +1035,12 @@ async fn circulate_statement<'a>(
 	let priority_set: HashSet<&PeerId> = priority_peers.iter().collect();
 	peers_to_send.retain(|p| !priority_set.contains(p));
 
-	util::choose_random_subset(|e| gossip_peers.contains(e), &mut peers_to_send, MIN_GOSSIP_PEERS);
+	util::choose_random_subset_with_rng(
+		|e| gossip_peers.contains(e),
+		&mut peers_to_send,
+		rng,
+		MIN_GOSSIP_PEERS,
+	);
 	// We don't want to use less peers, than we would without any priority peers:
 	let min_size = std::cmp::max(peers_to_send.len(), MIN_GOSSIP_PEERS);
 	// Make set full:
@@ -1302,6 +1311,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
+	rng: &mut impl rand::Rng,
 ) {
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) =>
@@ -1337,6 +1347,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 			statement,
 			Vec::new(),
 			metrics,
+			rng,
 		)
 		.await;
 	}
@@ -1552,7 +1563,7 @@ async fn update_peer_view_and_maybe_send_unlocked(
 	active_heads: &HashMap<Hash, ActiveHeadData>,
 	new_view: View,
 	metrics: &Metrics,
-	rng: &mut impl rand::Rng
+	rng: &mut impl rand::Rng,
 ) {
 	let old_view = std::mem::replace(&mut peer_data.view, new_view);
 
@@ -1566,7 +1577,7 @@ async fn update_peer_view_and_maybe_send_unlocked(
 		util::gen_ratio_rng(
 			util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
 			util::MIN_GOSSIP_PEERS,
-			rng
+			rng,
 		);
 
 	// Add entries for all relay-parents in the new view but not the old.
@@ -1593,7 +1604,7 @@ async fn handle_network_update(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
-	rng: &mut impl rand::Rng
+	rng: &mut impl rand::Rng,
 ) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
@@ -1652,6 +1663,7 @@ async fn handle_network_update(
 				message,
 				req_sender,
 				metrics,
+				rng,
 			)
 			.await;
 		},
@@ -1680,14 +1692,13 @@ async fn handle_network_update(
 	}
 }
 
-
 impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 		metrics: Metrics,
-		rng: R
+		rng: R,
 	) -> Self {
 		Self { keystore, req_receiver: Some(req_receiver), metrics, rng }
 	}
@@ -1813,7 +1824,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	}
 
 	async fn handle_requester_message(
-		&self,
+		&mut self,
 		ctx: &mut impl SubsystemContext,
 		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
@@ -1871,6 +1882,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							message,
 							req_sender,
 							&self.metrics,
+							&mut self.rng,
 						)
 						.await;
 					}
@@ -2032,6 +2044,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						statement,
 						group_peers,
 						metrics,
+						&mut self.rng,
 					)
 					.await;
 				},
@@ -2046,7 +2059,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						req_sender,
 						event,
 						metrics,
-						&mut self.rng
+						&mut self.rng,
 					)
 					.await;
 				},
