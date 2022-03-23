@@ -555,7 +555,7 @@ where
 		// We combine the amount of messages from subsystems to the overseer
 		// as well as the amount of messages from external sources to the overseer
 		// into one `to_overseer` value.
-		metronome_metrics.channel_fill_level_snapshot(
+		metronome_metrics.channel_metrics_snapshot(
 			subsystem_meters
 				.iter()
 				.cloned()
@@ -577,7 +577,7 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Stop the overseer.
+	/// Stop the `Overseer`.
 	async fn stop(mut self) {
 		let _ = self.wait_terminate(OverseerSignal::Conclude, Duration::from_secs(1_u64)).await;
 	}

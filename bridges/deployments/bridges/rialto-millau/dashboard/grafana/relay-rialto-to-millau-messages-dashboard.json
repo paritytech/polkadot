@@ -64,11 +64,18 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "label_replace(label_replace(Rialto_to_Millau_MessageLane_00000000_best_block_numbers{type=~\"target|target_at_source\"}, \"type\", \"At Millau\", \"type\", \"target\"), \"type\", \"At Rialto\", \"type\", \"target_at_source\")",
+          "expr": "Rialto_to_Millau_MessageLane_00000000_best_target_block_number",
           "instant": false,
           "interval": "",
-          "legendFormat": "{{type}}",
+          "legendFormat": "At Millau",
           "refId": "A"
+        },
+        {
+          "expr": "Rialto_to_Millau_MessageLane_00000000_best_target_at_source_block_number",
+          "instant": false,
+          "interval": "",
+          "legendFormat": "At Rialto",
+          "refId": "B"
         }
       ],
       "thresholds": [],
@@ -158,10 +165,16 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "label_replace(label_replace(Rialto_to_Millau_MessageLane_00000000_best_block_numbers{type=~\"source|source_at_target\"}, \"type\", \"At Rialto\", \"type\", \"source\"), \"type\", \"At Millau\", \"type\", \"source_at_target\")",
+          "expr": "Rialto_to_Millau_MessageLane_00000000_best_source_block_number",
           "interval": "",
-          "legendFormat": "{{type}}",
+          "legendFormat": "At Rialto",
           "refId": "A"
+        },
+        {
+          "expr": "Rialto_to_Millau_MessageLane_00000000_best_source_at_target_block_number",
+          "interval": "",
+          "legendFormat": "At Millau",
+          "refId": "B"
         }
       ],
       "thresholds": [],
@@ -522,7 +535,7 @@
           "refId": "A"
         },
         {
-          "expr": "increase(Rialto_to_Millau_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[1m])",
+          "expr": "increase(Rialto_to_Millau_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[1m]) OR on() vector(0)",
           "interval": "",
           "legendFormat": "Messages delivered to Millau in last 1m",
           "refId": "B"
@@ -945,7 +958,7 @@
           "refId": "A"
         },
         {
-          "expr": "increase(Rialto_to_Millau_MessageLane_00000001_lane_state_nonces{type=\"target_latest_received\"}[10m])",
+          "expr": "increase(Rialto_to_Millau_MessageLane_00000001_lane_state_nonces{type=\"target_latest_received\"}[10m]) OR on() vector(0)",
           "hide": true,
           "interval": "",
           "legendFormat": "Messages generated in last 5 minutes",
@@ -1089,7 +1102,7 @@
           "refId": "A"
         },
         {
-          "expr": "increase(Rialto_to_Millau_MessageLane_00000001_lane_state_nonces{type=\"source_latest_confirmed\"}[10m])",
+          "expr": "increase(Rialto_to_Millau_MessageLane_00000001_lane_state_nonces{type=\"source_latest_confirmed\"}[10m]) OR on() vector(0)",
           "hide": true,
           "interval": "",
           "legendFormat": "",

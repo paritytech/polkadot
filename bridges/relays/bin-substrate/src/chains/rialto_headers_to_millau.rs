@@ -16,73 +16,22 @@
 
 //! Rialto-to-Millau headers sync entrypoint.
 
-use codec::Encode;
-use sp_core::{Bytes, Pair};
-
-use bp_header_chain::justification::GrandpaJustification;
-use relay_millau_client::{Millau, SigningParams as MillauSigningParams};
-use relay_rialto_client::{Rialto, SyncHeader as RialtoSyncHeader};
-use relay_substrate_client::{Client, IndexOf, TransactionSignScheme, UnsignedTransaction};
 use substrate_relay_helper::finality_pipeline::{
-	SubstrateFinalitySyncPipeline, SubstrateFinalityToSubstrate,
+	DirectSubmitFinalityProofCallBuilder, SubstrateFinalitySyncPipeline,
 };
 
-/// Rialto-to-Millau finality sync pipeline.
-pub(crate) type FinalityPipelineRialtoFinalityToMillau =
-	SubstrateFinalityToSubstrate<Rialto, Millau, MillauSigningParams>;
-
+/// Description of Millau -> Rialto finalized headers bridge.
 #[derive(Clone, Debug)]
-pub struct RialtoFinalityToMillau {
-	finality_pipeline: FinalityPipelineRialtoFinalityToMillau,
-}
-
-impl RialtoFinalityToMillau {
-	pub fn new(target_client: Client<Millau>, target_sign: MillauSigningParams) -> Self {
-		Self {
-			finality_pipeline: FinalityPipelineRialtoFinalityToMillau::new(
-				target_client,
-				target_sign,
-			),
-		}
-	}
-}
+pub struct RialtoFinalityToMillau;
 
 impl SubstrateFinalitySyncPipeline for RialtoFinalityToMillau {
-	type FinalitySyncPipeline = FinalityPipelineRialtoFinalityToMillau;
+	type SourceChain = relay_rialto_client::Rialto;
+	type TargetChain = relay_millau_client::Millau;
 
-	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str =
-		bp_rialto::BEST_FINALIZED_RIALTO_HEADER_METHOD;
-
-	type TargetChain = Millau;
-
-	fn transactions_author(&self) -> bp_millau::AccountId {
-		(*self.finality_pipeline.target_sign.public().as_array_ref()).into()
-	}
-
-	fn make_submit_finality_proof_transaction(
-		&self,
-		era: bp_runtime::TransactionEraOf<Millau>,
-		transaction_nonce: IndexOf<Millau>,
-		header: RialtoSyncHeader,
-		proof: GrandpaJustification<bp_rialto::Header>,
-	) -> Bytes {
-		let call = millau_runtime::BridgeGrandpaCall::<
-			millau_runtime::Runtime,
-			millau_runtime::RialtoGrandpaInstance,
-		>::submit_finality_proof {
-			finality_target: Box::new(header.into_inner()),
-			justification: proof,
-		}
-		.into();
-
-		let genesis_hash = *self.finality_pipeline.target_client.genesis_hash();
-		let transaction = Millau::sign_transaction(
-			genesis_hash,
-			&self.finality_pipeline.target_sign,
-			era,
-			UnsignedTransaction::new(call, transaction_nonce),
-		);
-
-		Bytes(transaction.encode())
-	}
+	type SubmitFinalityProofCallBuilder = DirectSubmitFinalityProofCallBuilder<
+		Self,
+		millau_runtime::Runtime,
+		millau_runtime::RialtoGrandpaInstance,
+	>;
+	type TransactionSignScheme = relay_millau_client::Millau;
 }

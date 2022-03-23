@@ -70,6 +70,9 @@ pub enum Call {
 	/// Balances pallet.
 	#[codec(index = 4)]
 	Balances(BalancesCall),
+	/// Utility pallet.
+	#[codec(index = 24)]
+	Utility(UtilityCall),
 	/// Polkadot bridge pallet.
 	#[codec(index = 110)]
 	BridgePolkadotGrandpa(BridgePolkadotGrandpaCall),
@@ -102,6 +105,8 @@ pub enum BridgePolkadotGrandpaCall {
 	),
 	#[codec(index = 1)]
 	initialize(bp_header_chain::InitializationData<<PolkadotLike as Chain>::Header>),
+	#[codec(index = 3)]
+	set_operational(bool),
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
@@ -134,6 +139,13 @@ pub enum BridgePolkadotMessagesCall {
 		>,
 		UnrewardedRelayersState,
 	),
+}
+
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
+#[allow(non_camel_case_types)]
+pub enum UtilityCall {
+	#[codec(index = 2)]
+	batch_all(Vec<Call>),
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]

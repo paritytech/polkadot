@@ -28,6 +28,7 @@ use scale_info::TypeInfo;
 use sp_std::{collections::vec_deque::VecDeque, prelude::*};
 
 pub mod source_chain;
+pub mod storage_keys;
 pub mod target_chain;
 
 // Weight is reexported to avoid additional frame-support dependencies in related crates.
@@ -222,15 +223,9 @@ impl DeliveredMessages {
 	/// Create new `DeliveredMessages` struct that confirms delivery of single nonce with given
 	/// dispatch result.
 	pub fn new(nonce: MessageNonce, dispatch_result: bool) -> Self {
-		DeliveredMessages {
-			begin: nonce,
-			end: nonce,
-			dispatch_results: if dispatch_result {
-				bitvec![u8, Msb0; 1]
-			} else {
-				bitvec![u8, Msb0; 0]
-			},
-		}
+		let mut dispatch_results = BitVec::with_capacity(1);
+		dispatch_results.push(if dispatch_result { true } else { false });
+		DeliveredMessages { begin: nonce, end: nonce, dispatch_results }
 	}
 
 	/// Return total count of delivered messages.

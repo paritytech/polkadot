@@ -14,13 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	cli::{Cli, Subcommand},
-	service::new_partial,
-};
+use crate::cli::{Cli, Subcommand};
 use rialto_runtime::{Block, RuntimeApi};
 use sc_cli::{ChainSpec, Role, RuntimeVersion, SubstrateCli};
-use sc_service::PartialComponents;
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {
@@ -67,6 +63,21 @@ impl SubstrateCli for Cli {
 	}
 }
 
+// Rialto native executor instance.
+pub struct ExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		rialto_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		rialto_runtime::native_version()
+	}
+}
+
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
 	let cli = Cli::from_args();
@@ -79,7 +90,7 @@ pub fn run() -> sc_cli::Result<()> {
 			if cfg!(feature = "runtime-benchmarks") {
 				let runner = cli.create_runner(cmd)?;
 
-				runner.sync_run(|config| cmd.run::<Block, crate::service::ExecutorDispatch>(config))
+				runner.sync_run(|config| cmd.run::<Block, ExecutorDispatch>(config))
 			} else {
 				println!(
 					"Benchmarking wasn't enabled when building the node. \
@@ -98,32 +109,32 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|mut config| {
-				let PartialComponents { client, task_manager, import_queue, .. } =
-					new_partial(&mut config).map_err(service_error)?;
+				let (client, _, import_queue, task_manager) =
+					polkadot_service::new_chain_ops(&mut config, None).map_err(service_error)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|mut config| {
-				let PartialComponents { client, task_manager, .. } =
-					new_partial(&mut config).map_err(service_error)?;
+				let (client, _, _, task_manager) =
+					polkadot_service::new_chain_ops(&mut config, None).map_err(service_error)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|mut config| {
-				let PartialComponents { client, task_manager, .. } =
-					new_partial(&mut config).map_err(service_error)?;
+				let (client, _, _, task_manager) =
+					polkadot_service::new_chain_ops(&mut config, None).map_err(service_error)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|mut config| {
-				let PartialComponents { client, task_manager, import_queue, .. } =
-					new_partial(&mut config).map_err(service_error)?;
+				let (client, _, import_queue, task_manager) =
+					polkadot_service::new_chain_ops(&mut config, None).map_err(service_error)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -134,16 +145,14 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|mut config| {
-				let PartialComponents { client, task_manager, backend, .. } =
-					new_partial(&mut config).map_err(service_error)?;
+				let (client, backend, _, task_manager) =
+					polkadot_service::new_chain_ops(&mut config, None).map_err(service_error)?;
 				Ok((cmd.run(client, backend), task_manager))
 			})
 		},
 		Some(Subcommand::Inspect(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.sync_run(|config| {
-				cmd.run::<Block, RuntimeApi, crate::service::ExecutorDispatch>(config)
-			})
+			runner.sync_run(|config| cmd.run::<Block, RuntimeApi, ExecutorDispatch>(config))
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
@@ -170,15 +179,35 @@ pub fn run() -> sc_cli::Result<()> {
 			// let no_beefy = true;
 			// let telemetry_worker_handler = None;
 			// let is_collator = crate::service::IsCollator::No;
-			let overseer_gen = crate::overseer::RealOverseerGen;
+			let overseer_gen = polkadot_service::overseer::RealOverseerGen;
 			runner.run_node_until_exit(|config| async move {
 				match config.role {
 					Role::Light => Err(sc_cli::Error::Service(sc_service::Error::Other(
 						"Light client is not supported by this node".into(),
 					))),
-					_ => crate::service::build_full(config, overseer_gen)
-						.map(|full| full.task_manager)
-						.map_err(service_error),
+					_ => {
+						let is_collator = polkadot_service::IsCollator::No;
+						let grandpa_pause = None;
+						let enable_beefy = true;
+						let jaeger_agent = None;
+						let telemetry_worker_handle = None;
+						let program_path = None;
+						let overseer_enable_anyways = false;
+
+						polkadot_service::new_full::<rialto_runtime::RuntimeApi, ExecutorDispatch, _>(
+							config,
+							is_collator,
+							grandpa_pause,
+							enable_beefy,
+							jaeger_agent,
+							telemetry_worker_handle,
+							program_path,
+							overseer_enable_anyways,
+							overseer_gen,
+						)
+							.map(|full| full.task_manager)
+							.map_err(service_error)
+					},
 				}
 			})
 		},
@@ -187,6 +216,6 @@ pub fn run() -> sc_cli::Result<()> {
 
 // We don't want to change 'service.rs' too much to ease future updates => it'll keep using
 // its own error enum like original polkadot service does.
-fn service_error(err: crate::service::Error) -> sc_cli::Error {
+fn service_error(err: polkadot_service::Error) -> sc_cli::Error {
 	sc_cli::Error::Application(Box::new(err))
 }

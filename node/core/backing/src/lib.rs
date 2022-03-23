@@ -50,8 +50,8 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		DisputeCoordinatorMessage, ImportStatementsResult, ProvisionableData, ProvisionerMessage,
-		RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
+		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
+		StatementDistributionMessage, ValidationFailed,
 	},
 	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
@@ -891,7 +891,9 @@ impl CandidateBackingJob {
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			// TODO: Log confirmation results in an efficient way:
+			// https://github.com/paritytech/polkadot/issues/5156
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 			sender
 				.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
@@ -901,16 +903,6 @@ impl CandidateBackingJob {
 					pending_confirmation,
 				})
 				.await;
-
-			match confirmation_rx.await {
-				Err(oneshot::Canceled) => {
-					gum::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
-				},
-				Ok(ImportStatementsResult::ValidImport) => {},
-				Ok(ImportStatementsResult::InvalidImport) => {
-					gum::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
-				},
-			}
 		}
 
 		Ok(())
