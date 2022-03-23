@@ -10,8 +10,6 @@ runtime="$1"
 
 echo "[+] Running all benchmarks for $runtime"
 
-cargo +nightly build --profile release --locked --features=runtime-benchmarks
-
 ./artifacts/polkadot benchmark \
     --chain "${runtime}-dev" \
     --list |\
