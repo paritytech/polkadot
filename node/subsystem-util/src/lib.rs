@@ -55,6 +55,7 @@ use polkadot_primitives::v2::{
 	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+pub use rand;
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, ByteArray};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
@@ -68,7 +69,6 @@ use std::{
 	time::Duration,
 };
 use thiserror::Error;
-pub use rand;
 
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
