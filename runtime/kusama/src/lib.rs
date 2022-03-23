@@ -406,12 +406,11 @@ parameter_types! {
 	// 1 hour session, 15 minutes unsigned phase, 8 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
 
-	/// We take the top 22_500 nominators as electing voters..
-	pub const MaxElectingVoters: u32 = 22_500;
+	/// We take the top 12500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 12_500;
 	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
 	/// shall not increase the size of the validator intentions.
 	pub const MaxElectableTargets: u16 = u16::MAX;
-
 }
 
 frame_election_provider_support::generate_solution_type!(
@@ -420,6 +419,7 @@ frame_election_provider_support::generate_solution_type!(
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
 	>(24)
 );
 
