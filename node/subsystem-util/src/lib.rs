@@ -281,7 +281,7 @@ pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, v: &mut Vec
 	choose_random_subset_with_rng(is_priority, v, &mut rand::thread_rng(), min)
 }
 
-/// Choose a random subset of `min` elements using a specific Rng.
+/// Choose a random subset of `min` elements using a specific Random Generator `Rng`
 /// But always include `is_priority` elements.
 pub fn choose_random_subset_with_rng<T, F: FnMut(&T) -> bool, R: rand::Rng>(
 	is_priority: F,
