@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-node-core-approval-voting"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
-parity-scale-codec = { version = "3.0.0", default-features = false, features = ["bit-vec", "derive"] }
-tracing = "0.1.32"
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
+gum = { package = "tracing-gum", path = "../../gum" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 lru = "0.7"
 merlin = "2.0"

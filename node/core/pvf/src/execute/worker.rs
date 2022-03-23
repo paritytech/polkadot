@@ -72,7 +72,7 @@ pub async fn start_work(
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %pid,
 		validation_code_hash = ?artifact.id.code_hash,
@@ -81,7 +81,7 @@ pub async fn start_work(
 	);
 
 	if let Err(error) = send_request(&mut stream, &artifact.path, &validation_params).await {
-		tracing::warn!(
+		gum::warn!(
 			target: LOG_TARGET,
 			worker_pid = %pid,
 			validation_code_hash = ?artifact.id.code_hash,
@@ -95,7 +95,7 @@ pub async fn start_work(
 		response = recv_response(&mut stream).fuse() => {
 			match response {
 				Err(error) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						worker_pid = %pid,
 						validation_code_hash = ?artifact.id.code_hash,
@@ -108,7 +108,7 @@ pub async fn start_work(
 			}
 		},
 		_ = Delay::new(execution_timeout).fuse() => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				validation_code_hash = ?artifact.id.code_hash,
@@ -189,7 +189,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 		})?;
 		loop {
 			let (artifact_path, params) = recv_request(&mut stream).await?;
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: validating artifact {}",

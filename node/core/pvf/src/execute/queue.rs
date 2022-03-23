@@ -174,7 +174,7 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 	let ToQueue::Enqueue { artifact, execution_timeout, params, result_tx } = to_queue;
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
 		"enqueueing an artifact for execution",
@@ -208,7 +208,7 @@ fn handle_worker_spawned(queue: &mut Queue, idle: IdleWorker, handle: WorkerHand
 	queue.workers.spawn_inflight -= 1;
 	let worker = queue.workers.running.insert(WorkerData { idle: Some(idle), handle });
 
-	tracing::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
+	gum::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
 
 	if let Some(job) = queue.queue.pop_front() {
 		assign(queue, worker, job);
@@ -244,7 +244,7 @@ fn handle_job_finish(
 	};
 
 	queue.metrics.execute_finished();
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
 		worker_rip = idle_worker.is_none(),
@@ -288,7 +288,7 @@ fn handle_job_finish(
 
 fn spawn_extra_worker(queue: &mut Queue) {
 	queue.metrics.execute_worker().on_begin_spawn();
-	tracing::debug!(target: LOG_TARGET, "spawning an extra worker");
+	gum::debug!(target: LOG_TARGET, "spawning an extra worker");
 
 	queue
 		.mux
@@ -303,7 +303,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 		match super::worker::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle),
 			Err(err) => {
-				tracing::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
+				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
 
 				// Assume that the failure intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;
@@ -316,7 +316,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 ///
 /// The worker must be running and idle.
 fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?job.artifact.id,
 		?worker,

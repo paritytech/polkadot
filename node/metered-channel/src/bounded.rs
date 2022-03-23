@@ -25,11 +25,11 @@ use futures::{
 
 use std::{pin::Pin, result};
 
-use super::Meter;
+use super::{measure_tof_check, CoarseInstant, MaybeTimeOfFlight, Meter};
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
-	let (tx, rx) = mpsc::channel(capacity);
+	let (tx, rx) = mpsc::channel::<MaybeTimeOfFlight<T>>(capacity);
 	let shared_meter = Meter::default();
 	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx };
 	let rx = MeteredReceiver { meter: shared_meter, inner: rx };
@@ -41,11 +41,11 @@ pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
 pub struct MeteredReceiver<T> {
 	// count currently contained messages
 	meter: Meter,
-	inner: mpsc::Receiver<T>,
+	inner: mpsc::Receiver<MaybeTimeOfFlight<T>>,
 }
 
 impl<T> std::ops::Deref for MeteredReceiver<T> {
-	type Target = mpsc::Receiver<T>;
+	type Target = mpsc::Receiver<MaybeTimeOfFlight<T>>;
 	fn deref(&self) -> &Self::Target {
 		&self.inner
 	}
@@ -61,11 +61,8 @@ impl<T> Stream for MeteredReceiver<T> {
 	type Item = T;
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
-			Poll::Ready(x) => {
-				self.meter.note_received();
-				Poll::Ready(x)
-			},
-			other => other,
+			Poll::Ready(maybe_value) => Poll::Ready(self.maybe_meter_tof(maybe_value)),
+			Poll::Pending => Poll::Pending,
 		}
 	}
 
@@ -76,6 +73,23 @@ impl<T> Stream for MeteredReceiver<T> {
 }
 
 impl<T> MeteredReceiver<T> {
+	fn maybe_meter_tof(&mut self, maybe_value: Option<MaybeTimeOfFlight<T>>) -> Option<T> {
+		self.meter.note_received();
+		maybe_value.map(|value| {
+			match value {
+				MaybeTimeOfFlight::<T>::WithTimeOfFlight(value, tof_start) => {
+					// do not use `.elapsed()` of `std::time`, it may panic
+					// `coarsetime` does a saturating sub for all `CoarseInstant` substractions
+					let duration = tof_start.elapsed();
+					self.meter.note_time_of_flight(duration);
+					value
+				},
+				MaybeTimeOfFlight::<T>::Bare(value) => value,
+			}
+			.into()
+		})
+	}
+
 	/// Get an updated accessor object for all metrics collected.
 	pub fn meter(&self) -> &Meter {
 		&self.meter
@@ -84,10 +98,7 @@ impl<T> MeteredReceiver<T> {
 	/// Attempt to receive the next item.
 	pub fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
 		match self.inner.try_next()? {
-			Some(x) => {
-				self.meter.note_received();
-				Ok(Some(x))
-			},
+			Some(value) => Ok(self.maybe_meter_tof(Some(value))),
 			None => Ok(None),
 		}
 	}
@@ -104,7 +115,7 @@ impl<T> futures::stream::FusedStream for MeteredReceiver<T> {
 #[derive(Debug)]
 pub struct MeteredSender<T> {
 	meter: Meter,
-	inner: mpsc::Sender<T>,
+	inner: mpsc::Sender<MaybeTimeOfFlight<T>>,
 }
 
 impl<T> Clone for MeteredSender<T> {
@@ -114,7 +125,7 @@ impl<T> Clone for MeteredSender<T> {
 }
 
 impl<T> std::ops::Deref for MeteredSender<T> {
-	type Target = mpsc::Sender<T>;
+	type Target = mpsc::Sender<MaybeTimeOfFlight<T>>;
 	fn deref(&self) -> &Self::Target {
 		&self.inner
 	}
@@ -127,18 +138,28 @@ impl<T> std::ops::DerefMut for MeteredSender<T> {
 }
 
 impl<T> MeteredSender<T> {
+	fn prepare_with_tof(&self, item: T) -> MaybeTimeOfFlight<T> {
+		let previous = self.meter.note_sent();
+		let item = if measure_tof_check(previous) {
+			MaybeTimeOfFlight::WithTimeOfFlight(item, CoarseInstant::now())
+		} else {
+			MaybeTimeOfFlight::Bare(item)
+		};
+		item
+	}
+
 	/// Get an updated accessor object for all metrics collected.
 	pub fn meter(&self) -> &Meter {
 		&self.meter
 	}
 
 	/// Send message, wait until capacity is available.
-	pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError>
+	pub async fn send(&mut self, msg: T) -> result::Result<(), mpsc::SendError>
 	where
 		Self: Unpin,
 	{
-		self.meter.note_sent();
-		let fut = self.inner.send(item);
+		let msg = self.prepare_with_tof(msg);
+		let fut = self.inner.send(msg);
 		futures::pin_mut!(fut);
 		fut.await.map_err(|e| {
 			self.meter.retract_sent();
@@ -147,8 +168,11 @@ impl<T> MeteredSender<T> {
 	}
 
 	/// Attempt to send message or fail immediately.
-	pub fn try_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
-		self.meter.note_sent();
+	pub fn try_send(
+		&mut self,
+		msg: T,
+	) -> result::Result<(), mpsc::TrySendError<MaybeTimeOfFlight<T>>> {
+		let msg = self.prepare_with_tof(msg);
 		self.inner.try_send(msg).map_err(|e| {
 			self.meter.retract_sent();
 			e

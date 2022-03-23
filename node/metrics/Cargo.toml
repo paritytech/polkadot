@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem metric helpers"
@@ -8,7 +8,7 @@ description = "Subsystem metric helpers"
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
-tracing = "0.1.32"
+gum = { package = "tracing-gum", path = "../gum" }
 
 metered-channel = { path = "../metered-channel" }
 
