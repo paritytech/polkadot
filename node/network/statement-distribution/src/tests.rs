@@ -1852,16 +1852,7 @@ fn peer_cant_flood_with_large_statements() {
 
 // This test addresses an issue when received knowledge is not updated on a
 // subsequent `Seconded` statements
-//
-// To trigger this issue, one should modify `circulate_statement` function
-// where there is a selection of lucky/unlucky peers to make all peers unlucky.
-// It could be done, for example, by avoiding calling to `peer_knowledge.send`:
-// `let peers_to_send: Vec<(PeerId, bool)> = peers_to_send` <--- here
-//
-// Secondly, the proposed change to update received knowledge of a peer in the
-// function `handle_incoming_message` must also be removed to reproduce the issue.
-// This is done after `active_head.check_useful_or_unknown` check where a statement
-// is useful but known.
+// See https://github.com/paritytech/polkadot/pull/5177
 #[test]
 fn handle_multiple_seconded_statements() {
 	let relay_parent_hash = Hash::repeat_byte(1);
@@ -1870,12 +1861,12 @@ fn handle_multiple_seconded_statements() {
 	let candidate_hash = candidate.hash();
 
 	// We want to ensure that our peers are not lucky
-	let mut all_peers: Vec<PeerId> = Vec::with_capacity(MIN_GOSSIP_PEERS + 3);
+	let mut all_peers: Vec<PeerId> = Vec::with_capacity(MIN_GOSSIP_PEERS + 4);
 	let peer_a = PeerId::random();
 	let peer_b = PeerId::random();
 	assert_ne!(peer_a, peer_b);
 
-	for _ in 0..MIN_GOSSIP_PEERS + 1 {
+	for _ in 0..MIN_GOSSIP_PEERS + 2 {
 		all_peers.push(PeerId::random());
 	}
 	all_peers.push(peer_a.clone());
@@ -1888,6 +1879,7 @@ fn handle_multiple_seconded_statements() {
 		&mut AlwaysZeroRng,
 		MIN_GOSSIP_PEERS,
 	);
+	lucky_peers.sort();
 	assert_eq!(lucky_peers.len(), MIN_GOSSIP_PEERS);
 	assert!(!lucky_peers.contains(&peer_a));
 	assert!(!lucky_peers.contains(&peer_b));
@@ -1970,6 +1962,18 @@ fn handle_multiple_seconded_statements() {
 				.await;
 		}
 
+		// Explicitly add all `lucky` peers to the gossip peers to ensure that neither `peerA` not `peerB`
+		// receive statements
+		handle
+			.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::NewGossipTopology(
+						lucky_peers.iter().cloned().collect::<HashSet<_>>(),
+					),
+				),
+			})
+			.await;
+
 		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
 		// candidate backing.
 		let statement = {
@@ -2037,7 +2041,7 @@ fn handle_multiple_seconded_statements() {
 					),
 				)
 			) => {
-				assert_eq!(recipients.clone().sort(), lucky_peers.clone().sort());
+				assert!(!recipients.contains(&peer_b));
 				assert_eq!(r, relay_parent_hash);
 				assert_eq!(s, statement.clone().into());
 			}
@@ -2130,7 +2134,7 @@ fn handle_multiple_seconded_statements() {
 					),
 				)
 			) => {
-				assert_eq!(recipients.clone().sort(), lucky_peers.clone().sort());
+				assert!(!recipients.contains(&peer_b));
 				assert_eq!(r, relay_parent_hash);
 				assert_eq!(s, statement.clone().into());
 			}
