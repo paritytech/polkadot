@@ -524,7 +524,8 @@ async fn handle_network_msg<Context>(
 			state.peer_views.remove(&peer);
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
-			let peers: HashSet<PeerId> = topology.our_neighbors_x
+			let peers: HashSet<PeerId> = topology
+				.our_neighbors_x
 				.values()
 				.chain(topology.our_neighbors_y.values())
 				.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())

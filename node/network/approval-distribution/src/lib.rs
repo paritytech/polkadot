@@ -29,16 +29,16 @@ use polkadot_node_primitives::approval::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
-		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
+		network_bridge_event::TopologyPeerInfo, ApprovalCheckResult, ApprovalDistributionMessage,
+		ApprovalVotingMessage, AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
-	messages::network_bridge_event::TopologyPeerInfo,
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature, SessionIndex,
+	AuthorityDiscoveryId, BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex,
+	ValidatorSignature,
 };
 use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -67,16 +67,9 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum GridDimension {
-	Row,
-	Column,
-}
-
 #[derive(Default)]
 struct PeerData {
 	view: View,
-	shared_dimension: Option<GridDimension>,
 }
 
 /// Contains recently finalized
@@ -109,7 +102,7 @@ struct SessionTopology {
 
 #[derive(Default)]
 struct SessionTopologies {
-	inner: HashMap<SessionIndex, (Option<SessionTopology>, usize)>
+	inner: HashMap<SessionIndex, (Option<SessionTopology>, usize)>,
 }
 
 impl SessionTopologies {
@@ -199,18 +192,16 @@ impl Knowledge {
 			hash_map::Entry::Vacant(vacant) => {
 				vacant.insert(kind);
 				true
-			}
-			hash_map::Entry::Occupied(mut occupied) => {
-				match (*occupied.get(), kind) {
-					(MessageKind::Assignment, MessageKind::Assignment) => false,
-					(MessageKind::Approval, MessageKind::Approval) => false,
-					(MessageKind::Approval, MessageKind::Assignment) => false,
-					(MessageKind::Assignment, MessageKind::Approval) => {
-						*occupied.get_mut() = MessageKind::Approval;
-						true
-					}
-				}
-			}
+			},
+			hash_map::Entry::Occupied(mut occupied) => match (*occupied.get(), kind) {
+				(MessageKind::Assignment, MessageKind::Assignment) => false,
+				(MessageKind::Approval, MessageKind::Approval) => false,
+				(MessageKind::Approval, MessageKind::Assignment) => false,
+				(MessageKind::Assignment, MessageKind::Approval) => {
+					*occupied.get_mut() = MessageKind::Approval;
+					true
+				},
+			},
 		}
 	}
 }
@@ -253,12 +244,38 @@ enum ApprovalState {
 	Approved(AssignmentCert, ValidatorSignature),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum RequiredRouting {
+	/// We don't know yet, because we're waiting for topology info
+	/// (race condition between learning about the first blocks in a new session
+	/// and getting the topology for that session)
+	PendingTopology,
+	/// Propagate to all peers sharing either the X or Y dimension of the grid.
+	GridXY,
+	/// Propagate to all peers sharing the X dimension of the grid.
+	GridX,
+	/// Propagate to all peers sharing the Y dimension of the grid.
+	GridY,
+	/// No required progation.
+	None,
+}
+
+// routing state bundled with messages for the candidate. Corresponding assignments
+// and approvals are stored together and should be routed in the same way, with
+// assignments preceding approvals in all cases.
+#[derive(Debug)]
+struct MessageState {
+	required_routing: RequiredRouting,
+	random_routing: usize, // Number peers to target in random routing.
+	approval_state: ApprovalState,
+}
+
 /// Information about candidates in the context of a particular block they are included in.
 /// In other words, multiple `CandidateEntry`s may exist for the same candidate,
 /// if it is included by multiple blocks - this is likely the case when there are forks.
 #[derive(Debug, Default)]
 struct CandidateEntry {
-	approvals: HashMap<ValidatorIndex, ApprovalState>,
+	messages: HashMap<ValidatorIndex, MessageState>,
 }
 
 #[derive(Debug, Clone)]
@@ -572,13 +589,7 @@ impl State {
 				});
 		}
 
-		Self::unify_with_peer(
-			metrics,
-			&mut self.blocks,
-			peer_id.clone(),
-			view,
-		)
-		.await;
+		Self::unify_with_peer(metrics, &mut self.blocks, peer_id.clone(), view).await;
 	}
 
 	fn handle_block_finalized(&mut self, finalized_number: BlockNumber) {
@@ -694,7 +705,13 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(target: LOG_TARGET, ?source, ?message_subject, ?result, "Checked assignment",);
+			gum::trace!(
+				target: LOG_TARGET,
+				?source,
+				?message_subject,
+				?result,
+				"Checked assignment",
+			);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -750,7 +767,11 @@ impl State {
 				);
 				return
 			} else {
-				gum::debug!(target: LOG_TARGET, ?message_subject, "Importing locally a new assignment",);
+				gum::debug!(
+					target: LOG_TARGET,
+					?message_subject,
+					"Importing locally a new assignment",
+				);
 			}
 		}
 
@@ -761,10 +782,14 @@ impl State {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
-				candidate_entry
-					.approvals
-					.entry(validator_index)
-					.or_insert_with(|| ApprovalState::Assigned(assignment.cert.clone()));
+				candidate_entry.messages.entry(validator_index).or_insert_with(|| {
+					// TODO [now]: do routing.
+					MessageState {
+						required_routing: RequiredRouting::None,
+						random_routing: 0,
+						approval_state: ApprovalState::Assigned(assignment.cert.clone()),
+					}
+				});
 			},
 			None => {
 				gum::warn!(
@@ -790,8 +815,7 @@ impl State {
 		let assignments = vec![(assignment, claimed_candidate_index)];
 
 		// TODO [now]: make use of topology
-		let peers =
-			util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
+		let peers = util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -915,7 +939,13 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, ?result, "Checked approval",);
+			gum::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				?message_subject,
+				?result,
+				"Checked approval",
+			);
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -946,7 +976,11 @@ impl State {
 				);
 				return
 			} else {
-				gum::debug!(target: LOG_TARGET, ?message_subject, "Importing locally a new approval",);
+				gum::debug!(
+					target: LOG_TARGET,
+					?message_subject,
+					"Importing locally a new approval",
+				);
 			}
 		}
 
@@ -957,14 +991,25 @@ impl State {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
 				// it should be in assigned state already
-				match candidate_entry.approvals.remove(&validator_index) {
-					Some(ApprovalState::Assigned(cert)) => {
-						candidate_entry.approvals.insert(
+				match candidate_entry.messages.remove(&validator_index) {
+					Some(MessageState {
+						approval_state: ApprovalState::Assigned(cert),
+						required_routing,
+						random_routing,
+					}) => {
+						candidate_entry.messages.insert(
 							validator_index,
-							ApprovalState::Approved(cert, vote.signature.clone()),
+							MessageState {
+								approval_state: ApprovalState::Approved(
+									cert,
+									vote.signature.clone(),
+								),
+								required_routing,
+								random_routing,
+							},
 						);
 					},
-					Some(ApprovalState::Approved(..)) => {
+					Some(_) => {
 						unreachable!(
 							"we only insert it after the metadata, checked the metadata above; qed"
 						);
@@ -1004,8 +1049,7 @@ impl State {
 			.collect::<Vec<_>>();
 
 		// TODO [now]: just send to peers we've sent assignments to.
-		let peers =
-			util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
+		let peers = util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {

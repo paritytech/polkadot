@@ -1624,7 +1624,8 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
-			let new_peers: HashSet<PeerId> = topology.our_neighbors_x
+			let new_peers: HashSet<PeerId> = topology
+				.our_neighbors_x
 				.values()
 				.chain(topology.our_neighbors_y.values())
 				.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())
