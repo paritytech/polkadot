@@ -195,8 +195,18 @@ default:
 
 #### stage:                        stage1
 
-short_benchmark:
+build_short_benchmark:
   stage:                           stage1
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *collect-artifacts
+  script:
+    - cargo +nightly build --profile release --locked --features=runtime-benchmarks
+    - mkdir artifacts
+    - cp $CARGO_TARGET_DIR/release/polkadot ./artifacts/
+
+short_benchmark_polkadot:
+  stage:                           stage2
   <<:                              *test-refs
   variables:
     RUNTIME:                       polkadot
@@ -205,3 +215,22 @@ short_benchmark:
   tags:
     - weights
 
+short_benchmark_kusama:
+  stage:                           stage2
+  <<:                              *test-refs
+  variables:
+    RUNTIME:                       kusama
+  script:
+    - ./scripts/run_short_benches_for_runtime.sh $RUNTIME
+  tags:
+    - weights
+
+short_benchmark_westend:
+  stage:                           stage2
+  <<:                              *test-refs
+  variables:
+    RUNTIME:                       westend
+  script:
+    - ./scripts/run_short_benches_for_runtime.sh $RUNTIME
+  tags:
+    - weights
