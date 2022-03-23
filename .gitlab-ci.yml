@@ -203,8 +203,7 @@ build_short_benchmark:
   script:
     - cargo +nightly build --profile release --locked --features=runtime-benchmarks
     - mkdir artifacts
-    - cd $CARGO_TARGET_DIR && echo *
-    - cp $CARGO_TARGET_DIR/release/polkadot ./artifacts/
+    - cp ./target/release/polkadot ./artifacts/
 
 short_benchmark_polkadot:
   stage:                           stage2
