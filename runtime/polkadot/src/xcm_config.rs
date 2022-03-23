@@ -76,7 +76,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 >;
 
 /// The means that we convert an XCM origin `MultiLocation` into the runtime's `Origin` type for
-/// local dispatch. This is a conversion function from a `OriginKind` type along with the
+/// local dispatch. This is a conversion function from an `OriginKind` type along with the
 /// `MultiLocation` value and returns an `Origin` value or an error.
 type LocalOriginConverter = (
 	// If the origin kind is `Sovereign`, then return a `Signed` origin with the account determined
