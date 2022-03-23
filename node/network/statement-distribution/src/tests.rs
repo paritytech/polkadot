@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
-use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
+use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
@@ -511,6 +511,7 @@ fn peer_view_update_sends_messages() {
 			&active_heads,
 			new_view.clone(),
 			&Default::default(),
+			&mut AlwaysZeroRng{}
 		)
 		.await;
 
@@ -719,9 +720,10 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
+		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
+			Default::default(),
 			Default::default(),
 		);
 		s.run(ctx).await.unwrap();
@@ -911,10 +913,11 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
+		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
+			Default::default()
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1408,9 +1411,10 @@ fn share_prioritizes_backing_group() {
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
+		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
+			Default::default(),
 			Default::default(),
 		);
 		s.run(ctx).await.unwrap();
@@ -1691,9 +1695,10 @@ fn peer_cant_flood_with_large_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
+		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
+			Default::default(),
 			Default::default(),
 		);
 		s.run(ctx).await.unwrap();
@@ -1881,9 +1886,10 @@ fn handle_multiple_seconded_statements() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let virtual_overseer_fut = async move {
-		let s = StatementDistributionSubsystem::new(
+		let s = StatementDistributionSubsystem::<AlwaysZeroRng>::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
+			Default::default(),
 			Default::default(),
 		);
 		s.run(ctx).await.unwrap();

@@ -63,6 +63,7 @@ pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
@@ -148,7 +149,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
 		CandidateBackingSubsystem<Spawner>,
-		StatementDistributionSubsystem,
+		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
 		BitfieldSigningSubsystem<Spawner>,
@@ -255,6 +256,7 @@ where
 			keystore.clone(),
 			statement_req_receiver,
 			Metrics::register(registry)?,
+			rand::rngs::StdRng::from_entropy(),
 		))
 		.approval_distribution(ApprovalDistributionSubsystem::new(Metrics::register(registry)?))
 		.approval_voting(ApprovalVotingSubsystem::with_config(

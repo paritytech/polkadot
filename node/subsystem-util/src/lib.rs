@@ -68,6 +68,7 @@ use std::{
 	time::Duration,
 };
 use thiserror::Error;
+pub use rand;
 
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
@@ -280,7 +281,7 @@ pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, v: &mut Vec
 	choose_random_subset_with_rng(is_priority, v, &mut rand::thread_rng(), min)
 }
 
-/// Choose a random subset of `min` elements.
+/// Choose a random subset of `min` elements using a specific Rng.
 /// But always include `is_priority` elements.
 pub fn choose_random_subset_with_rng<T, F: FnMut(&T) -> bool, R: rand::Rng>(
 	is_priority: F,
@@ -306,8 +307,11 @@ pub fn choose_random_subset_with_rng<T, F: FnMut(&T) -> bool, R: rand::Rng>(
 
 /// Returns a `bool` with a probability of `a / b` of being true.
 pub fn gen_ratio(a: usize, b: usize) -> bool {
-	use rand::Rng as _;
-	let mut rng = rand::thread_rng();
+	gen_ratio_rng(a, b, &mut rand::thread_rng())
+}
+
+/// Returns a `bool` with a probability of `a / b` of being true.
+pub fn gen_ratio_rng<R: rand::Rng>(a: usize, b: usize, rng: &mut R) -> bool {
 	rng.gen_ratio(a as u32, b as u32)
 }
 

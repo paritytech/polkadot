@@ -26,7 +26,7 @@ use polkadot_primitives::v2::{
 	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	ValidatorId,
 };
-use rand::RngCore;
+pub use rand;
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
@@ -230,7 +230,12 @@ impl TestCandidateBuilder {
 /// to be random but should not be random in the tests
 pub struct AlwaysZeroRng {}
 
-impl RngCore for AlwaysZeroRng {
+impl Default for AlwaysZeroRng {
+	fn default() -> Self {
+		Self {}
+	}
+}
+impl rand::RngCore for AlwaysZeroRng {
 	fn next_u32(&mut self) -> u32 {
 		0_u32
 	}
