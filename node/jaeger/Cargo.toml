@@ -3,10 +3,10 @@ name = "polkadot-node-jaeger"
 version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-description = "Polkadot Jaeger primitives"
+description = "Polkadot Jaeger primitives, but equally useful for Grafana/Tempo"
 
 [dependencies]
-async-std = "1.8.0"
+async-std = "1.11.0"
 mick-jaeger = "0.1.8"
 lazy_static = "1.4"
 parking_lot = "0.12.0"
@@ -16,4 +16,4 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
 log = "0.4.13"
-parity-scale-codec = { version = "3.0.0", default-features = false }
+parity-scale-codec = { version = "3.1.2", default-features = false }

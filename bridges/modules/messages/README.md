@@ -294,9 +294,8 @@ Where:
 *\* - In all benchmarks all received messages are dispatched and their dispatch cost is near to zero*
 
 *\*\* - Trie leafs are assumed to have minimal values. The proof is derived from the minimal proof
-by including more trie nodes. That's because according to `receive_message_proofs_with_large_leaf`
-and `receive_message_proofs_with_extra_nodes` benchmarks, increasing proof by including more nodes
-has slightly larger impact on performance than increasing values stored in leafs*.
+by including more trie nodes. That's because according to our additioal benchmarks, increasing proof
+by including more nodes has slightly larger impact on performance than increasing values stored in leafs*.
 
 #### Weight formula
 

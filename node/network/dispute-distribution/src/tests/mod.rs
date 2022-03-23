@@ -175,7 +175,7 @@ fn received_request_triggers_import() {
 							assert_matches!(
 								rx_response.await,
 								Err(err) => {
-									tracing::trace!(
+									gum::trace!(
 										target: LOG_TARGET,
 										?err,
 										"Request got dropped - other request already in flight"
@@ -197,7 +197,7 @@ fn received_request_triggers_import() {
 							assert_matches!(
 								rx_response.await,
 								Err(err) => {
-									tracing::trace!(
+									gum::trace!(
 										target: LOG_TARGET,
 										?err,
 										"Request got dropped - other request already in flight"
@@ -223,7 +223,7 @@ fn received_request_triggers_import() {
 			assert_matches!(
 				rx_response.await,
 				Err(err) => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?err,
 						"Request got dropped - peer is banned."
@@ -244,7 +244,7 @@ fn received_request_triggers_import() {
 		)
 		.await;
 
-		tracing::trace!(target: LOG_TARGET, "Concluding.");
+		gum::trace!(target: LOG_TARGET, "Concluding.");
 		conclude(&mut handle).await;
 	};
 	test_harness(test);
@@ -562,7 +562,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 					if let Some(sent_feedback) = sent_feedback {
 						sent_feedback.send(()).unwrap();
 					}
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						"Valid import happened."
 					);
@@ -735,7 +735,7 @@ where
 		match subsystem.run(ctx).await {
 			Ok(()) => {},
 			Err(fatal) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?fatal,
 					"Dispute distribution exited with fatal error."
