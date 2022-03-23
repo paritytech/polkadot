@@ -29,7 +29,8 @@ use futures::{
 };
 use futures_timer::Delay;
 
-use crate::{CoarseDuration, CoarseInstant};
+pub use crate::CoarseDuration;
+use crate::CoarseInstant;
 
 /// Provides the reason for termination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +72,7 @@ impl Measurements {
 }
 
 /// Create a new pair of `OneshotMetered{Sender,Receiver}`.
-pub fn channel<T>(
+pub fn channel_with_timeouts<T>(
 	name: &'static str,
 	soft_timeout: CoarseDuration,
 	hard_timeout: CoarseDuration,
@@ -90,6 +91,20 @@ pub fn channel<T>(
 			first_poll_timestamp: None,
 			creation_timestamp: CoarseInstant::now(),
 		},
+	)
+}
+
+/// Create a new pair of `OneshotMetered{Sender,Receiver}`.
+pub fn channel<T>(name: &'static str) -> (MeteredSender<T>, MeteredReceiver<T>) {
+	channel_with_timeouts(
+		name,
+		// 36 seconds should be sufficient for the whole system
+		// to process a response channel
+		// and 6 minutes should be sufficiently conservative
+		// to terminate the channel to possibly unlock a
+		// dead-lock situation.
+		CoarseDuration::from_secs(6),
+		CoarseDuration::from_secs(360),
 	)
 }
 

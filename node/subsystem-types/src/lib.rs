@@ -27,6 +27,8 @@ use std::{fmt, sync::Arc};
 pub use polkadot_primitives::v2::{BlockNumber, Hash};
 use smallvec::SmallVec;
 
+pub use metered_channel as metered;
+
 pub mod errors;
 pub mod messages;
 

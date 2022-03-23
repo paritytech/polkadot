@@ -36,6 +36,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem_util::{
 	self as util,
+	metered::oneshot as metered_oneshot,
 	metrics::{self, prometheus},
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
@@ -893,7 +894,8 @@ impl CandidateBackingJob {
 		{
 			// TODO: Log confirmation results in an efficient way:
 			// https://github.com/paritytech/polkadot/issues/5156
-			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+			let (pending_confirmation, _confirmation_rx) =
+				metered_oneshot::channel("import_statements");
 			sender
 				.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,

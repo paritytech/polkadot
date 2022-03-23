@@ -36,8 +36,8 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
-	JobSubsystem, JobTrait,
+	self as util, metered::oneshot as metered_oneshot, request_availability_cores,
+	request_persisted_validation_data, JobSender, JobSubsystem, JobTrait,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
@@ -674,15 +674,15 @@ async fn request_votes(
 	sender: &mut impl SubsystemSender,
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
 ) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
-	let (tx, rx) = oneshot::channel();
+	let (tx, rx) = metered_oneshot::channel("request_votes");
 	sender
 		.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(disputes_to_query, tx).into())
 		.await;
 
 	match rx.await {
-		Ok(v) => v,
-		Err(oneshot::Canceled) => {
-			gum::warn!(target: LOG_TARGET, "Unable to query candidate votes");
+		Ok(v) => v.into(),
+		Err(err) => {
+			gum::warn!(target: LOG_TARGET, ?err, "Unable to query candidate votes");
 			Vec::new()
 		},
 	}

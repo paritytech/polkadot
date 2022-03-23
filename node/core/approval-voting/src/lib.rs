@@ -43,6 +43,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
+	metered::oneshot as metered_oneshot,
 	metrics::{self, prometheus},
 	rolling_session_window::{
 		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
@@ -952,7 +953,8 @@ async fn handle_actions(
 			} => {
 				// TODO: Log confirmation results in an efficient way:
 				// https://github.com/paritytech/polkadot/issues/5156
-				let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+				let (pending_confirmation, _confirmation_rx) =
+					metered_oneshot::channel("pending_confirmation");
 				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,

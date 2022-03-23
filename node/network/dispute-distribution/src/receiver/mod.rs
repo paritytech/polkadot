@@ -21,7 +21,6 @@ use std::{
 };
 
 use futures::{
-	channel::oneshot,
 	future::{poll_fn, BoxFuture},
 	pin_mut,
 	stream::{FusedStream, FuturesUnordered, StreamExt},
@@ -39,7 +38,9 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
+use polkadot_node_subsystem_util::{
+	metered::oneshot as metered_oneshot, runtime, runtime::RuntimeInfo,
+};
 use polkadot_subsystem::{
 	messages::{AllMessages, DisputeCoordinatorMessage, ImportStatementsResult},
 	SubsystemSender,
@@ -262,7 +263,7 @@ where
 			Ok(votes) => votes,
 		};
 
-		let (pending_confirmation, confirmation_rx) = oneshot::channel();
+		let (pending_confirmation, confirmation_rx) = metered_oneshot::channel("start_import");
 		let candidate_hash = candidate_receipt.hash();
 		self.sender
 			.send_message(AllMessages::DisputeCoordinator(
@@ -317,7 +318,7 @@ impl PendingImports {
 	pub fn push(
 		&mut self,
 		peer: PeerId,
-		handled: oneshot::Receiver<ImportStatementsResult>,
+		handled: metered_oneshot::MeteredReceiver<ImportStatementsResult>,
 		pending_response: OutgoingResponseSender<DisputeRequest>,
 	) {
 		self.peers.insert(peer);
@@ -367,10 +368,10 @@ impl FusedStream for PendingImports {
 // - Deliver result
 async fn respond_to_request(
 	peer: PeerId,
-	handled: oneshot::Receiver<ImportStatementsResult>,
+	handled: metered_oneshot::MeteredReceiver<ImportStatementsResult>,
 	pending_response: OutgoingResponseSender<DisputeRequest>,
 ) -> JfyiErrorResult<ImportStatementsResult> {
-	let result = handled.await.map_err(|_| JfyiError::ImportCanceled(peer))?;
+	let result = handled.await.map_err(|_| JfyiError::ImportCanceled(peer))?.into();
 
 	let response = match result {
 		ImportStatementsResult::ValidImport => OutgoingResponse {

@@ -20,7 +20,7 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::{metered::oneshot as metered_oneshot, runtime::RuntimeInfo};
 use polkadot_primitives::v2::{CandidateHash, DisputeStatement, Hash, SessionIndex};
 use polkadot_subsystem::{
 	messages::{AllMessages, DisputeCoordinatorMessage},
@@ -353,7 +353,7 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	session_index: SessionIndex,
 	candidate_hash: CandidateHash,
 ) -> JfyiErrorResult<Option<CandidateVotes>> {
-	let (tx, rx) = oneshot::channel();
+	let (tx, rx) = metered_oneshot::channel("get_candidate_votes");
 	ctx.send_message(AllMessages::DisputeCoordinator(
 		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
 	))

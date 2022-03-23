@@ -23,6 +23,8 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::oneshot;
+use metered_channel::oneshot as metered_oneshot;
+
 use sc_network::Multiaddr;
 use thiserror::Error;
 
@@ -268,7 +270,7 @@ pub enum DisputeCoordinatorMessage {
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
 		///		- or the imported statements are backing/approval votes, which are always accepted.
-		pending_confirmation: oneshot::Sender<ImportStatementsResult>,
+		pending_confirmation: metered_oneshot::MeteredSender<ImportStatementsResult>,
 	},
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
@@ -280,7 +282,7 @@ pub enum DisputeCoordinatorMessage {
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(
 		Vec<(SessionIndex, CandidateHash)>,
-		oneshot::Sender<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>,
+		metered_oneshot::MeteredSender<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>,
 	),
 	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
 	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
