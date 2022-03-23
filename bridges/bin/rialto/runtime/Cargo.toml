@@ -2,17 +2,17 @@
 name = "rialto-runtime"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/parity-bridges-common/"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 hex-literal = "0.3"
 libsecp256k1 = { version = "0.7", optional = true, default-features = false, features = ["hmac"] }
 log = { version = "0.4.14", default-features = false }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 # Bridge dependencies
@@ -73,7 +73,9 @@ polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", bran
 polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
 
 [dev-dependencies]
+bridge-runtime-common = { path = "../../runtime-common", features = ["integrity-test"] }
 libsecp256k1 = { version = "0.7", features = ["hmac"] }
+static_assertions = "1.1"
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }

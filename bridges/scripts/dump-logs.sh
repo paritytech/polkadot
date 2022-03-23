@@ -28,7 +28,7 @@ SERVICES=(\
 for SVC in ${SERVICES[*]}
 do
 	SHORT_NAME="${SVC//deployments_/}"
-	docker logs $SVC &> $SHORT_NAME.log
+	docker logs $SVC &> $SHORT_NAME.log | true
 done
 
 cd -

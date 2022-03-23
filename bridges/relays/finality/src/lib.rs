@@ -19,8 +19,9 @@
 //! are still submitted to the target node, but are treated as auxiliary data as we are not trying
 //! to submit all source headers to the target node.
 
-pub use crate::finality_loop::{
-	metrics_prefix, run, FinalitySyncParams, SourceClient, TargetClient,
+pub use crate::{
+	finality_loop::{metrics_prefix, run, FinalitySyncParams, SourceClient, TargetClient},
+	sync_loop_metrics::SyncLoopMetrics,
 };
 
 use bp_header_chain::FinalityProof;
@@ -42,13 +43,15 @@ pub trait FinalitySyncPipeline: 'static + Clone + Debug + Send + Sync {
 	/// Headers we're syncing are identified by this number.
 	type Number: relay_utils::BlockNumberBase;
 	/// Type of header that we're syncing.
-	type Header: SourceHeader<Self::Number>;
+	type Header: SourceHeader<Self::Hash, Self::Number>;
 	/// Finality proof type.
 	type FinalityProof: FinalityProof<Self::Number>;
 }
 
 /// Header that we're receiving from source node.
-pub trait SourceHeader<Number>: Clone + Debug + PartialEq + Send + Sync {
+pub trait SourceHeader<Hash, Number>: Clone + Debug + PartialEq + Send + Sync {
+	/// Returns hash of header.
+	fn hash(&self) -> Hash;
 	/// Returns number of header.
 	fn number(&self) -> Number;
 	/// Returns true if this header needs to be submitted to target node.
