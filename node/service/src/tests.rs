@@ -83,7 +83,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
-		true,
 	);
 
 	let target_hash = case_vars.target_block.clone();
