@@ -6566,6 +6566,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "sc-network",
  "sp-application-crypto",
+ "sp-authority-discovery",
  "sp-consensus-babe",
  "sp-core",
  "sp-keyring",

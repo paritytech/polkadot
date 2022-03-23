@@ -24,6 +24,8 @@ use futures::{executor, future, Future};
 use lazy_static::lazy_static;
 
 use sc_network::multiaddr::Protocol;
+use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
+use sp_core::crypto::Pair as PairT;
 use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch};
 use sp_keyring::Sr25519Keyring;
 
@@ -53,10 +55,17 @@ lazy_static! {
 	static ref AUTHORITIES: Vec<AuthorityDiscoveryId> =
 		AUTHORITY_KEYRINGS.iter().map(|k| k.public().into()).collect();
 
-	static ref OTHER_AUTHORITIES: Vec<AuthorityDiscoveryId> = {
+	static ref AUTHORITIES_WITHOUT_US: Vec<AuthorityDiscoveryId> = {
 		let mut a = AUTHORITIES.clone();
 		a.pop(); // remove FERDIE.
 		a
+	};
+
+	static ref PAST_PRESENT_FUTURE_AUTHORITIES: Vec<AuthorityDiscoveryId> = {
+		(0..50)
+			.map(|_| AuthorityDiscoveryPair::generate().0.public())
+			.chain(AUTHORITIES.clone())
+			.collect()
 	};
 
 	// [2 6]
@@ -85,7 +94,7 @@ struct MockAuthorityDiscovery {
 impl MockAuthorityDiscovery {
 	fn new() -> Self {
 		let authorities: HashMap<_, _> =
-			AUTHORITIES.clone().into_iter().map(|a| (PeerId::random(), a)).collect();
+			PAST_PRESENT_FUTURE_AUTHORITIES.clone().into_iter().map(|a| (PeerId::random(), a)).collect();
 		let addrs = authorities
 			.clone()
 			.into_iter()
@@ -117,10 +126,10 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	}
 }
 
-async fn get_other_authorities_addrs() -> Vec<HashSet<Multiaddr>> {
-	let mut addrs = Vec::with_capacity(OTHER_AUTHORITIES.len());
+async fn get_multiaddrs(authorities: Vec<AuthorityDiscoveryId>) -> Vec<HashSet<Multiaddr>> {
+	let mut addrs = Vec::with_capacity(authorities.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
-	for authority in OTHER_AUTHORITIES.iter().cloned() {
+	for authority in authorities.into_iter() {
 		if let Some(addr) = discovery.get_addresses_by_authority_id(authority).await {
 			addrs.push(addr);
 		}
@@ -128,10 +137,10 @@ async fn get_other_authorities_addrs() -> Vec<HashSet<Multiaddr>> {
 	addrs
 }
 
-async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>> {
-	let mut addrs = HashMap::with_capacity(OTHER_AUTHORITIES.len());
+async fn get_address_map(authorities: Vec<AuthorityDiscoveryId>) -> HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>> {
+	let mut addrs = HashMap::with_capacity(authorities.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
-	for authority in OTHER_AUTHORITIES.iter().cloned() {
+	for authority in authorities.into_iter() {
 		if let Some(addr) = discovery.get_addresses_by_authority_id(authority.clone()).await {
 			addrs.insert(authority, addr);
 		}
@@ -303,7 +312,7 @@ fn issues_a_connection_request_on_new_session() {
 				validator_addrs,
 				peer_set,
 			}) => {
-				assert_eq!(validator_addrs, get_other_authorities_addrs().await);
+				assert_eq!(validator_addrs, get_multiaddrs(AUTHORITIES_WITHOUT_US.clone()).await);
 				assert_eq!(peer_set, PeerSet::Validation);
 			}
 		);
@@ -382,7 +391,7 @@ fn issues_a_connection_request_on_new_session() {
 				validator_addrs,
 				peer_set,
 			}) => {
-				assert_eq!(validator_addrs, get_other_authorities_addrs().await);
+				assert_eq!(validator_addrs, get_multiaddrs(AUTHORITIES_WITHOUT_US.clone()).await);
 				assert_eq!(peer_set, PeerSet::Validation);
 			}
 		);
@@ -393,6 +402,72 @@ fn issues_a_connection_request_on_new_session() {
 	});
 	assert_eq!(state.last_session_index, Some(2));
 	assert!(state.last_failure.is_none());
+}
+
+#[test]
+fn issues_connection_request_to_past_present_future() {
+	let hash = Hash::repeat_byte(0xAA);
+	test_harness(make_subsystem(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		overseer_signal_active_leaves(overseer, hash).await;
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionIndexForChild(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(1)).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(s, tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				assert_eq!(s, 1);
+				tx.send(Ok(Some(make_session_info()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Authorities(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(PAST_PRESENT_FUTURE_AUTHORITIES.clone())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
+				validator_addrs,
+				peer_set,
+			}) => {
+				let all_without_ferdie: Vec<_> = PAST_PRESENT_FUTURE_AUTHORITIES
+					.iter()
+					.cloned()
+					.filter(|p| p != &Sr25519Keyring::Ferdie.public().into())
+					.collect();
+
+				let addrs = get_multiaddrs(all_without_ferdie).await;
+
+				assert_eq!(validator_addrs, addrs);
+				assert_eq!(peer_set, PeerSet::Validation);
+			}
+		);
+
+		// Ensure neighbors are unaffected
+		test_neighbors(overseer, 1).await;
+
+		virtual_overseer
+	});
 }
 
 #[test]
@@ -477,7 +552,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					validator_addrs,
 					peer_set,
 				}) => {
-					let mut expected = get_other_authorities_addrs_map().await;
+					let mut expected = get_address_map(AUTHORITIES_WITHOUT_US.clone()).await;
 					expected.remove(&alice);
 					expected.remove(&bob);
 					let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
@@ -542,7 +617,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				validator_addrs,
 				peer_set,
 			}) => {
-				let mut expected = get_other_authorities_addrs_map().await;
+				let mut expected = get_address_map(AUTHORITIES_WITHOUT_US.clone()).await;
 				expected.remove(&bob);
 				let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
 				assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
