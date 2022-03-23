@@ -783,7 +783,7 @@ parameter_types! {
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
 	pub const CuratorDepositMin: Balance = 10 * CENTS;
-	pub const CuratorDepositMax: Balance = 20 * DOLLARS;
+	pub const CuratorDepositMax: Balance = 500 * CENTS;
 	pub const BountyValueMinimum: Balance = 200 * CENTS;
 }
 
