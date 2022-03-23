@@ -32,12 +32,13 @@ use polkadot_node_subsystem::{
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
 		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
+	messages::network_bridge_event::TopologyPeerInfo,
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
-	BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature, SessionIndex,
+	AuthorityDiscoveryId, BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature, SessionIndex,
 };
 use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -101,6 +102,43 @@ impl RecentlyOutdated {
 	}
 }
 
+struct SessionTopology {
+	our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+}
+
+#[derive(Default)]
+struct SessionTopologies {
+	inner: HashMap<SessionIndex, (Option<SessionTopology>, usize)>
+}
+
+impl SessionTopologies {
+	fn get_topology(&self, session: SessionIndex) -> Option<&SessionTopology> {
+		self.inner.get(&session).and_then(|val| val.0.as_ref())
+	}
+
+	fn inc_session_refs(&mut self, session: SessionIndex) {
+		self.inner.entry(session).or_insert((None, 0)).1 += 1;
+	}
+
+	fn dec_session_refs(&mut self, session: SessionIndex) {
+		if let hash_map::Entry::Occupied(mut occupied) = self.inner.entry(session) {
+			occupied.get_mut().1 = occupied.get().1.saturating_sub(1);
+			if occupied.get().1 == 0 {
+				let _ = occupied.remove();
+			}
+		}
+	}
+
+	// No-op if already present.
+	fn insert_topology(&mut self, session: SessionIndex, topology: SessionTopology) {
+		let entry = self.inner.entry(session).or_insert((None, 0));
+		if entry.0.is_none() {
+			entry.0 = Some(topology);
+		}
+	}
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -122,9 +160,8 @@ struct State {
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
 	peer_data: HashMap<PeerId, PeerData>,
 
-	/// Track all our neighbors in the current gossip topology.
-	/// We're not necessarily connected to all of them.
-	gossip_peers: HashSet<PeerId>,
+	/// Topologies for various different sessions.
+	topologies: SessionTopologies,
 
 	/// Tracks recently finalized blocks.
 	recent_outdated_blocks: RecentlyOutdated,
@@ -266,23 +303,9 @@ impl State {
 				})
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
-				// TODO [now]: update shared dimension of all peers.
-				// TODO [now]: update broadcast dimensions of all messages
-				// TODO [now]: broadcast messages along new dimensions.
-				let peers: HashSet<PeerId> = topology.our_neighbors_x
-					.values()
-					.chain(topology.our_neighbors_y.values())
-					.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())
-					.collect();
-
-				let newly_added: Vec<PeerId> =
-					peers.difference(&self.gossip_peers).cloned().collect();
-				self.gossip_peers = peers;
-				for peer_id in newly_added {
-					if let Some(peer_data) = self.peer_data.remove(&peer_id) {
-						self.handle_peer_view_change(ctx, metrics, peer_id, peer_data.view).await;
-					}
-				}
+				// TODO [now]: add to session topologies
+				// TODO [now]: iterate all blocks in the session and
+				// update required routing for all messages. and route to necessary peers.
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
@@ -336,6 +359,8 @@ impl State {
 						candidates,
 						session: meta.session,
 					});
+
+					self.topologies.inc_session_refs(meta.session);
 
 					new_hashes.insert(meta.hash.clone());
 
@@ -569,7 +594,9 @@ impl State {
 		// now that we pruned `self.blocks_by_number`, let's clean up `self.blocks` too
 		old_blocks.values().flatten().for_each(|relay_block| {
 			self.recent_outdated_blocks.note_outdated(*relay_block);
-			self.blocks.remove(relay_block);
+			if let Some(block_entry) = self.blocks.remove(relay_block) {
+				self.topologies.dec_session_refs(block_entry.session);
+			}
 		});
 	}
 
@@ -761,9 +788,10 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let gossip_peers = &self.gossip_peers;
+
+		// TODO [now]: make use of topology
 		let peers =
-			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
+			util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -975,9 +1003,9 @@ impl State {
 			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
 
-		let gossip_peers = &self.gossip_peers;
+		// TODO [now]: just send to peers we've sent assignments to.
 		let peers =
-			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
+			util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
