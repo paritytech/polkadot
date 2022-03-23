@@ -246,7 +246,17 @@ where
 				let our_index =
 					ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await?;
 
-				// Connect to authorities from the past/present/future
+				// Connect to authorities from the past/present/future.
+				//
+				// This is maybe not the right place for this logic to live,
+				// but at the moment we're limited by the network bridge's ability
+				// to handle connection requests (it only allows one, globally).
+				//
+				// Certain network protocols - mostly req/res, but some gossip,
+				// will require being connected to past/future validators as well
+				// as current. That is, the old authority sets are not made obsolete
+				// by virtue of a new session being entered. Therefore we maintain
+				// connections to a much broader set of validators.
 				{
 					let mut connections = authorities_past_present_future(ctx, leaf).await?;
 
