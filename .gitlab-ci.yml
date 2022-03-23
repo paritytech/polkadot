@@ -208,29 +208,29 @@ build_short_benchmark:
 short_benchmark_polkadot:
   stage:                           stage2
   <<:                              *test-refs
+  <<:                              *docker-env
   variables:
     RUNTIME:                       polkadot
   script:
     - ./scripts/run_short_benches_for_runtime.sh $RUNTIME
-  tags:
-    - weights
+
 
 short_benchmark_kusama:
   stage:                           stage2
   <<:                              *test-refs
+  <<:                              *docker-env
   variables:
     RUNTIME:                       kusama
   script:
     - ./scripts/run_short_benches_for_runtime.sh $RUNTIME
-  tags:
-    - weights
+
 
 short_benchmark_westend:
   stage:                           stage2
   <<:                              *test-refs
+  <<:                              *docker-env
   variables:
     RUNTIME:                       westend
   script:
     - ./scripts/run_short_benches_for_runtime.sh $RUNTIME
-  tags:
-    - weights
+
