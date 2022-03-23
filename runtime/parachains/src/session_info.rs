@@ -37,7 +37,6 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_system::pallet_prelude::BlockNumberFor;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
