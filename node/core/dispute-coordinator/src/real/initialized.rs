@@ -31,7 +31,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
-	DISPUTE_WINDOW,
+	DISPUTE_WINDOW, MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -69,9 +69,9 @@ use super::{
 };
 
 // The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = 500;
-// This is in sync with `MAX_FINALITY_LAG` in relay chain selection.
-const MAX_BATCH_SCRAPE_ANCESTORS: u32 = 500;
+const LRU_SCRAPED_BLOCKS_CAPACITY: usize = MAX_FINALITY_LAG as usize;
+// This is in sync with `MAX_FINALITY_LAG` in relay chain selection & node primitives.
+const MAX_BATCH_SCRAPE_ANCESTORS: u32 = MAX_FINALITY_LAG;
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
