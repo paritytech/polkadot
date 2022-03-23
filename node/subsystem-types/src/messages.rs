@@ -49,7 +49,7 @@ use polkadot_primitives::v2::{
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
-	collections::{BTreeMap, HashSet, HashMap},
+	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
 	time::Duration,
 };
