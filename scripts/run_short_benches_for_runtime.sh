@@ -12,7 +12,7 @@ echo "[+] Running all benchmarks for $runtime"
 
 cargo +nightly build --profile release --locked --features=runtime-benchmarks
 
-./target/production/polkadot benchmark \
+./target/release/polkadot benchmark \
     --chain "${runtime}-dev" \
     --list |\
   tail -n+2 |\
@@ -25,7 +25,7 @@ while read -r line; do
   pallet="$(echo "$line" | cut -d' ' -f1)";
   echo "Runtime: $runtime. Pallet: $pallet";
   # '!' has the side effect of bypassing errexit / set -e
-  ! ./target/production/polkadot benchmark \
+  ! ./target/release/polkadot benchmark \
     --chain="${runtime}-dev" \
     --steps=1 \
     --repeat=1 \
