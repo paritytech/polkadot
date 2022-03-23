@@ -25,8 +25,8 @@ use lazy_static::lazy_static;
 
 use sc_network::multiaddr::Protocol;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
-use sp_core::crypto::Pair as PairT;
 use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch};
+use sp_core::crypto::Pair as PairT;
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_subsystem::{
@@ -93,8 +93,11 @@ struct MockAuthorityDiscovery {
 
 impl MockAuthorityDiscovery {
 	fn new() -> Self {
-		let authorities: HashMap<_, _> =
-			PAST_PRESENT_FUTURE_AUTHORITIES.clone().into_iter().map(|a| (PeerId::random(), a)).collect();
+		let authorities: HashMap<_, _> = PAST_PRESENT_FUTURE_AUTHORITIES
+			.clone()
+			.into_iter()
+			.map(|a| (PeerId::random(), a))
+			.collect();
 		let addrs = authorities
 			.clone()
 			.into_iter()
@@ -137,7 +140,9 @@ async fn get_multiaddrs(authorities: Vec<AuthorityDiscoveryId>) -> Vec<HashSet<M
 	addrs
 }
 
-async fn get_address_map(authorities: Vec<AuthorityDiscoveryId>) -> HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>> {
+async fn get_address_map(
+	authorities: Vec<AuthorityDiscoveryId>,
+) -> HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>> {
 	let mut addrs = HashMap::with_capacity(authorities.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
 	for authority in authorities.into_iter() {
