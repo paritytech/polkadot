@@ -352,7 +352,7 @@ mod tests {
 		let _ = env_logger::builder().is_test(true).filter_level(LevelFilter::Trace).try_init();
 
 		let pool = ThreadPool::new().unwrap();
-		let (tx, rx) = channel(name, CoarseDuration::from_secs(1), CoarseDuration::from_secs(3));
+		let (tx, rx) = channel_with_timeouts(name, CoarseDuration::from_millis(500), CoarseDuration::from_secs(1));
 		futures::executor::block_on(async move {
 			let handle_receiver = pool.spawn_with_handle(gen_receiver_test(rx)).unwrap();
 			let handle_sender = pool.spawn_with_handle(gen_sender_test(tx)).unwrap();

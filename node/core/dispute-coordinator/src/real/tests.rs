@@ -30,7 +30,10 @@ use futures::{
 };
 
 use parity_scale_codec::Encode;
-use polkadot_node_subsystem_util::database::Database;
+use polkadot_node_subsystem_util::{
+	database::Database,
+	metered::oneshot as metered_oneshot,
+};
 
 use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
@@ -459,7 +462,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
 				.await;
 
-			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+			let (pending_confirmation, _confirmation_rx) = metered_oneshot::channel("test");
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
@@ -488,7 +491,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 
 				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
 
-				let (tx, rx) = oneshot::channel();
+				let (tx, rx) = metered_oneshot::channel("test");
 				virtual_overseer
 					.send(FromOverseer::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
@@ -503,7 +506,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			let (pending_confirmation, confirmation_rx) = metered_oneshot::channel("test");
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
@@ -520,7 +523,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				.await;
 
 			{
-				let (tx, rx) = oneshot::channel();
+				let (tx, rx) = metered_oneshot::channel("test");
 				virtual_overseer
 					.send(FromOverseer::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
@@ -534,7 +537,8 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			}
 
 			// Result should be invalid, because it should be considered spam.
-			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::InvalidImport));
+			let res = confirmation_rx.await.map(|x| x.into());
+			assert_matches!(res, Ok(ImportStatementsResult::InvalidImport));
 
 			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 
@@ -2006,7 +2010,7 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 				.issue_explicit_statement_with_index(1, candidate_hash, session, !validity)
 				.await;
 
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			let (pending_confirmation, confirmation_rx) = metered_oneshot::channel("test");
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
@@ -2019,7 +2023,8 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 				})
 				.await;
 
-			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+			let x = confirmation_rx.await.map(|x| x.into());
+			assert_matches!(x, Ok(ImportStatementsResult::ValidImport));
 
 			// Initiate dispute locally:
 			virtual_overseer
@@ -2112,7 +2117,7 @@ fn empty_import_still_writes_candidate_receipt() {
 
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
-			let (tx, rx) = oneshot::channel();
+			let (tx, rx) = metered_oneshot::channel("test");
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
@@ -2163,7 +2168,7 @@ fn redundant_votes_ignored() {
 
 			assert!(valid_vote.validator_signature() != valid_vote_2.validator_signature());
 
-			let (tx, rx) = oneshot::channel();
+			let (tx, rx) = metered_oneshot::channel("test");
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
@@ -2178,7 +2183,7 @@ fn redundant_votes_ignored() {
 
 			rx.await.unwrap();
 
-			let (tx, rx) = oneshot::channel();
+			let (tx, rx) = metered_oneshot::channel("test");
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
