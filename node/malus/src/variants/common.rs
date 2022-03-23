@@ -77,8 +77,8 @@ where
 						let validation_result =
 							ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
 
-						tracing::info!(
-							target = MALUS,
+						gum::info!(
+							target: MALUS,
 							para_id = ?descriptor.para_id,
 							candidate_hash = ?descriptor.para_head,
 							"ValidateFromExhaustive result: {:?}",
@@ -109,8 +109,8 @@ where
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
 						let validation_result =
 							ValidationResult::Invalid(self.fake_validation_error.clone().into());
-						tracing::info!(
-							target = MALUS,
+						gum::info!(
+							target: MALUS,
 							para_id = ?descriptor.para_id,
 							candidate_hash = ?descriptor.para_head,
 							"ValidateFromChainState result: {:?}",

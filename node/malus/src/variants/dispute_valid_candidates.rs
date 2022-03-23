@@ -48,7 +48,7 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use std::sync::Arc;
 
-#[derive(ArgEnum, Clone, Debug, PartialEq)]
+#[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
 pub enum FakeCandidateValidation {
 	Disabled,
@@ -59,7 +59,7 @@ pub enum FakeCandidateValidation {
 }
 
 /// Candidate invalidity details
-#[derive(ArgEnum, Clone, Debug, PartialEq)]
+#[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
 pub enum FakeCandidateValidationError {
 	/// Validation outputs check doesn't pass.
@@ -160,8 +160,8 @@ where
 				session,
 				..
 			}) => {
-				tracing::info!(
-					target = MALUS,
+				gum::info!(
+					target: MALUS,
 					para_id = ?candidate_receipt.descriptor.para_id,
 					?candidate_hash,
 					"Disputing candidate",
@@ -207,8 +207,8 @@ impl OverseerGen for DisputeValidCandidates {
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 		let backing_filter = ReplaceApprovalsWithDisputes;
 		let validation_filter = ReplaceValidationResult::new(
-			self.opts.fake_validation.clone(),
-			self.opts.fake_validation_error.clone(),
+			self.opts.fake_validation,
+			self.opts.fake_validation_error,
 		);
 		let candidate_validation_config = args.candidate_validation_config.clone();
 
