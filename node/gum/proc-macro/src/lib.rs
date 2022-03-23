@@ -67,7 +67,10 @@ pub(crate) fn gum(item: proc_macro::TokenStream, level: Level) -> proc_macro::To
 
 	let res = expander::Expander::new("gum")
 		.add_comment("Generated overseer code by `gum::warn!(..)`".to_owned())
-		.dry(!cfg!(feature = "expand"))
+		// `dry=true` until rust-analyzer can selectively disable features so it's
+		// not all red squiggles. Originally: `!cfg!(feature = "expand")`
+		// ISSUE: <https://github.com/rust-analyzer/rust-analyzer/issues/11777>
+		.dry(true)
 		.verbose(false)
 		.fmt(expander::Edition::_2021)
 		.maybe_write_to_out_dir(impl_gum2(item, level))

@@ -31,17 +31,22 @@ use bp_header_chain::{
 use codec::Decode;
 use finality_grandpa::voter_set::VoterSet;
 use num_traits::{One, Zero};
-use relay_substrate_client::{Chain, Client};
+use relay_substrate_client::{
+	BlockNumberOf, Chain, ChainWithGrandpa, Client, Error as SubstrateError, HashOf,
+};
 use sp_core::Bytes;
 use sp_finality_grandpa::AuthorityList as GrandpaAuthoritiesSet;
 use sp_runtime::traits::Header as HeaderT;
 
 /// Submit headers-bridge initialization transaction.
-pub async fn initialize<SourceChain: Chain, TargetChain: Chain>(
+pub async fn initialize<SourceChain: ChainWithGrandpa, TargetChain: Chain>(
 	source_client: Client<SourceChain>,
 	target_client: Client<TargetChain>,
 	target_transactions_signer: TargetChain::AccountId,
-	prepare_initialize_transaction: impl FnOnce(TargetChain::Index, InitializationData<SourceChain::Header>) -> Bytes
+	prepare_initialize_transaction: impl FnOnce(
+			TargetChain::Index,
+			InitializationData<SourceChain::Header>,
+		) -> Result<Bytes, SubstrateError>
 		+ Send
 		+ 'static,
 ) {
@@ -54,13 +59,14 @@ pub async fn initialize<SourceChain: Chain, TargetChain: Chain>(
 	.await;
 
 	match result {
-		Ok(tx_hash) => log::info!(
+		Ok(Some(tx_hash)) => log::info!(
 			target: "bridge",
 			"Successfully submitted {}-headers bridge initialization transaction to {}: {:?}",
 			SourceChain::NAME,
 			TargetChain::NAME,
 			tx_hash,
 		),
+		Ok(None) => (),
 		Err(err) => log::error!(
 			target: "bridge",
 			"Failed to submit {}-headers bridge initialization transaction to {}: {:?}",
@@ -72,14 +78,31 @@ pub async fn initialize<SourceChain: Chain, TargetChain: Chain>(
 }
 
 /// Craft and submit initialization transaction, returning any error that may occur.
-async fn do_initialize<SourceChain: Chain, TargetChain: Chain>(
+async fn do_initialize<SourceChain: ChainWithGrandpa, TargetChain: Chain>(
 	source_client: Client<SourceChain>,
 	target_client: Client<TargetChain>,
 	target_transactions_signer: TargetChain::AccountId,
-	prepare_initialize_transaction: impl FnOnce(TargetChain::Index, InitializationData<SourceChain::Header>) -> Bytes
+	prepare_initialize_transaction: impl FnOnce(
+			TargetChain::Index,
+			InitializationData<SourceChain::Header>,
+		) -> Result<Bytes, SubstrateError>
 		+ Send
 		+ 'static,
-) -> Result<TargetChain::Hash, Error<SourceChain::Hash, <SourceChain::Header as HeaderT>::Number>> {
+) -> Result<
+	Option<TargetChain::Hash>,
+	Error<SourceChain::Hash, <SourceChain::Header as HeaderT>::Number>,
+> {
+	let is_initialized = is_initialized::<SourceChain, TargetChain>(&target_client).await?;
+	if is_initialized {
+		log::info!(
+			target: "bridge",
+			"{}-headers bridge at {} is already initialized. Skipping",
+			SourceChain::NAME,
+			TargetChain::NAME,
+		);
+		return Ok(None)
+	}
+
 	let initialization_data = prepare_initialization_data(source_client).await?;
 	log::info!(
 		target: "bridge",
@@ -95,7 +118,23 @@ async fn do_initialize<SourceChain: Chain, TargetChain: Chain>(
 		})
 		.await
 		.map_err(|err| Error::SubmitTransaction(TargetChain::NAME, err))?;
-	Ok(initialization_tx_hash)
+	Ok(Some(initialization_tx_hash))
+}
+
+/// Returns `Ok(true)` if bridge has already been initialized.
+async fn is_initialized<SourceChain: ChainWithGrandpa, TargetChain: Chain>(
+	target_client: &Client<TargetChain>,
+) -> Result<bool, Error<HashOf<SourceChain>, BlockNumberOf<SourceChain>>> {
+	Ok(target_client
+		.raw_storage_value(
+			bp_header_chain::storage_keys::best_finalized_hash_key(
+				SourceChain::WITH_CHAIN_GRANDPA_PALLET_NAME,
+			),
+			None,
+		)
+		.await
+		.map_err(|err| Error::RetrieveBestFinalizedHeaderHash(SourceChain::NAME, err))?
+		.is_some())
 }
 
 /// Prepare initialization data for the GRANDPA verifier pallet.

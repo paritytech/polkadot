@@ -44,7 +44,11 @@ impl<Header> From<Header> for SyncHeader<Header> {
 	}
 }
 
-impl<Header: HeaderT> FinalitySourceHeader<Header::Number> for SyncHeader<Header> {
+impl<Header: HeaderT> FinalitySourceHeader<Header::Hash, Header::Number> for SyncHeader<Header> {
+	fn hash(&self) -> Header::Hash {
+		self.0.hash()
+	}
+
 	fn number(&self) -> Header::Number {
 		*self.0.number()
 	}

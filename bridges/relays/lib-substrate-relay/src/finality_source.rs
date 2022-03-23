@@ -16,49 +16,59 @@
 
 //! Default generic implementation of finality source for basic Substrate client.
 
-use crate::{
-	chain::{BlockWithJustification, Chain},
-	client::Client,
-	error::Error,
-	sync_header::SyncHeader,
-};
+use crate::finality_pipeline::{FinalitySyncPipelineAdapter, SubstrateFinalitySyncPipeline};
 
 use async_std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use bp_header_chain::justification::GrandpaJustification;
 use codec::Decode;
-use finality_relay::{FinalitySyncPipeline, SourceClient, SourceHeader};
+use finality_relay::SourceClient;
 use futures::stream::{unfold, Stream, StreamExt};
+use relay_substrate_client::{
+	BlockNumberOf, BlockWithJustification, Chain, Client, Error, HeaderOf,
+};
 use relay_utils::relay_loop::Client as RelayClient;
 use sp_runtime::traits::Header as HeaderT;
-use std::{marker::PhantomData, pin::Pin};
+use std::pin::Pin;
 
 /// Shared updatable reference to the maximal header number that we want to sync from the source.
 pub type RequiredHeaderNumberRef<C> = Arc<Mutex<<C as bp_runtime::Chain>::BlockNumber>>;
 
+/// Substrate finality proofs stream.
+pub type SubstrateFinalityProofsStream<P> = Pin<
+	Box<
+		dyn Stream<
+				Item = GrandpaJustification<
+					HeaderOf<<P as SubstrateFinalitySyncPipeline>::SourceChain>,
+				>,
+			> + Send,
+	>,
+>;
+
 /// Substrate node as finality source.
-pub struct FinalitySource<C: Chain, P> {
-	client: Client<C>,
-	maximal_header_number: Option<RequiredHeaderNumberRef<C>>,
-	_phantom: PhantomData<P>,
+pub struct SubstrateFinalitySource<P: SubstrateFinalitySyncPipeline> {
+	client: Client<P::SourceChain>,
+	maximal_header_number: Option<RequiredHeaderNumberRef<P::SourceChain>>,
 }
 
-impl<C: Chain, P> FinalitySource<C, P> {
+impl<P: SubstrateFinalitySyncPipeline> SubstrateFinalitySource<P> {
 	/// Create new headers source using given client.
 	pub fn new(
-		client: Client<C>,
-		maximal_header_number: Option<RequiredHeaderNumberRef<C>>,
+		client: Client<P::SourceChain>,
+		maximal_header_number: Option<RequiredHeaderNumberRef<P::SourceChain>>,
 	) -> Self {
-		FinalitySource { client, maximal_header_number, _phantom: Default::default() }
+		SubstrateFinalitySource { client, maximal_header_number }
 	}
 
 	/// Returns reference to the underlying RPC client.
-	pub fn client(&self) -> &Client<C> {
+	pub fn client(&self) -> &Client<P::SourceChain> {
 		&self.client
 	}
 
 	/// Returns best finalized block number.
-	pub async fn on_chain_best_finalized_block_number(&self) -> Result<C::BlockNumber, Error> {
+	pub async fn on_chain_best_finalized_block_number(
+		&self,
+	) -> Result<BlockNumberOf<P::SourceChain>, Error> {
 		// we **CAN** continue to relay finality proofs if source node is out of sync, because
 		// target node may be missing proofs that are already available at the source
 		let finalized_header_hash = self.client.best_finalized_header_hash().await?;
@@ -67,18 +77,17 @@ impl<C: Chain, P> FinalitySource<C, P> {
 	}
 }
 
-impl<C: Chain, P> Clone for FinalitySource<C, P> {
+impl<P: SubstrateFinalitySyncPipeline> Clone for SubstrateFinalitySource<P> {
 	fn clone(&self) -> Self {
-		FinalitySource {
+		SubstrateFinalitySource {
 			client: self.client.clone(),
 			maximal_header_number: self.maximal_header_number.clone(),
-			_phantom: Default::default(),
 		}
 	}
 }
 
 #[async_trait]
-impl<C: Chain, P: FinalitySyncPipeline> RelayClient for FinalitySource<C, P> {
+impl<P: SubstrateFinalitySyncPipeline> RelayClient for SubstrateFinalitySource<P> {
 	type Error = Error;
 
 	async fn reconnect(&mut self) -> Result<(), Error> {
@@ -87,21 +96,12 @@ impl<C: Chain, P: FinalitySyncPipeline> RelayClient for FinalitySource<C, P> {
 }
 
 #[async_trait]
-impl<C, P> SourceClient<P> for FinalitySource<C, P>
-where
-	C: Chain,
-	C::BlockNumber: relay_utils::BlockNumberBase,
-	P: FinalitySyncPipeline<
-		Hash = C::Hash,
-		Number = C::BlockNumber,
-		Header = SyncHeader<C::Header>,
-		FinalityProof = GrandpaJustification<C::Header>,
-	>,
-	P::Header: SourceHeader<C::BlockNumber>,
+impl<P: SubstrateFinalitySyncPipeline> SourceClient<FinalitySyncPipelineAdapter<P>>
+	for SubstrateFinalitySource<P>
 {
-	type FinalityProofsStream = Pin<Box<dyn Stream<Item = GrandpaJustification<C::Header>> + Send>>;
+	type FinalityProofsStream = SubstrateFinalityProofsStream<P>;
 
-	async fn best_finalized_block_number(&self) -> Result<P::Number, Error> {
+	async fn best_finalized_block_number(&self) -> Result<BlockNumberOf<P::SourceChain>, Error> {
 		let mut finalized_header_number = self.on_chain_best_finalized_block_number().await?;
 		// never return block number larger than requested. This way we'll never sync headers
 		// past `maximal_header_number`
@@ -116,15 +116,23 @@ where
 
 	async fn header_and_finality_proof(
 		&self,
-		number: P::Number,
-	) -> Result<(P::Header, Option<P::FinalityProof>), Error> {
+		number: BlockNumberOf<P::SourceChain>,
+	) -> Result<
+		(
+			relay_substrate_client::SyncHeader<HeaderOf<P::SourceChain>>,
+			Option<GrandpaJustification<HeaderOf<P::SourceChain>>>,
+		),
+		Error,
+	> {
 		let header_hash = self.client.block_hash_by_number(number).await?;
 		let signed_block = self.client.get_block(Some(header_hash)).await?;
 
 		let justification = signed_block
 			.justification()
 			.map(|raw_justification| {
-				GrandpaJustification::<C::Header>::decode(&mut raw_justification.as_slice())
+				GrandpaJustification::<HeaderOf<P::SourceChain>>::decode(
+					&mut raw_justification.as_slice(),
+				)
 			})
 			.transpose()
 			.map_err(Error::ResponseParseFailed)?;
@@ -141,7 +149,7 @@ where
 						log::error!(
 							target: "bridge",
 							"Failed to read justification target from the {} justifications stream: {:?}",
-							P::SOURCE_NAME,
+							P::SourceChain::NAME,
 							err,
 						);
 					};
@@ -153,7 +161,9 @@ where
 						.ok()??;
 
 					let decoded_justification =
-						GrandpaJustification::<C::Header>::decode(&mut &next_justification[..]);
+						GrandpaJustification::<HeaderOf<P::SourceChain>>::decode(
+							&mut &next_justification[..],
+						);
 
 					let justification = match decoded_justification {
 						Ok(j) => j,

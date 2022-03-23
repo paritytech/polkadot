@@ -15,6 +15,8 @@ RUST_LOG=bridge=debug \
 	--target-host localhost \
 	--target-port $RIALTO_PORT \
 	--target-signer //Alice \
+	--source-version-mode Bundle \
+	--target-version-mode Bundle
 
 sleep 5
 RUST_LOG=bridge=debug \
