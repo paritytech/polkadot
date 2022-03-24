@@ -806,7 +806,7 @@ publish-rustdoc:
 # Run all pallet benchmarks only once to check if there are any errors
 short-benchmark-polkadot:          &short-bench
   stage:                           stage4
-  <<:                              *test-refs
+  <<:                              *test-pr-refs
   <<:                              *docker-env
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
