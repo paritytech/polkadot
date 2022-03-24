@@ -37,8 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex,
-	ValidatorSignature,
+	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -355,7 +354,7 @@ struct CandidateEntry {
 	messages: HashMap<ValidatorIndex, MessageState>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum MessageSource {
 	Peer(PeerId),
 	Local,
@@ -398,13 +397,8 @@ impl State {
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				let session = topology.session;
-				self.handle_new_session_topology(
-					ctx,
-					metrics,
-					session,
-					SessionTopology::from(topology),
-				)
-				.await;
+				self.handle_new_session_topology(ctx, session, SessionTopology::from(topology))
+					.await;
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
@@ -553,7 +547,6 @@ impl State {
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
-		metrics: &Metrics,
 		session: SessionIndex,
 		topology: SessionTopology,
 	) {
@@ -983,14 +976,24 @@ impl State {
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
+		let topology = self.topologies.get_topology(entry.session);
+
+		let required_routing = if source == MessageSource::Local {
+			RequiredRouting::GridXY
+		} else {
+			topology.map_or(RequiredRouting::PendingTopology, |t| {
+				t.required_routing_for(validator_index)
+			})
+		};
+
 		match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
 				candidate_entry.messages.entry(validator_index).or_insert_with(|| {
-					// TODO [now]: do routing.
+					// TODO [now]: do random routing.
 					MessageState {
-						required_routing: RequiredRouting::None,
+						required_routing,
 						random_routing: 0,
 						approval_state: ApprovalState::Assigned(assignment.cert.clone()),
 					}
@@ -1006,21 +1009,32 @@ impl State {
 			},
 		}
 
-		// Dispatch a ApprovalDistributionV1Message::Assignment(assignment, candidate_index)
-		// to all peers in the BlockEntry's known_by set who know about the block,
-		// excluding the peer in the source, if source has kind MessageSource::Peer.
-		let maybe_peer_id = source.peer_id();
+		let topology = match topology {
+			None => return,
+			Some(t) => t,
+		};
+
+		if required_routing.is_empty() {
+			return
+		}
+
+		// Dispatch the message to all peers in the routing set which
+		// know the block.
+		//
+		// If the topology isn't known yet (race with networking subsystems)
+		// then messages will be sent when we get it.
+
+		let assignments = vec![(assignment, claimed_candidate_index)];
+		let topology_filter = topology.peer_filter(required_routing);
+		let source_peer = source.peer_id();
+
 		let peers = entry
 			.known_by
 			.keys()
+			.filter(|p| topology_filter(p))
+			.filter(|p| source_peer.as_ref().map_or(true, |source| &source != p))
 			.cloned()
-			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
-
-		let assignments = vec![(assignment, claimed_candidate_index)];
-
-		// TODO [now]: make use of topology
-		let peers = util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
