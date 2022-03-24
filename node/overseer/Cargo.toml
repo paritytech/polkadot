@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+# sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"

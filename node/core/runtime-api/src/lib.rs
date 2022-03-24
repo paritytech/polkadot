@@ -23,10 +23,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::{
-	v1::{Block, BlockId, Hash},
-	v2::ParachainHost,
-};
+use polkadot_overseer::OverseerRuntimeClient;
+use polkadot_primitives::v1::{BlockId, Hash};
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -34,9 +32,6 @@ use polkadot_subsystem::{
 	SubsystemResult,
 };
 
-use sp_api::ProvideRuntimeApi;
-use sp_authority_discovery::AuthorityDiscoveryApi;
-use sp_consensus_babe::BabeApi;
 use sp_core::traits::SpawnNamed;
 
 use cache::{RequestResult, RequestResultCache};
@@ -92,8 +87,7 @@ impl<Client> RuntimeApiSubsystem<Client> {
 
 impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client>
 where
-	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: OverseerRuntimeClient + Send + Sync + 'static,
 	Context: SubsystemContext<Message = RuntimeApiMessage>,
 	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
@@ -104,8 +98,7 @@ where
 
 impl<Client> RuntimeApiSubsystem<Client>
 where
-	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: OverseerRuntimeClient + Send + 'static + Sync,
 {
 	fn store_cache(&mut self, result: RequestResult) {
 		use RequestResult::*;
@@ -328,8 +321,7 @@ async fn run<Client, Context>(
 	mut subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
-	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: OverseerRuntimeClient + Send + Sync + 'static,
 	Context: SubsystemContext<Message = RuntimeApiMessage>,
 	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
@@ -357,18 +349,16 @@ fn make_runtime_api_request<Client>(
 	request: Request,
 ) -> Option<RequestResult>
 where
-	Client: ProvideRuntimeApi<Block>,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: OverseerRuntimeClient + 'static,
 {
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
 		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
-			let api = client.runtime_api();
+			let api = client;
 
-			use sp_api::ApiExt;
-			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+			let runtime_version = api.api_version_parachain_host(&BlockId::Hash(relay_parent))
 				.unwrap_or_else(|e| {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -448,13 +438,11 @@ where
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
 		Request::SessionInfo(index, sender) => {
-			use sp_api::ApiExt;
-
-			let api = client.runtime_api();
+			let api = client;
 			let block_id = BlockId::Hash(relay_parent);
 
 			let api_version = api
-				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+				.api_version_parachain_host(&BlockId::Hash(relay_parent))
 				.unwrap_or_default()
 				.unwrap_or_default();
 

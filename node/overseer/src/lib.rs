@@ -67,7 +67,7 @@ use std::{
 	time::Duration,
 };
 
-use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, StreamExt};
+use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, Stream, StreamExt};
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -98,7 +98,7 @@ pub use polkadot_node_subsystem_types::{
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
 };
 
-use sp_api::{ApiError, BlockT};
+use sp_api::ApiError;
 use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_consensus_babe::{
 	AuthorityId, BabeApi, BabeGenesisConfiguration, Epoch, EquivocationProof,
@@ -141,18 +141,12 @@ pub trait HeadSupportsParachains {
 
 impl<Client> HeadSupportsParachains for Arc<Client>
 where
-	Client: ProvideRuntimeApi<Block>,
-	Client::Api: ParachainHost<Block>,
+	Client: OverseerRuntimeClient,
 {
 	fn head_supports_parachains(&self, head: &Hash) -> bool {
 		let id = BlockId::Hash(*head);
 		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.
-		self.runtime_api()
-			.api_version::<dyn ParachainHost<Block>>(&id)
-			.ok()
-			.flatten()
-			.unwrap_or(0) >=
-			1
+		self.api_version_parachain_host(&id).ok().flatten().unwrap_or(0) >= 1
 	}
 }
 
@@ -309,6 +303,48 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
+/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
+/// import and finality notifications into the [`OverseerHandle`].
+pub async fn forward_collator_events<P: client::BlockchainRPCEvents<Block>>(
+	client: Arc<P>,
+	mut handle: Handle,
+) {
+	let mut finality = client.finality_notification_stream().fuse();
+	let mut imports = client.import_notification_stream().fuse();
+
+	loop {
+		select! {
+			f = finality.next() => {
+				match f {
+					Some(header) => {
+						/// TODO Implement into
+						let block_info = BlockInfo {
+							hash: header.hash(),
+							parent_hash: header.parent_hash,
+							number: header.number
+						};
+						handle.block_finalized(block_info).await;
+					}
+					None => break,
+				}
+			},
+			i = imports.next() => {
+				match i {
+					Some(header) => {
+						let block_info = BlockInfo {
+							hash: header.hash(),
+							parent_hash: header.parent_hash,
+							number: header.number
+						};
+						handle.block_imported(block_info).await;
+					}
+					None => break,
+				}
+			},
+			complete => break,
+		}
+	}
+}
 /// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
 ///
 /// This returns the overseer along with an [`OverseerHandle`] which can
@@ -924,6 +960,15 @@ pub trait OverseerRuntimeClient {
 		index: SessionIndex,
 	) -> Result<Option<SessionInfo>, ApiError>;
 
+	/// Get the session info for the given session, if stored.
+	///
+	/// NOTE: This function is only available since parachain host version 2.
+	fn session_info_before_version_2(
+		&self,
+		at: &BlockId,
+		index: SessionIndex,
+	) -> Result<Option<polkadot_primitives::v1::SessionInfo>, ApiError>;
+
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
@@ -1002,6 +1047,8 @@ pub trait OverseerRuntimeClient {
 		&self,
 		at: &BlockId,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
+
+	fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError>;
 }
 
 impl<T> OverseerRuntimeClient for T
@@ -1185,5 +1232,17 @@ where
 		at: &BlockId,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError> {
 		self.runtime_api().authorities(at)
+	}
+
+	fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError> {
+		self.runtime_api().api_version::<dyn ParachainHost<Block>>(at)
+	}
+
+	fn session_info_before_version_2(
+		&self,
+		at: &BlockId,
+		index: SessionIndex,
+	) -> Result<Option<polkadot_primitives::v1::SessionInfo>, ApiError> {
+		self.runtime_api().session_info_before_version_2(at, index)
 	}
 }
