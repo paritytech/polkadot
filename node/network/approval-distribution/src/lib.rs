@@ -35,7 +35,6 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
-use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
@@ -1206,7 +1205,7 @@ impl State {
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
 
-		match entry.candidates.get_mut(candidate_index as usize) {
+		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
 				// it should be in assigned state already
@@ -1216,7 +1215,6 @@ impl State {
 						required_routing,
 						random_routing,
 					}) => {
-						// TODO [now]: distribute
 						candidate_entry.messages.insert(
 							validator_index,
 							MessageState {
@@ -1228,6 +1226,8 @@ impl State {
 								random_routing,
 							},
 						);
+
+						required_routing
 					},
 					Some(_) => {
 						unreachable!(
@@ -1243,6 +1243,8 @@ impl State {
 							?validator_index,
 							"Importing an approval we don't have an assignment for",
 						);
+
+						return;
 					},
 				}
 			},
@@ -1254,22 +1256,32 @@ impl State {
 					?validator_index,
 					"Expected a candidate entry on import_and_circulate_approval",
 				);
+
+				return;
 			},
-		}
+		};
 
 		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
-		// to all peers in the BlockEntry's known_by set who know about the block,
-		// excluding the peer in the source, if source has kind MessageSource::Peer.
-		let maybe_peer_id = source.peer_id();
+		// to all peers required by the topology, with the exception of the source peer.
+
+		let topology = match self.topologies.get_topology(entry.session) {
+			Some(t) => t,
+			None => return,
+		};
+
+		if required_routing.is_empty() {
+			return
+		}
+
+		let topology_filter = topology.peer_filter(required_routing);
+		let source_peer = source.peer_id();
 		let peers = entry
 			.known_by
 			.keys()
+			.filter(|p| topology_filter(p))
+			.filter(|p| source_peer.as_ref().map_or(true, |source| &source != p))
 			.cloned()
-			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
-
-		// TODO [now]: just send to peers we've sent assignments to.
-		let peers = util::choose_random_subset(|e| true, peers, MIN_GOSSIP_PEERS);
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -1279,8 +1291,8 @@ impl State {
 			}
 		}
 
-		let approvals = vec![vote];
 		if !peers.is_empty() {
+			let approvals = vec![vote];
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
