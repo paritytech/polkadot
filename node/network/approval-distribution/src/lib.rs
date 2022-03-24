@@ -295,6 +295,22 @@ enum ApprovalState {
 	Approved(AssignmentCert, ValidatorSignature),
 }
 
+impl ApprovalState {
+	fn assignment_cert(&self) -> &AssignmentCert {
+		match *self {
+			ApprovalState::Assigned(ref cert) => cert,
+			ApprovalState::Approved(ref cert, _) => cert,
+		}
+	}
+
+	fn approval_signature(&self) -> Option<ValidatorSignature> {
+		match *self {
+			ApprovalState::Assigned(_) => None,
+			ApprovalState::Approved(_, ref sig) => Some(sig.clone()),
+		}
+	}
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum RequiredRouting {
 	/// We don't know yet, because we're waiting for topology info
@@ -309,6 +325,16 @@ enum RequiredRouting {
 	GridY,
 	/// No required progation.
 	None,
+}
+
+impl RequiredRouting {
+	// Whether the required routing set is definitely empty.
+	fn is_empty(self) -> bool {
+		match self {
+			RequiredRouting::PendingTopology | RequiredRouting::None => true,
+			_ => false,
+		}
+	}
 }
 
 // routing state bundled with messages for the candidate. Corresponding assignments
@@ -532,9 +558,106 @@ impl State {
 		self.topologies.insert_topology(session, topology);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
 
-		// TODO [now]: iterate all blocks in the session
-		// Update required routing for each.
-		// Send messages for all with changed required routing.
+		let mut peer_assignments = HashMap::new();
+		let mut peer_approvals = HashMap::new();
+
+		// Iterate all blocks in the session, producing payloads
+		// for each connected peer.
+		for (block_hash, block_entry) in &mut self.blocks {
+			if block_entry.session != session {
+				continue
+			}
+
+			// Iterate all messages in all candidates.
+			for (candidate_index, validator, message_state) in block_entry
+				.candidates
+				.iter_mut()
+				.enumerate()
+				.flat_map(|(c_i, c)| c.messages.iter_mut().map(move |(k, v)| (c_i as _, k, v)))
+			{
+				if message_state.required_routing == RequiredRouting::PendingTopology {
+					message_state.required_routing =
+						topology.required_routing_for(validator.clone());
+				}
+
+				if message_state.required_routing.is_empty() {
+					continue
+				}
+
+				// Propagate the message to all peers in the required routing set.
+				let peer_filter = topology.peer_filter(message_state.required_routing);
+				let message_subject =
+					MessageSubject(block_hash.clone(), candidate_index, validator.clone());
+
+				let assignment_message = (
+					IndirectAssignmentCert {
+						block_hash: block_hash.clone(),
+						validator: validator.clone(),
+						cert: message_state.approval_state.assignment_cert().clone(),
+					},
+					candidate_index,
+				);
+				let approval_message =
+					message_state.approval_state.approval_signature().map(|signature| {
+						IndirectSignedApprovalVote {
+							block_hash: block_hash.clone(),
+							validator: validator.clone(),
+							candidate_index,
+							signature,
+						}
+					});
+
+				for (peer, peer_knowledge) in &mut block_entry.known_by {
+					if !peer_filter(peer) {
+						continue
+					}
+
+					if !peer_knowledge.contains(&message_subject, MessageKind::Assignment) {
+						peer_knowledge
+							.sent
+							.insert(message_subject.clone(), MessageKind::Assignment);
+						peer_assignments
+							.entry(peer.clone())
+							.or_insert_with(Vec::new)
+							.push(assignment_message.clone());
+					}
+
+					if let Some(approval_message) = approval_message.as_ref() {
+						if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
+							peer_knowledge
+								.sent
+								.insert(message_subject.clone(), MessageKind::Approval);
+							peer_approvals
+								.entry(peer.clone())
+								.or_insert_with(Vec::new)
+								.push(approval_message.clone());
+						}
+					}
+				}
+			}
+		}
+
+		// Send messages in accumulated packets, assignments preceding approvals.
+
+		for (peer, assignments_packet) in peer_assignments {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				vec![peer],
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(assignments_packet),
+				),
+			))
+			.await;
+		}
+
+		for (peer, approvals_packet) in peer_approvals {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				vec![peer],
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(approvals_packet),
+				),
+			))
+			.await;
+		}
 	}
 
 	async fn process_incoming_peer_message(
