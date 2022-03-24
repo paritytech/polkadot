@@ -293,7 +293,7 @@ build-test-collators:
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - echo "undying-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/* ./artifacts
+    - cp -r ./scripts/* ./artifacts
 
 build-malus:
   stage:                           stage1
@@ -310,7 +310,7 @@ build-malus:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/* ./artifacts
+    - cp -r ./scripts/* ./artifacts
 
 #### stage:                        stage2
 
@@ -575,7 +575,7 @@ generate-impl-guide:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
-    - mdbook build roadmap/implementers-guide
+    - mdbook build ./roadmap/implementers-guide
 
 check-runtime-benchmarks:
   stage:                           stage3
@@ -616,8 +616,8 @@ check-no-default-features:
   <<:                              *compiler-info
   script:
     # Check that polkadot-cli will compile no default features.
-    - pushd node/service && cargo check --no-default-features && popd
-    - pushd cli && cargo check --no-default-features --features "service" && popd
+    - pushd ./node/service && cargo check --no-default-features && popd
+    - pushd ./cli && cargo check --no-default-features --features "service" && popd
     - sccache -s
 
 
@@ -786,7 +786,7 @@ publish-rustdoc:
     - git fetch origin gh-pages
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
-    - cp README.md /tmp/doc/
+    - cp ./README.md /tmp/doc/
     - git checkout gh-pages
     # Remove everything and restore generated docs and README
     - rm -rf ./*
