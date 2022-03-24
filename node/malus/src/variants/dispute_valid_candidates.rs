@@ -21,7 +21,7 @@
 
 #![allow(missing_docs)]
 
-use clap::{ArgEnum, Parser};
+use clap::{Parser};
 use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
@@ -34,7 +34,7 @@ use polkadot_cli::{
 
 // Filter wrapping related types.
 use crate::{interceptor::*, shared::MALUS, variants::ReplaceValidationResult};
-use polkadot_node_primitives::InvalidCandidate;
+use super::common::{FakeCandidateValidation, FakeCandidateValidationError};
 
 // Import extra types relevant to the particular
 // subsystem.
@@ -47,72 +47,6 @@ use polkadot_node_subsystem::messages::{
 use sp_keystore::SyncCryptoStorePtr;
 
 use std::sync::Arc;
-
-#[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
-pub enum FakeCandidateValidation {
-	Disabled,
-	BackingInvalid,
-	ApprovalInvalid,
-	BackingAndApprovalInvalid,
-	// TODO: impl Valid.
-}
-
-/// Candidate invalidity details
-#[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
-pub enum FakeCandidateValidationError {
-	/// Validation outputs check doesn't pass.
-	InvalidOutputs,
-	/// Failed to execute.`validate_block`. This includes function panicking.
-	ExecutionError,
-	/// Execution timeout.
-	Timeout,
-	/// Validation input is over the limit.
-	ParamsTooLarge,
-	/// Code size is over the limit.
-	CodeTooLarge,
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
-	/// PoV does not decompress correctly.
-	POVDecompressionFailure,
-	/// Validation function returned invalid data.
-	BadReturn,
-	/// Invalid relay chain parent.
-	BadParent,
-	/// POV hash does not match.
-	POVHashMismatch,
-	/// Bad collator signature.
-	BadSignature,
-	/// Para head hash does not match.
-	ParaHeadHashMismatch,
-	/// Validation code hash does not match.
-	CodeHashMismatch,
-}
-
-impl Into<InvalidCandidate> for FakeCandidateValidationError {
-	fn into(self) -> InvalidCandidate {
-		match self {
-			FakeCandidateValidationError::ExecutionError =>
-				InvalidCandidate::ExecutionError("Malus".into()),
-			FakeCandidateValidationError::InvalidOutputs => InvalidCandidate::InvalidOutputs,
-			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
-			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
-			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
-			FakeCandidateValidationError::CodeDecompressionFailure =>
-				InvalidCandidate::CodeDecompressionFailure,
-			FakeCandidateValidationError::POVDecompressionFailure =>
-				InvalidCandidate::PoVDecompressionFailure,
-			FakeCandidateValidationError::BadReturn => InvalidCandidate::BadReturn,
-			FakeCandidateValidationError::BadParent => InvalidCandidate::BadParent,
-			FakeCandidateValidationError::POVHashMismatch => InvalidCandidate::PoVHashMismatch,
-			FakeCandidateValidationError::BadSignature => InvalidCandidate::BadSignature,
-			FakeCandidateValidationError::ParaHeadHashMismatch =>
-				InvalidCandidate::ParaHeadHashMismatch,
-			FakeCandidateValidationError::CodeHashMismatch => InvalidCandidate::CodeHashMismatch,
-		}
-	}
-}
 
 #[derive(Clone, Debug, Parser)]
 #[clap(rename_all = "kebab-case")]
@@ -209,6 +143,7 @@ impl OverseerGen for DisputeValidCandidates {
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
+			spawner.clone(),
 		);
 		let candidate_validation_config = args.candidate_validation_config.clone();
 
