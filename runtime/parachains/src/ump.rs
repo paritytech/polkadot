@@ -119,7 +119,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
 				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
 				// are taking call and control-flow overhead into account twice.
-				<C as Config>::WeightInfo::sink_process_upward_message(data.len() as u32),
+				<C as Config>::WeightInfo::process_upward_message(data.len() as u32),
 			)
 		});
 		match maybe_msg_and_weight {
@@ -186,7 +186,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 /// Weight information of this pallet.
 pub trait WeightInfo {
 	fn service_overweight() -> Weight;
-	fn sink_process_upward_message(s: u32) -> Weight;
+	fn process_upward_message(s: u32) -> Weight;
 	fn clean_ump_after_outgoing() -> Weight;
 }
 
@@ -197,7 +197,7 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 
-	fn sink_process_upward_message(_msg_size: u32) -> Weight {
+	fn process_upward_message(_msg_size: u32) -> Weight {
 		Weight::MAX
 	}
 

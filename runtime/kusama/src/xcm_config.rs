@@ -20,11 +20,7 @@ use super::{
 	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Call, CouncilCollective, Event,
 	Origin, ParaId, Runtime, WeightToFee, XcmPallet,
 };
-use frame_support::{
-	match_types, parameter_types,
-	traits::{Everything, Nothing},
-	weights::Weight,
-};
+use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -182,14 +178,20 @@ pub type LocalOriginToLocation = (
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// We don't allow any messages to be sent via the transaction yet. This is basically safe to
+	// enable, (safe the possibility of someone spamming the parachain if they're willing to pay
+	// the DOT to send from the Relay-chain). But it's useless until we bring in XCM v3 which will
+	// make `DescendOrigin` a bit more useful.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
 	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
+	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = Nothing;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type XcmExecuteFilter = Everything;
+	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
+	// Anyone is able to use teleportation regardless of who they are and what they want to teleport.
 	type XcmTeleportFilter = Everything;
+	// Anyone is able to use reserve transfers regardless of who they are and what they want to
+	// transfer.
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
