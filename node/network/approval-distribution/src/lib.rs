@@ -483,8 +483,10 @@ impl State {
 				let view_intersection =
 					View::new(intersection.cloned(), peer_data.view.finalized_number);
 				Self::unify_with_peer(
+					ctx,
 					metrics,
 					&mut self.blocks,
+					&self.topologies,
 					peer_id.clone(),
 					view_intersection,
 				)
@@ -752,7 +754,7 @@ impl State {
 	// and has an entry in the `PeerData` struct.
 	async fn handle_peer_view_change(
 		&mut self,
-		_ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
 		peer_id: PeerId,
@@ -784,7 +786,15 @@ impl State {
 				});
 		}
 
-		Self::unify_with_peer(metrics, &mut self.blocks, peer_id.clone(), view).await;
+		Self::unify_with_peer(
+			ctx,
+			metrics,
+			&mut self.blocks,
+			&self.topologies,
+			peer_id.clone(),
+			view,
+		)
+		.await;
 	}
 
 	fn handle_block_finalized(&mut self, finalized_number: BlockNumber) {
@@ -1277,28 +1287,129 @@ impl State {
 	}
 
 	async fn unify_with_peer(
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
+		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
+		topologies: &SessionTopologies,
 		peer_id: PeerId,
 		view: View,
 	) {
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
 
+		let mut assignments_to_send = Vec::new();
+		let mut approvals_to_send = Vec::new();
+
 		let view_finalized_number = view.finalized_number;
 		for head in view.into_iter() {
 			let mut block = head;
 			loop {
-				// TODO [now]: send messages based on required routing and grid dimension.
-
+				let sent_before = assignments_to_send.len() + approvals_to_send.len();
 				let entry = match entries.get_mut(&block) {
 					Some(entry) if entry.number > view_finalized_number => entry,
 					_ => break,
 				};
 
-				entry.known_by.entry(peer_id.clone()).or_default();
+				let topology = match topologies.get_topology(entry.session) {
+					Some(t) => t,
+					None => {
+						// The gossip topology for a recently entered session might be missing
+						// as we're still awaiting it from the network subsystems.
+						//
+						// We'll send required messages when we get it.
+
+						block = entry.parent_hash.clone();
+						continue
+					},
+				};
+
+				let peer_knowledge = entry.known_by.entry(peer_id.clone()).or_default();
+
+				// Iterate all messages in all candidates.
+				for (candidate_index, validator, message_state) in
+					entry.candidates.iter_mut().enumerate().flat_map(|(c_i, c)| {
+						c.messages.iter_mut().map(move |(k, v)| (c_i as _, k, v))
+					}) {
+					if message_state.required_routing.is_empty() {
+						continue
+					}
+
+					// Propagate the message to all peers in the required routing set.
+					let peer_filter = topology.peer_filter(message_state.required_routing);
+					if !peer_filter(&peer_id) {
+						continue
+					}
+
+					let message_subject =
+						MessageSubject(block.clone(), candidate_index, validator.clone());
+
+					let assignment_message = (
+						IndirectAssignmentCert {
+							block_hash: block.clone(),
+							validator: validator.clone(),
+							cert: message_state.approval_state.assignment_cert().clone(),
+						},
+						candidate_index,
+					);
+
+					let approval_message =
+						message_state.approval_state.approval_signature().map(|signature| {
+							IndirectSignedApprovalVote {
+								block_hash: block.clone(),
+								validator: validator.clone(),
+								candidate_index,
+								signature,
+							}
+						});
+
+					if !peer_knowledge.contains(&message_subject, MessageKind::Assignment) {
+						peer_knowledge
+							.sent
+							.insert(message_subject.clone(), MessageKind::Assignment);
+						assignments_to_send.push(assignment_message);
+					}
+
+					if let Some(approval_message) = approval_message {
+						if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
+							peer_knowledge
+								.sent
+								.insert(message_subject.clone(), MessageKind::Approval);
+							approvals_to_send.push(approval_message);
+						}
+					}
+				}
+
+				// If peer's knowledge is complete relative to our knowledge at one block,
+				// it's complete in its ancestors too.
+
+				let sent_after = assignments_to_send.len() + approvals_to_send.len();
+				if sent_before == sent_after {
+					break
+				}
+
 				block = entry.parent_hash.clone();
 			}
+		}
+
+		if !assignments_to_send.is_empty() {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				vec![peer_id.clone()],
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
+				),
+			))
+			.await;
+		}
+
+		if !approvals_to_send.is_empty() {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				vec![peer_id.clone()],
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
+				),
+			))
+			.await;
 		}
 	}
 }
