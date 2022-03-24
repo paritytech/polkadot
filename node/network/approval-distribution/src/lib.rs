@@ -720,7 +720,7 @@ impl State {
 		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
-		let peers = entry
+		let mut peers = entry
 			.known_by
 			.keys()
 			.cloned()
@@ -729,8 +729,7 @@ impl State {
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
 		let gossip_peers = &self.gossip_peers;
-		let peers =
-			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
+		util::choose_random_subset(|e| gossip_peers.contains(e), &mut peers, MIN_GOSSIP_PEERS);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -943,7 +942,7 @@ impl State {
 		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
-		let peers = entry
+		let mut peers = entry
 			.known_by
 			.keys()
 			.cloned()
@@ -951,8 +950,7 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let gossip_peers = &self.gossip_peers;
-		let peers =
-			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
+		util::choose_random_subset(|e| gossip_peers.contains(e), &mut peers, MIN_GOSSIP_PEERS);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
