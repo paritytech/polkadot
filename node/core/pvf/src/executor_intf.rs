@@ -24,31 +24,30 @@ use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use std::any::{Any, TypeId};
 
+// Memory configuration
+//
+// When Substrate Runtime is instantiated, a number of WASM pages are allocated for the Substrate
+// Runtime instance's linear memory. The exact number of pages is a sum of whatever the WASM blob
+// itself requests (by default at least enough to hold the data section as well as have some space
+// left for the stack; this is, of course, overridable at link time when compiling the runtime)
+// plus the number of pages specified in the `extra_heap_pages` passed to the executor.
+//
+// By default, rustc (or `lld` specifically) should allocate 1 MiB for the shadow stack, or 16 pages.
+// The data section for runtimes are typically rather small and can fit in a single digit number of
+// WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB are used for
+// these needs by default.
+const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
+const EXTRA_HEAP_PAGES: u64 = 2048;
+
 const CONFIG: Config = Config {
-	// Memory configuration
-	//
-	// When Substrate Runtime is instantiated, a number of wasm pages are mounted for the Substrate
-	// Runtime instance. The number of pages is specified by `heap_pages`.
-	//
-	// Besides `heap_pages` linear memory requests an initial number of pages. Those pages are
-	// typically used for placing the so-called shadow stack and the data section.
-	//
-	// By default, rustc (or `lld` specifically) allocates 1 MiB for the shadow stack. That is, 16
-	// wasm pages.
-	//
-	// Data section for runtimes are typically rather small and can fit in a single digit number of
-	// wasm pages.
-	//
-	// Thus let's assume that 32 pages or 2 MiB are used for these needs.
-	//
-	// Note that the memory limit is specified in bytes, so we multiply this value
-	// by wasm page size -- 64 KiB.
-	max_memory_size: Some((2048 + 32) * 65536),
-	heap_pages: 2048,
+	// NOTE: This is specified in bytes, so we multiply by WASM page size.
+	max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
 
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
+		extra_heap_pages: EXTRA_HEAP_PAGES,
+
 		fast_instance_reuse: false,
 		// Enable deterministic stack limit to pin down the exact number of items the wasmtime stack
 		// can contain before it traps with stack overflow.
