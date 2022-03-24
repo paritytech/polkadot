@@ -20,10 +20,12 @@
 
 use crate::{
 	finality_loop::{
-		prune_recent_finality_proofs, read_finality_proofs_from_stream, run,
-		select_better_recent_finality_proof, select_header_to_submit, FinalityProofs,
-		FinalitySyncParams, RestartableFinalityProofsStream, SourceClient, TargetClient,
+		prune_recent_finality_proofs, read_finality_proofs_from_stream, run, run_loop_iteration,
+		select_better_recent_finality_proof, select_header_to_submit, FinalityLoopState,
+		FinalityProofs, FinalitySyncParams, RestartableFinalityProofsStream, SourceClient,
+		TargetClient,
 	},
+	sync_loop_metrics::SyncLoopMetrics,
 	FinalityProof, FinalitySyncPipeline, SourceHeader,
 };
 
@@ -31,12 +33,18 @@ use async_trait::async_trait;
 use futures::{FutureExt, Stream, StreamExt};
 use parking_lot::Mutex;
 use relay_utils::{
-	metrics::MetricsParams, relay_loop::Client as RelayClient, MaybeConnectionError,
+	metrics::MetricsParams, relay_loop::Client as RelayClient, HeaderId, MaybeConnectionError,
 };
-use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
+use std::{
+	collections::HashMap,
+	pin::Pin,
+	sync::Arc,
+	time::{Duration, Instant},
+};
 
 type IsMandatory = bool;
 type TestNumber = u64;
+type TestHash = u64;
 
 #[derive(Debug, Clone)]
 enum TestError {
@@ -56,16 +64,20 @@ impl FinalitySyncPipeline for TestFinalitySyncPipeline {
 	const SOURCE_NAME: &'static str = "TestSource";
 	const TARGET_NAME: &'static str = "TestTarget";
 
-	type Hash = u64;
+	type Hash = TestHash;
 	type Number = TestNumber;
 	type Header = TestSourceHeader;
 	type FinalityProof = TestFinalityProof;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct TestSourceHeader(IsMandatory, TestNumber);
+struct TestSourceHeader(IsMandatory, TestNumber, TestHash);
 
-impl SourceHeader<TestNumber> for TestSourceHeader {
+impl SourceHeader<TestHash, TestNumber> for TestSourceHeader {
+	fn hash(&self) -> TestHash {
+		self.2
+	}
+
 	fn number(&self) -> TestNumber {
 		self.1
 	}
@@ -90,7 +102,7 @@ struct ClientsData {
 	source_headers: HashMap<TestNumber, (TestSourceHeader, Option<TestFinalityProof>)>,
 	source_proofs: Vec<TestFinalityProof>,
 
-	target_best_block_number: TestNumber,
+	target_best_block_id: HeaderId<TestHash, TestNumber>,
 	target_headers: Vec<(TestSourceHeader, TestFinalityProof)>,
 }
 
@@ -152,10 +164,12 @@ impl RelayClient for TestTargetClient {
 
 #[async_trait]
 impl TargetClient<TestFinalitySyncPipeline> for TestTargetClient {
-	async fn best_finalized_source_block_number(&self) -> Result<TestNumber, TestError> {
+	async fn best_finalized_source_block_id(
+		&self,
+	) -> Result<HeaderId<TestHash, TestNumber>, TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(&mut *data);
-		Ok(data.target_best_block_number)
+		Ok(data.target_best_block_id)
 	}
 
 	async fn submit_finality_proof(
@@ -165,7 +179,7 @@ impl TargetClient<TestFinalitySyncPipeline> for TestTargetClient {
 	) -> Result<(), TestError> {
 		let mut data = self.data.lock();
 		(self.on_method_call)(&mut *data);
-		data.target_best_block_number = header.number();
+		data.target_best_block_id = HeaderId(header.number(), header.hash());
 		data.target_headers.push((header, proof));
 		Ok(())
 	}
@@ -187,7 +201,7 @@ fn prepare_test_clients(
 		source_headers,
 		source_proofs: vec![TestFinalityProof(12), TestFinalityProof(14)],
 
-		target_best_block_number: 5,
+		target_best_block_id: HeaderId(5, 5),
 		target_headers: vec![],
 	}));
 	(
@@ -199,6 +213,15 @@ fn prepare_test_clients(
 	)
 }
 
+fn test_sync_params() -> FinalitySyncParams {
+	FinalitySyncParams {
+		tick: Duration::from_secs(0),
+		recent_finality_proofs_limit: 1024,
+		stall_timeout: Duration::from_secs(1),
+		only_mandatory_headers: false,
+	}
+}
+
 fn run_sync_loop(
 	state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static,
 ) -> ClientsData {
@@ -207,21 +230,17 @@ fn run_sync_loop(
 		exit_sender,
 		state_function,
 		vec![
-			(6, (TestSourceHeader(false, 6), None)),
-			(7, (TestSourceHeader(false, 7), Some(TestFinalityProof(7)))),
-			(8, (TestSourceHeader(true, 8), Some(TestFinalityProof(8)))),
-			(9, (TestSourceHeader(false, 9), Some(TestFinalityProof(9)))),
-			(10, (TestSourceHeader(false, 10), None)),
+			(5, (TestSourceHeader(false, 5, 5), None)),
+			(6, (TestSourceHeader(false, 6, 6), None)),
+			(7, (TestSourceHeader(false, 7, 7), Some(TestFinalityProof(7)))),
+			(8, (TestSourceHeader(true, 8, 8), Some(TestFinalityProof(8)))),
+			(9, (TestSourceHeader(false, 9, 9), Some(TestFinalityProof(9)))),
+			(10, (TestSourceHeader(false, 10, 10), None)),
 		]
 		.into_iter()
 		.collect(),
 	);
-	let sync_params = FinalitySyncParams {
-		tick: Duration::from_secs(0),
-		recent_finality_proofs_limit: 1024,
-		stall_timeout: Duration::from_secs(1),
-		only_mandatory_headers: false,
-	};
+	let sync_params = test_sync_params();
 
 	let clients_data = source_client.data.clone();
 	let _ = async_std::task::block_on(run(
@@ -246,38 +265,38 @@ fn finality_sync_loop_works() {
 		//
 		// once this ^^^ is done, we generate more blocks && read proof for blocks 12 and 14 from
 		// the stream
-		if data.target_best_block_number == 9 {
+		if data.target_best_block_id.0 == 9 {
 			data.source_best_block_number = 14;
-			data.source_headers.insert(11, (TestSourceHeader(false, 11), None));
+			data.source_headers.insert(11, (TestSourceHeader(false, 11, 11), None));
 			data.source_headers
-				.insert(12, (TestSourceHeader(false, 12), Some(TestFinalityProof(12))));
-			data.source_headers.insert(13, (TestSourceHeader(false, 13), None));
+				.insert(12, (TestSourceHeader(false, 12, 12), Some(TestFinalityProof(12))));
+			data.source_headers.insert(13, (TestSourceHeader(false, 13, 13), None));
 			data.source_headers
-				.insert(14, (TestSourceHeader(false, 14), Some(TestFinalityProof(14))));
+				.insert(14, (TestSourceHeader(false, 14, 14), Some(TestFinalityProof(14))));
 		}
 		// once this ^^^ is done, we generate more blocks && read persistent proof for block 16
-		if data.target_best_block_number == 14 {
+		if data.target_best_block_id.0 == 14 {
 			data.source_best_block_number = 17;
-			data.source_headers.insert(15, (TestSourceHeader(false, 15), None));
+			data.source_headers.insert(15, (TestSourceHeader(false, 15, 15), None));
 			data.source_headers
-				.insert(16, (TestSourceHeader(false, 16), Some(TestFinalityProof(16))));
-			data.source_headers.insert(17, (TestSourceHeader(false, 17), None));
+				.insert(16, (TestSourceHeader(false, 16, 16), Some(TestFinalityProof(16))));
+			data.source_headers.insert(17, (TestSourceHeader(false, 17, 17), None));
 		}
 
-		data.target_best_block_number == 16
+		data.target_best_block_id.0 == 16
 	});
 
 	assert_eq!(
 		client_data.target_headers,
 		vec![
 			// before adding 11..14: finality proof for mandatory header#8
-			(TestSourceHeader(true, 8), TestFinalityProof(8)),
+			(TestSourceHeader(true, 8, 8), TestFinalityProof(8)),
 			// before adding 11..14: persistent finality proof for non-mandatory header#9
-			(TestSourceHeader(false, 9), TestFinalityProof(9)),
+			(TestSourceHeader(false, 9, 9), TestFinalityProof(9)),
 			// after adding 11..14: ephemeral finality proof for non-mandatory header#14
-			(TestSourceHeader(false, 14), TestFinalityProof(14)),
+			(TestSourceHeader(false, 14, 14), TestFinalityProof(14)),
 			// after adding 15..17: persistent finality proof for non-mandatory header#16
-			(TestSourceHeader(false, 16), TestFinalityProof(16)),
+			(TestSourceHeader(false, 16, 16), TestFinalityProof(16)),
 		],
 	);
 }
@@ -291,11 +310,11 @@ fn run_only_mandatory_headers_mode_test(
 		exit_sender,
 		|_| false,
 		vec![
-			(6, (TestSourceHeader(false, 6), Some(TestFinalityProof(6)))),
-			(7, (TestSourceHeader(false, 7), Some(TestFinalityProof(7)))),
-			(8, (TestSourceHeader(has_mandatory_headers, 8), Some(TestFinalityProof(8)))),
-			(9, (TestSourceHeader(false, 9), Some(TestFinalityProof(9)))),
-			(10, (TestSourceHeader(false, 10), Some(TestFinalityProof(10)))),
+			(6, (TestSourceHeader(false, 6, 6), Some(TestFinalityProof(6)))),
+			(7, (TestSourceHeader(false, 7, 7), Some(TestFinalityProof(7)))),
+			(8, (TestSourceHeader(has_mandatory_headers, 8, 8), Some(TestFinalityProof(8)))),
+			(9, (TestSourceHeader(false, 9, 9), Some(TestFinalityProof(9)))),
+			(10, (TestSourceHeader(false, 10, 10), Some(TestFinalityProof(10)))),
 		]
 		.into_iter()
 		.collect(),
@@ -322,7 +341,7 @@ fn select_header_to_submit_skips_non_mandatory_headers_when_only_mandatory_heade
 	assert_eq!(run_only_mandatory_headers_mode_test(true, false), None);
 	assert_eq!(
 		run_only_mandatory_headers_mode_test(false, false),
-		Some((TestSourceHeader(false, 10), TestFinalityProof(10))),
+		Some((TestSourceHeader(false, 10, 10), TestFinalityProof(10))),
 	);
 }
 
@@ -330,11 +349,11 @@ fn select_header_to_submit_skips_non_mandatory_headers_when_only_mandatory_heade
 fn select_header_to_submit_selects_mandatory_headers_when_only_mandatory_headers_are_required() {
 	assert_eq!(
 		run_only_mandatory_headers_mode_test(true, true),
-		Some((TestSourceHeader(true, 8), TestFinalityProof(8))),
+		Some((TestSourceHeader(true, 8, 8), TestFinalityProof(8))),
 	);
 	assert_eq!(
 		run_only_mandatory_headers_mode_test(false, true),
-		Some((TestSourceHeader(true, 8), TestFinalityProof(8))),
+		Some((TestSourceHeader(true, 8, 8), TestFinalityProof(8))),
 	);
 }
 
@@ -345,63 +364,74 @@ fn select_better_recent_finality_proof_works() {
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[(5, TestFinalityProof(5))],
 			&mut vec![],
-			Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+			Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 		),
-		Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+		Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 	);
 
 	// if there are no recent finality proofs, nothing is changed
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[],
-			&mut vec![TestSourceHeader(false, 5)],
-			Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+			&mut vec![TestSourceHeader(false, 5, 5)],
+			Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 		),
-		Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+		Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 	);
 
 	// if there's no intersection between recent finality proofs and unjustified headers, nothing is
 	// changed
-	let mut unjustified_headers = vec![TestSourceHeader(false, 9), TestSourceHeader(false, 10)];
+	let mut unjustified_headers =
+		vec![TestSourceHeader(false, 9, 9), TestSourceHeader(false, 10, 10)];
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[(1, TestFinalityProof(1)), (4, TestFinalityProof(4))],
 			&mut unjustified_headers,
-			Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+			Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 		),
-		Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+		Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 	);
 
 	// if there's intersection between recent finality proofs and unjustified headers, but there are
 	// no proofs in this intersection, nothing is changed
-	let mut unjustified_headers =
-		vec![TestSourceHeader(false, 8), TestSourceHeader(false, 9), TestSourceHeader(false, 10)];
+	let mut unjustified_headers = vec![
+		TestSourceHeader(false, 8, 8),
+		TestSourceHeader(false, 9, 9),
+		TestSourceHeader(false, 10, 10),
+	];
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[(7, TestFinalityProof(7)), (11, TestFinalityProof(11))],
 			&mut unjustified_headers,
-			Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+			Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 		),
-		Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+		Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 	);
 	assert_eq!(
 		unjustified_headers,
-		vec![TestSourceHeader(false, 8), TestSourceHeader(false, 9), TestSourceHeader(false, 10)]
+		vec![
+			TestSourceHeader(false, 8, 8),
+			TestSourceHeader(false, 9, 9),
+			TestSourceHeader(false, 10, 10)
+		]
 	);
 
 	// if there's intersection between recent finality proofs and unjustified headers and there's
 	// a proof in this intersection:
 	// - this better (last from intersection) proof is selected;
 	// - 'obsolete' unjustified headers are pruned.
-	let mut unjustified_headers =
-		vec![TestSourceHeader(false, 8), TestSourceHeader(false, 9), TestSourceHeader(false, 10)];
+	let mut unjustified_headers = vec![
+		TestSourceHeader(false, 8, 8),
+		TestSourceHeader(false, 9, 9),
+		TestSourceHeader(false, 10, 10),
+	];
 	assert_eq!(
 		select_better_recent_finality_proof::<TestFinalitySyncPipeline>(
 			&[(7, TestFinalityProof(7)), (9, TestFinalityProof(9))],
 			&mut unjustified_headers,
-			Some((TestSourceHeader(false, 2), TestFinalityProof(2))),
+			Some((TestSourceHeader(false, 2, 2), TestFinalityProof(2))),
 		),
-		Some((TestSourceHeader(false, 9), TestFinalityProof(9))),
+		Some((TestSourceHeader(false, 9, 9), TestFinalityProof(9))),
 	);
 }
 
@@ -474,4 +504,46 @@ fn prune_recent_finality_proofs_works() {
 	let mut recent_finality_proofs = original_recent_finality_proofs.clone();
 	prune_recent_finality_proofs::<TestFinalitySyncPipeline>(20, &mut recent_finality_proofs, 2);
 	assert_eq!(&original_recent_finality_proofs[5..], recent_finality_proofs);
+}
+
+#[test]
+fn different_forks_at_source_and_at_target_are_detected() {
+	let (exit_sender, _exit_receiver) = futures::channel::mpsc::unbounded();
+	let (source_client, target_client) = prepare_test_clients(
+		exit_sender,
+		|_| false,
+		vec![
+			(5, (TestSourceHeader(false, 5, 42), None)),
+			(6, (TestSourceHeader(false, 6, 6), None)),
+			(7, (TestSourceHeader(false, 7, 7), None)),
+			(8, (TestSourceHeader(false, 8, 8), None)),
+			(9, (TestSourceHeader(false, 9, 9), None)),
+			(10, (TestSourceHeader(false, 10, 10), None)),
+		]
+		.into_iter()
+		.collect(),
+	);
+
+	let mut progress = (Instant::now(), None);
+	let mut finality_proofs_stream = RestartableFinalityProofsStream {
+		needs_restart: false,
+		stream: Box::pin(futures::stream::iter(vec![]).boxed()),
+	};
+	let mut recent_finality_proofs = Vec::new();
+	let metrics_sync = SyncLoopMetrics::new(None, "source", "target").unwrap();
+	async_std::task::block_on(run_loop_iteration::<TestFinalitySyncPipeline, _, _>(
+		&source_client,
+		&target_client,
+		FinalityLoopState {
+			progress: &mut progress,
+			finality_proofs_stream: &mut finality_proofs_stream,
+			recent_finality_proofs: &mut recent_finality_proofs,
+			last_transaction: None,
+		},
+		&test_sync_params(),
+		&Some(metrics_sync.clone()),
+	))
+	.unwrap();
+
+	assert!(!metrics_sync.is_using_same_fork());
 }

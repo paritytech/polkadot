@@ -23,10 +23,6 @@ rand_sleep() {
 	echo "Woke up at $NOW"
 }
 
-# give conversion rate updater some time to update Rialto->Millau conversion rate in Millau
-# (initially rate=1 and rational relayer won't deliver any messages if it'll be changed to larger value)
-sleep 180
-
 while true
 do
 	rand_sleep
@@ -42,6 +38,8 @@ do
 		--target-port $TARGET_PORT \
 		--target-signer //WithMillauTokenSwap \
 		--target-balance 200000 \
+		--target-to-source-conversion-rate-override metric \
+		--source-to-target-conversion-rate-override metric \
 		lock-until-block \
 		--blocks-before-expire 32
 done

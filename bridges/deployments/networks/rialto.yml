@@ -17,6 +17,7 @@ services:
       - --alice
       - --node-key=79cf382988364291a7968ae7825c01f68c50d679796a8983237d07fe0ccf363b
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     environment:
@@ -35,6 +36,7 @@ services:
       - --bob
       - --node-key=4f9d0146dd9b7b3bf5a8089e3880023d1df92057f89e96e07bb4d8c2ead75bbd
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     ports:
@@ -50,11 +52,14 @@ services:
       - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
       - --charlie
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
+      - --prometheus-external
     ports:
       - "10133:9933"
       - "10144:9944"
+      - "10615:9615"
 
   rialto-node-dave:
     <<: *rialto-bridge-node
@@ -65,6 +70,7 @@ services:
       - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
       - --dave
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     ports:
@@ -80,6 +86,7 @@ services:
       - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
       - --eve
       - --rpc-cors=all
+      - --enable-offchain-indexing=true
       - --unsafe-rpc-external
       - --unsafe-ws-external
     ports:
@@ -92,6 +99,13 @@ services:
     volumes:
       - ./networks/entrypoints:/entrypoints
       - rialto-share:/rialto-share:z
+
+  # Note: These are being overridden from the top level `monitoring` compose file.
+  prometheus-metrics:
+    volumes:
+      - ./networks/dashboard/prometheus/rialto-targets.yml:/etc/prometheus/targets-rialto-nodes.yml
+    depends_on:
+      - rialto-node-charlie
 
 # we're using `/rialto-share` to expose Rialto chain spec to those who are interested. Right
 # now it is Rialto Parachain collator nodes. Local + tmpfs combination allows sharing writable

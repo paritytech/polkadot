@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
+use polkadot_primitives::v2::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;

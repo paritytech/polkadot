@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util as util;
 use crate::{interceptor::*, shared::*};
 use polkadot_node_primitives::{PoV, ValidationResult};
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
 	ValidationCode,
 };
@@ -170,15 +170,15 @@ where
 									response_sender,
 								);
 							} else {
-								tracing::info!(
-									target = MALUS,
+								gum::info!(
+									target: MALUS,
 									"Could not get availability data, can't back"
 								);
 							}
 						}),
 					);
 				} else {
-					tracing::info!(target = MALUS, "No CandidateReceipt available to work with");
+					gum::info!(target: MALUS, "No CandidateReceipt available to work with");
 				}
 				None
 			},

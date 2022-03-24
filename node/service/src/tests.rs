@@ -36,7 +36,7 @@ use assert_matches::assert_matches;
 use std::{sync::Arc, time::Duration};
 
 use futures::{channel::oneshot, prelude::*};
-use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
+use polkadot_primitives::v2::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,
@@ -83,7 +83,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
-		true,
 	);
 
 	let target_hash = case_vars.target_block.clone();
@@ -115,7 +114,7 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 		.await
 		.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
 
-	tracing::trace!("Received message:\n{:?}", &msg);
+	gum::trace!("Received message:\n{:?}", &msg);
 
 	msg
 }
@@ -123,7 +122,7 @@ async fn overseer_recv_with_timeout(
 	overseer: &mut VirtualOverseer,
 	timeout: Duration,
 ) -> Option<AllMessages> {
-	tracing::trace!("Waiting for message...");
+	gum::trace!("Waiting for message...");
 	overseer.recv().timeout(timeout).await
 }
 
@@ -353,7 +352,7 @@ async fn test_skeleton(
 ) {
 	let undisputed_chain = undisputed_chain.map(|x| (chain.number(x).unwrap().unwrap(), x));
 
-	tracing::trace!("best leaf response: {:?}", undisputed_chain);
+	gum::trace!("best leaf response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
@@ -372,7 +371,7 @@ async fn test_skeleton(
 		return
 	}
 
-	tracing::trace!("approved ancestor response: {:?}", undisputed_chain);
+	gum::trace!("approved ancestor response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
@@ -383,7 +382,7 @@ async fn test_skeleton(
 		}
 	);
 
-	tracing::trace!("determine undisputed chain response: {:?}", undisputed_chain);
+	gum::trace!("determine undisputed chain response: {:?}", undisputed_chain);
 
 	let target_block_number = chain.number(target_block_hash).unwrap().unwrap();
 	assert_matches!(
@@ -724,8 +723,8 @@ fn chain_6() -> CaseVars {
 
 	let chain = builder.init();
 
-	tracing::trace!(highest_approved = ?chain.highest_approved_ancestors(1, leaf));
-	tracing::trace!(undisputed = ?chain.undisputed_chain(1, approved));
+	gum::trace!(highest_approved = ?chain.highest_approved_ancestors(1, leaf));
+	gum::trace!(undisputed = ?chain.undisputed_chain(1, approved));
 	CaseVars {
 		chain,
 		target_block: b1,

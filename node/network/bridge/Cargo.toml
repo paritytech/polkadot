@@ -1,15 +1,15 @@
 [package]
 name = "polkadot-network-bridge"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3.21"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
-parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }

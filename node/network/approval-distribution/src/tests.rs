@@ -17,7 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
-use polkadot_node_network_protocol::{view, ObservedRole};
+use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
@@ -28,7 +28,7 @@ use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
-fn dummy_signature() -> polkadot_primitives::v1::ValidatorSignature {
+fn dummy_signature() -> polkadot_primitives::v2::ValidatorSignature {
 	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
 }
 
@@ -72,7 +72,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
-	tracing::trace!(msg = ?msg, "Sending message");
+	gum::trace!(msg = ?msg, "Sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -81,7 +81,7 @@ async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistribution
 }
 
 async fn overseer_signal_block_finalized(overseer: &mut VirtualOverseer, number: BlockNumber) {
-	tracing::trace!(?number, "Sending a finalized signal");
+	gum::trace!(?number, "Sending a finalized signal");
 	// we don't care about the block hash
 	overseer
 		.send(FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::zero(), number)))
@@ -91,10 +91,10 @@ async fn overseer_signal_block_finalized(overseer: &mut VirtualOverseer, number:
 }
 
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
-	tracing::trace!("Waiting for a message");
+	gum::trace!("Waiting for a message");
 	let msg = overseer.recv().timeout(TIMEOUT).await.expect("msg recv timeout");
 
-	tracing::trace!(msg = ?msg, "Received message");
+	gum::trace!(msg = ?msg, "Received message");
 
 	msg
 }
@@ -971,6 +971,84 @@ fn sends_assignments_even_when_state_is_approved() {
 		);
 
 		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}
+
+/// <https://github.com/paritytech/polkadot/pull/5089>
+///
+/// 1. Receive remote peer view update with an unknown head
+/// 2. Receive assignments for that unknown head
+/// 3. Update our view and import the new block
+/// 4. Expect that no reputation with `COST_UNEXPECTED_MESSAGE` is applied
+#[test]
+fn race_condition_in_local_vs_remote_view_update() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let peer_a = PeerId::random();
+	let hash_b = Hash::repeat_byte(0xBB);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		let peer = &peer_a;
+
+		// Test a small number of candidates
+		let candidates_count = 1;
+		let meta = BlockApprovalMeta {
+			hash: hash_b.clone(),
+			parent_hash,
+			number: 2,
+			candidates: vec![Default::default(); candidates_count],
+			slot: 1.into(),
+		};
+
+		// This will send a peer view that is ahead of our view
+		setup_peer_with_view(overseer, peer, view![hash_b]).await;
+
+		// Send our view update to include a new head
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+				our_view![hash_b],
+			)),
+		)
+		.await;
+
+		// send assignments related to `hash_b` but they will come to the MessagesPending
+		let assignments: Vec<_> = (0..candidates_count)
+			.map(|candidate_index| {
+				let validator_index = ValidatorIndex(candidate_index as u32);
+				let cert = fake_assignment_cert(hash_b, validator_index);
+				(cert, candidate_index as u32)
+			})
+			.collect();
+
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+		send_message_from_peer(overseer, peer, msg.clone()).await;
+
+		// This will handle pending messages being processed
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		for i in 0..candidates_count {
+			// Previously, this has caused out-of-view assignments/approvals
+			//expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+					assignment,
+					claimed_candidate_index,
+					tx,
+				)) => {
+					assert_eq!(assignment, assignments[i].0);
+					assert_eq!(claimed_candidate_index, assignments[i].1);
+					tx.send(AssignmentCheckResult::Accepted).unwrap();
+				}
+			);
+
+			// Since we have a valid statement pending, this should always occur
+			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
+		}
 		virtual_overseer
 	});
 }

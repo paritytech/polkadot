@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
 	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
@@ -50,15 +50,15 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		DisputeCoordinatorMessage, ImportStatementsResult, ProvisionableData, ProvisionerMessage,
-		RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
+		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
+		StatementDistributionMessage, ValidationFailed,
 	},
 	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
-	v1::{
+	v2::{
 		SignedStatement as TableSignedStatement, Statement as TableStatement,
 		Summary as TableSummary,
 	},
@@ -191,15 +191,10 @@ struct AttestingData {
 }
 
 /// How many votes we need to consider a candidate backed.
+///
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
 fn minimum_votes(n_validators: usize) -> usize {
-	// Runtime change going live, see: https://github.com/paritytech/polkadot/pull/4437
-	let old_runtime_value = n_validators / 2 + 1;
-	let new_runtime_value = std::cmp::min(2, n_validators);
-
-	// Until new runtime is live everywhere and we don't yet have
-	// https://github.com/paritytech/polkadot/issues/4576, we want to err on the higher value for
-	// secured block production:
-	std::cmp::max(old_runtime_value, new_runtime_value)
+	std::cmp::min(2, n_validators)
 }
 
 #[derive(Default)]
@@ -281,7 +276,7 @@ fn table_attested_to_backed(
 			validator_indices.set(position, true);
 			vote_positions.push((orig_idx, position));
 		} else {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Logic error: Validity vote from table does not correspond to group",
 			);
@@ -331,7 +326,7 @@ async fn make_pov_available(
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
-	validation_data: polkadot_primitives::v1::PersistedValidationData,
+	validation_data: polkadot_primitives::v2::PersistedValidationData,
 	expected_erasure_root: Hash,
 	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
@@ -468,7 +463,7 @@ async fn validate_and_make_available(
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate.hash(),
 				"Validation successful",
@@ -476,7 +471,7 @@ async fn validate_and_make_available(
 
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?candidate.hash(),
 					actual_commitments = ?commitments,
@@ -498,7 +493,7 @@ async fn validate_and_make_available(
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
 					Err(InvalidErasureRoot) => {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							candidate_hash = ?candidate.hash(),
 							actual_commitments = ?commitments,
@@ -510,7 +505,7 @@ async fn validate_and_make_available(
 			}
 		},
 		ValidationResult::Invalid(reason) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate.hash(),
 				reason = ?reason,
@@ -626,7 +621,7 @@ impl CandidateBackingJob {
 						self.kick_off_validation_work(sender, attesting, c_span).await?
 					}
 				} else {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"AttestNoPoV was triggered without fallback being available."
 					);
@@ -652,13 +647,13 @@ impl CandidateBackingJob {
 			let bg = async move {
 				if let Err(e) = validate_and_make_available(params).await {
 					if let Error::BackgroundValidationMpsc(error) = e {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?error,
 							"Mpsc background validation mpsc died during validation- leaf no longer active?"
 						);
 					} else {
-						tracing::error!(
+						gum::error!(
 							target: LOG_TARGET,
 							"Failed to validate and make available: {:?}",
 							e
@@ -704,7 +699,7 @@ impl CandidateBackingJob {
 
 		span.as_mut().map(|span| span.add_follows_from(parent_span));
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
 			candidate_receipt = ?candidate,
@@ -768,7 +763,7 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			statement = ?statement.payload().to_compact(),
 			validator_index = statement.validator_index().0,
@@ -789,7 +784,7 @@ impl CandidateBackingJob {
 			.dispatch_new_statement_to_dispute_coordinator(sender, candidate_hash, &statement)
 			.await
 		{
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				session_index = ?self.session_index,
 				relay_parent = ?self.parent,
@@ -814,7 +809,7 @@ impl CandidateBackingJob {
 				let span = self.remove_unbacked_span(&candidate_hash);
 
 				if let Some(backed) = table_attested_to_backed(attested, &self.table_context) {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?candidate_hash,
 						relay_parent = ?self.parent,
@@ -896,7 +891,9 @@ impl CandidateBackingJob {
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			// TODO: Log confirmation results in an efficient way:
+			// https://github.com/paritytech/polkadot/issues/5156
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 			sender
 				.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
@@ -906,16 +903,6 @@ impl CandidateBackingJob {
 					pending_confirmation,
 				})
 				.await;
-
-			match confirmation_rx.await {
-				Err(oneshot::Canceled) => {
-					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
-				},
-				Ok(ImportStatementsResult::ValidImport) => {},
-				Ok(ImportStatementsResult::InvalidImport) => {
-					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
-				},
-			}
 		}
 
 		Ok(())
@@ -940,7 +927,7 @@ impl CandidateBackingJob {
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						our_assignment = ?self.assignment,
 						collation = ?candidate.descriptor().para_id,
@@ -1011,7 +998,7 @@ impl CandidateBackingJob {
 
 		let descriptor = attesting.candidate.descriptor().clone();
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
 			candidate_receipt = ?attesting.candidate,
@@ -1201,7 +1188,7 @@ impl util::JobTrait for CandidateBackingJob {
 					match $x {
 						Ok(x) => x,
 						Err(e) => {
-							tracing::warn!(
+							gum::warn!(
 								target: LOG_TARGET,
 								err = ?e,
 								"Failed to fetch runtime API data for job",
@@ -1246,7 +1233,7 @@ impl util::JobTrait for CandidateBackingJob {
 					Ok(v) => Some(v),
 					Err(util::Error::NotAValidator) => None,
 					Err(e) => {
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							err = ?e,
 							"Cannot participate in candidate backing",

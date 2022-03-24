@@ -19,7 +19,7 @@
 
 use fatality::Nested;
 use polkadot_node_network_protocol::request_response::outgoing::RequestError;
-use polkadot_primitives::v1::SessionIndex;
+use polkadot_primitives::v2::SessionIndex;
 
 use futures::channel::oneshot;
 
@@ -100,12 +100,11 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 				JfyiError::InvalidValidatorIndex |
 				JfyiError::NoSuchCachedSession { .. } |
 				JfyiError::QueryAvailableDataResponseChannel(_) |
-				JfyiError::QueryChunkResponseChannel(_) =>
-					tracing::warn!(target: LOG_TARGET, error = %jfyi, ctx),
+				JfyiError::QueryChunkResponseChannel(_) => gum::warn!(target: LOG_TARGET, error = %jfyi, ctx),
 				JfyiError::FetchPoV(_) |
 				JfyiError::SendResponse |
 				JfyiError::NoSuchPoV |
-				JfyiError::Runtime(_) => tracing::debug!(target: LOG_TARGET, error = ?jfyi, ctx),
+				JfyiError::Runtime(_) => gum::debug!(target: LOG_TARGET, error = ?jfyi, ctx),
 			}
 			Ok(())
 		},

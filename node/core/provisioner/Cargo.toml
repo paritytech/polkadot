@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-core-provisioner"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 futures = "0.3.21"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../../gum" }
 thiserror = "1.0.30"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }

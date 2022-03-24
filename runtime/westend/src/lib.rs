@@ -14,55 +14,47 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Polkadot runtime. This can be compiled with `#[no_std]`, ready for Wasm.
+//! The Westend runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
-
-use pallet_transaction_payment::CurrencyAdapter;
-use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::{
-	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
-	},
-	v2::SessionInfo,
-};
-use runtime_common::{
-	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
-};
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
-
-use runtime_parachains::{
-	configuration as parachains_configuration, disputes as parachains_disputes,
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
-};
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
-	weights::Weight,
-	PalletId, RuntimeDebug,
+	PalletId,
 };
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use sp_core::OpaqueMetadata;
+use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use primitives::v2::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
+};
+use runtime_common::{
+	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
+	paras_sudo_wrapper, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+};
+use runtime_parachains::{
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
+	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+};
+use scale_info::TypeInfo;
+use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
 	create_runtime_str,
 	curve::PiecewiseLinear,
@@ -75,11 +67,11 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -90,17 +82,14 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use westend_runtime_constants::{currency::*, fee::*, time::*};
 
-// Weights used in the runtime
-mod weights;
-
-// Voter bag threshold definitions.
 mod bag_thresholds;
-
-// XCM configurations.
+mod weights;
 pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
+
+impl_runtime_weights!(westend_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -111,13 +100,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9170,
+	spec_version: 9180,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 10,
+	transaction_version: 11,
 	state_version: 0,
 };
 
@@ -175,7 +164,7 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+	pub MaximumSchedulerWeight: frame_support::weights::Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
@@ -362,18 +351,20 @@ parameter_types! {
 	// 1 hour session, 15 minutes unsigned phase, 4 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 4;
 
-	/// Whilst `UseNominatorsAndUpdateBagsList` or `UseNominatorsMap` is in use, this can still be a
-	/// very large value. Once the `BagsList` is in full motion, staking might open its door to many
-	/// more nominators, and this value should instead be what is a "safe" number (e.g. 22500).
-	pub const VoterSnapshotPerBlock: u32 = 22_500;
+	/// We take the top 22500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 22_500;
+	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
+	/// shall not increase the size of the validator intentions.
+	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
-sp_npos_elections::generate_solution_type!(
+frame_election_provider_support::generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
 	>(16)
 );
 
@@ -409,7 +400,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
+	type MaxElectingVoters = MaxElectingVoters;
+	type MaxElectableTargets = MaxElectableTargets;
 }
 
 parameter_types! {
@@ -418,9 +410,10 @@ parameter_types! {
 
 impl pallet_bags_list::Config for Runtime {
 	type Event = Event;
-	type VoteWeightProvider = Staking;
+	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
+	type Score = sp_npos_elections::VoteWeight;
 }
 
 pallet_staking_reward_curve::build! {
@@ -444,7 +437,7 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -473,7 +466,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	type SortedListProvider = BagsList;
+	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
@@ -707,7 +700,7 @@ parameter_types! {
 	Decode,
 	RuntimeDebug,
 	MaxEncodedLen,
-	scale_info::TypeInfo,
+	TypeInfo,
 )]
 pub enum ProxyType {
 	Any,
@@ -977,7 +970,7 @@ impl auctions::Config for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v1::Block,
+		NodeBlock = primitives::v2::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -1094,7 +1087,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	CrowdloanIndexMigration,
+	(
+		CrowdloanIndexMigration,
+		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
+	),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1252,7 +1248,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::CandidateCommitments,
+			outputs: primitives::v2::CandidateCommitments,
 		) -> bool {
 			parachains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -1304,8 +1300,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_pvf_check_statement(
-			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
@@ -1480,12 +1476,12 @@ sp_api::impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (Weight, Weight) {
+		fn on_runtime_upgrade() -> (frame_support::weights::Weight, frame_support::weights::Weight) {
 			log::info!("try-runtime::on_runtime_upgrade westend.");
 			let weight = Executive::try_runtime_upgrade().unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
-		fn execute_block_no_check(block: Block) -> Weight {
+		fn execute_block_no_check(block: Block) -> frame_support::weights::Weight {
 			Executive::execute_block_no_check(block)
 		}
 	}

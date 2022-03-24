@@ -2,20 +2,22 @@
 name = "millau-runtime"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/parity-bridges-common/"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
 hex-literal = "0.3"
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive"] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
+libsecp256k1 = { version = "0.7", optional = true, default-features = false, features = ["hmac"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 # Bridge dependencies
 
 bp-header-chain = { path = "../../../primitives/header-chain", default-features = false }
+bp-message-dispatch = { path = "../../../primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../../primitives/messages", default-features = false }
 bp-millau = { path = "../../../primitives/chain-millau", default-features = false }
 bp-rialto = { path = "../../../primitives/chain-rialto", default-features = false }
@@ -63,6 +65,10 @@ sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch 
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
+[dev-dependencies]
+bridge-runtime-common = { path = "../../runtime-common", features = ["integrity-test"] }
+static_assertions = "1.1"
+
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -71,6 +77,7 @@ default = ["std"]
 std = [
 	"beefy-primitives/std",
 	"bp-header-chain/std",
+	"bp-message-dispatch/std",
 	"bp-messages/std",
 	"bp-millau/std",
 	"bp-rialto/std",
@@ -116,8 +123,12 @@ std = [
 	"sp-version/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"bridge-runtime-common/runtime-benchmarks",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"libsecp256k1",
+	"pallet-bridge-messages/runtime-benchmarks",
 	"pallet-bridge-token-swap/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 ]

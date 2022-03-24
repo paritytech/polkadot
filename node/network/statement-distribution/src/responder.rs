@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 	},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
+use polkadot_primitives::v2::{CandidateHash, CommittedCandidateReceipt, Hash};
 
 use crate::LOG_TARGET;
 
@@ -78,11 +78,11 @@ pub async fn respond(
 		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
 			Ok(Ok(v)) => v,
 			Err(fatal) => {
-				tracing::debug!(target: LOG_TARGET, error = ?fatal, "Shutting down request responder");
+				gum::debug!(target: LOG_TARGET, error = ?fatal, "Shutting down request responder");
 				return
 			},
 			Ok(Err(jfyi)) => {
-				tracing::debug!(target: LOG_TARGET, error = ?jfyi, "Decoding request failed");
+				gum::debug!(target: LOG_TARGET, error = ?jfyi, "Decoding request failed");
 				continue
 			},
 		};
@@ -97,12 +97,12 @@ pub async fn respond(
 			})
 			.await
 		{
-			tracing::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
+			gum::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
 			return
 		}
 		let response = match rx.await {
 			Err(err) => {
-				tracing::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
+				gum::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
 				Err(())
 			},
 			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
@@ -115,7 +115,7 @@ pub async fn respond(
 		};
 		pending_out.push(pending_sent_rx);
 		if let Err(_) = req.send_outgoing_response(response) {
-			tracing::debug!(target: LOG_TARGET, "Sending response failed");
+			gum::debug!(target: LOG_TARGET, "Sending response failed");
 		}
 	}
 }

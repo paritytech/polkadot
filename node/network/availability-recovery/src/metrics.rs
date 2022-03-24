@@ -14,12 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::{
-	metrics,
-	metrics::{
-		prometheus,
-		prometheus::{Counter, CounterVec, Opts, PrometheusError, Registry, U64},
-	},
+use polkadot_node_subsystem_util::metrics::{
+	self,
+	prometheus::{self, Counter, CounterVec, Histogram, Opts, PrometheusError, Registry, U64},
 };
 
 /// Availability Distribution metrics.
@@ -42,8 +39,15 @@ struct MetricsInner {
 	/// - `invalid` ... Chunk was received, but not valid.
 	/// - `success`
 	chunk_requests_finished: CounterVec<U64>,
+
 	/// The duration of request to response.
-	time_chunk_request: prometheus::Histogram,
+	time_chunk_request: Histogram,
+
+	/// The duration between the pure recovery and verification.
+	time_erasure_recovery: Histogram,
+
+	/// The duration between the first request and the time when we have a sufficient number of chunks to recover.
+	time_erasure_recovery_becomes_possible: Histogram,
 }
 
 impl Metrics {
@@ -93,9 +97,24 @@ impl Metrics {
 			metrics.chunk_requests_finished.with_label_values(&["success"]).inc()
 		}
 	}
+
 	/// Get a timer to time request/response duration.
 	pub fn time_chunk_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_chunk_request.start_timer())
+	}
+
+	/// Get a timer to time erasure code recover.
+	pub fn time_erasure_recovery(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_erasure_recovery.start_timer())
+	}
+
+	/// Get a timer to measure the time duration until a sufficient amount of chunks were available to attempt recovery.
+	pub fn time_erasure_recovery_becomes_possible(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.time_erasure_recovery_becomes_possible.start_timer())
 	}
 }
 
@@ -123,6 +142,20 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_availability_recovery_time_chunk_request",
 					"Time spent waiting for a response to a chunk request",
+				))?,
+				registry,
+			)?,
+			time_erasure_recovery: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_availability_recovery_time_erasure_recovery",
+					"Time spent to recover the erasure code and verify the merkle root by re-encoding as erasure chunks",
+				))?,
+				registry,
+			)?,
+			time_erasure_recovery_becomes_possible: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_availability_recovery_time_erasure_recovery_becomes_possible",
+					"Time spent launching the first request until a sufficient amount of chunks was recovered",
 				))?,
 				registry,
 			)?,

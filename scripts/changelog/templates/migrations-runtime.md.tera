@@ -1,0 +1,25 @@
+{%- import "change.md.tera" as m_c %}
+{%- set_global runtime_migration_count = 0 -%}
+
+## Runtime Migrations
+
+{% for pr in changes | sort(attribute="merged_at") -%}
+
+{%- if pr.meta.B and pr.meta.B.value == 0 %}
+{#- We skip silent ones -#}
+{%- else -%}
+{%- if pr.meta.E and pr.meta.E.value == 1 -%}
+{%- set_global runtime_migration_count = runtime_migration_count + 1 -%}
+- {{ m_c::change(c=pr) }}
+{% endif -%}
+{% endif -%}
+{% endfor -%}
+
+{%- if runtime_migration_count == 0 -%}
+No Runtime migration detected in this release.
+{% else  %}
+
+There is {{ runtime_migration_count }} runtime migration(s) in this release.
+
+Runtime migrations are operations running once during a runtime upgrade.
+{%- endif %}

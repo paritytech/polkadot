@@ -108,6 +108,7 @@ services:
       LETSENCRYPT_EMAIL: admin@parity.io
     volumes:
       - ./bridges/rialto-millau/dashboard/grafana:/etc/grafana/dashboards/rialto-millau:ro
+      - ./networks/dashboard/grafana/beefy-dashboard.json:/etc/grafana/dashboards/beefy.json
 
   prometheus-metrics:
     volumes:
