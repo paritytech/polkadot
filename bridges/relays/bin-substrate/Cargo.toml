@@ -1,14 +1,15 @@
 [package]
 name = "substrate-relay"
-version = "0.1.0"
+version = "1.0.1"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
 anyhow = "1.0"
 async-std = "1.9.0"
-codec = { package = "parity-scale-codec", version = "2.2.0" }
+async-trait = "0.1.42"
+codec = { package = "parity-scale-codec", version = "3.0.0" }
 futures = "0.3.12"
 hex = "0.4"
 log = "0.4.14"
@@ -30,15 +31,16 @@ bp-polkadot = { path = "../../primitives/chain-polkadot" }
 bp-rialto = { path = "../../primitives/chain-rialto" }
 bp-rialto-parachain = { path = "../../primitives/chain-rialto-parachain" }
 bp-rococo = { path = "../../primitives/chain-rococo" }
-bp-token-swap = { path = "../../primitives/token-swap" }
-bp-wococo = { path = "../../primitives/chain-wococo" }
 bp-runtime = { path = "../../primitives/runtime" }
+bp-token-swap = { path = "../../primitives/token-swap" }
 bp-westend = { path = "../../primitives/chain-westend" }
+bp-wococo = { path = "../../primitives/chain-wococo" }
 bridge-runtime-common = { path = "../../bin/runtime-common" }
 finality-relay = { path = "../finality" }
 messages-relay = { path = "../messages" }
 millau-runtime = { path = "../../bin/millau/runtime" }
 pallet-bridge-dispatch = { path = "../../modules/dispatch" }
+pallet-bridge-grandpa = { path = "../../modules/grandpa" }
 pallet-bridge-messages = { path = "../../modules/messages" }
 pallet-bridge-token-swap = { path = "../../modules/token-swap" }
 relay-kusama-client = { path = "../client-kusama" }
@@ -72,8 +74,9 @@ polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", bran
 polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 
 [dev-dependencies]
+bp-test-utils = { path = "../../primitives/test-utils" }
 hex-literal = "0.3"
 pallet-bridge-grandpa = { path = "../../modules/grandpa" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tempfile = "3.2"
-finality-grandpa = { version = "0.14.0" }
+finality-grandpa = { version = "0.15.0" }

@@ -108,7 +108,6 @@ jobs:
           KUSAMA_DIGEST: ${{ github.workspace}}/kusama-srtool-json/kusama_srtool_output.json
           POLKADOT_DIGEST: ${{ github.workspace}}/polkadot-srtool-json/polkadot_srtool_output.json
           PRE_RELEASE: ${{ github.event.inputs.pre_release }}
-          HIDE_SRTOOL_ROCOCO: false
         run: |
           find ${{env.GITHUB_WORKSPACE}} -type f -name "*_srtool_output.json"
           ls -al $ROCOCO_DIGEST
@@ -118,7 +117,7 @@ jobs:
 
           cd polkadot/scripts/ci/changelog
 
-          ./bin/changelog
+          ./bin/changelog ${GITHUB_REF}
           ls -al release-notes.md
           ls -al context.json
 

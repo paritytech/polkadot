@@ -58,7 +58,7 @@ use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::SyncCryptoStorePtr;
 use util::runtime::RuntimeInfo;
 
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use fatality::Nested;
 
@@ -150,6 +150,27 @@ impl StatementDistributionSubsystem {
 		metrics: Metrics,
 	) -> Self {
 		Self { keystore, req_receiver: Some(req_receiver), metrics }
+	}
+}
+
+#[derive(Default)]
+struct RecentOutdatedHeads {
+	buf: VecDeque<Hash>,
+}
+
+impl RecentOutdatedHeads {
+	fn note_outdated(&mut self, hash: Hash) {
+		const MAX_BUF_LEN: usize = 10;
+
+		self.buf.push_back(hash);
+
+		while self.buf.len() > MAX_BUF_LEN {
+			let _ = self.buf.pop_front();
+		}
+	}
+
+	fn is_recent_outdated(&self, hash: &Hash) -> bool {
+		self.buf.contains(hash)
 	}
 }
 
@@ -269,7 +290,9 @@ impl PeerRelayParentKnowledge {
 			CompactStatement::Seconded(ref h) => {
 				self.seconded_counts.entry(fingerprint.1).or_default().note_local(h.clone());
 
-				self.sent_candidates.insert(h.clone())
+				let was_known = self.is_known_candidate(h);
+				self.sent_candidates.insert(h.clone());
+				!was_known
 			},
 			CompactStatement::Valid(_) => false,
 		};
@@ -291,7 +314,7 @@ impl PeerRelayParentKnowledge {
 
 		match fingerprint.0 {
 			CompactStatement::Valid(ref h) => {
-				// The peer can only accept Valid and Invalid statements for which it is aware
+				// The peer can only accept Valid statements for which it is aware
 				// of the corresponding candidate.
 				self.is_known_candidate(h)
 			},
@@ -326,7 +349,7 @@ impl PeerRelayParentKnowledge {
 			return Err(COST_DUPLICATE_STATEMENT)
 		}
 
-		let candidate_hash = match fingerprint.0 {
+		let (candidate_hash, fresh) = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
 				let allowed_remote = self
 					.seconded_counts
@@ -338,14 +361,14 @@ impl PeerRelayParentKnowledge {
 					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
 				}
 
-				h
+				(h, !self.is_known_candidate(h))
 			},
 			CompactStatement::Valid(ref h) => {
-				if !self.is_known_candidate(&h) {
+				if !self.is_known_candidate(h) {
 					return Err(COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE)
 				}
 
-				h
+				(h, false)
 			},
 		};
 
@@ -361,7 +384,8 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		Ok(self.received_candidates.insert(candidate_hash.clone()))
+		self.received_candidates.insert(candidate_hash.clone());
+		Ok(fresh)
 	}
 
 	/// Note a received large statement metadata.
@@ -1284,6 +1308,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1291,8 +1316,17 @@ async fn handle_incoming_message_and_circulate<'a>(
 ) {
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) =>
-			handle_incoming_message(peer, data, active_heads, ctx, message, req_sender, metrics)
-				.await,
+			handle_incoming_message(
+				peer,
+				data,
+				active_heads,
+				recent_outdated_heads,
+				ctx,
+				message,
+				req_sender,
+				metrics,
+			)
+			.await,
 		None => None,
 	};
 
@@ -1305,6 +1339,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// statement before a `Seconded` statement. `Seconded` statements are the only ones
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
+		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
 		let _ = circulate_statement(
 			gossip_peers,
 			peers,
@@ -1327,12 +1362,14 @@ async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<(Hash, StoredStatement<'a>)> {
 	let relay_parent = message.get_relay_parent();
+	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
@@ -1342,7 +1379,11 @@ async fn handle_incoming_message<'a>(
 				%relay_parent,
 				"our view out-of-sync with active heads; head not found",
 			);
-			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+
+			if !recent_outdated_heads.is_recent_outdated(&relay_parent) {
+				report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+			}
+
 			return None
 		},
 	};
@@ -1551,6 +1592,7 @@ async fn handle_network_update(
 	gossip_peers: &mut HashSet<PeerId>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
+	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
@@ -1582,6 +1624,7 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
 			*gossip_peers = new_peers;
 			for peer in newly_added {
@@ -1606,6 +1649,7 @@ async fn handle_network_update(
 				gossip_peers,
 				peers,
 				active_heads,
+				&*recent_outdated_heads,
 				ctx,
 				message,
 				req_sender,
@@ -1614,6 +1658,7 @@ async fn handle_network_update(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
+			let _ = metrics.time_network_bridge_update_v1("peer_view_change");
 			gum::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
@@ -1646,6 +1691,7 @@ impl StatementDistributionSubsystem {
 		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
+		let mut recent_outdated_heads = RecentOutdatedHeads::default();
 
 		let mut runtime = RuntimeInfo::new(Some(self.keystore.clone()));
 
@@ -1677,6 +1723,7 @@ impl StatementDistributionSubsystem {
 							&mut gossip_peers,
 							&mut authorities,
 							&mut active_heads,
+							&mut recent_outdated_heads,
 							&req_sender,
 							result?,
 						)
@@ -1694,6 +1741,7 @@ impl StatementDistributionSubsystem {
 							&gossip_peers,
 							&mut peers,
 							&mut active_heads,
+							&recent_outdated_heads,
 							&req_sender,
 							result.ok_or(FatalError::RequesterReceiverFinished)?,
 						)
@@ -1760,6 +1808,7 @@ impl StatementDistributionSubsystem {
 		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		recent_outdated_heads: &RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: RequesterMessage,
 	) -> JfyiErrorResult<()> {
@@ -1807,6 +1856,7 @@ impl StatementDistributionSubsystem {
 							gossip_peers,
 							peers,
 							active_heads,
+							recent_outdated_heads,
 							ctx,
 							message,
 							req_sender,
@@ -1867,6 +1917,7 @@ impl StatementDistributionSubsystem {
 		gossip_peers: &mut HashSet<PeerId>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
 	) -> Result<bool> {
@@ -1886,6 +1937,8 @@ impl StatementDistributionSubsystem {
 							hash = ?deactivated,
 							"Deactivating leaf",
 						);
+
+						recent_outdated_heads.note_outdated(deactivated);
 					}
 				}
 
@@ -1973,13 +2026,12 @@ impl StatementDistributionSubsystem {
 					.await;
 				},
 				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
-					let _timer = metrics.time_network_bridge_update_v1();
-
 					handle_network_update(
 						peers,
 						gossip_peers,
 						authorities,
 						active_heads,
+						&*recent_outdated_heads,
 						ctx,
 						req_sender,
 						event,

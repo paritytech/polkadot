@@ -83,6 +83,7 @@ pallet-bridge-messages = { path = "../../bridges/modules/messages", default-feat
 # Benchmarking Dependencies
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.4", optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -151,6 +152,7 @@ std = [
 	"xcm-executor/std",
 	"xcm-builder/std",
 	"pallet-xcm/std",
+	"pallet-utility/std",
 	"log/std",
 	"pallet-multisig/std",
 ]
@@ -171,14 +173,17 @@ runtime-benchmarks = [
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
+	"pallet-membership/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"hex-literal",
+	"frame-system-benchmarking",
 	"runtime-parachains/runtime-benchmarks",
 ]
 try-runtime = [

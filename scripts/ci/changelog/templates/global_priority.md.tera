@@ -1,5 +1,5 @@
 {% import "high_priority.md.tera" as m_p -%}
-## Global Priority
+## Upgrade Priority
 
 {%- set polkadot_prio = 0 -%}
 {%- set substrate_prio = 0 -%}
