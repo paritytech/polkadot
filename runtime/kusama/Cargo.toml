@@ -45,6 +45,7 @@ pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branc
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-conviction-voting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -62,6 +63,7 @@ pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-referenda = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -134,6 +136,7 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
+	"pallet-conviction-voting/std",
 	"pallet-elections-phragmen/std",
 	"pallet-election-provider-multi-phase/std",
 	"pallet-democracy/std",
@@ -149,6 +152,7 @@ std = [
 	"pallet-preimage/std",
 	"pallet-proxy/std",
 	"pallet-recovery/std",
+	"pallet-referenda/std",
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-society/std",
@@ -194,6 +198,7 @@ runtime-benchmarks = [
 	"pallet-bounties/runtime-benchmarks",
 	"pallet-child-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
+	"pallet-conviction-voting/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
@@ -206,6 +211,7 @@ runtime-benchmarks = [
 	"pallet-multisig/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
+	"pallet-referenda/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-society/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
@@ -235,6 +241,7 @@ try-runtime = [
 	"pallet-child-bounties/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
+	"pallet-conviction-voting/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-democracy/try-runtime",
@@ -249,6 +256,7 @@ try-runtime = [
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
 	"pallet-recovery/try-runtime",
+	"pallet-referenda/try-runtime",
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-society/try-runtime",

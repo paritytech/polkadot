@@ -49,7 +49,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		OnRuntimeUpgrade, PrivilegeCmp, ConstU32,
 	},
 	PalletId, RuntimeDebug,
 };
@@ -584,6 +584,154 @@ impl pallet_staking::Config for Runtime {
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub FellowshipMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
+	pub const FellowshipMaxProposals: u32 = 100;
+	pub const FellowshipMaxMembers: u32 = 200;
+}
+
+type FellowshipCollective = pallet_collective::Instance3;
+impl pallet_collective::Config<FellowshipCollective> for Runtime {
+	type Origin = Origin;
+	type Proposal = Call;
+	type Event = Event;
+	type MotionDuration = FellowshipMotionDuration;
+	type MaxProposals = FellowshipMaxProposals;
+	type MaxMembers = FellowshipMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
+}
+
+impl pallet_membership::Config<pallet_membership::Instance2> for Runtime {
+	type Event = Event;
+	type AddOrigin = EnsureRoot<AccountId>;// TODO
+	type RemoveOrigin = EnsureRoot<AccountId>;
+	type SwapOrigin = EnsureRoot<AccountId>;
+	type ResetOrigin = EnsureRoot<AccountId>;
+	type PrimeOrigin = EnsureRoot<AccountId>;
+	type MembershipInitialized = Fellowship;
+	type MembershipChanged = Fellowship;
+	type MaxMembers = FellowshipMaxMembers;
+	type WeightInfo = weights::pallet_membership::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub const VoteLockingPeriod: BlockNumber = 7 * DAYS;
+}
+
+impl pallet_conviction_voting::Config for Runtime {
+	type WeightInfo = pallet_conviction_voting::weights::SubstrateWeight<Self>; //TODO
+	type Event = Event;
+	type Currency = Balances;
+	type VoteLockingPeriod = VoteLockingPeriod;
+	type MaxVotes = ConstU32<512>;
+	type MaxTurnout = frame_support::traits::TotalIssuanceOf<Balances, Self::AccountId>;
+	type Polls = Referenda;
+}
+
+parameter_types! {
+	pub const AlarmInterval: BlockNumber = 1;
+	pub const SubmissionDeposit: Balance = 100 * UNITS;
+	pub const UndecidingTimeout: BlockNumber = 28 * DAYS;
+}
+
+#[frame_support::pallet]
+pub mod pallet_custom_origins {
+	use frame_support::pallet_prelude::*;
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config {}
+
+	#[pallet::pallet]
+	pub struct Pallet<T>(_);
+
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+	#[cfg_attr(feature = "std", derive(Debug))]
+	#[pallet::origin]
+	pub enum Origin {
+		Test,
+	}
+
+	pub struct EnsureTest<AccountId>(sp_std::marker::PhantomData<AccountId>);
+	impl<O: Into<Result<RawOrigin<AccountId>, O>> + From<RawOrigin<AccountId>>, AccountId>
+		EnsureOrigin<O> for EnsureTest<AccountId>
+	{
+		type Success = ();
+		fn try_origin(o: O) -> Result<Self::Success, O> {
+			o.into().and_then(|o| match o {
+				Origin::Test => Ok(()),
+				r => Err(O::from(r)),
+			})
+		}
+
+		#[cfg(feature = "runtime-benchmarks")]
+		fn successful_origin() -> O {
+			O::from(Origin::Test)
+		}
+	}
+}
+
+impl pallet_custom_origins::Config for Runtime {}
+
+pub struct TracksInfo;
+impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
+	type Id = u8;
+	type Origin = <Origin as frame_support::traits::OriginTrait>::PalletsOrigin;
+	fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
+		static DATA: [(u8, pallet_referenda::TrackInfo<Balance, BlockNumber>); 1] = [(
+			0u8,
+			pallet_referenda::TrackInfo {
+				name: "root",
+				max_deciding: 1,
+				decision_deposit: 10,
+				prepare_period: 4,
+				decision_period: 4,
+				confirm_period: 2,
+				min_enactment_period: 4,
+				min_approval: pallet_referenda::Curve::LinearDecreasing {
+					begin: Perbill::from_percent(100),
+					delta: Perbill::from_percent(50),
+				},
+				min_turnout: pallet_referenda::Curve::LinearDecreasing {
+					begin: Perbill::from_percent(100),
+					delta: Perbill::from_percent(100),
+				},
+			},
+		)];
+		&DATA[..]
+	}
+	fn track_for(id: &Self::Origin) -> Result<Self::Id, ()> {
+		if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
+			match system_origin {
+				frame_system::RawOrigin::Root => Ok(0),
+				_ => Err(()),
+			}
+		} else {
+			Err(())
+		}
+	}
+}
+
+// TODO: Whitelist pallet.
+
+impl pallet_referenda::Config for Runtime {
+	type WeightInfo = pallet_referenda::weights::SubstrateWeight<Self>; //TODO
+	type Call = Call;
+	type Event = Event;
+	type Scheduler = Scheduler;
+	type Currency = Balances;
+	type CancelOrigin = EnsureRoot<AccountId>; // TODO
+	type KillOrigin = EnsureRoot<AccountId>; // TODO
+	type Slash = ();
+	type Votes = pallet_conviction_voting::VotesOf<Runtime>;
+	type Tally = pallet_conviction_voting::TallyOf<Runtime>;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MaxQueued = ConstU32<100>;
+	type UndecidingTimeout = UndecidingTimeout;
+	type AlarmInterval = AlarmInterval;
+	type Tracks = TracksInfo;
 }
 
 parameter_types! {
@@ -1307,7 +1455,7 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 3 * GRAND; // ~ 10 KSM
+	pub const OldSubmissionDeposit: Balance = 3 * GRAND; // ~ 10 KSM
 	pub const MinContribution: Balance = 3_000 * CENTS; // ~ .1 KSM
 	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
@@ -1317,7 +1465,7 @@ parameter_types! {
 impl crowdloan::Config for Runtime {
 	type Event = Event;
 	type PalletId = CrowdloanId;
-	type SubmissionDeposit = SubmissionDeposit;
+	type SubmissionDeposit = OldSubmissionDeposit;
 	type MinContribution = MinContribution;
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
@@ -1408,7 +1556,7 @@ construct_runtime! {
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
 
-		// Governance stuff; uncallable initially.
+		// Governance stuff.
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
@@ -1416,6 +1564,11 @@ construct_runtime! {
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 
+		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
+		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 21,
+		Fellowship: pallet_collective::<Instance3>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 22,
+		FellowshipMembership: pallet_membership::<Instance2>::{Pallet, Call, Storage, Event<T>, Config<T>} = 23,
+		Origins: pallet_custom_origins::{Origin} = 41,
 
 		// Claims. Usable initially.
 		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
