@@ -178,7 +178,7 @@ pub mod crowdloan_index_migration {
 			}
 			if new_account_found {
 				log::info!(
-					target: "runtime",
+					target: "runtime::crowdloan",
 					"para_id={:?}, new_fund_account={:?}, leases={:?}",
 					para_id, new_fund_account, leases,
 				);
