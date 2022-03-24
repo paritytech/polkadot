@@ -7458,6 +7458,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
+ "sp-application-crypto",
  "sp-core",
  "sp-inherents",
  "sp-io",
