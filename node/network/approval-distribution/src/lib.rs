@@ -29,7 +29,7 @@ use polkadot_node_primitives::approval::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		network_bridge_event::TopologyPeerInfo, ApprovalCheckResult, ApprovalDistributionMessage,
+		network_bridge_event, ApprovalCheckResult, ApprovalDistributionMessage,
 		ApprovalVotingMessage, AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
@@ -96,8 +96,59 @@ impl RecentlyOutdated {
 }
 
 struct SessionTopology {
-	our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
-	our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	peers_x: HashSet<PeerId>,
+	validator_indices_x: HashSet<ValidatorIndex>,
+	peers_y: HashSet<PeerId>,
+	validator_indices_y: HashSet<ValidatorIndex>,
+}
+
+impl SessionTopology {
+	fn required_routing_for(&self, validator_index: ValidatorIndex) -> RequiredRouting {
+		let grid_x = self.validator_indices_x.contains(&validator_index);
+		let grid_y = self.validator_indices_y.contains(&validator_index);
+
+		match (grid_x, grid_y) {
+			(false, false) => RequiredRouting::None,
+			(true, false) => RequiredRouting::GridX,
+			(false, true) => RequiredRouting::GridY,
+			(true, true) => RequiredRouting::GridXY, // if the grid works as expected, this shouldn't happen.
+		}
+	}
+
+	// Get a filter function based on this topology and the required routing
+	// which returns `true` for peers that are within the required routing set
+	// and false otherwise.
+	fn peer_filter<'a>(
+		&'a self,
+		required_routing: RequiredRouting,
+	) -> impl Fn(&PeerId) -> bool + 'a {
+		let (grid_x, grid_y) = match required_routing {
+			RequiredRouting::GridX => (true, false),
+			RequiredRouting::GridY => (false, true),
+			RequiredRouting::GridXY => (true, true),
+			RequiredRouting::None | RequiredRouting::PendingTopology => (false, false),
+		};
+
+		move |peer| {
+			(grid_x && self.peers_x.contains(peer)) || (grid_y && self.peers_y.contains(peer))
+		}
+	}
+}
+
+impl From<network_bridge_event::NewGossipTopology> for SessionTopology {
+	fn from(topology: network_bridge_event::NewGossipTopology) -> Self {
+		let peers_x =
+			topology.our_neighbors_x.values().flat_map(|p| &p.peer_ids).cloned().collect();
+		let peers_y =
+			topology.our_neighbors_y.values().flat_map(|p| &p.peer_ids).cloned().collect();
+
+		let validator_indices_x =
+			topology.our_neighbors_x.values().map(|p| p.validator_index.clone()).collect();
+		let validator_indices_y =
+			topology.our_neighbors_y.values().map(|p| p.validator_index.clone()).collect();
+
+		SessionTopology { peers_x, peers_y, validator_indices_x, validator_indices_y }
+	}
 }
 
 #[derive(Default)]
@@ -320,9 +371,14 @@ impl State {
 				})
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
-				// TODO [now]: add to session topologies
-				// TODO [now]: iterate all blocks in the session and
-				// update required routing for all messages. and route to necessary peers.
+				let session = topology.session;
+				self.handle_new_session_topology(
+					ctx,
+					metrics,
+					session,
+					SessionTopology::from(topology),
+				)
+				.await;
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
@@ -463,6 +519,22 @@ impl State {
 				}
 			}
 		}
+	}
+
+	async fn handle_new_session_topology(
+		&mut self,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
+		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		metrics: &Metrics,
+		session: SessionIndex,
+		topology: SessionTopology,
+	) {
+		self.topologies.insert_topology(session, topology);
+		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
+
+		// TODO [now]: iterate all blocks in the session
+		// Update required routing for each.
+		// Send messages for all with changed required routing.
 	}
 
 	async fn process_incoming_peer_message(
@@ -997,6 +1069,7 @@ impl State {
 						required_routing,
 						random_routing,
 					}) => {
+						// TODO [now]: distribute
 						candidate_entry.messages.insert(
 							validator_index,
 							MessageState {
