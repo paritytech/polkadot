@@ -623,10 +623,17 @@ impl Initialized {
 						now,
 					)
 					.await?;
-				let report = move || {
-					pending_confirmation
-						.send(outcome)
-						.map_err(|_| JfyiError::DisputeImportOneshotSend)
+				let report = match pending_confirmation {
+					Some(pending_confirmation) => {
+						move || {
+							pending_confirmation
+								.send(outcome)
+								.map_err(|_| JfyiError::DisputeImportOneshotSend)
+						}
+					},
+					None => {
+						move || Ok(()) 
+					}
 				};
 				match outcome {
 					ImportStatementsResult::InvalidImport => {

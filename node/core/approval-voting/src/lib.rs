@@ -950,15 +950,12 @@ async fn handle_actions(
 				dispute_statement,
 				validator_index,
 			} => {
-				// TODO: Log confirmation results in an efficient way:
-				// https://github.com/paritytech/polkadot/issues/5156
-				let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session,
 					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation,
+					None,
 				})
 				.await;
 			},
