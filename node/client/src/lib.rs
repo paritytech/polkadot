@@ -573,7 +573,7 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 /// Provides a `SignedPayload` for any runtime.
 ///
 /// The first code block should set up all variables that are needed to create the
-/// SignedPayload. The second block can make use of the SignedPayload.
+/// `SignedPayload`. The second block can make use of the `SignedPayload`.
 ///
 /// This is not done as a trait function since the return type depends on the runtime.
 /// This macro therefore uses the same approach as [`with_client!`].
