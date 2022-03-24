@@ -37,7 +37,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          file: scripts/dockerfiles/polkadot_injected_release.Dockerfile
+          file: scripts/ci/dockerfiles/polkadot_injected_release.Dockerfile
           tags: |
             parity/polkadot:latest
             parity/polkadot:${{ github.event.inputs.version }}

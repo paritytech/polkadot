@@ -86,7 +86,7 @@ jobs:
 
       - name: Prepare tooling
         run: |
-          cd polkadot/scripts/changelog
+          cd polkadot/scripts/ci/changelog
           gem install bundler changelogerator:0.9.1
           bundle install
           changelogerator --help
@@ -116,7 +116,7 @@ jobs:
           ls -al $KUSAMA_DIGEST
           ls -al $POLKADOT_DIGEST
 
-          cd polkadot/scripts/changelog
+          cd polkadot/scripts/ci/changelog
 
           ./bin/changelog
           ls -al release-notes.md
@@ -127,7 +127,7 @@ jobs:
         with:
           name: release-notes-context
           path: |
-            polkadot/scripts/changelog/context.json
+            polkadot/scripts/ci/changelog/context.json
             **/*_srtool_output.json
 
       - name: Create draft release
@@ -138,7 +138,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Polkadot ${{ github.ref }}
-          body_path: ./polkadot/scripts/changelog/release-notes.md
+          body_path: ./polkadot/scripts/ci/changelog/release-notes.md
           draft: true
 
   publish-runtimes:
@@ -161,7 +161,7 @@ jobs:
       - name: Get runtime version
         id: get-runtime-ver
         run: |
-          echo "require './scripts/github/lib.rb'" > script.rb
+          echo "require './scripts/ci/github/lib.rb'" > script.rb
           echo "puts get_runtime(runtime: \"${{ matrix.runtime }}\", runtime_dir: \"$RUNTIME_DIR\")" >> script.rb
 
           echo "Current folder: $PWD"

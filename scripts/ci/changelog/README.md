@@ -7,7 +7,7 @@ For now, a bit of preparation is required before you can run the script:
 - store them under the `digests` folder as `<chain>-srtool-digest.json`
 - ensure the `.env` file is up to date with correct information
 
-The content of the release notes is generated from the template files under the `scripts/changelog/templates` folder. For readability and maintenance, the template is split into several small snippets.
+The content of the release notes is generated from the template files under the `scripts/ci/changelog/templates` folder. For readability and maintenance, the template is split into several small snippets.
 
 Run:
 ```

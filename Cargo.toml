@@ -180,4 +180,4 @@ polkadot = { path = "/usr/bin/polkadot" }
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
 [package.metadata.spellcheck]
-config = "./scripts/gitlab/spellcheck.toml"
+config = "./scripts/ci/gitlab/spellcheck.toml"
