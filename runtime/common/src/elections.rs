@@ -77,7 +77,7 @@ pub struct UseNominatorsAndUpdateBagsList<T>(PhantomData<T>);
 impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T::AccountId>
 	for UseNominatorsAndUpdateBagsList<T>
 {
-	type Error = pallet_bags_list::Error;
+	type Error = pallet_bags_list::ListError;
 	type Score = <T as pallet_bags_list::Config>::Score;
 
 	fn iter() -> Box<dyn Iterator<Item = T::AccountId>> {
