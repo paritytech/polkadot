@@ -29,15 +29,15 @@ use strum::{EnumString, EnumVariantNames, VariantNames};
 use frame_support::dispatch::GetDispatchInfo;
 use relay_substrate_client::{
 	AccountIdOf, AccountPublicOf, BalanceOf, BlockNumberOf, CallOf, Chain, ChainWithBalances,
-	Client, Error as SubstrateError, HashOf, SignatureOf, Subscription, TransactionSignScheme,
-	TransactionStatusOf, UnsignedTransaction,
+	Client, Error as SubstrateError, HashOf, SignParam, SignatureOf, Subscription,
+	TransactionSignScheme, TransactionStatusOf, UnsignedTransaction,
 };
-use sp_core::{blake2_256, storage::StorageKey, Bytes, Pair, H256, U256};
+use sp_core::{blake2_256, storage::StorageKey, Bytes, Pair, U256};
 use sp_runtime::traits::{Convert, Header as HeaderT};
 
 use crate::cli::{
-	Balance, CliChain, SourceConnectionParams, SourceSigningParams, TargetConnectionParams,
-	TargetSigningParams,
+	estimate_fee::ConversionRateOverride, Balance, CliChain, SourceConnectionParams,
+	SourceSigningParams, TargetConnectionParams, TargetSigningParams,
 };
 
 /// Swap tokens.
@@ -65,6 +65,18 @@ pub struct SwapTokens {
 	/// Target chain balance that target signer wants to swap.
 	#[structopt(long)]
 	target_balance: Balance,
+	/// A way to override conversion rate from target to source tokens.
+	///
+	/// If not specified, conversion rate from runtime storage is used. It may be obsolete and
+	/// your message won't be relayed.
+	#[structopt(long)]
+	target_to_source_conversion_rate_override: Option<ConversionRateOverride>,
+	/// A way to override conversion rate from source to target tokens.
+	///
+	/// If not specified, conversion rate from runtime storage is used. It may be obsolete and
+	/// your message won't be relayed.
+	#[structopt(long)]
+	source_to_target_conversion_rate_override: Option<ConversionRateOverride>,
 }
 
 /// Token swap type.
@@ -98,6 +110,8 @@ macro_rules! select_bridge {
 			SwapTokensBridge::MillauToRialto => {
 				type Source = relay_millau_client::Millau;
 				type Target = relay_rialto_client::Rialto;
+				const SOURCE_SPEC_VERSION: u32 = millau_runtime::VERSION.spec_version;
+				const TARGET_SPEC_VERSION: u32 = rialto_runtime::VERSION.spec_version;
 
 				type FromSwapToThisAccountIdConverter = bp_rialto::AccountIdConverter;
 
@@ -113,9 +127,6 @@ macro_rules! select_bridge {
 
 				const SOURCE_CHAIN_ID: bp_runtime::ChainId = bp_runtime::MILLAU_CHAIN_ID;
 				const TARGET_CHAIN_ID: bp_runtime::ChainId = bp_runtime::RIALTO_CHAIN_ID;
-
-				const SOURCE_SPEC_VERSION: u32 = millau_runtime::VERSION.spec_version;
-				const TARGET_SPEC_VERSION: u32 = rialto_runtime::VERSION.spec_version;
 
 				const SOURCE_TO_TARGET_LANE_ID: bp_messages::LaneId = *b"swap";
 				const TARGET_TO_SOURCE_LANE_ID: bp_messages::LaneId = [0, 0, 0, 0];
@@ -134,6 +145,10 @@ impl SwapTokens {
 			let source_sign = self.source_sign.to_keypair::<Target>()?;
 			let target_client = self.target.to_client::<Target>().await?;
 			let target_sign = self.target_sign.to_keypair::<Target>()?;
+			let target_to_source_conversion_rate_override =
+				self.target_to_source_conversion_rate_override;
+			let source_to_target_conversion_rate_override =
+				self.source_to_target_conversion_rate_override;
 
 			// names of variables in this function are matching names used by the
 			// `pallet-bridge-token-swap`
@@ -199,9 +214,14 @@ impl SwapTokens {
 			// prepare `create_swap` call
 			let target_public_at_bridged_chain: AccountPublicOf<Target> =
 				target_sign.public().into();
-			let swap_delivery_and_dispatch_fee: BalanceOf<Source> =
-				crate::cli::estimate_fee::estimate_message_delivery_and_dispatch_fee(
+			let swap_delivery_and_dispatch_fee =
+				crate::cli::estimate_fee::estimate_message_delivery_and_dispatch_fee::<
+					Source,
+					Target,
+					_,
+				>(
 					&source_client,
+					target_to_source_conversion_rate_override.clone(),
 					ESTIMATE_SOURCE_TO_TARGET_MESSAGE_FEE_METHOD,
 					SOURCE_TO_TARGET_LANE_ID,
 					bp_message_dispatch::MessagePayload {
@@ -234,20 +254,27 @@ impl SwapTokens {
 			// start tokens swap
 			let source_genesis_hash = *source_client.genesis_hash();
 			let create_swap_signer = source_sign.clone();
+			let (spec_version, transaction_version) =
+				source_client.simple_runtime_version().await?;
 			let swap_created_at = wait_until_transaction_is_finalized::<Source>(
 				source_client
 					.submit_and_watch_signed_extrinsic(
 						accounts.source_account_at_this_chain.clone(),
 						move |_, transaction_nonce| {
-							Bytes(
-								Source::sign_transaction(
-									source_genesis_hash,
-									&create_swap_signer,
-									relay_substrate_client::TransactionEra::immortal(),
-									UnsignedTransaction::new(create_swap_call, transaction_nonce),
-								)
+							Ok(Bytes(
+								Source::sign_transaction(SignParam {
+									spec_version,
+									transaction_version,
+									genesis_hash: source_genesis_hash,
+									signer: create_swap_signer,
+									era: relay_substrate_client::TransactionEra::immortal(),
+									unsigned: UnsignedTransaction::new(
+										create_swap_call.into(),
+										transaction_nonce,
+									),
+								})?
 								.encode(),
-							)
+							))
 						},
 					)
 					.await?,
@@ -255,11 +282,10 @@ impl SwapTokens {
 			.await?;
 
 			// read state of swap after it has been created
-			let token_swap_hash: H256 = token_swap.using_encoded(blake2_256).into();
-			let token_swap_storage_key = bp_runtime::storage_map_final_key_identity(
+			let token_swap_hash = token_swap.hash();
+			let token_swap_storage_key = bp_token_swap::storage_keys::pending_swaps_key(
 				TOKEN_SWAP_PALLET_NAME,
-				pallet_bridge_token_swap::PENDING_SWAPS_MAP_NAME,
-				token_swap_hash.as_ref(),
+				token_swap_hash,
 			);
 			match read_token_swap_state(&source_client, swap_created_at, &token_swap_storage_key)
 				.await?
@@ -337,7 +363,7 @@ impl SwapTokens {
 			//
 
 			if is_transfer_succeeded {
-				log::info!(target: "bridge", "Claiming the swap swap");
+				log::info!(target: "bridge", "Claiming the swap");
 
 				// prepare `claim_swap` message that will be sent over the bridge
 				let claim_swap_call: CallOf<Source> =
@@ -351,9 +377,14 @@ impl SwapTokens {
 					dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain,
 					call: claim_swap_call.encode(),
 				};
-				let claim_swap_delivery_and_dispatch_fee: BalanceOf<Target> =
-					crate::cli::estimate_fee::estimate_message_delivery_and_dispatch_fee(
+				let claim_swap_delivery_and_dispatch_fee =
+					crate::cli::estimate_fee::estimate_message_delivery_and_dispatch_fee::<
+						Target,
+						Source,
+						_,
+					>(
 						&target_client,
+						source_to_target_conversion_rate_override.clone(),
 						ESTIMATE_TARGET_TO_SOURCE_MESSAGE_FEE_METHOD,
 						TARGET_TO_SOURCE_LANE_ID,
 						claim_swap_message.clone(),
@@ -369,23 +400,27 @@ impl SwapTokens {
 
 				// send `claim_swap` message
 				let target_genesis_hash = *target_client.genesis_hash();
+				let (spec_version, transaction_version) =
+					target_client.simple_runtime_version().await?;
 				let _ = wait_until_transaction_is_finalized::<Target>(
 					target_client
 						.submit_and_watch_signed_extrinsic(
 							accounts.target_account_at_bridged_chain.clone(),
 							move |_, transaction_nonce| {
-								Bytes(
-									Target::sign_transaction(
-										target_genesis_hash,
-										&target_sign,
-										relay_substrate_client::TransactionEra::immortal(),
-										UnsignedTransaction::new(
-											send_message_call,
+								Ok(Bytes(
+									Target::sign_transaction(SignParam {
+										spec_version,
+										transaction_version,
+										genesis_hash: target_genesis_hash,
+										signer: target_sign,
+										era: relay_substrate_client::TransactionEra::immortal(),
+										unsigned: UnsignedTransaction::new(
+											send_message_call.into(),
 											transaction_nonce,
 										),
-									)
+									})?
 									.encode(),
-								)
+								))
 							},
 						)
 						.await?,
@@ -409,23 +444,27 @@ impl SwapTokens {
 				log::info!(target: "bridge", "Cancelling the swap");
 				let cancel_swap_call: CallOf<Source> =
 					pallet_bridge_token_swap::Call::cancel_swap { swap: token_swap.clone() }.into();
+				let (spec_version, transaction_version) =
+					source_client.simple_runtime_version().await?;
 				let _ = wait_until_transaction_is_finalized::<Source>(
 					source_client
 						.submit_and_watch_signed_extrinsic(
 							accounts.source_account_at_this_chain.clone(),
 							move |_, transaction_nonce| {
-								Bytes(
-									Source::sign_transaction(
-										source_genesis_hash,
-										&source_sign,
-										relay_substrate_client::TransactionEra::immortal(),
-										UnsignedTransaction::new(
-											cancel_swap_call,
+								Ok(Bytes(
+									Source::sign_transaction(SignParam {
+										spec_version,
+										transaction_version,
+										genesis_hash: source_genesis_hash,
+										signer: source_sign,
+										era: relay_substrate_client::TransactionEra::immortal(),
+										unsigned: UnsignedTransaction::new(
+											cancel_swap_call.into(),
 											transaction_nonce,
 										),
-									)
+									})?
 									.encode(),
-								)
+								))
 							},
 						)
 						.await?,
@@ -673,6 +712,7 @@ async fn read_token_swap_state<C: Chain>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::{RuntimeVersionType, SourceRuntimeVersionParams, TargetRuntimeVersionParams};
 
 	#[test]
 	fn swap_tokens_millau_to_rialto_no_lock() {
@@ -706,6 +746,11 @@ mod tests {
 					source_host: "127.0.0.1".into(),
 					source_port: 9000,
 					source_secure: false,
+					source_runtime_version: SourceRuntimeVersionParams {
+						source_version_mode: RuntimeVersionType::Bundle,
+						source_spec_version: None,
+						source_transaction_version: None,
+					}
 				},
 				source_sign: SourceSigningParams {
 					source_signer: Some("//Alice".into()),
@@ -718,6 +763,11 @@ mod tests {
 					target_host: "127.0.0.1".into(),
 					target_port: 9001,
 					target_secure: false,
+					target_runtime_version: TargetRuntimeVersionParams {
+						target_version_mode: RuntimeVersionType::Bundle,
+						target_spec_version: None,
+						target_transaction_version: None,
+					}
 				},
 				target_sign: TargetSigningParams {
 					target_signer: Some("//Bob".into()),
@@ -729,6 +779,8 @@ mod tests {
 				swap_type: TokenSwapType::NoLock,
 				source_balance: Balance(8000000000),
 				target_balance: Balance(9000000000),
+				target_to_source_conversion_rate_override: None,
+				source_to_target_conversion_rate_override: None,
 			}
 		);
 	}
@@ -754,6 +806,10 @@ mod tests {
 			"//Bob",
 			"--target-balance",
 			"9000000000",
+			"--target-to-source-conversion-rate-override",
+			"metric",
+			"--source-to-target-conversion-rate-override",
+			"84.56",
 			"lock-until-block",
 			"--blocks-before-expire",
 			"1",
@@ -767,6 +823,11 @@ mod tests {
 					source_host: "127.0.0.1".into(),
 					source_port: 9000,
 					source_secure: false,
+					source_runtime_version: SourceRuntimeVersionParams {
+						source_version_mode: RuntimeVersionType::Bundle,
+						source_spec_version: None,
+						source_transaction_version: None,
+					}
 				},
 				source_sign: SourceSigningParams {
 					source_signer: Some("//Alice".into()),
@@ -779,6 +840,11 @@ mod tests {
 					target_host: "127.0.0.1".into(),
 					target_port: 9001,
 					target_secure: false,
+					target_runtime_version: TargetRuntimeVersionParams {
+						target_version_mode: RuntimeVersionType::Bundle,
+						target_spec_version: None,
+						target_transaction_version: None,
+					}
 				},
 				target_sign: TargetSigningParams {
 					target_signer: Some("//Bob".into()),
@@ -793,6 +859,10 @@ mod tests {
 				},
 				source_balance: Balance(8000000000),
 				target_balance: Balance(9000000000),
+				target_to_source_conversion_rate_override: Some(ConversionRateOverride::Metric),
+				source_to_target_conversion_rate_override: Some(ConversionRateOverride::Explicit(
+					84.56
+				)),
 			}
 		);
 	}

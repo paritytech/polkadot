@@ -6,7 +6,7 @@ edition = "2021"
 description = "Polkadot Jaeger primitives, but equally useful for Grafana/Tempo"
 
 [dependencies]
-async-std = "1.8.0"
+async-std = "1.11.0"
 mick-jaeger = "0.1.8"
 lazy_static = "1.4"
 parking_lot = "0.12.0"

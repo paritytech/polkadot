@@ -410,12 +410,11 @@ parameter_types! {
 	// 1 hour session, 15 minutes unsigned phase, 8 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
 
-	/// We take the top 22_500 nominators as electing voters..
-	pub const MaxElectingVoters: u32 = 22_500;
+	/// We take the top 12500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 12_500;
 	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
 	/// shall not increase the size of the validator intentions.
 	pub const MaxElectableTargets: u16 = u16::MAX;
-
 }
 
 generate_solution_type!(
@@ -424,6 +423,7 @@ generate_solution_type!(
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
 	>(24)
 );
 
@@ -578,7 +578,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-	type SortedListProvider = BagsList;
+	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
@@ -1517,7 +1517,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	CrowdloanIndexMigration,
+	(
+		CrowdloanIndexMigration,
+		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
+	),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;

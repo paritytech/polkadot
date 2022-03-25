@@ -34,16 +34,13 @@ LARGE_MESSAGES_TIME=0
 # start sending message packs in a hour
 BUNCH_OF_MESSAGES_TIME=3600
 
-# give conversion rate updater some time to update Rialto->Millau conversion rate in Millau
-# (initially rate=1 and rational relayer won't deliver any messages if it'll be changed to larger value)
-sleep 180
-
 while true
 do
 	rand_sleep
 	echo "Sending Remark from Millau to Rialto using Target Origin"
 	$SEND_MESSAGE \
 		--lane $MESSAGE_LANE \
+		--conversion-rate-override metric \
 		--origin Target \
 		remark
 
@@ -51,6 +48,7 @@ do
 		echo "Sending Remark from Millau to Rialto using Target Origin using secondary lane: $SECONDARY_MESSAGE_LANE"
 		$SEND_MESSAGE \
 			--lane $SECONDARY_MESSAGE_LANE \
+			--conversion-rate-override metric \
 			--origin Target \
 			--dispatch-fee-payment at-target-chain \
 			remark
@@ -60,6 +58,7 @@ do
 	echo "Sending Transfer from Millau to Rialto using Target Origin"
 	 $SEND_MESSAGE \
 		--lane $MESSAGE_LANE \
+		--conversion-rate-override metric \
 		--origin Target \
 		transfer \
 		--amount 1000000000 \
@@ -69,6 +68,7 @@ do
 	echo "Sending Remark from Millau to Rialto using Source Origin"
 	 $SEND_MESSAGE \
 		--lane $MESSAGE_LANE \
+		--conversion-rate-override metric \
 		--origin Source \
 		remark
 
@@ -76,6 +76,7 @@ do
 	echo "Sending Transfer from Millau to Rialto using Source Origin"
 	 $SEND_MESSAGE \
 		--lane $MESSAGE_LANE \
+		--conversion-rate-override metric \
 		--origin Source \
 		transfer \
 		--amount 1000000000 \
@@ -89,6 +90,7 @@ do
 		echo "Sending Maximal Size Remark from Millau to Rialto using Target Origin"
 		$SEND_MESSAGE \
 			--lane $MESSAGE_LANE \
+			--conversion-rate-override metric \
 			--origin Target \
 			remark \
 			--remark-size=max
@@ -97,6 +99,7 @@ do
 		echo "Sending Maximal Dispatch Weight Remark from Millau to Rialto using Target Origin"
 		$SEND_MESSAGE \
 			--lane $MESSAGE_LANE \
+			--conversion-rate-override metric \
 			--origin Target \
 			--dispatch-weight=max \
 			remark
@@ -105,6 +108,7 @@ do
 		echo "Sending Maximal Size and Dispatch Weight Remark from Millau to Rialto using Target Origin"
 		$SEND_MESSAGE \
 			--lane $MESSAGE_LANE \
+			--conversion-rate-override metric \
 			--origin Target \
 			--dispatch-weight=max \
 			remark \
@@ -116,10 +120,21 @@ do
 	if [ $SECONDS -ge $BUNCH_OF_MESSAGES_TIME ]; then
 		BUNCH_OF_MESSAGES_TIME=$((SECONDS + 7200))
 
-		for i in $(seq 1 $MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE);
+		SEND_MESSAGE_OUTPUT=`$SEND_MESSAGE --lane $MESSAGE_LANE --conversion-rate-override metric --origin Target remark 2>&1`
+		echo $SEND_MESSAGE_OUTPUT
+		ACTUAL_CONVERSION_RATE_REGEX="conversion rate override: ([0-9\.]+)"
+		if [[ $SEND_MESSAGE_OUTPUT =~ $ACTUAL_CONVERSION_RATE_REGEX ]]; then
+			ACTUAL_CONVERSION_RATE=${BASH_REMATCH[1]}
+		else
+			echo "Unable to find conversion rate in send-message output"
+			exit 1
+		fi
+
+		for i in $(seq 2 $MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE);
 		do
 			$SEND_MESSAGE \
 				--lane $MESSAGE_LANE \
+				--conversion-rate-override $ACTUAL_CONVERSION_RATE \
 				--origin Target \
 				remark
 		done
