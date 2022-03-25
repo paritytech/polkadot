@@ -155,7 +155,7 @@ struct TopologyPeerInfo {
 	/// The validator's known peer IDs.
 	peer_ids: Vec<PeerId>,
 	/// The index of the validator in the discovery keys of the corresponding
-	/// `SessionInfo`.
+	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
 	validator_index: ValidatorIndex,
 }
 

@@ -30,7 +30,7 @@ pub struct TopologyPeerInfo {
 	/// The validator's known peer IDs.
 	pub peer_ids: Vec<PeerId>,
 	/// The index of the validator in the discovery keys of the corresponding
-	/// `SessionInfo`.
+	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
 	pub validator_index: ValidatorIndex,
 }
 

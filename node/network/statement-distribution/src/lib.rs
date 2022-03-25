@@ -1624,6 +1624,7 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
+			// Combine all peers in the x & y direction as we don't make any distinction.
 			let new_peers: HashSet<PeerId> = topology
 				.our_neighbors_x
 				.values()

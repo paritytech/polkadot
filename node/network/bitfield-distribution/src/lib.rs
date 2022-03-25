@@ -524,6 +524,7 @@ async fn handle_network_msg<Context>(
 			state.peer_views.remove(&peer);
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
+			// Combine all peers in the x & y direction as we don't make any distinction.
 			let peers: HashSet<PeerId> = topology
 				.our_neighbors_x
 				.values()
