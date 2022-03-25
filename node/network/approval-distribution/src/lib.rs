@@ -71,7 +71,7 @@ const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS
 
 /// How far unfinalized a block must be before validators broadcast
 /// their messages to all peers.
-const AGGRESSIVE_PROPAGATION_THRESHOLD: usize = 10;
+const AGGRESSIVE_PROPAGATION_THRESHOLD: BlockNumber = 10;
 
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
@@ -137,7 +137,7 @@ impl SessionTopology {
 			RequiredRouting::GridX => (true, false),
 			RequiredRouting::GridY => (false, true),
 			RequiredRouting::GridXY => (true, true),
-			RequiredRouting::None | RequiredRouting::PendingTopology => (false, false),
+			RequiredRouting::None | RequiredRouting::PendingTopology(_) => (false, false),
 		};
 
 		move |peer| {
@@ -327,7 +327,9 @@ enum RequiredRouting {
 	/// We don't know yet, because we're waiting for topology info
 	/// (race condition between learning about the first blocks in a new session
 	/// and getting the topology for that session)
-	PendingTopology,
+	///
+	/// The `bool` here indicates whether this is a local message or not.
+	PendingTopology(bool),
 	/// Propagate to all peers sharing either the X or Y dimension of the grid.
 	GridXY,
 	/// Propagate to all peers sharing the X dimension of the grid.
@@ -339,10 +341,18 @@ enum RequiredRouting {
 }
 
 impl RequiredRouting {
+	fn for_local(block_age: BlockNumber) -> Self {
+		if block_age >= AGGRESSIVE_PROPAGATION_THRESHOLD {
+			RequiredRouting::GridXY // TODO [now]: ALL variant
+		} else {
+			RequiredRouting::GridXY
+		}
+	}
+
 	// Whether the required routing set is definitely empty.
 	fn is_empty(self) -> bool {
 		match self {
-			RequiredRouting::PendingTopology | RequiredRouting::None => true,
+			RequiredRouting::PendingTopology(_) | RequiredRouting::None => true,
 			_ => false,
 		}
 	}
@@ -594,13 +604,19 @@ impl State {
 		self.topologies.insert_topology(session, topology);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
 
+		let blocks_by_number = &self.blocks_by_number;
 		adjust_required_routing_and_propagate(
 			ctx,
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| block_entry.session == session,
-			|required_routing, validator_index| if *required_routing == RequiredRouting::PendingTopology {
-				*required_routing = topology.required_routing_for(validator_index.clone());
+			|block_number, required_routing, validator_index| {
+				if *required_routing == RequiredRouting::PendingTopology(true) {
+					let block_age = block_age(blocks_by_number, block_number);
+					*required_routing = RequiredRouting::for_local(block_age);
+				} else if *required_routing == RequiredRouting::PendingTopology(false) {
+					*required_routing = topology.required_routing_for(validator_index.clone());
+				}
 			}
 		).await;
 	}
@@ -935,9 +951,10 @@ impl State {
 		let topology = self.topologies.get_topology(entry.session);
 
 		let required_routing = if source == MessageSource::Local {
-			RequiredRouting::GridXY
+			let block_age = block_age(&self.blocks_by_number, entry.number);
+			topology.map_or(RequiredRouting::PendingTopology(true), |_| RequiredRouting::for_local(block_age))
 		} else {
-			topology.map_or(RequiredRouting::PendingTopology, |t| {
+			topology.map_or(RequiredRouting::PendingTopology(false), |t| {
 				t.required_routing_for(validator_index)
 			})
 		};
@@ -1421,6 +1438,38 @@ impl State {
 	}
 }
 
+// Get the age of the given block number relative to the highest stored.
+fn block_age(
+	blocks_by_number: &BTreeMap<BlockNumber, Vec<Hash>>,
+	block_number: BlockNumber,
+) -> BlockNumber {
+	match blocks_by_number.iter().rev().last() {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				block_number,
+				"Asked for block age compared to an empty list",
+			);
+
+			0
+		}
+		Some((most_recent, _)) => {
+			if *most_recent < block_number {
+				gum::warn!(
+					target: LOG_TARGET,
+					most_recent,
+					block_number,
+					"Asked for block age for block newer than most recent",
+				);
+
+				0
+			} else {
+				most_recent - block_number
+			}
+		}
+	}
+}
+
 // This adjusts the required routing of messages in blocks that pass the block filter
 // according to the modifier function given.
 //
@@ -1436,7 +1485,7 @@ async fn adjust_required_routing_and_propagate(
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionTopologies,
 	block_filter: impl Fn(&BlockEntry) -> bool,
-	routing_modifier: impl Fn(&mut RequiredRouting, &ValidatorIndex),
+	routing_modifier: impl Fn(BlockNumber, &mut RequiredRouting, &ValidatorIndex),
 ) {
 	let mut peer_assignments = HashMap::new();
 	let mut peer_approvals = HashMap::new();
@@ -1456,7 +1505,7 @@ async fn adjust_required_routing_and_propagate(
 			.flat_map(|(c_i, c)| c.messages.iter_mut().map(move |(k, v)| (c_i as _, k, v)))
 		{
 			let prev_routing = message_state.required_routing;
-			routing_modifier(&mut message_state.required_routing, validator);
+			routing_modifier(block_entry.number, &mut message_state.required_routing, validator);
 
 			if message_state.required_routing.is_empty() ||
 				message_state.required_routing == prev_routing
