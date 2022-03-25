@@ -25,7 +25,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 use polkadot_primitives::v2::Hash;
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash, AlwaysZeroRng};
 use std::{
 	pin::Pin,
 	sync::{
@@ -248,11 +248,23 @@ fn tick_tack_metronome() {
 
 #[test]
 fn subset_generation_check() {
-	let values = (0_u8..=25).collect::<Vec<_>>();
+	let mut values = (0_u8..=25).collect::<Vec<_>>();
 	// 12 even numbers exist
-	let mut chosen = choose_random_subset::<u8, _>(|v| v & 0x01 == 0, values, 12);
-	chosen.sort();
-	for (idx, v) in dbg!(chosen).into_iter().enumerate() {
+	choose_random_subset::<u8, _>(|v| v & 0x01 == 0, &mut values, 12);
+	values.sort();
+	for (idx, v) in dbg!(values).into_iter().enumerate() {
 		assert_eq!(v as usize, idx * 2);
+	}
+}
+
+#[test]
+fn subset_predefined_generation_check() {
+	let mut values = (0_u8..=25).collect::<Vec<_>>();
+	choose_random_subset_with_rng::<u8, _, _>(|_| false, &mut values, &mut AlwaysZeroRng, 12);
+	assert_eq!(values.len(), 12);
+	for (idx, v) in dbg!(values).into_iter().enumerate() {
+		// Since shuffle actually shuffles the indexes from 1..len, then
+		// our PRG that returns zeroes will shuffle 0 and 1, 1 and 2, ... len-2 and len-1
+		assert_eq!(v as usize, idx + 1);
 	}
 }
