@@ -31,7 +31,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::gen::{OverseerError, Subsystem};
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 use polkadot_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
 	messages::{
@@ -49,6 +49,7 @@ pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::{
 	collections::{hash_map, HashMap},
+	iter::ExactSizeIterator,
 	sync::Arc,
 };
 
@@ -605,37 +606,15 @@ where
 							"Gossip topology has changed",
 						);
 
-						let ads = &mut authority_discovery_service;
-						let mut gossip_peers_x = HashMap::with_capacity(our_neighbors_x.len());
-						let mut gossip_peers_y = HashMap::with_capacity(our_neighbors_y.len());
+						let gossip_peers_x = update_gossip_peers_1d(
+							&mut authority_discovery_service,
+							our_neighbors_x,
+						).await;
 
-						for (authority, validator_index) in our_neighbors_x {
-							let addr = get_peer_id_by_authority_id(
-								ads,
-								authority.clone(),
-							).await;
-
-							if let Some(peer_id) = addr {
-								gossip_peers_x.insert(authority, TopologyPeerInfo {
-									peer_ids: vec![peer_id],
-									validator_index,
-								});
-							}
-						}
-
-						for (authority, validator_index) in our_neighbors_y {
-							let addr = get_peer_id_by_authority_id(
-								ads,
-								authority.clone(),
-							).await;
-
-							if let Some(peer_id) = addr {
-								gossip_peers_y.insert(authority, TopologyPeerInfo {
-									peer_ids: vec![peer_id],
-									validator_index,
-								});
-							}
-						}
+						let gossip_peers_y = update_gossip_peers_1d(
+							&mut authority_discovery_service,
+							our_neighbors_y,
+						).await;
 
 						dispatch_validation_event_to_all_unbounded(
 							NetworkBridgeEvent::NewGossipTopology(
@@ -653,6 +632,28 @@ where
 			},
 		}
 	}
+}
+
+async fn update_gossip_peers_1d<AD, N>(
+	ads: &mut AD,
+	neighbors: N,
+) -> HashMap<AuthorityDiscoveryId, TopologyPeerInfo>
+where
+	AD: validator_discovery::AuthorityDiscovery,
+	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
+	N::IntoIter: std::iter::ExactSizeIterator,
+{
+	let neighbors = neighbors.into_iter();
+	let mut peers = HashMap::with_capacity(neighbors.len());
+	for (authority, validator_index) in neighbors {
+		let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
+
+		if let Some(peer_id) = addr {
+			peers.insert(authority, TopologyPeerInfo { peer_ids: vec![peer_id], validator_index });
+		}
+	}
+
+	peers
 }
 
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
