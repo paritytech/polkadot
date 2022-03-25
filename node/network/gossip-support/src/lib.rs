@@ -243,9 +243,6 @@ where
 					self.last_session_index = Some(session_index);
 				}
 
-				let our_index =
-					ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await?;
-
 				// Connect to authorities from the past/present/future.
 				//
 				// This is maybe not the right place for this logic to live,
@@ -260,16 +257,17 @@ where
 				{
 					let mut connections = authorities_past_present_future(ctx, leaf).await?;
 
-					// ... ignoring our own identity.
-					if let Some(pos) = connections
-						.iter()
-						.position(|v| v == &session_info.discovery_keys[our_index])
-					{
-						connections.remove(pos);
+					// Remove all of our locally controlled validator indices so we don't connect to ourself.
+					// If we control none of them, don't issue connection requests - we're outside
+					// of the 'clique' of recent validators.
+					if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
+						self.issue_connection_request(ctx, connections).await;
 					}
-
-					self.issue_connection_request(ctx, connections).await;
 				}
+
+				// Gossip topology is only relevant for authorities in the current session.
+				let our_index =
+					ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await?;
 
 				if is_new_session {
 					self.update_authority_status_metrics(&session_info).await;
@@ -473,6 +471,25 @@ async fn ensure_i_am_an_authority(
 		}
 	}
 	Err(util::Error::NotAValidator)
+}
+
+/// Filter out all controlled keys in the given set. Returns the number of keys removed.
+async fn remove_all_controlled(
+	keystore: &SyncCryptoStorePtr,
+	authorities: &mut Vec<AuthorityDiscoveryId>,
+) -> usize {
+	let mut to_remove = Vec::new();
+	for (i, v) in authorities.iter().enumerate() {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
+			to_remove.push(i);
+		}
+	}
+
+	for i in to_remove.iter().rev().copied() {
+		authorities.remove(i);
+	}
+
+	to_remove.len()
 }
 
 /// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
