@@ -346,7 +346,7 @@ async fn relay_message<Context>(
 
 	let _span = span.child("interested-peers");
 	// pass on the bitfield distribution to all interested peers
-	let interested_peers = peer_views
+	let mut interested_peers = peer_views
 		.iter()
 		.filter_map(|(peer, view)| {
 			// check interest in the peer in this message's relay parent
@@ -363,9 +363,9 @@ async fn relay_message<Context>(
 			}
 		})
 		.collect::<Vec<PeerId>>();
-	let interested_peers = util::choose_random_subset(
+	util::choose_random_subset(
 		|e| gossip_peers.contains(e),
-		interested_peers,
+		&mut interested_peers,
 		MIN_GOSSIP_PEERS,
 	);
 	interested_peers.iter().for_each(|peer| {

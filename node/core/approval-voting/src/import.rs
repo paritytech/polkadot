@@ -29,8 +29,9 @@
 //! We maintain a rolling window of session indices. This starts as empty
 
 use polkadot_node_jaeger as jaeger;
-use polkadot_node_primitives::approval::{
-	self as approval_types, BlockApprovalMeta, RelayVRFStory,
+use polkadot_node_primitives::{
+	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
+	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -299,7 +300,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
+	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 

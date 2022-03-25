@@ -404,6 +404,12 @@ pub trait WeightInfo {
 	fn force_queue_action() -> Weight;
 	fn add_trusted_validation_code(c: u32) -> Weight;
 	fn poke_unused_validation_code() -> Weight;
+
+	fn include_pvf_check_statement_finalize_upgrade_accept() -> Weight;
+	fn include_pvf_check_statement_finalize_upgrade_reject() -> Weight;
+	fn include_pvf_check_statement_finalize_onboarding_accept() -> Weight;
+	fn include_pvf_check_statement_finalize_onboarding_reject() -> Weight;
+	fn include_pvf_check_statement() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -428,6 +434,22 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn poke_unused_validation_code() -> Weight {
 		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_upgrade_accept() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_upgrade_reject() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_onboarding_accept() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_onboarding_reject() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement() -> Weight {
+		// This special value is to distinguish from the finalizing variants above in tests.
+		Weight::MAX - 1
 	}
 }
 
@@ -855,12 +877,23 @@ pub mod pallet {
 
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
-		#[pallet::weight(Weight::MAX)]
+		#[pallet::weight(
+			sp_std::cmp::max(
+				sp_std::cmp::max(
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept(),
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject(),
+				),
+				sp_std::cmp::max(
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept(),
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject(),
+				)
+			)
+		)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
 			stmt: PvfCheckStatement,
 			signature: ValidatorSignature,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
 			// Make sure that PVF pre-checking is enabled.
@@ -931,13 +964,17 @@ pub mod pallet {
 						Self::enact_pvf_rejected(&stmt.subject, active_vote.causes);
 					},
 				}
-			} else {
-				// No quorum has been achieved. So just store the updated state back into the
-				// storage.
-				PvfActiveVoteMap::<T>::insert(&stmt.subject, active_vote);
-			}
 
-			Ok(())
+				// No weight refund since this statement was the last one and lead to finalization.
+				Ok(().into())
+			} else {
+				// No quorum has been achieved.
+				//
+				// - So just store the updated state back into the storage.
+				// - Only charge weight for simple vote inclusion.
+				PvfActiveVoteMap::<T>::insert(&stmt.subject, active_vote);
+				Ok(Some(<T as Config>::WeightInfo::include_pvf_check_statement()).into())
+			}
 		}
 	}
 
