@@ -71,7 +71,7 @@ const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS
 
 /// How far unfinalized a block must be before validators broadcast
 /// their messages to all peers.
-const AGGRESSIVE_PROPAGATION_THRESHOLD: BlockNumber = 10;
+const AGGRESSIVE_PROPAGATION_THRESHOLD: BlockNumber = 20;
 
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
@@ -129,19 +129,13 @@ impl SessionTopology {
 	// Get a filter function based on this topology and the required routing
 	// which returns `true` for peers that are within the required routing set
 	// and false otherwise.
-	fn peer_filter<'a>(
-		&'a self,
-		required_routing: RequiredRouting,
-	) -> impl Fn(&PeerId) -> bool + 'a {
-		let (grid_x, grid_y) = match required_routing {
-			RequiredRouting::GridX => (true, false),
-			RequiredRouting::GridY => (false, true),
-			RequiredRouting::GridXY => (true, true),
-			RequiredRouting::None | RequiredRouting::PendingTopology(_) => (false, false),
-		};
-
-		move |peer| {
-			(grid_x && self.peers_x.contains(peer)) || (grid_y && self.peers_y.contains(peer))
+	fn route_to_peer(&self, required_routing: RequiredRouting, peer: &PeerId) -> bool {
+		match required_routing {
+			RequiredRouting::All => true,
+			RequiredRouting::GridX => self.peers_x.contains(peer),
+			RequiredRouting::GridY => self.peers_y.contains(peer),
+			RequiredRouting::GridXY => self.peers_x.contains(peer) || self.peers_y.contains(peer),
+			RequiredRouting::None | RequiredRouting::PendingTopology(_) => false,
 		}
 	}
 }
@@ -330,6 +324,8 @@ enum RequiredRouting {
 	///
 	/// The `bool` here indicates whether this is a local message or not.
 	PendingTopology(bool),
+	/// Propagate to all peers of any kind.
+	All,
 	/// Propagate to all peers sharing either the X or Y dimension of the grid.
 	GridXY,
 	/// Propagate to all peers sharing the X dimension of the grid.
@@ -343,7 +339,7 @@ enum RequiredRouting {
 impl RequiredRouting {
 	fn for_local(block_age: BlockNumber) -> Self {
 		if block_age >= AGGRESSIVE_PROPAGATION_THRESHOLD {
-			RequiredRouting::GridXY // TODO [now]: ALL variant
+			RequiredRouting::All
 		} else {
 			RequiredRouting::GridXY
 		}
@@ -592,6 +588,24 @@ impl State {
 				}
 			}
 		}
+
+		let max_age = self.blocks_by_number.iter().rev().last().map(|(n, _)| *n);
+		if let Some(max_age) = max_age {
+			// For any blocks that have just become old, we trigger sending of our local messages to all peers.
+			// Note that this can only happen if finality is slow.
+			adjust_required_routing_and_propagate(
+				ctx,
+				&mut self.blocks,
+				&self.topologies,
+				|block_entry| block_entry.number + AGGRESSIVE_PROPAGATION_THRESHOLD >= max_age,
+				|_, required_routing, _| {
+					if *required_routing == RequiredRouting::GridXY {
+						*required_routing = RequiredRouting::All
+					}
+				},
+			)
+			.await;
+		}
 	}
 
 	async fn handle_new_session_topology(
@@ -617,8 +631,9 @@ impl State {
 				} else if *required_routing == RequiredRouting::PendingTopology(false) {
 					*required_routing = topology.required_routing_for(validator_index.clone());
 				}
-			}
-		).await;
+			},
+		)
+		.await;
 	}
 
 	async fn process_incoming_peer_message(
@@ -952,7 +967,9 @@ impl State {
 
 		let required_routing = if source == MessageSource::Local {
 			let block_age = block_age(&self.blocks_by_number, entry.number);
-			topology.map_or(RequiredRouting::PendingTopology(true), |_| RequiredRouting::for_local(block_age))
+			topology.map_or(RequiredRouting::PendingTopology(true), |_| {
+				RequiredRouting::for_local(block_age)
+			})
 		} else {
 			topology.map_or(RequiredRouting::PendingTopology(false), |t| {
 				t.required_routing_for(validator_index)
@@ -988,7 +1005,6 @@ impl State {
 		// then messages will be sent when we get it.
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let topology_filter = topology.as_ref().map(|t| t.peer_filter(required_routing));
 		let n_peers_total = self.peer_data.len();
 		let source_peer = source.peer_id();
 
@@ -997,7 +1013,7 @@ impl State {
 				return false
 			}
 
-			if let Some(true) = topology_filter.as_ref().map(|f| f(peer)) {
+			if let Some(true) = topology.as_ref().map(|t| t.route_to_peer(required_routing, peer)) {
 				return true
 			}
 
@@ -1245,7 +1261,6 @@ impl State {
 		// to all peers required by the topology, with the exception of the source peer.
 
 		let topology = self.topologies.get_topology(entry.session);
-		let topology_filter = topology.as_ref().map(|t| t.peer_filter(required_routing));
 		let source_peer = source.peer_id();
 
 		let message_subject = &message_subject;
@@ -1263,7 +1278,7 @@ impl State {
 			//      the assignment to all aware peers in the required routing _except_ the original
 			//      source of the assignment. Hence the `in_topology_check`.
 			//   3. Any randomly selected peers have been sent the assignment already.
-			let in_topology = topology_filter.as_ref().map_or(false, |f| f(peer));
+			let in_topology = topology.map_or(false, |t| t.route_to_peer(required_routing, peer));
 			in_topology || knowledge.sent.contains(message_subject, MessageKind::Assignment)
 		};
 
@@ -1349,15 +1364,13 @@ impl State {
 					// Propagate the message to all peers in the required routing set OR
 					// randomly sample peers.
 					{
-						let topology_filter = topology
-							.as_ref()
-							.map(|t| t.peer_filter(message_state.required_routing));
-
 						let random_routing = &mut message_state.random_routing;
+						let required_routing = message_state.required_routing;
 						let rng = &mut *rng;
 						let mut peer_filter = move |peer_id| {
-							let in_topology =
-								topology_filter.as_ref().map_or(false, |f| f(peer_id));
+							let in_topology = topology
+								.as_ref()
+								.map_or(false, |t| t.route_to_peer(required_routing, peer_id));
 							in_topology || {
 								let route_random = random_routing.sample(total_peers, rng);
 								if route_random {
@@ -1452,8 +1465,8 @@ fn block_age(
 			);
 
 			0
-		}
-		Some((most_recent, _)) => {
+		},
+		Some((most_recent, _)) =>
 			if *most_recent < block_number {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -1465,8 +1478,7 @@ fn block_age(
 				0
 			} else {
 				most_recent - block_number
-			}
-		}
+			},
 	}
 }
 
@@ -1519,7 +1531,6 @@ async fn adjust_required_routing_and_propagate(
 			};
 
 			// Propagate the message to all peers in the required routing set.
-			let peer_filter = topology.peer_filter(message_state.required_routing);
 			let message_subject =
 				MessageSubject(block_hash.clone(), candidate_index, validator.clone());
 
@@ -1542,7 +1553,7 @@ async fn adjust_required_routing_and_propagate(
 				});
 
 			for (peer, peer_knowledge) in &mut block_entry.known_by {
-				if !peer_filter(peer) {
+				if !topology.route_to_peer(message_state.required_routing, peer) {
 					continue
 				}
 
