@@ -1,9 +1,7 @@
 #!/bin/bash
 set -xeu
 
-sleep 60
-curl -v http://millau-node-alice:9933/health
-curl -v http://rialto-node-alice:9933/health
+sleep 15
 
 /home/user/substrate-relay init-bridge millau-to-rialto \
 	--source-host millau-node-alice \
@@ -27,10 +25,12 @@ sleep 6
 	--millau-port 9944 \
 	--millau-signer //Charlie \
 	--millau-messages-pallet-owner=//RialtoMessagesOwner \
+	--millau-transactions-mortality=64 \
 	--rialto-host rialto-node-alice \
 	--rialto-port 9944 \
 	--rialto-signer //Charlie \
 	--rialto-messages-pallet-owner=//MillauMessagesOwner \
+	--rialto-transactions-mortality=64 \
 	--lane=00000000 \
 	--lane=73776170 \
 	--prometheus-host=0.0.0.0

@@ -979,6 +979,13 @@ pub enum Instruction<Call> {
 	///
 	/// Errors: None.
 	ClearTopic,
+
+	/// Alter the current Origin to another given origin.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: If the existing state would not allow such a change.
+	AliasOrigin(MultiLocation),
 }
 
 impl<Call> Xcm<Call> {
@@ -1052,6 +1059,7 @@ impl<Call> Instruction<Call> {
 			SetFeesMode { jit_withdraw } => SetFeesMode { jit_withdraw },
 			SetTopic(topic) => SetTopic(topic),
 			ClearTopic => ClearTopic,
+			AliasOrigin(location) => AliasOrigin(location),
 		}
 	}
 }
@@ -1117,6 +1125,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			SetFeesMode { jit_withdraw } => W::set_fees_mode(jit_withdraw),
 			SetTopic(topic) => W::set_topic(topic),
 			ClearTopic => W::clear_topic(),
+			AliasOrigin(location) => W::alias_origin(location),
 		}
 	}
 }

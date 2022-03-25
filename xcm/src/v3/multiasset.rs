@@ -23,7 +23,7 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::MultiLocation;
+use super::{InteriorMultiLocation, MultiLocation};
 use crate::v2::{
 	AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
 	MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
@@ -42,6 +42,7 @@ use scale_info::TypeInfo;
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum AssetInstance {
 	/// Undefined - used if the non-fungible asset class has only one instance.
 	Undefined,
@@ -235,6 +236,7 @@ impl TryFrom<AssetInstance> for u128 {
 
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Fungibility {
 	Fungible(#[codec(compact)] u128),
 	NonFungible(AssetInstance),
@@ -283,6 +285,7 @@ impl TryFrom<OldFungibility> for Fungibility {
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum WildFungibility {
 	Fungible,
 	NonFungible,
@@ -303,6 +306,7 @@ impl TryFrom<OldWildFungibility> for WildFungibility {
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract([u8; 32]),
@@ -347,7 +351,11 @@ impl AssetId {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.reanchor(target, context)?;
 		}
@@ -367,6 +375,7 @@ impl AssetId {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiAsset {
 	pub id: AssetId,
 	pub fun: Fungibility,
@@ -412,7 +421,11 @@ impl MultiAsset {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		self.id.reanchor(target, context)
 	}
 
@@ -421,7 +434,7 @@ impl MultiAsset {
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		context: &MultiLocation,
+		context: InteriorMultiLocation,
 	) -> Result<Self, ()> {
 		self.id.reanchor(target, context)?;
 		Ok(self)
@@ -450,6 +463,7 @@ impl TryFrom<OldMultiAsset> for MultiAsset {
 
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, Default)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 // TODO: Change to a `BoundedVec`.
 pub struct MultiAssets(Vec<MultiAsset>);
 
@@ -620,8 +634,12 @@ impl MultiAssets {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
-		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context))
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context.clone()))
 	}
 
 	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
@@ -632,6 +650,7 @@ impl MultiAssets {
 
 /// A wildcard representing a set of assets.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum WildMultiAsset {
 	/// All assets in Holding.
 	All,
@@ -700,7 +719,11 @@ impl WildMultiAsset {
 
 	/// Mutate the asset to represent the same value from the perspective of a new `target`
 	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } | AllOfCounted { ref mut id, .. } =>
@@ -742,6 +765,7 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 
 /// `MultiAsset` collection, either `MultiAssets` or a single wildcard.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MultiAssetFilter {
 	Definite(MultiAssets),
 	Wild(WildMultiAsset),
@@ -785,7 +809,11 @@ impl MultiAssetFilter {
 
 	/// Mutate the location of the asset identifier if concrete, giving it the same location
 	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		match self {
 			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(target, context),
 			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(target, context),

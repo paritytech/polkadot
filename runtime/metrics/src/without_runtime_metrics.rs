@@ -18,7 +18,7 @@
 //! provide a dummy implementation for the native runtime to avoid cluttering the runtime code
 //! with `#[cfg(feature = "runtime-metrics")]`.
 
-use primitives::v1::metric_definitions::{CounterDefinition, CounterVecDefinition};
+use primitives::v2::metric_definitions::{CounterDefinition, CounterVecDefinition};
 
 /// A dummy `Counter`.
 pub struct Counter;

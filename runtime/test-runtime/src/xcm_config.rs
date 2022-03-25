@@ -22,7 +22,7 @@ use frame_support::{
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
-	traits::{TransactAsset, UniversalLocation, WeightTrader},
+	traits::{TransactAsset, WeightTrader},
 	Assets,
 };
 
@@ -30,6 +30,7 @@ parameter_types! {
 	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 16;
+	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -79,17 +80,6 @@ impl WeightTrader for DummyWeightTrader {
 	}
 }
 
-pub struct InvertNothing;
-impl UniversalLocation for InvertNothing {
-	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
-		Ok(Here.into())
-	}
-
-	fn universal_location() -> InteriorMultiLocation {
-		Here
-	}
-}
-
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = super::Call;
@@ -98,7 +88,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = pallet_xcm::XcmPassthrough<super::Origin>;
 	type IsReserve = ();
 	type IsTeleporter = ();
-	type LocationInverter = InvertNothing;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
 	type Trader = DummyWeightTrader;

@@ -34,7 +34,7 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 use polkadot_subsystem::{
@@ -50,7 +50,7 @@ pub use self::metrics::*;
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "parachain::availability";
+const LOG_TARGET: &str = "parachain::availability-store";
 
 /// The following constants are used under normal conditions:
 
@@ -163,7 +163,7 @@ fn query_inner<D: Decode>(
 		},
 		Ok(None) => Ok(None),
 		Err(err) => {
-			tracing::warn!(target: LOG_TARGET, ?err, "Error reading from the availability store");
+			gum::warn!(target: LOG_TARGET, ?err, "Error reading from the availability store");
 			Err(err.into())
 		},
 	}
@@ -384,10 +384,10 @@ impl Error {
 		match self {
 			// don't spam the log with spurious errors
 			Self::RuntimeApi(_) | Self::Oneshot(_) => {
-				tracing::debug!(target: LOG_TARGET, err = ?self)
+				gum::debug!(target: LOG_TARGET, err = ?self)
 			},
 			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
+			_ => gum::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -544,7 +544,7 @@ where
 				}
 			},
 			Ok(true) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break
 			},
 			Ok(false) => continue,
@@ -721,7 +721,7 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed");
+	gum::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed");
 
 	if load_meta(db, config, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
@@ -753,7 +753,7 @@ fn note_block_included(
 		None => {
 			// This is alarming. We've observed a block being included without ever seeing it backed.
 			// Warn and ignore.
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?candidate_hash,
 				"Candidate included without being backed?",
@@ -762,7 +762,7 @@ fn note_block_included(
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
 
-			tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included");
+			gum::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included");
 
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
@@ -856,7 +856,7 @@ where
 
 			match rx.await? {
 				Err(err) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						batch_num,
 						?err,
@@ -866,7 +866,7 @@ where
 					break
 				},
 				Ok(None) => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"Availability store was informed that block #{} is finalized, \
 						but chain API has no finalized hash.",
@@ -944,7 +944,7 @@ fn update_blocks_at_finalized_height(
 	for (candidate_hash, is_finalized) in candidates {
 		let mut meta = match load_meta(&subsystem.db, &subsystem.config, &candidate_hash)? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					"Dangling candidate metadata for {}",
 					candidate_hash,
@@ -1061,7 +1061,7 @@ fn process_message(
 						)? {
 							Some(c) => chunks.push(c),
 							None => {
-								tracing::warn!(
+								gum::warn!(
 									target: LOG_TARGET,
 									?candidate,
 									index,
@@ -1151,7 +1151,7 @@ fn store_chunk(
 		None => return Ok(false), // out of bounds.
 	}
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?candidate_hash,
 		chunk_index = %chunk.index.0,
@@ -1217,7 +1217,7 @@ fn store_available_data(
 
 	subsystem.db.write(tx)?;
 
-	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks");
+	gum::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks");
 
 	Ok(())
 }

@@ -54,7 +54,7 @@ pub use pallet::*;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 use xcm_executor::{
 	traits::{
-		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse, UniversalLocation,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse,
 		VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
@@ -69,7 +69,7 @@ pub mod pallet {
 	};
 	use frame_system::Config as SysConfig;
 	use sp_core::H256;
-	use xcm_executor::traits::{MatchesFungible, UniversalLocation, WeightBounds};
+	use xcm_executor::traits::{MatchesFungible, WeightBounds};
 
 	parameter_types! {
 		/// An implementation of `Get<u32>` which just returns the latest XCM version which we can
@@ -125,8 +125,8 @@ pub mod pallet {
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<<Self as SysConfig>::Call>;
 
-		/// Means of inverting a location.
-		type LocationInverter: UniversalLocation;
+		/// This chain's Universal Location.
+		type UniversalLocation: Get<InteriorMultiLocation>;
 
 		/// The outer `Origin` type.
 		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
@@ -667,9 +667,9 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector and
-		/// fee-weight is calculated locally and thus remote weights are assumed to be equal to
-		/// local weights.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
+		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -710,12 +710,12 @@ pub mod pallet {
 			Self::do_teleport_assets(origin, dest, beneficiary, assets, fee_asset_item, None)
 		}
 
-		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
-		/// a notification XCM.
+		/// Transfer some assets from the local chain to the sovereign account of a destination
+		/// chain and forward a notification XCM.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector and
-		/// fee-weight is calculated locally and thus remote weights are assumed to be equal to
-		/// local weights.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
+		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -883,10 +883,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
-		/// a notification XCM.
+		/// Transfer some assets from the local chain to the sovereign account of a destination
+		/// chain and forward a notification XCM.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`, up to enough to pay for `weight_limit` of weight. If more weight
+		/// is needed than `weight_limit`, then the operation will fail and the assets send may be
+		/// at risk.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -930,7 +933,10 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`, up to enough to pay for `weight_limit` of weight. If more weight
+		/// is needed than `weight_limit`, then the operation will fail and the assets send may be
+		/// at risk.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -999,12 +1005,12 @@ impl<T: Config> Pallet<T> {
 		let value = (origin_location, assets.into_inner());
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		let (origin_location, assets) = value;
-		let ancestry = T::LocationInverter::universal_location().into();
+		let context = T::UniversalLocation::get();
 		let fees = assets
 			.get(fee_asset_item as usize)
 			.ok_or(Error::<T>::Empty)?
 			.clone()
-			.reanchored(&dest, &ancestry)
+			.reanchored(&dest, context)
 			.map_err(|_| Error::<T>::CannotReanchor)?;
 		let max_assets = assets.len() as u32;
 		let assets: MultiAssets = assets.into();
@@ -1057,12 +1063,12 @@ impl<T: Config> Pallet<T> {
 		let value = (origin_location, assets.into_inner());
 		ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 		let (origin_location, assets) = value;
-		let ancestry = T::LocationInverter::universal_location().into();
+		let context = T::UniversalLocation::get();
 		let fees = assets
 			.get(fee_asset_item as usize)
 			.ok_or(Error::<T>::Empty)?
 			.clone()
-			.reanchored(&dest, &ancestry)
+			.reanchored(&dest, context)
 			.map_err(|_| Error::<T>::CannotReanchor)?;
 		let max_assets = assets.len() as u32;
 		let assets: MultiAssets = assets.into();
@@ -1349,7 +1355,8 @@ impl<T: Config> Pallet<T> {
 		timeout: T::BlockNumber,
 	) -> Result<QueryId, XcmError> {
 		let responder = responder.into();
-		let destination = T::LocationInverter::invert_location(&responder)
+		let destination = T::UniversalLocation::get()
+			.invert_target(&responder)
 			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 		let query_id = Self::new_query(responder, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
@@ -1387,7 +1394,8 @@ impl<T: Config> Pallet<T> {
 		timeout: T::BlockNumber,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
-		let destination = T::LocationInverter::invert_location(&responder)
+		let destination = T::UniversalLocation::get()
+			.invert_target(&responder)
 			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 		let notify: <T as Config>::Call = notify.into();
 		let max_weight = notify.get_dispatch_info().weight;

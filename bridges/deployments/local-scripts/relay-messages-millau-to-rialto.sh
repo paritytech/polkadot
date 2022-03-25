@@ -10,6 +10,7 @@ RIALTO_PORT="${RIALTO_PORT:-9944}"
 
 RUST_LOG=bridge=debug \
 ./target/debug/substrate-relay relay-messages millau-to-rialto \
+	--relayer-mode=altruistic \
 	--lane 00000000 \
 	--source-host localhost \
 	--source-port $MILLAU_PORT \

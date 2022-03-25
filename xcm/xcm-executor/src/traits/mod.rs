@@ -17,9 +17,7 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-pub use conversion::{
-	Convert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, UniversalLocation,
-};
+pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, JustTry};
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
 mod asset_lock;
@@ -51,7 +49,7 @@ pub mod prelude {
 		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, Convert, ConvertOrigin,
 		Decoded, DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity,
 		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible,
-		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
-		VersionChangeNotifier, WeightBounds, WeightTrader,
+		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
+		WeightBounds, WeightTrader,
 	};
 }

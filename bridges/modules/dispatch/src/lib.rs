@@ -649,8 +649,7 @@ mod tests {
 	fn should_fail_on_weight_mismatch() {
 		new_test_ext().execute_with(|| {
 			let id = [0; 4];
-			let call =
-				Call::System(frame_system::Call::remark_with_event { remark: vec![1, 2, 3] });
+			let call = Call::System(frame_system::Call::set_heap_pages { pages: 42 });
 			let call_weight = call.get_dispatch_info().weight;
 			let mut message = prepare_root_message(call);
 			message.weight = 7;

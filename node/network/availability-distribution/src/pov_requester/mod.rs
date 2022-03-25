@@ -25,7 +25,7 @@ use polkadot_node_network_protocol::request_response::{
 };
 use polkadot_node_primitives::PoV;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{IfDisconnected, NetworkBridgeMessage},
@@ -91,7 +91,7 @@ async fn fetch_pov_job(
 	metrics: Metrics,
 ) {
 	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx, metrics).await {
-		tracing::warn!(target: LOG_TARGET, ?err, ?pov_hash, ?authority_id, "fetch_pov_job");
+		gum::warn!(target: LOG_TARGET, ?err, ?pov_hash, ?authority_id, "fetch_pov_job");
 	}
 }
 
@@ -133,7 +133,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_node_primitives::BlockData;
-	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
+	use polkadot_primitives::v2::{CandidateHash, Hash, ValidatorIndex};
 	use polkadot_subsystem::messages::{
 		AllMessages, AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	};
@@ -207,7 +207,7 @@ mod tests {
 							.unwrap();
 						break
 					},
-					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
+					msg => gum::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
 				}
 			}
 			if pov.hash() == pov_hash {

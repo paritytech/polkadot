@@ -33,8 +33,8 @@ use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
-	IsChildSystemParachain, IsConcrete, LocationInverter, RespectSuspension,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	IsChildSystemParachain, IsConcrete, RespectSuspension, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
 
 pub type AccountId = AccountId32;
@@ -128,7 +128,7 @@ impl configuration::Config for Runtime {
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::here();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub Ancestry: InteriorMultiLocation = Here;
+	pub UniversalLocation: InteriorMultiLocation = Here;
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -178,7 +178,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = RespectSuspension<Barrier, XcmPallet>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
@@ -199,7 +199,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNe
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = TestSendXcm;
 	// Anyone can execute XCM messages locally...

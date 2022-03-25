@@ -54,6 +54,7 @@ use scale_info::TypeInfo;
 #[derive(
 	Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -388,11 +389,15 @@ impl MultiLocation {
 	/// The context of `self` is provided as `context`.
 	///
 	/// Does not modify `self` in case of overflow.
-	pub fn reanchor(&mut self, target: &MultiLocation, context: &MultiLocation) -> Result<(), ()> {
+	pub fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
 		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
 
 		// 1. Use our `context` to figure out how the `target` would address us.
-		let inverted_target = context.inverted(target)?;
+		let inverted_target = context.invert_target(target)?;
 
 		// 2. Prepend `inverted_target` to `self` to get self's location from the perspective of
 		// `target`.
@@ -412,26 +417,12 @@ impl MultiLocation {
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		context: &MultiLocation,
+		context: InteriorMultiLocation,
 	) -> Result<Self, Self> {
 		match self.reanchor(target, context) {
 			Ok(()) => Ok(self),
 			Err(()) => Err(self),
 		}
-	}
-
-	/// Treating `self` as a context, determine how it would be referenced by a `target` location.
-	pub fn inverted(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
-		use Junction::OnlyChild;
-		let mut context = self.clone();
-		let mut junctions = Junctions::Here;
-		for _ in 0..target.parent_count() {
-			junctions = junctions
-				.pushed_front_with(context.interior.take_last().unwrap_or(OnlyChild))
-				.map_err(|_| ())?;
-		}
-		let parents = target.interior().len() as u8;
-		Ok(MultiLocation::new(parents, junctions))
 	}
 
 	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
@@ -521,21 +512,6 @@ mod tests {
 	}
 
 	#[test]
-	fn inverted_works() {
-		let context: MultiLocation = (Parachain(1000), PalletInstance(42)).into();
-		let target = (Parent, PalletInstance(69)).into();
-		let expected = (Parent, PalletInstance(42)).into();
-		let inverted = context.inverted(&target).unwrap();
-		assert_eq!(inverted, expected);
-
-		let context: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
-		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
-		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
-		let inverted = context.inverted(&target).unwrap();
-		assert_eq!(inverted, expected);
-	}
-
-	#[test]
 	fn simplify_basic_works() {
 		let mut location: MultiLocation =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
@@ -589,7 +565,7 @@ mod tests {
 		let context = Parachain(2000).into();
 		let target = (Parent, Parachain(1000)).into();
 		let expected = GeneralIndex(42).into();
-		id.reanchor(&target, &context).unwrap();
+		id.reanchor(&target, context).unwrap();
 		assert_eq!(id, expected);
 	}
 
@@ -700,7 +676,7 @@ mod tests {
 
 	#[test]
 	fn conversion_from_other_types_works() {
-		use crate::v1;
+		use crate::v2;
 		use core::convert::TryInto;
 
 		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
@@ -721,12 +697,12 @@ mod tests {
 		takes_multilocation([Parachain(100), PalletInstance(3)]);
 
 		assert_eq!(
-			v1::MultiLocation::from(v1::Junctions::Here).try_into(),
+			v2::MultiLocation::from(v2::Junctions::Here).try_into(),
 			Ok(MultiLocation::here())
 		);
-		assert_eq!(v1::MultiLocation::from(v1::Parent).try_into(), Ok(MultiLocation::parent()));
+		assert_eq!(v2::MultiLocation::from(v2::Parent).try_into(), Ok(MultiLocation::parent()));
 		assert_eq!(
-			v1::MultiLocation::from((v1::Parent, v1::Parent, v1::Junction::GeneralIndex(42u128),))
+			v2::MultiLocation::from((v2::Parent, v2::Parent, v2::Junction::GeneralIndex(42u128),))
 				.try_into(),
 			Ok(MultiLocation { parents: 2, interior: X1(GeneralIndex(42u128)) }),
 		);

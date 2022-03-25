@@ -34,7 +34,7 @@ pub use sp_consensus_babe::{
 };
 pub use sp_core::traits::SpawnNamed;
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
@@ -75,6 +75,11 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// blocks that pass backing are considerd executable by approval checkers or
 /// dispute participants.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// Linked to `MAX_FINALITY_LAG` in relay chain selection,
+/// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
+/// `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`
+pub const MAX_FINALITY_LAG: u32 = 500;
 
 /// Type of a session window size.
 ///
@@ -288,7 +293,7 @@ impl MaybeCompressedPoV {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 #[cfg(not(target_os = "unknown"))]
-pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
+pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The horizontal messages sent by the parachain.

@@ -123,6 +123,9 @@ pub enum Error {
 	/// Some other error with locking.
 	#[codec(index = 31)]
 	LockError,
+	/// The state was not in a condition where the operation was valid to make.
+	#[codec(index = 32)]
+	NoPermission,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.

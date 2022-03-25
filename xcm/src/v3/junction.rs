@@ -18,8 +18,10 @@
 
 use super::{Junctions, MultiLocation};
 use crate::{
-	v1::{BodyId as OldBodyId, BodyPart as OldBodyPart},
-	v2::{Junction as OldJunction, NetworkId as OldNetworkId},
+	v2::{
+		BodyId as OldBodyId, BodyPart as OldBodyPart, Junction as OldJunction,
+		NetworkId as OldNetworkId,
+	},
 	VersionedMultiLocation,
 };
 use core::convert::{TryFrom, TryInto};
@@ -33,6 +35,7 @@ use scale_info::TypeInfo;
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum NetworkId {
 	/// Network specified by the first 32 bytes of its genesis block.
 	ByGenesis([u8; 32]),
@@ -74,6 +77,7 @@ impl From<OldNetworkId> for Option<NetworkId> {
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyId {
 	/// The only body in its context.
 	Unit,
@@ -120,6 +124,7 @@ impl TryFrom<OldBodyId> for BodyId {
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
 	Voice,
@@ -183,6 +188,7 @@ impl TryFrom<OldBodyPart> for BodyPart {
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///

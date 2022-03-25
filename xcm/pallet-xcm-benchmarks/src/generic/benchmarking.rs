@@ -475,10 +475,27 @@ benchmarks! {
 		assert_eq!(executor.topic(), &None);
 	}
 
+	exchange_asset {
+		let (give, want) = T::worst_case_asset_exchange().map_err(|_| BenchmarkError::Skip)?;
+		let assets = give.clone();
+
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_holding(give.into());
+		let instruction = Instruction::ExchangeAsset {
+			give: assets.into(),
+			want: want.clone(),
+			maximal: true,
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.holding(), &want.into());
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),
 		crate::generic::mock::Test
 	);
-
 }

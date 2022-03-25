@@ -20,7 +20,7 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, UniversalLocation};
+use xcm_executor::traits::Convert;
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
@@ -147,45 +147,6 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
-/// Simple location inverter; give it this location's context and it'll figure out the inverted
-/// location.
-///
-/// # Example
-/// ## Network Topology
-/// ```txt
-///                    v Source
-/// Relay -> Para 1 -> Account20
-///       -> Para 2 -> Account32
-///                    ^ Target
-/// ```
-/// ```rust
-/// # use frame_support::parameter_types;
-/// # use xcm::latest::prelude::*;
-/// # use xcm_builder::LocationInverter;
-/// # use xcm_executor::traits::UniversalLocation;
-/// # fn main() {
-/// parameter_types!{
-///     pub Ancestry: InteriorMultiLocation = X2(
-///         Parachain(1),
-///         AccountKey20 { network: None, key: Default::default() },
-///     );
-/// }
-///
-/// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: None, id: Default::default() }));
-/// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-/// assert_eq!(inverted, Ok(MultiLocation::new(
-///     2,
-///     X2(Parachain(1), AccountKey20 { network: None, key: Default::default() }),
-/// )));
-/// # }
-/// ```
-pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
-impl<Ancestry: Get<InteriorMultiLocation>> UniversalLocation for LocationInverter<Ancestry> {
-	fn universal_location() -> InteriorMultiLocation {
-		Ancestry::get()
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -216,11 +177,11 @@ mod tests {
 	#[test]
 	fn inverter_works_in_tree() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = X3(Parachain(1), account20(), account20());
+			pub UniversalLocation: InteriorMultiLocation = X3(Parachain(1), account20(), account20());
 		}
 
 		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
 		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
 	}
 
@@ -231,11 +192,11 @@ mod tests {
 	#[test]
 	fn inverter_uses_context_as_inverted_location() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = X2(account20(), account20());
+			pub UniversalLocation: InteriorMultiLocation = X2(account20(), account20());
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
 		assert_eq!(inverted, X2(account20(), account20()).into());
 	}
 
@@ -246,22 +207,22 @@ mod tests {
 	#[test]
 	fn inverter_uses_only_child_on_missing_context() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = X1(PalletInstance(5));
+			pub UniversalLocation: InteriorMultiLocation = PalletInstance(5).into();
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
-		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
+		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
+		assert_eq!(inverted, (OnlyChild, PalletInstance(5)).into());
 	}
 
 	#[test]
 	fn inverter_errors_when_location_is_too_large() {
 		parameter_types! {
-			pub Ancestry: InteriorMultiLocation = Here;
+			pub UniversalLocation: InteriorMultiLocation = Here;
 		}
 
 		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		let inverted = UniversalLocation::get().invert_target(&input);
 		assert_eq!(inverted, Err(()));
 	}
 }

@@ -30,7 +30,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, LocationInverter,
+	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 	UsingComponents, WeightInfoBounds,
 };
@@ -39,7 +39,7 @@ use xcm_executor::XcmExecutor;
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = Westend;
-	pub Ancestry: InteriorMultiLocation = ThisNetwork::get().into();
+	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -70,7 +70,7 @@ type LocalOriginConverter = (
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
+	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
 );
 
 parameter_types! {
@@ -107,7 +107,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
 	type Trader =
@@ -144,7 +144,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;

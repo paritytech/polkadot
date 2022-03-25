@@ -31,7 +31,7 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
-	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset, UniversalLocation,
+	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset,
 	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
@@ -472,9 +472,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest, &self.context)?;
 				}
-				let reanchor_context = Config::LocationInverter::universal_location().into();
+				let reanchor_context = Config::UniversalLocation::get();
 				assets
-					.reanchor(&dest, &reanchor_context)
+					.reanchor(&dest, reanchor_context)
 					.map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
@@ -755,7 +755,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			UniversalOrigin(new_global) => {
-				let universal_location = Config::LocationInverter::universal_location();
+				let universal_location = Config::UniversalLocation::get();
 				ensure!(universal_location.first() != Some(&new_global), XcmError::InvalidLocation);
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
 				let origin_xform = (origin, new_global);
@@ -784,7 +784,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let lock_ticket =
 					Config::AssetLocker::prepare_lock(unlocker.clone(), asset, origin.clone())?;
 				let owner =
-					origin.reanchored(&unlocker, &context).map_err(|_| XcmError::ReanchorFailed)?;
+					origin.reanchored(&unlocker, context).map_err(|_| XcmError::ReanchorFailed)?;
 				let msg = Xcm::<()>(vec![NoteUnlockable { asset: remote_asset, owner }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(unlocker, msg)?;
 				self.take_fee(price, FeeReason::LockAsset)?;
@@ -845,6 +845,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.topic = None;
 				Ok(())
 			},
+			AliasOrigin(_) => Err(XcmError::NoPermission),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
@@ -876,7 +877,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(match local_querier {
 			None => None,
 			Some(q) => Some(
-				q.reanchored(&destination, &Config::LocationInverter::universal_location().into())
+				q.reanchored(&destination, Config::UniversalLocation::get())
 					.map_err(|_| XcmError::ReanchorFailed)?,
 			),
 		})
@@ -907,10 +908,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn try_reanchor(
 		asset: MultiAsset,
 		destination: &MultiLocation,
-	) -> Result<(MultiAsset, MultiLocation), XcmError> {
-		let reanchor_context = Config::LocationInverter::universal_location().into();
+	) -> Result<(MultiAsset, InteriorMultiLocation), XcmError> {
+		let reanchor_context = Config::UniversalLocation::get();
 		let asset = asset
-			.reanchored(&destination, &reanchor_context)
+			.reanchored(&destination, reanchor_context.clone())
 			.map_err(|()| XcmError::ReanchorFailed)?;
 		Ok((asset, reanchor_context))
 	}
@@ -921,8 +922,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		dest: &MultiLocation,
 		maybe_failed_bin: Option<&mut Assets>,
 	) -> MultiAssets {
-		let reanchor_context = Config::LocationInverter::universal_location().into();
-		assets.reanchor(dest, &reanchor_context, maybe_failed_bin);
+		let reanchor_context = Config::UniversalLocation::get();
+		assets.reanchor(dest, reanchor_context, maybe_failed_bin);
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 }

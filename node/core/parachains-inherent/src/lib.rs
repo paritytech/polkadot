@@ -28,7 +28,7 @@ use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
-use polkadot_primitives::v1::{Block, Hash, InherentData as ParachainsInherentData};
+use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use std::time;
@@ -88,7 +88,7 @@ impl ParachainsInherentDataProvider {
 				parent_header,
 			},
 			Err(err) => {
-				tracing::debug!(
+				gum::debug!(
 					?err,
 					"Could not get provisioner inherent data; injecting default data",
 				);
@@ -112,7 +112,7 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
 		dst_inherent_data
-			.put_data(polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
+			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
 	}
 
 	async fn try_handle_error(

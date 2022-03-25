@@ -1,16 +1,17 @@
 [package]
 name = "xcm"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "The basic XCM datastructures."
 edition = "2021"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"
-parity-scale-codec = { version = "3.0.0", default-features = false, features = [ "derive", "max-encoded-len" ] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
+serde = { version = "1.0.136", optional = true, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 xcm-procedural = { path = "procedural" }
 
@@ -21,5 +22,6 @@ runtime-benchmarks = []
 std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
+	"serde",
 	"sp-io/std"
 ]

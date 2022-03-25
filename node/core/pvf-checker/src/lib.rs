@@ -26,9 +26,9 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
 };
-use polkadot_primitives::{
-	v1::{BlockNumber, Hash, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorIndex},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use std::collections::HashSet;
@@ -185,7 +185,7 @@ async fn handle_pvf_check(
 	outcome: PreCheckOutcome,
 	validation_code_hash: ValidationCodeHash,
 ) {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
 		"Received pre-check result: {:?}",
@@ -200,7 +200,7 @@ async fn handle_pvf_check(
 			//
 			// Returning here will leave the PVF in the view dangling. Since it is there, no new
 			// pre-checking request will be sent.
-			tracing::info!(
+			gum::info!(
 				target: LOG_TARGET,
 				?validation_code_hash,
 				"Pre-check failed, abstaining from voting",
@@ -212,7 +212,7 @@ async fn handle_pvf_check(
 	match state.view.on_judgement(validation_code_hash, judgement) {
 		Ok(()) => (),
 		Err(()) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?validation_code_hash,
 				"received judgement for an unknown (or removed) PVF hash",
@@ -254,7 +254,7 @@ async fn handle_from_overseer(
 ) -> Option<Conclude> {
 	match from_overseer {
 		FromOverseer::Signal(OverseerSignal::Conclude) => {
-			tracing::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
+			gum::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 			Some(Conclude)
 		},
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {
@@ -360,7 +360,7 @@ async fn examine_activation(
 	leaf_hash: Hash,
 	leaf_number: BlockNumber,
 ) -> Option<ActivationEffect> {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		"Examining activation of leaf {:?} ({})",
 		leaf_hash,
@@ -370,7 +370,7 @@ async fn examine_activation(
 	let pending_pvfs = match runtime_api::pvfs_require_precheck(sender, leaf_hash).await {
 		Err(runtime_api::RuntimeRequestError::NotSupported) => return None,
 		Err(_) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				relay_parent = ?leaf_hash,
 				"cannot fetch PVFs that require pre-checking from runtime API",
@@ -398,7 +398,7 @@ async fn examine_activation(
 				None
 			},
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				relay_parent = ?leaf_hash,
 				"cannot fetch session index from runtime API: {:?}",
@@ -421,7 +421,7 @@ async fn check_signing_credentials(
 	let validators = match runtime_api::validators(sender, leaf).await {
 		Ok(v) => v,
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				relay_parent = ?leaf,
 				"error occured during requesting validators: {:?}",
@@ -453,7 +453,7 @@ async fn sign_and_submit_pvf_check_statement(
 	judgement: Judgement,
 	validation_code_hash: ValidationCodeHash,
 ) {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
 		?relay_parent,
@@ -464,7 +464,7 @@ async fn sign_and_submit_pvf_check_statement(
 	metrics.on_vote_submission_started();
 
 	if voted.contains(&validation_code_hash) {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			relay_parent = ?relay_parent,
 			?validation_code_hash,
@@ -491,7 +491,7 @@ async fn sign_and_submit_pvf_check_statement(
 	{
 		Ok(Some(signature)) => signature,
 		Ok(None) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				validator_index = ?credentials.validator_index,
@@ -501,7 +501,7 @@ async fn sign_and_submit_pvf_check_statement(
 			return
 		},
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				validator_index = ?credentials.validator_index,
@@ -518,7 +518,7 @@ async fn sign_and_submit_pvf_check_statement(
 			metrics.on_vote_submitted();
 		},
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				?validation_code_hash,
@@ -540,12 +540,7 @@ async fn initiate_precheck(
 	validation_code_hash: ValidationCodeHash,
 	metrics: &Metrics,
 ) {
-	tracing::debug!(
-		target: LOG_TARGET,
-		?validation_code_hash,
-		?relay_parent,
-		"initiating a precheck",
-	);
+	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -563,7 +558,7 @@ async fn initiate_precheck(
 				// Pre-checking request dropped before replying. That can happen in case the
 				// overseer is shutting down. Our part of shutdown will be handled by the
 				// overseer conclude signal. Log it here just in case.
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?validation_code_hash,
 					?relay_parent,

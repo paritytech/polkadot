@@ -31,8 +31,8 @@ use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, BackingToPlurality, ChildParachainAsNative,
 	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
+	IsConcrete, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	TakeWeightCredit, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -58,7 +58,7 @@ pub type SovereignAccountOf = (
 	AccountId32Aliases<ThisNetwork, AccountId>,
 );
 
-/// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
+/// Our asset transactor. This is what allows us to interact with the runtime assets from the point of
 /// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
 /// Ours is only aware of the Balances pallet, which is mapped to `TokenLocation`.
@@ -75,13 +75,18 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	CheckAccount,
 >;
 
-/// The means that we convert an the XCM message origin location into a local dispatch origin.
+/// The means that we convert an XCM origin `MultiLocation` into the runtime's `Origin` type for
+/// local dispatch. This is a conversion function from an `OriginKind` type along with the
+/// `MultiLocation` value and returns an `Origin` value or an error.
 type LocalOriginConverter = (
-	// A `Signed` origin of the sovereign account that the original location controls.
+	// If the origin kind is `Sovereign`, then return a `Signed` origin with the account determined
+	// by the `SovereignAccountOf` converter.
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
-	// A child parachain, natively expressed, has the `Parachain` origin.
+	// If the origin kind is `Native` and the XCM origin is a child parachain, then we can express
+	// it with the special `parachains_origin::Origin` origin variant.
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	// The AccountId32 location type can be expressed natively as a `Signed` origin.
+	// If the origin kind is `Native` and the XCM origin is the `AccountId32` location, then it can
+	// be expressed using the `Signed` origin variant.
 	SignedAccountId32AsNative<ThisNetwork, Origin>,
 );
 
@@ -97,7 +102,7 @@ parameter_types! {
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
+	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
 );
 
 parameter_types! {
@@ -106,6 +111,7 @@ parameter_types! {
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
+/// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
 pub type TrustedTeleporters = (xcm_builder::Case<DotForStatemint>,);
 
 match_types! {
@@ -132,9 +138,10 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
+	// Polkadot Relay recognises no chains which act as reserves.
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<UniversalLocation>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
@@ -174,17 +181,18 @@ pub type LocalOriginToLocation = (
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// Not much use in sending XCM at this point.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>; // == Deny All
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = Nothing;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Nothing;
-	type XcmReserveTransferFilter = Nothing;
+	type XcmExecuteFilter = Nothing; // == Deny All
+	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
+	type XcmTeleportFilter = Everything; // == Allow All
+	type XcmReserveTransferFilter = Everything; // == Allow All
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<UniversalLocation>;
+	type UniversalLocation = UniversalLocation;
 	type Origin = Origin;
 	type Call = Call;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
