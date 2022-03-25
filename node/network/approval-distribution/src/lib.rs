@@ -1244,7 +1244,7 @@ impl State {
 							"Importing an approval we don't have an assignment for",
 						);
 
-						return;
+						return
 					},
 				}
 			},
@@ -1257,7 +1257,7 @@ impl State {
 					"Expected a candidate entry on import_and_circulate_approval",
 				);
 
-				return;
+				return
 			},
 		};
 
