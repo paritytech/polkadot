@@ -140,11 +140,6 @@ impl Contains<Call> for BaseFilter {
 	}
 }
 
-type MoreThanHalfCouncil = EnsureOneOf<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
->;
-
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 	pub const SS58Prefix: u8 = 2;
@@ -184,11 +179,6 @@ parameter_types! {
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
-type ScheduleOrigin = EnsureOneOf<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
->;
-
 /// Used the compare the privilege of an origin inside the scheduler.
 pub struct OriginPrivilegeCmp;
 
@@ -218,7 +208,7 @@ impl pallet_scheduler::Config for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = ScheduleOrigin;
+	type ScheduleOrigin = EnsureRoot<AccountId>; // TODO
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = OriginPrivilegeCmp;
@@ -236,7 +226,7 @@ impl pallet_preimage::Config for Runtime {
 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
 	type Event = Event;
 	type Currency = Balances;
-	type ManagerOrigin = EnsureRoot<AccountId>;
+	type ManagerOrigin = EnsureRoot<AccountId>; // TODO
 	type MaxSize = PreimageMaxSize;
 	type BaseDeposit = PreimageBaseDeposit;
 	type ByteDeposit = PreimageByteDeposit;
@@ -453,10 +443,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
-	type ForceOrigin = EnsureOneOf<
-		EnsureRoot<AccountId>,
-		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
-	>;
+	type ForceOrigin = StakingAdmin<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
@@ -549,11 +536,6 @@ parameter_types! {
 	pub const MaxNominations: u32 = <NposCompactSolution24 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
-type SlashCancelOrigin = EnsureOneOf<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
->;
-
 impl frame_election_provider_support::onchain::Config for Runtime {
 	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
 	type DataProvider = Staking;
@@ -574,7 +556,7 @@ impl pallet_staking::Config for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council or root can cancel the slash.
-	type SlashCancelOrigin = SlashCancelOrigin;
+	type SlashCancelOrigin = StakingAdmin<AccountId>;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
@@ -606,11 +588,11 @@ impl pallet_collective::Config<FellowshipCollective> for Runtime {
 
 impl pallet_membership::Config<pallet_membership::Instance2> for Runtime {
 	type Event = Event;
-	type AddOrigin = EnsureRoot<AccountId>;// TODO
-	type RemoveOrigin = EnsureRoot<AccountId>;
-	type SwapOrigin = EnsureRoot<AccountId>;
-	type ResetOrigin = EnsureRoot<AccountId>;
-	type PrimeOrigin = EnsureRoot<AccountId>;
+	type AddOrigin = FellowshipAdmin<AccountId>;
+	type RemoveOrigin = FellowshipAdmin<AccountId>;
+	type SwapOrigin = FellowshipAdmin<AccountId>;
+	type ResetOrigin = FellowshipAdmin<AccountId>;
+	type PrimeOrigin = FellowshipAdmin<AccountId>;
 	type MembershipInitialized = Fellowship;
 	type MembershipChanged = Fellowship;
 	type MaxMembers = FellowshipMaxMembers;
@@ -651,27 +633,56 @@ pub mod pallet_custom_origins {
 	#[cfg_attr(feature = "std", derive(Debug))]
 	#[pallet::origin]
 	pub enum Origin {
-		Test,
+		/// Origin for cancelling slashes.
+		StakingAdmin,
+		/// Origin for spending (any amount of) funds.
+		Treasurer,
+		/// Origin for managing the composition of the fellowship.
+		FellowshipAdmin,
+		/// Origin for managing the registrar.
+		GeneralAdmin,
+		/// Origin for starting auctions.
+		AuctionAdmin,
+		/// Origin able to force slot leases.
+		LeaseAdmin,
+		/// Origin able to cancel referenda.
+		ReferendumCanceller,
+		/// Origin able to kill referenda.
+		ReferendumKiller,
 	}
 
-	pub struct EnsureTest<AccountId>(sp_std::marker::PhantomData<AccountId>);
-	impl<O: Into<Result<RawOrigin<AccountId>, O>> + From<RawOrigin<AccountId>>, AccountId>
-		EnsureOrigin<O> for EnsureTest<AccountId>
-	{
-		type Success = ();
-		fn try_origin(o: O) -> Result<Self::Success, O> {
-			o.into().and_then(|o| match o {
-				Origin::Test => Ok(()),
-				r => Err(O::from(r)),
-			})
-		}
-
-		#[cfg(feature = "runtime-benchmarks")]
-		fn successful_origin() -> O {
-			O::from(Origin::Test)
-		}
+	macro_rules! decl_ensure {
+		( $name:ident $( $rest:tt )* ) => {
+			pub struct $name<AccountId>(sp_std::marker::PhantomData<AccountId>);
+			impl<O: Into<Result<Origin, O>> + From<Origin>, AccountId>
+				EnsureOrigin<O> for $name<AccountId>
+			{
+				type Success = ();
+				fn try_origin(o: O) -> Result<Self::Success, O> {
+					o.into().and_then(|o| match o {
+						Origin::$name => Ok(()),
+						r => Err(O::from(r)),
+					})
+				}
+				#[cfg(feature = "runtime-benchmarks")]
+				fn successful_origin() -> O {
+					O::from(Origin::$name)
+				}
+			}
+			decl_ensure! { $( $rest )* }
+		};
+		(, $( $rest:tt )* ) => { decl_ensure! { $( $rest )* } };
+		() => {}
 	}
+	decl_ensure!(
+		StakingAdmin, Treasurer, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
+		ReferendumCanceller, ReferendumKiller,
+	);
 }
+pub use pallet_custom_origins::{
+	StakingAdmin, Treasurer, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
+	ReferendumCanceller, ReferendumKiller,
+};
 
 impl pallet_custom_origins::Config for Runtime {}
 
@@ -722,8 +733,8 @@ impl pallet_referenda::Config for Runtime {
 	type Event = Event;
 	type Scheduler = Scheduler;
 	type Currency = Balances;
-	type CancelOrigin = EnsureRoot<AccountId>; // TODO
-	type KillOrigin = EnsureRoot<AccountId>; // TODO
+	type CancelOrigin = ReferendumCanceller<AccountId>;
+	type KillOrigin = ReferendumKiller<AccountId>;
 	type Slash = ();
 	type Votes = pallet_conviction_voting::VotesOf<Runtime>;
 	type Tally = pallet_conviction_voting::TallyOf<Runtime>;
@@ -871,11 +882,11 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 	type Event = Event;
-	type AddOrigin = MoreThanHalfCouncil;
-	type RemoveOrigin = MoreThanHalfCouncil;
-	type SwapOrigin = MoreThanHalfCouncil;
-	type ResetOrigin = MoreThanHalfCouncil;
-	type PrimeOrigin = MoreThanHalfCouncil;
+	type AddOrigin = EnsureRoot<AccountId>;
+	type RemoveOrigin = EnsureRoot<AccountId>;
+	type SwapOrigin = EnsureRoot<AccountId>;
+	type ResetOrigin = EnsureRoot<AccountId>;
+	type PrimeOrigin = EnsureRoot<AccountId>;
 	type MembershipInitialized = TechnicalCommittee;
 	type MembershipChanged = TechnicalCommittee;
 	type MaxMembers = TechnicalMaxMembers;
@@ -907,16 +918,11 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
-type ApproveOrigin = EnsureOneOf<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
->;
-
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = ApproveOrigin;
-	type RejectOrigin = MoreThanHalfCouncil;
+	type ApproveOrigin = Treasurer<AccountId>;
+	type RejectOrigin = Treasurer<AccountId>;
 	type Event = Event;
 	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
@@ -1091,8 +1097,7 @@ impl claims::Config for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
-	type MoveClaimOrigin =
-		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	type MoveClaimOrigin = Treasurer<AccountId>;
 	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
 }
 
@@ -1116,8 +1121,8 @@ impl pallet_identity::Config for Runtime {
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
 	type Slashed = Treasury;
-	type ForceOrigin = MoreThanHalfCouncil;
-	type RegistrarOrigin = MoreThanHalfCouncil;
+	type ForceOrigin = GeneralAdmin<AccountId>;
+	type RegistrarOrigin = GeneralAdmin<AccountId>;
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
@@ -1186,8 +1191,7 @@ impl pallet_society::Config for Runtime {
 	type MembershipChanged = ();
 	type RotationPeriod = RotationPeriod;
 	type MaxLockDuration = MaxLockDuration;
-	type FounderSetOrigin =
-		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	type FounderSetOrigin = EnsureRoot<AccountId>;
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type MaxCandidateIntake = MaxCandidateIntake;
@@ -1449,7 +1453,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
-	type ForceOrigin = MoreThanHalfCouncil;
+	type ForceOrigin = LeaseAdmin<AccountId>;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
@@ -1482,11 +1486,6 @@ parameter_types! {
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
-type AuctionInitiate = EnsureOneOf<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
->;
-
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
@@ -1494,7 +1493,7 @@ impl auctions::Config for Runtime {
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = AuctionInitiate;
+	type InitiateOrigin = AuctionAdmin<AccountId>;
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
@@ -1513,7 +1512,7 @@ impl pallet_gilt::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
-	type AdminOrigin = MoreThanHalfCouncil;
+	type AdminOrigin = Treasurer<AccountId>;
 	type Deficit = (); // Mint
 	type Surplus = (); // Burn
 	type IgnoredIssuance = IgnoredIssuance;
