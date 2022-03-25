@@ -64,9 +64,9 @@ const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 /// The number of peers to randomly propagate messages to.
 const RANDOM_CIRCULATION: usize = 8;
 /// The sample rate for randomly propagating messages. This
-/// reduces leftward skew of the binomial distribution but also
-/// introduces a bias towards peers who get a block earlier
-/// than others.
+/// reduces the left tail of the binomial distribution but also
+/// introduces a bias towards peers who we sample before others
+/// (i.e. those who get a block before others).
 const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS;
 
 // A note on aggression thresholds: changes in propagation apply only to blocks which are the
@@ -1471,7 +1471,7 @@ impl State {
 				// this way. Also, disputes might prevent finality - again, nothing
 				// to waste bandwidth on newer blocks for.
 				&block_entry.number == min_age
-			}
+			},
 			|required_routing, local, _| {
 				// It's a bit surprising not to have a topology at this age.
 				if *required_routing == RequiredRouting::PendingTopology {
@@ -1483,25 +1483,30 @@ impl State {
 					return;
 				}
 
+				if diff >= AGGRESSION_L1_THRESHOLD {
+					// Message originator sends to everyone.
+					if local && *required_routing != RequiredRouting::All {
+						metrics.on_aggression_l1();
+						*required_routing = RequiredRouting::All;
+					}
+				}
+
+				if diff >= AGGRESSION_L2_THRESHOLD {
+					// Message originator sends to everyone. Everyone else sends to XY.
+					if !local && *required_routing != RequiredRouting::GridXY {
+						metrics.on_aggression_l2();
+						*required_routing = RequiredRouting::GridXY;
+					}
+				}
+
 				if diff >= AGGRESSION_L3_THRESHOLD {
 					// last-ditch: everyone broadcasts everything to everyone.
 					// This is going to be very packet and bandwidth-intense, but
 					// it's literally the most we can do.
-					*required_routing = RequiredRouting::All;
-				} else if diff >= AGGRESSION_L2_THRESHOLD {
-					// Message originator sends to everyone. Everyone else sends to XY.
-					if local {
-						*required_routing = RequiredRouting::All;
-					} else {
-						*required_routing = RequiredRouting::GridXY;
-					}
-				} else if diff >= AGGRESSION_L1_THRESHOLD {
-					// Message originator sends to everyone.
-					if local {
+					if *required_routing != RequiredRouting::All {
+						metrics.on_aggression_l3();
 						*required_routing = RequiredRouting::All;
 					}
-				} else {
-					unreachable!("Difference between max and min checked to be at least aggression threshold above; qed");
 				}
 			}
 		).await;

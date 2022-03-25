@@ -25,6 +25,9 @@ struct MetricsInner {
 	assignments_imported_total: prometheus::Counter<prometheus::U64>,
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
 	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
+	aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
+	aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
+	aggression_l3_messages_total: prometheus::Counter<prometheus::U64>,
 
 	time_unify_with_peer: prometheus::Histogram,
 	time_import_pending_now_known: prometheus::Histogram,
@@ -69,6 +72,24 @@ impl Metrics {
 			.as_ref()
 			.map(|metrics| metrics.time_awaiting_approval_voting.start_timer())
 	}
+
+	pub(crate) fn on_aggression_l1(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.aggression_l1_messages_total.inc();
+		}
+	}
+
+	pub(crate) fn on_aggression_l2(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.aggression_l2_messages_total.inc();
+		}
+	}
+
+	pub(crate) fn on_aggression_l3(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.aggression_l3_messages_total.inc();
+		}
+	}
 }
 
 impl MetricsTrait for Metrics {
@@ -92,6 +113,27 @@ impl MetricsTrait for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_unified_with_peer_total",
 					"Number of times `unify_with_peer` is called.",
+				)?,
+				registry,
+			)?,
+			aggression_l1_messages_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approval_disttribution_aggression_l1_messages_total",
+					"Number of messages in approval distribution for which aggression L1 has been triggered",
+				)?,
+				registry,
+			)?,
+			aggression_l2_messages_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approval_disttribution_aggression_l2_messages_total",
+					"Number of messages in approval distribution for which aggression L2 has been triggered",
+				)?,
+				registry,
+			)?,
+			aggression_l3_messages_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approval_disttribution_aggression_l3_messages_total",
+					"Number of messages in approval distribution for which aggression L3 has been triggered",
 				)?,
 				registry,
 			)?,
