@@ -1337,6 +1337,15 @@ impl State {
 					_ => break,
 				};
 
+				// Any peer which is in the `known_by` set has already been
+				// sent all messages it's meant to get for that block and all
+				// in-scope prior blocks.
+				if entry.known_by.contains_key(&peer_id) {
+					break
+				}
+
+				let peer_knowledge = entry.known_by.entry(peer_id.clone()).or_default();
+
 				let topology = match topologies.get_topology(entry.session) {
 					Some(t) => t,
 					None => {
@@ -1349,8 +1358,6 @@ impl State {
 						continue
 					},
 				};
-
-				let peer_knowledge = entry.known_by.entry(peer_id.clone()).or_default();
 
 				// Iterate all messages in all candidates.
 				for (candidate_index, validator, message_state) in
@@ -1404,14 +1411,6 @@ impl State {
 							approvals_to_send.push(approval_message);
 						}
 					}
-				}
-
-				// If peer's knowledge is complete relative to our knowledge at one block,
-				// it's complete in its ancestors too.
-
-				let sent_after = assignments_to_send.len() + approvals_to_send.len();
-				if sent_before == sent_after {
-					break
 				}
 
 				block = entry.parent_hash.clone();
