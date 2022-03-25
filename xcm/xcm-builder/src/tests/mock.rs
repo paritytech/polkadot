@@ -41,7 +41,7 @@ pub use xcm::prelude::*;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
-		FeeReason, LockError, OnResponse, TransactAsset,
+		FeeReason, LockError, OnResponse, RejectReason, TransactAsset,
 	},
 	Assets, Config,
 };
