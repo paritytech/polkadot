@@ -814,8 +814,6 @@ short-benchmark-polkadot:          &short-bench
       artifacts:                   true
   variables:
     RUNTIME:                       polkadot
-  # FIXME: https://github.com/paritytech/substrate/pull/11109
-  allow_failure:                   true
   script:
     - ./artifacts/polkadot benchmark --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 1 --repeat 1
 
