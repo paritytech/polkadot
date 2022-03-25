@@ -69,9 +69,20 @@ const RANDOM_CIRCULATION: usize = 8;
 /// than others.
 const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS;
 
-/// How far unfinalized a block must be before validators broadcast
-/// their messages to all peers.
-const AGGRESSIVE_PROPAGATION_THRESHOLD: BlockNumber = 20;
+// A note on aggression thresholds: changes in propagation apply only to blocks which are the
+// _direct descendants_ of the finalized block which are older than the given threshold,
+// not to all blocks older than the threshold. Most likely, a few assignments struggle to
+// be propagated in a single block and this holds up all of its descendants blocks.
+// Accordingly, we only step on the gas for the block which is most obviously holding up finality.
+
+/// Aggression level 1: all validators send all their own messages to all peers.
+const AGGRESSION_L1_THRESHOLD: BlockNumber = 10;
+
+/// Aggression level 2: L1 + all validators send all messages to all XY peers
+const AGGRESSION_L2_THRESHOLD: BlockNumber = 25;
+
+/// Aggression level 3: last-ditch: all validators send all messages to all peers.
+const AGGRESSION_L3_THRESHOLD: BlockNumber = 50;
 
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
@@ -114,7 +125,11 @@ struct SessionTopology {
 }
 
 impl SessionTopology {
-	fn required_routing_for(&self, validator_index: ValidatorIndex) -> RequiredRouting {
+	fn required_routing_for(&self, validator_index: ValidatorIndex, local: bool) -> RequiredRouting {
+		if local {
+			return RequiredRouting::GridXY;
+		}
+
 		let grid_x = self.validator_indices_x.contains(&validator_index);
 		let grid_y = self.validator_indices_y.contains(&validator_index);
 
@@ -135,7 +150,7 @@ impl SessionTopology {
 			RequiredRouting::GridX => self.peers_x.contains(peer),
 			RequiredRouting::GridY => self.peers_y.contains(peer),
 			RequiredRouting::GridXY => self.peers_x.contains(peer) || self.peers_y.contains(peer),
-			RequiredRouting::None | RequiredRouting::PendingTopology(_) => false,
+			RequiredRouting::None | RequiredRouting::PendingTopology => false,
 		}
 	}
 }
@@ -321,9 +336,7 @@ enum RequiredRouting {
 	/// We don't know yet, because we're waiting for topology info
 	/// (race condition between learning about the first blocks in a new session
 	/// and getting the topology for that session)
-	///
-	/// The `bool` here indicates whether this is a local message or not.
-	PendingTopology(bool),
+	PendingTopology,
 	/// Propagate to all peers of any kind.
 	All,
 	/// Propagate to all peers sharing either the X or Y dimension of the grid.
@@ -337,18 +350,10 @@ enum RequiredRouting {
 }
 
 impl RequiredRouting {
-	fn for_local(block_age: BlockNumber) -> Self {
-		if block_age >= AGGRESSIVE_PROPAGATION_THRESHOLD {
-			RequiredRouting::All
-		} else {
-			RequiredRouting::GridXY
-		}
-	}
-
 	// Whether the required routing set is definitely empty.
 	fn is_empty(self) -> bool {
 		match self {
-			RequiredRouting::PendingTopology(_) | RequiredRouting::None => true,
+			RequiredRouting::PendingTopology | RequiredRouting::None => true,
 			_ => false,
 		}
 	}
@@ -384,6 +389,7 @@ impl RandomRouting {
 #[derive(Debug)]
 struct MessageState {
 	required_routing: RequiredRouting,
+	local: bool,
 	random_routing: RandomRouting,
 	approval_state: ApprovalState,
 }
@@ -589,23 +595,7 @@ impl State {
 			}
 		}
 
-		let max_age = self.blocks_by_number.iter().rev().last().map(|(n, _)| *n);
-		if let Some(max_age) = max_age {
-			// For any blocks that have just become old, we trigger sending of our local messages to all peers.
-			// Note that this can only happen if finality is slow.
-			adjust_required_routing_and_propagate(
-				ctx,
-				&mut self.blocks,
-				&self.topologies,
-				|block_entry| block_entry.number + AGGRESSIVE_PROPAGATION_THRESHOLD >= max_age,
-				|_, required_routing, _| {
-					if *required_routing == RequiredRouting::GridXY {
-						*required_routing = RequiredRouting::All
-					}
-				},
-			)
-			.await;
-		}
+		self.enable_aggression(ctx, metrics).await;
 	}
 
 	async fn handle_new_session_topology(
@@ -618,18 +608,14 @@ impl State {
 		self.topologies.insert_topology(session, topology);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
 
-		let blocks_by_number = &self.blocks_by_number;
 		adjust_required_routing_and_propagate(
 			ctx,
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| block_entry.session == session,
-			|block_number, required_routing, validator_index| {
-				if *required_routing == RequiredRouting::PendingTopology(true) {
-					let block_age = block_age(blocks_by_number, block_number);
-					*required_routing = RequiredRouting::for_local(block_age);
-				} else if *required_routing == RequiredRouting::PendingTopology(false) {
-					*required_routing = topology.required_routing_for(validator_index.clone());
+			|required_routing, local, validator_index| {
+				if *required_routing == RequiredRouting::PendingTopology {
+					*required_routing = topology.required_routing_for(*validator_index, local);
 				}
 			},
 		)
@@ -776,7 +762,13 @@ impl State {
 		.await;
 	}
 
-	fn handle_block_finalized(&mut self, finalized_number: BlockNumber) {
+	async fn handle_block_finalized(
+		&mut self,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
+			+ overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		metrics: &Metrics,
+		finalized_number: BlockNumber,
+	) {
 		// we want to prune every block up to (including) finalized_number
 		// why +1 here?
 		// split_off returns everything after the given key, including the key
@@ -793,6 +785,10 @@ impl State {
 				self.topologies.dec_session_refs(block_entry.session);
 			}
 		});
+
+		// If a block was finalized, this means we may need to move our aggression
+		// forward to the now oldest block(s).
+		self.enable_aggression(ctx, metrics).await;
 	}
 
 	async fn import_and_circulate_assignment(
@@ -964,17 +960,11 @@ impl State {
 		metrics.on_assignment_imported();
 
 		let topology = self.topologies.get_topology(entry.session);
+		let local = source == MessageSource::Local;
 
-		let required_routing = if source == MessageSource::Local {
-			let block_age = block_age(&self.blocks_by_number, entry.number);
-			topology.map_or(RequiredRouting::PendingTopology(true), |_| {
-				RequiredRouting::for_local(block_age)
-			})
-		} else {
-			topology.map_or(RequiredRouting::PendingTopology(false), |t| {
-				t.required_routing_for(validator_index)
-			})
-		};
+		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
+			t.required_routing_for(validator_index, local)
+		});
 
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
@@ -982,6 +972,7 @@ impl State {
 				// unless the approval state is set already
 				candidate_entry.messages.entry(validator_index).or_insert_with(|| MessageState {
 					required_routing,
+					local,
 					random_routing: RandomRouting { target: RANDOM_CIRCULATION, sent: 0 },
 					approval_state: ApprovalState::Assigned(assignment.cert.clone()),
 				})
@@ -1209,6 +1200,7 @@ impl State {
 					Some(MessageState {
 						approval_state: ApprovalState::Assigned(cert),
 						required_routing,
+						local,
 						random_routing,
 					}) => {
 						candidate_entry.messages.insert(
@@ -1219,6 +1211,7 @@ impl State {
 									vote.signature.clone(),
 								),
 								required_routing,
+								local,
 								random_routing,
 							},
 						);
@@ -1449,41 +1442,77 @@ impl State {
 			.await;
 		}
 	}
-}
 
-// Get the age of the given block number relative to the highest stored.
-fn block_age(
-	blocks_by_number: &BTreeMap<BlockNumber, Vec<Hash>>,
-	block_number: BlockNumber,
-) -> BlockNumber {
-	match blocks_by_number.iter().rev().last() {
-		None => {
-			gum::warn!(
-				target: LOG_TARGET,
-				block_number,
-				"Asked for block age compared to an empty list",
-			);
+	async fn enable_aggression(
+		&mut self,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
+			+ overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+  		metrics: &Metrics,
+	) {
+		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
+		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
 
-			0
-		},
-		Some((most_recent, _)) =>
-			if *most_recent < block_number {
-				gum::warn!(
-					target: LOG_TARGET,
-					most_recent,
-					block_number,
-					"Asked for block age for block newer than most recent",
-				);
+		let (min_age, max_age) = match (min_age, max_age) {
+			(Some(min), Some(max)) => (min, max),
+			_ => return, // empty.
+		};
 
-				0
-			} else {
-				most_recent - block_number
-			},
+		let diff = max_age - min_age;
+		if diff < AGGRESSION_L1_THRESHOLD { return }
+
+		adjust_required_routing_and_propagate(
+			ctx,
+			&mut self.blocks,
+			&self.topologies,
+			|block_entry| {
+				// Ramp up aggression only for the very oldest block(s).
+				// Approval voting can get stuck on a single block preventing
+				// its descendants from being finalized. Waste minimal bandwidth
+				// this way. Also, disputes might prevent finality - again, nothing
+				// to waste bandwidth on newer blocks for.
+				&block_entry.number == min_age
+			}
+			|required_routing, local, _| {
+				// It's a bit surprising not to have a topology at this age.
+				if *required_routing == RequiredRouting::PendingTopology {
+					gum::debug!(
+						target: LOG_TARGET,
+						age = ?diff,
+						"Encountered old block pending gossip topology",
+					);
+					return;
+				}
+
+				if diff >= AGGRESSION_L3_THRESHOLD {
+					// last-ditch: everyone broadcasts everything to everyone.
+					// This is going to be very packet and bandwidth-intense, but
+					// it's literally the most we can do.
+					*required_routing = RequiredRouting::All;
+				} else if diff >= AGGRESSION_L2_THRESHOLD {
+					// Message originator sends to everyone. Everyone else sends to XY.
+					if local {
+						*required_routing = RequiredRouting::All;
+					} else {
+						*required_routing = RequiredRouting::GridXY;
+					}
+				} else if diff >= AGGRESSION_L1_THRESHOLD {
+					// Message originator sends to everyone.
+					if local {
+						*required_routing = RequiredRouting::All;
+					}
+				} else {
+					unreachable!("Difference between max and min checked to be at least aggression threshold above; qed");
+				}
+			}
+		).await;
 	}
 }
 
 // This adjusts the required routing of messages in blocks that pass the block filter
 // according to the modifier function given.
+//
+// The modifier accepts as inputs the current required-routing state, whether
+// the message is locally originating, and the validator index of the message issuer.
 //
 // Then, if the topology is known, this progates messages to all peers in the required
 // routing set which are aware of the block. Peers which are unaware of the block
@@ -1497,7 +1526,7 @@ async fn adjust_required_routing_and_propagate(
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionTopologies,
 	block_filter: impl Fn(&BlockEntry) -> bool,
-	routing_modifier: impl Fn(BlockNumber, &mut RequiredRouting, &ValidatorIndex),
+	routing_modifier: impl Fn(&mut RequiredRouting, bool, &ValidatorIndex),
 ) {
 	let mut peer_assignments = HashMap::new();
 	let mut peer_approvals = HashMap::new();
@@ -1517,7 +1546,7 @@ async fn adjust_required_routing_and_propagate(
 			.flat_map(|(c_i, c)| c.messages.iter_mut().map(move |(k, v)| (c_i as _, k, v)))
 		{
 			let prev_routing = message_state.required_routing;
-			routing_modifier(block_entry.number, &mut message_state.required_routing, validator);
+			routing_modifier(&mut message_state.required_routing, message_state.local, validator);
 
 			if message_state.required_routing.is_empty() ||
 				message_state.required_routing == prev_routing
@@ -1668,7 +1697,7 @@ impl ApprovalDistribution {
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
 					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
-					state.handle_block_finalized(number);
+					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
 				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => return,
 			}
