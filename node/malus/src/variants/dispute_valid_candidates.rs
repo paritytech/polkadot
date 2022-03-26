@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A malicious node that replaces approvals with invalid disputes
-//! against valid candidates.
+//! against valid candidates. Additionally, the malus node can be configured to
+//! fake candidate validation and return a static result for candidate checking.
 //!
 //! Attention: For usage with `zombienet` only!
 
@@ -36,15 +37,10 @@ use polkadot_cli::{
 use crate::{interceptor::*, shared::MALUS, variants::ReplaceValidationResult};
 use super::common::{FakeCandidateValidation, FakeCandidateValidationError};
 
-// Import extra types relevant to the particular
-// subsystem.
-use polkadot_node_core_backing::CandidateBackingSubsystem;
-use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-
+// Import extra types relevant to the particular subsystem.
 use polkadot_node_subsystem::messages::{
 	ApprovalDistributionMessage, CandidateBackingMessage, DisputeCoordinatorMessage,
 };
-use sp_keystore::SyncCryptoStorePtr;
 
 use std::sync::Arc;
 
@@ -138,36 +134,16 @@ impl OverseerGen for DisputeValidCandidates {
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		let spawner = args.spawner.clone();
-		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 		let backing_filter = ReplaceApprovalsWithDisputes;
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
 			spawner.clone(),
 		);
-		let candidate_validation_config = args.candidate_validation_config.clone();
 
 		prepared_overseer_builder(args)?
-			.replace_candidate_backing(move |cb_subsystem| {
-				InterceptedSubsystem::new(
-					CandidateBackingSubsystem::new(
-						spawner,
-						crypto_store_ptr,
-						cb_subsystem.params.metrics,
-					),
-					backing_filter,
-				)
-			})
-			.replace_candidate_validation(move |cv_subsystem| {
-				InterceptedSubsystem::new(
-					CandidateValidationSubsystem::with_config(
-						candidate_validation_config,
-						cv_subsystem.metrics,
-						cv_subsystem.pvf_metrics,
-					),
-					validation_filter,
-				)
-			})
+			.replace_candidate_backing(move |cb| InterceptedSubsystem::new(cb, backing_filter))
+			.replace_candidate_validation(move |cv_subsystem| InterceptedSubsystem::new(cv_subsystem, validation_filter))
 			.build_with_connector(connector)
 			.map_err(|e| e.into())
 	}
