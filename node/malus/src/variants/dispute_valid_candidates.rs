@@ -22,7 +22,7 @@
 
 #![allow(missing_docs)]
 
-use clap::{Parser};
+use clap::Parser;
 use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
@@ -34,8 +34,8 @@ use polkadot_cli::{
 };
 
 // Filter wrapping related types.
-use crate::{interceptor::*, shared::MALUS, variants::ReplaceValidationResult};
 use super::common::{FakeCandidateValidation, FakeCandidateValidationError};
+use crate::{interceptor::*, shared::MALUS, variants::ReplaceValidationResult};
 
 // Import extra types relevant to the particular subsystem.
 use polkadot_node_subsystem::messages::{
@@ -143,7 +143,9 @@ impl OverseerGen for DisputeValidCandidates {
 
 		prepared_overseer_builder(args)?
 			.replace_candidate_backing(move |cb| InterceptedSubsystem::new(cb, backing_filter))
-			.replace_candidate_validation(move |cv_subsystem| InterceptedSubsystem::new(cv_subsystem, validation_filter))
+			.replace_candidate_validation(move |cv_subsystem| {
+				InterceptedSubsystem::new(cv_subsystem, validation_filter)
+			})
 			.build_with_connector(connector)
 			.map_err(|e| e.into())
 	}

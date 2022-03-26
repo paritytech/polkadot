@@ -33,10 +33,9 @@ use polkadot_primitives::v2::{
 
 use polkadot_cli::service::SpawnNamed;
 
+use clap::ArgEnum;
 use futures::channel::oneshot;
 use std::sync::Arc;
-use clap::ArgEnum;
-
 
 #[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
@@ -146,7 +145,7 @@ where
 		let candidate_receipt = create_candidate_receipt(candidate_descriptor.clone());
 		let mut subsystem_sender = sender.clone();
 		self.spawner.spawn(
-			"malus-send-fake-validation",
+			"malus-fake-validation",
 			Some("malus"),
 			Box::pin(async move {
 				let relay_parent = candidate_descriptor.relay_parent;
