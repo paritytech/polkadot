@@ -40,7 +40,7 @@ use polkadot_cli::service::SpawnNamed;
 
 use clap::ArgEnum;
 use futures::channel::oneshot;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
@@ -120,7 +120,8 @@ pub struct ReplaceValidationResult<Spawner> {
 	fake_validation: FakeCandidateValidation,
 	fake_validation_error: FakeCandidateValidationError,
 	spawner: Spawner,
-	candidate_commitments: HashMap<CandidateHash, CandidateCommitments>,
+	// We use the para head hash as key.
+	validation_result: Arc<Mutex<HashMap<Hash, (CandidateCommitments, PersistedValidationData)>>>,
 }
 
 impl<Spawner> ReplaceValidationResult<Spawner>
@@ -136,7 +137,7 @@ where
 			fake_validation,
 			fake_validation_error,
 			spawner,
-			candidate_commitments: HashMap::new(),
+			validation_result: Arc::new(Mutex::new(HashMap::new())),
 		}
 	}
 
@@ -245,30 +246,51 @@ where
 							response_sender,
 						),
 				} => {
+
+					// This is our request, let it pass to original subsystem.
+					if timeout == std::time::Duration::from_secs(13) {
+						return Some(FromOverseer::Communication {
+							msg: CandidateValidationMessage::ValidateFromChainState(
+								descriptor,
+								pov,
+								timeout,
+								response_sender,
+							),
+						})
+					}
+
 					let (tx, rx) = oneshot::channel();
 					let mut subsystem_sender = subsystem_sender.clone();
-					// this should go to the original candidate validation subsystem.
 
 					gum::info!(target: MALUS, "Proxying validation request",);
 
+					let validation_result = self.validation_result.clone();
 					self.spawner.spawn(
 						"malus-validation-proxy",
 						Some("malus"),
 						Box::pin(async move {
 							subsystem_sender
 								.send_message(CandidateValidationMessage::ValidateFromChainState(
-									descriptor, pov, timeout, tx,
+									descriptor.clone(), pov, std::time::Duration::from_secs(13), tx,
 								))
 								.await;
 							let result = rx.await.unwrap();
 							gum::info!(target: MALUS, "Proxied validation result {:?}", &result);
-							response_sender.send(result);
+							match result.unwrap() {
+								ValidationResult::Valid(commitments, validation_data) => {
+									validation_result.lock().expect("bad lock").insert(descriptor.para_head, (commitments.clone(), validation_data.clone()));
+									response_sender.send(Ok(ValidationResult::Valid(commitments, validation_data))); 
+								}
+								_ => panic!("Bad things can happen.")
+							}
+
 						}),
 					);
 					return None
 				},
 				_ => return Some(msg),
 			}
+			
 		}
 
 		match msg {
