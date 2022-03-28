@@ -1,11 +1,11 @@
 [package]
 name = "polkadot-test-client"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 
 # Polkadot dependencies
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
@@ -30,4 +30,4 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.19"
+futures = "0.3.21"

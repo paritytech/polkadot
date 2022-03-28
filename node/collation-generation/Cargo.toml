@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-node-collation-generation"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.19"
-tracing = "0.1.29"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../gum" }
 polkadot-erasure-coding = { path = "../../erasure-coding" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
@@ -15,7 +15,7 @@ polkadot-primitives = { path = "../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob  = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

@@ -38,7 +38,6 @@ jobs:
             POLKADOT_VERSION=${{ github.event.release.tag_name }}
             VCS_REF=${{ github.ref }}
             BUILD_DATE=${{ github.event.release.published_at }}
-            GPG_KEYSERVER="hkps://keys.mailvelope.com"
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Image digest

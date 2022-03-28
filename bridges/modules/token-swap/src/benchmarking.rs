@@ -18,19 +18,19 @@
 
 use crate::{
 	swap_account_id, target_account_at_this_chain, BridgedAccountIdOf, BridgedAccountPublicOf,
-	BridgedAccountSignatureOf, BridgedBalanceOf, Call, Pallet, ThisChainBalance,
+	BridgedAccountSignatureOf, BridgedBalanceOf, Call, Origin, Pallet, ThisChainBalance,
 	TokenSwapCreationOf, TokenSwapOf,
 };
 
 use bp_token_swap::{TokenSwap, TokenSwapCreation, TokenSwapState, TokenSwapType};
-use codec::Encode;
+use codec::{Decode, Encode};
 use frame_benchmarking::{account, benchmarks_instance_pallet};
 use frame_support::{traits::Currency, Parameter};
 use frame_system::RawOrigin;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::Bounded;
-use sp_std::vec::Vec;
+use sp_runtime::traits::{Bounded, TrailingZeroInput};
+use sp_std::{boxed::Box, vec::Vec};
 
 const SEED: u32 = 0;
 
@@ -43,8 +43,9 @@ pub trait Config<I: 'static>: crate::Config<I> {
 benchmarks_instance_pallet! {
 	where_clause {
 		where
-			BridgedAccountPublicOf<T, I>: Default + Parameter,
-			BridgedAccountSignatureOf<T, I>: Default,
+			Origin<T, I>: Into<T::Origin>,
+			BridgedAccountPublicOf<T, I>: Decode + Parameter,
+			BridgedAccountSignatureOf<T, I>: Decode,
 	}
 
 	//
@@ -138,8 +139,8 @@ fn test_swap_hash<T: Config<I>, I: 'static>(sender: T::AccountId, is_create: boo
 /// Returns test token swap creation params.
 fn test_swap_creation<T: Config<I>, I: 'static>() -> TokenSwapCreationOf<T, I>
 where
-	BridgedAccountPublicOf<T, I>: Default,
-	BridgedAccountSignatureOf<T, I>: Default,
+	BridgedAccountPublicOf<T, I>: Decode,
+	BridgedAccountSignatureOf<T, I>: Decode,
 {
 	TokenSwapCreation {
 		target_public_at_bridged_chain: target_public_at_bridged_chain::<T, I>(),
@@ -176,20 +177,22 @@ fn target_balance_to_swap<T: Config<I>, I: 'static>() -> BridgedBalanceOf<T, I> 
 /// Public key of `target_account_at_bridged_chain`.
 fn target_public_at_bridged_chain<T: Config<I>, I: 'static>() -> BridgedAccountPublicOf<T, I>
 where
-	BridgedAccountPublicOf<T, I>: Default,
+	BridgedAccountPublicOf<T, I>: Decode,
 {
-	Default::default()
+	BridgedAccountPublicOf::<T, I>::decode(&mut TrailingZeroInput::zeroes())
+		.expect("failed to decode `BridgedAccountPublicOf` from zeroes")
 }
 
 /// Signature of `target_account_at_bridged_chain` over message.
 fn bridged_currency_transfer_signature<T: Config<I>, I: 'static>() -> BridgedAccountSignatureOf<T, I>
 where
-	BridgedAccountSignatureOf<T, I>: Default,
+	BridgedAccountSignatureOf<T, I>: Decode,
 {
-	Default::default()
+	BridgedAccountSignatureOf::<T, I>::decode(&mut TrailingZeroInput::zeroes())
+		.expect("failed to decode `BridgedAccountSignatureOf` from zeroes")
 }
 
 /// Account at the bridged chain that is participating in the swap.
 fn target_account_at_bridged_chain<T: Config<I>, I: 'static>() -> BridgedAccountIdOf<T, I> {
-	Default::default()
+	account("target_account_at_bridged_chain", 0, SEED)
 }

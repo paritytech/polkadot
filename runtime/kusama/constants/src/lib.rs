@@ -15,9 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
+pub mod weights;
+
 /// Money matters.
 pub mod currency {
-	use primitives::v0::Balance;
+	use primitives::v2::Balance;
 
 	/// The existential deposit.
 	pub const EXISTENTIAL_DEPOSIT: Balance = 1 * CENTS;
@@ -34,7 +37,7 @@ pub mod currency {
 
 /// Time and blocks.
 pub mod time {
-	use primitives::v0::{BlockNumber, Moment};
+	use primitives::v2::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
@@ -51,11 +54,11 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
-	use primitives::v0::Balance;
-	use runtime_common::ExtrinsicBaseWeight;
+	use primitives::v2::Balance;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
 
@@ -95,8 +98,9 @@ mod tests {
 		currency::{CENTS, MILLICENTS},
 		fee::WeightToFee,
 	};
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::WeightToFeePolynomial;
-	use runtime_common::{ExtrinsicBaseWeight, MAXIMUM_BLOCK_WEIGHT};
+	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
 	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct

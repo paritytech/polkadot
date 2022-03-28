@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-node-core-pvf"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "puppet_worker"
@@ -10,16 +10,16 @@ path = "bin/puppet_worker.rs"
 
 [dependencies]
 always-assert = "0.1"
-async-std = { version = "1.10.0", features = ["attributes"] }
+async-std = { version = "1.11.0", features = ["attributes"] }
 async-process = "1.3.0"
 assert_matches = "1.4.0"
-futures = "0.3.19"
+futures = "0.3.21"
 futures-timer = "3.0.2"
 slotmap = "1.0"
-tracing = "0.1.29"
+gum = { package = "tracing-gum", path = "../../gum" }
 pin-project = "1.0.9"
-rand = "0.8.3"
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+rand = "0.8.5"
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}

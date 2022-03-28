@@ -41,7 +41,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	JobSender, JobSubsystem, JobTrait, Validator,
 };
-use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
+use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use std::{iter::FromIterator, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
@@ -106,7 +106,7 @@ async fn get_core_availability(
 
 		let res = rx.await.map_err(Into::into);
 
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			para_id = %core.para_id(),
 			availability = ?res,
@@ -171,15 +171,16 @@ async fn construct_availability_bitfield(
 	)
 	.await?;
 
-	tracing::debug!(
+	let core_bits = FromIterator::from_iter(results.into_iter());
+	gum::debug!(
 		target: LOG_TARGET,
 		?relay_parent,
-		"Signing Bitfield for {} cores: {:?}",
-		availability_cores.len(),
-		results,
+		"Signing Bitfield for {core_count} cores: {core_bits}",
+		core_count = availability_cores.len(),
+		core_bits = core_bits,
 	);
 
-	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
+	Ok(AvailabilityBitfield(core_bits))
 }
 
 #[derive(Clone)]
@@ -246,7 +247,7 @@ impl JobTrait for BitfieldSigningJob {
 		let metrics = metrics.clone();
 		async move {
 			if let LeafStatus::Stale = leaf.status {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					hash = ?leaf.hash,
 					block_number =  ?leaf.number,
@@ -287,7 +288,7 @@ impl JobTrait for BitfieldSigningJob {
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
-					tracing::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
+					gum::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
 					return Ok(())
 				},
 				Err(err) => return Err(err),
@@ -304,7 +305,7 @@ impl JobTrait for BitfieldSigningJob {
 			{
 				Some(b) => b,
 				None => {
-					tracing::error!(
+					gum::error!(
 						target: LOG_TARGET,
 						"Key was found at construction, but while signing it could not be found.",
 					);

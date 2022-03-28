@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-node-core-runtime-api"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-futures = "0.3.19"
-tracing = "0.1.29"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../gum" }
 memory-lru = "0.1.0"
-parity-util-mem = { version = "0.10.0", default-features = false }
+parity-util-mem = { version = "0.11.0", default-features = false }
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -22,7 +22,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.19", features = ["thread-pool"] }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-primitives = { path = "../../primitives" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

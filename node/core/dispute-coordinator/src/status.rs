@@ -17,7 +17,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v1::{CandidateHash, SessionIndex};
+use polkadot_primitives::v2::{CandidateHash, SessionIndex};
 
 use crate::LOG_TARGET;
 
@@ -152,7 +152,7 @@ impl Clock for SystemClock {
 		match SystemTime::now().duration_since(UNIX_EPOCH) {
 			Ok(d) => d.as_secs(),
 			Err(e) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					err = ?e,
 					"Current time is before unix epoch. Validation will not work correctly."

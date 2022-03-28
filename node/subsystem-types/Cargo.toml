@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-subsystem-types"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
 derive_more = "0.99.17"
-futures = "0.3.19"
+futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
@@ -15,6 +15,6 @@ polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-smallvec = "1.6.1"
+smallvec = "1.8.0"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"

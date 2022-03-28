@@ -20,13 +20,13 @@ use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
 };
 use polkadot_subsystem::SubsystemContext;
 
 use crate::{
-	error::{Error, NonFatal},
+	error::{Error, Result},
 	LOG_TARGET,
 };
 
@@ -99,25 +99,24 @@ impl SessionCache {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		parent: Hash,
+		session_index: SessionIndex,
 		with_info: F,
-	) -> Result<Option<R>, Error>
+	) -> Result<Option<R>>
 	where
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
-		let session_index = runtime.get_session_index_for_child(ctx.sender(), parent).await?;
-
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
-			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
+			gum::trace!(target: LOG_TARGET, session_index, "Got session from lru");
 			return Ok(Some(with_info(o_info)))
 		}
 
 		if let Some(info) =
 			self.query_info_from_runtime(ctx, runtime, parent, session_index).await?
 		{
-			tracing::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
+			gum::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
 			let r = with_info(&info);
-			tracing::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
+			gum::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
 			self.session_info_cache.put(session_index, info);
 			Ok(Some(r))
 		} else {
@@ -131,7 +130,7 @@ impl SessionCache {
 	/// subsystem on this.
 	pub fn report_bad_log(&mut self, report: BadValidators) {
 		if let Err(err) = self.report_bad(report) {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err = ?err,
 				"Reporting bad validators failed with error"
@@ -143,10 +142,10 @@ impl SessionCache {
 	///
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
-	pub fn report_bad(&mut self, report: BadValidators) -> crate::Result<()> {
+	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
 		let available_sessions = self.session_info_cache.iter().map(|(k, _)| *k).collect();
 		let session = self.session_info_cache.get_mut(&report.session_index).ok_or(
-			NonFatal::NoSuchCachedSession {
+			Error::NoSuchCachedSession {
 				available_sessions,
 				missing_session: report.session_index,
 			},
@@ -179,7 +178,7 @@ impl SessionCache {
 		runtime: &mut RuntimeInfo,
 		relay_parent: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<SessionInfo>, Error>
+	) -> Result<Option<SessionInfo>>
 	where
 		Context: SubsystemContext,
 	{

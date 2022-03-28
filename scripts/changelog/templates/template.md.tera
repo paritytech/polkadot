@@ -21,7 +21,9 @@ This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 
 {% include "compiler.md.tera" -%}
 
-{% include "migrations.md.tera" -%}
+{% include "migrations-db.md.tera" -%}
+
+{% include "migrations-runtime.md.tera" -%}
 
 {% include "runtimes.md.tera" -%}
 

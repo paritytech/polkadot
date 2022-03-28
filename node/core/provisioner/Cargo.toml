@@ -1,20 +1,20 @@
 [package]
 name = "polkadot-node-core-provisioner"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-futures = "0.3.19"
-tracing = "0.1.29"
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../gum" }
 thiserror = "1.0.30"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 futures-timer = "3.0.2"
-rand = "0.8.4"
+rand = "0.8.5"
 
 [dev-dependencies]
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

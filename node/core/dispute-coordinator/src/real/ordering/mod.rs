@@ -26,10 +26,10 @@ use polkadot_node_subsystem::{
 	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
-use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
+use polkadot_primitives::v2::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash};
 
 use crate::{
-	error::{Fatal, FatalResult, Result},
+	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
 
@@ -162,7 +162,7 @@ impl OrderingProvider {
 		}
 		let n = match get_block_number(sender, candidate.descriptor().relay_parent).await? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					candidate_hash = ?candidate_hash,
 					"Candidate's relay_parent could not be found via chain API, but we saw candidate included?!"
@@ -182,7 +182,7 @@ impl OrderingProvider {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<()> {
+	) -> crate::error::Result<()> {
 		if let Some(activated) = update.activated.as_ref() {
 			// Fetch last finalized block.
 			let ancestors = match get_finalized_block_number(sender).await {
@@ -197,7 +197,7 @@ impl OrderingProvider {
 					)
 					.await
 					.unwrap_or_else(|err| {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							activated_leaf = ?activated,
 							error = ?err,
@@ -209,7 +209,7 @@ impl OrderingProvider {
 					})
 				},
 				Err(err) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						activated_leaf = ?activated,
 						error = ?err,
@@ -299,7 +299,9 @@ impl OrderingProvider {
 					)
 					.await;
 
-				rx.await.or(Err(Fatal::ChainApiSenderDropped))?.map_err(Fatal::ChainApi)?
+				rx.await
+					.or(Err(FatalError::ChainApiSenderDropped))?
+					.map_err(FatalError::ChainApiAncestors)?
 			};
 
 			let earliest_block_number = match head_number.checked_sub(hashes.len() as u32) {
@@ -307,7 +309,7 @@ impl OrderingProvider {
 				None => {
 					// It's assumed that it's impossible to retrieve
 					// more than N ancestors for block number N.
-					tracing::error!(
+					gum::error!(
 						target: LOG_TARGET,
 						"Received {} ancestors for block number {} from Chain API",
 						hashes.len(),
@@ -356,8 +358,8 @@ where
 
 	receiver
 		.await
-		.map_err(|_| Fatal::ChainApiSenderDropped)?
-		.map_err(Fatal::ChainApi)
+		.map_err(|_| FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApiAncestors)
 }
 
 async fn get_block_number(

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-primitives-test-helpers"
-version = "0.9.16"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -9,3 +9,4 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-primitives = { path = "../" }
+rand = "0.8.5"

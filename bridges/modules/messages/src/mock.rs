@@ -23,7 +23,7 @@ use bitvec::prelude::*;
 use bp_messages::{
 	source_chain::{
 		LaneMessageVerifier, MessageDeliveryAndDispatchPayment, OnDeliveryConfirmed,
-		OnMessageAccepted, Sender, TargetHeaderChain,
+		OnMessageAccepted, SenderOrigin, TargetHeaderChain,
 	},
 	target_chain::{
 		DispatchMessage, MessageDispatch, ProvedLaneMessages, ProvedMessages, SourceHeaderChain,
@@ -194,6 +194,16 @@ impl Config for TestRuntime {
 	type BridgedChainId = TestBridgedChainId;
 }
 
+impl SenderOrigin<AccountId> for Origin {
+	fn linked_account(&self) -> Option<AccountId> {
+		match self.caller {
+			OriginCaller::system(frame_system::RawOrigin::Signed(ref submitter)) =>
+				Some(submitter.clone()),
+			_ => None,
+		}
+	}
+}
+
 impl Size for TestPayload {
 	fn size_hint(&self) -> u32 {
 		16 + self.extra.len() as u32
@@ -294,11 +304,13 @@ impl TargetHeaderChain<TestPayload, TestRelayer> for TestTargetHeaderChain {
 #[derive(Debug, Default)]
 pub struct TestLaneMessageVerifier;
 
-impl LaneMessageVerifier<AccountId, TestPayload, TestMessageFee> for TestLaneMessageVerifier {
+impl LaneMessageVerifier<Origin, AccountId, TestPayload, TestMessageFee>
+	for TestLaneMessageVerifier
+{
 	type Error = &'static str;
 
 	fn verify_message(
-		_submitter: &Sender<AccountId>,
+		_submitter: &Origin,
 		delivery_and_dispatch_fee: &TestMessageFee,
 		_lane: &LaneId,
 		_lane_outbound_data: &OutboundLaneData,
@@ -324,8 +336,8 @@ impl TestMessageDeliveryAndDispatchPayment {
 
 	/// Returns true if given fee has been paid by given submitter.
 	pub fn is_fee_paid(submitter: AccountId, fee: TestMessageFee) -> bool {
-		frame_support::storage::unhashed::get(b":message-fee:") ==
-			Some((Sender::Signed(submitter), fee))
+		let raw_origin: Result<frame_system::RawOrigin<_>, _> = Origin::signed(submitter).into();
+		frame_support::storage::unhashed::get(b":message-fee:") == Some((raw_origin.unwrap(), fee))
 	}
 
 	/// Returns true if given relayer has been rewarded with given balance. The reward-paid flag is
@@ -336,13 +348,13 @@ impl TestMessageDeliveryAndDispatchPayment {
 	}
 }
 
-impl MessageDeliveryAndDispatchPayment<AccountId, TestMessageFee>
+impl MessageDeliveryAndDispatchPayment<Origin, AccountId, TestMessageFee>
 	for TestMessageDeliveryAndDispatchPayment
 {
 	type Error = &'static str;
 
 	fn pay_delivery_and_dispatch_fee(
-		submitter: &Sender<AccountId>,
+		submitter: &Origin,
 		fee: &TestMessageFee,
 		_relayer_fund_account: &AccountId,
 	) -> Result<(), Self::Error> {
@@ -350,7 +362,8 @@ impl MessageDeliveryAndDispatchPayment<AccountId, TestMessageFee>
 			return Err(TEST_ERROR)
 		}
 
-		frame_support::storage::unhashed::put(b":message-fee:", &(submitter, fee));
+		let raw_origin: Result<frame_system::RawOrigin<_>, _> = submitter.clone().into();
+		frame_support::storage::unhashed::put(b":message-fee:", &(raw_origin.unwrap(), fee));
 		Ok(())
 	}
 
@@ -530,7 +543,7 @@ pub fn unrewarded_relayer(
 			begin,
 			end,
 			dispatch_results: if end >= begin {
-				bitvec![Msb0, u8; 1; (end - begin + 1) as _]
+				bitvec![u8, Msb0; 1; (end - begin + 1) as _]
 			} else {
 				Default::default()
 			},
