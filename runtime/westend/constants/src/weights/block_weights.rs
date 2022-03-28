@@ -46,13 +46,13 @@ parameter_types! {
 	/// Time to execute an empty block.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [ns]:
+	/// Stats [NS]:
 	///   Min, Max: 3_553_100, 3_737_847
 	///   Average:  3_592_873
 	///   Median:   3_573_460
-	///   StdDev:   34948.46
+	///   Std-Dev:  34948.46
 	///
-	/// Percentiles [ns]:
+	/// Percentiles [NS]:
 	///   99th: 3_699_717
 	///   95th: 3_660_927
 	///   75th: 3_608_068

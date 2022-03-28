@@ -43,16 +43,16 @@ use frame_support::{
 };
 
 parameter_types! {
-	/// Time to execute a NO-OP extrinsic eg. `System::remark`.
+	/// Time to execute a NO-OP extrinsic, for example `System::remark`.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [ns]:
+	/// Stats [NS]:
 	///   Min, Max: 82_602, 83_486
 	///   Average:  82_855
 	///   Median:   82_831
-	///   StdDev:   118.86
+	///   Std-Dev:  118.86
 	///
-	/// Percentiles [ns]:
+	/// Percentiles [NS]:
 	///   99th: 83_135
 	///   95th: 83_080
 	///   75th: 82_890
