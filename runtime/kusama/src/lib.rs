@@ -29,8 +29,9 @@ use primitives::v2::{
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
+	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
+	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -45,6 +46,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_election_provider_support::{
+	generate_solution_type, onchain::UnboundedExecution, NposSolution, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -413,7 +417,7 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
-frame_election_provider_support::generate_solution_type!(
+generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution24::<
 		VoterIndex = u32,
@@ -445,9 +449,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
-	type Solver = frame_election_provider_support::SequentialPhragmen<
+	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
 		(),
@@ -546,7 +549,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
-	pub const MaxNominations: u32 = <NposCompactSolution24 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -554,18 +557,13 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
+	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
