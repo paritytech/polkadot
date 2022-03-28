@@ -40,7 +40,7 @@ use polkadot_primitives::v2::{
 	GroupIndex, Hash, HashT, HeadData,
 };
 
-use super::OrderingProvider;
+use super::ChainScraper;
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
@@ -56,7 +56,7 @@ async fn overseer_recv(virtual_overseer: &mut VirtualOverseer) -> AllMessages {
 
 struct TestState {
 	chain: Vec<Hash>,
-	ordering: OrderingProvider,
+	ordering: ChainScraper,
 	ctx: TestSubsystemContext<DisputeCoordinatorMessage, TaskExecutor>,
 }
 
@@ -73,11 +73,10 @@ impl TestState {
 			assert_candidate_events_request(&mut ctx_handle, &chain).await;
 		};
 
-		let ordering_provider =
-			join(OrderingProvider::new(ctx.sender(), leaf.clone()), overseer_fut)
-				.await
-				.0
-				.unwrap();
+		let ordering_provider = join(ChainScraper::new(ctx.sender(), leaf.clone()), overseer_fut)
+			.await
+			.0
+			.unwrap();
 
 		let test_state = Self { chain, ordering: ordering_provider, ctx };
 
@@ -99,7 +98,7 @@ fn next_leaf(chain: &mut Vec<Hash>) -> ActivatedLeaf {
 
 async fn process_active_leaves_update(
 	sender: &mut TestSubsystemSender,
-	ordering: &mut OrderingProvider,
+	ordering: &mut ChainScraper,
 	update: ActivatedLeaf,
 ) {
 	ordering
@@ -211,7 +210,7 @@ async fn overseer_process_active_leaves_update(
 	// Before walking through ancestors provider requests latest finalized block number.
 	assert_finalized_block_number_request(virtual_overseer, finalized_block).await;
 	// Expect block ancestors requests with respect to the ancestry step.
-	for _ in (0..expected_ancestry_len).step_by(OrderingProvider::ANCESTRY_CHUNK_SIZE) {
+	for _ in (0..expected_ancestry_len).step_by(ChainScraper::ANCESTRY_CHUNK_SIZE) {
 		assert_block_ancestors_request(virtual_overseer, chain).await;
 	}
 	// For each ancestry and the head return corresponding candidates inclusions.

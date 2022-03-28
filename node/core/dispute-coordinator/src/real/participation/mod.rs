@@ -31,8 +31,7 @@ use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash
 
 use crate::real::LOG_TARGET;
 
-use super::ordering::CandidateComparator;
-use crate::error::{FatalError, FatalResult, JfyiError, Result};
+use crate::error::{FatalError, FatalResult, Result};
 
 #[cfg(test)]
 mod tests;
@@ -41,7 +40,7 @@ pub use tests::{participation_full_happy_path, participation_missing_availabilit
 
 mod queues;
 use queues::Queues;
-pub use queues::{ParticipationRequest, QueueError};
+pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -144,7 +143,7 @@ impl Participation {
 	pub async fn queue_participation<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
-		comparator: Option<CandidateComparator>,
+		priority: ParticipationPriority,
 		req: ParticipationRequest,
 	) -> Result<()> {
 		// Participation already running - we can ignore that request:
@@ -159,7 +158,7 @@ impl Participation {
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		Ok(self.queue.queue(comparator, req).map_err(JfyiError::QueueError)?)
+		self.queue.queue(ctx.sender(), priority, req).await
 	}
 
 	/// Message from a worker task was received - get the outcome.

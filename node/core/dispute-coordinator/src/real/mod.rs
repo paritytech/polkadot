@@ -50,8 +50,8 @@ use db::v1::DbBackend;
 use fatality::Split;
 
 use self::{
-	ordering::CandidateComparator,
-	participation::ParticipationRequest,
+	participation::{ParticipationPriority, ParticipationRequest},
+	scraping::OnChainVotesSigningContext,
 	spam_slots::{SpamSlots, UnconfirmedDisputes},
 };
 
@@ -62,8 +62,7 @@ pub(crate) mod db;
 mod initialized;
 use initialized::Initialized;
 
-/// Provider of an ordering for candidates for dispute participation, see
-/// [`participation`] below.
+/// Provider of data scraped from chain.
 ///
 /// If we have seen a candidate included somewhere, we should treat it as priority and will be able
 /// to provide an ordering for participation. Thus a dispute for a candidate where we can get some
@@ -71,8 +70,8 @@ use initialized::Initialized;
 /// `participation` based on `relay_parent` block number and other metrics, so each validator will
 /// participate in disputes in a similar order, which ensures we will be resolving disputes, even
 /// under heavy load.
-mod ordering;
-use ordering::OrderingProvider;
+mod scraping;
+use scraping::ChainScraper;
 
 /// When importing votes we will check via the `ordering` module, whether or not we know of the
 /// candidate to be included somewhere. If not, the votes might be spam, in this case we want to
@@ -162,13 +161,15 @@ impl DisputeCoordinatorSubsystem {
 	{
 		let res = self.initialize(&mut ctx, backend, &*clock).await?;
 
-		let (participations, first_leaf, initialized, backend) = match res {
+		let (participations, votes, first_leaf, initialized, backend) = match res {
 			// Concluded:
 			None => return Ok(()),
 			Some(r) => r,
 		};
 
-		initialized.run(ctx, backend, participations, Some(first_leaf), clock).await
+		initialized
+			.run(ctx, backend, participations, votes, Some(first_leaf), clock)
+			.await
 	}
 
 	/// Make sure to recover participations properly on startup.
@@ -179,7 +180,8 @@ impl DisputeCoordinatorSubsystem {
 		clock: &(dyn Clock),
 	) -> FatalResult<
 		Option<(
-			Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+			Vec<(ParticipationPriority, ParticipationRequest)>,
+			Vec<OnChainVotesSigningContext>,
 			ActivatedLeaf,
 			Initialized,
 			B,
@@ -208,7 +210,7 @@ impl DisputeCoordinatorSubsystem {
 			// when the node is syncing.
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
-			let (participations, spam_slots, ordering_provider) = match self
+			let (participations, votes, spam_slots, ordering_provider) = match self
 				.handle_startup(
 					ctx,
 					first_leaf.clone(),
@@ -231,6 +233,7 @@ impl DisputeCoordinatorSubsystem {
 
 			return Ok(Some((
 				participations,
+				votes,
 				first_leaf,
 				Initialized::new(self, rolling_session_window, spam_slots, ordering_provider),
 				backend,
@@ -251,9 +254,10 @@ impl DisputeCoordinatorSubsystem {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		clock: &dyn Clock,
 	) -> Result<(
-		Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		Vec<(ParticipationPriority, ParticipationRequest)>,
+		Vec<OnChainVotesSigningContext>,
 		SpamSlots,
-		OrderingProvider,
+		ChainScraper,
 	)>
 	where
 		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -274,7 +278,7 @@ impl DisputeCoordinatorSubsystem {
 
 		let mut participation_requests = Vec::new();
 		let mut unconfirmed_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
-		let mut ordering_provider = OrderingProvider::new(ctx.sender(), initial_head).await?;
+		let (mut scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), status) in active_disputes {
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
@@ -322,10 +326,7 @@ impl DisputeCoordinatorSubsystem {
 							.map_or(false, |v| v.is_some())
 				});
 
-			let candidate_comparator = ordering_provider
-				.candidate_comparator(ctx.sender(), &votes.candidate_receipt)
-				.await?;
-			let is_included = candidate_comparator.is_some();
+			let is_included = scraper.is_candidate_included(&votes.candidate_receipt.hash());
 
 			if !status.is_confirmed_concluded() && !is_included {
 				unconfirmed_disputes.insert((session, *candidate_hash), voted_indices);
@@ -335,7 +336,7 @@ impl DisputeCoordinatorSubsystem {
 			// recorded local statement.
 			if missing_local_statement {
 				participation_requests.push((
-					candidate_comparator,
+					ParticipationPriority::with_priority_if(is_included),
 					ParticipationRequest::new(
 						votes.candidate_receipt.clone(),
 						session,
@@ -347,8 +348,9 @@ impl DisputeCoordinatorSubsystem {
 
 		Ok((
 			participation_requests,
+			votes,
 			SpamSlots::recover_from_state(unconfirmed_disputes),
-			ordering_provider,
+			scraper,
 		))
 	}
 }

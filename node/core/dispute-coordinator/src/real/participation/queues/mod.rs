@@ -14,11 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+	cmp::Ordering,
+	collections::{BTreeMap, HashMap},
+};
 
-use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, SessionIndex};
+use futures::channel::oneshot;
+use polkadot_node_subsystem::{messages::ChainApiMessage, SubsystemSender};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
-use crate::real::ordering::CandidateComparator;
+use crate::{
+	error::{FatalError, FatalResult, Result},
+	LOG_TARGET,
+};
 
 #[cfg(test)]
 mod tests;
@@ -73,11 +81,34 @@ pub struct ParticipationRequest {
 	n_validators: usize,
 }
 
-/// Entry for the best effort queue.
-struct BestEffortEntry {
-	req: ParticipationRequest,
-	/// How often was the above request added to the queue.
-	added_count: BestEffortCount,
+/// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
+#[derive(Debug)]
+pub enum ParticipationPriority {
+	BestEffort,
+	Priority,
+}
+
+impl ParticipationPriority {
+	/// Create `ParticipationPriority` with either `Priority`
+	///
+	/// or `BestEffort`.
+	pub fn with_priority_if(is_priority: bool) -> Self {
+		if is_priority {
+			Self::Priority
+		} else {
+			Self::BestEffort
+		}
+	}
+
+	/// Whether or not this is a priority entry.
+	///
+	/// If false, it is best effort.
+	pub fn is_priority(&self) -> bool {
+		match self {
+			Self::Priority => true,
+			Self::BestEffort => false,
+		}
+	}
 }
 
 /// What can go wrong when queuing a request.
@@ -123,33 +154,35 @@ impl Queues {
 		Self { best_effort: HashMap::new(), priority: BTreeMap::new() }
 	}
 
-	/// Will put message in queue, either priority or best effort depending on whether a
-	/// `CandidateComparator` was provided or not.
+	/// Will put message in queue, either priority or best effort depending on priority.
 	///
 	/// If the message was already previously present on best effort, it will be moved to priority
-	/// if a `CandidateComparator` has been passed now, otherwise the `added_count` on the best
-	/// effort queue will be bumped.
+	/// if it considered priority now, otherwise the `added_count` on the best effort queue will be
+	/// bumped.
 	///
 	/// Returns error in case a queue was found full already.
-	pub fn queue(
+	pub async fn queue(
 		&mut self,
-		comparator: Option<CandidateComparator>,
+		sender: &mut impl SubsystemSender,
+		priority: ParticipationPriority,
 		req: ParticipationRequest,
-	) -> Result<(), QueueError> {
-		debug_assert!(comparator
-			.map(|c| c.matches_candidate(req.candidate_hash()))
-			.unwrap_or(true));
+	) -> Result<()> {
+		let comparator = match priority {
+			ParticipationPriority::BestEffort => None,
+			ParticipationPriority::Priority =>
+				CandidateComparator::new(sender, &req.candidate_receipt).await?,
+		};
 
 		if let Some(comparator) = comparator {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
-				return Err(QueueError::PriorityFull)
+				return Err(QueueError::PriorityFull.into())
 			}
 			// Remove any best effort entry:
 			self.best_effort.remove(&req.candidate_hash);
 			self.priority.insert(comparator, req);
 		} else {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
-				return Err(QueueError::BestEffortFull)
+				return Err(QueueError::BestEffortFull.into())
 			}
 			// Note: The request might have been added to priority in a previous call already, we
 			// take care of that case in `dequeue` (more efficient).
@@ -205,4 +238,116 @@ impl Queues {
 			None
 		}
 	}
+}
+
+/// Entry for the best effort queue.
+struct BestEffortEntry {
+	req: ParticipationRequest,
+	/// How often was the above request added to the queue.
+	added_count: BestEffortCount,
+}
+
+/// `Comparator` for ordering of disputes for candidates.
+///
+/// This `comparator` makes it possible to order disputes based on age and to ensure some fairness
+/// between chains in case of equally old disputes.
+///
+/// Objective ordering between nodes is important in case of lots disputes, so nodes will pull in
+/// the same direction and work on resolving the same disputes first. This ensures that we will
+/// conclude some disputes, even if there are lots of them. While any objective ordering would
+/// suffice for this goal, ordering by age ensures we are not only resolving disputes, but also
+/// resolve the oldest one first, which are also the most urgent and important ones to resolve.
+///
+/// Note: That by `oldest` we mean oldest in terms of relay chain block number, for any block
+/// number that has not yet been finalized. If a block has been finalized already it should be
+/// treated as low priority when it comes to disputes, as even in the case of a negative outcome,
+/// we are already too late. The ordering mechanism here serves to prevent this from happening in
+/// the first place.
+#[derive(Copy, Clone)]
+#[cfg_attr(test, derive(Debug))]
+struct CandidateComparator {
+	/// Block number of the relay parent.
+	///
+	/// Important, so we will be participating in oldest disputes first.
+	///
+	/// Note: In theory it would make more sense to use the `BlockNumber` of the including
+	/// block, as inclusion time is the actual relevant event when it comes to ordering. The
+	/// problem is, that a candidate can get included multiple times on forks, so the `BlockNumber`
+	/// of the including block is not unique. We could theoretically work around that problem, by
+	/// just using the lowest `BlockNumber` of all available including blocks - the problem is,
+	/// that is not stable. If a new fork appears after the fact, we would start ordering the same
+	/// candidate differently, which would result in the same candidate getting queued twice.
+	relay_parent_block_number: BlockNumber,
+	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates.
+	candidate_hash: CandidateHash,
+}
+
+impl CandidateComparator {
+	/// Create a candidate comparator based on given (fake) values.
+	///
+	/// Useful for testing.
+	#[cfg(test)]
+	pub fn new_dummy(block_number: BlockNumber, candidate_hash: CandidateHash) -> Self {
+		Self { relay_parent_block_number: block_number, candidate_hash }
+	}
+
+	/// Create a candidate comparator for a given candidate.
+	///
+	/// Returns:
+	///		Ok(None) in case we could not lookup the candidate's relay parent, returns a
+	///		`FatalError` in case the chain API call fails with an unexpected error.
+	pub async fn new(
+		sender: &mut impl SubsystemSender,
+		candidate: &CandidateReceipt,
+	) -> FatalResult<Option<Self>> {
+		let candidate_hash = candidate.hash();
+		let n = match get_block_number(sender, candidate.descriptor().relay_parent).await? {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate_hash,
+					"Candidate's relay_parent could not be found via chain API - `CandidateComparator could not be provided!"
+				);
+				return Ok(None)
+			},
+			Some(n) => n,
+		};
+
+		Ok(Some(CandidateComparator { relay_parent_block_number: n, candidate_hash }))
+	}
+}
+
+impl PartialEq for CandidateComparator {
+	fn eq(&self, other: &CandidateComparator) -> bool {
+		Ordering::Equal == self.cmp(other)
+	}
+}
+
+impl Eq for CandidateComparator {}
+
+impl PartialOrd for CandidateComparator {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for CandidateComparator {
+	fn cmp(&self, other: &Self) -> Ordering {
+		match self.relay_parent_block_number.cmp(&other.relay_parent_block_number) {
+			Ordering::Equal => (),
+			o => return o,
+		}
+		self.candidate_hash.cmp(&other.candidate_hash)
+	}
+}
+
+async fn get_block_number(
+	sender: &mut impl SubsystemSender,
+	relay_parent: Hash,
+) -> FatalResult<Option<BlockNumber>> {
+	let (tx, rx) = oneshot::channel();
+	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx).into()).await;
+	rx.await
+		.map_err(|_| FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApiAncestors)
 }
