@@ -27,7 +27,8 @@ static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend", "rococo",
 #[cfg(unix)]
 fn benchmark_overhead_works() {
 	for runtime in RUNTIMES {
-		assert!(benchmark_overhead(format!("{}-dev", runtime)).is_ok());
+		let runtime = format!("{}-dev", runtime);
+		assert!(benchmark_overhead(runtime).is_ok());
 	}
 }
 
@@ -44,8 +45,7 @@ fn benchmark_overhead(runtime: String) -> Result<(), String> {
 	let tmp_dir = tempdir().expect("could not create a temp dir");
 	let base_path = tmp_dir.path();
 
-	// Only put 5 extrinsics into the block otherwise it takes forever to build it
-	// especially for a non-release build.
+	// Invoke `benchmark-overhead` with all options to make sure that they are valid.
 	let status = Command::new(cargo_bin("polkadot"))
 		.args(["benchmark-overhead", "--chain", &runtime])
 		.arg("-d")
@@ -54,6 +54,8 @@ fn benchmark_overhead(runtime: String) -> Result<(), String> {
 		.arg(base_path)
 		.args(["--warmup", "5", "--repeat", "5"])
 		.args(["--add", "100", "--mul", "1.2", "--metric", "p75"])
+		// Only put 5 extrinsics into the block otherwise it takes forever to build it
+		// especially for a non-release builds.
 		.args(["--max-ext-per-block", "5"])
 		.status()
 		.map_err(|e| format!("command failed: {:?}", e))?;

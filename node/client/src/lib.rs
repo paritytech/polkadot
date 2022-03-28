@@ -792,8 +792,10 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for Client {
 	}
 }
 
-/// Generates inherent data for: Polkadot, Kusama, Westend and Rococo.
-pub fn provide_inherent_data(
+/// Generates inherent data for benchmarking Polkadot, Kusama, Westend and Rococo.
+///
+/// Not to be used outside of benchmarking since it returns mocked values.
+pub fn benchmark_inherent_data(
 	header: polkadot_core_primitives::Header,
 ) -> std::result::Result<sp_inherents::InherentData, sp_inherents::Error> {
 	use sp_inherents::InherentDataProvider;

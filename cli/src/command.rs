@@ -476,7 +476,7 @@ pub fn run() -> Result<()> {
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
 		Some(Subcommand::BenchmarkOverhead(cmd)) => {
-			use polkadot_client::provide_inherent_data;
+			use polkadot_client::benchmark_inherent_data;
 
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -489,7 +489,7 @@ pub fn run() -> Result<()> {
 					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 
 					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = provide_inherent_data(header)
+					let inherent_data = benchmark_inherent_data(header)
 						.map_err(|e| format!("generating inherent data: {:?}", e))?;
 
 					if let polkadot_client::Client::Rococo(pd) = &*client {
@@ -510,7 +510,7 @@ pub fn run() -> Result<()> {
 					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 
 					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = provide_inherent_data(header)
+					let inherent_data = benchmark_inherent_data(header)
 						.map_err(|e| format!("generating inherent data: {:?}", e))?;
 
 					if let polkadot_client::Client::Kusama(pd) = &*client {
@@ -531,7 +531,7 @@ pub fn run() -> Result<()> {
 					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 
 					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = provide_inherent_data(header)
+					let inherent_data = benchmark_inherent_data(header)
 						.map_err(|e| format!("generating inherent data: {:?}", e))?;
 
 					if let polkadot_client::Client::Westend(pd) = &*client {
@@ -552,7 +552,7 @@ pub fn run() -> Result<()> {
 					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 
 					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = provide_inherent_data(header)
+					let inherent_data = benchmark_inherent_data(header)
 						.map_err(|e| format!("generating inherent data: {:?}", e))?;
 
 					if let polkadot_client::Client::Polkadot(pd) = &*client {
