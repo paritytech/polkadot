@@ -33,7 +33,7 @@ use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, CandidateHash, Hash};
 
 // Filter wrapping related types.
-use crate::interceptor::*;
+use crate::{interceptor::*, shared::{MALUS ,MALICIOUS_POV}};
 
 // Import extra types relevant to the particular
 // subsystem.
@@ -58,11 +58,6 @@ struct NoteCandidate {
 	inner: Arc<Mutex<Inner>>,
 }
 
-/// Replace outgoing approval messages with disputes.
-#[derive(Clone)]
-struct BackGarbageCandidate {
-	inner: Arc<Mutex<Inner>>,
-}
 
 impl<Sender> MessageInterceptor<Sender> for NoteCandidate
 where
@@ -70,6 +65,7 @@ where
 {
 	type Message = CandidateBackingMessage;
 
+	/// Cache and forward `CandidateBackingMessage::Second`. This is called by collator protocol (validator side).
 	fn intercept_incoming(
 		&self,
 		_sender: &mut Sender,
@@ -87,6 +83,11 @@ where
 						relay_parent: relay_parent.clone(),
 					},
 				);
+				gum::info!(
+					target: MALUS,
+					candidate_hash = ?candidate.hash(),
+					"Cached candidate"
+				);				
 				Some(FromOverseer::Communication {
 					msg: CandidateBackingMessage::Second(relay_parent, candidate, pov),
 				})
@@ -96,25 +97,13 @@ where
 		}
 	}
 
-	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
-		Some(msg)
-	}
-}
-
-impl<Sender> MessageInterceptor<Sender> for BackGarbageCandidate
-where
-	Sender: overseer::SubsystemSender<AvailabilityStoreMessage> + Clone + Send + 'static,
-{
-	type Message = AvailabilityStoreMessage;
-
-	fn intercept_incoming(
-		&self,
-		_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
-		Some(msg)
-	}
-
+	/// The goal of this is to make the malicious candidate available to other honest validators. The backing 
+	/// subsystem sends `AvailabilityStore::StoreAvailableData` via `make_pov_available()` once a candidate is 
+	/// backed.
+	/// This implementation intercepts the outgoing `AvailabilityStore::StoreAvailableData` message and mangles 
+	/// it before forwarding it to the overseer(then `av-store`). More specifically, it replaces the candidate 
+	/// (pov, persistent validation data and collator signagure) while computing the correct erasure root hash 
+	/// from original candidate.
 	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		match msg {
 			AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData {
@@ -123,7 +112,7 @@ where
 				available_data,
 				tx,
 			}) => {
-				let pov = Arc::new(PoV { block_data: BlockData(vec![0; 256]) });
+				let pov = Arc::new(PoV { block_data: BlockData(MALICIOUS_POV.into()) });
 				let malicious_available_data = AvailableData {
 					pov: pov.clone(),
 					validation_data: available_data.validation_data.clone(),
@@ -183,6 +172,14 @@ where
 					commitments: malicious_commitments.clone(),
 				};
 				let malicious_candidate_hash = malicious_candidate.hash();
+
+				gum::info!(
+					target: MALUS,
+					?candidate_hash,
+					new_candidate_hash = ?malicious_candidate_hash,
+					"Replacing candidate"
+				);	
+
 				Some(AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData {
 					candidate_hash: malicious_candidate_hash,
 					n_validators,
@@ -195,7 +192,7 @@ where
 	}
 }
 
-/// Generates an overseer that disputes instead of approving valid candidates.
+/// Garbage candidate implementation wrapper which implements `OverseerGen` glue.
 pub(crate) struct BackGarbageCandidateWrapper;
 
 impl OverseerGen for BackGarbageCandidateWrapper {
@@ -212,13 +209,9 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 		let inner = Inner { map: std::collections::HashMap::new() };
 		let inner_mut = Arc::new(Mutex::new(inner));
 		let note_candidate = NoteCandidate { inner: inner_mut.clone() };
-		let back_garbage_candidate = BackGarbageCandidate { inner: inner_mut.clone() };
 
 		prepared_overseer_builder(args)?
 			.replace_candidate_backing(move |cb| InterceptedSubsystem::new(cb, note_candidate))
-			.replace_availability_store(move |av| {
-				InterceptedSubsystem::new(av, back_garbage_candidate)
-			})
 			.build_with_connector(connector)
 			.map_err(|e| e.into())
 	}
