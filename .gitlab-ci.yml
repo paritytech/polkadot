@@ -821,6 +821,8 @@ short-benchmark-kusama:
   <<:                              *short-bench
   variables:
     RUNTIME:                       kusama
+  # FIXME: https://github.com/paritytech/substrate/issues/11130
+  allow_failure:                   true
 
 short-benchmark-westend:
   <<:                              *short-bench
