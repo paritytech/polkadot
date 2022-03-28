@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A malicious overseer proposing a garbage block.
+//! A malicious node that replaces approvals with invalid disputes
+//! against valid candidates.
 //!
-//! Supposed to be used with regular nodes or in conjunction
-//! with [`malus-back-garbage-candidate.rs`](./malus-back-garbage-candidate.rs)
-//! to simulate a coordinated attack.
+//! Attention: For usage with `zombienet` only!
 
 #![allow(missing_docs)]
 
@@ -30,40 +29,42 @@ use polkadot_cli::{
 		ProvideRuntimeApi, SpawnNamed,
 	},
 };
+use polkadot_node_primitives::{AvailableData, BlockData, PoV};
+use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, CandidateHash, Hash};
+
+// Filter wrapping related types.
+use crate::interceptor::*;
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_backing::CandidateBackingSubsystem;
-use polkadot_node_primitives::Statement;
-use polkadot_node_subsystem::{
-	messages::{CandidateBackingMessage, StatementDistributionMessage},
-	overseer::{self, SubsystemSender},
-};
-use polkadot_node_subsystem_util as util;
-// Filter wrapping related types.
-use crate::interceptor::*;
-use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, Hash,
-	Signed,
-};
-use sp_keystore::SyncCryptoStorePtr;
-use util::metered;
+use polkadot_node_subsystem::messages::{AvailabilityStoreMessage, CandidateBackingMessage};
+use polkadot_primitives::v2::{CandidateReceipt, CommittedCandidateReceipt};
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use crate::shared::*;
-
-/// Replaces the seconded PoV data
-/// of outgoing messages by some garbage data.
-#[derive(Clone)]
-struct ReplacePoVBytes<Sender>
-where
-	Sender: Send,
-{
-	queue: metered::UnboundedMeteredSender<(Sender, Hash, CandidateReceipt)>,
+struct NotedCandidate {
+	candidate: CandidateReceipt,
+	relay_parent: Hash,
 }
 
-impl<Sender> MessageInterceptor<Sender> for ReplacePoVBytes<Sender>
+#[derive(Default)]
+struct Inner {
+	map: std::collections::HashMap<CandidateHash, NotedCandidate>,
+}
+
+/// Replace outgoing approval messages with disputes.
+#[derive(Clone)]
+struct NoteCandidate {
+	inner: Arc<Mutex<Inner>>,
+}
+
+/// Replace outgoing approval messages with disputes.
+#[derive(Clone)]
+struct BackGarbageCandidate {
+	inner: Arc<Mutex<Inner>>,
+}
+
+impl<Sender> MessageInterceptor<Sender> for NoteCandidate
 where
 	Sender: overseer::SubsystemSender<CandidateBackingMessage> + Clone + Send + 'static,
 {
@@ -71,20 +72,27 @@ where
 
 	fn intercept_incoming(
 		&self,
-		sender: &mut Sender,
+		_sender: &mut Sender,
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
 		match msg {
 			FromOverseer::Communication {
-				msg: CandidateBackingMessage::Second(hash, candidate_receipt, _pov),
+				msg: CandidateBackingMessage::Second(relay_parent, candidate, pov),
 			} => {
-				self.queue
-					.unbounded_send((sender.clone(), hash, candidate_receipt.clone()))
-					.unwrap();
-
-				None
+				let mut candidate_cache = self.inner.lock().unwrap();
+				candidate_cache.map.insert(
+					candidate.hash(),
+					NotedCandidate {
+						candidate: candidate.clone(),
+						relay_parent: relay_parent.clone(),
+					},
+				);
+				Some(FromOverseer::Communication {
+					msg: CandidateBackingMessage::Second(relay_parent, candidate, pov),
+				})
 			},
-			other => Some(other),
+			FromOverseer::Communication { msg } => Some(FromOverseer::Communication { msg }),
+			FromOverseer::Signal(signal) => Some(FromOverseer::Signal(signal)),
 		}
 	}
 
@@ -93,10 +101,104 @@ where
 	}
 }
 
-/// Generates an overseer that exposes bad behavior.
-pub(crate) struct SuggestGarbageCandidate;
+impl<Sender> MessageInterceptor<Sender> for BackGarbageCandidate
+where
+	Sender: overseer::SubsystemSender<AvailabilityStoreMessage> + Clone + Send + 'static,
+{
+	type Message = AvailabilityStoreMessage;
 
-impl OverseerGen for SuggestGarbageCandidate {
+	fn intercept_incoming(
+		&self,
+		_sender: &mut Sender,
+		msg: FromOverseer<Self::Message>,
+	) -> Option<FromOverseer<Self::Message>> {
+		Some(msg)
+	}
+
+	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
+		match msg {
+			AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData {
+				candidate_hash,
+				n_validators,
+				available_data,
+				tx,
+			}) => {
+				let pov = Arc::new(PoV { block_data: BlockData(vec![0; 256]) });
+				let malicious_available_data = AvailableData {
+					pov: pov.clone(),
+					validation_data: available_data.validation_data.clone(),
+				};
+
+				let pov_hash = pov.hash();
+				let validation_data_hash = malicious_available_data.validation_data.hash();
+
+				let inner = self.inner.lock().unwrap();
+				let cache = inner.map.get(&candidate_hash).unwrap();
+				let relay_parent = cache.relay_parent.clone();
+				let candidate_cache = cache.candidate.clone();
+				let validation_code_hash = candidate_cache.descriptor().validation_code_hash;
+
+				let erasure_root = {
+					let chunks =
+						erasure::obtain_chunks_v1(n_validators as usize, &available_data).unwrap();
+
+					let branches = erasure::branches(chunks.as_ref());
+					branches.root()
+				};
+				let (collator_id, collator_signature) = {
+					use polkadot_primitives::v2::CollatorPair;
+					use sp_core::crypto::Pair;
+
+					let collator_pair = CollatorPair::generate().0;
+					let signature_payload = polkadot_primitives::v2::collator_signature_payload(
+						&relay_parent,
+						&candidate_cache.descriptor().para_id,
+						&validation_data_hash,
+						&pov_hash,
+						&validation_code_hash,
+					);
+
+					(collator_pair.public(), collator_pair.sign(&signature_payload))
+				};
+				let malicious_commitments = CandidateCommitments {
+					upward_messages: Vec::new(),
+					horizontal_messages: Vec::new(),
+					new_validation_code: None,
+					head_data: vec![1, 2, 3, 4, 5].into(),
+					processed_downward_messages: 0,
+					hrmp_watermark: available_data.validation_data.relay_parent_number,
+				};
+				let malicious_candidate = CommittedCandidateReceipt {
+					descriptor: CandidateDescriptor {
+						para_id: candidate_cache.descriptor().para_id,
+						relay_parent,
+						collator: collator_id,
+						persisted_validation_data_hash: validation_data_hash,
+						pov_hash,
+						erasure_root,
+						signature: collator_signature,
+						para_head: malicious_commitments.head_data.hash(),
+						validation_code_hash,
+					},
+					commitments: malicious_commitments.clone(),
+				};
+				let malicious_candidate_hash = malicious_candidate.hash();
+				Some(AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData {
+					candidate_hash: malicious_candidate_hash,
+					n_validators,
+					available_data: malicious_available_data,
+					tx,
+				}))
+			},
+			msg => Some(msg),
+		}
+	}
+}
+
+/// Generates an overseer that disputes instead of approving valid candidates.
+pub(crate) struct BackGarbageCandidateWrapper;
+
+impl OverseerGen for BackGarbageCandidateWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
@@ -107,65 +209,17 @@ impl OverseerGen for SuggestGarbageCandidate {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
-		let spawner = args.spawner.clone();
-		let (sink, source) = metered::unbounded();
-		let keystore = args.keystore.clone() as SyncCryptoStorePtr;
+		let inner = Inner { map: std::collections::HashMap::new() };
+		let inner_mut = Arc::new(Mutex::new(inner));
+		let note_candidate = NoteCandidate { inner: inner_mut.clone() };
+		let back_garbage_candidate = BackGarbageCandidate { inner: inner_mut.clone() };
 
-		let filter = ReplacePoVBytes { queue: sink };
-
-		let keystore2 = keystore.clone();
-		let spawner2 = spawner.clone();
-
-		let result = prepared_overseer_builder(args)?
-			.replace_candidate_backing(move |cb| {
-				InterceptedSubsystem::new(
-					CandidateBackingSubsystem::new(spawner2, keystore2, cb.params.metrics),
-					filter,
-				)
+		prepared_overseer_builder(args)?
+			.replace_candidate_backing(move |cb| InterceptedSubsystem::new(cb, note_candidate))
+			.replace_availability_store(move |av| {
+				InterceptedSubsystem::new(av, back_garbage_candidate)
 			})
 			.build_with_connector(connector)
-			.map_err(|e| e.into());
-
-		launch_processing_task(
-			&spawner,
-			source,
-			move |(mut subsystem_sender, hash, candidate_receipt): (_, Hash, CandidateReceipt)| {
-				let keystore = keystore.clone();
-				async move {
-					gum::info!(
-						target: MALUS,
-						"Replacing seconded candidate pov with something else"
-					);
-
-					let committed_candidate_receipt = CommittedCandidateReceipt {
-						descriptor: candidate_receipt.descriptor.clone(),
-						commitments: CandidateCommitments::default(),
-					};
-
-					let statement = Statement::Seconded(committed_candidate_receipt);
-
-					if let Ok(validator) =
-						util::Validator::new(hash, keystore.clone(), &mut subsystem_sender).await
-					{
-						let signed_statement: Signed<Statement, CompactStatement> = validator
-							.sign(keystore, statement)
-							.await
-							.expect("Signing works. qed")
-							.expect("Something must come out of this. qed");
-
-						subsystem_sender
-							.send_message(StatementDistributionMessage::Share(
-								hash,
-								signed_statement,
-							))
-							.await;
-					} else {
-						gum::info!("We are not a validator. Not siging anything.");
-					}
-				}
-			},
-		);
-
-		result
+			.map_err(|e| e.into())
 	}
 }
