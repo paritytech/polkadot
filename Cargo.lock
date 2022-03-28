@@ -7659,6 +7659,7 @@ dependencies = [
  "futures-timer",
  "parity-util-mem",
  "polkadot-cli",
+ "polkadot-erasure-coding",
  "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",

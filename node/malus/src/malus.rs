@@ -66,7 +66,7 @@ impl MalusCli {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
 			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper)?,
 			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
 				DisputeValidCandidates::new(opts),
