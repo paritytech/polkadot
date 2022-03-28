@@ -19,7 +19,12 @@
 
 #![allow(missing_docs)]
 
-use crate::{interceptor::*, shared::MALUS};
+use crate::{
+	interceptor::*,
+	shared::{MALICIOUS_POV, MALUS},
+};
+use std::collections::HashMap;
+
 use polkadot_node_primitives::{InvalidCandidate, PoV, ValidationResult};
 use polkadot_node_subsystem::messages::{
 	AvailabilityRecoveryMessage, CandidateValidationMessage, ValidationFailed,
@@ -27,8 +32,8 @@ use polkadot_node_subsystem::messages::{
 use polkadot_node_subsystem_util as util;
 
 use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, PersistedValidationData,
-	ValidationCode,
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt, Hash,
+	PersistedValidationData, ValidationCode,
 };
 
 use polkadot_cli::service::SpawnNamed;
@@ -115,6 +120,7 @@ pub struct ReplaceValidationResult<Spawner> {
 	fake_validation: FakeCandidateValidation,
 	fake_validation_error: FakeCandidateValidationError,
 	spawner: Spawner,
+	candidate_commitments: HashMap<CandidateHash, CandidateCommitments>,
 }
 
 impl<Spawner> ReplaceValidationResult<Spawner>
@@ -126,7 +132,12 @@ where
 		fake_validation_error: FakeCandidateValidationError,
 		spawner: Spawner,
 	) -> Self {
-		Self { fake_validation, fake_validation_error, spawner }
+		Self {
+			fake_validation,
+			fake_validation_error,
+			spawner,
+			candidate_commitments: HashMap::new(),
+		}
 	}
 
 	pub fn send_validation_response<Sender>(
@@ -223,7 +234,41 @@ where
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
 		if self.fake_validation == FakeCandidateValidation::Disabled {
-			return Some(msg)
+			// Proxy messages and cache validation results.
+			match msg {
+				FromOverseer::Communication {
+					msg:
+						CandidateValidationMessage::ValidateFromChainState(
+							descriptor,
+							pov,
+							timeout,
+							response_sender,
+						),
+				} => {
+					let (tx, rx) = oneshot::channel();
+					let mut subsystem_sender = subsystem_sender.clone();
+					// this should go to the original candidate validation subsystem.
+
+					gum::info!(target: MALUS, "Proxying validation request",);
+
+					self.spawner.spawn(
+						"malus-validation-proxy",
+						Some("malus"),
+						Box::pin(async move {
+							subsystem_sender
+								.send_message(CandidateValidationMessage::ValidateFromChainState(
+									descriptor, pov, timeout, tx,
+								))
+								.await;
+							let result = rx.await.unwrap();
+							gum::info!(target: MALUS, "Proxied validation result {:?}", &result);
+							response_sender.send(result);
+						}),
+					);
+					return None
+				},
+				_ => return Some(msg),
+			}
 		}
 
 		match msg {

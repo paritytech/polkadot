@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A malicious node that replaces approvals with invalid disputes
-//! against valid candidates.
+//! A malicious node that stores bogus availability chunks, preventing others from
+//! doing approval voting. This should lead to disputes depending if the validator
+//! has fetched a malicious chunk.
 //!
 //! Attention: For usage with `zombienet` only!
 
@@ -33,7 +34,10 @@ use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, CandidateHash, Hash};
 
 // Filter wrapping related types.
-use crate::{interceptor::*, shared::{MALUS ,MALICIOUS_POV}};
+use crate::{
+	interceptor::*,
+	shared::{MALICIOUS_POV, MALUS},
+};
 
 // Import extra types relevant to the particular
 // subsystem.
@@ -57,7 +61,6 @@ struct Inner {
 struct NoteCandidate {
 	inner: Arc<Mutex<Inner>>,
 }
-
 
 impl<Sender> MessageInterceptor<Sender> for NoteCandidate
 where
@@ -87,22 +90,24 @@ where
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					"Cached candidate"
-				);				
-				Some(FromOverseer::Communication {
+				);
+				let message = FromOverseer::Communication {
 					msg: CandidateBackingMessage::Second(relay_parent, candidate, pov),
-				})
+				};
+
+				Some(message)
 			},
 			FromOverseer::Communication { msg } => Some(FromOverseer::Communication { msg }),
 			FromOverseer::Signal(signal) => Some(FromOverseer::Signal(signal)),
 		}
 	}
 
-	/// The goal of this is to make the malicious candidate available to other honest validators. The backing 
-	/// subsystem sends `AvailabilityStore::StoreAvailableData` via `make_pov_available()` once a candidate is 
+	/// The goal of this is to make the malicious candidate available to other honest validators. The backing
+	/// subsystem sends `AvailabilityStore::StoreAvailableData` via `make_pov_available()` once a candidate is
 	/// backed.
-	/// This implementation intercepts the outgoing `AvailabilityStore::StoreAvailableData` message and mangles 
-	/// it before forwarding it to the overseer(then `av-store`). More specifically, it replaces the candidate 
-	/// (pov, persistent validation data and collator signagure) while computing the correct erasure root hash 
+	/// This implementation intercepts the outgoing `AvailabilityStore::StoreAvailableData` message and mangles
+	/// it before forwarding it to the overseer(then `av-store`). More specifically, it replaces the candidate
+	/// (pov, persistent validation data and collator signagure) while computing the correct erasure root hash
 	/// from original candidate.
 	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		match msg {
@@ -125,6 +130,7 @@ where
 				let cache = inner.map.get(&candidate_hash).unwrap();
 				let relay_parent = cache.relay_parent.clone();
 				let candidate_cache = cache.candidate.clone();
+				let candidate_descriptor = candidate_cache.descriptor();
 				let validation_code_hash = candidate_cache.descriptor().validation_code_hash;
 
 				let erasure_root = {
@@ -134,6 +140,7 @@ where
 					let branches = erasure::branches(chunks.as_ref());
 					branches.root()
 				};
+
 				let (collator_id, collator_signature) = {
 					use polkadot_primitives::v2::CollatorPair;
 					use sp_core::crypto::Pair;
@@ -149,6 +156,7 @@ where
 
 					(collator_pair.public(), collator_pair.sign(&signature_payload))
 				};
+				// Use fake candidate validation to get commitments.
 				let malicious_commitments = CandidateCommitments {
 					upward_messages: Vec::new(),
 					horizontal_messages: Vec::new(),
@@ -173,15 +181,12 @@ where
 				};
 				let malicious_candidate_hash = malicious_candidate.hash();
 
-				gum::info!(
-					target: MALUS,
-					?candidate_hash,
-					new_candidate_hash = ?malicious_candidate_hash,
-					"Replacing candidate"
-				);	
+				gum::info!(target: MALUS, ?candidate_hash, "Replacing candidate availability data");
 
+				// We need to use the same candidate hash for storing the availability data, such that
+				// other's can fetch it.
 				Some(AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData {
-					candidate_hash: malicious_candidate_hash,
+					candidate_hash,
 					n_validators,
 					available_data: malicious_available_data,
 					tx,
