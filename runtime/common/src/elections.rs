@@ -16,7 +16,10 @@
 
 //! Code for elections.
 
-use frame_election_provider_support::SortedListProvider;
+use frame_election_provider_support::{
+	onchain::{ExecutionConfig, UnboundedExecution},
+	ElectionDataProvider, SequentialPhragmen, SortedListProvider,
+};
 use sp_std::{boxed::Box, marker::PhantomData};
 
 /// Implements the weight types for the elections module and a specific
@@ -64,9 +67,20 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 /// The accuracy type used for genesis election provider;
 pub type OnOnChainAccuracy = sp_runtime::Perbill;
 
+/// Election Configuration parameters
+pub struct OnChainSeqPhragmen<T: frame_system::Config, S>(PhantomData<(T, S)>);
+impl<
+		T: frame_system::Config,
+		S: ElectionDataProvider<AccountId = T::AccountId, BlockNumber = T::BlockNumber>,
+	> ExecutionConfig for OnChainSeqPhragmen<T, S>
+{
+	type System = T;
+	type Solver = SequentialPhragmen<T::AccountId, OnOnChainAccuracy>;
+	type DataProvider = S;
+}
+
 /// The election provider of the genesis
-pub type GenesisElectionOf<T> =
-	frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
+pub type GenesisElectionOf<T, S> = UnboundedExecution<OnChainSeqPhragmen<T, S>>;
 
 /// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
 /// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary
