@@ -394,7 +394,7 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
+				Ok((cmd.run(client, backend, None).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
