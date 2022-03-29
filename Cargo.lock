@@ -9050,7 +9050,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#69079b58579ea36812c4a375a118f27aac0fb281"
 dependencies = [
  "lazy_static",
- "lru 0.6.6",
+ "lru 0.7.3",
  "parity-scale-codec",
  "parking_lot 0.12.0",
  "sc-executor-common",
