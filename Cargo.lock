@@ -450,7 +450,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#676932fb5543d5b316b4e494631d8e48f98b760d"
+source = "git+https://github.com/paritytech/substrate?branch=master#666f39b8a22108f57732215de006518738034ba2"
 dependencies = [
  "beefy-primitives",
  "fnv",
