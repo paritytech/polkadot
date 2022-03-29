@@ -96,7 +96,7 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use super::{
-		currency::{CENTS, MILLICENTS},
+		currency::{CENTS, MILLICENTS, UNITS},
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
@@ -104,13 +104,12 @@ mod tests {
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
-	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
+	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost 1,600 CENTS
-		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * 100 * CENTS;
-		assert!(x.max(y) - x.min(y) < MILLICENTS);
+		// A full block should cost between 10 and 100 UNITS.
+		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
+		assert!(full_block >= 10 * UNITS);
+		assert!(full_block <= 100 * UNITS);
 	}
 
 	#[test]
