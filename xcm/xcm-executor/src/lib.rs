@@ -297,7 +297,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(&asset, origin, &beneficiary)?;
+					Config::AssetTransactor::transfer_asset(&asset, origin, &beneficiary)?;
 				}
 				Ok(())
 			},
@@ -305,7 +305,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
+					Config::AssetTransactor::transfer_asset(asset, origin, &dest)?;
 				}
 				let ancestry = Config::LocationInverter::ancestry();
 				assets.reanchor(&dest, &ancestry).map_err(|()| XcmError::MultiLocationFull)?;
