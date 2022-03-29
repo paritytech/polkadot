@@ -35,7 +35,6 @@ pub struct Metrics(Option<MetricsInner>);
 impl Metrics {
 	pub(crate) fn on_chunks_received(&self, count: usize) {
 		if let Some(metrics) = &self.0 {
-			use core::convert::TryFrom as _;
 			// assume usize fits into u64
 			let by = u64::try_from(count).unwrap_or_default();
 			metrics.received_availability_chunks_total.inc_by(by);

@@ -24,7 +24,6 @@ use frame_support::{
 };
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
-use std::convert::TryInto;
 use xcm::prelude::*;
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{traits::ShouldExecute, XcmExecutor};

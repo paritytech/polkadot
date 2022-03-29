@@ -25,7 +25,7 @@ use std::net::ToSocketAddrs;
 pub use crate::error::Error;
 pub use polkadot_performance_test::PerfCheckError;
 
-impl std::convert::From<String> for Error {
+impl From<String> for Error {
 	fn from(s: String) -> Self {
 		Self::Other(s)
 	}

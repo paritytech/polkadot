@@ -850,7 +850,6 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			use core::convert::TryInto;
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 

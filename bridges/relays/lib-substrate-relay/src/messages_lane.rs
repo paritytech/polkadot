@@ -40,7 +40,7 @@ use relay_substrate_client::{
 };
 use relay_utils::metrics::MetricsParams;
 use sp_core::Pair;
-use std::{convert::TryFrom, fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData};
 
 /// Substrate -> Substrate messages synchronization pipeline.
 pub trait SubstrateMessageLane: 'static + Clone + Debug + Send + Sync {
