@@ -572,12 +572,14 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 
 /// Provides a `SignedPayload` for any runtime.
 ///
+/// Should only be used for benchmarking as it is not tested for regular usage.
+///
 /// The first code block should set up all variables that are needed to create the
 /// `SignedPayload`. The second block can make use of the `SignedPayload`.
 ///
 /// This is not done as a trait function since the return type depends on the runtime.
 /// This macro therefore uses the same approach as [`with_client!`].
-macro_rules! with_raw_payload {
+macro_rules! with_signed_payload {
 	{
 		$self:ident,
 		{
@@ -646,34 +648,8 @@ macro_rules! with_raw_payload {
 
 				$( $setup )*
 
-				let $extra: runtime::SignedExtra = (
-					frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-					frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-					frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-					frame_system::CheckGenesis::<runtime::Runtime>::new(),
-					frame_system::CheckMortality::<runtime::Runtime>::from(sp_runtime::generic::Era::mortal(
-						$period,
-						$current_block,
-					)),
-					frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-					frame_system::CheckWeight::<runtime::Runtime>::new(),
-					pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
-				);
-
-				let $raw_payload = runtime::SignedPayload::from_raw(
-					$call.clone(),
-					$extra.clone(),
-					(
-						(),
-						runtime::VERSION.spec_version,
-						runtime::VERSION.transaction_version,
-						$genesis.clone(),
-						$genesis,
-						(),
-						(),
-						(),
-					),
-				);
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
 
 				$( $usage )*
 			},
@@ -683,34 +659,8 @@ macro_rules! with_raw_payload {
 
 				$( $setup )*
 
-				let $extra: runtime::SignedExtra = (
-					frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-					frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-					frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-					frame_system::CheckGenesis::<runtime::Runtime>::new(),
-					frame_system::CheckMortality::<runtime::Runtime>::from(sp_runtime::generic::Era::mortal(
-						$period,
-						$current_block,
-					)),
-					frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-					frame_system::CheckWeight::<runtime::Runtime>::new(),
-					pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
-				);
-
-				let $raw_payload = runtime::SignedPayload::from_raw(
-					$call.clone(),
-					$extra.clone(),
-					(
-						(),
-						runtime::VERSION.spec_version,
-						runtime::VERSION.transaction_version,
-						$genesis.clone(),
-						$genesis,
-						(),
-						(),
-						(),
-					),
-				);
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
 
 				$( $usage )*
 			},
@@ -720,34 +670,8 @@ macro_rules! with_raw_payload {
 
 				$( $setup )*
 
-				let $extra: runtime::SignedExtra = (
-					frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-					frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-					frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-					frame_system::CheckGenesis::<runtime::Runtime>::new(),
-					frame_system::CheckMortality::<runtime::Runtime>::from(sp_runtime::generic::Era::mortal(
-						$period,
-						$current_block,
-					)),
-					frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-					frame_system::CheckWeight::<runtime::Runtime>::new(),
-					pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
-				);
-
-				let $raw_payload = runtime::SignedPayload::from_raw(
-					$call.clone(),
-					$extra.clone(),
-					(
-						(),
-						runtime::VERSION.spec_version,
-						runtime::VERSION.transaction_version,
-						$genesis.clone(),
-						$genesis,
-						(),
-						(),
-						(),
-					),
-				);
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
 
 				$( $usage )*
 			},
@@ -755,9 +679,54 @@ macro_rules! with_raw_payload {
 	}
 }
 
+/// Generates a `SignedPayload` for the Kusama, Westend and Rococo runtime.
+///
+/// Should only be used for benchmarking as it is not tested for regular usage.
+macro_rules! signed_payload {
+	(
+	$extra:ident, $raw_payload:ident,
+	(
+		$period:expr,
+		$current_block:expr,
+		$nonce:expr,
+		$tip:expr,
+		$call:expr,
+		$genesis:expr
+	)
+	) => {
+		let $extra: runtime::SignedExtra = (
+			frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+			frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+			frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+			frame_system::CheckGenesis::<runtime::Runtime>::new(),
+			frame_system::CheckMortality::<runtime::Runtime>::from(
+				sp_runtime::generic::Era::mortal($period, $current_block),
+			),
+			frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+			frame_system::CheckWeight::<runtime::Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
+		);
+
+		let $raw_payload = runtime::SignedPayload::from_raw(
+			$call.clone(),
+			$extra.clone(),
+			(
+				(),
+				runtime::VERSION.spec_version,
+				runtime::VERSION.transaction_version,
+				$genesis.clone(),
+				$genesis,
+				(),
+				(),
+				(),
+			),
+		);
+	};
+}
+
 impl frame_benchmarking_cli::ExtrinsicBuilder for Client {
 	fn remark(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
-		with_raw_payload! {
+		with_signed_payload! {
 			self,
 			{extra, client, raw_payload},
 			{
