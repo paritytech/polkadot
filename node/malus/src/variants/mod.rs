@@ -26,4 +26,4 @@ pub(crate) use self::{
 	dispute_valid_candidates::{DisputeAncestorOptions, DisputeValidCandidates},
 	suggest_garbage_candidate::BackGarbageCandidateWrapper,
 };
-pub(crate) use common::ReplaceValidationResult;
+pub(crate) use common::*;

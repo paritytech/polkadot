@@ -25,15 +25,13 @@ use crate::{
 };
 use std::collections::HashMap;
 
+use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{InvalidCandidate, PoV, ValidationResult};
-use polkadot_node_subsystem::messages::{
-	AvailabilityRecoveryMessage, CandidateValidationMessage, ValidationFailed,
-};
-use polkadot_node_subsystem_util as util;
+use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
 
 use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt, Hash,
-	PersistedValidationData, ValidationCode,
+	BlockNumber, CandidateCommitments, CandidateDescriptor, Hash, PersistedValidationData,
+	ValidationCode,
 };
 
 use polkadot_cli::service::SpawnNamed;
@@ -141,11 +139,13 @@ where
 		}
 	}
 
+	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
+	/// given candidate.
 	pub fn send_validation_response<Sender>(
 		&self,
 		candidate_descriptor: CandidateDescriptor,
 		pov: Arc<PoV>,
-		sender: Sender,
+		subsystem_sender: Sender,
 		response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	) where
 		Sender: overseer::SubsystemSender<AllMessages>
@@ -154,47 +154,48 @@ where
 			+ Send
 			+ 'static,
 	{
-		let candidate_receipt = create_candidate_receipt(candidate_descriptor.clone());
-		let mut subsystem_sender = sender.clone();
-		self.spawner.spawn(
-			"malus-fake-validation",
+		let _candidate_descriptor = candidate_descriptor.clone();
+		let mut subsystem_sender = subsystem_sender.clone();
+		let (sender, receiver) = std::sync::mpsc::channel();
+		self.spawner.spawn_blocking(
+			"malus-get-validation-data",
 			Some("malus"),
 			Box::pin(async move {
-				let relay_parent = candidate_descriptor.relay_parent;
-				let session_index =
-					util::request_session_index_for_child(relay_parent, &mut subsystem_sender)
-						.await;
-				let session_index = session_index.await.unwrap().unwrap();
-
-				let (a_tx, a_rx) = oneshot::channel();
-
-				subsystem_sender
-					.send_message(AllMessages::from(
-						AvailabilityRecoveryMessage::RecoverAvailableData(
-							candidate_receipt,
-							session_index,
-							None,
-							a_tx,
-						),
-					))
-					.await;
-
-				if let Ok(Ok(availability_data)) = a_rx.await {
-					create_validation_response(
-						availability_data.validation_data,
-						None,
-						candidate_descriptor,
-						pov,
-						response_sender,
-					);
-				} else {
-					gum::info!(target: MALUS, "Could not get availability data, can't back");
+				match find_validation_data(&mut subsystem_sender, &_candidate_descriptor).await {
+					Ok(Some((validation_data, validation_code))) => {
+						sender.send((validation_data, validation_code));
+					},
+					_ => {
+						panic!("Unable to fetch validation data");
+					},
 				}
 			}),
+		);
+		let (validation_data, validation_code) = receiver.recv().unwrap();
+		create_validation_response(
+			validation_data,
+			Some(validation_code),
+			candidate_descriptor,
+			pov,
+			response_sender,
 		);
 	}
 }
 
+pub fn create_fake_candidate_commitments(
+	persisted_validation_data: &PersistedValidationData,
+) -> CandidateCommitments {
+	CandidateCommitments {
+		upward_messages: Vec::new(),
+		horizontal_messages: Vec::new(),
+		new_validation_code: None,
+		head_data: persisted_validation_data.parent_head.clone(),
+		processed_downward_messages: 0,
+		hrmp_watermark: persisted_validation_data.relay_parent_number,
+	}
+}
+
+// Create and send validation response. This function needs the persistent validation data.
 fn create_validation_response(
 	persisted_validation_data: PersistedValidationData,
 	validation_code: Option<ValidationCode>,
@@ -202,21 +203,15 @@ fn create_validation_response(
 	_pov: Arc<PoV>,
 	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 ) {
-	let candidate_commitmentments = CandidateCommitments {
-		head_data: persisted_validation_data.parent_head.clone(),
-		new_validation_code: validation_code,
-		..Default::default()
-	};
-
 	response_sender
-		.send(Ok(ValidationResult::Valid(candidate_commitmentments, persisted_validation_data)))
+		.send(Ok(ValidationResult::Valid(
+			create_fake_candidate_commitments(&persisted_validation_data),
+			persisted_validation_data,
+		)))
 		.unwrap();
 }
 
-fn create_candidate_receipt(descriptor: CandidateDescriptor) -> CandidateReceipt {
-	CandidateReceipt { descriptor, commitments_hash: Hash::zero() }
-}
-
+// TODO: Only fake validation for `MALICIOUS_POV`, otherwise behave normally.
 impl<Sender, Spawner> MessageInterceptor<Sender> for ReplaceValidationResult<Spawner>
 where
 	Sender: overseer::SubsystemSender<CandidateValidationMessage>
@@ -244,9 +239,9 @@ where
 							pov,
 							timeout,
 							response_sender,
+							commitments_hash,
 						),
 				} => {
-
 					// This is our request, let it pass to original subsystem.
 					if timeout == std::time::Duration::from_secs(13) {
 						return Some(FromOverseer::Communication {
@@ -255,6 +250,7 @@ where
 								pov,
 								timeout,
 								response_sender,
+								commitments_hash,
 							),
 						})
 					}
@@ -271,26 +267,34 @@ where
 						Box::pin(async move {
 							subsystem_sender
 								.send_message(CandidateValidationMessage::ValidateFromChainState(
-									descriptor.clone(), pov, std::time::Duration::from_secs(13), tx,
+									descriptor.clone(),
+									pov,
+									std::time::Duration::from_secs(13),
+									tx,
+									commitments_hash,
 								))
 								.await;
 							let result = rx.await.unwrap();
 							gum::info!(target: MALUS, "Proxied validation result {:?}", &result);
 							match result.unwrap() {
 								ValidationResult::Valid(commitments, validation_data) => {
-									validation_result.lock().expect("bad lock").insert(descriptor.para_head, (commitments.clone(), validation_data.clone()));
-									response_sender.send(Ok(ValidationResult::Valid(commitments, validation_data))); 
-								}
-								_ => panic!("Bad things can happen.")
+									validation_result.lock().expect("bad lock").insert(
+										descriptor.para_head,
+										(commitments.clone(), validation_data.clone()),
+									);
+									response_sender.send(Ok(ValidationResult::Valid(
+										commitments,
+										validation_data,
+									)));
+								},
+								_ => panic!("Bad things can happen."),
 							}
-
 						}),
 					);
 					return None
 				},
 				_ => return Some(msg),
 			}
-			
 		}
 
 		match msg {
@@ -303,8 +307,24 @@ where
 						pov,
 						timeout,
 						sender,
+						commitments_hash,
 					),
 			} => {
+				// Behave normally if the `PoV` is not known to be malicious.
+				if pov.block_data.0.as_slice() != MALICIOUS_POV {
+					return Some(FromOverseer::Communication {
+						msg: CandidateValidationMessage::ValidateFromExhaustive(
+							validation_data,
+							validation_code,
+							descriptor,
+							pov,
+							timeout,
+							sender,
+							commitments_hash,
+						),
+					})
+				}
+
 				match self.fake_validation {
 					FakeCandidateValidation::ApprovalValid |
 					FakeCandidateValidation::BackingAndApprovalValid => {
@@ -341,6 +361,7 @@ where
 							pov,
 							timeout,
 							sender,
+							commitments_hash,
 						),
 					}),
 				}
@@ -352,8 +373,22 @@ where
 						pov,
 						timeout,
 						response_sender,
+						commitments_hash,
 					),
 			} => {
+				// Behave normally if the `PoV` is not known to be malicious.
+				if pov.block_data.0.as_slice() != MALICIOUS_POV {
+					return Some(FromOverseer::Communication {
+						msg: CandidateValidationMessage::ValidateFromChainState(
+							descriptor,
+							pov,
+							timeout,
+							response_sender,
+							commitments_hash,
+						),
+					})
+				}
+
 				match self.fake_validation {
 					FakeCandidateValidation::BackingValid |
 					FakeCandidateValidation::BackingAndApprovalValid => {
@@ -387,6 +422,7 @@ where
 							pov,
 							timeout,
 							response_sender,
+							commitments_hash,
 						),
 					}),
 				}
