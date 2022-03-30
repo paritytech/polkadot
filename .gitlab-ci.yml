@@ -655,7 +655,7 @@ zombienet-tests-parachains-smoke-test:
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE="docker.io/paritypr/colander:4519" # The collator image is fixed
   script:
-    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-smoke-test.feature"
   allow_failure:                   false
@@ -684,7 +684,7 @@ zombienet-tests-parachains-pvf:
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
-    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-parachains-pvf.feature"
   allow_failure:                   false
@@ -714,7 +714,7 @@ zombienet-tests-parachains-disputes:
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
-    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.feature"
   allow_failure:                   false
@@ -744,7 +744,7 @@ zombienet-tests-malus-dispute-valid:
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
-    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-dispute-valid-block.feature"
   allow_failure:                   false
