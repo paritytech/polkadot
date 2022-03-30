@@ -86,11 +86,6 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
-#[derive(Default)]
-struct PeerData {
-	view: View,
-}
-
 /// Contains recently finalized
 /// or those pruned due to finalization.
 #[derive(Default)]
@@ -223,7 +218,7 @@ struct State {
 	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
 
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
-	peer_data: HashMap<PeerId, PeerData>,
+	peer_views: HashMap<PeerId, View>,
 
 	/// Topologies for various different sessions.
 	topologies: SessionTopologies,
@@ -436,11 +431,11 @@ impl State {
 			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
-				self.peer_data.entry(peer_id).or_default();
+				self.peer_views.entry(peer_id).or_default();
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
-				self.peer_data.remove(&peer_id);
+				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				})
@@ -523,16 +518,16 @@ impl State {
 		);
 
 		{
-			for (peer_id, peer_data) in self.peer_data.iter() {
-				let intersection = peer_data.view.iter().filter(|h| new_hashes.contains(h));
+			for (peer_id, view) in self.peer_views.iter() {
+				let intersection = view.iter().filter(|h| new_hashes.contains(h));
 				let view_intersection =
-					View::new(intersection.cloned(), peer_data.view.finalized_number);
+					View::new(intersection.cloned(), view.finalized_number);
 				Self::unify_with_peer(
 					ctx,
 					metrics,
 					&mut self.blocks,
 					&self.topologies,
-					self.peer_data.len(),
+					self.peer_views.len(),
 					peer_id.clone(),
 					view_intersection,
 					rng,
@@ -727,9 +722,9 @@ impl State {
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
 		let old_view = self
-			.peer_data
+			.peer_views
 			.get_mut(&peer_id)
-			.map(|d| std::mem::replace(&mut d.view, view.clone()));
+			.map(|d| std::mem::replace(d, view.clone()));
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -755,7 +750,7 @@ impl State {
 			metrics,
 			&mut self.blocks,
 			&self.topologies,
-			self.peer_data.len(),
+			self.peer_views.len(),
 			peer_id.clone(),
 			view,
 			rng,
@@ -997,7 +992,7 @@ impl State {
 		// then messages will be sent when we get it.
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let n_peers_total = self.peer_data.len();
+		let n_peers_total = self.peer_views.len();
 		let source_peer = source.peer_id();
 
 		let mut peer_filter = move |peer| {
