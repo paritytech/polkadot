@@ -2277,6 +2277,7 @@ async fn launch_approval(
 					available_data.pov,
 					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,
+					candidate.commitments_hash,
 				)
 				.into(),
 			)

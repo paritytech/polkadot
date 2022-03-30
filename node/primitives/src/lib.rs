@@ -231,6 +231,8 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
+	/// Validation has generated different candidate commitments.
+	ComittmentsHashMismatch,
 }
 
 /// Result of the validation of the candidate.

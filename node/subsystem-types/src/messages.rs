@@ -138,6 +138,8 @@ pub enum CandidateValidationMessage {
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+		/// Original commitments hash
+		Hash,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
@@ -156,6 +158,8 @@ pub enum CandidateValidationMessage {
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+		/// Comittments hash
+		Hash,
 	),
 	/// Try to compile the given validation code and send back
 	/// the outcome.
@@ -174,8 +178,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _, _) => None,
 			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
 		}
 	}
