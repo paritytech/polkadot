@@ -16,6 +16,7 @@ futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

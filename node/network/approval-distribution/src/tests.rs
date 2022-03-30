@@ -15,8 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
+use sp_core::crypto::Pair as PairT;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
@@ -100,6 +103,62 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	gum::trace!(msg = ?msg, "Received message");
 
 	msg
+}
+
+fn make_peers_and_authority_ids(n: usize) -> Vec<(PeerId, AuthorityDiscoveryId)> {
+	(0..n).map(|_| {
+		let peer_id = PeerId::random();
+		let authority_id = AuthorityDiscoveryPair::generate().0.public();
+
+		(peer_id, authority_id)
+	}).collect()
+}
+
+fn make_gossip_topology(
+	session: SessionIndex,
+	all_peers: &[(PeerId, AuthorityDiscoveryId)],
+	neighbors_x: &[usize],
+	neighbors_y: &[usize],
+) -> network_bridge_event::NewGossipTopology {
+	let mut t = network_bridge_event::NewGossipTopology {
+		session,
+		our_neighbors_x: HashMap::new(),
+		our_neighbors_y: HashMap::new(),
+	};
+
+	for &i in neighbors_x {
+		t.our_neighbors_x.insert(
+			all_peers[i].1.clone(),
+			network_bridge_event::TopologyPeerInfo {
+				peer_ids: vec![all_peers[i].0.clone()],
+				validator_index: ValidatorIndex::from(i as u32),
+			}
+		);
+	}
+
+	for &i in neighbors_y {
+		t.our_neighbors_y.insert(
+			all_peers[i].1.clone(),
+			network_bridge_event::TopologyPeerInfo {
+				peer_ids: vec![all_peers[i].0.clone()],
+				validator_index: ValidatorIndex::from(i as u32),
+			}
+		);
+	}
+
+	t
+}
+
+async fn setup_gossip_topology(
+	virtual_overseer: &mut VirtualOverseer,
+	gossip_topology: network_bridge_event::NewGossipTopology,
+) {
+	overseer_send(
+		virtual_overseer,
+		ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::NewGossipTopology(
+			gossip_topology,
+		)),
+	).await;
 }
 
 async fn setup_peer_with_view(
@@ -1070,7 +1129,120 @@ fn race_condition_in_local_vs_remote_view_update() {
 	});
 }
 
-// TODO [now]: test propagation of message from issuer - unshared dimension
+// Tests that messages propagate to the unshared dimension.
+#[test]
+fn propagates_locally_generated_assignment_to_both_dimensions() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+
+	let peers = make_peers_and_authority_ids(100);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// Connect all peers.
+		for (peer, _) in &peers {
+			setup_peer_with_view(overseer, peer, view![hash]).await;
+		}
+
+		// Set up a gossip topology.
+		setup_gossip_topology(
+			overseer,
+			make_gossip_topology(
+				1,
+				&peers,
+				&[0, 10, 20, 30],
+				&[50, 51, 52, 53],
+			),
+		).await;
+
+		let expected_indices = [
+			// Both dimensions in the gossip topology
+			0, 10, 20, 30, 50, 51, 52, 53,
+		];
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+			session: 1,
+		};
+
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+
+		// import an assignment and approval locally.
+		let cert = fake_assignment_cert(hash, validator_index);
+		let approval = IndirectSignedApprovalVote {
+			block_hash: hash,
+			candidate_index,
+			validator: validator_index,
+			signature: dummy_signature(),
+		};
+
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
+		)
+		.await;
+
+		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
+			.await;
+
+		let assignments = vec![(cert.clone(), candidate_index)];
+		let approvals = vec![approval.clone()];
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				sent_peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+				)
+			)) => {
+				for &i in &expected_indices {
+					assert!(
+						sent_peers.contains(&peers[i].0),
+						"Message not sent to expected peer {}",
+						i,
+					);
+				}
+				assert_eq!(sent_assignments, assignments);
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				sent_peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
+				)
+			)) => {
+				for &i in &expected_indices {
+					assert!(
+						sent_peers.contains(&peers[i].0),
+						"Message not sent to expected peer {}",
+						i,
+					);
+				}
+				assert_eq!(sent_approvals, approvals);
+			}
+		);
+
+		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}
+
+// TODO [now]: Tests that messages propagate to the unshared dimension.
+
 
 // TODO [now]: test that messages are propagated to necessary peers after they connect
 

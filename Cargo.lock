@@ -6347,6 +6347,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rand_core 0.5.1",
  "schnorrkel",
+ "sp-authority-discovery",
  "sp-core",
  "tracing-gum",
 ]
