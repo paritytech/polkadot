@@ -1129,7 +1129,7 @@ fn race_condition_in_local_vs_remote_view_update() {
 	});
 }
 
-// Tests that messages propagate to the unshared dimension.
+// Tests that local messages propagate to both dimensions.
 #[test]
 fn propagates_locally_generated_assignment_to_both_dimensions() {
 	let parent_hash = Hash::repeat_byte(0xFF);
@@ -1198,7 +1198,7 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
 
-		assert_matches!(
+		let assignment_sent_peers = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				sent_peers,
@@ -1206,6 +1206,7 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
 				)
 			)) => {
+				assert_eq!(sent_peers.len(), expected_indices.len() + 4);
 				for &i in &expected_indices {
 					assert!(
 						sent_peers.contains(&peers[i].0),
@@ -1214,6 +1215,7 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 					);
 				}
 				assert_eq!(sent_assignments, assignments);
+				sent_peers
 			}
 		);
 
@@ -1225,13 +1227,8 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
 				)
 			)) => {
-				for &i in &expected_indices {
-					assert!(
-						sent_peers.contains(&peers[i].0),
-						"Message not sent to expected peer {}",
-						i,
-					);
-				}
+				// Random sampling is reused from the assignment.
+				assert_eq!(sent_peers, assignment_sent_peers);
 				assert_eq!(sent_approvals, approvals);
 			}
 		);
@@ -1241,8 +1238,146 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 	});
 }
 
-// TODO [now]: Tests that messages propagate to the unshared dimension.
+// Tests that messages propagate to the unshared dimension.
+#[test]
+fn propagates_assignments_along_unshared_dimension() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
 
+	let peers = make_peers_and_authority_ids(100);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// Connect all peers.
+		for (peer, _) in &peers {
+			setup_peer_with_view(overseer, peer, view![hash]).await;
+		}
+
+		// Set up a gossip topology.
+		setup_gossip_topology(
+			overseer,
+			make_gossip_topology(
+				1,
+				&peers,
+				&[0, 10, 20, 30],
+				&[50, 51, 52, 53],
+			),
+		).await;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+			session: 1,
+		};
+
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		// Test messages from X direction go to Y peers
+		{
+			let validator_index = ValidatorIndex(0);
+			let candidate_index = 0u32;
+
+			// import an assignment and approval locally.
+			let cert = fake_assignment_cert(hash, validator_index);
+			let assignments = vec![(cert.clone(), candidate_index)];
+
+			let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+
+			// Issuer of the message is important, not the peer we receive from.
+			// 99 deliberately chosen because it's not in X or Y.
+			send_message_from_peer(overseer, &peers[99].0, msg).await;
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+					_,
+					_,
+					tx,
+				)) => {
+					tx.send(AssignmentCheckResult::Accepted).unwrap();
+				}
+			);
+			expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+			let expected_y = [50, 51, 52, 53];
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+					sent_peers,
+					protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					)
+				)) => {
+					for &i in &expected_y {
+						assert!(
+							sent_peers.contains(&peers[i].0),
+							"Message not sent to expected peer {}",
+							i,
+						);
+					}
+					assert_eq!(sent_assignments, assignments);
+				}
+			);
+		};
+
+		// Test messages from X direction go to Y peers
+		{
+			let validator_index = ValidatorIndex(50);
+			let candidate_index = 0u32;
+
+			// import an assignment and approval locally.
+			let cert = fake_assignment_cert(hash, validator_index);
+			let assignments = vec![(cert.clone(), candidate_index)];
+
+			let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+
+			// Issuer of the message is important, not the peer we receive from.
+			// 99 deliberately chosen because it's not in X or Y.
+			send_message_from_peer(overseer, &peers[99].0, msg).await;
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+					_,
+					_,
+					tx,
+				)) => {
+					tx.send(AssignmentCheckResult::Accepted).unwrap();
+				}
+			);
+			expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+			let expected_x = [0, 10, 20, 30];
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+					sent_peers,
+					protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					)
+				)) => {
+					for &i in &expected_x {
+						assert!(
+							sent_peers.contains(&peers[i].0),
+							"Message not sent to expected peer {}",
+							i,
+						);
+					}
+					assert_eq!(sent_assignments, assignments);
+				}
+			);
+		};
+
+		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}
 
 // TODO [now]: test that messages are propagated to necessary peers after they connect
 

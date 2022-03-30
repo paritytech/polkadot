@@ -131,8 +131,8 @@ impl SessionTopology {
 
 		match (grid_x, grid_y) {
 			(false, false) => RequiredRouting::None,
-			(true, false) => RequiredRouting::GridX,
-			(false, true) => RequiredRouting::GridY,
+			(true, false) => RequiredRouting::GridY, // messages from X go to Y
+			(false, true) => RequiredRouting::GridX, // messages from Y go to X
 			(true, true) => RequiredRouting::GridXY, // if the grid works as expected, this shouldn't happen.
 		}
 	}
@@ -957,6 +957,7 @@ impl State {
 
 		let topology = self.topologies.get_topology(entry.session);
 		let local = source == MessageSource::Local;
+
 
 		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
 			t.required_routing_for(validator_index, local)
