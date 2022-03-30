@@ -25,6 +25,7 @@ use polkadot_node_subsystem::messages::{AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
 use std::time::Duration;
+use rand::SeedableRng;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
@@ -46,7 +47,9 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let subsystem = ApprovalDistribution::new(Default::default());
 	{
-		let subsystem = subsystem.run_inner(context, &mut state);
+		let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
+
+		let subsystem = subsystem.run_inner(context, &mut state, &mut rng);
 
 		let test_fut = test_fn(virtual_overseer);
 
@@ -201,6 +204,7 @@ fn try_import_the_same_assignment() {
 			number: 2,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -283,6 +287,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 			number: 2,
 			candidates: vec![Default::default(); candidates_count],
 			slot: 1.into(),
+			session: 1,
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
@@ -365,6 +370,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -442,6 +448,7 @@ fn import_approval_happy_path() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -528,6 +535,7 @@ fn import_approval_bad() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -605,6 +613,7 @@ fn update_our_view() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let meta_b = BlockApprovalMeta {
 			hash: hash_b,
@@ -612,6 +621,7 @@ fn update_our_view() {
 			number: 2,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let meta_c = BlockApprovalMeta {
 			hash: hash_c,
@@ -619,6 +629,7 @@ fn update_our_view() {
 			number: 3,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
@@ -678,6 +689,7 @@ fn update_peer_view() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let meta_b = BlockApprovalMeta {
 			hash: hash_b,
@@ -685,6 +697,7 @@ fn update_peer_view() {
 			number: 2,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let meta_c = BlockApprovalMeta {
 			hash: hash_c,
@@ -692,6 +705,7 @@ fn update_peer_view() {
 			number: 3,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
@@ -829,6 +843,7 @@ fn import_remotely_then_locally() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -913,6 +928,7 @@ fn sends_assignments_even_when_state_is_approved() {
 			number: 1,
 			candidates: vec![Default::default(); 1],
 			slot: 1.into(),
+			session: 1,
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -999,6 +1015,7 @@ fn race_condition_in_local_vs_remote_view_update() {
 			number: 2,
 			candidates: vec![Default::default(); candidates_count],
 			slot: 1.into(),
+			session: 1,
 		};
 
 		// This will send a peer view that is ahead of our view
