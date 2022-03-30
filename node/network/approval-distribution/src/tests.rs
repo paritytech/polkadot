@@ -1931,3 +1931,161 @@ fn non_originator_aggression_l1() {
 		virtual_overseer
 	});
 }
+
+// test aggression L2 on non-originator
+#[test]
+fn non_originator_aggression_l2() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+
+	let peers = make_peers_and_authority_ids(100);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// Connect all peers except omitted.
+		for (peer, _) in &peers {
+			setup_peer_with_view(overseer, peer, view![hash]).await;
+		}
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+			session: 1,
+		};
+
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+
+		// import an assignment and approval locally.
+		let cert = fake_assignment_cert(hash, validator_index);
+
+		// Set up a gossip topology.
+		setup_gossip_topology(
+			overseer,
+			make_gossip_topology(
+				1,
+				&peers,
+				&[0, 10, 20, 30],
+				&[50, 51, 52, 53],
+			),
+		).await;
+
+		let assignments = vec![(cert.clone(), candidate_index)];
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+
+		// Issuer of the message is important, not the peer we receive from.
+		// 99 deliberately chosen because it's not in X or Y.
+		send_message_from_peer(overseer, &peers[99].0, msg).await;
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+				_,
+				_,
+				tx,
+			)) => {
+				tx.send(AssignmentCheckResult::Accepted).unwrap();
+			}
+		);
+
+		expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+		let prev_sent_indices = assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				sent_peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(_)
+				)
+			)) => {
+				sent_peers.into_iter()
+					.filter_map(|sp| peers.iter().position(|p| &p.0 == &sp))
+					.collect::<Vec<_>>()
+			}
+		);
+
+		// Add blocks until aggression L1 is triggered.
+		let chain_head = {
+			let mut parent_hash = hash;
+			for level in 0..AGGRESSION_L1_THRESHOLD {
+				let number = 1 + level + 1; // first block had number 1
+				let hash = BlakeTwo256::hash_of(&(parent_hash, number));
+				let meta = BlockApprovalMeta {
+					hash,
+					parent_hash,
+					number,
+					candidates: vec![],
+					slot: (level as u64).into(),
+					session: 1,
+				};
+
+				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+				overseer_send(overseer, msg).await;
+
+				parent_hash = hash;
+			}
+
+			parent_hash
+		};
+
+		// No-op on non-originator
+
+		// Add blocks until aggression L2 is triggered.
+		{
+			let mut parent_hash = chain_head;
+			for level in 0..AGGRESSION_L2_THRESHOLD - AGGRESSION_L1_THRESHOLD {
+				let number = AGGRESSION_L1_THRESHOLD + level + 1 + 1; // first block had number 1
+				let hash = BlakeTwo256::hash_of(&(parent_hash, number));
+				let meta = BlockApprovalMeta {
+					hash,
+					parent_hash,
+					number,
+					candidates: vec![],
+					slot: (level as u64).into(),
+					session: 1,
+				};
+
+				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+				overseer_send(overseer, msg).await;
+
+				parent_hash = hash;
+			}
+		}
+
+		// XY dimension - previously sent.
+		let unsent_indices = [0, 10, 20, 30, 50, 51, 52, 53]
+			.iter()
+			.cloned()
+			.filter(|i| !prev_sent_indices.contains(&i)).collect::<Vec<_>>();
+
+		for _ in 0..unsent_indices.len() {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+					sent_peers,
+					protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					)
+				)) => {
+					// Sends to all expected peers.
+					assert_eq!(sent_peers.len(), 1);
+					assert_eq!(sent_assignments, assignments);
+
+					assert!(unsent_indices.iter()
+						.find(|i| &peers[**i].0 == &sent_peers[0])
+						.is_some());
+				}
+			);
+		}
+
+		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}
