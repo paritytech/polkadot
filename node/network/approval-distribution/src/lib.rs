@@ -996,7 +996,6 @@ impl State {
 		let source_peer = source.peer_id();
 
 		let mut peer_filter = move |peer| {
-			println!("{:?} filter peer", peer);
 			if Some(peer) == source_peer.as_ref() {
 				return false
 			}
