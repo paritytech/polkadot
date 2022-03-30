@@ -15,11 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
-use sp_core::crypto::Pair as PairT;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
 use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
@@ -27,8 +24,11 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_subsystem::messages::{AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use std::time::Duration;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
 use rand::SeedableRng;
+use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
+use sp_core::crypto::Pair as PairT;
+use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
@@ -106,12 +106,14 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 }
 
 fn make_peers_and_authority_ids(n: usize) -> Vec<(PeerId, AuthorityDiscoveryId)> {
-	(0..n).map(|_| {
-		let peer_id = PeerId::random();
-		let authority_id = AuthorityDiscoveryPair::generate().0.public();
+	(0..n)
+		.map(|_| {
+			let peer_id = PeerId::random();
+			let authority_id = AuthorityDiscoveryPair::generate().0.public();
 
-		(peer_id, authority_id)
-	}).collect()
+			(peer_id, authority_id)
+		})
+		.collect()
 }
 
 fn make_gossip_topology(
@@ -132,7 +134,7 @@ fn make_gossip_topology(
 			network_bridge_event::TopologyPeerInfo {
 				peer_ids: vec![all_peers[i].0.clone()],
 				validator_index: ValidatorIndex::from(i as u32),
-			}
+			},
 		);
 	}
 
@@ -142,7 +144,7 @@ fn make_gossip_topology(
 			network_bridge_event::TopologyPeerInfo {
 				peer_ids: vec![all_peers[i].0.clone()],
 				validator_index: ValidatorIndex::from(i as u32),
-			}
+			},
 		);
 	}
 
@@ -158,7 +160,8 @@ async fn setup_gossip_topology(
 		ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::NewGossipTopology(
 			gossip_topology,
 		)),
-	).await;
+	)
+	.await;
 }
 
 async fn setup_peer_with_view(
@@ -1148,13 +1151,9 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		let expected_indices = [
 			// Both dimensions in the gossip topology
@@ -1257,13 +1256,9 @@ fn propagates_assignments_along_unshared_dimension() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		// new block `hash_a` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -1404,13 +1399,9 @@ fn propagates_to_required_after_connect() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		let expected_indices = [
 			// Both dimensions in the gossip topology, minus omitted.
@@ -1611,17 +1602,12 @@ fn sends_to_more_peers_after_getting_topology() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		let mut expected_indices_assignments = vec![0, 10, 20, 30, 50, 51, 52, 53];
 		let mut expected_indices_approvals = vec![0, 10, 20, 30, 50, 51, 52, 53];
-
 
 		for _ in 0..expected_indices_assignments.len() {
 			assert_matches!(
@@ -1715,13 +1701,9 @@ fn originator_aggression_l1() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		overseer_send(
 			overseer,
@@ -1781,7 +1763,8 @@ fn originator_aggression_l1() {
 			}
 		}
 
-		let unsent_indices = (0..peers.len()).filter(|i| !prev_sent_indices.contains(&i)).collect::<Vec<_>>();
+		let unsent_indices =
+			(0..peers.len()).filter(|i| !prev_sent_indices.contains(&i)).collect::<Vec<_>>();
 
 		for _ in 0..unsent_indices.len() {
 			assert_matches!(
@@ -1866,13 +1849,9 @@ fn non_originator_aggression_l1() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
@@ -1970,13 +1949,9 @@ fn non_originator_aggression_l2() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(
-				1,
-				&peers,
-				&[0, 10, 20, 30],
-				&[50, 51, 52, 53],
-			),
-		).await;
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
 
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
@@ -2063,7 +2038,8 @@ fn non_originator_aggression_l2() {
 		let unsent_indices = [0, 10, 20, 30, 50, 51, 52, 53]
 			.iter()
 			.cloned()
-			.filter(|i| !prev_sent_indices.contains(&i)).collect::<Vec<_>>();
+			.filter(|i| !prev_sent_indices.contains(&i))
+			.collect::<Vec<_>>();
 
 		for _ in 0..unsent_indices.len() {
 			assert_matches!(

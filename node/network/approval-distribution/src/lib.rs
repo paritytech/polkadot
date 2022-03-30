@@ -520,8 +520,7 @@ impl State {
 		{
 			for (peer_id, view) in self.peer_views.iter() {
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
-				let view_intersection =
-					View::new(intersection.cloned(), view.finalized_number);
+				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
 				Self::unify_with_peer(
 					ctx,
 					metrics,
@@ -721,10 +720,8 @@ impl State {
 	) {
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
-		let old_view = self
-			.peer_views
-			.get_mut(&peer_id)
-			.map(|d| std::mem::replace(d, view.clone()));
+		let old_view =
+			self.peer_views.get_mut(&peer_id).map(|d| std::mem::replace(d, view.clone()));
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -957,7 +954,6 @@ impl State {
 
 		let topology = self.topologies.get_topology(entry.session);
 		let local = source == MessageSource::Local;
-
 
 		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
 			t.required_routing_for(validator_index, local)
