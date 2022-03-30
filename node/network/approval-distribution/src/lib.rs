@@ -81,9 +81,6 @@ const AGGRESSION_L1_THRESHOLD: BlockNumber = 10;
 /// Aggression level 2: L1 + all validators send all messages to all XY peers
 const AGGRESSION_L2_THRESHOLD: BlockNumber = 25;
 
-/// Aggression level 3: last-ditch: all validators send all messages to all peers.
-const AGGRESSION_L3_THRESHOLD: BlockNumber = 50;
-
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
 	metrics: Metrics,
@@ -125,9 +122,13 @@ struct SessionTopology {
 }
 
 impl SessionTopology {
-	fn required_routing_for(&self, validator_index: ValidatorIndex, local: bool) -> RequiredRouting {
+	fn required_routing_for(
+		&self,
+		validator_index: ValidatorIndex,
+		local: bool,
+	) -> RequiredRouting {
 		if local {
-			return RequiredRouting::GridXY;
+			return RequiredRouting::GridXY
 		}
 
 		let grid_x = self.validator_indices_x.contains(&validator_index);
@@ -765,7 +766,7 @@ impl State {
 	async fn handle_block_finalized(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-			+ overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
 		finalized_number: BlockNumber,
 	) {
@@ -1446,8 +1447,8 @@ impl State {
 	async fn enable_aggression(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-			+ overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
-  		metrics: &Metrics,
+		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		metrics: &Metrics,
 	) {
 		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
 		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
@@ -1458,7 +1459,9 @@ impl State {
 		};
 
 		let diff = max_age - min_age;
-		if diff < AGGRESSION_L1_THRESHOLD { return }
+		if diff < AGGRESSION_L1_THRESHOLD {
+			return
+		}
 
 		adjust_required_routing_and_propagate(
 			ctx,
@@ -1480,7 +1483,7 @@ impl State {
 						age = ?diff,
 						"Encountered old block pending gossip topology",
 					);
-					return;
+					return
 				}
 
 				if diff >= AGGRESSION_L1_THRESHOLD {
@@ -1498,18 +1501,9 @@ impl State {
 						*required_routing = RequiredRouting::GridXY;
 					}
 				}
-
-				if diff >= AGGRESSION_L3_THRESHOLD {
-					// last-ditch: everyone broadcasts everything to everyone.
-					// This is going to be very packet and bandwidth-intense, but
-					// it's literally the most we can do.
-					if *required_routing != RequiredRouting::All {
-						metrics.on_aggression_l3();
-						*required_routing = RequiredRouting::All;
-					}
-				}
-			}
-		).await;
+			},
+		)
+		.await;
 	}
 }
 
