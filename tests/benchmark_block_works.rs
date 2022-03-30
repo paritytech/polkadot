@@ -74,8 +74,6 @@ fn benchmark_block(runtime: &str, base_path: &Path, block: u32) -> Result<(), St
 		.args(["benchmark-block", "--chain", &runtime])
 		.arg("-d")
 		.arg(base_path)
-		.arg("--weight-path")
-		.arg(base_path)
 		.args(["--pruning", "archive"])
 		.args(["--from", &block.to_string(), "--to", &block.to_string()])
 		.args(["--repeat", "2"])
