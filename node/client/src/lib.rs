@@ -682,7 +682,7 @@ macro_rules! with_signed_payload {
 /// Generates a `SignedPayload` for the Kusama, Westend and Rococo runtime.
 ///
 /// Should only be used for benchmarking as it is not tested for regular usage.
-#[cfg(not(feature = "polkadot-native"))]
+#[allow(unused_macros)]
 macro_rules! signed_payload {
 	(
 	$extra:ident, $raw_payload:ident,
