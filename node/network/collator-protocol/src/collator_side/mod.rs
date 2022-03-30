@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
-	Hash, Id as ParaId,
+	Hash, Id as ParaId, SessionIndex,
 };
 use polkadot_subsystem::{
 	jaeger,
@@ -56,6 +56,8 @@ use fatality::Split;
 
 #[cfg(test)]
 mod tests;
+
+mod preconnect;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -318,6 +320,8 @@ struct State {
 	///
 	/// Each future returns the relay parent of the finished collation fetch.
 	active_collation_fetches: ActiveCollationFetches,
+
+	preconnect_state: preconnect::PreconnectState,
 }
 
 impl State {
@@ -338,6 +342,7 @@ impl State {
 			peer_ids: Default::default(),
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
+			preconnect_state: Default::default(),
 		}
 	}
 
@@ -348,6 +353,11 @@ impl State {
 			.filter(|(_, v)| v.contains(relay_parent))
 			.map(|(peer, _)| *peer)
 			.collect()
+	}
+
+	/// Get the first ancestor of the given relay parent from our view.
+	fn get_relay_predecessor(&self, head: &Hash) -> Option<&Hash> {
+		self.view.iter().rev().skip_while(|hash| *hash != head).skip(1).next()
 	}
 }
 
@@ -411,33 +421,68 @@ where
 		},
 	};
 
-	// Determine the group on that core.
-	let current_validators =
-		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
+	// If there was a scheduled preconnect, it should've happened at the predecessor
+	// of the relay parent we've built our candidate upon.
+	let predecessor = state.get_relay_predecessor(&relay_parent).cloned();
 
-	if current_validators.validators.is_empty() {
-		gum::warn!(
+	let preconnect_state =
+		predecessor.and_then(|predecessor| state.preconnect_state.get(&predecessor));
+
+	let is_preconnected = if let Some(preconnect_state) = preconnect_state {
+		// By this time having no connected validators should indicate a failure.
+		// TODO: Is having at least 1 connected validator enough?
+		if preconnect_state.connected.is_empty() {
+			false
+		} else {
+			// On session boundaries the assumption about our validators group
+			// doesn't hold, thus the preconnect state should be discarded.
+			let session_index =
+				runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
+			preconnect_state.session_index == session_index
+		}
+	} else {
+		false
+	};
+
+	if !is_preconnected {
+		// Invalidate the preconnect state if present.
+		state.preconnect_state.clear_until(&relay_parent);
+
+		// Determine the group on that core.
+		let (_, current_validators) = determine_our_validators(
+			ctx,
+			runtime,
+			our_core,
+			num_cores,
+			relay_parent,
+			AssignmentType::Current,
+		)
+		.await?;
+
+		if current_validators.validators.is_empty() {
+			gum::warn!(
+				target: LOG_TARGET,
+				core = ?our_core,
+				"there are no validators assigned to core",
+			);
+
+			return Ok(())
+		}
+
+		gum::debug!(
 			target: LOG_TARGET,
+			para_id = %id,
+			relay_parent = %relay_parent,
+			candidate_hash = ?receipt.hash(),
+			pov_hash = ?pov.hash(),
 			core = ?our_core,
-			"there are no validators assigned to core",
+			?current_validators,
+			"Accepted collation, connecting to validators."
 		);
 
-		return Ok(())
+		// Issue a discovery request for the validators of the current group:
+		connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 	}
-
-	gum::debug!(
-		target: LOG_TARGET,
-		para_id = %id,
-		relay_parent = %relay_parent,
-		candidate_hash = ?receipt.hash(),
-		pov_hash = ?pov.hash(),
-		core = ?our_core,
-		?current_validators,
-		"Accepted collation, connecting to validators."
-	);
-
-	// Issue a discovery request for the validators of the current group:
-	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 
 	state.our_validators_groups.insert(relay_parent, ValidatorGroup::new());
 
@@ -489,6 +534,11 @@ struct GroupValidators {
 	validators: Vec<AuthorityDiscoveryId>,
 }
 
+enum AssignmentType {
+	Current,
+	Preconnect,
+}
+
 /// Figure out current group of validators assigned to the para being collated on.
 ///
 /// Returns [`ValidatorId`]'s of current group as determined based on the `relay_parent`.
@@ -498,7 +548,8 @@ async fn determine_our_validators<Context>(
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
-) -> Result<GroupValidators>
+	assignment_type: AssignmentType,
+) -> Result<(SessionIndex, GroupValidators)>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -510,7 +561,23 @@ where
 		.session_info;
 	gum::debug!(target: LOG_TARGET, ?session_index, "Received session info");
 	let groups = &info.validator_groups;
-	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
+	let mut rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
+
+	match assignment_type {
+		AssignmentType::Current => {},
+		AssignmentType::Preconnect => {
+			// Assume that the grandchild of `relay_parent` will land in the
+			// same session as its child.
+			//
+			// This essentially means that preconnect won't work for candidates
+			// built in the context of the last block in the session.
+			//
+			// For this reason we also return the assumed session index, in case it
+			// doesn't match with an actual one, collator has to fetch the proper
+			// backing group again.
+			rotation_info.now += 1;
+		},
+	}
 
 	let current_group_index = rotation_info.group_for_core(core_index, cores);
 	let current_validators = groups
@@ -525,7 +592,7 @@ where
 
 	let current_validators = GroupValidators { validators: current_validators };
 
-	Ok(current_validators)
+	Ok((session_index, current_validators))
 }
 
 /// Issue a `Declare` collation message to the given `peer`.
@@ -696,6 +763,91 @@ where
 					err = ?e,
 					"Failed to handle incoming network message",
 				);
+			}
+		},
+		Preconnect(relay_parent) => {
+			let para_id = if let Some(para_id) = state.collating_on {
+				para_id
+			} else {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Preconnect message while not collating on any parachain",
+				);
+				return Ok(())
+			};
+			if state.preconnect_state.get(&relay_parent).is_some() {
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					"Preconnect message while already pre-connecting for this relay_parent",
+				);
+				return Ok(())
+			}
+			match state.view.iter().rev().next() {
+				Some(hash) if *hash == relay_parent => {
+					let (core, num_cores) = match determine_core(ctx, para_id, relay_parent).await {
+						Ok(Some(cores)) => cores,
+						Ok(None) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								"Preconnect message while para is not scheduled",
+							);
+							return Ok(())
+						},
+						Err(err) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								error = ?err,
+								"Failed to fetch our core from the runtime",
+							);
+							return Ok(())
+						},
+					};
+					let (session_index, validators) = match determine_our_validators(
+						ctx,
+						runtime,
+						core,
+						num_cores,
+						relay_parent,
+						AssignmentType::Preconnect,
+					)
+					.await
+					{
+						Ok(validators) => validators,
+						Err(err) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								error = ?err,
+								"Failed to fetch validators group from the runtime",
+							);
+							return Ok(())
+						},
+					};
+					if state.preconnect_state.insert(
+						&relay_parent,
+						session_index,
+						validators.validators.clone(),
+						&state.peer_ids,
+					) {
+						// TODO: extend network bridge to make it possible to preconnect
+						// without disconnecting from the current group.
+						let unique_validators = state
+							.peer_ids
+							.values()
+							.flatten()
+							.cloned()
+							.chain(validators.validators)
+							.collect();
+						connect_to_validators(ctx, unique_validators).await;
+					}
+				},
+				Some(hash) => gum::warn!(
+					target: LOG_TARGET,
+					expected = ?hash,
+					received = ?relay_parent,
+					"Preconnect message ignored: relay parent doesn't match the latest known one",
+				),
+				None => {},
 			}
 		},
 		_ => {},
@@ -950,6 +1102,7 @@ where
 					?peer_id,
 					"Connected to requested validator"
 				);
+				state.preconnect_state.on_peer_connected(&peer_id, &authority_ids);
 				state.peer_ids.insert(peer_id, authority_ids);
 
 				declare(ctx, state, peer_id).await;
@@ -961,6 +1114,7 @@ where
 		},
 		PeerDisconnected(peer_id) => {
 			gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
+			state.preconnect_state.on_peer_disconnected(&peer_id);
 			state.peer_views.remove(&peer_id);
 			state.peer_ids.remove(&peer_id);
 		},
@@ -1011,6 +1165,10 @@ async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> 
 		state.our_validators_groups.remove(removed);
 		state.span_per_relay_parent.remove(removed);
 		state.waiting_collation_fetches.remove(removed);
+	}
+
+	if let Some(relay_parent) = view.iter().rev().skip(1).next() {
+		state.preconnect_state.clear_until(relay_parent);
 	}
 
 	state.view = view;

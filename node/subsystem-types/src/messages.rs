@@ -210,6 +210,8 @@ pub enum CollatorProtocolMessage {
 	///
 	/// The hash is the relay parent.
 	Seconded(Hash, SignedFullStatement),
+	///
+	Preconnect(Hash),
 }
 
 impl Default for CollatorProtocolMessage {

@@ -237,7 +237,7 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
+	pub fn iter<'a>(&'a self) -> impl DoubleEndedIterator<Item = &'a Hash> {
 		self.heads.iter()
 	}
 
