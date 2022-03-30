@@ -78,7 +78,7 @@ const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS
 /// Aggression level 1: all validators send all their own messages to all peers.
 const AGGRESSION_L1_THRESHOLD: BlockNumber = 10;
 
-/// Aggression level 2: L1 + all validators send all messages to all XY peers
+/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
 const AGGRESSION_L2_THRESHOLD: BlockNumber = 25;
 
 /// The Approval Distribution subsystem.
@@ -220,7 +220,7 @@ struct State {
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
 	peer_views: HashMap<PeerId, View>,
 
-	/// Topologies for various different sessions.
+	/// Keeps a topology for various different sessions.
 	topologies: SessionTopologies,
 
 	/// Tracks recently finalized blocks.
@@ -341,7 +341,7 @@ enum RequiredRouting {
 	GridX,
 	/// Propagate to all peers sharing the Y dimension of the grid.
 	GridY,
-	/// No required progation.
+	/// No required propagation.
 	None,
 }
 
