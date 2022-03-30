@@ -138,6 +138,7 @@ where
 					pov,
 					timeout,
 					response_sender,
+					commitments_hash,
 				) => {
 					let bg = {
 						let mut sender = ctx.sender().clone();
@@ -153,6 +154,7 @@ where
 								pov,
 								timeout,
 								&metrics,
+								commitments_hash,
 							)
 							.await;
 
@@ -170,6 +172,7 @@ where
 					pov,
 					timeout,
 					response_sender,
+					commitments_hash,
 				) => {
 					let bg = {
 						let metrics = metrics.clone();
@@ -185,6 +188,7 @@ where
 								pov,
 								timeout,
 								&metrics,
+								commitments_hash,
 							)
 							.await;
 
@@ -413,6 +417,28 @@ where
 	AssumptionCheckOutcome::DoesNotMatch
 }
 
+/// Returns validation data for a given candidate.
+pub async fn find_validation_data<Sender>(
+	sender: &mut Sender,
+	descriptor: &CandidateDescriptor,
+) -> Result<Option<(PersistedValidationData, ValidationCode)>, ValidationFailed>
+where
+	Sender: SubsystemSender,
+{
+	match find_assumed_validation_data(sender, &descriptor).await {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
+			Ok(Some((validation_data, validation_code))),
+		AssumptionCheckOutcome::DoesNotMatch => {
+			// If neither the assumption of the occupied core having the para included or the assumption
+			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
+			// is not based on the relay parent and is thus invalid.
+			Ok(None)
+		},
+		AssumptionCheckOutcome::BadRequest =>
+			Err(ValidationFailed("Assumption Check: Bad request".into())),
+	}
+}
+
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
 	validation_host: ValidationHost,
@@ -420,22 +446,16 @@ async fn validate_from_chain_state<Sender>(
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
+	commitments_hash: Hash,
 ) -> Result<ValidationResult, ValidationFailed>
 where
 	Sender: SubsystemSender,
 {
+	let mut new_sender = sender.clone();
 	let (validation_data, validation_code) =
-		match find_assumed_validation_data(sender, &descriptor).await {
-			AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
-				(validation_data, validation_code),
-			AssumptionCheckOutcome::DoesNotMatch => {
-				// If neither the assumption of the occupied core having the para included or the assumption
-				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-				// is not based on the relay parent and is thus invalid.
-				return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
-			},
-			AssumptionCheckOutcome::BadRequest =>
-				return Err(ValidationFailed("Assumption Check: Bad request".into())),
+		match find_validation_data(&mut new_sender, &descriptor).await? {
+			Some((validation_data, validation_code)) => (validation_data, validation_code),
+			None => return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)),
 		};
 
 	let validation_result = validate_candidate_exhaustive(
@@ -446,10 +466,16 @@ where
 		pov,
 		timeout,
 		metrics,
+		commitments_hash,
 	)
 	.await;
 
 	if let Ok(ValidationResult::Valid(ref outputs, _)) = validation_result {
+		// If validation produces new commitments we consider the candidate invalid.
+		if commitments_hash != outputs.hash() {
+			return Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))
+		}
+
 		let (tx, rx) = oneshot::channel();
 		match runtime_api_request(
 			sender,
@@ -477,6 +503,7 @@ async fn validate_candidate_exhaustive(
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
+	commitments_hash: Hash,
 ) -> Result<ValidationResult, ValidationFailed> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
@@ -566,7 +593,12 @@ async fn validate_candidate_exhaustive(
 					processed_downward_messages: res.processed_downward_messages,
 					hrmp_watermark: res.hrmp_watermark,
 				};
-				Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+				if commitments_hash != outputs.hash() {
+					// If validation produced a new set of commitments, we treat the candidate as invalid.
+					Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))
+				} else {
+					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+				}
 			},
 	}
 }
