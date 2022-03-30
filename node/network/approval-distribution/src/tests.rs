@@ -1314,6 +1314,7 @@ fn propagates_assignments_along_unshared_dimension() {
 						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
 					)
 				)) => {
+					assert_eq!(sent_peers.len(), expected_y.len() + 4);
 					for &i in &expected_y {
 						assert!(
 							sent_peers.contains(&peers[i].0),
@@ -1362,6 +1363,7 @@ fn propagates_assignments_along_unshared_dimension() {
 						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
 					)
 				)) => {
+					assert_eq!(sent_peers.len(), expected_x.len() + 4);
 					for &i in &expected_x {
 						assert!(
 							sent_peers.contains(&peers[i].0),
