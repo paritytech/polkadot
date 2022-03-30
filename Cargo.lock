@@ -7614,6 +7614,7 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "sp-application-crypto",
+ "sp-authority-discovery",
  "sp-core",
  "sp-keyring",
  "sp-keystore",
