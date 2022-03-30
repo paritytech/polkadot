@@ -24,7 +24,6 @@ static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend", "rococo",
 
 /// `benchmark-overhead` works for all dev runtimes.
 #[test]
-#[cfg(unix)]
 fn benchmark_overhead_works() {
 	for runtime in RUNTIMES {
 		let runtime = format!("{}-dev", runtime);
@@ -34,7 +33,6 @@ fn benchmark_overhead_works() {
 
 /// `benchmark-overhead` rejects all non-dev runtimes.
 #[test]
-#[cfg(unix)]
 fn benchmark_overhead_rejects_non_dev_runtimes() {
 	for runtime in RUNTIMES {
 		assert!(benchmark_overhead(runtime.into()).is_err());
