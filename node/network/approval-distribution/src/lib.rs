@@ -39,7 +39,7 @@ use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{hash_map, btree_map, BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
 use self::metrics::Metrics;
 
@@ -67,8 +67,6 @@ const RANDOM_CIRCULATION: usize = 4;
 /// reduces the left tail of the binomial distribution but also
 /// introduces a bias towards peers who we sample before others
 /// (i.e. those who get a block before others).
-///
-/// Peers are sampled as `RANDOM_SAMPLE_RATE / N_PEERS`.
 const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS;
 
 // A note on aggression thresholds: changes in propagation apply only to blocks which are the
@@ -294,7 +292,7 @@ impl PeerKnowledge {
 struct BlockEntry {
 	/// Peers who we know are aware of this block and thus, the candidates within it.
 	/// This maps to their knowledge of messages.
-	known_by: BTreeMap<PeerId, PeerKnowledge>,
+	known_by: HashMap<PeerId, PeerKnowledge>,
 	/// The number of the block.
 	number: BlockNumber,
 	/// The parent hash of the block.
@@ -493,7 +491,7 @@ impl State {
 					candidates.resize_with(candidates_count, Default::default);
 
 					entry.insert(BlockEntry {
-						known_by: BTreeMap::new(),
+						known_by: HashMap::new(),
 						number: meta.number,
 						parent_hash: meta.parent_hash.clone(),
 						knowledge: Knowledge::default(),
@@ -828,7 +826,7 @@ impl State {
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
 			match entry.known_by.entry(peer_id.clone()) {
-				btree_map::Entry::Occupied(mut peer_knowledge) => {
+				hash_map::Entry::Occupied(mut peer_knowledge) => {
 					let peer_knowledge = peer_knowledge.get_mut();
 					if peer_knowledge.contains(&message_subject, message_kind) {
 						// wasn't included before
@@ -844,7 +842,7 @@ impl State {
 						return
 					}
 				},
-				btree_map::Entry::Vacant(_) => {
+				hash_map::Entry::Vacant(_) => {
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1090,7 +1088,7 @@ impl State {
 
 			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
-				btree_map::Entry::Occupied(mut knowledge) => {
+				hash_map::Entry::Occupied(mut knowledge) => {
 					let peer_knowledge = knowledge.get_mut();
 					if peer_knowledge.contains(&message_subject, message_kind) {
 						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
@@ -1106,7 +1104,7 @@ impl State {
 						return
 					}
 				},
-				btree_map::Entry::Vacant(_) => {
+				hash_map::Entry::Vacant(_) => {
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
