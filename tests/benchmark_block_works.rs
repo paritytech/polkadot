@@ -20,12 +20,12 @@
 #![cfg(unix)]
 
 use assert_cmd::cargo::cargo_bin;
-use std::{process::Command, path::Path, time::Duration, result::Result};
-use tempfile::tempdir;
 use nix::{
 	sys::signal::{kill, Signal::SIGINT},
 	unistd::Pid,
 };
+use std::{path::Path, process::Command, result::Result, time::Duration};
+use tempfile::tempdir;
 
 pub mod common;
 
@@ -71,13 +71,13 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 fn benchmark_block(runtime: &str, base_path: &Path, block: u32) -> Result<(), String> {
 	// Invoke `benchmark-block` with all options to make sure that they are valid.
 	let status = Command::new(cargo_bin("polkadot"))
-	.args(["benchmark-block", "--chain", &runtime])
+		.args(["benchmark-block", "--chain", &runtime])
 		.arg("-d")
 		.arg(base_path)
 		.arg("--weight-path")
 		.arg(base_path)
 		.args(["--pruning", "archive"])
-		.args(["--from", &block.to_string(), "--to",&block.to_string()])
+		.args(["--from", &block.to_string(), "--to", &block.to_string()])
 		.args(["--repeat", "2"])
 		.args(["--execution", "wasm", "--wasm-execution", "compiled"])
 		.status()
