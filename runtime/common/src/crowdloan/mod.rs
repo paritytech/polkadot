@@ -228,7 +228,7 @@ pub mod pallet {
 	/// Info on all of the funds.
 	#[pallet::storage]
 	#[pallet::getter(fn funds)]
-	pub(super) type Funds<T: Config> = StorageMap<
+	pub(crate) type Funds<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		ParaId,
