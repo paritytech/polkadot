@@ -40,7 +40,10 @@ use polkadot_node_subsystem_util::request_validators;
 use crate::{
 	interceptor::*,
 	shared::{MALICIOUS_POV, MALUS},
-	variants::{FakeCandidateValidation, FakeCandidateValidationError, ReplaceValidationResult},
+	variants::{
+		create_fake_candidate_commitments, FakeCandidateValidation, FakeCandidateValidationError,
+		ReplaceValidationResult,
+	},
 };
 
 // Import extra types relevant to the particular
@@ -169,14 +172,8 @@ where
 					(collator_pair.public(), collator_pair.sign(&signature_payload))
 				};
 
-				let malicious_commitments = CandidateCommitments {
-					upward_messages: Vec::new(),
-					horizontal_messages: Vec::new(),
-					new_validation_code: None,
-					head_data: malicious_available_data.validation_data.parent_head.clone(),
-					processed_downward_messages: 0,
-					hrmp_watermark: validation_data_relay_parent_number,
-				};
+				let malicious_commitments =
+					create_fake_candidate_commitments(&malicious_available_data.validation_data);
 
 				let malicious_candidate = CandidateReceipt {
 					descriptor: CandidateDescriptor {
