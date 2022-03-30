@@ -62,7 +62,7 @@ const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 	Rep::BenefitMinorFirst("Valid message with new information");
 
 /// The number of peers to randomly propagate messages to.
-const RANDOM_CIRCULATION: usize = 8;
+const RANDOM_CIRCULATION: usize = 4;
 /// The sample rate for randomly propagating messages. This
 /// reduces the left tail of the binomial distribution but also
 /// introduces a bias towards peers who we sample before others
