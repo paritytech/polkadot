@@ -499,7 +499,7 @@ where
 		Err(ValidationError::ArtifactNotFound) => {
 			// In case preimage for the supplied code hash was not found by the
 			// validation host, request the code from Runtime API and try again.
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				validation_code_hash = ?descriptor.validation_code_hash,
 				"Validation host failed to find artifact by provided hash",
@@ -534,7 +534,7 @@ where
 			) {
 				Ok(code) => code,
 				Err(e) => {
-					tracing::debug!(target: LOG_TARGET, err=?e, "Code decompression failed");
+					gum::debug!(target: LOG_TARGET, err=?e, "Code decompression failed");
 
 					// If the validation code is invalid, the candidate certainly is.
 					return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
@@ -571,7 +571,7 @@ where
 			let err = ValidationFailed(
 				"Validation host failed to find artifact even though it was supplied".to_string(),
 			);
-			tracing::error!(target: LOG_TARGET, error = ?err);
+			gum::error!(target: LOG_TARGET, error = ?err);
 			Err(err)
 		},
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
