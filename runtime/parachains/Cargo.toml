@@ -1,15 +1,15 @@
 [package]
 name = "polkadot-runtime-parachains"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-log = { version = "0.4.14", default-features = false }
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
+log = { version = "0.4.16", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.136", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
@@ -23,7 +23,8 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sp-tracing = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate", default-features = false, optional = true }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -41,7 +42,7 @@ xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
-rand = { version = "0.8.3", default-features = false }
+rand = { version = "0.8.5", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
 static_assertions = { version = "1.1.0", optional = true }
 polkadot-runtime-metrics = { path = "../metrics", default-features = false}
@@ -96,6 +97,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"primitives/runtime-benchmarks",
 	"static_assertions",
+	"sp-application-crypto",
 ]
 try-runtime = [
 	"frame-support/try-runtime",

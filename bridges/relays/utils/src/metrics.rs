@@ -18,7 +18,7 @@ pub use float_json_value::FloatJsonValueMetric;
 pub use global::GlobalMetrics;
 pub use substrate_prometheus_endpoint::{
 	prometheus::core::{Atomic, Collector},
-	register, Counter, CounterVec, Gauge, GaugeVec, Opts, PrometheusError, Registry, F64, U64,
+	register, Counter, CounterVec, Gauge, GaugeVec, Opts, PrometheusError, Registry, F64, I64, U64,
 };
 
 use async_std::sync::{Arc, RwLock};
@@ -30,6 +30,8 @@ mod global;
 
 /// Shared reference to `f64` value that is updated by the metric.
 pub type F64SharedRef = Arc<RwLock<Option<f64>>>;
+/// Int gauge metric type.
+pub type IntGauge = Gauge<U64>;
 
 /// Unparsed address that needs to be used to expose Prometheus metrics.
 #[derive(Debug, Clone)]

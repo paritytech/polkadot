@@ -88,19 +88,12 @@ impl Alternative {
 					testnet_genesis(
 						vec![get_authority_keys_from_seed("Alice")],
 						get_account_id_from_seed::<sr25519::Public>("Alice"),
-						vec![
-							get_account_id_from_seed::<sr25519::Public>("Alice"),
-							get_account_id_from_seed::<sr25519::Public>("Bob"),
-							get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Alice"),
-							)),
-						],
+						endowed_accounts(),
 						true,
 					)
 				},
 				vec![],
+				None,
 				None,
 				None,
 				properties,
@@ -120,52 +113,12 @@ impl Alternative {
 							get_authority_keys_from_seed("Eve"),
 						],
 						get_account_id_from_seed::<sr25519::Public>("Alice"),
-						vec![
-							get_account_id_from_seed::<sr25519::Public>("Alice"),
-							get_account_id_from_seed::<sr25519::Public>("Bob"),
-							get_account_id_from_seed::<sr25519::Public>("Charlie"),
-							get_account_id_from_seed::<sr25519::Public>("Dave"),
-							get_account_id_from_seed::<sr25519::Public>("Eve"),
-							get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-							get_account_id_from_seed::<sr25519::Public>("George"),
-							get_account_id_from_seed::<sr25519::Public>("Harry"),
-							get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-							get_account_id_from_seed::<sr25519::Public>("George//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Harry//stash"),
-							get_account_id_from_seed::<sr25519::Public>("RialtoMessagesOwner"),
-							get_account_id_from_seed::<sr25519::Public>("WithRialtoTokenSwap"),
-							pallet_bridge_messages::relayer_fund_account_id::<
-								bp_millau::AccountId,
-								bp_millau::AccountIdConverter,
-							>(),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Alice"),
-							)),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Bob"),
-							)),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Charlie"),
-							)),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Dave"),
-							)),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Eve"),
-							)),
-							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-							)),
-						],
+						endowed_accounts(),
 						true,
 					)
 				},
 				vec![],
+				None,
 				None,
 				None,
 				properties,
@@ -173,6 +126,55 @@ impl Alternative {
 			),
 		}
 	}
+}
+
+/// We're using the same set of endowed accounts on all Millau chains (dev/local) to make
+/// sure that all accounts, required for bridge to be functional (e.g. relayers fund account,
+/// accounts used by relayers in our test deployments, accounts used for demonstration
+/// purposes), are all available on these chains.
+fn endowed_accounts() -> Vec<AccountId> {
+	vec![
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		get_account_id_from_seed::<sr25519::Public>("Bob"),
+		get_account_id_from_seed::<sr25519::Public>("Charlie"),
+		get_account_id_from_seed::<sr25519::Public>("Dave"),
+		get_account_id_from_seed::<sr25519::Public>("Eve"),
+		get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+		get_account_id_from_seed::<sr25519::Public>("George"),
+		get_account_id_from_seed::<sr25519::Public>("Harry"),
+		get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+		get_account_id_from_seed::<sr25519::Public>("George//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Harry//stash"),
+		get_account_id_from_seed::<sr25519::Public>("RialtoMessagesOwner"),
+		get_account_id_from_seed::<sr25519::Public>("WithRialtoTokenSwap"),
+		pallet_bridge_messages::relayer_fund_account_id::<
+			bp_millau::AccountId,
+			bp_millau::AccountIdConverter,
+		>(),
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+		)),
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+		)),
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Charlie"),
+		)),
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Dave"),
+		)),
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Eve"),
+		)),
+		derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+		)),
+	]
 }
 
 fn session_keys(aura: AuraId, beefy: BeefyId, grandpa: GrandpaId) -> SessionKeys {

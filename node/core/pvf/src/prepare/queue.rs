@@ -217,7 +217,7 @@ async fn handle_enqueue(
 	priority: Priority,
 	pvf: PvfPreimage,
 ) -> Result<(), Fatal> {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash,
 		?priority,
@@ -234,7 +234,7 @@ async fn handle_enqueue(
 		// Precondtion for `Enqueue` is that it is sent only once for a PVF;
 		// Thus this should always be `false`;
 		// qed.
-		tracing::warn!(
+		gum::warn!(
 			target: LOG_TARGET,
 			"duplicate `enqueue` command received for {:?}",
 			artifact_id,
@@ -337,7 +337,7 @@ async fn handle_worker_concluded(
 
 	queue.artifact_id_to_job.remove(&artifact_id);
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
 		?worker,
@@ -376,7 +376,7 @@ async fn handle_worker_concluded(
 }
 
 async fn handle_worker_rip(queue: &mut Queue, worker: Worker) -> Result<(), Fatal> {
-	tracing::debug!(target: LOG_TARGET, ?worker, "prepare worker ripped");
+	gum::debug!(target: LOG_TARGET, ?worker, "prepare worker ripped");
 
 	let worker_data = queue.workers.remove(worker);
 	if let Some(WorkerData { job: Some(job), .. }) = worker_data {

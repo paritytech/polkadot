@@ -260,7 +260,7 @@ mod tests {
 		DeliveredMessages {
 			begin: *nonces.start(),
 			end: *nonces.end(),
-			dispatch_results: bitvec![Msb0, u8; 1; (nonces.end() - nonces.start() + 1) as _],
+			dispatch_results: bitvec![u8, Msb0; 1; (nonces.end() - nonces.start() + 1) as _],
 		}
 	}
 

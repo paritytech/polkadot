@@ -28,7 +28,7 @@ use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, runtime_api_impl::v1 as runtime_impl,
+	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
 };
@@ -44,18 +44,16 @@ use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::{
-	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
-	},
-	v2::SessionInfo as SessionInfoData,
+use primitives::v2::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
+	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
+	SlowAdjustingFeeUpdate,
 };
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
@@ -86,6 +84,8 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use test_runtime_constants::{currency::*, fee::*, time::*};
 pub mod xcm_config;
+
+impl_runtime_weights!(test_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -318,11 +318,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 }
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
@@ -342,13 +337,16 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
-	type GenesisElectionProvider =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	type ElectionProvider = frame_election_provider_support::onchain::UnboundedExecution<
+		runtime_common::elections::OnChainSeqPhragmen<Self, Staking>,
+	>;
+	type GenesisElectionProvider = frame_election_provider_support::onchain::UnboundedExecution<
+		runtime_common::elections::OnChainSeqPhragmen<Self, Staking>,
+	>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
-	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = ();
 }
@@ -516,6 +514,7 @@ impl parachains_ump::Config for Runtime {
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
 parameter_types! {
@@ -647,7 +646,7 @@ pub mod pallet_test_notifier {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v1::Block,
+		NodeBlock = primitives::v2::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -831,7 +830,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::CandidateCommitments,
+			outputs: primitives::v2::CandidateCommitments,
 		) -> bool {
 			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -881,7 +880,7 @@ sp_api::impl_runtime_apis! {
 
 		fn submit_pvf_check_statement(
 			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			signature: primitives::v2::ValidatorSignature,
 		) {
 			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}

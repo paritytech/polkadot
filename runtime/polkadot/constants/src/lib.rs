@@ -16,11 +16,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod weights;
+
 pub use self::currency::DOLLARS;
 
 /// Money matters.
 pub mod currency {
-	use primitives::v0::Balance;
+	use primitives::v2::Balance;
 
 	/// The existential deposit.
 	pub const EXISTENTIAL_DEPOSIT: Balance = 100 * CENTS;
@@ -37,7 +39,7 @@ pub mod currency {
 
 /// Time and blocks.
 pub mod time {
-	use primitives::v0::{BlockNumber, Moment};
+	use primitives::v2::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
@@ -54,11 +56,11 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
-	use primitives::v0::Balance;
-	use runtime_common::ExtrinsicBaseWeight;
+	use primitives::v2::Balance;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
 
@@ -98,17 +100,17 @@ mod tests {
 		currency::{CENTS, DOLLARS, MILLICENTS},
 		fee::WeightToFee,
 	};
+	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::WeightToFeePolynomial;
-	use runtime_common::{ExtrinsicBaseWeight, MAXIMUM_BLOCK_WEIGHT};
+	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
-	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
+	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost 16 DOLLARS
-		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * DOLLARS;
-		assert!(x.max(y) - x.min(y) < MILLICENTS);
+		// A full block should cost between 10 and 100 DOLLARS.
+		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
+		assert!(full_block >= 10 * DOLLARS);
+		assert!(full_block <= 100 * DOLLARS);
 	}
 
 	#[test]

@@ -25,7 +25,7 @@ use polkadot_node_network_protocol::request_response::{
 };
 use polkadot_node_primitives::PoV;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{IfDisconnected, NetworkBridgeMessage},
@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 };
 
 use crate::{
-	error::{Fatal, NonFatal},
+	error::{Error, FatalError, JfyiError, Result},
 	metrics::{FAILED, NOT_FOUND, SUCCEEDED},
 	Metrics, LOG_TARGET,
 };
@@ -48,7 +48,7 @@ pub async fn fetch_pov<Context>(
 	pov_hash: Hash,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
-) -> super::Result<()>
+) -> Result<()>
 where
 	Context: SubsystemContext,
 {
@@ -56,7 +56,7 @@ where
 	let authority_id = info
 		.discovery_keys
 		.get(from_validator.0 as usize)
-		.ok_or(NonFatal::InvalidValidatorIndex)?
+		.ok_or(JfyiError::InvalidValidatorIndex)?
 		.clone();
 	let (req, pending_response) = OutgoingRequest::new(
 		Recipient::Authority(authority_id.clone()),
@@ -77,7 +77,7 @@ where
 		"pov-fetcher",
 		fetch_pov_job(pov_hash, authority_id, pending_response.boxed(), span, tx, metrics).boxed(),
 	)
-	.map_err(|e| Fatal::SpawnTask(e))?;
+	.map_err(|e| FatalError::SpawnTask(e))?;
 	Ok(())
 }
 
@@ -85,30 +85,30 @@ where
 async fn fetch_pov_job(
 	pov_hash: Hash,
 	authority_id: AuthorityDiscoveryId,
-	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
+	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
 	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) {
 	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx, metrics).await {
-		tracing::warn!(target: LOG_TARGET, ?err, ?pov_hash, ?authority_id, "fetch_pov_job");
+		gum::warn!(target: LOG_TARGET, ?err, ?pov_hash, ?authority_id, "fetch_pov_job");
 	}
 }
 
 /// Do the actual work of waiting for the response.
 async fn do_fetch_pov(
 	pov_hash: Hash,
-	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
+	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
 	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
-) -> std::result::Result<(), NonFatal> {
-	let response = pending_response.await.map_err(NonFatal::FetchPoV);
+) -> Result<()> {
+	let response = pending_response.await.map_err(Error::FetchPoV);
 	let pov = match response {
 		Ok(PoVFetchingResponse::PoV(pov)) => pov,
 		Ok(PoVFetchingResponse::NoSuchPoV) => {
 			metrics.on_fetched_pov(NOT_FOUND);
-			return Err(NonFatal::NoSuchPoV)
+			return Err(Error::NoSuchPoV)
 		},
 		Err(err) => {
 			metrics.on_fetched_pov(FAILED);
@@ -117,10 +117,10 @@ async fn do_fetch_pov(
 	};
 	if pov.hash() == pov_hash {
 		metrics.on_fetched_pov(SUCCEEDED);
-		tx.send(pov).map_err(|_| NonFatal::SendResponse)
+		tx.send(pov).map_err(|_| Error::SendResponse)
 	} else {
 		metrics.on_fetched_pov(FAILED);
-		Err(NonFatal::UnexpectedPoV)
+		Err(Error::UnexpectedPoV)
 	}
 }
 
@@ -133,7 +133,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_node_primitives::BlockData;
-	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
+	use polkadot_primitives::v2::{CandidateHash, Hash, ValidatorIndex};
 	use polkadot_subsystem::messages::{
 		AllMessages, AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	};
@@ -207,7 +207,7 @@ mod tests {
 							.unwrap();
 						break
 					},
-					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
+					msg => gum::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
 				}
 			}
 			if pov.hash() == pov_hash {

@@ -3,7 +3,11 @@
 # frozen_string_literal: true
 
 # call for instance as:
-# ./bin/changelog v0.9.13
+# ./bin/changelog <to> [<from>] [<output_file>]
+# for instance, for the release notes of v1.2.3:
+# ./bin/changelog v1.2.3
+# or
+# ./bin/changelog v1.2.3 v1.2.2
 #
 # You may set the ENV NO_CACHE to force fetching from Github
 # You should also ensure you set the ENV: GITHUB_TOKEN
@@ -21,8 +25,9 @@ repo = 'polkadot'
 gh_polkadot = SubRef.new(format('%<owner>s/%<repo>s', { owner: owner, repo: repo }))
 last_release_ref = gh_polkadot.get_last_ref()
 
-polkadot_ref1 = ARGV[0] || last_release_ref
-polkadot_ref2 = ARGV[1] || 'HEAD'
+polkadot_ref2 = ARGV[0] || 'HEAD'
+polkadot_ref1 = ARGV[1] || last_release_ref
+
 output = ARGV[2] || 'release-notes.md'
 
 ENV['REF1'] = polkadot_ref1
@@ -65,6 +70,7 @@ end
 
 KUSAMA_DIGEST = ENV['KUSAMA_DIGEST'] || 'digests/kusama_srtool_output.json'
 WESTEND_DIGEST = ENV['WESTEND_DIGEST'] || 'digests/westend_srtool_output.json'
+ROCOCO_DIGEST = ENV['ROCOCO_DIGEST'] || 'digests/rococo_srtool_output.json'
 POLKADOT_DIGEST = ENV['POLKADOT_DIGEST'] || 'digests/polkadot_srtool_output.json'
 
 # Here we compose all the pieces together into one
@@ -74,6 +80,7 @@ cmd = format('jq \
     --slurpfile polkadot %s \
     --slurpfile srtool_kusama %s \
     --slurpfile srtool_westend %s \
+    --slurpfile srtool_rococo %s \
     --slurpfile srtool_polkadot %s \
     -n \'{
             substrate: $substrate[0],
@@ -81,10 +88,12 @@ cmd = format('jq \
         srtool: [
         { name: "kusama", data: $srtool_kusama[0] },
         { name: "westend", data: $srtool_westend[0] },
+        { name: "rococo", data: $srtool_rococo[0] },
         { name: "polkadot", data: $srtool_polkadot[0] }
     ] }\' > context.json', substrate_data, polkadot_data,
              KUSAMA_DIGEST,
              WESTEND_DIGEST,
+             ROCOCO_DIGEST,
              POLKADOT_DIGEST)
 system(cmd)
 

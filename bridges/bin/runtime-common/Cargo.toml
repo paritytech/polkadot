@@ -2,16 +2,17 @@
 name = "bridge-runtime-common"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/parity-bridges-common/"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 ed25519-dalek = { version = "1.0", default-features = false, optional = true }
 hash-db = { version = "0.15.2", default-features = false }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+static_assertions = { version = "1.1", optional = true }
 
 # Bridge dependencies
 
@@ -25,12 +26,16 @@ pallet-bridge-messages = { path = "../../modules/messages", default-features = f
 # Substrate dependencies
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 [features]
 default = ["std"]
@@ -40,6 +45,7 @@ std = [
 	"bp-runtime/std",
 	"codec/std",
 	"frame-support/std",
+	"frame-system/std",
 	"hash-db/std",
 	"scale-info/std",
 	"pallet-bridge-dispatch/std",
@@ -47,6 +53,7 @@ std = [
 	"pallet-bridge-messages/std",
 	"pallet-transaction-payment/std",
 	"scale-info/std",
+	"sp-api/std",
 	"sp-core/std",
 	"sp-runtime/std",
 	"sp-state-machine/std",
@@ -55,7 +62,12 @@ std = [
 ]
 runtime-benchmarks = [
 	"ed25519-dalek/u64_backend",
+	"pallet-balances",
 	"pallet-bridge-grandpa/runtime-benchmarks",
 	"pallet-bridge-messages/runtime-benchmarks",
 	"sp-state-machine",
+	"sp-version",
+]
+integrity-test = [
+	"static_assertions",
 ]

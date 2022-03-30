@@ -16,17 +16,9 @@
 
 //! Wococo-to-Rococo headers sync entrypoint.
 
-use codec::Encode;
-use sp_core::{Bytes, Pair};
-
-use bp_header_chain::justification::GrandpaJustification;
-use relay_rococo_client::{Rococo, SigningParams as RococoSigningParams};
-use relay_substrate_client::{Client, IndexOf, TransactionSignScheme, UnsignedTransaction};
-use relay_utils::metrics::MetricsParams;
-use relay_wococo_client::{SyncHeader as WococoSyncHeader, Wococo};
-use substrate_relay_helper::finality_pipeline::{
-	SubstrateFinalitySyncPipeline, SubstrateFinalityToSubstrate,
-};
+use async_trait::async_trait;
+use relay_rococo_client::Rococo;
+use substrate_relay_helper::{finality_pipeline::SubstrateFinalitySyncPipeline, TransactionParams};
 
 /// Maximal saturating difference between `balance(now)` and `balance(now-24h)` to treat
 /// relay as gone wild.
@@ -35,76 +27,36 @@ use substrate_relay_helper::finality_pipeline::{
 /// Note that this is in plancks, so this corresponds to `1500 UNITS`.
 pub(crate) const MAXIMAL_BALANCE_DECREASE_PER_DAY: bp_rococo::Balance = 1_500_000_000_000_000;
 
-/// Wococo-to-Rococo finality sync pipeline.
-pub(crate) type FinalityPipelineWococoFinalityToRococo =
-	SubstrateFinalityToSubstrate<Wococo, Rococo, RococoSigningParams>;
-
+/// Description of Wococo -> Rococo finalized headers bridge.
 #[derive(Clone, Debug)]
-pub(crate) struct WococoFinalityToRococo {
-	finality_pipeline: FinalityPipelineWococoFinalityToRococo,
-}
+pub struct WococoFinalityToRococo;
+substrate_relay_helper::generate_mocked_submit_finality_proof_call_builder!(
+	WococoFinalityToRococo,
+	WococoFinalityToRococoCallBuilder,
+	relay_rococo_client::runtime::Call::BridgeGrandpaWococo,
+	relay_rococo_client::runtime::BridgeGrandpaWococoCall::submit_finality_proof
+);
 
-impl WococoFinalityToRococo {
-	pub fn new(target_client: Client<Rococo>, target_sign: RococoSigningParams) -> Self {
-		Self {
-			finality_pipeline: FinalityPipelineWococoFinalityToRococo::new(
-				target_client,
-				target_sign,
-			),
-		}
-	}
-}
-
+#[async_trait]
 impl SubstrateFinalitySyncPipeline for WococoFinalityToRococo {
-	type FinalitySyncPipeline = FinalityPipelineWococoFinalityToRococo;
-
-	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str =
-		bp_wococo::BEST_FINALIZED_WOCOCO_HEADER_METHOD;
-
+	type SourceChain = relay_wococo_client::Wococo;
 	type TargetChain = Rococo;
 
-	fn customize_metrics(params: MetricsParams) -> anyhow::Result<MetricsParams> {
-		crate::chains::add_polkadot_kusama_price_metrics::<Self::FinalitySyncPipeline>(params)
-	}
+	type SubmitFinalityProofCallBuilder = WococoFinalityToRococoCallBuilder;
+	type TransactionSignScheme = Rococo;
 
-	fn start_relay_guards(&self) {
-		relay_substrate_client::guard::abort_on_spec_version_change(
-			self.finality_pipeline.target_client.clone(),
-			bp_rococo::VERSION.spec_version,
-		);
-		relay_substrate_client::guard::abort_when_account_balance_decreased(
-			self.finality_pipeline.target_client.clone(),
-			self.transactions_author(),
+	async fn start_relay_guards(
+		target_client: &relay_substrate_client::Client<Rococo>,
+		transaction_params: &TransactionParams<sp_core::sr25519::Pair>,
+		enable_version_guard: bool,
+	) -> relay_substrate_client::Result<()> {
+		substrate_relay_helper::finality_guards::start::<Rococo, Rococo>(
+			target_client,
+			transaction_params,
+			enable_version_guard,
 			MAXIMAL_BALANCE_DECREASE_PER_DAY,
-		);
-	}
-
-	fn transactions_author(&self) -> bp_rococo::AccountId {
-		(*self.finality_pipeline.target_sign.public().as_array_ref()).into()
-	}
-
-	fn make_submit_finality_proof_transaction(
-		&self,
-		era: bp_runtime::TransactionEraOf<Rococo>,
-		transaction_nonce: IndexOf<Rococo>,
-		header: WococoSyncHeader,
-		proof: GrandpaJustification<bp_wococo::Header>,
-	) -> Bytes {
-		let call = relay_rococo_client::runtime::Call::BridgeGrandpaWococo(
-			relay_rococo_client::runtime::BridgeGrandpaWococoCall::submit_finality_proof(
-				Box::new(header.into_inner()),
-				proof,
-			),
-		);
-		let genesis_hash = *self.finality_pipeline.target_client.genesis_hash();
-		let transaction = Rococo::sign_transaction(
-			genesis_hash,
-			&self.finality_pipeline.target_sign,
-			era,
-			UnsignedTransaction::new(call, transaction_nonce),
-		);
-
-		Bytes(transaction.encode())
+		)
+		.await
 	}
 }
 

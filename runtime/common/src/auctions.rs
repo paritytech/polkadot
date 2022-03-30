@@ -30,7 +30,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::Decode;
-use primitives::v1::Id as ParaId;
+use primitives::v2::Id as ParaId;
 use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};
 
@@ -658,7 +658,7 @@ mod tests {
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
-	use primitives::v1::{BlockNumber, Header, Id as ParaId};
+	use primitives::v2::{BlockNumber, Header, Id as ParaId};
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use std::{cell::RefCell, collections::BTreeMap};
@@ -1772,6 +1772,10 @@ mod benchmarking {
 
 		// Worst case scenario a new bid comes in which kicks out an existing bid for the same slot.
 		bid {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			let (_, offset) = T::Leaser::lease_period_length();
+			frame_system::Pallet::<T>::set_block_number(offset + One::one());
+
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
@@ -1818,8 +1822,12 @@ mod benchmarking {
 		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
 		// Entire winner map should be full and removed at the end of the benchmark.
 		on_initialize {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			let (lease_length, offset) = T::Leaser::lease_period_length();
+			frame_system::Pallet::<T>::set_block_number(offset + One::one());
+
 			// Create a new auction
-			let duration: T::BlockNumber = 99u32.into();
+			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
@@ -1857,8 +1865,12 @@ mod benchmarking {
 
 		// Worst case: 10 bidders taking all wining spots, and winning data is full.
 		cancel_auction {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			let (lease_length, offset) = T::Leaser::lease_period_length();
+			frame_system::Pallet::<T>::set_block_number(offset + One::one());
+
 			// Create a new auction
-			let duration: T::BlockNumber = 99u32.into();
+			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;

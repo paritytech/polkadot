@@ -38,6 +38,7 @@ runtimes=(
   "kusama"
   "polkadot"
   "westend"
+  "rococo"
 )
 
 common_dirs=(

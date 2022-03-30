@@ -29,10 +29,10 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
+use polkadot_primitives::v2::{CandidateHash, CommittedCandidateReceipt, Hash};
 use polkadot_subsystem::{Span, Stage};
 
-use crate::{Metrics, COST_WRONG_HASH, LOG_TARGET};
+use crate::{metrics::Metrics, COST_WRONG_HASH, LOG_TARGET};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -83,6 +83,13 @@ pub async fn fetch(
 		.with_relay_parent(relay_parent)
 		.with_stage(Stage::StatementDistribution);
 
+	gum::debug!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		?relay_parent,
+		"Fetch for large statement started",
+	);
+
 	// Peers we already tried (and failed).
 	let mut tried_peers = Vec::new();
 	// Peers left for trying out.
@@ -103,7 +110,7 @@ pub async fn fetch(
 				.feed(RequesterMessage::SendRequest(Requests::StatementFetching(outgoing)))
 				.await
 			{
-				tracing::info!(
+				gum::info!(
 					target: LOG_TARGET,
 					?err,
 					"Sending request failed, node might be shutting down - exiting."
@@ -117,11 +124,12 @@ pub async fn fetch(
 				Ok(StatementFetchingResponse::Statement(statement)) => {
 					if statement.hash() != candidate_hash {
 						metrics.on_received_response(false);
+						metrics.on_unexpected_statement_large();
 
 						if let Err(err) =
 							sender.feed(RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)).await
 						{
-							tracing::warn!(
+							gum::warn!(
 								target: LOG_TARGET,
 								?err,
 								"Sending reputation change failed: This should not happen."
@@ -141,7 +149,7 @@ pub async fn fetch(
 						})
 						.await
 					{
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							?err,
 							"Sending task response failed: This should not happen."
@@ -154,13 +162,14 @@ pub async fn fetch(
 					return
 				},
 				Err(err) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?err,
 						"Receiving response failed with error - trying next peer."
 					);
 
 					metrics.on_received_response(false);
+					metrics.on_unexpected_statement_large();
 				},
 			}
 
@@ -172,7 +181,7 @@ pub async fn fetch(
 		// All our peers failed us - try getting new ones before trying again:
 		match try_get_new_peers(relay_parent, candidate_hash, &mut sender, &span).await {
 			Ok(Some(mut peers)) => {
-				tracing::trace!(target: LOG_TARGET, ?peers, "Received new peers.");
+				gum::trace!(target: LOG_TARGET, ?peers, "Received new peers.");
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
 			},
@@ -203,7 +212,7 @@ async fn try_get_new_peers(
 		.send(RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx })
 		.await
 	{
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?err,
 			"Failed sending background task message, subsystem probably moved on."
@@ -213,7 +222,7 @@ async fn try_get_new_peers(
 
 	match rx.timeout(RETRY_TIMEOUT).await.transpose() {
 		Err(_) => {
-			tracing::debug!(target: LOG_TARGET, "Failed fetching more peers.");
+			gum::debug!(target: LOG_TARGET, "Failed fetching more peers.");
 			Err(())
 		},
 		Ok(val) => Ok(val),
