@@ -1526,8 +1526,149 @@ fn propagates_to_required_after_connect() {
 	});
 }
 
-// TODO [now]: test that first receipt of message broadcasts to random peers
+// test that new gossip topology triggers send of messages.
+#[test]
+fn sends_to_more_peers_after_getting_topology() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
 
-// TODO [now]: test that new gossip topology re-evaluates all messages
+	let peers = make_peers_and_authority_ids(100);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// Connect all peers except omitted.
+		for (peer, _) in &peers {
+			setup_peer_with_view(overseer, peer, view![hash]).await;
+		}
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+			session: 1,
+		};
+
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+
+		// import an assignment and approval locally.
+		let cert = fake_assignment_cert(hash, validator_index);
+		let approval = IndirectSignedApprovalVote {
+			block_hash: hash,
+			candidate_index,
+			validator: validator_index,
+			signature: dummy_signature(),
+		};
+
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
+		)
+		.await;
+
+		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
+			.await;
+
+		let assignments = vec![(cert.clone(), candidate_index)];
+		let approvals = vec![approval.clone()];
+
+		let assignment_sent_peers = assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				sent_peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+				)
+			)) => {
+				// Only sends to random peers.
+				assert_eq!(sent_peers.len(), 4);
+				assert_eq!(sent_assignments, assignments);
+				sent_peers
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				sent_peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
+				)
+			)) => {
+				// Random sampling is reused from the assignment.
+				assert_eq!(sent_peers, assignment_sent_peers);
+				assert_eq!(sent_approvals, approvals);
+			}
+		);
+
+		// Set up a gossip topology.
+		setup_gossip_topology(
+			overseer,
+			make_gossip_topology(
+				1,
+				&peers,
+				&[0, 10, 20, 30],
+				&[50, 51, 52, 53],
+			),
+		).await;
+
+		let mut expected_indices_assignments = vec![0, 10, 20, 30, 50, 51, 52, 53];
+		let mut expected_indices_approvals = vec![0, 10, 20, 30, 50, 51, 52, 53];
+
+
+		for _ in 0..expected_indices_assignments.len() {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+					sent_peers,
+					protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					)
+				)) => {
+					// Sends to all expected peers.
+					assert_eq!(sent_peers.len(), 1);
+					assert_eq!(sent_assignments, assignments);
+
+					let pos = expected_indices_assignments.iter()
+						.position(|i| &peers[*i].0 == &sent_peers[0])
+						.unwrap();
+					expected_indices_assignments.remove(pos);
+				}
+			);
+		}
+
+		for _ in 0..expected_indices_approvals.len() {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+					sent_peers,
+					protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
+					)
+				)) => {
+					// Sends to all expected peers.
+					assert_eq!(sent_peers.len(), 1);
+					assert_eq!(sent_approvals, approvals);
+
+					let pos = expected_indices_approvals.iter()
+						.position(|i| &peers[*i].0 == &sent_peers[0])
+						.unwrap();
+
+					expected_indices_approvals.remove(pos);
+				}
+			);
+		}
+
+		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}
 
 // TODO [now]: test that when a block takes a long time to be finalized, we broadcast more aggressively.
