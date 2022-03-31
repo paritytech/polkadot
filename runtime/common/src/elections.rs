@@ -18,9 +18,9 @@
 
 use frame_election_provider_support::{
 	onchain::{ExecutionConfig, UnboundedExecution},
-	ElectionDataProvider, SequentialPhragmen, SortedListProvider,
+	ElectionDataProvider, SequentialPhragmen,
 };
-use sp_std::{boxed::Box, marker::PhantomData};
+use sp_std::marker::PhantomData;
 
 /// Implements the weight types for the elections module and a specific
 /// runtime.
