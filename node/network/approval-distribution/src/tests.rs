@@ -2086,3 +2086,144 @@ fn non_originator_aggression_l2() {
 		virtual_overseer
 	});
 }
+
+// Tests that messages propagate to the unshared dimension.
+#[test]
+fn resends_messages_periodically() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+
+	let peers = make_peers_and_authority_ids(100);
+
+	let mut state = State::default();
+	state.aggression_config.l1_threshold = None;
+	state.aggression_config.l2_threshold = None;
+	state.aggression_config.resend_unfinalized_period = Some(2);
+	let _ = test_harness(state, |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// Connect all peers.
+		for (peer, _) in &peers {
+			setup_peer_with_view(overseer, peer, view![hash]).await;
+		}
+
+		// Set up a gossip topology.
+		setup_gossip_topology(
+			overseer,
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+		)
+		.await;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+			session: 1,
+		};
+
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+
+		// import an assignment and approval locally.
+		let cert = fake_assignment_cert(hash, validator_index);
+		let assignments = vec![(cert.clone(), candidate_index)];
+
+		{
+			let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+
+			// Issuer of the message is important, not the peer we receive from.
+			// 99 deliberately chosen because it's not in X or Y.
+			send_message_from_peer(overseer, &peers[99].0, msg).await;
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+					_,
+					_,
+					tx,
+				)) => {
+					tx.send(AssignmentCheckResult::Accepted).unwrap();
+				}
+			);
+			expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+			let expected_y = [50, 51, 52, 53];
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+					sent_peers,
+					protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					)
+				)) => {
+					assert_eq!(sent_peers.len(), expected_y.len() + 4);
+					for &i in &expected_y {
+						assert!(
+							sent_peers.contains(&peers[i].0),
+							"Message not sent to expected peer {}",
+							i,
+						);
+					}
+					assert_eq!(sent_assignments, assignments);
+				}
+			);
+		};
+
+		let mut number = 1;
+		for _ in 0..10 {
+			// Add blocks until resend is done.
+			{
+				let mut parent_hash = hash;
+				for level in 0..2 {
+					number = number + 1;
+					let hash = BlakeTwo256::hash_of(&(parent_hash, number));
+					let meta = BlockApprovalMeta {
+						hash,
+						parent_hash,
+						number,
+						candidates: vec![],
+						slot: (level as u64).into(),
+						session: 1,
+					};
+
+					let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+					overseer_send(overseer, msg).await;
+
+					parent_hash = hash;
+				}
+			}
+
+			let mut expected_y = vec![50, 51, 52, 53];
+
+			// Expect messages sent only to topology peers, one by one.
+			for _ in 0..expected_y.len() {
+				assert_matches!(
+					overseer_recv(overseer).await,
+					AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+						sent_peers,
+						protocol_v1::ValidationProtocol::ApprovalDistribution(
+							protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+						)
+					)) => {
+						assert_eq!(sent_peers.len(), 1);
+						let expected_pos = expected_y.iter()
+							.position(|&i| &peers[i].0 == &sent_peers[0])
+							.unwrap();
+
+						expected_y.remove(expected_pos);
+						assert_eq!(sent_assignments, assignments);
+					}
+				);
+			}
+		}
+
+		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}

@@ -201,6 +201,18 @@ struct AggressionConfig {
 	resend_unfinalized_period: Option<BlockNumber>,
 }
 
+impl AggressionConfig {
+	fn is_age_relevant(&self, block_age: BlockNumber) -> bool {
+		if let Some(t) = self.l1_threshold {
+			block_age >= t
+		} else if let Some(t) = self.resend_unfinalized_period {
+			block_age > 0 && block_age % t == 0
+		} else {
+			false
+		}
+	}
+}
+
 impl Default for AggressionConfig {
 	fn default() -> Self {
 		AggressionConfig {
@@ -1470,8 +1482,7 @@ impl State {
 		};
 
 		let diff = max_age - min_age;
-
-		if self.aggression_config.l1_threshold.map_or(true, |t| diff < t) {
+		if !self.aggression_config.is_age_relevant(diff) {
 			return
 		}
 
@@ -1480,8 +1491,13 @@ impl State {
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| {
+				let block_age = max_age - block_entry.number;
+
 				if do_resend &&
-					config.resend_unfinalized_period.as_ref().map_or(false, |p| diff % p == 0)
+					config
+						.resend_unfinalized_period
+						.as_ref()
+						.map_or(false, |p| block_age > 0 && block_age % p == 0)
 				{
 					// Retry sending to all peers.
 					for (_, knowledge) in block_entry.known_by.iter_mut() {
