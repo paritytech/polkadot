@@ -1570,6 +1570,7 @@ fn sends_to_more_peers_after_getting_topology() {
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
 
+		let mut expected_indices = vec![0, 10, 20, 30, 50, 51, 52, 53];
 		let assignment_sent_peers = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
@@ -1580,6 +1581,13 @@ fn sends_to_more_peers_after_getting_topology() {
 			)) => {
 				// Only sends to random peers.
 				assert_eq!(sent_peers.len(), 4);
+				for peer in &sent_peers {
+					let i = peers.iter().position(|p| peer == &p.0).unwrap();
+					// Random gossip before topology can send to topology-targeted peers.
+					// Remove them from the expected indices so we don't expect
+					// them to get the messages again after the assignment.
+					expected_indices.retain(|&i2| i2 != i);
+				}
 				assert_eq!(sent_assignments, assignments);
 				sent_peers
 			}
@@ -1606,8 +1614,8 @@ fn sends_to_more_peers_after_getting_topology() {
 		)
 		.await;
 
-		let mut expected_indices_assignments = vec![0, 10, 20, 30, 50, 51, 52, 53];
-		let mut expected_indices_approvals = vec![0, 10, 20, 30, 50, 51, 52, 53];
+		let mut expected_indices_assignments = expected_indices.clone();
+		let mut expected_indices_approvals = expected_indices.clone();
 
 		for _ in 0..expected_indices_assignments.len() {
 			assert_matches!(
