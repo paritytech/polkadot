@@ -111,14 +111,14 @@ impl MetricsTrait for Metrics {
 			)?,
 			aggression_l1_messages_total: prometheus::register(
 				prometheus::Counter::new(
-					"polkadot_parachain_approval_disttribution_aggression_l1_messages_total",
+					"polkadot_parachain_approval_distribution_aggression_l1_messages_total",
 					"Number of messages in approval distribution for which aggression L1 has been triggered",
 				)?,
 				registry,
 			)?,
 			aggression_l2_messages_total: prometheus::register(
 				prometheus::Counter::new(
-					"polkadot_parachain_approval_disttribution_aggression_l2_messages_total",
+					"polkadot_parachain_approval_distribution_aggression_l2_messages_total",
 					"Number of messages in approval distribution for which aggression L2 has been triggered",
 				)?,
 				registry,
