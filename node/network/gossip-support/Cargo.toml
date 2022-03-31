@@ -30,5 +30,5 @@ sp-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 
 assert_matches = "1.4.0"
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 lazy_static = "1.4.0"
