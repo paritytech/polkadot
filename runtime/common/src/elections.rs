@@ -18,9 +18,9 @@
 
 use frame_election_provider_support::{
 	onchain::{ExecutionConfig, UnboundedExecution},
-	ElectionDataProvider, SequentialPhragmen, SortedListProvider,
+	ElectionDataProvider, SequentialPhragmen,
 };
-use sp_std::{boxed::Box, marker::PhantomData};
+use sp_std::marker::PhantomData;
 
 /// Implements the weight types for the elections module and a specific
 /// runtime.
@@ -81,55 +81,3 @@ impl<
 
 /// The election provider of the genesis
 pub type GenesisElectionOf<T, S> = UnboundedExecution<OnChainSeqPhragmen<T, S>>;
-
-/// Implementation of `frame_election_provider_support::SortedListProvider` that updates the
-/// bags-list but uses [`pallet_staking::Nominators`] for `iter`. This is meant to be a transitionary
-/// implementation for runtimes to "test" out the bags-list by keeping it up to date, but not yet
-/// using it for snapshot generation. In contrast, a  "complete" implementation would use bags-list
-/// for `iter`.
-pub struct UseNominatorsAndUpdateBagsList<T>(PhantomData<T>);
-impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T::AccountId>
-	for UseNominatorsAndUpdateBagsList<T>
-{
-	type Error = pallet_bags_list::ListError;
-	type Score = <T as pallet_bags_list::Config>::Score;
-
-	fn iter() -> Box<dyn Iterator<Item = T::AccountId>> {
-		Box::new(pallet_staking::Nominators::<T>::iter().map(|(n, _)| n))
-	}
-
-	fn count() -> u32 {
-		pallet_bags_list::Pallet::<T>::count()
-	}
-
-	fn contains(id: &T::AccountId) -> bool {
-		pallet_bags_list::Pallet::<T>::contains(id)
-	}
-
-	fn on_insert(id: T::AccountId, weight: Self::Score) -> Result<(), Self::Error> {
-		pallet_bags_list::Pallet::<T>::on_insert(id, weight)
-	}
-
-	fn on_update(id: &T::AccountId, new_weight: Self::Score) {
-		pallet_bags_list::Pallet::<T>::on_update(id, new_weight);
-	}
-
-	fn on_remove(id: &T::AccountId) {
-		pallet_bags_list::Pallet::<T>::on_remove(id);
-	}
-
-	fn unsafe_regenerate(
-		all: impl IntoIterator<Item = T::AccountId>,
-		weight_of: Box<dyn Fn(&T::AccountId) -> Self::Score>,
-	) -> u32 {
-		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
-	}
-
-	fn sanity_check() -> Result<(), &'static str> {
-		pallet_bags_list::Pallet::<T>::sanity_check()
-	}
-
-	fn unsafe_clear() {
-		pallet_bags_list::Pallet::<T>::unsafe_clear()
-	}
-}
