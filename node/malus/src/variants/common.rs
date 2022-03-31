@@ -23,22 +23,18 @@ use crate::{
 	interceptor::*,
 	shared::{MALICIOUS_POV, MALUS},
 };
-use std::collections::HashMap;
 
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{InvalidCandidate, PoV, ValidationResult};
 use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
 
-use polkadot_primitives::v2::{
-	BlockNumber, CandidateCommitments, CandidateDescriptor, Hash, PersistedValidationData,
-	ValidationCode,
-};
+use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, PersistedValidationData};
 
 use polkadot_cli::service::SpawnNamed;
 
 use clap::ArgEnum;
 use futures::channel::oneshot;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
@@ -118,8 +114,6 @@ pub struct ReplaceValidationResult<Spawner> {
 	fake_validation: FakeCandidateValidation,
 	fake_validation_error: FakeCandidateValidationError,
 	spawner: Spawner,
-	// We use the para head hash as key.
-	validation_result: Arc<Mutex<HashMap<Hash, (CandidateCommitments, PersistedValidationData)>>>,
 }
 
 impl<Spawner> ReplaceValidationResult<Spawner>
@@ -131,12 +125,7 @@ where
 		fake_validation_error: FakeCandidateValidationError,
 		spawner: Spawner,
 	) -> Self {
-		Self {
-			fake_validation,
-			fake_validation_error,
-			spawner,
-			validation_result: Arc::new(Mutex::new(HashMap::new())),
-		}
+		Self { fake_validation, fake_validation_error, spawner }
 	}
 
 	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
@@ -163,7 +152,9 @@ where
 			Box::pin(async move {
 				match find_validation_data(&mut subsystem_sender, &_candidate_descriptor).await {
 					Ok(Some((validation_data, validation_code))) => {
-						sender.send((validation_data, validation_code));
+						sender
+							.send((validation_data, validation_code))
+							.expect("channel is still open");
 					},
 					_ => {
 						panic!("Unable to fetch validation data");
@@ -171,14 +162,8 @@ where
 				}
 			}),
 		);
-		let (validation_data, validation_code) = receiver.recv().unwrap();
-		create_validation_response(
-			validation_data,
-			Some(validation_code),
-			candidate_descriptor,
-			pov,
-			response_sender,
-		);
+		let (validation_data, _) = receiver.recv().unwrap();
+		create_validation_response(validation_data, candidate_descriptor, pov, response_sender);
 	}
 }
 
@@ -198,7 +183,6 @@ pub fn create_fake_candidate_commitments(
 // Create and send validation response. This function needs the persistent validation data.
 fn create_validation_response(
 	persisted_validation_data: PersistedValidationData,
-	validation_code: Option<ValidationCode>,
 	_candidate_descriptor: CandidateDescriptor,
 	_pov: Arc<PoV>,
 	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
@@ -229,74 +213,6 @@ where
 		subsystem_sender: &mut Sender,
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
-		if self.fake_validation == FakeCandidateValidation::Disabled {
-			// Proxy messages and cache validation results.
-			match msg {
-				FromOverseer::Communication {
-					msg:
-						CandidateValidationMessage::ValidateFromChainState(
-							descriptor,
-							pov,
-							timeout,
-							response_sender,
-							commitments_hash,
-						),
-				} => {
-					// This is our request, let it pass to original subsystem.
-					if timeout == std::time::Duration::from_secs(13) {
-						return Some(FromOverseer::Communication {
-							msg: CandidateValidationMessage::ValidateFromChainState(
-								descriptor,
-								pov,
-								timeout,
-								response_sender,
-								commitments_hash,
-							),
-						})
-					}
-
-					let (tx, rx) = oneshot::channel();
-					let mut subsystem_sender = subsystem_sender.clone();
-
-					gum::info!(target: MALUS, "Proxying validation request",);
-
-					let validation_result = self.validation_result.clone();
-					self.spawner.spawn(
-						"malus-validation-proxy",
-						Some("malus"),
-						Box::pin(async move {
-							subsystem_sender
-								.send_message(CandidateValidationMessage::ValidateFromChainState(
-									descriptor.clone(),
-									pov,
-									std::time::Duration::from_secs(13),
-									tx,
-									commitments_hash,
-								))
-								.await;
-							let result = rx.await.unwrap();
-							gum::info!(target: MALUS, "Proxied validation result {:?}", &result);
-							match result.unwrap() {
-								ValidationResult::Valid(commitments, validation_data) => {
-									validation_result.lock().expect("bad lock").insert(
-										descriptor.para_head,
-										(commitments.clone(), validation_data.clone()),
-									);
-									response_sender.send(Ok(ValidationResult::Valid(
-										commitments,
-										validation_data,
-									)));
-								},
-								_ => panic!("Bad things can happen."),
-							}
-						}),
-					);
-					return None
-				},
-				_ => return Some(msg),
-			}
-		}
-
 		match msg {
 			FromOverseer::Communication {
 				msg:
@@ -328,13 +244,7 @@ where
 				match self.fake_validation {
 					FakeCandidateValidation::ApprovalValid |
 					FakeCandidateValidation::BackingAndApprovalValid => {
-						create_validation_response(
-							validation_data,
-							Some(validation_code),
-							descriptor,
-							pov,
-							sender,
-						);
+						create_validation_response(validation_data, descriptor, pov, sender);
 						None
 					},
 					FakeCandidateValidation::ApprovalInvalid |

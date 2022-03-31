@@ -32,7 +32,7 @@ use polkadot_cli::{
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
-use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, CandidateHash};
+use polkadot_primitives::v2::{CandidateDescriptor, CandidateHash};
 
 use polkadot_node_subsystem_util::request_validators;
 
@@ -80,7 +80,7 @@ where
 {
 	type Message = CandidateBackingMessage;
 
-	/// Cache and forward `CandidateBackingMessage::Second`. This is called by collator protocol (validator side).
+	/// Intercept incoming `Second` requests from the `collator-protocol` subsystem. We take
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
@@ -117,7 +117,9 @@ where
 						match find_validation_data(&mut new_sender, &_candidate.descriptor()).await
 						{
 							Ok(Some((validation_data, validation_code))) => {
-								sender.send((validation_data, validation_code, n_validators));
+								sender
+									.send((validation_data, validation_code, n_validators))
+									.expect("channel is still open");
 							},
 							_ => {
 								panic!("Unable to fetch validation data");
@@ -198,11 +200,14 @@ where
 					"Created malicious candidate"
 				);
 
+				// Map malicious candidate to the original one. We need this mapping to send back the correct seconded statement
+				// to the collators.
 				self.inner
 					.lock()
 					.expect("bad lock")
 					.map
 					.insert(malicious_candidate_hash, candidate.hash());
+
 				let message = FromOverseer::Communication {
 					msg: CandidateBackingMessage::Second(relay_parent, malicious_candidate, pov),
 				};
@@ -216,18 +221,14 @@ where
 
 	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		let msg = match msg {
-			// TODO: Send the Seconded statement for the original candidate.
 			AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
 				relay_parent,
 				statement,
 			)) => {
-				// match self.inner.lock().expect("bad lock").map.entry(statement.payload().candidate_hash()) {
-				// 	Entry::Occupied(original_candidate) => {
-				// 		// Create new statement
-				// 		statement.payload_ut().
-
-				// 	}
-				// }
+				// `parachain::collator-protocol: received an unexpected `CollationSeconded`: unknown statement statement=...`
+				// TODO: Fix this error. We get this on colaltors because `malicious backing` creates a candidate that gets backed/included.
+				// It is harmless for test parachain collators, but it will prevent cumulus based collators to make progress
+				// as they wait for the relay chain to confirm the seconding of the collation.
 				AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
 					relay_parent,
 					statement,

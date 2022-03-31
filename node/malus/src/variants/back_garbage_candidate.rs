@@ -111,7 +111,7 @@ where
 						pov,
 						_duration,
 						response_sender,
-						candidate_commitments,
+						_candidate_commitments,
 					),
 			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
 				Self::let_pass(
@@ -130,7 +130,7 @@ where
 						pov,
 						_duration,
 						response_sender,
-						commitments_hash,
+						_commitments_hash,
 					),
 			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
 				if let Some(candidate_receipt) =
