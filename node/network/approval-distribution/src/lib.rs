@@ -69,18 +69,6 @@ const RANDOM_CIRCULATION: usize = 4;
 /// (i.e. those who get a block before others).
 const RANDOM_SAMPLE_RATE: usize = polkadot_node_subsystem_util::MIN_GOSSIP_PEERS;
 
-// A note on aggression thresholds: changes in propagation apply only to blocks which are the
-// _direct descendants_ of the finalized block which are older than the given threshold,
-// not to all blocks older than the threshold. Most likely, a few assignments struggle to
-// be propagated in a single block and this holds up all of its descendants blocks.
-// Accordingly, we only step on the gas for the block which is most obviously holding up finality.
-
-/// Aggression level 1: all validators send all their own messages to all peers.
-const AGGRESSION_L1_THRESHOLD: BlockNumber = 10;
-
-/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
-const AGGRESSION_L2_THRESHOLD: BlockNumber = 25;
-
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
 	metrics: Metrics,
@@ -117,17 +105,15 @@ struct SessionTopology {
 }
 
 impl SessionTopology {
-	fn required_routing_for(
-		&self,
-		validator_index: ValidatorIndex,
-		local: bool,
-	) -> RequiredRouting {
+	// Given the originator of a message, indicates the part of the topology
+	// we're meant to sent the message to.
+	fn required_routing_for(&self, originator: ValidatorIndex, local: bool) -> RequiredRouting {
 		if local {
 			return RequiredRouting::GridXY
 		}
 
-		let grid_x = self.validator_indices_x.contains(&validator_index);
-		let grid_y = self.validator_indices_y.contains(&validator_index);
+		let grid_x = self.validator_indices_x.contains(&originator);
+		let grid_y = self.validator_indices_y.contains(&originator);
 
 		match (grid_x, grid_y) {
 			(false, false) => RequiredRouting::None,
@@ -199,6 +185,32 @@ impl SessionTopologies {
 	}
 }
 
+// A note on aggression thresholds: changes in propagation apply only to blocks which are the
+// _direct descendants_ of the finalized block which are older than the given threshold,
+// not to all blocks older than the threshold. Most likely, a few assignments struggle to
+// be propagated in a single block and this holds up all of its descendants blocks.
+// Accordingly, we only step on the gas for the block which is most obviously holding up finality.
+#[derive(Clone)]
+struct AggressionConfig {
+	/// Aggression level 1: all validators send all their own messages to all peers.
+	l1_threshold: Option<BlockNumber>,
+	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
+	l2_threshold: Option<BlockNumber>,
+	/// How often to re-send messages to all targeted recipients.
+	/// This applies to all unfinalized blocks.
+	resend_unfinalized_period: Option<BlockNumber>,
+}
+
+impl Default for AggressionConfig {
+	fn default() -> Self {
+		AggressionConfig {
+			l1_threshold: Some(10),
+			l2_threshold: Some(25),
+			resend_unfinalized_period: Some(5),
+		}
+	}
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -225,6 +237,9 @@ struct State {
 
 	/// Tracks recently finalized blocks.
 	recent_outdated_blocks: RecentlyOutdated,
+
+	/// Config for aggression.
+	aggression_config: AggressionConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -590,7 +605,8 @@ impl State {
 			}
 		}
 
-		self.enable_aggression(ctx, metrics).await;
+		// 'true' means trigger re-send of messages in old blocks.
+		self.enable_aggression(ctx, true, metrics).await;
 	}
 
 	async fn handle_new_session_topology(
@@ -781,7 +797,8 @@ impl State {
 
 		// If a block was finalized, this means we may need to move our aggression
 		// forward to the now oldest block(s).
-		self.enable_aggression(ctx, metrics).await;
+		// 'false' means don't trigger re-send of messages in old blocks.
+		self.enable_aggression(ctx, false, metrics).await;
 	}
 
 	async fn import_and_circulate_assignment(
@@ -1440,10 +1457,12 @@ impl State {
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		do_resend: bool,
 		metrics: &Metrics,
 	) {
 		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
 		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
+		let config = self.aggression_config.clone();
 
 		let (min_age, max_age) = match (min_age, max_age) {
 			(Some(min), Some(max)) => (min, max),
@@ -1451,7 +1470,8 @@ impl State {
 		};
 
 		let diff = max_age - min_age;
-		if diff < AGGRESSION_L1_THRESHOLD {
+
+		if self.aggression_config.l1_threshold.map_or(true, |t| diff < t) {
 			return
 		}
 
@@ -1460,6 +1480,17 @@ impl State {
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| {
+				if do_resend &&
+					config.resend_unfinalized_period.as_ref().map_or(false, |p| diff % p == 0)
+				{
+					// Retry sending to all peers.
+					for (_, knowledge) in block_entry.known_by.iter_mut() {
+						knowledge.sent = Default::default();
+					}
+
+					return true
+				}
+
 				// Ramp up aggression only for the very oldest block(s).
 				// Approval voting can get stuck on a single block preventing
 				// its descendants from being finalized. Waste minimal bandwidth
@@ -1478,7 +1509,7 @@ impl State {
 					return
 				}
 
-				if diff >= AGGRESSION_L1_THRESHOLD {
+				if config.l1_threshold.as_ref().map_or(false, |t| &diff >= t) {
 					// Message originator sends to everyone.
 					if local && *required_routing != RequiredRouting::All {
 						metrics.on_aggression_l1();
@@ -1486,7 +1517,7 @@ impl State {
 					}
 				}
 
-				if diff >= AGGRESSION_L2_THRESHOLD {
+				if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
 					// Message originator sends to everyone. Everyone else sends to XY.
 					if !local && *required_routing != RequiredRouting::GridXY {
 						metrics.on_aggression_l2();
@@ -1516,7 +1547,7 @@ async fn adjust_required_routing_and_propagate(
 	          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionTopologies,
-	block_filter: impl Fn(&BlockEntry) -> bool,
+	block_filter: impl Fn(&mut BlockEntry) -> bool,
 	routing_modifier: impl Fn(&mut RequiredRouting, bool, &ValidatorIndex),
 ) {
 	let mut peer_assignments = HashMap::new();
@@ -1525,7 +1556,7 @@ async fn adjust_required_routing_and_propagate(
 	// Iterate all blocks in the session, producing payloads
 	// for each connected peer.
 	for (block_hash, block_entry) in blocks {
-		if !block_filter(&block_entry) {
+		if !block_filter(block_entry) {
 			continue
 		}
 
@@ -1536,12 +1567,9 @@ async fn adjust_required_routing_and_propagate(
 			.enumerate()
 			.flat_map(|(c_i, c)| c.messages.iter_mut().map(move |(k, v)| (c_i as _, k, v)))
 		{
-			let prev_routing = message_state.required_routing;
 			routing_modifier(&mut message_state.required_routing, message_state.local, validator);
 
-			if message_state.required_routing.is_empty() ||
-				message_state.required_routing == prev_routing
-			{
+			if message_state.required_routing.is_empty() {
 				continue
 			}
 

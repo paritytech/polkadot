@@ -1673,7 +1673,11 @@ fn originator_aggression_l1() {
 
 	let peers = make_peers_and_authority_ids(100);
 
-	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+	let mut state = State::default();
+	state.aggression_config.resend_unfinalized_period = None;
+	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
+
+	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// Connect all peers except omitted.
@@ -1752,7 +1756,7 @@ fn originator_aggression_l1() {
 		// Add blocks until aggression L1 is triggered.
 		{
 			let mut parent_hash = hash;
-			for level in 0..AGGRESSION_L1_THRESHOLD {
+			for level in 0..aggression_l1_threshold {
 				let number = 1 + level + 1; // first block had number 1
 				let hash = BlakeTwo256::hash_of(&(parent_hash, number));
 				let meta = BlockApprovalMeta {
@@ -1827,7 +1831,11 @@ fn non_originator_aggression_l1() {
 
 	let peers = make_peers_and_authority_ids(100);
 
-	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+	let mut state = State::default();
+	state.aggression_config.resend_unfinalized_period = None;
+	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
+
+	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// Connect all peers except omitted.
@@ -1893,7 +1901,7 @@ fn non_originator_aggression_l1() {
 		// Add blocks until aggression L1 is triggered.
 		{
 			let mut parent_hash = hash;
-			for level in 0..AGGRESSION_L1_THRESHOLD {
+			for level in 0..aggression_l1_threshold {
 				let number = 1 + level + 1; // first block had number 1
 				let hash = BlakeTwo256::hash_of(&(parent_hash, number));
 				let meta = BlockApprovalMeta {
@@ -1927,7 +1935,12 @@ fn non_originator_aggression_l2() {
 
 	let peers = make_peers_and_authority_ids(100);
 
-	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+	let mut state = State::default();
+	state.aggression_config.resend_unfinalized_period = None;
+
+	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
+	let aggression_l2_threshold = state.aggression_config.l2_threshold.clone().unwrap();
+	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// Connect all peers except omitted.
@@ -1997,7 +2010,7 @@ fn non_originator_aggression_l2() {
 		// Add blocks until aggression L1 is triggered.
 		let chain_head = {
 			let mut parent_hash = hash;
-			for level in 0..AGGRESSION_L1_THRESHOLD {
+			for level in 0..aggression_l1_threshold {
 				let number = 1 + level + 1; // first block had number 1
 				let hash = BlakeTwo256::hash_of(&(parent_hash, number));
 				let meta = BlockApprovalMeta {
@@ -2023,8 +2036,8 @@ fn non_originator_aggression_l2() {
 		// Add blocks until aggression L2 is triggered.
 		{
 			let mut parent_hash = chain_head;
-			for level in 0..AGGRESSION_L2_THRESHOLD - AGGRESSION_L1_THRESHOLD {
-				let number = AGGRESSION_L1_THRESHOLD + level + 1 + 1; // first block had number 1
+			for level in 0..aggression_l2_threshold - aggression_l1_threshold {
+				let number = aggression_l1_threshold + level + 1 + 1; // first block had number 1
 				let hash = BlakeTwo256::hash_of(&(parent_hash, number));
 				let meta = BlockApprovalMeta {
 					hash,
