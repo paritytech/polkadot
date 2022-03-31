@@ -50,7 +50,7 @@ use runtime_common::{
 };
 use runtime_parachains::{self, runtime_api_impl::v2 as runtime_api_impl};
 use scale_info::TypeInfo;
-use sp_core::{OpaqueMetadata, RuntimeDebug};
+use sp_core::{H256, OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -676,7 +676,7 @@ impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 }
 
-type MmrHash = <Keccak256 as traits::Hash>::Output;
+type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
 
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
@@ -705,8 +705,8 @@ parameter_types! {
 }
 
 pub struct ParasProvider;
-impl BeefyDataProvider for ParasProvider {
-	fn extra_data() -> Vec<u8> {
+impl BeefyDataProvider<H256> for ParasProvider {
+	fn extra_data() -> H256 {
 		let mut para_heads: Vec<(u32, Vec<u8>)> = Paras::parachains()
 			.into_iter()
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
@@ -715,13 +715,14 @@ impl BeefyDataProvider for ParasProvider {
 		beefy_merkle_tree::merkle_root::<pallet_beefy_mmr::Pallet<Runtime>, _, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
-		.to_vec()
+		.into()
 	}
 }
 
 impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
+	type LeafExtra = H256;
 	type BeefyDataProvider = ParasProvider;
 }
 
