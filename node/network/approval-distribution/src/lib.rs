@@ -106,7 +106,7 @@ struct SessionTopology {
 
 impl SessionTopology {
 	// Given the originator of a message, indicates the part of the topology
-	// we're meant to sent the message to.
+	// we're meant to send the message to.
 	fn required_routing_for(&self, originator: ValidatorIndex, local: bool) -> RequiredRouting {
 		if local {
 			return RequiredRouting::GridXY
