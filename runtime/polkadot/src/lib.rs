@@ -22,7 +22,7 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
+	auctions, claims, crowdloan, elections::GenesisElectionOf, impl_runtime_weights,
 	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
 	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
@@ -38,9 +38,7 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_election_provider_support::{
-	generate_solution_type, onchain::UnboundedExecution, SequentialPhragmen,
-};
+use frame_election_provider_support::{generate_solution_type, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -493,7 +491,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type GovernanceFallback = GenesisElectionOf<Self, Staking>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,

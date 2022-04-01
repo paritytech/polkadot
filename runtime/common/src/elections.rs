@@ -16,11 +16,8 @@
 
 //! Code for elections.
 
-use frame_election_provider_support::{
-	onchain::{ExecutionConfig, UnboundedExecution},
-	ElectionDataProvider, SequentialPhragmen,
-};
-use sp_std::marker::PhantomData;
+use crate::ConstU32;
+use frame_election_provider_support::onchain::BoundedPhragmen;
 
 /// Implements the weight types for the elections module and a specific
 /// runtime.
@@ -65,19 +62,8 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 }
 
 /// The accuracy type used for genesis election provider;
-pub type OnOnChainAccuracy = sp_runtime::Perbill;
+pub type OnChainAccuracy = sp_runtime::Perbill;
 
-/// Election Configuration parameters
-pub struct OnChainSeqPhragmen<T: frame_system::Config, S>(PhantomData<(T, S)>);
-impl<
-		T: frame_system::Config,
-		S: ElectionDataProvider<AccountId = T::AccountId, BlockNumber = T::BlockNumber>,
-	> ExecutionConfig for OnChainSeqPhragmen<T, S>
-{
-	type System = T;
-	type Solver = SequentialPhragmen<T::AccountId, OnOnChainAccuracy>;
-	type DataProvider = S;
-}
-
-/// The election provider of the genesis
-pub type GenesisElectionOf<T, S> = UnboundedExecution<OnChainSeqPhragmen<T, S>>;
+/// Election Configuration parameters of the genesis (it's also used elsewhere for now).
+pub type GenesisElectionOf<T, DataProvider> =
+	BoundedPhragmen<T, DataProvider, ConstU32<20_000>, ConstU32<2_000>, OnChainAccuracy>;

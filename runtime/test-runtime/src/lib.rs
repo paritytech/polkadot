@@ -337,12 +337,8 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider = frame_election_provider_support::onchain::UnboundedExecution<
-		runtime_common::elections::OnChainSeqPhragmen<Self, Staking>,
-	>;
-	type GenesisElectionProvider = frame_election_provider_support::onchain::UnboundedExecution<
-		runtime_common::elections::OnChainSeqPhragmen<Self, Staking>,
-	>;
+	type ElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
+	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;

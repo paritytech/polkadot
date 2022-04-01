@@ -22,7 +22,7 @@
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_election_provider_support::{onchain::UnboundedExecution, SequentialPhragmen};
+use frame_election_provider_support::SequentialPhragmen;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
@@ -43,7 +43,7 @@ use primitives::v2::{
 	ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
+	assigned_slots, auctions, crowdloan, elections::GenesisElectionOf, impl_runtime_weights,
 	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, BlockHashCount, BlockLength,
 	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
@@ -393,7 +393,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type GovernanceFallback = GenesisElectionOf<Self, Staking>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
