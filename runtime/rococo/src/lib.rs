@@ -50,7 +50,7 @@ use runtime_common::{
 };
 use runtime_parachains::{self, runtime_api_impl::v2 as runtime_api_impl};
 use scale_info::TypeInfo;
-use sp_core::{H256, OpaqueMetadata, RuntimeDebug};
+use sp_core::{OpaqueMetadata, RuntimeDebug, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
