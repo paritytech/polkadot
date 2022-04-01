@@ -158,7 +158,7 @@ pub enum CandidateValidationMessage {
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-		/// Comittments hash
+		/// Commitments hash
 		Hash,
 	),
 	/// Try to compile the given validation code and send back
