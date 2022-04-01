@@ -66,6 +66,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				message: #message_wrapper,
 			) {
 				let res: ::std::result::Result<_, _> = match message {
+					#message_wrapper :: NetworkBridge(NetworkBridgeMessage::ReportPeer(_, _)) => Ok(()),
 				#(
 					#message_wrapper :: #consumes_variant ( inner ) => {
 						self. #channel_name .send(
