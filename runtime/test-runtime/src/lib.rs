@@ -318,6 +318,13 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 }
 
+impl frame_election_provider_support::onchain::ConfigParams for Runtime {
+	type WeightInfo = ();
+	type VotersBound = MaxAuthorities;
+	type TargetsBound = MaxAuthorities;
+	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
+}
+
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;

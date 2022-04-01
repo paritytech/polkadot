@@ -371,6 +371,13 @@ frame_election_provider_support::generate_solution_type!(
 	>(16)
 );
 
+impl frame_election_provider_support::onchain::ConfigParams for Runtime {
+	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Self>;
+	type VotersBound = MaxElectingVoters;
+	type TargetsBound = MaxElectableTargets;
+	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
+}
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -1135,6 +1142,7 @@ mod benches {
 		[pallet_bags_list, BagsList]
 		[pallet_balances, Balances]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
+		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
@@ -1494,6 +1502,7 @@ sp_api::impl_runtime_apis! {
 
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_onchain_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
@@ -1517,10 +1526,12 @@ sp_api::impl_runtime_apis! {
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_onchain_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
+			impl pallet_election_provider_support_onchain_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
