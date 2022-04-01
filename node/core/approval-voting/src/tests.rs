@@ -2403,7 +2403,7 @@ pub async fn handle_double_assignment_import(
 				assert_eq!(candidate_index, c_index);
 			},
 			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx),
+				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx, _),
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
 					.unwrap();

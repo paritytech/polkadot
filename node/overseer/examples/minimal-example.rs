@@ -78,6 +78,7 @@ impl Subsystem1 {
 				PoV { block_data: BlockData(Vec::new()) }.into(),
 				Default::default(),
 				tx,
+				Hash::zero(),
 			);
 			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg))
 				.await;

@@ -122,7 +122,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.base.bob);
+			assert!(run.cmd.base.bob);
 		});
 	}
 }

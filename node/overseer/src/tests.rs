@@ -114,6 +114,7 @@ where
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
+							Hash::zero(),
 						))
 						.await;
 						c += 1;
@@ -797,6 +798,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 		pov,
 		Duration::default(),
 		sender,
+		Hash::zero(),
 	)
 }
 

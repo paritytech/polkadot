@@ -336,8 +336,9 @@ fn backing_second_works() {
 					pov,
 					timeout,
 					tx,
+					commitments_hash
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && commitments_hash == candidate.commitments.hash() => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -419,6 +420,8 @@ fn backing_works() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_commitments_hash = candidate_a.commitments.hash();
+
 		let public1 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
@@ -496,8 +499,9 @@ fn backing_works() {
 					pov,
 					timeout,
 					tx,
+					hash
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && hash == candidate_a_commitments_hash=> {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -594,6 +598,8 @@ fn backing_works_while_validation_ongoing() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_commitments_hash = candidate_a.commitments.hash();
+
 		let public1 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
@@ -690,8 +696,9 @@ fn backing_works_while_validation_ongoing() {
 					pov,
 					timeout,
 					tx,
+					hash
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && candidate_a_commitments_hash == hash => {
 				// we never validate the candidate. our local node
 				// shouldn't issue any statements.
 				std::mem::forget(tx);
@@ -799,6 +806,8 @@ fn backing_misbehavior_works() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_commitments_hash = candidate_a.commitments.hash();
+
 		let public2 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
@@ -864,8 +873,9 @@ fn backing_misbehavior_works() {
 					pov,
 					timeout,
 					tx,
+					hash
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && candidate_a_commitments_hash == hash => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -1024,6 +1034,7 @@ fn backing_dont_second_invalid() {
 					pov,
 					timeout,
 					tx,
+					_
 				)
 			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
@@ -1053,6 +1064,7 @@ fn backing_dont_second_invalid() {
 					pov,
 					timeout,
 					tx,
+					_
 				)
 			) if pov == pov && &c == candidate_b.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(
@@ -1184,8 +1196,9 @@ fn backing_second_after_first_fails_works() {
 					pov,
 					timeout,
 					tx,
+					hash
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && hash == candidate.commitments.hash() => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -1230,6 +1243,7 @@ fn backing_second_after_first_fails_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					_,
 					pov,
+					_,
 					_,
 					_,
 				)
@@ -1318,8 +1332,9 @@ fn backing_works_after_failed_validation() {
 					pov,
 					timeout,
 					tx,
+					hash
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && hash == candidate.commitments.hash() => {
 				tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
 			}
 		);
@@ -1696,8 +1711,9 @@ fn retry_works() {
 					pov,
 					timeout,
 					_tx,
+					hash,
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && hash == candidate.commitments.hash()
 		);
 		virtual_overseer
 	});

@@ -372,9 +372,11 @@ async fn participate(
 		)
 		.await;
 
+	let res = validation_rx.await;
+	println!("Validation res: {:?}", res);
 	// we cast votes (either positive or negative) depending on the outcome of
 	// the validation and if valid, whether the commitments hash matches
-	match validation_rx.await {
+	match res {
 		Err(oneshot::Canceled) => {
 			gum::warn!(
 				target: LOG_TARGET,

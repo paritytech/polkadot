@@ -407,8 +407,9 @@ where
 async fn participation_with_distribution(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate_hash: &CandidateHash,
+	expected_commitments_hash: Hash,
 ) {
-	participation_full_happy_path(virtual_overseer).await;
+	participation_full_happy_path(virtual_overseer, expected_commitments_hash).await;
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::DisputeDistribution(
@@ -426,7 +427,6 @@ fn make_valid_candidate_receipt() -> CandidateReceipt {
 }
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
-	// Commitments hash will be 0, which is not correct:
 	dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()))
 }
 
@@ -593,7 +593,12 @@ fn dispute_gets_confirmed_via_participation() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash1).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash1,
+				candidate_receipt1.commitments_hash,
+			)
+			.await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -942,7 +947,12 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1224,7 +1234,12 @@ fn finality_votes_ignore_disputed_candidates() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1322,7 +1337,12 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			let mut statements = Vec::new();
 			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
@@ -1442,7 +1462,12 @@ fn concluded_supermajority_for_non_active_after_time() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			let mut statements = Vec::new();
 			// -2: 1 for already imported vote and one for local vote (which is valid).
@@ -1543,7 +1568,13 @@ fn concluded_supermajority_against_non_active_after_time() {
 				ImportStatementsResult::ValidImport => {}
 			);
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			// Use a different expected commitments hash to ensure the candidate validation returns invalid.
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				CandidateCommitments::default().hash(),
+			)
+			.await;
 
 			let mut statements = Vec::new();
 			// minus 2, because of local vote and one previously imported invalid vote.
@@ -1579,7 +1610,10 @@ fn concluded_supermajority_against_non_active_after_time() {
 					})
 					.await;
 
-				assert!(rx.await.unwrap().is_empty());
+				let res = rx.await.unwrap();
+
+				println!("supermajority_threshold {} result {:?}", supermajority_threshold, res);
+				assert!(res.is_empty());
 
 				let (tx, rx) = oneshot::channel();
 
@@ -1672,7 +1706,12 @@ fn resume_dispute_without_local_statement() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			let valid_vote0 = test_state
 				.issue_explicit_statement_with_index(0, candidate_hash, session, true)

@@ -406,6 +406,15 @@ fn candidate_validation_ok_is_ok() {
 		hrmp_watermark: 0,
 	};
 
+	let commitments = CandidateCommitments {
+		head_data: validation_result.head_data.clone(),
+		upward_messages: validation_result.upward_messages.clone(),
+		horizontal_messages: validation_result.horizontal_messages.clone(),
+		new_validation_code: validation_result.new_validation_code.clone(),
+		processed_downward_messages: validation_result.processed_downward_messages,
+		hrmp_watermark: validation_result.hrmp_watermark,
+	};
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
@@ -414,6 +423,7 @@ fn candidate_validation_ok_is_ok() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		commitments.hash(),
 	))
 	.unwrap();
 
@@ -463,6 +473,7 @@ fn candidate_validation_bad_return_is_invalid() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		Hash::zero(),
 	))
 	.unwrap();
 
@@ -505,6 +516,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		Hash::zero(),
 	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
@@ -546,6 +558,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		Hash::zero(),
 	))
 	.unwrap();
 
@@ -583,6 +596,15 @@ fn compressed_code_works() {
 		hrmp_watermark: 0,
 	};
 
+	let commitments = CandidateCommitments {
+		head_data: validation_result.head_data.clone(),
+		upward_messages: validation_result.upward_messages.clone(),
+		horizontal_messages: validation_result.horizontal_messages.clone(),
+		new_validation_code: validation_result.new_validation_code.clone(),
+		processed_downward_messages: validation_result.processed_downward_messages,
+		hrmp_watermark: validation_result.hrmp_watermark,
+	};
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
@@ -591,6 +613,7 @@ fn compressed_code_works() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		commitments.hash(),
 	));
 
 	assert_matches!(v, Ok(ValidationResult::Valid(_, _)));
@@ -636,6 +659,7 @@ fn code_decompression_failure_is_invalid() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		Hash::zero(),
 	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
@@ -682,6 +706,7 @@ fn pov_decompression_failure_is_invalid() {
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
+		Hash::zero(),
 	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
