@@ -15,11 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{configuration::HostConfiguration, shared};
+use crate::configuration::HostConfiguration;
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
 use primitives::v2::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
+
+mod pvf_check;
+
+use self::pvf_check::{VoteCause, VoteOutcome};
 
 // 2 ^ 10, because binary search time complexity is O(log(2, n)) and n = 1024 gives us a big and
 // round number.
@@ -138,6 +142,48 @@ benchmarks! {
 	poke_unused_validation_code {
 		let code_hash = [0; 32].into();
 	}: _(RawOrigin::Root, code_hash)
+
+	include_pvf_check_statement {
+		let (stmt, signature) = pvf_check::prepare_inclusion_bench::<T>();
+	}: {
+		let _ = Pallet::<T>::include_pvf_check_statement(RawOrigin::None.into(), stmt, signature);
+	}
+
+	include_pvf_check_statement_finalize_upgrade_accept {
+		let (stmt, signature) = pvf_check::prepare_finalization_bench::<T>(
+			VoteCause::Upgrade,
+			VoteOutcome::Accept,
+		);
+	}: {
+		let _ = Pallet::<T>::include_pvf_check_statement(RawOrigin::None.into(), stmt, signature);
+	}
+
+	include_pvf_check_statement_finalize_upgrade_reject {
+		let (stmt, signature) = pvf_check::prepare_finalization_bench::<T>(
+			VoteCause::Upgrade,
+			VoteOutcome::Reject,
+		);
+	}: {
+		let _ = Pallet::<T>::include_pvf_check_statement(RawOrigin::None.into(), stmt, signature);
+	}
+
+	include_pvf_check_statement_finalize_onboarding_accept {
+		let (stmt, signature) = pvf_check::prepare_finalization_bench::<T>(
+			VoteCause::Onboarding,
+			VoteOutcome::Accept,
+		);
+	}: {
+		let _ = Pallet::<T>::include_pvf_check_statement(RawOrigin::None.into(), stmt, signature);
+	}
+
+	include_pvf_check_statement_finalize_onboarding_reject {
+		let (stmt, signature) = pvf_check::prepare_finalization_bench::<T>(
+			VoteCause::Onboarding,
+			VoteOutcome::Reject,
+		);
+	}: {
+		let _ = Pallet::<T>::include_pvf_check_statement(RawOrigin::None.into(), stmt, signature);
+	}
 
 	impl_benchmark_test_suite!(
 		Pallet,
