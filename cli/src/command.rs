@@ -18,11 +18,11 @@ use crate::cli::{Cli, Subcommand};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
-use service::{self, IdentifyVariant};
+use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use std::net::ToSocketAddrs;
 
-pub use crate::error::Error;
+pub use crate::{error::Error, service::BlockId};
 pub use polkadot_performance_test::PerfCheckError;
 
 impl std::convert::From<String> for Error {
@@ -525,6 +525,101 @@ pub fn run() -> Result<()> {
 
 					if let polkadot_client::Client::Polkadot(pd) = &*client {
 						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(not(feature = "polkadot-native"))]
+			unreachable!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
+		},
+		Some(Subcommand::BenchmarkOverhead(cmd)) => {
+			use polkadot_client::benchmark_inherent_data;
+
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+			set_default_ss58_version(chain_spec);
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+
+			#[cfg(feature = "rococo-native")]
+			if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+					let inherent_data = benchmark_inherent_data(header)
+						.map_err(|e| format!("generating inherent data: {:?}", e))?;
+
+					if let polkadot_client::Client::Rococo(pd) = &*client {
+						Ok((
+							cmd.run(config, pd.clone(), inherent_data, client)
+								.map_err(Error::SubstrateCli),
+							task_manager,
+						))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(feature = "kusama-native")]
+			if chain_spec.is_kusama() {
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+					let inherent_data = benchmark_inherent_data(header)
+						.map_err(|e| format!("generating inherent data: {:?}", e))?;
+
+					if let polkadot_client::Client::Kusama(pd) = &*client {
+						Ok((
+							cmd.run(config, pd.clone(), inherent_data, client)
+								.map_err(Error::SubstrateCli),
+							task_manager,
+						))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(feature = "westend-native")]
+			if chain_spec.is_westend() {
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+					let inherent_data = benchmark_inherent_data(header)
+						.map_err(|e| format!("generating inherent data: {:?}", e))?;
+
+					if let polkadot_client::Client::Westend(pd) = &*client {
+						Ok((
+							cmd.run(config, pd.clone(), inherent_data, client)
+								.map_err(Error::SubstrateCli),
+							task_manager,
+						))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(feature = "polkadot-native")]
+			{
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+					let inherent_data = benchmark_inherent_data(header)
+						.map_err(|e| format!("generating inherent data: {:?}", e))?;
+
+					if let polkadot_client::Client::Polkadot(pd) = &*client {
+						Ok((
+							cmd.run(config, pd.clone(), inherent_data, client)
+								.map_err(Error::SubstrateCli),
+							task_manager,
+						))
 					} else {
 						unreachable!("Checked above; qed")
 					}
