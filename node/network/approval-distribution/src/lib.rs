@@ -1340,8 +1340,8 @@ impl State {
 				"Sending an approval to peers",
 			);
 
-			stats.assignments += peers.len();
-			stats.assignment_packets += peers.len();
+			stats.approvals += peers.len();
+			stats.approval_packets += peers.len();
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
