@@ -159,12 +159,7 @@ impl Handle {
 
 	/// Send some message to one of the `Subsystem`s.
 	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>, origin: &'static str) {
-		let msg = match msg.into() {
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(_, _)) => return,
-			m => m,
-		};
-
-		self.send_and_log_error(Event::MsgToSubsystem { msg, origin }).await
+		self.send_and_log_error(Event::MsgToSubsystem { msg: msg.into(), origin }).await
 	}
 
 	/// Send a message not providing an origin.
