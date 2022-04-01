@@ -475,6 +475,65 @@ pub fn run() -> Result<()> {
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
+		Some(Subcommand::BenchmarkBlock(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			#[cfg(feature = "rococo-native")]
+			if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					if let polkadot_client::Client::Rococo(pd) = &*client {
+						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(feature = "kusama-native")]
+			if chain_spec.is_kusama() {
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					if let polkadot_client::Client::Kusama(pd) = &*client {
+						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(feature = "westend-native")]
+			if chain_spec.is_westend() {
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					if let polkadot_client::Client::Westend(pd) = &*client {
+						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(feature = "polkadot-native")]
+			{
+				return Ok(runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+
+					if let polkadot_client::Client::Polkadot(pd) = &*client {
+						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
+					} else {
+						unreachable!("Checked above; qed")
+					}
+				})?)
+			}
+
+			#[cfg(not(feature = "polkadot-native"))]
+			unreachable!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
+		},
 		Some(Subcommand::BenchmarkStorage(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
