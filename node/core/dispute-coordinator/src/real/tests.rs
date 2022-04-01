@@ -1610,7 +1610,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 					})
 					.await;
 
-				assert!( rx.await.unwrap().is_empty());
+				assert!(rx.await.unwrap().is_empty());
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
