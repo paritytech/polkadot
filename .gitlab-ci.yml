@@ -535,6 +535,11 @@ update_westend_weights:
   variables:
     RUNTIME:                       westend
 
+update_rococo_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       rococo
+
 #### stage:                        stage3
 
 build-rustdoc:
