@@ -10,5 +10,5 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0.36"
 quote = "1.0.16"
-syn = "1.0.89"
+syn = "1.0.90"
 Inflector = "0.11.4"
