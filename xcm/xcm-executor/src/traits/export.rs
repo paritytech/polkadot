@@ -97,13 +97,7 @@ pub fn validate_export<T: ExportXcm>(
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
 ) -> SendResult<T::Ticket> {
-	T::validate(
-		network,
-		channel,
-		&mut Some(universal_source),
-		&mut Some(dest),
-		&mut Some(msg),
-	)
+	T::validate(network, channel, &mut Some(universal_source), &mut Some(dest), &mut Some(msg))
 }
 
 /// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps

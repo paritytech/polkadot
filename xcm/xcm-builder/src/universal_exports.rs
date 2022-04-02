@@ -152,18 +152,14 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let (remote_network, remote_location) = devolved;
 		let xcm = xcm.take().ok_or(MissingArgument)?;
 		let (bridge, maybe_payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &xcm)
-				.ok_or(NotApplicable)?;
+			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
 
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let message = Xcm(vec![ExportMessage {
-			network: remote_network,
-			destination: remote_location,
-			xcm,
-		}]);
+		let message =
+			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
 		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
 		if let Some(payment) = maybe_payment {
 			cost.push(payment);
@@ -328,7 +324,9 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 		if local_sub != Here {
 			inner.inner_mut().push(DescendOrigin(local_sub));
 		}
-		inner.inner_mut().extend(message.take().ok_or(SendError::MissingArgument)?.into_iter());
+		inner
+			.inner_mut()
+			.extend(message.take().ok_or(SendError::MissingArgument)?.into_iter());
 		let message = VersionedXcm::from(inner);
 		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let blob = BridgeMessage { universal_dest, message }.encode();

@@ -72,5 +72,8 @@ fn export_message_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 	let uni_src = (ByGenesis([0; 32]), Parachain(42), Parachain(1)).into();
-	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, uni_src, Here, expected_message, expected_hash)]);
+	assert_eq!(
+		exported_xcm(),
+		vec![(Polkadot, 403611790, uni_src, Here, expected_message, expected_hash)]
+	);
 }

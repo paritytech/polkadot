@@ -134,7 +134,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 pub fn set_send_price(p: impl Into<MultiAsset>) {
 	SEND_PRICE.with(|l| l.replace(p.into().into()));
 }
-pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, opaque::Xcm, XcmHash)> {
+pub fn exported_xcm(
+) -> Vec<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, opaque::Xcm, XcmHash)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_exporter_override(
@@ -186,7 +187,8 @@ impl ExportXcm for TestMessageExporter {
 		uni_src: &mut Option<InteriorMultiLocation>,
 		dest: &mut Option<InteriorMultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, Xcm<()>, XcmHash)> {
+	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, Xcm<()>, XcmHash)>
+	{
 		let (s, d, m) = (uni_src.take().unwrap(), dest.take().unwrap(), msg.take().unwrap());
 		let r: Result<MultiAssets, SendError> = EXPORTER_OVERRIDE.with(|e| {
 			if let Some((ref f, _)) = &*e.borrow() {
