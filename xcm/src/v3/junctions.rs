@@ -228,7 +228,7 @@ impl Junctions {
 	/// that this value is not a universal location.
 	pub fn split_global(self) -> Result<(NetworkId, Junctions), ()> {
 		match self.clone().split_first() {
-			(location, Some(Junction::GlobalConsensus(network))) => (network, location),
+			(location, Some(Junction::GlobalConsensus(network))) => Ok((network, location)),
 			_ => return Err(()),
 		}
 	}

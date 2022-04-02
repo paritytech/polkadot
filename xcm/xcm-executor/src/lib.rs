@@ -771,7 +771,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// This only works because the remote chain empowers the bridge
 				// to speak for the local network.
 				let (local_net, local_sub) =
-					Config::UniversalLocation::get().split_global().ok_or(XcmError::Unanchored)?;
+					Config::UniversalLocation::get().split_global().map_err(|()| XcmError::Unanchored)?;
 				let mut exported: Xcm<()> =
 					vec![UniversalOrigin(GlobalConsensus(local_net))].into();
 				if local_sub != Here {
