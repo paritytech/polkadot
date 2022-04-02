@@ -766,19 +766,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
+				// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
+				// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
+				//
 				// Prepend the desired message with instructions which effectively rewrite the origin.
 				//
 				// This only works because the remote chain empowers the bridge
 				// to speak for the local network.
-				let (local_net, local_sub) =
-					Config::UniversalLocation::get().split_global().map_err(|()| XcmError::Unanchored)?;
-				let mut exported: Xcm<()> =
-					vec![UniversalOrigin(GlobalConsensus(local_net))].into();
-				if local_sub != Here {
-					exported.inner_mut().push(DescendOrigin(local_sub));
-				}
-				exported.inner_mut().extend(xcm.into_iter());
-
+				let origin = self.context.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				let universal_source = Config::UniversalLocation::get().within_global(origin)
+					.map_err(|()| XcmError::Unanchored)?;
 				let hash = (self.origin_ref(), &destination).using_encoded(blake2_128);
 				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
 				// Hash identifies the lane on the exporter which we use. We use the pairwise
@@ -787,8 +784,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let (ticket, fee) = validate_export::<Config::MessageExporter>(
 					network,
 					channel,
+					universal_source,
 					destination,
-					exported,
+					xcm,
 				)?;
 				self.take_fee(fee, FeeReason::Export(network))?;
 				Config::MessageExporter::deliver(ticket)?;

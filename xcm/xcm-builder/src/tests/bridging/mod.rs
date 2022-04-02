@@ -89,19 +89,21 @@ struct UnpaidExecutingRouter<Local, Remote, RemoteExporter>(
 fn price<RemoteExporter: ExportXcm>(
 	n: NetworkId,
 	c: u32,
+	s: &InteriorMultiLocation,
 	d: &InteriorMultiLocation,
 	m: &Xcm<()>,
 ) -> Result<MultiAssets, SendError> {
-	Ok(validate_export::<RemoteExporter>(n, c, d.clone(), m.clone())?.1)
+	Ok(validate_export::<RemoteExporter>(n, c, s.clone(), d.clone(), m.clone())?.1)
 }
 
 fn deliver<RemoteExporter: ExportXcm>(
 	n: NetworkId,
 	c: u32,
+	s: InteriorMultiLocation,
 	d: InteriorMultiLocation,
 	m: Xcm<()>,
 ) -> Result<XcmHash, SendError> {
-	export_xcm::<RemoteExporter>(n, c, d, m).map(|(hash, _)| hash)
+	export_xcm::<RemoteExporter>(n, c, s, d, m).map(|(hash, _)| hash)
 }
 
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
