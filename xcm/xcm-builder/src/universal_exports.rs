@@ -223,8 +223,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 
 		let xcm = xcm.take().ok_or(MissingArgument)?;
 		let (bridge, maybe_payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &xcm)
-				.ok_or(NotApplicable)?;
+			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 
 		let local_from_bridge =
 			UniversalLocation::get().invert_target(&bridge).map_err(|_| Unroutable)?;
