@@ -221,24 +221,15 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location, local_network, local_location) = devolved;
 
-		// Prepend the desired message with instructions which effectively rewrite the origin.
-		//
-		// This only works because the remote chain empowers the bridge
-		// to speak for the local network.
-		let mut exported: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_network))].into();
-		if local_location != Here {
-			exported.inner_mut().push(DescendOrigin(local_location));
-		}
-		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
-
+		let xcm = xcm.take().ok_or(MissingArgument)?;
 		let (bridge, maybe_payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &exported)
+			Bridges::exporter_for(&remote_network, &remote_location, &xcm)
 				.ok_or(NotApplicable)?;
 
 		let local_from_bridge =
 			UniversalLocation::get().invert_target(&bridge).map_err(|_| Unroutable)?;
 		let export_instruction =
-			ExportMessage { network: remote_network, destination: remote_location, xcm: exported };
+			ExportMessage { network: remote_network, destination: remote_location, xcm };
 
 		let message = Xcm(if let Some(ref payment) = maybe_payment {
 			let fees = payment

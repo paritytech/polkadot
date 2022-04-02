@@ -476,7 +476,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let reanchor_context = Config::UniversalLocation::get();
 				assets
 					.reanchor(&dest, reanchor_context)
-					.map_err(|()| XcmError::MultiLocationFull)?;
+					.map_err(|()| XcmError::LocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
@@ -554,7 +554,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				.as_mut()
 				.ok_or(XcmError::BadOrigin)?
 				.append_with(who)
-				.map_err(|_| XcmError::MultiLocationFull),
+				.map_err(|_| XcmError::LocationFull),
 			ClearOrigin => {
 				self.context.origin = None;
 				Ok(())
@@ -768,13 +768,26 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
+				// Prepend the desired message with instructions which effectively rewrite the origin.
+				//
+				// This only works because the remote chain empowers the bridge
+				// to speak for the local network.
+				let (local_net, local_sub) = Config::UniversalLocation::get()
+					.split_global()
+					.ok_or(XcmError::Unanchored)?;
+				let mut exported: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_net))].into();
+				if local_sub != Here {
+					exported.inner_mut().push(DescendOrigin(local_sub));
+				}
+				exported.inner_mut().extend(xcm.into_iter());
+
 				let hash = (self.origin_ref(), &destination).using_encoded(blake2_128);
 				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
 				// Hash identifies the lane on the exporter which we use. We use the pairwise
 				// combination of the origin and destination to ensure origin/destination pairs will
 				// generally have their own lanes.
 				let (ticket, fee) =
-					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
+					validate_export::<Config::MessageExporter>(network, channel, destination, exported)?;
 				self.take_fee(fee, FeeReason::Export(network))?;
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())

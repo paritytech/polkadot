@@ -1340,7 +1340,7 @@ impl<T: Config> Pallet<T> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
-			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
+			.map_err(|()| XcmError::LocationNotInvertible)?;
 		let query_id = Self::new_query(responder, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
 		let report_error = Xcm(vec![ReportError(response_info)]);
@@ -1379,7 +1379,7 @@ impl<T: Config> Pallet<T> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
-			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
+			.map_err(|()| XcmError::LocationNotInvertible)?;
 		let notify: <T as Config>::Call = notify.into();
 		let max_weight = notify.get_dispatch_info().weight;
 		let query_id = Self::new_notify_query(responder, notify, timeout, Here);
