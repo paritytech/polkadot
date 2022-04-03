@@ -103,13 +103,12 @@ mod tests {
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
-	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
+	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost 1,600 CENTS
-		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * 100 * CENTS;
-		assert!(x.max(y) - x.min(y) < MILLICENTS);
+		// A full block should cost between 1,000 and 10,000 CENTS.
+		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
+		assert!(full_block >= 1_000 * CENTS);
+		assert!(full_block <= 10_000 * CENTS);
 	}
 
 	#[test]
