@@ -751,6 +751,11 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			phantom: Default::default(),
 		},
 		technical_membership: Default::default(),
+		fellowship: kusama::FellowshipConfig {
+			members: vec![],
+			phantom: Default::default(),
+		},
+		fellowship_membership: Default::default(),
 		babe: kusama::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
@@ -1408,6 +1413,11 @@ pub fn kusama_testnet_genesis(
 			phantom: Default::default(),
 		},
 		technical_membership: Default::default(),
+		fellowship: kusama::FellowshipConfig {
+			members: vec![],
+			phantom: Default::default(),
+		},
+		fellowship_membership: Default::default(),
 		babe: kusama::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
