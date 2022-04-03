@@ -18,6 +18,7 @@
 
 use super::*;
 use frame_support::parameter_types;
+use frame_system::EnsureRootWithSuccess;
 
 parameter_types! {
 	pub FellowshipMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
@@ -73,6 +74,7 @@ parameter_types! {
 #[frame_support::pallet]
 pub mod pallet_custom_origins {
 	use frame_support::pallet_prelude::*;
+	use super::{Balance, UNITS};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {}
@@ -100,18 +102,28 @@ pub mod pallet_custom_origins {
 		ReferendumCanceller,
 		/// Origin able to kill referenda.
 		ReferendumKiller,
+		/// Origin able to spend up to 1 KSM from the treasury at once.
+		SmallTipper,
+		/// Origin able to spend up to 5 KSM from the treasury at once.
+		BigTipper,
+		/// Origin able to spend up to 50 KSM from the treasury at once.
+		SmallSpender,
+		/// Origin able to spend up to 500 KSM from the treasury at once.
+		MediumSpender,
+		/// Origin able to spend up to 5,000 KSM from the treasury at once.
+		BigSpender,
 	}
 
 	macro_rules! decl_ensure {
-		( $name:ident $( $rest:tt )* ) => {
+		( $name:ident: $success_type:ty = $success:expr ) => {
 			pub struct $name<AccountId>(sp_std::marker::PhantomData<AccountId>);
 			impl<O: Into<Result<Origin, O>> + From<Origin>, AccountId>
 				EnsureOrigin<O> for $name<AccountId>
 			{
-				type Success = ();
+				type Success = $success_type;
 				fn try_origin(o: O) -> Result<Self::Success, O> {
 					o.into().and_then(|o| match o {
-						Origin::$name => Ok(()),
+						Origin::$name => Ok($success),
 						r => Err(O::from(r)),
 					})
 				}
@@ -120,20 +132,50 @@ pub mod pallet_custom_origins {
 					O::from(Origin::$name)
 				}
 			}
+		};
+		( $name:ident ) => { decl_ensure! { $name : () = () } };
+		( $name:ident: $success_type:ty = $success:expr, $( $rest:tt )* ) => {
+			decl_ensure! { $name: $success_type = $success }
 			decl_ensure! { $( $rest )* }
 		};
-		(, $( $rest:tt )* ) => { decl_ensure! { $( $rest )* } };
+		( $name:ident, $( $rest:tt )* ) => {
+			decl_ensure! { $name }
+			decl_ensure! { $( $rest )* }
+		};
 		() => {}
 	}
 	decl_ensure!(
-		StakingAdmin, Treasurer, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
-		ReferendumCanceller, ReferendumKiller,
+		StakingAdmin,
+		Treasurer,
+		FellowshipAdmin,
+		GeneralAdmin,
+		AuctionAdmin,
+		LeaseAdmin,
+		ReferendumCanceller,
+		ReferendumKiller,
+		SmallTipper: Balance = 1 * UNITS,
+		BigTipper: Balance = 5 * UNITS,
+		SmallSpender: Balance = 50 * UNITS,
+		MediumSpender: Balance = 500 * UNITS,
+		BigSpender: Balance = 5_000 * UNITS,
 	);
 }
 pub use pallet_custom_origins::{
 	StakingAdmin, Treasurer, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
-	ReferendumCanceller, ReferendumKiller,
+	ReferendumCanceller, ReferendumKiller, SmallTipper, BigTipper, SmallSpender, MediumSpender,
+	BigSpender,
 };
+
+parameter_types! {
+	pub const MaxBalance: Balance = Balance::max_value();
+}
+pub type TreasurySpender = EnsureOneOf<
+	EnsureRootWithSuccess<AccountId, Balance, MaxBalance>,
+	EnsureOneOf<
+		EnsureOneOf<SmallTipper, BigTipper>,
+		EnsureOneOf<SmallSpender, EnsureOneOf<MediumSpender, BigSpender>>
+	>
+>;
 
 impl pallet_custom_origins::Config for Runtime {}
 

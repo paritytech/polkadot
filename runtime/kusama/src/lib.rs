@@ -97,7 +97,10 @@ pub mod xcm_config;
 
 // Governance configurations.
 pub mod gov_config;
-use gov_config::{pallet_custom_origins, StakingAdmin, Treasurer, GeneralAdmin, AuctionAdmin, LeaseAdmin};
+use gov_config::{
+	pallet_custom_origins, StakingAdmin, Treasurer, GeneralAdmin, AuctionAdmin, LeaseAdmin,
+	TreasurySpender,
+};
 
 // Old governance configurations.
 pub mod old_gov_config;
@@ -181,8 +184,7 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-		BlockWeights::get().max_block;
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) * BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
@@ -617,6 +619,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
+	type SpendOrigin = TreasurySpender;
 }
 
 impl pallet_bounties::Config for Runtime {
