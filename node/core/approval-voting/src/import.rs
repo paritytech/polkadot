@@ -29,8 +29,9 @@
 //! We maintain a rolling window of session indices. This starts as empty
 
 use polkadot_node_jaeger as jaeger;
-use polkadot_node_primitives::approval::{
-	self as approval_types, BlockApprovalMeta, RelayVRFStory,
+use polkadot_node_primitives::{
+	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
+	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -53,7 +54,7 @@ use sp_consensus_slots::Slot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use futures::{channel::oneshot, prelude::*};
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 use super::approval_db::v1;
 use crate::{
@@ -299,7 +300,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
+	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -505,18 +506,6 @@ pub(crate) async fn handle_new_head(
 			children: Vec::new(),
 		};
 
-		if let Some(up_to) = force_approve {
-			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
-
-			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
-			// Notify chain-selection of all approved hashes.
-			for hash in approved_hashes {
-				ctx.send_message(ChainSelectionMessage::Approved(hash)).await;
-			}
-		}
-
 		gum::trace!(
 			target: LOG_TARGET,
 			?block_hash,
@@ -537,6 +526,21 @@ pub(crate) async fn handle_new_head(
 				)
 			})
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+		// force-approve needs to load the current block entry as well as all
+		// ancestors. this can only be done after writing the block entry above.
+		if let Some(up_to) = force_approve {
+			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
+
+			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+			// Notify chain-selection of all approved hashes.
+			for hash in approved_hashes {
+				ctx.send_message(ChainSelectionMessage::Approved(hash)).await;
+			}
+		}
+
 		approval_meta.push(BlockApprovalMeta {
 			hash: block_hash,
 			number: block_header.number,

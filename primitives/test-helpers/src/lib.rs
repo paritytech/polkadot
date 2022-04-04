@@ -26,6 +26,7 @@ use polkadot_primitives::v2::{
 	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	ValidatorId,
 };
+pub use rand;
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
@@ -222,5 +223,35 @@ impl TestCandidateBuilder {
 		descriptor.para_id = self.para_id;
 		descriptor.pov_hash = self.pov_hash;
 		CandidateReceipt { descriptor, commitments_hash: self.commitments_hash }
+	}
+}
+
+/// A special `Rng` that always returns zero for testing something that implied
+/// to be random but should not be random in the tests
+pub struct AlwaysZeroRng;
+
+impl Default for AlwaysZeroRng {
+	fn default() -> Self {
+		Self {}
+	}
+}
+impl rand::RngCore for AlwaysZeroRng {
+	fn next_u32(&mut self) -> u32 {
+		0_u32
+	}
+
+	fn next_u64(&mut self) -> u64 {
+		0_u64
+	}
+
+	fn fill_bytes(&mut self, dest: &mut [u8]) {
+		for element in dest.iter_mut() {
+			*element = 0_u8;
+		}
+	}
+
+	fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+		self.fill_bytes(dest);
+		Ok(())
 	}
 }

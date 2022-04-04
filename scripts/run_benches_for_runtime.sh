@@ -17,8 +17,7 @@ cargo +nightly build --profile production --locked --features=runtime-benchmarks
     --list |\
   tail -n+2 |\
   cut -d',' -f1 |\
-  uniq | \
-  grep -v frame_system > "${runtime}_pallets"
+  uniq > "${runtime}_pallets"
 
 # For each pallet found in the previous command, run benches on each function
 while read -r line; do
@@ -38,3 +37,12 @@ while read -r line; do
     --output="./runtime/${runtime}/src/weights/${pallet/::/_}.rs"
 done < "${runtime}_pallets"
 rm "${runtime}_pallets"
+
+# Benchmark base weights
+./target/production/polkadot benchmark-overhead \
+  --chain="${runtime}-dev" \
+  --execution=wasm \
+  --wasm-execution=compiled \
+  --weight-path="runtime/${runtime}/constants/src/weights/" \
+  --warmup=10 \
+  --repeat=100

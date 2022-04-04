@@ -42,7 +42,7 @@ use primitives::v2::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::traits::{One, Saturating};
-use sp_std::{convert::TryInto, prelude::*};
+use sp_std::prelude::*;
 
 use crate::{configuration, initializer::SessionChangeNotification, paras};
 

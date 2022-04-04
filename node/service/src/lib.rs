@@ -512,6 +512,7 @@ where
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
+		let backend = backend.clone();
 
 		move |deny_unsafe,
 		      subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
@@ -541,7 +542,7 @@ where
 				},
 			};
 
-			polkadot_rpc::create_full(deps).map_err(Into::into)
+			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)
 		}
 	};
 
@@ -731,23 +732,16 @@ where
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let disputes_enabled = chain_spec.is_rococo() ||
-		chain_spec.is_kusama() ||
-		chain_spec.is_westend() ||
-		chain_spec.is_versi() ||
-		chain_spec.is_wococo();
-
 	let pvf_checker_enabled = !is_collator.is_collator() && chain_spec.is_versi();
 
 	let select_chain = if requires_overseer_for_chain_sel {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
 
-		SelectRelayChain::new_disputes_aware(
+		SelectRelayChain::new_with_overseer(
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
-			disputes_enabled,
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
@@ -1006,7 +1000,6 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
-					disputes_enabled,
 					pvf_checker_enabled,
 				},
 			)
