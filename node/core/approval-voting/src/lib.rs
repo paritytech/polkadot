@@ -2216,6 +2216,8 @@ async fn launch_approval(
 			.with_candidate(candidate_hash)
 			.with_stage(jaeger::Stage::ApprovalChecking);
 
+		gum::debug!(target: LOG_TARGET, ?candidate_hash, "Awaiting data for candidate");
+
 		let available_data = match a_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
 			Ok(Ok(a)) => a,
