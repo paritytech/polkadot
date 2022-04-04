@@ -37,3 +37,12 @@ while read -r line; do
     --output="./runtime/${runtime}/src/weights/${pallet/::/_}.rs"
 done < "${runtime}_pallets"
 rm "${runtime}_pallets"
+
+# Benchmark base weights
+./target/production/polkadot benchmark-overhead \
+  --chain="${runtime}-dev" \
+  --execution=wasm \
+  --wasm-execution=compiled \
+  --weight-path="runtime/${runtime}/constants/src/weights/" \
+  --warmup=10 \
+  --repeat=100

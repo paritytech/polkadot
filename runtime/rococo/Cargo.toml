@@ -30,6 +30,7 @@ offchain-primitives = { package = "sp-offchain", git = "https://github.com/parit
 
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+beefy-merkle-tree = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
