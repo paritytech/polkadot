@@ -32,12 +32,12 @@ use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, Persist
 
 use polkadot_cli::service::SpawnNamed;
 
-use clap::ArgEnum;
 use futures::channel::oneshot;
 use std::sync::Arc;
 
-#[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
+#[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum FakeCandidateValidation {
 	Disabled,
 	BackingInvalid,
@@ -46,13 +46,10 @@ pub enum FakeCandidateValidation {
 	BackingValid,
 	ApprovalValid,
 	BackingAndApprovalValid,
-	// TODO: later.
-	// BackingValidAndApprovalInvalid,
-	// BackingInvalidAndApprovalValid,
 }
 
 /// Candidate invalidity details
-#[derive(ArgEnum, Clone, Copy, Debug, PartialEq)]
+#[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
 pub enum FakeCandidateValidationError {
 	/// Validation outputs check doesn't pass.
@@ -183,16 +180,23 @@ pub fn create_fake_candidate_commitments(
 // Create and send validation response. This function needs the persistent validation data.
 fn create_validation_response(
 	persisted_validation_data: PersistedValidationData,
-	_candidate_descriptor: CandidateDescriptor,
+	candidate_descriptor: CandidateDescriptor,
 	_pov: Arc<PoV>,
 	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 ) {
-	response_sender
-		.send(Ok(ValidationResult::Valid(
-			create_fake_candidate_commitments(&persisted_validation_data),
-			persisted_validation_data,
-		)))
-		.unwrap();
+	let result = Ok(ValidationResult::Valid(
+		create_fake_candidate_commitments(&persisted_validation_data),
+		persisted_validation_data,
+	));
+
+	gum::debug!(
+		target: MALUS,
+		para_id = ?candidate_descriptor.para_id,
+		"ValidationResult: {:?}",
+		&result
+	);
+
+	response_sender.send(result).unwrap();
 }
 
 // TODO: Only fake validation for `MALICIOUS_POV`, otherwise behave normally.
@@ -226,24 +230,23 @@ where
 						commitments_hash,
 					),
 			} => {
-				// Behave normally if the `PoV` is not known to be malicious.
-				if pov.block_data.0.as_slice() != MALICIOUS_POV {
-					return Some(FromOverseer::Communication {
-						msg: CandidateValidationMessage::ValidateFromExhaustive(
-							validation_data,
-							validation_code,
-							descriptor,
-							pov,
-							timeout,
-							sender,
-							commitments_hash,
-						),
-					})
-				}
-
 				match self.fake_validation {
 					FakeCandidateValidation::ApprovalValid |
 					FakeCandidateValidation::BackingAndApprovalValid => {
+						// Behave normally if the `PoV` is not known to be malicious.
+						if pov.block_data.0.as_slice() != MALICIOUS_POV {
+							return Some(FromOverseer::Communication {
+								msg: CandidateValidationMessage::ValidateFromExhaustive(
+									validation_data,
+									validation_code,
+									descriptor,
+									pov,
+									timeout,
+									sender,
+									commitments_hash,
+								),
+							})
+						}
 						create_validation_response(validation_data, descriptor, pov, sender);
 						None
 					},
@@ -255,7 +258,6 @@ where
 						gum::info!(
 							target: MALUS,
 							para_id = ?descriptor.para_id,
-							candidate_hash = ?descriptor.para_head,
 							"ValidateFromExhaustive result: {:?}",
 							&validation_result
 						);
@@ -286,22 +288,21 @@ where
 						commitments_hash,
 					),
 			} => {
-				// Behave normally if the `PoV` is not known to be malicious.
-				if pov.block_data.0.as_slice() != MALICIOUS_POV {
-					return Some(FromOverseer::Communication {
-						msg: CandidateValidationMessage::ValidateFromChainState(
-							descriptor,
-							pov,
-							timeout,
-							response_sender,
-							commitments_hash,
-						),
-					})
-				}
-
 				match self.fake_validation {
 					FakeCandidateValidation::BackingValid |
 					FakeCandidateValidation::BackingAndApprovalValid => {
+						// Behave normally if the `PoV` is not known to be malicious.
+						if pov.block_data.0.as_slice() != MALICIOUS_POV {
+							return Some(FromOverseer::Communication {
+								msg: CandidateValidationMessage::ValidateFromChainState(
+									descriptor,
+									pov,
+									timeout,
+									response_sender,
+									commitments_hash,
+								),
+							})
+						}
 						self.send_validation_response(
 							descriptor,
 							pov,
@@ -317,7 +318,6 @@ where
 						gum::info!(
 							target: MALUS,
 							para_id = ?descriptor.para_id,
-							candidate_hash = ?descriptor.para_head,
 							"ValidateFromChainState result: {:?}",
 							&validation_result
 						);

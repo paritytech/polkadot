@@ -22,7 +22,6 @@
 
 #![allow(missing_docs)]
 
-use clap::Parser;
 use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
@@ -44,13 +43,18 @@ use polkadot_node_subsystem::messages::{
 
 use std::sync::Arc;
 
-#[derive(Clone, Debug, Parser)]
+#[derive(Clone, Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct DisputeAncestorOptions {
+	/// Malicious candidate validation subsystem configuration. When enabled, node PVF execution is skipped
+	/// during backing and/or approval and it's result can by specified by this option and `--fake-validation-error`
+	/// for invalid candidate outcomes.
 	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::Disabled)]
 	pub fake_validation: FakeCandidateValidation,
 
+	/// Applies only when `--fake-validation` is configured to reject candidates as invalid. It allows
+	/// to specify the exact error to return from the malicious candidate validation subsystem.
 	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
 	pub fake_validation_error: FakeCandidateValidationError,
 
