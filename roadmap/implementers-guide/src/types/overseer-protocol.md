@@ -679,6 +679,8 @@ This is fueled by an auxiliary type encapsulating all request types defined in t
 
 ```rust
 enum RuntimeApiRequest {
+    /// Get the version of the runtime API at the given parent hash, if any.
+    Version(ResponseChannel<u32>),
     /// Get the current validator set.
     Validators(ResponseChannel<Vec<ValidatorId>>),
     /// Get the validator groups and rotation info.
@@ -723,6 +725,8 @@ enum RuntimeApiRequest {
 enum RuntimeApiMessage {
     /// Make a request of the runtime API against the post-state of the given relay-parent.
     Request(Hash, RuntimeApiRequest),
+    /// Get the version of the runtime API at the given parent hash, if any.
+    Version(Hash, ResponseChannel<Option<u32>>)
 }
 ```
 

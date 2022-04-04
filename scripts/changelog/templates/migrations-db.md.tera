@@ -1,0 +1,26 @@
+{%- import "change.md.tera" as m_c %}
+{%- set_global db_migration_count = 0 -%}
+
+## Database Migrations
+
+{% for pr in changes | sort(attribute="merged_at") -%}
+
+{%- if pr.meta.B and pr.meta.B.value == 0 %}
+{#- We skip silent ones -#}
+{%- else -%}
+{%- if pr.meta.E and pr.meta.E.value == 2 -%}
+{%- set_global db_migration_count = db_migration_count + 1 -%}
+- {{ m_c::change(c=pr) }}
+{% endif -%}
+{% endif -%}
+{% endfor -%}
+
+{%- if db_migration_count == 0 -%}
+No Database migration detected in this release.
+{% else  %}
+
+There is {{ db_migration_count }} database migration(s) in this release.
+
+Database migrations are operations bringing your database to the latest stand.
+Some migrations may break compatibility and making a backup of your database is highly recommended.
+{%- endif %}

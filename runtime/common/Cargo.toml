@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.13", default-features = false }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
+log = { version = "0.4.16", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.136", default-features = false }

@@ -22,7 +22,7 @@
 use crate::OutboundMessages;
 
 use bp_messages::{
-	source_chain::{MessageDeliveryAndDispatchPayment, RelayersRewards, Sender},
+	source_chain::{MessageDeliveryAndDispatchPayment, RelayersRewards, SenderOrigin},
 	LaneId, MessageKey, MessageNonce, UnrewardedRelayer,
 };
 use codec::Encode;
@@ -30,6 +30,10 @@ use frame_support::traits::{Currency as CurrencyT, ExistenceRequirement, Get};
 use num_traits::{SaturatingAdd, Zero};
 use sp_runtime::traits::Saturating;
 use sp_std::{collections::vec_deque::VecDeque, fmt::Debug, ops::RangeInclusive};
+
+/// Error that occurs when message fee is non-zero, but payer is not defined.
+const NON_ZERO_MESSAGE_FEE_CANT_BE_PAID_BY_NONE: &str =
+	"Non-zero message fee can't be paid by <None>";
 
 /// Instant message payments made in given currency.
 ///
@@ -44,42 +48,50 @@ use sp_std::{collections::vec_deque::VecDeque, fmt::Debug, ops::RangeInclusive};
 /// to the relayer account.
 /// NOTE It's within relayer's interest to keep their balance above ED as well, to make sure they
 /// can receive the payment.
-pub struct InstantCurrencyPayments<T, I, Currency, GetConfirmationFee, RootAccount> {
-	_phantom: sp_std::marker::PhantomData<(T, I, Currency, GetConfirmationFee, RootAccount)>,
+pub struct InstantCurrencyPayments<T, I, Currency, GetConfirmationFee> {
+	_phantom: sp_std::marker::PhantomData<(T, I, Currency, GetConfirmationFee)>,
 }
 
-impl<T, I, Currency, GetConfirmationFee, RootAccount>
-	MessageDeliveryAndDispatchPayment<T::AccountId, Currency::Balance>
-	for InstantCurrencyPayments<T, I, Currency, GetConfirmationFee, RootAccount>
+impl<T, I, Currency, GetConfirmationFee>
+	MessageDeliveryAndDispatchPayment<T::Origin, T::AccountId, Currency::Balance>
+	for InstantCurrencyPayments<T, I, Currency, GetConfirmationFee>
 where
 	T: frame_system::Config + crate::Config<I>,
 	I: 'static,
+	T::Origin: SenderOrigin<T::AccountId>,
 	Currency: CurrencyT<T::AccountId, Balance = T::OutboundMessageFee>,
 	Currency::Balance: From<MessageNonce>,
 	GetConfirmationFee: Get<Currency::Balance>,
-	RootAccount: Get<Option<T::AccountId>>,
 {
 	type Error = &'static str;
 
 	fn pay_delivery_and_dispatch_fee(
-		submitter: &Sender<T::AccountId>,
+		submitter: &T::Origin,
 		fee: &Currency::Balance,
 		relayer_fund_account: &T::AccountId,
 	) -> Result<(), Self::Error> {
+		let submitter_account = match submitter.linked_account() {
+			Some(submitter_account) => submitter_account,
+			None if !fee.is_zero() => {
+				// if we'll accept some message that has declared that the `fee` has been paid but
+				// it isn't actually paid, then it'll lead to problems with delivery confirmation
+				// payments (see `pay_relayer_rewards` && `confirmation_relayer` in particular)
+				return Err(NON_ZERO_MESSAGE_FEE_CANT_BE_PAID_BY_NONE)
+			},
+			None => {
+				// message lane verifier has accepted the message before, so this message
+				// is unpaid **by design**
+				// => let's just do nothing
+				return Ok(())
+			},
+		};
+
 		if !frame_system::Pallet::<T>::account_exists(relayer_fund_account) {
 			return Err("The relayer fund account must exist for the message lanes pallet to work correctly.");
 		}
 
-		let root_account = RootAccount::get();
-		let account = match submitter {
-			Sender::Signed(submitter) => submitter,
-			Sender::Root | Sender::None => root_account
-				.as_ref()
-				.ok_or("Sending messages using Root or None origin is disallowed.")?,
-		};
-
 		Currency::transfer(
-			account,
+			&submitter_account,
 			relayer_fund_account,
 			*fee,
 			// it's fine for the submitter to go below Existential Deposit and die.
@@ -226,7 +238,9 @@ fn pay_relayer_reward<Currency, AccountId>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{run_test, AccountId as TestAccountId, Balance as TestBalance, TestRuntime};
+	use crate::mock::{
+		run_test, AccountId as TestAccountId, Balance as TestBalance, Origin, TestRuntime,
+	};
 	use bp_messages::source_chain::RelayerRewards;
 
 	type Balances = pallet_balances::Pallet<TestRuntime>;
@@ -243,6 +257,48 @@ mod tests {
 		]
 		.into_iter()
 		.collect()
+	}
+
+	#[test]
+	fn pay_delivery_and_dispatch_fee_fails_on_non_zero_fee_and_unknown_payer() {
+		frame_support::parameter_types! {
+			const GetConfirmationFee: TestBalance = 0;
+		};
+
+		run_test(|| {
+			let result = InstantCurrencyPayments::<
+				TestRuntime,
+				(),
+				Balances,
+				GetConfirmationFee,
+			>::pay_delivery_and_dispatch_fee(
+				&Origin::root(),
+				&100,
+				&RELAYERS_FUND_ACCOUNT,
+			);
+			assert_eq!(result, Err(NON_ZERO_MESSAGE_FEE_CANT_BE_PAID_BY_NONE));
+		});
+	}
+
+	#[test]
+	fn pay_delivery_and_dispatch_succeeds_on_zero_fee_and_unknown_payer() {
+		frame_support::parameter_types! {
+			const GetConfirmationFee: TestBalance = 0;
+		};
+
+		run_test(|| {
+			let result = InstantCurrencyPayments::<
+				TestRuntime,
+				(),
+				Balances,
+				GetConfirmationFee,
+			>::pay_delivery_and_dispatch_fee(
+				&Origin::root(),
+				&0,
+				&RELAYERS_FUND_ACCOUNT,
+			);
+			assert!(result.is_ok());
+		});
 	}
 
 	#[test]

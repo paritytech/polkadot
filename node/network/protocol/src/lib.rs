@@ -20,7 +20,7 @@
 #![warn(missing_docs)]
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_primitives::v2::{BlockNumber, Hash};
 use std::{collections::HashMap, fmt};
 
 #[doc(hidden)]
@@ -169,7 +169,7 @@ impl std::ops::Deref for OurView {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::our_view;
-/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_primitives::v2::Hash;
 /// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -203,7 +203,7 @@ pub struct View {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::view;
-/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_primitives::v2::Hash;
 /// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -282,9 +282,8 @@ impl View {
 /// v1 protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
-	use std::convert::TryFrom;
 
-	use polkadot_primitives::v1::{
+	use polkadot_primitives::v2::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
 		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
 	};
@@ -332,19 +331,6 @@ pub mod v1 {
 	}
 
 	impl StatementDistributionMessage {
-		/// Get meta data of the given `StatementDistributionMessage`.
-		pub fn get_metadata(&self) -> StatementMetadata {
-			match self {
-				Self::Statement(relay_parent, statement) => StatementMetadata {
-					relay_parent: *relay_parent,
-					candidate_hash: statement.unchecked_payload().candidate_hash(),
-					signed_by: statement.unchecked_validator_index(),
-					signature: statement.unchecked_signature().clone(),
-				},
-				Self::LargeStatement(metadata) => metadata.clone(),
-			}
-		}
-
 		/// Get fingerprint describing the contained statement uniquely.
 		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
 			match self {
@@ -354,6 +340,14 @@ pub mod v1 {
 				),
 				Self::LargeStatement(meta) =>
 					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
+			}
+		}
+
+		/// Get the signature from the statement.
+		pub fn get_signature(&self) -> ValidatorSignature {
+			match self {
+				Self::Statement(_, statement) => statement.unchecked_signature().clone(),
+				Self::LargeStatement(metadata) => metadata.signature.clone(),
 			}
 		}
 

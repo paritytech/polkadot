@@ -17,194 +17,434 @@
 //! Tools for supporting message lanes between two Substrate-based chains.
 
 use crate::{
-	messages_source::SubstrateMessagesProof, messages_target::SubstrateMessagesReceivingProof,
+	conversion_rate_update::UpdateConversionRateCallBuilder,
+	messages_metrics::StandaloneMessagesMetrics,
+	messages_source::{SubstrateMessagesProof, SubstrateMessagesSource},
+	messages_target::{SubstrateMessagesDeliveryProof, SubstrateMessagesTarget},
 	on_demand_headers::OnDemandHeadersRelay,
+	TransactionParams, STALL_TIMEOUT,
 };
 
-use async_trait::async_trait;
 use bp_messages::{LaneId, MessageNonce};
-use bp_runtime::{AccountIdOf, IndexOf};
-use frame_support::weights::Weight;
-use messages_relay::{
-	message_lane::{MessageLane, SourceHeaderIdOf, TargetHeaderIdOf},
-	relay_strategy::RelayStrategy,
+use bp_runtime::{AccountIdOf, Chain as _};
+use bridge_runtime_common::messages::{
+	source::FromBridgedChainMessagesDeliveryProof, target::FromBridgedChainMessagesProof,
 };
+use codec::Encode;
+use frame_support::weights::{GetDispatchInfo, Weight};
+use messages_relay::{message_lane::MessageLane, relay_strategy::RelayStrategy};
+use pallet_bridge_messages::{Call as BridgeMessagesCall, Config as BridgeMessagesConfig};
 use relay_substrate_client::{
-	metrics::{FloatStorageValueMetric, StorageProofOverheadMetric},
-	BlockNumberOf, Chain, Client, HashOf,
+	transaction_stall_timeout, AccountKeyPairOf, BalanceOf, BlockNumberOf, CallOf, Chain,
+	ChainWithMessages, Client, HashOf, TransactionSignScheme,
 };
-use relay_utils::{
-	metrics::{
-		FloatJsonValueMetric, GlobalMetrics, MetricsParams, PrometheusError, StandaloneMetric,
-	},
-	BlockNumberBase,
-};
-use sp_core::{storage::StorageKey, Bytes};
-use sp_runtime::FixedU128;
-use std::ops::RangeInclusive;
+use relay_utils::metrics::MetricsParams;
+use sp_core::Pair;
+use std::{fmt::Debug, marker::PhantomData};
+
+/// Substrate -> Substrate messages synchronization pipeline.
+pub trait SubstrateMessageLane: 'static + Clone + Debug + Send + Sync {
+	/// Name of the source -> target tokens conversion rate parameter.
+	///
+	/// The parameter is stored at the target chain and the storage key is computed using
+	/// `bp_runtime::storage_parameter_key` function. If value is unknown, it is assumed
+	/// to be 1.
+	const SOURCE_TO_TARGET_CONVERSION_RATE_PARAMETER_NAME: Option<&'static str>;
+	/// Name of the target -> source tokens conversion rate parameter.
+	///
+	/// The parameter is stored at the source chain and the storage key is computed using
+	/// `bp_runtime::storage_parameter_key` function. If value is unknown, it is assumed
+	/// to be 1.
+	const TARGET_TO_SOURCE_CONVERSION_RATE_PARAMETER_NAME: Option<&'static str>;
+
+	/// Name of the source chain fee multiplier parameter.
+	///
+	/// The parameter is stored at the target chain and the storage key is computed using
+	/// `bp_runtime::storage_parameter_key` function. If value is unknown, it is assumed
+	/// to be 1.
+	const SOURCE_FEE_MULTIPLIER_PARAMETER_NAME: Option<&'static str>;
+	/// Name of the target chain fee multiplier parameter.
+	///
+	/// The parameter is stored at the source chain and the storage key is computed using
+	/// `bp_runtime::storage_parameter_key` function. If value is unknown, it is assumed
+	/// to be 1.
+	const TARGET_FEE_MULTIPLIER_PARAMETER_NAME: Option<&'static str>;
+
+	/// Name of the transaction payment pallet, deployed at the source chain.
+	const AT_SOURCE_TRANSACTION_PAYMENT_PALLET_NAME: Option<&'static str>;
+	/// Name of the transaction payment pallet, deployed at the target chain.
+	const AT_TARGET_TRANSACTION_PAYMENT_PALLET_NAME: Option<&'static str>;
+
+	/// Messages of this chain are relayed to the `TargetChain`.
+	type SourceChain: ChainWithMessages;
+	/// Messages from the `SourceChain` are dispatched on this chain.
+	type TargetChain: ChainWithMessages;
+
+	/// Scheme used to sign source chain transactions.
+	type SourceTransactionSignScheme: TransactionSignScheme;
+	/// Scheme used to sign target chain transactions.
+	type TargetTransactionSignScheme: TransactionSignScheme;
+
+	/// How receive messages proof call is built?
+	type ReceiveMessagesProofCallBuilder: ReceiveMessagesProofCallBuilder<Self>;
+	/// How receive messages delivery proof call is built?
+	type ReceiveMessagesDeliveryProofCallBuilder: ReceiveMessagesDeliveryProofCallBuilder<Self>;
+
+	/// `TargetChain` tokens to `SourceChain` tokens conversion rate update builder.
+	///
+	/// If not applicable to this bridge, you may use `()` here.
+	type TargetToSourceChainConversionRateUpdateBuilder: UpdateConversionRateCallBuilder<
+		Self::SourceChain,
+	>;
+
+	/// Message relay strategy.
+	type RelayStrategy: RelayStrategy;
+}
+
+/// Adapter that allows all `SubstrateMessageLane` to act as `MessageLane`.
+#[derive(Clone, Debug)]
+pub(crate) struct MessageLaneAdapter<P: SubstrateMessageLane> {
+	_phantom: PhantomData<P>,
+}
+
+impl<P: SubstrateMessageLane> MessageLane for MessageLaneAdapter<P> {
+	const SOURCE_NAME: &'static str = P::SourceChain::NAME;
+	const TARGET_NAME: &'static str = P::TargetChain::NAME;
+
+	type MessagesProof = SubstrateMessagesProof<P::SourceChain>;
+	type MessagesReceivingProof = SubstrateMessagesDeliveryProof<P::TargetChain>;
+
+	type SourceChainBalance = BalanceOf<P::SourceChain>;
+	type SourceHeaderNumber = BlockNumberOf<P::SourceChain>;
+	type SourceHeaderHash = HashOf<P::SourceChain>;
+
+	type TargetHeaderNumber = BlockNumberOf<P::TargetChain>;
+	type TargetHeaderHash = HashOf<P::TargetChain>;
+}
 
 /// Substrate <-> Substrate messages relay parameters.
-pub struct MessagesRelayParams<SC: Chain, SS, TC: Chain, TS, Strategy: RelayStrategy> {
+pub struct MessagesRelayParams<P: SubstrateMessageLane> {
 	/// Messages source client.
-	pub source_client: Client<SC>,
-	/// Sign parameters for messages source chain.
-	pub source_sign: SS,
-	/// Mortality of source transactions.
-	pub source_transactions_mortality: Option<u32>,
+	pub source_client: Client<P::SourceChain>,
+	/// Source transaction params.
+	pub source_transaction_params:
+		TransactionParams<AccountKeyPairOf<P::SourceTransactionSignScheme>>,
 	/// Messages target client.
-	pub target_client: Client<TC>,
-	/// Sign parameters for messages target chain.
-	pub target_sign: TS,
-	/// Mortality of target transactions.
-	pub target_transactions_mortality: Option<u32>,
+	pub target_client: Client<P::TargetChain>,
+	/// Target transaction params.
+	pub target_transaction_params:
+		TransactionParams<AccountKeyPairOf<P::TargetTransactionSignScheme>>,
 	/// Optional on-demand source to target headers relay.
-	pub source_to_target_headers_relay: Option<OnDemandHeadersRelay<SC>>,
+	pub source_to_target_headers_relay: Option<OnDemandHeadersRelay<P::SourceChain>>,
 	/// Optional on-demand target to source headers relay.
-	pub target_to_source_headers_relay: Option<OnDemandHeadersRelay<TC>>,
+	pub target_to_source_headers_relay: Option<OnDemandHeadersRelay<P::TargetChain>>,
 	/// Identifier of lane that needs to be served.
 	pub lane_id: LaneId,
 	/// Metrics parameters.
 	pub metrics_params: MetricsParams,
 	/// Pre-registered standalone metrics.
-	pub standalone_metrics: Option<StandaloneMessagesMetrics<SC, TC>>,
-	/// Relay strategy
-	pub relay_strategy: Strategy,
+	pub standalone_metrics: Option<StandaloneMessagesMetrics<P::SourceChain, P::TargetChain>>,
+	/// Relay strategy.
+	pub relay_strategy: P::RelayStrategy,
 }
 
-/// Message sync pipeline for Substrate <-> Substrate relays.
-#[async_trait]
-pub trait SubstrateMessageLane: 'static + Clone + Send + Sync {
-	/// Underlying generic message lane.
-	type MessageLane: MessageLane;
-
-	/// Name of the runtime method that returns dispatch weight of outbound messages at the source
-	/// chain.
-	const OUTBOUND_LANE_MESSAGE_DETAILS_METHOD: &'static str;
-	/// Name of the runtime method that returns latest generated nonce at the source chain.
-	const OUTBOUND_LANE_LATEST_GENERATED_NONCE_METHOD: &'static str;
-	/// Name of the runtime method that returns latest received (confirmed) nonce at the the source
-	/// chain.
-	const OUTBOUND_LANE_LATEST_RECEIVED_NONCE_METHOD: &'static str;
-
-	/// Name of the runtime method that returns latest received nonce at the target chain.
-	const INBOUND_LANE_LATEST_RECEIVED_NONCE_METHOD: &'static str;
-	/// Name of the runtime method that returns the latest confirmed (reward-paid) nonce at the
-	/// target chain.
-	const INBOUND_LANE_LATEST_CONFIRMED_NONCE_METHOD: &'static str;
-	/// Number of the runtime method that returns state of "unrewarded relayers" set at the target
-	/// chain.
-	const INBOUND_LANE_UNREWARDED_RELAYERS_STATE: &'static str;
-
-	/// Name of the runtime method that returns id of best finalized source header at target chain.
-	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str;
-	/// Name of the runtime method that returns id of best finalized target header at source chain.
-	const BEST_FINALIZED_TARGET_HEADER_ID_AT_SOURCE: &'static str;
-
-	/// Name of the messages pallet as it is declared in the `construct_runtime!()` at source chain.
-	const MESSAGE_PALLET_NAME_AT_SOURCE: &'static str;
-	/// Name of the messages pallet as it is declared in the `construct_runtime!()` at target chain.
-	const MESSAGE_PALLET_NAME_AT_TARGET: &'static str;
-
-	/// Extra weight of the delivery transaction at the target chain, that is paid to cover
-	/// dispatch fee payment.
-	///
-	/// If dispatch fee is paid at the source chain, then this weight is refunded by the
-	/// delivery transaction.
-	const PAY_INBOUND_DISPATCH_FEE_WEIGHT_AT_TARGET_CHAIN: Weight;
-
-	/// Source chain.
-	type SourceChain: Chain;
-	/// Target chain.
-	type TargetChain: Chain;
-
-	/// Returns id of account that we're using to sign transactions at target chain (messages
-	/// proof).
-	fn target_transactions_author(&self) -> AccountIdOf<Self::TargetChain>;
-
-	/// Make messages delivery transaction.
-	fn make_messages_delivery_transaction(
-		&self,
-		best_block_id: TargetHeaderIdOf<Self::MessageLane>,
-		transaction_nonce: IndexOf<Self::TargetChain>,
-		generated_at_header: SourceHeaderIdOf<Self::MessageLane>,
-		nonces: RangeInclusive<MessageNonce>,
-		proof: <Self::MessageLane as MessageLane>::MessagesProof,
-	) -> Bytes;
-
-	/// Returns id of account that we're using to sign transactions at source chain (delivery
-	/// proof).
-	fn source_transactions_author(&self) -> AccountIdOf<Self::SourceChain>;
-
-	/// Make messages receiving proof transaction.
-	fn make_messages_receiving_proof_transaction(
-		&self,
-		best_block_id: SourceHeaderIdOf<Self::MessageLane>,
-		transaction_nonce: IndexOf<Self::SourceChain>,
-		generated_at_header: TargetHeaderIdOf<Self::MessageLane>,
-		proof: <Self::MessageLane as MessageLane>::MessagesReceivingProof,
-	) -> Bytes;
-}
-
-/// Substrate-to-Substrate message lane.
-#[derive(Debug)]
-pub struct SubstrateMessageLaneToSubstrate<
-	Source: Chain,
-	SourceSignParams,
-	Target: Chain,
-	TargetSignParams,
-> {
-	/// Client for the source Substrate chain.
-	pub source_client: Client<Source>,
-	/// Parameters required to sign transactions for source chain.
-	pub source_sign: SourceSignParams,
-	/// Source transactions mortality.
-	pub source_transactions_mortality: Option<u32>,
-	/// Client for the target Substrate chain.
-	pub target_client: Client<Target>,
-	/// Parameters required to sign transactions for target chain.
-	pub target_sign: TargetSignParams,
-	/// Target transactions mortality.
-	pub target_transactions_mortality: Option<u32>,
-	/// Account id of relayer at the source chain.
-	pub relayer_id_at_source: Source::AccountId,
-}
-
-impl<Source: Chain, SourceSignParams: Clone, Target: Chain, TargetSignParams: Clone> Clone
-	for SubstrateMessageLaneToSubstrate<Source, SourceSignParams, Target, TargetSignParams>
+/// Run Substrate-to-Substrate messages sync loop.
+pub async fn run<P: SubstrateMessageLane>(params: MessagesRelayParams<P>) -> anyhow::Result<()>
+where
+	AccountIdOf<P::SourceChain>:
+		From<<AccountKeyPairOf<P::SourceTransactionSignScheme> as Pair>::Public>,
+	AccountIdOf<P::TargetChain>:
+		From<<AccountKeyPairOf<P::TargetTransactionSignScheme> as Pair>::Public>,
+	BalanceOf<P::SourceChain>: TryFrom<BalanceOf<P::TargetChain>>,
+	P::SourceTransactionSignScheme: TransactionSignScheme<Chain = P::SourceChain>,
+	P::TargetTransactionSignScheme: TransactionSignScheme<Chain = P::TargetChain>,
 {
-	fn clone(&self) -> Self {
-		Self {
-			source_client: self.source_client.clone(),
-			source_sign: self.source_sign.clone(),
-			source_transactions_mortality: self.source_transactions_mortality,
-			target_client: self.target_client.clone(),
-			target_sign: self.target_sign.clone(),
-			target_transactions_mortality: self.target_transactions_mortality,
-			relayer_id_at_source: self.relayer_id_at_source.clone(),
+	let source_client = params.source_client;
+	let target_client = params.target_client;
+	let stall_timeout = relay_substrate_client::bidirectional_transaction_stall_timeout(
+		params.source_transaction_params.mortality,
+		params.target_transaction_params.mortality,
+		P::SourceChain::AVERAGE_BLOCK_INTERVAL,
+		P::TargetChain::AVERAGE_BLOCK_INTERVAL,
+		STALL_TIMEOUT,
+	);
+	let relayer_id_at_source: AccountIdOf<P::SourceChain> =
+		params.source_transaction_params.signer.public().into();
+
+	// 2/3 is reserved for proofs and tx overhead
+	let max_messages_size_in_single_batch = P::TargetChain::max_extrinsic_size() / 3;
+	// we don't know exact weights of the Polkadot runtime. So to guess weights we'll be using
+	// weights from Rialto and then simply dividing it by x2.
+	let (max_messages_in_single_batch, max_messages_weight_in_single_batch) =
+		crate::messages_lane::select_delivery_transaction_limits::<
+			<P::TargetChain as ChainWithMessages>::WeightInfo,
+		>(
+			P::TargetChain::max_extrinsic_weight(),
+			P::SourceChain::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX,
+		);
+	let (max_messages_in_single_batch, max_messages_weight_in_single_batch) =
+		(max_messages_in_single_batch / 2, max_messages_weight_in_single_batch / 2);
+
+	let standalone_metrics = params.standalone_metrics.map(Ok).unwrap_or_else(|| {
+		crate::messages_metrics::standalone_metrics::<P>(
+			source_client.clone(),
+			target_client.clone(),
+		)
+	})?;
+
+	log::info!(
+		target: "bridge",
+		"Starting {} -> {} messages relay.\n\t\
+			{} relayer account id: {:?}\n\t\
+			Max messages in single transaction: {}\n\t\
+			Max messages size in single transaction: {}\n\t\
+			Max messages weight in single transaction: {}\n\t\
+			Tx mortality: {:?} (~{}m)/{:?} (~{}m)\n\t\
+			Stall timeout: {:?}",
+		P::SourceChain::NAME,
+		P::TargetChain::NAME,
+		P::SourceChain::NAME,
+		relayer_id_at_source,
+		max_messages_in_single_batch,
+		max_messages_size_in_single_batch,
+		max_messages_weight_in_single_batch,
+		params.source_transaction_params.mortality,
+		transaction_stall_timeout(
+			params.source_transaction_params.mortality,
+			P::SourceChain::AVERAGE_BLOCK_INTERVAL,
+			STALL_TIMEOUT,
+		).as_secs_f64() / 60.0f64,
+		params.target_transaction_params.mortality,
+		transaction_stall_timeout(
+			params.target_transaction_params.mortality,
+			P::TargetChain::AVERAGE_BLOCK_INTERVAL,
+			STALL_TIMEOUT,
+		).as_secs_f64() / 60.0f64,
+		stall_timeout,
+	);
+
+	messages_relay::message_lane_loop::run(
+		messages_relay::message_lane_loop::Params {
+			lane: params.lane_id,
+			source_tick: P::SourceChain::AVERAGE_BLOCK_INTERVAL,
+			target_tick: P::TargetChain::AVERAGE_BLOCK_INTERVAL,
+			reconnect_delay: relay_utils::relay_loop::RECONNECT_DELAY,
+			stall_timeout,
+			delivery_params: messages_relay::message_lane_loop::MessageDeliveryParams {
+				max_unrewarded_relayer_entries_at_target:
+					P::SourceChain::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX,
+				max_unconfirmed_nonces_at_target:
+					P::SourceChain::MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX,
+				max_messages_in_single_batch,
+				max_messages_weight_in_single_batch,
+				max_messages_size_in_single_batch,
+				relay_strategy: params.relay_strategy,
+			},
+		},
+		SubstrateMessagesSource::<P>::new(
+			source_client.clone(),
+			target_client.clone(),
+			params.lane_id,
+			params.source_transaction_params,
+			params.target_to_source_headers_relay,
+		),
+		SubstrateMessagesTarget::<P>::new(
+			target_client,
+			source_client,
+			params.lane_id,
+			relayer_id_at_source,
+			params.target_transaction_params,
+			standalone_metrics.clone(),
+			params.source_to_target_headers_relay,
+		),
+		standalone_metrics.register_and_spawn(params.metrics_params)?,
+		futures::future::pending(),
+	)
+	.await
+	.map_err(Into::into)
+}
+
+/// Different ways of building `receive_messages_proof` calls.
+pub trait ReceiveMessagesProofCallBuilder<P: SubstrateMessageLane> {
+	/// Given messages proof, build call of `receive_messages_proof` function of bridge
+	/// messages module at the target chain.
+	fn build_receive_messages_proof_call(
+		relayer_id_at_source: AccountIdOf<P::SourceChain>,
+		proof: SubstrateMessagesProof<P::SourceChain>,
+		messages_count: u32,
+		dispatch_weight: Weight,
+		trace_call: bool,
+	) -> CallOf<P::TargetChain>;
+}
+
+/// Building `receive_messages_proof` call when you have direct access to the target
+/// chain runtime.
+pub struct DirectReceiveMessagesProofCallBuilder<P, R, I> {
+	_phantom: PhantomData<(P, R, I)>,
+}
+
+impl<P, R, I> ReceiveMessagesProofCallBuilder<P> for DirectReceiveMessagesProofCallBuilder<P, R, I>
+where
+	P: SubstrateMessageLane,
+	R: BridgeMessagesConfig<I, InboundRelayer = AccountIdOf<P::SourceChain>>,
+	I: 'static,
+	R::SourceHeaderChain: bp_messages::target_chain::SourceHeaderChain<
+		R::InboundMessageFee,
+		MessagesProof = FromBridgedChainMessagesProof<HashOf<P::SourceChain>>,
+	>,
+	CallOf<P::TargetChain>: From<BridgeMessagesCall<R, I>> + GetDispatchInfo,
+{
+	fn build_receive_messages_proof_call(
+		relayer_id_at_source: AccountIdOf<P::SourceChain>,
+		proof: SubstrateMessagesProof<P::SourceChain>,
+		messages_count: u32,
+		dispatch_weight: Weight,
+		trace_call: bool,
+	) -> CallOf<P::TargetChain> {
+		let call: CallOf<P::TargetChain> = BridgeMessagesCall::<R, I>::receive_messages_proof {
+			relayer_id_at_bridged_chain: relayer_id_at_source,
+			proof: proof.1,
+			messages_count,
+			dispatch_weight,
 		}
+		.into();
+		if trace_call {
+			// this trace isn't super-accurate, because limits are for transactions and we
+			// have a call here, but it provides required information
+			log::trace!(
+				target: "bridge",
+				"Prepared {} -> {} messages delivery call. Weight: {}/{}, size: {}/{}",
+				P::SourceChain::NAME,
+				P::TargetChain::NAME,
+				call.get_dispatch_info().weight,
+				P::TargetChain::max_extrinsic_weight(),
+				call.encode().len(),
+				P::TargetChain::max_extrinsic_size(),
+			);
+		}
+		call
 	}
 }
 
-impl<Source: Chain, SourceSignParams, Target: Chain, TargetSignParams> MessageLane
-	for SubstrateMessageLaneToSubstrate<Source, SourceSignParams, Target, TargetSignParams>
+/// Macro that generates `ReceiveMessagesProofCallBuilder` implementation for the case when
+/// you only have an access to the mocked version of target chain runtime. In this case you
+/// should provide "name" of the call variant for the bridge messages calls and the "name" of
+/// the variant for the `receive_messages_proof` call within that first option.
+#[rustfmt::skip]
+#[macro_export]
+macro_rules! generate_mocked_receive_message_proof_call_builder {
+	($pipeline:ident, $mocked_builder:ident, $bridge_messages:path, $receive_messages_proof:path) => {
+		pub struct $mocked_builder;
+
+		impl $crate::messages_lane::ReceiveMessagesProofCallBuilder<$pipeline>
+			for $mocked_builder
+		{
+			fn build_receive_messages_proof_call(
+				relayer_id_at_source: relay_substrate_client::AccountIdOf<
+					<$pipeline as $crate::messages_lane::SubstrateMessageLane>::SourceChain
+				>,
+				proof: $crate::messages_source::SubstrateMessagesProof<
+					<$pipeline as $crate::messages_lane::SubstrateMessageLane>::SourceChain
+				>,
+				messages_count: u32,
+				dispatch_weight: Weight,
+				_trace_call: bool,
+			) -> relay_substrate_client::CallOf<
+				<$pipeline as $crate::messages_lane::SubstrateMessageLane>::TargetChain
+			> {
+				$bridge_messages($receive_messages_proof(
+					relayer_id_at_source,
+					proof.1,
+					messages_count,
+					dispatch_weight,
+				))
+			}
+		}
+	};
+}
+
+/// Different ways of building `receive_messages_delivery_proof` calls.
+pub trait ReceiveMessagesDeliveryProofCallBuilder<P: SubstrateMessageLane> {
+	/// Given messages delivery proof, build call of `receive_messages_delivery_proof` function of
+	/// bridge messages module at the source chain.
+	fn build_receive_messages_delivery_proof_call(
+		proof: SubstrateMessagesDeliveryProof<P::TargetChain>,
+		trace_call: bool,
+	) -> CallOf<P::SourceChain>;
+}
+
+/// Building `receive_messages_delivery_proof` call when you have direct access to the source
+/// chain runtime.
+pub struct DirectReceiveMessagesDeliveryProofCallBuilder<P, R, I> {
+	_phantom: PhantomData<(P, R, I)>,
+}
+
+impl<P, R, I> ReceiveMessagesDeliveryProofCallBuilder<P>
+	for DirectReceiveMessagesDeliveryProofCallBuilder<P, R, I>
 where
-	SourceSignParams: Clone + Send + Sync + 'static,
-	TargetSignParams: Clone + Send + Sync + 'static,
-	BlockNumberOf<Source>: BlockNumberBase,
-	BlockNumberOf<Target>: BlockNumberBase,
+	P: SubstrateMessageLane,
+	R: BridgeMessagesConfig<I>,
+	I: 'static,
+	R::TargetHeaderChain: bp_messages::source_chain::TargetHeaderChain<
+		R::OutboundPayload,
+		R::AccountId,
+		MessagesDeliveryProof = FromBridgedChainMessagesDeliveryProof<HashOf<P::TargetChain>>,
+	>,
+	CallOf<P::SourceChain>: From<BridgeMessagesCall<R, I>> + GetDispatchInfo,
 {
-	const SOURCE_NAME: &'static str = Source::NAME;
-	const TARGET_NAME: &'static str = Target::NAME;
+	fn build_receive_messages_delivery_proof_call(
+		proof: SubstrateMessagesDeliveryProof<P::TargetChain>,
+		trace_call: bool,
+	) -> CallOf<P::SourceChain> {
+		let call: CallOf<P::SourceChain> =
+			BridgeMessagesCall::<R, I>::receive_messages_delivery_proof {
+				proof: proof.1,
+				relayers_state: proof.0,
+			}
+			.into();
+		if trace_call {
+			// this trace isn't super-accurate, because limits are for transactions and we
+			// have a call here, but it provides required information
+			log::trace!(
+				target: "bridge",
+				"Prepared {} -> {} delivery confirmation transaction. Weight: {}/{}, size: {}/{}",
+				P::TargetChain::NAME,
+				P::SourceChain::NAME,
+				call.get_dispatch_info().weight,
+				P::SourceChain::max_extrinsic_weight(),
+				call.encode().len(),
+				P::SourceChain::max_extrinsic_size(),
+			);
+		}
+		call
+	}
+}
 
-	type MessagesProof = SubstrateMessagesProof<Source>;
-	type MessagesReceivingProof = SubstrateMessagesReceivingProof<Target>;
+/// Macro that generates `ReceiveMessagesDeliveryProofCallBuilder` implementation for the case when
+/// you only have an access to the mocked version of source chain runtime. In this case you
+/// should provide "name" of the call variant for the bridge messages calls and the "name" of
+/// the variant for the `receive_messages_delivery_proof` call within that first option.
+#[rustfmt::skip]
+#[macro_export]
+macro_rules! generate_mocked_receive_message_delivery_proof_call_builder {
+	($pipeline:ident, $mocked_builder:ident, $bridge_messages:path, $receive_messages_delivery_proof:path) => {
+		pub struct $mocked_builder;
 
-	type SourceChainBalance = Source::Balance;
-	type SourceHeaderNumber = BlockNumberOf<Source>;
-	type SourceHeaderHash = HashOf<Source>;
-
-	type TargetHeaderNumber = BlockNumberOf<Target>;
-	type TargetHeaderHash = HashOf<Target>;
+		impl $crate::messages_lane::ReceiveMessagesDeliveryProofCallBuilder<$pipeline>
+			for $mocked_builder
+		{
+			fn build_receive_messages_delivery_proof_call(
+				proof: $crate::messages_target::SubstrateMessagesDeliveryProof<
+					<$pipeline as $crate::messages_lane::SubstrateMessageLane>::TargetChain
+				>,
+				_trace_call: bool,
+			) -> relay_substrate_client::CallOf<
+				<$pipeline as $crate::messages_lane::SubstrateMessageLane>::SourceChain
+			> {
+				$bridge_messages($receive_messages_delivery_proof(proof.1, proof.0))
+			}
+		}
+	};
 }
 
 /// Returns maximal number of messages and their maximal cumulative dispatch weight, based
@@ -245,165 +485,20 @@ pub fn select_delivery_transaction_limits<W: pallet_bridge_messages::WeightInfoE
 	(max_number_of_messages, weight_for_messages_dispatch)
 }
 
-/// Shared references to the standalone metrics of the message lane relay loop.
-#[derive(Debug, Clone)]
-pub struct StandaloneMessagesMetrics<SC: Chain, TC: Chain> {
-	/// Global metrics.
-	pub global: GlobalMetrics,
-	/// Storage chain proof overhead metric.
-	pub source_storage_proof_overhead: StorageProofOverheadMetric<SC>,
-	/// Target chain proof overhead metric.
-	pub target_storage_proof_overhead: StorageProofOverheadMetric<TC>,
-	/// Source tokens to base conversion rate metric.
-	pub source_to_base_conversion_rate: Option<FloatJsonValueMetric>,
-	/// Target tokens to base conversion rate metric.
-	pub target_to_base_conversion_rate: Option<FloatJsonValueMetric>,
-	/// Source tokens to target tokens conversion rate metric. This rate is stored by the target
-	/// chain.
-	pub source_to_target_conversion_rate:
-		Option<FloatStorageValueMetric<TC, sp_runtime::FixedU128>>,
-	/// Target tokens to source tokens conversion rate metric. This rate is stored by the source
-	/// chain.
-	pub target_to_source_conversion_rate:
-		Option<FloatStorageValueMetric<SC, sp_runtime::FixedU128>>,
-}
-
-impl<SC: Chain, TC: Chain> StandaloneMessagesMetrics<SC, TC> {
-	/// Swap source and target sides.
-	pub fn reverse(self) -> StandaloneMessagesMetrics<TC, SC> {
-		StandaloneMessagesMetrics {
-			global: self.global,
-			source_storage_proof_overhead: self.target_storage_proof_overhead,
-			target_storage_proof_overhead: self.source_storage_proof_overhead,
-			source_to_base_conversion_rate: self.target_to_base_conversion_rate,
-			target_to_base_conversion_rate: self.source_to_base_conversion_rate,
-			source_to_target_conversion_rate: self.target_to_source_conversion_rate,
-			target_to_source_conversion_rate: self.source_to_target_conversion_rate,
-		}
-	}
-
-	/// Register all metrics in the registry.
-	pub fn register_and_spawn(
-		self,
-		metrics: MetricsParams,
-	) -> Result<MetricsParams, PrometheusError> {
-		self.global.register_and_spawn(&metrics.registry)?;
-		self.source_storage_proof_overhead.register_and_spawn(&metrics.registry)?;
-		self.target_storage_proof_overhead.register_and_spawn(&metrics.registry)?;
-		if let Some(m) = self.source_to_base_conversion_rate {
-			m.register_and_spawn(&metrics.registry)?;
-		}
-		if let Some(m) = self.target_to_base_conversion_rate {
-			m.register_and_spawn(&metrics.registry)?;
-		}
-		if let Some(m) = self.target_to_source_conversion_rate {
-			m.register_and_spawn(&metrics.registry)?;
-		}
-		Ok(metrics)
-	}
-
-	/// Return conversion rate from target to source tokens.
-	pub async fn target_to_source_conversion_rate(&self) -> Option<f64> {
-		Self::compute_target_to_source_conversion_rate(
-			*self.target_to_base_conversion_rate.as_ref()?.shared_value_ref().read().await,
-			*self.source_to_base_conversion_rate.as_ref()?.shared_value_ref().read().await,
-		)
-	}
-
-	/// Return conversion rate from target to source tokens, given conversion rates from
-	/// target/source tokens to some base token.
-	fn compute_target_to_source_conversion_rate(
-		target_to_base_conversion_rate: Option<f64>,
-		source_to_base_conversion_rate: Option<f64>,
-	) -> Option<f64> {
-		Some(source_to_base_conversion_rate? / target_to_base_conversion_rate?)
-	}
-}
-
-/// Create standalone metrics for the message lane relay loop.
-///
-/// All metrics returned by this function are exposed by loops that are serving given lane (`P`)
-/// and by loops that are serving reverse lane (`P` with swapped `TargetChain` and `SourceChain`).
-pub fn standalone_metrics<SC: Chain, TC: Chain>(
-	source_client: Client<SC>,
-	target_client: Client<TC>,
-	source_chain_token_id: Option<&str>,
-	target_chain_token_id: Option<&str>,
-	source_to_target_conversion_rate_params: Option<(StorageKey, FixedU128)>,
-	target_to_source_conversion_rate_params: Option<(StorageKey, FixedU128)>,
-) -> anyhow::Result<StandaloneMessagesMetrics<SC, TC>> {
-	Ok(StandaloneMessagesMetrics {
-		global: GlobalMetrics::new()?,
-		source_storage_proof_overhead: StorageProofOverheadMetric::new(
-			source_client.clone(),
-			format!("{}_storage_proof_overhead", SC::NAME.to_lowercase()),
-			format!("{} storage proof overhead", SC::NAME),
-		)?,
-		target_storage_proof_overhead: StorageProofOverheadMetric::new(
-			target_client.clone(),
-			format!("{}_storage_proof_overhead", TC::NAME.to_lowercase()),
-			format!("{} storage proof overhead", TC::NAME),
-		)?,
-		source_to_base_conversion_rate: source_chain_token_id
-			.map(|source_chain_token_id| {
-				crate::helpers::token_price_metric(source_chain_token_id).map(Some)
-			})
-			.unwrap_or(Ok(None))?,
-		target_to_base_conversion_rate: target_chain_token_id
-			.map(|target_chain_token_id| {
-				crate::helpers::token_price_metric(target_chain_token_id).map(Some)
-			})
-			.unwrap_or(Ok(None))?,
-		source_to_target_conversion_rate: source_to_target_conversion_rate_params
-			.map(|(key, rate)| {
-				FloatStorageValueMetric::<_, sp_runtime::FixedU128>::new(
-					target_client,
-					key,
-					Some(rate),
-					format!("{}_{}_to_{}_conversion_rate", TC::NAME, SC::NAME, TC::NAME),
-					format!(
-						"{} to {} tokens conversion rate (used by {})",
-						SC::NAME,
-						TC::NAME,
-						TC::NAME
-					),
-				)
-				.map(Some)
-			})
-			.unwrap_or(Ok(None))?,
-		target_to_source_conversion_rate: target_to_source_conversion_rate_params
-			.map(|(key, rate)| {
-				FloatStorageValueMetric::<_, sp_runtime::FixedU128>::new(
-					source_client,
-					key,
-					Some(rate),
-					format!("{}_{}_to_{}_conversion_rate", SC::NAME, TC::NAME, SC::NAME),
-					format!(
-						"{} to {} tokens conversion rate (used by {})",
-						TC::NAME,
-						SC::NAME,
-						SC::NAME
-					),
-				)
-				.map(Some)
-			})
-			.unwrap_or(Ok(None))?,
-	})
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use bp_runtime::Chain;
 
 	type RialtoToMillauMessagesWeights =
-		pallet_bridge_messages::weights::RialtoWeight<rialto_runtime::Runtime>;
+		pallet_bridge_messages::weights::MillauWeight<rialto_runtime::Runtime>;
 
 	#[test]
 	fn select_delivery_transaction_limits_works() {
 		let (max_count, max_weight) =
 			select_delivery_transaction_limits::<RialtoToMillauMessagesWeights>(
-				bp_millau::max_extrinsic_weight(),
-				bp_millau::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE,
+				bp_millau::Millau::max_extrinsic_weight(),
+				bp_rialto::MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX,
 			);
 		assert_eq!(
 			(max_count, max_weight),
@@ -412,15 +507,7 @@ mod tests {
 			// i.e. weight reserved for messages dispatch allows dispatch of non-trivial messages.
 			//
 			// Any significant change in this values should attract additional attention.
-			(782, 216_583_333_334),
-		);
-	}
-
-	#[async_std::test]
-	async fn target_to_source_conversion_rate_works() {
-		assert_eq!(
-			StandaloneMessagesMetrics::<relay_rococo_client::Rococo, relay_wococo_client::Wococo>::compute_target_to_source_conversion_rate(Some(183.15), Some(12.32)),
-			Some(12.32 / 183.15),
+			(958, 216_583_333_334),
 		);
 	}
 }

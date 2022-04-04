@@ -24,9 +24,8 @@ use thiserror::Error;
 use parity_scale_codec::{Decode, Encode};
 
 use super::{InvalidDisputeVote, SignedDisputeStatement, ValidDisputeVote};
-use polkadot_primitives::{
-	v1::{CandidateReceipt, DisputeStatement, SessionIndex, ValidatorIndex},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,
 };
 
 /// A dispute initiating/participating message that is guaranteed to have been built from signed

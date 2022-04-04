@@ -52,7 +52,7 @@ use polkadot_node_subsystem::{
 	SubsystemError, SubsystemSender,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, SessionIndex};
 
 #[cfg(test)]
 mod tests;
@@ -156,7 +156,7 @@ where
 					match result {
 						Ok(message) => message,
 						Err(e) => {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								err = ?e,
 								"Failed to receive a message from Overseer, exiting",
@@ -173,11 +173,11 @@ where
 					activated,
 					..
 				})) => {
-					tracing::trace!(target: LOG_TARGET, "active leaves signal");
+					gum::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
 					if let Err(e) = self.handle_active_leaves(&mut ctx, leaves).await {
-						tracing::debug!(target: LOG_TARGET, error = ?e);
+						gum::debug!(target: LOG_TARGET, error = ?e);
 					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
@@ -215,7 +215,7 @@ where
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
 				let is_new_session = maybe_new_session.is_some();
 				if is_new_session {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						%session_index,
 						"New session detected",
@@ -312,7 +312,7 @@ where
 				resolved.insert(authority, addrs);
 			} else {
 				failures += 1;
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Couldn't resolve addresses of authority: {:?}",
 					authority
@@ -320,7 +320,7 @@ where
 			}
 		}
 		self.resolved_authorities = resolved;
-		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
+		gum::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
 		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
 			validator_addrs,
@@ -335,7 +335,7 @@ where
 			match self.failure_start {
 				None => self.failure_start = Some(timestamp),
 				Some(first) if first.elapsed() >= LOW_CONNECTIVITY_WARN_DELAY => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						connected = ?(num - failures),
 						target = ?num,
@@ -343,7 +343,7 @@ where
 					);
 				},
 				Some(_) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						connected = ?(num - failures),
 						target = ?num,
@@ -399,13 +399,13 @@ where
 		// we already know it is broken.
 		// https://github.com/paritytech/polkadot/issues/3921
 		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
 			);
 		}
 		let pretty = PrettyAuthorities(unconnected_authorities);
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?connected_ratio,
 			?absolute_connected,
@@ -425,7 +425,7 @@ where
 	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 {
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		authority_count = ?authorities.len(),
 		"Determined relevant authorities",

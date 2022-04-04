@@ -21,11 +21,12 @@
 //!
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
 	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	ValidatorId,
 };
+pub use rand;
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
@@ -158,7 +159,7 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	collator: Sr25519Keyring,
 ) -> CandidateDescriptor<H> {
 	let validation_code_hash = validation_code_hash.into();
-	let payload = polkadot_primitives::v1::collator_signature_payload::<H>(
+	let payload = polkadot_primitives::v2::collator_signature_payload::<H>(
 		&relay_parent,
 		&para_id,
 		&persisted_validation_data_hash,
@@ -189,7 +190,7 @@ pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(
 	collator: Sr25519Keyring,
 ) {
 	descriptor.collator = collator.public().into();
-	let payload = polkadot_primitives::v1::collator_signature_payload::<H>(
+	let payload = polkadot_primitives::v2::collator_signature_payload::<H>(
 		&descriptor.relay_parent,
 		&descriptor.para_id,
 		&descriptor.persisted_validation_data_hash,
@@ -222,5 +223,35 @@ impl TestCandidateBuilder {
 		descriptor.para_id = self.para_id;
 		descriptor.pov_hash = self.pov_hash;
 		CandidateReceipt { descriptor, commitments_hash: self.commitments_hash }
+	}
+}
+
+/// A special `Rng` that always returns zero for testing something that implied
+/// to be random but should not be random in the tests
+pub struct AlwaysZeroRng;
+
+impl Default for AlwaysZeroRng {
+	fn default() -> Self {
+		Self {}
+	}
+}
+impl rand::RngCore for AlwaysZeroRng {
+	fn next_u32(&mut self) -> u32 {
+		0_u32
+	}
+
+	fn next_u64(&mut self) -> u64 {
+		0_u64
+	}
+
+	fn fill_bytes(&mut self, dest: &mut [u8]) {
+		for element in dest.iter_mut() {
+			*element = 0_u8;
+		}
+	}
+
+	fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+		self.fill_bytes(dest);
+		Ok(())
 	}
 }
