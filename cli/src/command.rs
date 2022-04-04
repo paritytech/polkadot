@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{Cli, Subcommand};
+use frame_benchmarking_cli::BenchmarkCmd;
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
@@ -214,6 +215,25 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	} else {
 		Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id()))
 	}
+}
+
+/// Unwraps a [`polkadot_client::Client`] into the concrete runtime client.
+macro_rules! unwrap_client {
+	(
+		$client:ident,
+		$code:expr
+	) => {
+		match &*$client {
+			#[cfg(feature = "polkadot-native")]
+			polkadot_client::Client::Polkadot($client) => $code,
+			#[cfg(feature = "westend-native")]
+			polkadot_client::Client::Westend($client) => $code,
+			#[cfg(feature = "kusama-native")]
+			polkadot_client::Client::Kusama($client) => $code,
+			#[cfg(feature = "rococo-native")]
+			polkadot_client::Client::Rococo($client) => $code,
+		}
+	};
 }
 
 /// Runs performance checks.
@@ -438,212 +458,77 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
 
-			ensure_dev(chain_spec).map_err(Error::Other)?;
+			match cmd {
+				BenchmarkCmd::Storage(cmd) => runner.sync_run(|mut config| {
+					let (client, backend, _, _) = service::new_chain_ops(&mut config, None)?;
+					let db = backend.expose_db();
+					let storage = backend.expose_storage();
 
-			#[cfg(feature = "kusama-native")]
-			if chain_spec.is_kusama() {
-				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
-						config,
-					)
-					.map_err(|e| Error::SubstrateCli(e))
-				})?)
-			}
+					unwrap_client!(client, cmd.run(config, client.clone(), db, storage))
+						.map_err(Error::SubstrateCli)
+				}),
+				BenchmarkCmd::Block(cmd) => runner.sync_run(|mut config| {
+					let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
 
-			#[cfg(feature = "westend-native")]
-			if chain_spec.is_westend() {
-				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
-						config,
-					)
-					.map_err(|e| Error::SubstrateCli(e))
-				})?)
-			}
+					unwrap_client!(client, cmd.run(client.clone())).map_err(Error::SubstrateCli)
+				}),
+				BenchmarkCmd::Overhead(cmd) => {
+					ensure_dev(chain_spec).map_err(Error::Other)?;
+					runner.sync_run(|mut config| {
+						use polkadot_client::benchmark_inherent_data;
+						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
+						let wrapped = client.clone();
 
-			// else we assume it is polkadot.
-			#[cfg(feature = "polkadot-native")]
-			{
-				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-						config,
-					)
-					.map_err(|e| Error::SubstrateCli(e))
-				})?)
-			}
-			#[cfg(not(feature = "polkadot-native"))]
-			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		},
-		Some(Subcommand::BenchmarkBlock(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
+						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+						let inherent_data = benchmark_inherent_data(header)
+							.map_err(|e| format!("generating inherent data: {:?}", e))?;
 
-			#[cfg(feature = "rococo-native")]
-			if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+						unwrap_client!(
+							client,
+							cmd.run(config, client.clone(), inherent_data, wrapped)
+						)
+						.map_err(Error::SubstrateCli)
+					})
+				},
+				BenchmarkCmd::Pallet(cmd) => {
+					set_default_ss58_version(chain_spec);
+					ensure_dev(chain_spec).map_err(Error::Other)?;
 
-					if let polkadot_client::Client::Rococo(pd) = &*client {
-						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
-					} else {
-						unreachable!("Checked above; qed")
+					#[cfg(feature = "kusama-native")]
+					if chain_spec.is_kusama() {
+						return Ok(runner.sync_run(|config| {
+							cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})?)
 					}
-				})?)
-			}
 
-			#[cfg(feature = "kusama-native")]
-			if chain_spec.is_kusama() {
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					if let polkadot_client::Client::Kusama(pd) = &*client {
-						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
-					} else {
-						unreachable!("Checked above; qed")
+					#[cfg(feature = "westend-native")]
+					if chain_spec.is_westend() {
+						return Ok(runner.sync_run(|config| {
+							cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})?)
 					}
-				})?)
-			}
 
-			#[cfg(feature = "westend-native")]
-			if chain_spec.is_westend() {
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					if let polkadot_client::Client::Westend(pd) = &*client {
-						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
-					} else {
-						unreachable!("Checked above; qed")
+					// else we assume it is polkadot.
+					#[cfg(feature = "polkadot-native")]
+					{
+						return Ok(runner.sync_run(|config| {
+							cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})?)
 					}
-				})?)
+
+					#[cfg(not(feature = "polkadot-native"))]
+					#[allow(unreachable_code)]
+					Err(service::Error::NoRuntime.into())
+				},
+				// NOTE: this allows the Polkadot client to leniently implement
+				// new benchmark commands.
+				#[allow(unreachable_patterns, useless_attribute)]
+				_ => Err(Error::CommandNotImplemented),
 			}
-
-			#[cfg(feature = "polkadot-native")]
-			{
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					if let polkadot_client::Client::Polkadot(pd) = &*client {
-						Ok((cmd.run(pd.clone()).map_err(Error::SubstrateCli), task_manager))
-					} else {
-						unreachable!("Checked above; qed")
-					}
-				})?)
-			}
-
-			#[cfg(not(feature = "polkadot-native"))]
-			unreachable!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		},
-		Some(Subcommand::BenchmarkOverhead(cmd)) => {
-			use polkadot_client::benchmark_inherent_data;
-
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
-			ensure_dev(chain_spec).map_err(Error::Other)?;
-
-			#[cfg(feature = "rococo-native")]
-			if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = benchmark_inherent_data(header)
-						.map_err(|e| format!("generating inherent data: {:?}", e))?;
-
-					if let polkadot_client::Client::Rococo(pd) = &*client {
-						Ok((
-							cmd.run(config, pd.clone(), inherent_data, client)
-								.map_err(Error::SubstrateCli),
-							task_manager,
-						))
-					} else {
-						unreachable!("Checked above; qed")
-					}
-				})?)
-			}
-
-			#[cfg(feature = "kusama-native")]
-			if chain_spec.is_kusama() {
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = benchmark_inherent_data(header)
-						.map_err(|e| format!("generating inherent data: {:?}", e))?;
-
-					if let polkadot_client::Client::Kusama(pd) = &*client {
-						Ok((
-							cmd.run(config, pd.clone(), inherent_data, client)
-								.map_err(Error::SubstrateCli),
-							task_manager,
-						))
-					} else {
-						unreachable!("Checked above; qed")
-					}
-				})?)
-			}
-
-			#[cfg(feature = "westend-native")]
-			if chain_spec.is_westend() {
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = benchmark_inherent_data(header)
-						.map_err(|e| format!("generating inherent data: {:?}", e))?;
-
-					if let polkadot_client::Client::Westend(pd) = &*client {
-						Ok((
-							cmd.run(config, pd.clone(), inherent_data, client)
-								.map_err(Error::SubstrateCli),
-							task_manager,
-						))
-					} else {
-						unreachable!("Checked above; qed")
-					}
-				})?)
-			}
-
-			#[cfg(feature = "polkadot-native")]
-			{
-				return Ok(runner.async_run(|mut config| {
-					let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-
-					let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
-					let inherent_data = benchmark_inherent_data(header)
-						.map_err(|e| format!("generating inherent data: {:?}", e))?;
-
-					if let polkadot_client::Client::Polkadot(pd) = &*client {
-						Ok((
-							cmd.run(config, pd.clone(), inherent_data, client)
-								.map_err(Error::SubstrateCli),
-							task_manager,
-						))
-					} else {
-						unreachable!("Checked above; qed")
-					}
-				})?)
-			}
-
-			#[cfg(not(feature = "polkadot-native"))]
-			unreachable!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		},
-		Some(Subcommand::BenchmarkStorage(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
-
-			Ok(runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				let db = backend.expose_db();
-				let storage = backend.expose_storage();
-
-				Ok((
-					cmd.run(config, client, db, storage).map_err(Error::SubstrateCli),
-					task_manager,
-				))
-			})?)
 		},
 		Some(Subcommand::HostPerfCheck) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
