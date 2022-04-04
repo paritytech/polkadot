@@ -46,7 +46,7 @@ struct MetricsInner {
 	/// The duration between the pure recovery and verification.
 	time_erasure_recovery: Histogram,
 
-	/// Time of a full recovery successful recovery, including erasure decoding or until we gave
+	/// Time of a full recovery, including erasure decoding or until we gave
 	/// up.
 	time_full_recovery: Histogram,
 
