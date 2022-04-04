@@ -3540,6 +3540,7 @@ dependencies = [
  "pallet-treasury",
  "pallet-utility",
  "pallet-vesting",
+ "pallet-whitelist",
  "pallet-xcm",
  "parity-scale-codec",
  "polkadot-primitives",
@@ -5872,6 +5873,20 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-whitelist"
+version = "4.0.0-dev"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-api",
  "sp-runtime",
  "sp-std",
 ]
@@ -12903,10 +12918,6 @@ version = "4.0.0-dev"
 
 [[patch.unused]]
 name = "pallet-uniques"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-whitelist"
 version = "4.0.0-dev"
 
 [[patch.unused]]

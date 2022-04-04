@@ -17,7 +17,7 @@
 //! Old governance configurations for the Kusama runtime.
 
 use super::*;
-use frame_support::parameter_types;
+use frame_support::{parameter_types, traits::{EitherOf, EitherOfDiverse}};
 use frame_system::EnsureRootWithSuccess;
 
 parameter_types! {
@@ -112,6 +112,8 @@ pub mod pallet_custom_origins {
 		MediumSpender,
 		/// Origin able to spend up to 5,000 KSM from the treasury at once.
 		BigSpender,
+		/// Origin able to dispatch a whitelisted call.
+		WhitelistedCaller,
 	}
 
 	macro_rules! decl_ensure {
@@ -158,22 +160,26 @@ pub mod pallet_custom_origins {
 		SmallSpender: Balance = 50 * UNITS,
 		MediumSpender: Balance = 500 * UNITS,
 		BigSpender: Balance = 5_000 * UNITS,
+		WhitelistedCaller,
 	);
 }
 pub use pallet_custom_origins::{
 	StakingAdmin, Treasurer, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
 	ReferendumCanceller, ReferendumKiller, SmallTipper, BigTipper, SmallSpender, MediumSpender,
-	BigSpender,
+	BigSpender, WhitelistedCaller,
 };
 
 parameter_types! {
 	pub const MaxBalance: Balance = Balance::max_value();
 }
-pub type TreasurySpender = EnsureOneOf<
+pub type TreasurySpender = EitherOf<
 	EnsureRootWithSuccess<AccountId, Balance, MaxBalance>,
-	EnsureOneOf<
-		EnsureOneOf<SmallTipper, BigTipper>,
-		EnsureOneOf<SmallSpender, EnsureOneOf<MediumSpender, BigSpender>>
+	EitherOf<
+		EitherOf<SmallTipper<AccountId>, BigTipper<AccountId>>,
+		EitherOf<
+			SmallSpender<AccountId>,
+			EitherOf<MediumSpender<AccountId>, BigSpender<AccountId>>
+		>
 	>
 >;
 
@@ -218,7 +224,19 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 	}
 }
 
-// TODO: Whitelist pallet.
+pub type WhitelistOrigin = EitherOfDiverse<
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionAtLeast<AccountId, FellowshipCollective, 3, 5>,
+>;
+
+impl pallet_whitelist::Config for Runtime {
+	type WeightInfo = pallet_whitelist::weights::SubstrateWeight<Self>; //TODO
+	type Event = Event;
+	type Call = Call;
+	type WhitelistOrigin = WhitelistOrigin;
+	type DispatchWhitelistedOrigin = WhitelistedCaller<AccountId>;
+	type PreimageProvider = super::Preimage;
+}
 
 impl pallet_referenda::Config for Runtime {
 	type WeightInfo = pallet_referenda::weights::SubstrateWeight<Self>; //TODO
