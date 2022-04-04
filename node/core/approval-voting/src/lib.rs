@@ -2259,6 +2259,12 @@ async fn launch_approval(
 			},
 		};
 
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			"Got data for candidate",
+		);
+
 		let validation_code = match code_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
 			Ok(Err(_)) => return ApprovalState::failed(validator_index, candidate_hash),
@@ -2278,6 +2284,12 @@ async fn launch_approval(
 			},
 		};
 
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			"Got code for candidate",
+		);
+
 		let (val_tx, val_rx) = oneshot::channel();
 
 		sender
@@ -2294,7 +2306,21 @@ async fn launch_approval(
 			)
 			.await;
 
-		match val_rx.await {
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			"Sent validation request for candidate",
+		);
+
+		let validation_result = val_rx.await;
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			"Got validation result for candidate",
+		);
+
+		match validation_result {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
 			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
