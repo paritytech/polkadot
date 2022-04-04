@@ -540,11 +540,22 @@ impl CurrentlyCheckingSet {
 				let work = launch_work.await?;
 				self.currently_checking.push(Box::pin(async move {
 					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
-						None => ApprovalState {
-							candidate_hash,
-							validator_index,
-							approval_outcome: ApprovalOutcome::TimedOut,
-						},
+						None => {
+							// TODO [now]: remove.
+							gum::debug!(
+								target: LOG_TARGET,
+								block_hash = ?relay_block,
+								?candidate_hash,
+								?validator_index,
+								"Approval is stale - took too long (>120s)",
+							);
+
+							ApprovalState {
+								candidate_hash,
+								validator_index,
+								approval_outcome: ApprovalOutcome::TimedOut,
+							}
+						}
 						Some(approval_state) => approval_state,
 					}
 				}));
@@ -2368,6 +2379,15 @@ async fn issue_approval(
 	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {
+			// TODO [now]: remove.
+			gum::debug!(
+				target: LOG_TARGET,
+				?block_hash,
+				?candidate_hash,
+				?validator_index,
+				"Approval is stale - block entry missing",
+			);
+
 			// not a cause for alarm - just lost a race with pruning, most likely.
 			metrics.on_approval_stale();
 			return Ok(Vec::new())
