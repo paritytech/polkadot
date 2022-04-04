@@ -7275,6 +7275,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "substrate-frame-rpc-system",
+ "substrate-state-trie-migration-rpc",
 ]
 
 [[package]]
@@ -11019,6 +11020,29 @@ dependencies = [
  "prometheus",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "substrate-state-trie-migration-rpc"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#7a09b82772b0597cdae224f4b124d660dda9e82b"
+dependencies = [
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "log",
+ "parity-scale-codec",
+ "sc-client-api",
+ "sc-rpc-api",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "trie-db",
 ]
 
 [[package]]
