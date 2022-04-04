@@ -205,8 +205,8 @@ impl metrics::Metrics for Metrics {
 			)?,
 			full_recoveries_started: prometheus::register(
 				Counter::new(
-					"polkadot_parachain_availability_recovery_recovieries_issued",
-					"Total number of issued recoveries by other subsystems.",
+					"polkadot_parachain_availability_recovery_recovieries_started",
+					"Total number of started recoveries.",
 				)?,
 				registry,
 			)?,
