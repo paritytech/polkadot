@@ -20,7 +20,6 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
-	convert::TryFrom,
 	pin::Pin,
 	time::Duration,
 };

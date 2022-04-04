@@ -54,7 +54,7 @@ use sp_consensus_slots::Slot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use futures::{channel::oneshot, prelude::*};
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 use super::approval_db::v1;
 use crate::{
