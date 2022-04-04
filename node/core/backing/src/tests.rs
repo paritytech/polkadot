@@ -1456,7 +1456,6 @@ fn validation_work_ignores_wrong_collator() {
 #[test]
 fn candidate_backing_reorders_votes() {
 	use sp_core::Encode;
-	use std::convert::TryFrom;
 
 	let para_id = ParaId::from(10);
 	let validators = vec![
