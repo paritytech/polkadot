@@ -33,14 +33,14 @@ one: parachain 2006 is registered within 60 seconds
 two: parachain 2007 is registered within 60 seconds
 
 # Check if network is fully connected.
-alice: reports peers count is at least 15 within 15 seconds
-bob: reports peers count is at least 15 within 15 seconds
-charlie: reports peers count is at least 15 within 15 seconds
-dave: reports peers count is at least 15 within 15 seconds
-ferdie: reports peers count is at least 15 within 15 seconds
-eve: reports peers count is at least 15 within 15 seconds
-one: reports peers count is at least 15 within 15 seconds
-two: reports peers count is at least 15 within 15 seconds
+alice: reports peers count is at least 15 within 20 seconds
+bob: reports peers count is at least 15 within 20 seconds
+charlie: reports peers count is at least 15 within 20 seconds
+dave: reports peers count is at least 15 within 20 seconds
+ferdie: reports peers count is at least 15 within 20 seconds
+eve: reports peers count is at least 15 within 20 seconds
+one: reports peers count is at least 15 within 20 seconds
+two: reports peers count is at least 15 within 20 seconds
 
 # Ensure parachains made progress.
 alice: parachain 2000 block height is at least 10 within 300 seconds
