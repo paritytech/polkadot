@@ -551,6 +551,14 @@ where
 		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
 		.collect();
 
+	// TODO [now]: remove, just for debugging.
+	gum::info!(
+		target: LOG_TARGET,
+		?row_neighbors,
+		?column_neighbors,
+		"New Gossip Topology",
+	);
+
 	ctx.send_message(NetworkBridgeMessage::NewGossipTopology {
 		session: session_index,
 		our_neighbors_x: row_neighbors,
