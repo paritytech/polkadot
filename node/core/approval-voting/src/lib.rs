@@ -555,7 +555,7 @@ impl CurrentlyCheckingSet {
 								validator_index,
 								approval_outcome: ApprovalOutcome::TimedOut,
 							}
-						}
+						},
 						Some(approval_state) => approval_state,
 					}
 				}));

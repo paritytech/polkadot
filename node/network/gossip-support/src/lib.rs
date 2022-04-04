@@ -552,12 +552,7 @@ where
 		.collect();
 
 	// TODO [now]: remove, just for debugging.
-	gum::info!(
-		target: LOG_TARGET,
-		?row_neighbors,
-		?column_neighbors,
-		"New Gossip Topology",
-	);
+	gum::info!(target: LOG_TARGET, ?row_neighbors, ?column_neighbors, "New Gossip Topology",);
 
 	ctx.send_message(NetworkBridgeMessage::NewGossipTopology {
 		session: session_index,
