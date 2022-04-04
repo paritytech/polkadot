@@ -33,7 +33,7 @@ use frame_support::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
-use sp_std::ops::RangeInclusive;
+use sp_std::{convert::TryFrom, ops::RangeInclusive};
 
 /// Initial value of `MillauToRialtoConversionRate` parameter.
 pub const INITIAL_MILLAU_TO_RIALTO_CONVERSION_RATE: FixedU128 =
