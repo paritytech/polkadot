@@ -539,20 +539,25 @@ where
 		.expect("our_index < len; indices contains it; qed");
 
 	let neighbors = matrix_neighbors(our_shuffled_position, len);
-	let row_neighbors = neighbors
+	let row_neighbors: HashMap<_, _> = neighbors
 		.row_neighbors
 		.map(|i| indices[i])
 		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
 		.collect();
 
-	let column_neighbors = neighbors
+	let column_neighbors: HashMap<_, _> = neighbors
 		.column_neighbors
 		.map(|i| indices[i])
 		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
 		.collect();
 
 	// TODO [now]: remove, just for debugging.
-	gum::info!(target: LOG_TARGET, ?row_neighbors, ?column_neighbors, "New Gossip Topology",);
+	gum::info!(
+		target: LOG_TARGET,
+		row_neighbors = ?row_neighbors.values().cloned().collect::<Vec<_>>(),
+		column_neighbors = ?column_neighbors.values().cloned().collect::<Vec<_>>(),
+		"New Gossip Topology",
+	);
 
 	ctx.send_message(NetworkBridgeMessage::NewGossipTopology {
 		session: session_index,
