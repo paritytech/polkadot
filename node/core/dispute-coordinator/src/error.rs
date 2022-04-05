@@ -20,7 +20,7 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem::{errors::ChainApiError, SubsystemError};
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
-use crate::{real::participation, LOG_TARGET};
+use crate::{participation, LOG_TARGET};
 use parity_scale_codec::Error as CodecError;
 
 pub type Result<T> = std::result::Result<T, Error>;

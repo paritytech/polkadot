@@ -18,7 +18,7 @@ use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
 use polkadot_primitives::v2::{BlockNumber, Hash};
 
-use crate::real::ordering::CandidateComparator;
+use crate::ordering::CandidateComparator;
 
 use super::{ParticipationRequest, QueueError, Queues};
 
