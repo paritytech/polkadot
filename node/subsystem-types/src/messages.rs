@@ -888,7 +888,7 @@ pub enum ApprovalVotingMessage {
 }
 
 /// Message to the Approval Distribution subsystem.
-#[derive(Debug, derive_more::From)]
+#[derive(Clone, Debug, derive_more::From)]
 pub enum ApprovalDistributionMessage {
 	/// Notify the `ApprovalDistribution` subsystem about new blocks
 	/// and the candidates contained within them.

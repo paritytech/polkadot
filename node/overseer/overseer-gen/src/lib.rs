@@ -333,7 +333,7 @@ pub struct SubsystemInstance<Message, Signal> {
 /// between subsystems.
 ///
 /// It is generic over over the message type `M` that a particular `Subsystem` may use.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum FromOverseer<Message, Signal> {
 	/// Signal from the `Overseer`.
 	Signal(Signal),

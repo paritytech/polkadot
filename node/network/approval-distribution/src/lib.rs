@@ -29,11 +29,12 @@ use polkadot_node_primitives::approval::{
 };
 use polkadot_node_subsystem::{
 	messages::{
+		AllMessages::{ApprovalVoting, NetworkBridge},
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
 		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
+	SubsystemError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
@@ -48,6 +49,7 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+const WORKER_COUNT: usize = 16;
 const LOG_TARGET: &str = "parachain::approval-distribution";
 
 const COST_UNEXPECTED_MESSAGE: Rep =
@@ -64,6 +66,12 @@ const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
 	metrics: Metrics,
+}
+
+// A task in a pool of approval distribution worker.
+pub struct ApprovalDistributionWorker {
+	metrics: Metrics,
+	proxy_receiver: futures::channel::mpsc::Receiver<FromOverseer<ApprovalDistributionMessage>>,
 }
 
 /// Contains recently finalized
@@ -224,8 +232,7 @@ enum PendingMessage {
 impl State {
 	async fn handle_network_msg(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		metrics: &Metrics,
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
@@ -283,8 +290,7 @@ impl State {
 
 	async fn handle_new_blocks(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 	) {
@@ -392,8 +398,7 @@ impl State {
 
 	async fn process_incoming_peer_message(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		msg: protocol_v1::ApprovalDistributionMessage,
@@ -480,8 +485,7 @@ impl State {
 
 	async fn handle_peer_view_change(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
@@ -539,8 +543,7 @@ impl State {
 
 	async fn import_and_circulate_assignment(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
@@ -615,12 +618,11 @@ impl State {
 			}
 
 			let (tx, rx) = oneshot::channel();
-
-			ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
+			ctx.send_message(ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
 				claimed_candidate_index,
 				tx,
-			))
+			)))
 			.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
@@ -749,20 +751,19 @@ impl State {
 				"Sending an assignment to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
 				),
-			))
+			)))
 			.await;
 		}
 	}
 
 	async fn import_and_circulate_approval(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
@@ -846,8 +847,10 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 
-			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
-				.await;
+			ctx.send_message(polkadot_node_subsystem::messages::AllMessages::ApprovalVoting(
+				ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx),
+			))
+			.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
@@ -971,19 +974,18 @@ impl State {
 				"Sending an approval to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
 				),
-			))
+			)))
 			.await;
 		}
 	}
 
 	async fn unify_with_peer(
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		gossip_peers: &HashSet<PeerId>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
@@ -1061,8 +1063,7 @@ impl State {
 
 	async fn send_gossip_messages_to_peer(
 		entries: &mut HashMap<Hash, BlockEntry>,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl SubsystemSender,
 		peer_id: PeerId,
 		blocks: Vec<(Hash, MissingKnowledge)>,
 	) {
@@ -1179,12 +1180,12 @@ impl State {
 				"Sending assignments to a peer",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
 				),
-			))
+			)))
 			.await;
 		}
 
@@ -1197,24 +1198,19 @@ impl State {
 				"Sending approvals to a peer",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
 				),
-			))
+			)))
 			.await;
 		}
 	}
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-	          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
-	peer_id: PeerId,
-	rep: Rep,
-) {
+async fn modify_reputation(ctx: &mut impl SubsystemSender, peer_id: PeerId, rep: Rep) {
 	gum::trace!(
 		target: LOG_TARGET,
 		reputation = ?rep,
@@ -1222,31 +1218,60 @@ async fn modify_reputation(
 		"Reputation change for peer",
 	);
 
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
+	ctx.send_message(NetworkBridge(NetworkBridgeMessage::ReportPeer(peer_id, rep)))
+		.await;
+}
+
+enum WorkerRouting {
+	/// Message is to be dropped
+	None,
+	/// Message is to be broadcasted to all
+	All,
+	/// Message is to be sent to a specific recipient
+	WorkerIndex(usize),
+	/// Messages to be sent to specific recipients
+	MultiWorkerIndex(Vec<usize>, ApprovalDistributionMessage),
 }
 
 impl ApprovalDistribution {
-	/// Create a new instance of the [`ApprovalDistribution`] subsystem.
+	/// Create a new instance of the [`ApprovalDistribution`] subsystem. This is just a wrapper
+	/// which distributes work to single threaded `ApprovalDistributionWorker` instances in a pool.
 	pub fn new(metrics: Metrics) -> Self {
 		Self { metrics }
 	}
 
-	async fn run<Context>(self, ctx: Context)
+	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
 		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
-		let mut state = State::default();
-		self.run_inner(ctx, &mut state).await
+		let mut pool = Vec::new();
+
+		// Spawn our workers.
+		for _ in 0..WORKER_COUNT {
+			// Make the proxy pipes.
+			let (proxy_sender, proxy_receiver) = futures::channel::mpsc::channel(10);
+			let subsystem_sender = ctx.sender().clone();
+			let worker = ApprovalDistributionWorker::new(self.metrics.clone(), proxy_receiver);
+			ctx.spawn("approval-distribution-worker", Box::pin(worker.run(subsystem_sender)))
+				.unwrap();
+			pool.push(proxy_sender);
+		}
+
+		self.run_inner(ctx, pool).await
 	}
 
 	/// Used for testing.
-	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
-	where
+	async fn run_inner<Context>(
+		self,
+		mut ctx: Context,
+		mut pool: Vec<futures::channel::mpsc::Sender<FromOverseer<ApprovalDistributionMessage>>>,
+	) where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
 		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
 		loop {
+			// We need to compute the worker shard index.
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
@@ -1254,9 +1279,99 @@ impl ApprovalDistribution {
 					return
 				},
 			};
+
+			let worker_routing_info = match &message {
+				FromOverseer::Communication { msg } => Self::handle_incoming(&msg, WORKER_COUNT),
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					..
+				})) => {
+					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+					// the relay chain blocks relevant to the approval subsystems
+					// are those that are available, but not finalized yet
+					// actived and deactivated heads hence are irrelevant to this subsystem
+					WorkerRouting::None
+				},
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) =>
+					WorkerRouting::All,
+				FromOverseer::Signal(OverseerSignal::Conclude) => WorkerRouting::All,
+			};
+
+			match worker_routing_info {
+				WorkerRouting::All =>
+					for i in 0..WORKER_COUNT {
+						let msg_clone = message.clone();
+						pool[i].try_send(msg_clone).unwrap();
+					},
+				WorkerRouting::None => {},
+				WorkerRouting::WorkerIndex(index) => pool[index].try_send(message).unwrap(),
+				_ => {},
+			}
+		}
+	}
+
+	fn handle_incoming(msg: &ApprovalDistributionMessage, worker_count: usize) -> WorkerRouting {
+		// Shard by block hash.
+		match msg {
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(event) => {
+				WorkerRouting::All
+				// state.handle_network_msg(ctx, metrics, event).await;
+			},
+			ApprovalDistributionMessage::NewBlocks(metas) => {
+				// state.handle_new_blocks(ctx, metrics, metas).await;
+				WorkerRouting::All
+			},
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our assignment on candidate (block={}, index={})",
+					cert.block_hash,
+					candidate_index,
+				);
+				// Quick hack. This needs to be done properly.
+				WorkerRouting::WorkerIndex(cert.block_hash.0[0] as usize % worker_count)
+			},
+			ApprovalDistributionMessage::DistributeApproval(vote) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our approval vote on candidate (block={}, index={})",
+					vote.block_hash,
+					vote.candidate_index,
+				);
+				// Quick hack. This needs to be done properly.
+				WorkerRouting::WorkerIndex(vote.block_hash.0[0] as usize % worker_count)
+			},
+		}
+	}
+}
+
+impl ApprovalDistributionWorker {
+	/// Create a new instance of the [`ApprovalDistribution`] subsystem.
+	pub fn new(
+		metrics: Metrics,
+		proxy_receiver: futures::channel::mpsc::Receiver<FromOverseer<ApprovalDistributionMessage>>,
+	) -> Self {
+		Self { metrics, proxy_receiver }
+	}
+
+	async fn run(self, subsystem_sender: impl SubsystemSender) {
+		let mut state = State::default();
+		self.run_inner(subsystem_sender, &mut state).await
+	}
+
+	/// Used for testing.
+	async fn run_inner(mut self, mut subsystem_sender: impl SubsystemSender, state: &mut State) {
+		loop {
+			let message = match self.proxy_receiver.try_next() {
+				Ok(Some(message)) => message,
+				Ok(None) => continue, // Error here ?
+				Err(e) => {
+					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+					return
+				},
+			};
 			match message {
 				FromOverseer::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, msg, &self.metrics).await,
+					Self::handle_incoming(&mut subsystem_sender, state, msg, &self.metrics).await,
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					..
 				})) => {
@@ -1274,15 +1389,12 @@ impl ApprovalDistribution {
 		}
 	}
 
-	async fn handle_incoming<Context>(
-		ctx: &mut Context,
+	async fn handle_incoming(
+		ctx: &mut impl SubsystemSender,
 		state: &mut State,
 		msg: ApprovalDistributionMessage,
 		metrics: &Metrics,
-	) where
-		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
-	{
+	) {
 		match msg {
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(event) => {
 				state.handle_network_msg(ctx, metrics, event).await;
