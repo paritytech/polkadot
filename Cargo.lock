@@ -3072,9 +3072,9 @@ checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "282a6247722caba404c065016bbfa522806e51714c34f5dfc3e4a3a46fcb4223"
+checksum = "0f647032dfaa1f8b6dc29bd3edb7bbef4861b8b8007ebb118d6db284fd59f6ee"
 dependencies = [
  "autocfg",
  "hashbrown 0.11.2",
@@ -3640,9 +3640,9 @@ dependencies = [
 
 [[package]]
 name = "kvdb-rocksdb"
-version = "0.15.1"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1e72a631a32527fafe22d0751c002e67d28173c49dcaecf79d1aaa323c520e9"
+checksum = "ca7fbdfd71cd663dceb0faf3367a99f8cf724514933e9867cec4995b6027cbc1"
 dependencies = [
  "fs-swap",
  "kvdb",
@@ -4086,7 +4086,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "rand 0.7.3",
  "smallvec",
  "unsigned-varint 0.7.1",
@@ -4329,9 +4329,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcb87f3080f6d1d69e8c564c0fcfde1d7aa8cc451ce40cae89479111f03bc0eb"
+checksum = "22e8810f0ab5b02d4fc737c818258c8560a3216b7ebd5fd756cb437e23157fc6"
 dependencies = [
  "hashbrown 0.11.2",
 ]
@@ -6140,9 +6140,9 @@ dependencies = [
 
 [[package]]
 name = "paste"
-version = "1.0.6"
+version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0744126afe1a6dd7f394cb50a716dbe086cb06e255e53d8d0185d82828358fb5"
+checksum = "0c520e05135d6e763148b6426a837e239041653ba7becd2e538c076c738025fc"
 
 [[package]]
 name = "pbkdf2"
@@ -6380,7 +6380,7 @@ dependencies = [
  "fatality",
  "futures 0.3.21",
  "futures-timer",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6410,7 +6410,7 @@ dependencies = [
  "futures 0.3.21",
  "futures-timer",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6546,7 +6546,7 @@ dependencies = [
  "futures 0.3.21",
  "futures-timer",
  "lazy_static",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6659,7 +6659,7 @@ dependencies = [
  "futures-timer",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.3",
+ "lru 0.7.4",
  "merlin",
  "parity-scale-codec",
  "parking_lot 0.12.0",
@@ -6825,7 +6825,7 @@ dependencies = [
  "futures 0.3.21",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -7098,7 +7098,7 @@ dependencies = [
  "kvdb-shared-tests",
  "lazy_static",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "metered-channel",
  "parity-db",
  "parity-scale-codec",
@@ -7131,7 +7131,7 @@ dependencies = [
  "femme",
  "futures 0.3.21",
  "futures-timer",
- "lru 0.7.3",
+ "lru 0.7.4",
  "metered-channel",
  "parity-util-mem",
  "parking_lot 0.12.0",
@@ -7275,6 +7275,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "substrate-frame-rpc-system",
+ "substrate-state-trie-migration-rpc",
 ]
 
 [[package]]
@@ -7509,7 +7510,7 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "pallet-babe",
  "pallet-im-online",
  "pallet-mmr-primitives",
@@ -8116,9 +8117,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.16"
+version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4af2ec4714533fcdf07e886f17025ace8b997b9ce51204ee69b6da831c3da57"
+checksum = "632d02bff7f874a36f33ea8bb416cd484b90cc66c1194b1a1110d067a7013f58"
 dependencies = [
  "proc-macro2",
 ]
@@ -9062,7 +9063,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#62fcc8abb7679221814fd3a76d36ad5eafb65657"
 dependencies = [
  "lazy_static",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "parking_lot 0.12.0",
  "sc-executor-common",
@@ -9251,7 +9252,7 @@ dependencies = [
  "linked-hash-map",
  "linked_hash_set",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "parking_lot 0.12.0",
  "pin-project 1.0.10",
@@ -9289,7 +9290,7 @@ dependencies = [
  "futures-timer",
  "libp2p",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "sc-network",
  "sp-runtime",
  "substrate-prometheus-endpoint",
@@ -10224,7 +10225,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#62fcc8abb767
 dependencies = [
  "futures 0.3.21",
  "log",
- "lru 0.7.3",
+ "lru 0.7.4",
  "parity-scale-codec",
  "parking_lot 0.12.0",
  "sp-api",
@@ -10859,7 +10860,7 @@ dependencies = [
  "sub-tokens",
  "thiserror",
  "tokio",
- "tracing-subscriber 0.3.9",
+ "tracing-subscriber 0.3.10",
  "westend-runtime",
 ]
 
@@ -11019,6 +11020,29 @@ dependencies = [
  "prometheus",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "substrate-state-trie-migration-rpc"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#7a09b82772b0597cdae224f4b124d660dda9e82b"
+dependencies = [
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "log",
+ "parity-scale-codec",
+ "sc-client-api",
+ "sc-rpc-api",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "trie-db",
 ]
 
 [[package]]
@@ -11662,9 +11686,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.9"
+version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e0ab7bdc962035a87fba73f3acca9b8a8d0034c2e6f60b84aeaaddddc155dce"
+checksum = "b9df98b037d039d03400d9dd06b0f8ce05486b5f25e9a2d7d36196e142ebbc52"
 dependencies = [
  "ansi_term",
  "lazy_static",

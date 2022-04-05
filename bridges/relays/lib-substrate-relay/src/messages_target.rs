@@ -49,7 +49,7 @@ use relay_substrate_client::{
 use relay_utils::{relay_loop::Client as RelayClient, HeaderId};
 use sp_core::{Bytes, Pair};
 use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
-use std::{collections::VecDeque, convert::TryFrom, ops::RangeInclusive};
+use std::{collections::VecDeque, ops::RangeInclusive};
 
 /// Message receiving proof returned by the target Substrate node.
 pub type SubstrateMessagesDeliveryProof<C> =
