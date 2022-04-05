@@ -763,10 +763,18 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
+		let para_id = match statement.payload() {
+			Statement::Seconded(ref c) => Some(c.descriptor().para_id),
+			Statement::Valid(h) => {
+				self.table.get_candidate(h).map(|c| c.descriptor().para_id)
+			}
+		};
+
 		gum::debug!(
 			target: LOG_TARGET,
 			statement = ?statement.payload().to_compact(),
 			validator_index = statement.validator_index().0,
+			?para_id,
 			"Importing statement",
 		);
 
