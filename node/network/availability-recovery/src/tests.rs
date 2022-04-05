@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{convert::TryFrom, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future};
@@ -134,7 +134,7 @@ async fn overseer_send(
 	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 	msg: AvailabilityRecoveryMessage,
 ) {
-	tracing::trace!(msg = ?msg, "sending message");
+	gum::trace!(msg = ?msg, "sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -145,9 +145,9 @@ async fn overseer_send(
 async fn overseer_recv(
 	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 ) -> AllMessages {
-	tracing::trace!("waiting for message ...");
+	gum::trace!("waiting for message ...");
 	let msg = overseer.recv().timeout(TIMEOUT).await.expect("TIMEOUT is enough to recv.");
-	tracing::trace!(msg = ?msg, "received message");
+	gum::trace!(msg = ?msg, "received message");
 	msg
 }
 

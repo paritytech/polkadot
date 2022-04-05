@@ -1,6 +1,6 @@
 [package]
 name = "test-parachain-adder-collator"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
 edition = "2021"
@@ -14,11 +14,11 @@ name = "adder_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]
-parity-scale-codec = { version = "3.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 clap = { version = "3.1", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
-log = "0.4.13"
+log = "0.4.16"
 
 test-parachain-adder = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }

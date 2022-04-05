@@ -22,10 +22,7 @@ use polkadot_node_subsystem::SubsystemResult;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, GroupIndex, Hash};
 
-use std::{
-	collections::{hash_map::Entry, BTreeMap, HashMap},
-	convert::Into,
-};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use super::{
 	approval_db::v1::{OurAssignment, StoredBlockRange},

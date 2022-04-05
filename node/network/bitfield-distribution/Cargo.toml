@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-availability-bitfield-distribution"
-version = "0.9.17"
+version = "0.9.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -18,7 +18,8 @@ bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 maplit = "1.0.2"
-log = "0.4.13"
+log = "0.4.16"
 env_logger = "0.9.0"
 assert_matches = "1.4.0"

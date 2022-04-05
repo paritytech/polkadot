@@ -29,8 +29,9 @@
 //! We maintain a rolling window of session indices. This starts as empty
 
 use polkadot_node_jaeger as jaeger;
-use polkadot_node_primitives::approval::{
-	self as approval_types, BlockApprovalMeta, RelayVRFStory,
+use polkadot_node_primitives::{
+	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
+	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -53,7 +54,7 @@ use sp_consensus_slots::Slot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use futures::{channel::oneshot, prelude::*};
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 use super::approval_db::v1;
 use crate::{
@@ -138,7 +139,7 @@ async fn imported_block_info(
 			.as_ref()
 			.map_or(true, |s| session_index < s.earliest_session())
 		{
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
 				block_hash,
@@ -188,11 +189,7 @@ async fn imported_block_info(
 	{
 		Some(s) => s,
 		None => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Session info unavailable for block {}",
-				block_hash,
-			);
+			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
 
 			return Ok(None)
 		},
@@ -227,7 +224,7 @@ async fn imported_block_info(
 				}
 			},
 			None => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"BABE VRF info unavailable for block {}",
 					block_hash,
@@ -238,12 +235,12 @@ async fn imported_block_info(
 		}
 	};
 
-	tracing::trace!(target: LOG_TARGET, n_assignments = assignments.len(), "Produced assignments");
+	gum::trace!(target: LOG_TARGET, n_assignments = assignments.len(), "Produced assignments");
 
 	let force_approve =
 		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item(l) {
 			Ok(Some(ConsensusLog::ForceApprove(num))) if num < block_header.number => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?block_hash,
 					current_number = block_header.number,
@@ -256,7 +253,7 @@ async fn imported_block_info(
 			Ok(Some(_)) => None,
 			Ok(None) => None,
 			Err(err) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?err,
 					?block_hash,
@@ -303,7 +300,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
+	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -313,7 +310,7 @@ pub(crate) async fn handle_new_head(
 
 		match h_rx.await? {
 			Err(e) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Chain API subsystem temporarily unreachable {}",
 					e,
@@ -322,7 +319,7 @@ pub(crate) async fn handle_new_head(
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
-				tracing::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => h,
@@ -332,7 +329,7 @@ pub(crate) async fn handle_new_head(
 	// Update session info based on most recent head.
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?head,
 				?e,
@@ -342,7 +339,7 @@ pub(crate) async fn handle_new_head(
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
-			tracing::info!(
+			gum::info!(
 				target: LOG_TARGET,
 				update = ?a,
 				"Advanced session window for approvals",
@@ -404,7 +401,7 @@ pub(crate) async fn handle_new_head(
 					if !lost_to_finality {
 						// Such errors are likely spurious, but this prevents us from getting gaps
 						// in the approval-db.
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							"Unable to gather info about imported block {:?}. Skipping chain.",
 							(block_hash, block_header.number),
@@ -419,7 +416,7 @@ pub(crate) async fn handle_new_head(
 		imported_blocks_and_info
 	};
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		imported_blocks = imported_blocks_and_info.len(),
 		"Inserting imported blocks into database"
@@ -458,7 +455,7 @@ pub(crate) async fn handle_new_head(
 		let num_candidates = included_candidates.len();
 		let approved_bitfield = {
 			if needed_approvals == 0 {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
@@ -476,7 +473,7 @@ pub(crate) async fn handle_new_head(
 					}
 				}
 				if result.any() {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						block_hash = ?block_hash,
 						"Insta-approving {}/{} candidates as the number of validators is too low",
@@ -509,19 +506,7 @@ pub(crate) async fn handle_new_head(
 			children: Vec::new(),
 		};
 
-		if let Some(up_to) = force_approve {
-			tracing::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
-
-			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
-			// Notify chain-selection of all approved hashes.
-			for hash in approved_hashes {
-				ctx.send_message(ChainSelectionMessage::Approved(hash)).await;
-			}
-		}
-
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?block_hash,
 			block_number = block_header.number,
@@ -541,6 +526,21 @@ pub(crate) async fn handle_new_head(
 				)
 			})
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+		// force-approve needs to load the current block entry as well as all
+		// ancestors. this can only be done after writing the block entry above.
+		if let Some(up_to) = force_approve {
+			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
+
+			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+			// Notify chain-selection of all approved hashes.
+			for hash in approved_hashes {
+				ctx.send_message(ChainSelectionMessage::Approved(hash)).await;
+			}
+		}
+
 		approval_meta.push(BlockApprovalMeta {
 			hash: block_hash,
 			number: block_header.number,
@@ -561,7 +561,7 @@ pub(crate) async fn handle_new_head(
 		});
 	}
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		head = ?head,
 		chain_length = approval_meta.len(),

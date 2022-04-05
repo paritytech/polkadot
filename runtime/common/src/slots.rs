@@ -981,7 +981,7 @@ mod benchmarking {
 	use super::*;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
-	use sp_runtime::traits::Bounded;
+	use sp_runtime::traits::{Bounded, One};
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
@@ -1015,6 +1015,8 @@ mod benchmarking {
 
 	benchmarks! {
 		force_lease {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());
 			let para = ParaId::from(1337);
 			let leaser: T::AccountId = account("leaser", 0, 0);
 			T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
@@ -1034,6 +1036,9 @@ mod benchmarking {
 
 			let period_begin = 1u32.into();
 			let period_count = 4u32.into();
+
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());
 
 			// Make T parathreads
 			let paras_info = (0..t).map(|i| {
@@ -1084,6 +1089,9 @@ mod benchmarking {
 		clear_all_leases {
 			let max_people = 8;
 			let (para, _) = register_a_parathread::<T>(1);
+
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());
 
 			for i in 0 .. max_people {
 				let leaser = account("lease_deposit", i, 0);

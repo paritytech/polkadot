@@ -24,8 +24,6 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-use std::convert::TryFrom;
-
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{AvailableData, Proof};
 use polkadot_primitives::v2::{BlakeTwo256, Hash as H256, HashT};
