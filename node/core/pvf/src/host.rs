@@ -347,6 +347,10 @@ async fn run(
 				// still don't fail. The tradeoff is that the compiled cache will start growing
 				// in size. That is, however, rather a slow process and hopefully the operator
 				// will notice it.
+				gum::debug!(
+					target: LOG_TARGET,
+					"PVF loop processing: got cleanup pulse",
+				);
 
 				break_if_fatal!(handle_cleanup_pulse(
 					&cache_path,
@@ -357,6 +361,11 @@ async fn run(
 			},
 			to_host = to_host_rx.next() => {
 				let to_host = break_if_fatal!(to_host.ok_or(Fatal));
+
+				gum::debug!(
+					target: LOG_TARGET,
+					"PVF loop processing: to_host message",
+				);
 
 				break_if_fatal!(handle_to_host(
 					&cache_path,
@@ -380,6 +389,11 @@ async fn run(
 				//
 				// We could be eager in terms of reporting and plumb the result from the preparation
 				// worker but we don't for the sake of simplicity.
+				gum::debug!(
+					target: LOG_TARGET,
+					artifact = ?&from_queue.artifact_id,
+					"PVF loop processing: handle prepare queue",
+				);
 				break_if_fatal!(handle_prepare_done(
 					&cache_path,
 					&mut artifacts,

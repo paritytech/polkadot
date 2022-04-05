@@ -602,6 +602,7 @@ impl ValidationBackend for ValidationHost {
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
+		gum::debug!(target: LOG_TARGET, "Send PVF execution request",);
 		if let Err(err) = self
 			.execute_pvf(
 				Pvf::from_code(raw_validation_code),
