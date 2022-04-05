@@ -18,7 +18,7 @@
 
 use frame_support::traits::Get;
 use sp_runtime::traits::CheckedConversion;
-use sp_std::{convert::TryFrom, marker::PhantomData};
+use sp_std::marker::PhantomData;
 use xcm::latest::{
 	AssetId::{Abstract, Concrete},
 	Fungibility::Fungible,

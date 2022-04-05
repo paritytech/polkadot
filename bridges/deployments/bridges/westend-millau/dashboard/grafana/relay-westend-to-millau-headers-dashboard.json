@@ -99,7 +99,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "max(Westend_to_Millau_Sync_best_block_numbers{node=\"source\"}) - max(Westend_to_Millau_Sync_best_block_numbers{node=\"target\"})",
+          "expr": "max(Westend_to_Millau_Sync_best_source_block_number) - max(Westend_to_Millau_Sync_best_source_at_target_block_number)",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -237,7 +237,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "max_over_time(Westend_to_Millau_Sync_best_block_numbers{node=\"source\"}[10m])-min_over_time(Westend_to_Millau_Sync_best_block_numbers{node=\"source\"}[10m])",
+          "expr": "max_over_time(Westend_to_Millau_Sync_best_source_block_number[10m])-min_over_time(Westend_to_Millau_Sync_best_source_block_number[10m])",
           "interval": "",
           "legendFormat": "Number of new Headers on Westend (Last 10 Mins)",
           "refId": "A"
@@ -341,13 +341,22 @@
       "pluginVersion": "7.1.3",
       "targets": [
         {
-          "expr": "Westend_to_Millau_Sync_best_block_numbers",
+          "expr": "Westend_to_Millau_Sync_best_source_block_number",
           "format": "time_series",
           "instant": true,
           "interval": "",
           "intervalFactor": 1,
-          "legendFormat": "Best Known Header on {{node}} Node",
+          "legendFormat": "Best Known Westend Header at Westend",
           "refId": "A"
+        },
+        {
+          "expr": "Westend_to_Millau_Sync_best_source_at_target_block_number",
+          "format": "time_series",
+          "instant": true,
+          "interval": "",
+          "intervalFactor": 1,
+          "legendFormat": "Best Known Westend Header at Millau",
+          "refId": "B"
         }
       ],
       "timeFrom": null,
@@ -513,61 +522,139 @@
       "type": "gauge"
     },
     {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                0
+              ],
+              "type": "gt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "5m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "max"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "for": "5m",
+        "frequency": "1m",
+        "handler": 1,
+        "name": "Whether with-Westend-grandpa-pallet and Westend itself are on different forks alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
       "datasource": "Prometheus",
-      "description": "",
       "fieldConfig": {
         "defaults": {
-          "custom": {},
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
+          "custom": {}
         },
         "overrides": []
       },
+      "fill": 1,
+      "fillGradient": 0,
       "gridPos": {
         "h": 10,
         "w": 12,
         "x": 0,
         "y": 14
       },
-      "id": 4,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "mean"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true
+      "hiddenSeries": false,
+      "id": 18,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
       },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "percentage": false,
       "pluginVersion": "7.1.3",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
       "targets": [
         {
-          "expr": "Westend_to_Millau_Sync_blocks_in_state",
-          "instant": true,
+          "expr": "Westend_to_Millau_Sync_is_source_and_source_at_target_using_different_forks",
           "interval": "",
-          "legendFormat": "{{state}}",
+          "legendFormat": "On different forks?",
           "refId": "A"
         }
       ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "gt",
+          "value": 0
+        }
+      ],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
-      "title": "Queued Headers in Relay",
-      "type": "bargauge"
+      "title": "Whether with-Westend-grandpa-pallet and Westend itself are on different forks",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
     },
     {
       "aliasColors": {},

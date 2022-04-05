@@ -199,7 +199,7 @@ impl Handle {
 	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
 		if self.0.send(event).await.is_err() {
-			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+			gum::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
 	}
 }
@@ -462,19 +462,19 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(ApprovalDistributionMessage)]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, ApprovalVotingMessage)]
+	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
 	approval_voting: ApprovalVoting,
 
 	#[subsystem(GossipSupportMessage)]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
+	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage)]
 	dispute_coordinator: DisputeCoordinator,
 
 	#[subsystem(no_dispatch, DisputeDistributionMessage)]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, ChainSelectionMessage)]
+	#[subsystem(no_dispatch, blocking, ChainSelectionMessage)]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
@@ -529,21 +529,18 @@ where
 			Ok(memory_stats) =>
 				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
 					Ok(memory_stats_snapshot) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							"memory_stats: {:?}",
 							&memory_stats_snapshot
 						);
 						metrics.memory_stats_snapshot(memory_stats_snapshot);
 					},
-					Err(e) => tracing::debug!(
-						target: LOG_TARGET,
-						"Failed to obtain memory stats: {:?}",
-						e
-					),
+					Err(e) =>
+						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
 				}),
 			Err(_) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Memory allocation tracking is not supported by the allocator.",
 				);
@@ -558,7 +555,7 @@ where
 		// We combine the amount of messages from subsystems to the overseer
 		// as well as the amount of messages from external sources to the overseer
 		// into one `to_overseer` value.
-		metronome_metrics.channel_fill_level_snapshot(
+		metronome_metrics.channel_metrics_snapshot(
 			subsystem_meters
 				.iter()
 				.cloned()
@@ -580,7 +577,7 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Stop the overseer.
+	/// Stop the `Overseer`.
 	async fn stop(mut self) {
 		let _ = self.wait_terminate(OverseerSignal::Conclude, Duration::from_secs(1_u64)).await;
 	}
@@ -634,7 +631,7 @@ where
 					}
 				},
 				res = self.running_subsystems.select_next_some() => {
-					tracing::error!(
+					gum::error!(
 						target: LOG_TARGET,
 						subsystem = ?res,
 						"subsystem finished unexpectedly",

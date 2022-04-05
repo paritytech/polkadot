@@ -17,7 +17,6 @@
 //! Remote tests for bags-list pallet.
 
 use clap::{ArgEnum, Parser};
-use std::convert::TryInto;
 
 #[derive(Clone, Debug, ArgEnum)]
 #[clap(rename_all = "PascalCase")]

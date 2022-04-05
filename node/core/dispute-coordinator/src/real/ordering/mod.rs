@@ -162,7 +162,7 @@ impl OrderingProvider {
 		}
 		let n = match get_block_number(sender, candidate.descriptor().relay_parent).await? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					candidate_hash = ?candidate_hash,
 					"Candidate's relay_parent could not be found via chain API, but we saw candidate included?!"
@@ -197,7 +197,7 @@ impl OrderingProvider {
 					)
 					.await
 					.unwrap_or_else(|err| {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							activated_leaf = ?activated,
 							error = ?err,
@@ -209,7 +209,7 @@ impl OrderingProvider {
 					})
 				},
 				Err(err) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						activated_leaf = ?activated,
 						error = ?err,
@@ -309,7 +309,7 @@ impl OrderingProvider {
 				None => {
 					// It's assumed that it's impossible to retrieve
 					// more than N ancestors for block number N.
-					tracing::error!(
+					gum::error!(
 						target: LOG_TARGET,
 						"Received {} ancestors for block number {} from Chain API",
 						hashes.len(),

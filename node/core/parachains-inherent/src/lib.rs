@@ -42,6 +42,11 @@ pub struct ParachainsInherentDataProvider {
 }
 
 impl ParachainsInherentDataProvider {
+	/// Create a [`Self`] directly from some [`ParachainsInherentData`].
+	pub fn from_data(inherent_data: ParachainsInherentData) -> Self {
+		Self { inherent_data }
+	}
+
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
@@ -88,7 +93,7 @@ impl ParachainsInherentDataProvider {
 				parent_header,
 			},
 			Err(err) => {
-				tracing::debug!(
+				gum::debug!(
 					?err,
 					"Could not get provisioner inherent data; injecting default data",
 				);

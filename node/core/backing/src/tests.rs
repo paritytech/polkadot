@@ -27,7 +27,9 @@ use polkadot_primitives::v2::{
 	CollatorId, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
 use polkadot_subsystem::{
-	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		CollatorProtocolMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
+	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
 use sp_application_crypto::AppKey;
@@ -1454,7 +1456,6 @@ fn validation_work_ignores_wrong_collator() {
 #[test]
 fn candidate_backing_reorders_votes() {
 	use sp_core::Encode;
-	use std::convert::TryFrom;
 
 	let para_id = ParaId::from(10);
 	let validators = vec![
