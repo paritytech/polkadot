@@ -546,13 +546,8 @@ async fn validate_candidate_exhaustive(
 			?validation_code_hash,
 			"Failed to validate candidate",
 		);
-	}
-	else {
-		gum::debug!(
-			target: LOG_TARGET,
-			?validation_code_hash,
-			"Successfully validated candidate",
-		);
+	} else {
+		gum::debug!(target: LOG_TARGET, ?validation_code_hash, "Successfully validated candidate",);
 	}
 
 	match result {
