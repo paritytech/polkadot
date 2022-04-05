@@ -2282,7 +2282,9 @@ async fn launch_approval(
 			},
 		};
 
-		gum::debug!(target: LOG_TARGET, ?candidate_hash, "Got code for candidate",);
+		gum::debug!(target: LOG_TARGET, ?candidate_hash,
+			validation_code_hash = ?&candidate.descriptor.validation_code_hash,
+			"Got code for candidate",);
 
 		let (val_tx, val_rx) = oneshot::channel();
 

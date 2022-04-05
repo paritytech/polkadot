@@ -485,7 +485,7 @@ async fn validate_candidate_exhaustive(
 		target: LOG_TARGET,
 		?validation_code_hash,
 		para_id = ?descriptor.para_id,
-		"About to validate a candidate.",
+		"About to pre-validate a candidate.",
 	);
 
 	if let Err(e) = perform_basic_checks(
@@ -503,7 +503,7 @@ async fn validate_candidate_exhaustive(
 	) {
 		Ok(code) => code,
 		Err(e) => {
-			gum::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			gum::debug!(target: LOG_TARGET, err=?e, ?validation_code_hash, "Invalid validation code");
 
 			// If the validation code is invalid, the candidate certainly is.
 			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
@@ -514,7 +514,7 @@ async fn validate_candidate_exhaustive(
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
 			Err(e) => {
-				gum::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+				gum::debug!(target: LOG_TARGET, err=?e, ?validation_code_hash, "Invalid PoV code");
 
 				// If the PoV is invalid, the candidate certainly is.
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
@@ -528,6 +528,13 @@ async fn validate_candidate_exhaustive(
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
+	gum::debug!(
+		target: LOG_TARGET,
+		?validation_code_hash,
+		para_id = ?descriptor.para_id,
+		"About to fully validate a candidate.",
+	);
+
 	let result = validation_backend
 		.validate_candidate(raw_validation_code.to_vec(), timeout, params)
 		.await;
@@ -536,7 +543,15 @@ async fn validate_candidate_exhaustive(
 		gum::debug!(
 			target: LOG_TARGET,
 			error = ?e,
+			?validation_code_hash,
 			"Failed to validate candidate",
+		);
+	}
+	else {
+		gum::debug!(
+			target: LOG_TARGET,
+			?validation_code_hash,
+			"Successfully validated candidate",
 		);
 	}
 
