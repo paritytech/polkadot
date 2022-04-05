@@ -470,6 +470,11 @@ async fn handle_execute_pvf(
 	let artifact_id = pvf.as_artifact_id();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
+		gum::debug!(
+			target: LOG_TARGET,
+			code_hash = ?&pvf.code_hash,
+			"Got known code artifact",
+		);
 		match state {
 			ArtifactState::Prepared { ref mut last_time_needed } => {
 				*last_time_needed = SystemTime::now();
@@ -486,6 +491,11 @@ async fn handle_execute_pvf(
 				.await?;
 			},
 			ArtifactState::Preparing { waiting_for_response: _ } => {
+				gum::debug!(
+					target: LOG_TARGET,
+					code_hash = ?&pvf.code_hash,
+					"PVF artifact is in the preparing state, add it to awaiting prepare",
+				);
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
 			ArtifactState::FailedToProcess(error) => {
@@ -494,7 +504,12 @@ async fn handle_execute_pvf(
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		//
+
+		gum::debug!(
+			target: LOG_TARGET,
+			code_hash = ?&pvf.code_hash,
+			"PVF artifact is unknown, add it to the preparing queue",
+		);
 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
 
@@ -547,6 +562,8 @@ async fn handle_prepare_done(
 ) -> Result<(), Fatal> {
 	let prepare::FromQueue { artifact_id, result } = from_queue;
 
+	gum::debug!(target: LOG_TARGET, ?artifact_id, "Take preparing artifact from the queue",);
+
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
 		None => {
@@ -587,6 +604,7 @@ async fn handle_prepare_done(
 	let pending_requests = awaiting_prepare.take(&artifact_id);
 	for PendingExecutionRequest { execution_timeout, params, result_tx } in pending_requests {
 		if result_tx.is_canceled() {
+			gum::debug!(target: LOG_TARGET, ?artifact_id, "PVF artifact preparing timed out",);
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
 			continue
@@ -597,6 +615,12 @@ async fn handle_prepare_done(
 			let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			continue
 		}
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?artifact_id,
+			"Start to execute PVF to prepare an artifact",
+		);
 
 		send_execute(
 			execute_queue,
@@ -664,7 +688,7 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 			None => break,
 			Some(condemned) => {
 				let result = async_std::fs::remove_file(&condemned).await;
-				gum::trace!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?result,
 					"Sweeping the artifact file {}",
