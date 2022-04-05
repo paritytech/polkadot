@@ -16,8 +16,6 @@
 
 //! Code for elections.
 
-use frame_election_provider_support::onchain;
-
 /// Implements the weight types for the elections module and a specific
 /// runtime.
 /// This macro should not be called directly; use [`impl_runtime_weights`] instead.
@@ -60,15 +58,5 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 	const MAXIMUM_TARGETS: u32 = 300;
 }
 
-impl onchain::BenchmarkingConfig for BenchmarkConfig {
-	const VOTERS: [u32; 2] = [1_000, 2_000];
-	const TARGETS: [u32; 2] = [500, 1_000];
-	const VOTES_PER_VOTER: [u32; 2] = [5, 16];
-}
-
 /// The accuracy type used for genesis election provider;
 pub type OnChainAccuracy = sp_runtime::Perbill;
-
-/// Election Configuration parameters of the genesis (it's also used elsewhere for now).
-pub type GenesisElectionOf<T, DataProvider> =
-	onchain::BoundedPhragmen<T, DataProvider, T, OnChainAccuracy>;
