@@ -206,7 +206,6 @@ pub fn node_config(
 		announce_block: true,
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
-		disable_hardware_benchmarks: true,
 	}
 }
 
