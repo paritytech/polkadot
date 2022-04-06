@@ -6,7 +6,7 @@ edition = "2021"
 description = "Primitives types for the Node-side"
 
 [dependencies]
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }

@@ -694,7 +694,6 @@ mod tests {
 	#[test]
 	fn conversion_from_other_types_works() {
 		use crate::v1::{self, Junction, Junctions};
-		use core::convert::TryInto;
 
 		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
 
