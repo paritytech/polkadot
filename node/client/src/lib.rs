@@ -603,7 +603,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for Client {
 				let period = polkadot_runtime_common::BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 				let genesis = self.usage_info().chain.best_hash;
 
-				client.sign_call(call, nonce, 0, period, genesis, signer)
+				Ok(client.sign_call(call, nonce, 0, period, genesis, signer))
 			}
 		}
 	}
@@ -626,7 +626,7 @@ trait BenchmarkCallSigner<Call: Encode + Clone, Signer: Pair> {
 		period: u64,
 		genesis: H256,
 		acc: Signer,
-	) -> std::result::Result<OpaqueExtrinsic, &'static str>;
+	) -> OpaqueExtrinsic;
 }
 
 impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
@@ -640,7 +640,7 @@ impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
 		period: u64,
 		genesis: H256,
 		acc: sp_core::sr25519::Pair,
-	) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+	) -> OpaqueExtrinsic {
 		use polkadot_runtime as runtime;
 
 		let extra: runtime::SignedExtra = (
@@ -674,13 +674,13 @@ impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
 		);
 
 		let signature = payload.using_encoded(|p| acc.sign(p));
-		let ext = runtime::UncheckedExtrinsic::new_signed(
+		runtime::UncheckedExtrinsic::new_signed(
 			call,
 			sp_runtime::AccountId32::from(acc.public()).into(),
 			polkadot_core_primitives::Signature::Sr25519(signature.clone()),
 			extra,
-		);
-		Ok(ext.into())
+		)
+		.into()
 	}
 }
 
@@ -695,7 +695,7 @@ impl BenchmarkCallSigner<westend_runtime::Call, sp_core::sr25519::Pair>
 		period: u64,
 		genesis: H256,
 		acc: sp_core::sr25519::Pair,
-	) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+	) -> OpaqueExtrinsic {
 		use westend_runtime as runtime;
 
 		let extra: runtime::SignedExtra = (
@@ -727,13 +727,13 @@ impl BenchmarkCallSigner<westend_runtime::Call, sp_core::sr25519::Pair>
 		);
 
 		let signature = payload.using_encoded(|p| acc.sign(p));
-		let ext = runtime::UncheckedExtrinsic::new_signed(
+		runtime::UncheckedExtrinsic::new_signed(
 			call,
 			sp_runtime::AccountId32::from(acc.public()).into(),
 			polkadot_core_primitives::Signature::Sr25519(signature.clone()),
 			extra,
-		);
-		Ok(ext.into())
+		)
+		.into()
 	}
 }
 
@@ -748,7 +748,7 @@ impl BenchmarkCallSigner<kusama_runtime::Call, sp_core::sr25519::Pair>
 		period: u64,
 		genesis: H256,
 		acc: sp_core::sr25519::Pair,
-	) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+	) -> OpaqueExtrinsic {
 		use kusama_runtime as runtime;
 
 		let extra: runtime::SignedExtra = (
@@ -780,13 +780,13 @@ impl BenchmarkCallSigner<kusama_runtime::Call, sp_core::sr25519::Pair>
 		);
 
 		let signature = payload.using_encoded(|p| acc.sign(p));
-		let ext = runtime::UncheckedExtrinsic::new_signed(
+		runtime::UncheckedExtrinsic::new_signed(
 			call,
 			sp_runtime::AccountId32::from(acc.public()).into(),
 			polkadot_core_primitives::Signature::Sr25519(signature.clone()),
 			extra,
-		);
-		Ok(ext.into())
+		)
+		.into()
 	}
 }
 
@@ -801,7 +801,7 @@ impl BenchmarkCallSigner<rococo_runtime::Call, sp_core::sr25519::Pair>
 		period: u64,
 		genesis: H256,
 		acc: sp_core::sr25519::Pair,
-	) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+	) -> OpaqueExtrinsic {
 		use rococo_runtime as runtime;
 
 		let extra: runtime::SignedExtra = (
@@ -833,13 +833,13 @@ impl BenchmarkCallSigner<rococo_runtime::Call, sp_core::sr25519::Pair>
 		);
 
 		let signature = payload.using_encoded(|p| acc.sign(p));
-		let ext = runtime::UncheckedExtrinsic::new_signed(
+		runtime::UncheckedExtrinsic::new_signed(
 			call,
 			sp_runtime::AccountId32::from(acc.public()).into(),
 			polkadot_core_primitives::Signature::Sr25519(signature.clone()),
 			extra,
-		);
-		Ok(ext.into())
+		)
+		.into()
 	}
 }
 
