@@ -6335,6 +6335,7 @@ version = "0.9.18"
 dependencies = [
  "assert_matches",
  "env_logger 0.9.0",
+ "fatality",
  "futures 0.3.21",
  "log",
  "polkadot-node-network-protocol",
@@ -6346,6 +6347,7 @@ dependencies = [
  "rand_core 0.5.1",
  "schnorrkel",
  "sp-core",
+ "thiserror",
  "tracing-gum",
 ]
 
