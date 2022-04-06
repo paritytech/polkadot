@@ -26,7 +26,7 @@ use frame_election_provider_support::{onchain::UnboundedExecution, SequentialPhr
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
-	weights::{Weight, ConstantMultiplier},
+	weights::{ConstantMultiplier, Weight},
 	PalletId,
 };
 use frame_system::EnsureRoot;
