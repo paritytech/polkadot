@@ -87,6 +87,9 @@ pub mod runtime;
 /// Database trait for subsystem.
 pub mod database;
 
+/// Peer reputation report helpers.
+pub mod reputation;
+
 mod determine_new_blocks;
 
 #[cfg(test)]

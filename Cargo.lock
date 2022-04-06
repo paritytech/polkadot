@@ -7120,6 +7120,7 @@ dependencies = [
  "sp-keystore",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing-gum",
 ]
 
@@ -7628,7 +7629,6 @@ dependencies = [
  "sp-staking",
  "sp-tracing",
  "thiserror",
- "tokio",
  "tracing-gum",
 ]
 

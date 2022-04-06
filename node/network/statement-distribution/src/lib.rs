@@ -32,7 +32,11 @@ use polkadot_node_network_protocol::{
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
-use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
+use polkadot_node_subsystem_util::{
+	self as util, rand,
+	reputation::{peer_reporting_task, report_peer},
+	MIN_GOSSIP_PEERS,
+};
 
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
@@ -46,7 +50,7 @@ use polkadot_subsystem::{
 		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemSender,
+	SubsystemContext, SubsystemError,
 };
 
 use futures::{
@@ -1165,18 +1169,6 @@ async fn send_statements(
 	}
 }
 
-async fn report_peer(peer: PeerId, rep: Rep, rep_sender: &mut mpsc::Sender<(PeerId, Rep)>) {
-	// ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)))
-	// 	.await
-
-	match rep_sender.send((peer, rep)).await {
-		Ok(_) => {},
-		Err(err) => {
-			gum::warn!(target: LOG_TARGET, ?err, "Failed to report peer");
-		},
-	}
-}
-
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
 ///
 /// This function will also return `None` if the message did not pass some basic checks, in that
@@ -1703,53 +1695,6 @@ async fn handle_network_update(
 	}
 }
 
-const REPUTATION_FLUSH_INTERVAL_MSEC: u64 = 3000;
-
-async fn peer_reporting_task(
-	receiver: mpsc::Receiver<(PeerId, Rep)>,
-	mut sender: impl SubsystemSender,
-) {
-	let mut reports = HashMap::new();
-	let mut received_report_count = 0;
-	let from_subsystem = receiver.fuse();
-	
-	// We flush reputation changes to the network bridge on every tick.
-	let interval = futures::stream::unfold((), move |_| async move {
-		tokio::time::sleep(std::time::Duration::from_millis(REPUTATION_FLUSH_INTERVAL_MSEC)).await;
-		Some(((), ()))
-	})
-	.fuse();
-
-	futures::pin_mut!(from_subsystem, interval);
-
-	loop {
-		futures::select! {
-			msg = from_subsystem.next() => {
-				match msg {
-					Some((peer_id, rep_change)) => {
-						received_report_count += 1;
-						reports.entry(peer_id).and_modify(|rep:&mut Rep| {
-							rep.accumulate(rep_change);
-						}).or_insert(rep_change);
-					},
-					None => panic!("peer reporting disconnected")
-				}
-			}
-			_ = interval.next() => {
-				gum::debug!(target: LOG_TARGET, %received_report_count, flush_count = %reports.len(), "Flushing rep changes");
-
-				for (peer_id, rep) in reports.into_iter() {
-					sender.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer_id, rep)))
-						.await;
-				}
-
-				reports = HashMap::new();
-				received_report_count = 0;
-			}
-		}
-	}
-}
-
 impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
@@ -1784,7 +1729,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		let subsystem_sender = ctx.sender().clone();
 		ctx.spawn(
 			"peer-reporting",
-			peer_reporting_task(rep_req_receiver, subsystem_sender).boxed(),
+			peer_reporting_task(rep_req_receiver, subsystem_sender, None).boxed(),
 		)
 		.map_err(FatalError::SpawnTask)?;
 
