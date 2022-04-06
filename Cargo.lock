@@ -1862,6 +1862,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b91989ae21441195d7d9b9993a2f9295c7e1a8c96255d8b729accddc124797"
 
 [[package]]
+name = "erased-serde"
+version = "0.3.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad132dd8d0d0b546348d7d86cb3191aad14b34e5f979781fc005c80d4ac67ffd"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1989,11 +1998,11 @@ dependencies = [
 
 [[package]]
 name = "femme"
-version = "2.1.1"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2af1a24f391a5a94d756db5092c6576aad494b88a71a5a36b20c67b63e0df034"
+checksum = "2997b612abb06bc299486c807e68c5fd12e7618e69cf34c5958ca6b575674403"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "js-sys",
  "log",
  "serde",
@@ -4315,6 +4324,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
 dependencies = [
  "cfg-if 1.0.0",
+ "serde",
  "value-bag",
 ]
 
@@ -9851,6 +9861,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_fmt"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2963a69a2b3918c1dc75a45a18bd3fcd1120e31d3f59deb1b2f9b5d5ffb8baa4"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11115,6 +11134,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
+name = "sval"
+version = "1.0.0-alpha.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45f6ee7c7b87caf59549e9fe45d6a69c75c8019e79e212a835c5da0e92f0ba08"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "symbolic-common"
 version = "8.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12004,6 +12032,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79923f7731dc61ebfba3633098bf3ac533bbd35ccd8c57e7088d9a5eebe0263f"
 dependencies = [
  "ctor",
+ "erased-serde",
+ "serde",
+ "serde_fmt",
+ "sval",
  "version_check",
 ]
 
