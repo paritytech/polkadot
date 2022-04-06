@@ -46,14 +46,16 @@ use polkadot_subsystem::{
 		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
+	SubsystemContext, SubsystemError, SubsystemSender,
 };
 
 use futures::{
 	channel::{mpsc, oneshot},
 	future::RemoteHandle,
 	prelude::*,
+	StreamExt,
 };
+
 use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::SyncCryptoStorePtr;
 use util::runtime::RuntimeInfo;
@@ -1163,13 +1165,16 @@ async fn send_statements(
 	}
 }
 
-async fn report_peer(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
-	peer: PeerId,
-	rep: Rep,
-) {
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)))
-		.await
+async fn report_peer(peer: PeerId, rep: Rep, rep_sender: &mut mpsc::Sender<(PeerId, Rep)>) {
+	// ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)))
+	// 	.await
+
+	match rep_sender.send((peer, rep)).await {
+		Ok(_) => {},
+		Err(err) => {
+			gum::warn!(target: LOG_TARGET, ?err, "Failed to report peer");
+		},
+	}
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1313,6 +1318,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
+	rep_sender: &mut mpsc::Sender<(PeerId, Rep)>,
 ) {
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) =>
@@ -1325,6 +1331,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 				message,
 				req_sender,
 				metrics,
+				rep_sender,
 			)
 			.await,
 		None => None,
@@ -1368,6 +1375,7 @@ async fn handle_incoming_message<'a>(
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
+	rep_sender: &mut mpsc::Sender<(PeerId, Rep)>,
 ) -> Option<(Hash, StoredStatement<'a>)> {
 	let relay_parent = message.get_relay_parent();
 	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
@@ -1382,7 +1390,7 @@ async fn handle_incoming_message<'a>(
 			);
 
 			if !recent_outdated_heads.is_recent_outdated(&relay_parent) {
-				report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+				report_peer(peer, COST_UNEXPECTED_STATEMENT, rep_sender).await;
 			}
 
 			return None
@@ -1392,7 +1400,7 @@ async fn handle_incoming_message<'a>(
 	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
 		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
 			gum::debug!(target: LOG_TARGET, ?peer, ?message, ?rep, "Unexpected large statement.",);
-			report_peer(ctx, peer, rep).await;
+			report_peer(peer, rep, rep_sender).await;
 			return None
 		}
 	}
@@ -1433,16 +1441,16 @@ async fn handle_incoming_message<'a>(
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
-					report_peer(ctx, peer, rep).await;
+					report_peer(peer, rep, rep_sender).await;
 				}
 			},
 			// This happens when we have an unexpected remote peer that announced Seconded
 			COST_UNEXPECTED_STATEMENT_REMOTE => {
 				metrics.on_unexpected_statement_seconded();
-				report_peer(ctx, peer, rep).await;
+				report_peer(peer, rep, rep_sender).await;
 			},
 			_ => {
-				report_peer(ctx, peer, rep).await;
+				report_peer(peer, rep, rep_sender).await;
 			},
 		}
 
@@ -1463,7 +1471,7 @@ async fn handle_incoming_message<'a>(
 				peer_data
 					.receive(&relay_parent, &fingerprint, max_message_count)
 					.expect("checked in `check_can_receive` above; qed");
-				report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+				report_peer(peer, BENEFIT_VALID_STATEMENT, rep_sender).await;
 
 				return None
 			},
@@ -1473,7 +1481,7 @@ async fn handle_incoming_message<'a>(
 		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
 			Err(statement) => {
 				gum::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
-				report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+				report_peer(peer, COST_INVALID_SIGNATURE, rep_sender).await;
 				return None
 			},
 			Ok(statement) => statement,
@@ -1499,7 +1507,7 @@ async fn handle_incoming_message<'a>(
 				is_large_statement,
 				"Full statement had bad payload."
 			);
-			report_peer(ctx, peer, COST_WRONG_HASH).await;
+			report_peer(peer, COST_WRONG_HASH, rep_sender).await;
 			return None
 		},
 		Ok(statement) => statement,
@@ -1538,7 +1546,7 @@ async fn handle_incoming_message<'a>(
 			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		},
 		NotedStatement::Fresh(statement) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+			report_peer(peer, BENEFIT_VALID_STATEMENT_FIRST, rep_sender).await;
 
 			let mut _span = handle_incoming_span.child("notify-backing");
 
@@ -1606,6 +1614,7 @@ async fn handle_network_update(
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
+	rep_sender: &mut mpsc::Sender<(PeerId, Rep)>,
 ) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
@@ -1665,6 +1674,7 @@ async fn handle_network_update(
 				req_sender,
 				metrics,
 				rng,
+				rep_sender,
 			)
 			.await;
 		},
@@ -1690,6 +1700,53 @@ async fn handle_network_update(
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `ActiveLeavesUpdate`
 		},
+	}
+}
+
+const REPUTATION_FLUSH_INTERVAL_MSEC: u64 = 3000;
+
+async fn peer_reporting_task(
+	receiver: mpsc::Receiver<(PeerId, Rep)>,
+	mut sender: impl SubsystemSender,
+) {
+	let mut reports = HashMap::new();
+	let mut received_report_count = 0;
+	let from_subsystem = receiver.fuse();
+	
+	// We flush reputation changes to the network bridge on every tick.
+	let interval = futures::stream::unfold((), move |_| async move {
+		tokio::time::sleep(std::time::Duration::from_millis(REPUTATION_FLUSH_INTERVAL_MSEC)).await;
+		Some(((), ()))
+	})
+	.fuse();
+
+	futures::pin_mut!(from_subsystem, interval);
+
+	loop {
+		futures::select! {
+			msg = from_subsystem.next() => {
+				match msg {
+					Some((peer_id, rep_change)) => {
+						received_report_count += 1;
+						reports.entry(peer_id).and_modify(|rep:&mut Rep| {
+							rep.accumulate(rep_change);
+						}).or_insert(rep_change);
+					},
+					None => panic!("peer reporting disconnected")
+				}
+			}
+			_ = interval.next() => {
+				gum::debug!(target: LOG_TARGET, %received_report_count, flush_count = %reports.len(), "Flushing rep changes");
+
+				for (peer_id, rep) in reports.into_iter() {
+					sender.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer_id, rep)))
+						.await;
+				}
+
+				reports = HashMap::new();
+				received_report_count = 0;
+			}
+		}
 	}
 }
 
@@ -1721,6 +1778,15 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		let (req_sender, mut req_receiver) = mpsc::channel(1);
 		// Sender/Receiver for getting news from our responder task.
 		let (res_sender, mut res_receiver) = mpsc::channel(1);
+		// Sender/Receiver for peer reporting task.
+		let (mut rep_req_sender, rep_req_receiver) = mpsc::channel(1024);
+
+		let subsystem_sender = ctx.sender().clone();
+		ctx.spawn(
+			"peer-reporting",
+			peer_reporting_task(rep_req_receiver, subsystem_sender).boxed(),
+		)
+		.map_err(FatalError::SpawnTask)?;
 
 		ctx.spawn(
 			"large-statement-responder",
@@ -1748,6 +1814,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							&mut recent_outdated_heads,
 							&req_sender,
 							result?,
+							&mut rep_req_sender,
 						)
 						.await;
 					match result.into_nested()? {
@@ -1766,6 +1833,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							&recent_outdated_heads,
 							&req_sender,
 							result.ok_or(FatalError::RequesterReceiverFinished)?,
+							&mut rep_req_sender,
 						)
 						.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
@@ -1833,6 +1901,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		recent_outdated_heads: &RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: RequesterMessage,
+		rep_sender: &mut mpsc::Sender<(PeerId, Rep)>,
 	) -> JfyiErrorResult<()> {
 		match message {
 			RequesterMessage::Finished {
@@ -1843,9 +1912,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				bad_peers,
 			} => {
 				for bad in bad_peers {
-					report_peer(ctx, bad, COST_FETCH_FAIL).await;
+					report_peer(bad, COST_FETCH_FAIL, rep_sender).await;
 				}
-				report_peer(ctx, from_peer, BENEFIT_VALID_RESPONSE).await;
+				report_peer(from_peer, BENEFIT_VALID_RESPONSE, rep_sender).await;
 
 				let active_head = active_heads
 					.get_mut(&relay_parent)
@@ -1884,6 +1953,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							req_sender,
 							&self.metrics,
 							&mut self.rng,
+							rep_sender,
 						)
 						.await;
 					}
@@ -1927,7 +1997,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 				}
 			},
-			RequesterMessage::ReportPeer(peer, rep) => report_peer(ctx, peer, rep).await,
+			RequesterMessage::ReportPeer(peer, rep) => report_peer(peer, rep, rep_sender).await,
 		}
 		Ok(())
 	}
@@ -1943,6 +2013,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
+		rep_sender: &mut mpsc::Sender<(PeerId, Rep)>,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
 
@@ -2061,6 +2132,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						event,
 						metrics,
 						&mut self.rng,
+						rep_sender,
 					)
 					.await;
 				},

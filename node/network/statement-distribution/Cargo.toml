@@ -20,6 +20,7 @@ indexmap = "1.8.1"
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 thiserror = "1.0.30"
 fatality = "0.0.6"
+tokio = "1.17.0"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

@@ -7628,6 +7628,7 @@ dependencies = [
  "sp-staking",
  "sp-tracing",
  "thiserror",
+ "tokio",
  "tracing-gum",
 ]
 

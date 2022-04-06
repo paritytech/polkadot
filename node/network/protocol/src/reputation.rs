@@ -13,6 +13,8 @@ pub enum UnifiedReputationChange {
 	BenefitMinor(&'static str),
 	BenefitMajorFirst(&'static str),
 	BenefitMajor(&'static str),
+	/// Used when we aggregate multiple reputation changes.
+	Mixed(&'static str, i32),
 }
 
 impl UnifiedReputationChange {
@@ -37,6 +39,7 @@ impl UnifiedReputationChange {
 			Self::BenefitMajor(_) => 200_000,
 			Self::BenefitMinorFirst(_) => 15_000,
 			Self::BenefitMinor(_) => 10_000,
+			Self::Mixed(_, cost) => *cost,
 		}
 	}
 
@@ -52,6 +55,7 @@ impl UnifiedReputationChange {
 			Self::BenefitMajor(description) => description,
 			Self::BenefitMinorFirst(description) => description,
 			Self::BenefitMinor(description) => description,
+			Self::Mixed(description, _) => description,
 		}
 	}
 
@@ -62,6 +66,7 @@ impl UnifiedReputationChange {
 			Self::BenefitMajor(_) |
 			Self::BenefitMinorFirst(_) |
 			Self::BenefitMinor(_) => true,
+			Self::Mixed(_, cost) if *cost > 0 => true,
 			_ => false,
 		}
 	}
@@ -69,5 +74,13 @@ impl UnifiedReputationChange {
 	/// Convert into a base reputation as used with substrate.
 	pub const fn into_base_rep(self) -> ReputationChange {
 		ReputationChange::new(self.cost_or_benefit(), self.description())
+	}
+
+	/// Merge a reputation change into `Self`.
+	pub fn accumulate(&mut self, other: Self) {
+		*self = UnifiedReputationChange::Mixed(
+			"Aggregated reputation changes",
+			self.cost_or_benefit() + other.cost_or_benefit(),
+		);
 	}
 }
