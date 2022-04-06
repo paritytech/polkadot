@@ -629,6 +629,7 @@ trait BenchmarkCallSigner<Call: Encode + Clone, Signer: Pair> {
 	) -> OpaqueExtrinsic;
 }
 
+#[cfg(feature = "polkadot")]
 impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
 	for FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>
 {
@@ -684,6 +685,7 @@ impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
 	}
 }
 
+#[cfg(feature = "westend")]
 impl BenchmarkCallSigner<westend_runtime::Call, sp_core::sr25519::Pair>
 	for FullClient<westend_runtime::RuntimeApi, WestendExecutorDispatch>
 {
@@ -737,6 +739,7 @@ impl BenchmarkCallSigner<westend_runtime::Call, sp_core::sr25519::Pair>
 	}
 }
 
+#[cfg(feature = "kusama")]
 impl BenchmarkCallSigner<kusama_runtime::Call, sp_core::sr25519::Pair>
 	for FullClient<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>
 {
@@ -790,6 +793,7 @@ impl BenchmarkCallSigner<kusama_runtime::Call, sp_core::sr25519::Pair>
 	}
 }
 
+#[cfg(feature = "rococo")]
 impl BenchmarkCallSigner<rococo_runtime::Call, sp_core::sr25519::Pair>
 	for FullClient<rococo_runtime::RuntimeApi, RococoExecutorDispatch>
 {
