@@ -376,6 +376,11 @@ async fn run(
 					to_host,
 				)
 				.await);
+
+				gum::debug!(
+					target: LOG_TARGET,
+					"PVF loop processing: to_host message done",
+				);
 			},
 			from_prepare_queue = from_prepare_queue_rx.next() => {
 				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
@@ -389,9 +394,10 @@ async fn run(
 				//
 				// We could be eager in terms of reporting and plumb the result from the preparation
 				// worker but we don't for the sake of simplicity.
+				let artifact = from_queue.artifact_id.clone();
 				gum::debug!(
 					target: LOG_TARGET,
-					artifact = ?&from_queue.artifact_id,
+					?artifact,
 					"PVF loop processing: handle prepare queue",
 				);
 				break_if_fatal!(handle_prepare_done(
@@ -401,6 +407,11 @@ async fn run(
 					&mut awaiting_prepare,
 					from_queue,
 				).await);
+				gum::debug!(
+					target: LOG_TARGET,
+					?artifact,
+					"PVF loop processing: handle prepare queue done",
+				);
 			},
 		}
 	}
@@ -576,7 +587,7 @@ async fn handle_prepare_done(
 ) -> Result<(), Fatal> {
 	let prepare::FromQueue { artifact_id, result } = from_queue;
 
-	gum::debug!(target: LOG_TARGET, ?artifact_id, "Take preparing artifact from the queue",);
+	gum::debug!(target: LOG_TARGET, ?artifact_id, "Take prepared artifact from the queue",);
 
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
@@ -616,6 +627,7 @@ async fn handle_prepare_done(
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
 	let pending_requests = awaiting_prepare.take(&artifact_id);
+	let pending_len = pending_requests.len();
 	for PendingExecutionRequest { execution_timeout, params, result_tx } in pending_requests {
 		if result_tx.is_canceled() {
 			gum::debug!(target: LOG_TARGET, ?artifact_id, "PVF artifact preparing timed out",);
@@ -647,6 +659,14 @@ async fn handle_prepare_done(
 		)
 		.await?;
 	}
+
+	gum::debug!(
+		target: LOG_TARGET,
+		?artifact_id,
+		?pending_len,
+		?result,
+		"All PVF are scheduled to be executed",
+	);
 
 	*state = match result {
 		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },

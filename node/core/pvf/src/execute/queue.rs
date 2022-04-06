@@ -143,15 +143,27 @@ impl Queue {
 		loop {
 			futures::select! {
 				to_queue = self.to_queue_rx.next() => {
+					gum::debug!(
+						target: LOG_TARGET,
+						"PVF execution queue loop: got `to_queue` message",
+					);
 					if let Some(to_queue) = to_queue {
 						handle_to_queue(&mut self, to_queue);
 					} else {
+						gum::debug!(
+							target: LOG_TARGET,
+							"PVF execution queue loop: got `to_queue` which is None!",
+						);
 						break;
 					}
 				}
 				ev = self.mux.select_next_some() => handle_mux(&mut self, ev).await,
 			}
 
+			gum::debug!(
+				target: LOG_TARGET,
+				"PVF execution queue loop: purge dead and repeat the loop",
+			);
 			purge_dead(&self.metrics, &mut self.workers).await;
 		}
 	}
