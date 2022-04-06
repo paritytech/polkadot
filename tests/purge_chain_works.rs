@@ -35,7 +35,7 @@ async fn purge_chain_rocksdb_works() {
 		.arg(tmpdir.path())
 		.arg("--port")
 		.arg("33034")
-		.arg("--disable-hardware-benchmarks")
+		.arg("--no-hardware-benchmarks")
 		.spawn()
 		.unwrap();
 
@@ -79,7 +79,7 @@ async fn purge_chain_paritydb_works() {
 		.arg(tmpdir.path())
 		.arg("--database")
 		.arg("paritydb-experimental")
-		.arg("--disable-hardware-benchmarks")
+		.arg("--no-hardware-benchmarks")
 		.spawn()
 		.unwrap();
 
