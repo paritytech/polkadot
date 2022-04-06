@@ -20,7 +20,11 @@ use super::{
 	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
-use frame_support::{match_types, parameter_types, traits::{Everything, EverythingBut}, weights::Weight};
+use frame_support::{
+	match_types, parameter_types,
+	traits::{Everything, EverythingBut},
+	weights::Weight,
+};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -105,7 +109,7 @@ parameter_types! {
 	pub const KusamaForEncointer: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1001).into());
 }
 pub type TrustedTeleporters =
-	(xcm_builder::Case<KusamaForStatemine>,  xcm_builder::Case<KusamaForEncointer>);
+	(xcm_builder::Case<KusamaForStatemine>, xcm_builder::Case<KusamaForEncointer>);
 
 match_types! {
 	pub type OnlyTrustedTeleporters: impl Contains<(MultiLocation, crate::Vec<MultiAsset>)> = {

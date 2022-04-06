@@ -21,7 +21,7 @@ use super::{
 	WeightToFee, XcmPallet,
 };
 use frame_support::{
-	parameter_types, match_types,
+	match_types, parameter_types,
 	traits::{Everything, EverythingBut, Nothing},
 };
 use runtime_common::{xcm_sender, ToAuthor};

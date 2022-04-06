@@ -21,7 +21,7 @@ use super::{
 	XcmPallet,
 };
 use frame_support::{
-	parameter_types, match_types,
+	match_types, parameter_types,
 	traits::{Everything, EverythingBut, IsInVec, Nothing},
 	weights::Weight,
 };

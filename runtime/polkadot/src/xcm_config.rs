@@ -188,6 +188,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecuteFilter = Nothing; // == Deny All
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything; // == Allow All
+
 	// Anyone is able to use reserve transfers regardless of who they are and what they want to
 	// transfer (unless it is trustfully teleportable, in which case do that instead as is simpler)
 	type XcmReserveTransferFilter = EverythingBut<OnlyTrustedTeleporters>;
