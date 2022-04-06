@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-03-24 (Y/M/D)
+//! DATE: 2022-04-03 (Y/M/D)
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -26,16 +26,12 @@
 // Executed Command:
 //   ./target/production/polkadot
 //   benchmark-overhead
-//   --chain
-//   rococo-dev
+//   --chain=rococo-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
-//   --weight-path
-//   runtime/rococo/constants/src/weights/
-//   --warmup
-//   10
-//   --repeat
-//   100
+//   --weight-path=runtime/rococo/constants/src/weights/
+//   --warmup=10
+//   --repeat=100
 
 use frame_support::{
 	parameter_types,
@@ -47,16 +43,16 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
 	/// Stats [NS]:
-	///   Min, Max: 73_999, 74_403
-	///   Average:  74_171
-	///   Median:   74_161
-	///   Std-Dev:  85.56
+	///   Min, Max: 78_951, 81_171
+	///   Average:  79_545
+	///   Median:   79_348
+	///   Std-Dev:  523.95
 	///
 	/// Percentiles [NS]:
-	///   99th: 74_375
-	///   95th: 74_309
-	///   75th: 74_241
-	pub const ExtrinsicBaseWeight: Weight = 74_171 * WEIGHT_PER_NANOS;
+	///   99th: 81_101
+	///   95th: 80_797
+	///   75th: 79_810
+	pub const ExtrinsicBaseWeight: Weight = 79_545 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]
