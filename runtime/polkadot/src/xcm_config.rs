@@ -22,7 +22,7 @@ use super::{
 };
 use frame_support::{
 	match_types, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{Everything, EverythingBut, Nothing},
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
@@ -114,6 +114,12 @@ parameter_types! {
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
 
 match_types! {
+	pub type OnlyTrustedTeleporters: impl Contains<(MultiLocation, crate::Vec<MultiAsset>)> = {
+		(MultiLocation { parents: 0, interior: X1(Parachain(1000)) }, _)
+	};
+}
+
+match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
@@ -182,7 +188,9 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecuteFilter = Nothing; // == Deny All
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything; // == Allow All
-	type XcmReserveTransferFilter = Everything; // == Allow All
+	// Anyone is able to use reserve transfers regardless of who they are and what they want to
+	// transfer (unless it is trustfully teleportable, in which case do that instead as is simpler)
+	type XcmReserveTransferFilter = EverythingBut<OnlyTrustedTeleporters>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;

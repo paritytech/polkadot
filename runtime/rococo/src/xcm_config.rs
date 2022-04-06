@@ -21,8 +21,8 @@ use super::{
 	XcmPallet,
 };
 use frame_support::{
-	parameter_types,
-	traits::{Everything, IsInVec, Nothing},
+	parameter_types, match_types,
+	traits::{Everything, EverythingBut, IsInVec, Nothing},
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
@@ -95,6 +95,17 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForEncointer>,
 );
 
+match_types! {
+	pub type OnlyTrustedTeleporters: impl Contains<(MultiLocation, crate::Vec<MultiAsset>)> = {
+		(MultiLocation { parents: 0, interior: X1(Parachain(100)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(110)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(120)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(1000)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(1002)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(1003)) }, _)
+	};
+}
+
 parameter_types! {
 	pub AllowUnpaidFrom: Vec<MultiLocation> =
 		vec![
@@ -160,7 +171,9 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
+	// Anyone is able to use reserve transfers regardless of who they are and what they want to
+	// transfer (unless it is trustfully teleportable, in which case do that instead as is simpler)
+	type XcmReserveTransferFilter = EverythingBut<OnlyTrustedTeleporters>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;

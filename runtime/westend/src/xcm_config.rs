@@ -21,8 +21,8 @@ use super::{
 	WeightToFee, XcmPallet,
 };
 use frame_support::{
-	parameter_types,
-	traits::{Everything, Nothing},
+	parameter_types, match_types,
+	traits::{Everything, EverythingBut, Nothing},
 };
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
@@ -84,6 +84,13 @@ parameter_types! {
 pub type TrustedTeleporters =
 	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForEncointer>);
 
+match_types! {
+	pub type OnlyTrustedTeleporters: impl Contains<(MultiLocation, crate::Vec<MultiAsset>)> = {
+		(MultiLocation { parents: 0, interior: X1(Parachain(1000)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(1001)) }, _)
+	};
+}
+
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
 	// Weight that is paid for may be consumed.
@@ -133,7 +140,9 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
+	// Anyone is able to use reserve transfers regardless of who they are and what they want to
+	// transfer (unless it is trustfully teleportable, in which case do that instead as is simpler)
+	type XcmReserveTransferFilter = EverythingBut<OnlyTrustedTeleporters>;
 	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;

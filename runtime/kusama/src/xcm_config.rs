@@ -20,7 +20,7 @@ use super::{
 	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
-use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
+use frame_support::{match_types, parameter_types, traits::{Everything, EverythingBut}, weights::Weight};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -105,7 +105,14 @@ parameter_types! {
 	pub const KusamaForEncointer: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1001).into());
 }
 pub type TrustedTeleporters =
-	(xcm_builder::Case<KusamaForStatemine>, xcm_builder::Case<KusamaForEncointer>);
+	(xcm_builder::Case<KusamaForStatemine>,  xcm_builder::Case<KusamaForEncointer>);
+
+match_types! {
+	pub type OnlyTrustedTeleporters: impl Contains<(MultiLocation, crate::Vec<MultiAsset>)> = {
+		(MultiLocation { parents: 0, interior: X1(Parachain(1000)) }, _) |
+		(MultiLocation { parents: 0, interior: X1(Parachain(1001)) }, _)
+	};
+}
 
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
@@ -178,8 +185,8 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone is able to use teleportation regardless of who they are and what they want to teleport.
 	type XcmTeleportFilter = Everything;
 	// Anyone is able to use reserve transfers regardless of who they are and what they want to
-	// transfer.
-	type XcmReserveTransferFilter = Everything;
+	// transfer (unless it is trustfully teleportable, in which case do that instead as is simpler)
+	type XcmReserveTransferFilter = EverythingBut<OnlyTrustedTeleporters>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
