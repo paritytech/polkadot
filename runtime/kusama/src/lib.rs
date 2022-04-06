@@ -55,7 +55,7 @@ use frame_support::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
-	weights::{ConstantMultiplier},
+	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
