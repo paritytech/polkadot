@@ -14,6 +14,36 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Runtime API module declares the `trait ParachainHost` which is part
+//! of the Runtime API exposed from the Runtime to the Host.
+//!
+//! The functions in trait ParachainHost` can be part of the stable API
+//! (which is versioned) or they can be staging (aka unstable functions).
+//!
+//! All stable API functions should use primitives from the latest version.
+//! In the time of writing of this document - this is v2. So for example:
+//! ```ignore
+//! fn validators() -> Vec<v2::ValidatorId>;
+//! ```
+//! indicates a function from the stable v2 API.
+//!
+//! On the other hand a staging function's name should be prefixed with
+//! `staging_` like this:
+//! ```ignore
+//! fn staging_get_session_disputes() -> Vec<(vstaging::SessionIndex, vstaging::CandidateHash, vstaging::DisputeState<vstaging::BlockNumber>)>;
+//! ```
+//!
+//! How a staging function becomes stable?
+//!
+//! Once a staging function is ready to be versioned the `renamed` macro
+//! should be used to rename it and version it. For the example above:
+//! ```ignore
+//! #[renamed("staging_get_session_disputes", 3)]
+//! fn get_session_disputes() -> Vec<(v3::SessionIndex, v3::CandidateHash, v3::DisputeState<v3::BlockNumber>)>;
+//! ```
+//! For more details about how the API versioning works refer to `spi_api`
+//! documentation [here](https://docs.substrate.io/rustdocs/latest/sp_api/macro.decl_runtime_apis.html).
+
 use crate::v2;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;

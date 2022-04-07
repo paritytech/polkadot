@@ -21,3 +21,4 @@
 //! to a v2 would be done.
 
 pub mod v2;
+pub mod vstaging;
