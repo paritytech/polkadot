@@ -223,14 +223,14 @@ macro_rules! unwrap_client {
 		$client:ident,
 		$code:expr
 	) => {
-		match &*$client {
+		match $client.as_ref() {
 			#[cfg(feature = "polkadot-native")]
 			polkadot_client::Client::Polkadot($client) => $code,
 			#[cfg(feature = "westend-native")]
 			polkadot_client::Client::Westend($client) => $code,
 			#[cfg(feature = "kusama-native")]
 			polkadot_client::Client::Kusama($client) => $code,
-			#[cfg(feature = "rococo-native")]
+			// Rococo is always enabled?
 			polkadot_client::Client::Rococo($client) => $code,
 		}
 	};
