@@ -1524,27 +1524,27 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		CrowdloanIndexMigration,
+		SlotsCrowdloanIndexMigration,
 		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-pub struct CrowdloanIndexMigration;
-impl OnRuntimeUpgrade for CrowdloanIndexMigration {
+pub struct SlotsCrowdloanIndexMigration;
+impl OnRuntimeUpgrade for SlotsCrowdloanIndexMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
+		slots::migration::slots_crowdloan_index_migration::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
+		slots::migration::slots_crowdloan_index_migration::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
+		slots::migration::slots_crowdloan_index_migration::post_migrate::<Runtime>()
 	}
 }
 
