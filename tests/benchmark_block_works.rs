@@ -27,7 +27,7 @@ use tempfile::tempdir;
 
 pub mod common;
 
-static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend", "rococo", "wococo", "versi"];
+static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend"];
 
 /// `benchmark block` works for all dev runtimes using the wasm executor.
 #[tokio::test]

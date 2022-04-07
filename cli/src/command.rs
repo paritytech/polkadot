@@ -226,12 +226,13 @@ macro_rules! unwrap_client {
 		match $client.as_ref() {
 			#[cfg(feature = "polkadot-native")]
 			polkadot_client::Client::Polkadot($client) => $code,
-			#[cfg(feature = "polkadot-native")]
-			polkadot_client::Client::Rococo($client) => $code,
 			#[cfg(feature = "westend-native")]
 			polkadot_client::Client::Westend($client) => $code,
 			#[cfg(feature = "kusama-native")]
 			polkadot_client::Client::Kusama($client) => $code,
+
+			#[allow(unreachable_patterns)]
+			_ => Err(Error::CommandNotImplemented),
 		}
 	};
 }
@@ -465,13 +466,15 @@ pub fn run() -> Result<()> {
 					let db = backend.expose_db();
 					let storage = backend.expose_storage();
 
-					unwrap_client!(client, cmd.run(config, client.clone(), db, storage))
-						.map_err(Error::SubstrateCli)
+					unwrap_client!(
+						client,
+						cmd.run(config, client.clone(), db, storage).map_err(Error::SubstrateCli)
+					)
 				}),
 				BenchmarkCmd::Block(cmd) => runner.sync_run(|mut config| {
 					let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
 
-					unwrap_client!(client, cmd.run(client.clone())).map_err(Error::SubstrateCli)
+					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
 				}),
 				BenchmarkCmd::Overhead(cmd) => {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
@@ -487,8 +490,8 @@ pub fn run() -> Result<()> {
 						unwrap_client!(
 							client,
 							cmd.run(config, client.clone(), inherent_data, wrapped)
+								.map_err(Error::SubstrateCli)
 						)
-						.map_err(Error::SubstrateCli)
 					})
 				},
 				BenchmarkCmd::Pallet(cmd) => {
