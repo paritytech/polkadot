@@ -7105,6 +7105,7 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-overseer-gen-proc-macro",
+ "rustversion",
  "thiserror",
  "tracing-gum",
  "trybuild",

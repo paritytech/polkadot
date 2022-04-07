@@ -20,6 +20,7 @@ pin-project = "1.0"
 
 [dev-dependencies]
 trybuild = "1.0.53"
+rustversion = "1.0.6"
 
 [features]
 default = []
