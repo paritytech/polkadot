@@ -820,7 +820,7 @@ short-benchmark-polkadot:          &short-bench
   variables:
     RUNTIME:                       polkadot
   script:
-    - ./artifacts/polkadot benchmark --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 1 --repeat 1
+    - ./artifacts/polkadot benchmark pallet --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 1 --repeat 1
 
 short-benchmark-kusama:
   <<:                              *short-bench
