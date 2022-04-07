@@ -120,10 +120,10 @@ default:
 .vault-secrets:                    &vault-secrets
   secrets:
     AWS_ACCESS_KEY_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_ACCESS_KEY_ID@kv
+      vault:                       cicd/gitlab/polkadot/AWS_ACCESS_KEY_ID@kv
       file:                        false
     AWS_SECRET_ACCESS_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
+      vault:                       cicd/gitlab/polkadot/AWS_SECRET_ACCESS_KEY@kv
       file:                        false
     GITHUB_PR_TOKEN:
       vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
@@ -132,31 +132,31 @@ default:
       vault:                       cicd/gitlab/parity/GITHUB_TOKEN@kv
       file:                        false
     GITHUB_USER:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_USER@kv
+      vault:                       cicd/gitlab/polkadot/GITHUB_USER@kv
       file:                        false
     GITHUB_RELEASE_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_RELEASE_TOKEN@kv
+      vault:                       cicd/gitlab/polkadot/GITHUB_RELEASE_TOKEN@kv
       file:                        false
     GITHUB_SSH_PRIV_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_SSH_PRIV_KEY@kv
+      vault:                       cicd/gitlab/polkadot/GITHUB_SSH_PRIV_KEY@kv
       file:                        false
     MATRIX_ACCESS_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
+      vault:                       cicd/gitlab/polkadot/MATRIX_ACCESS_TOKEN@kv
       file:                        false
     MATRIX_ROOM_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
+      vault:                       cicd/gitlab/polkadot/MATRIX_ROOM_ID@kv
       file:                        false
     PARITYPR_USER:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
+      vault:                       cicd/gitlab/polkadot/PARITYPR_USER@kv
       file:                        false
     PARITYPR_PASS:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_PASS@kv
+      vault:                       cicd/gitlab/polkadot/PARITYPR_PASS@kv
       file:                        false
     PIPELINE_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PIPELINE_TOKEN@kv
+      vault:                       cicd/gitlab/polkadot/PIPELINE_TOKEN@kv
       file:                        false
     REL_MAN_ROOM_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/REL_MAN_ROOM_ID@kv
+      vault:                       cicd/gitlab/polkadot/REL_MAN_ROOM_ID@kv
       file:                        false
 
 .build-push-image:                 &build-push-image
