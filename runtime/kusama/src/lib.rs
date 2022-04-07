@@ -1406,7 +1406,7 @@ impl pallet_bridge_grandpa::Config for Runtime {
 	type MaxRequests = MaxBridgeGrandpaRequests;
 	type HeadersToKeep = BridgeGrandpaHeadersToKeep;
 
-	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>; // TODO
+	type WeightInfo = weights::pallet_bridge_grandpa::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1423,7 +1423,7 @@ pub type WithPolkadotMessagesInstance = ();
 
 impl pallet_bridge_messages::Config<WithPolkadotMessagesInstance> for Runtime {
 	type Event = Event;
-	type WeightInfo = pallet_bridge_messages::weights::MillauWeight<Runtime>; // TODO
+	type WeightInfo = weights::pallet_bridge_messages::MillauWeight<Runtime>;
 	type Parameter = polkadot_messages::WithPolkadotMessageBridgeParameter;
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;

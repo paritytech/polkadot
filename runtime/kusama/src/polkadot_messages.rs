@@ -494,7 +494,7 @@ mod tests {
 
 	#[test]
 	fn ensure_kusama_message_lane_weights_are_correct() {
-		type Weights = pallet_bridge_messages::weights::MillauWeight<Runtime>; // TODO: use Kusama weights
+		type Weights = crate::weights::pallet_bridge_messages::WeightInfo<Runtime>;
 
 		pallet_bridge_messages::ensure_weights_are_correct::<Weights>(
 			bp_kusama::DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT,

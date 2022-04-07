@@ -19,6 +19,8 @@ pub mod frame_system;
 pub mod pallet_bags_list;
 pub mod pallet_balances;
 pub mod pallet_bounties;
+pub mod pallet_bridge_grandpa;
+pub mod pallet_bridge_messages;
 pub mod pallet_child_bounties;
 pub mod pallet_collective_council;
 pub mod pallet_collective_technical_committee;

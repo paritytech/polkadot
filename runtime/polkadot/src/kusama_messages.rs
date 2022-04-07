@@ -503,7 +503,7 @@ mod tests {
 
 	#[test]
 	fn ensure_polkadot_message_lane_weights_are_correct() {
-		type Weights = pallet_bridge_messages::weights::MillauWeight<Runtime>; // TODO: use Polkadot weights
+		type Weights = crate::weights::pallet_bridge_messages::WeightInfo<Runtime>;
 
 		pallet_bridge_messages::ensure_weights_are_correct::<Weights>(
 			bp_polkadot::DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT,
