@@ -53,21 +53,21 @@ pub async fn peer_reporting_task(
 	let mut reports = HashMap::new();
 	let mut message_type_distribution = HashMap::new();
 	let mut received_report_count = 0;
-	let from_subsystems = rep_receiver.fuse();
+	let from_subsystem = rep_receiver.fuse();
 	let flush_interval_ms = flush_interval_ms.unwrap_or(REPUTATION_FLUSH_INTERVAL_MS);
 
 	// We flush reputation changes to the network bridge on every tick.
 	let interval = futures::stream::unfold((), move |_| async move {
-		tokio::time::sleep(std::time::Duration::from_millis(flush_interval_ms)).await;
+		async_std::task::sleep(std::time::Duration::from_millis(flush_interval_ms)).await;
 		Some(((), ()))
 	})
 	.fuse();
 
-	futures::pin_mut!(from_subsystems, interval);
+	futures::pin_mut!(from_subsystem, interval);
 
 	loop {
 		futures::select! {
-			msg = from_subsystems.next() => {
+			msg = from_subsystem.next() => {
 				match msg {
 					Some((peer_id, rep_change)) => {
 						received_report_count += 1;
@@ -81,14 +81,22 @@ pub async fn peer_reporting_task(
 							rep.accumulate(rep_change);
 						}).or_insert(rep_change);
 					},
-					None => panic!("peer reporting disconnected")
+					None => {
+						gum::error!(target: LOG_TARGET, "Peer reporting task disconnected.");
+						// Flush everything. This is useful for testing.
+						for (peer_id, rep) in reports.into_iter() {
+							sender.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer_id, rep)))
+								.await;
+						}
+						break
+					}
 				}
 			}
 			_ = interval.next() => {
-				gum::debug!(target: LOG_TARGET, %received_report_count, flush_count = %reports.len(), "Flushing rep changes");
+				gum::trace!(target: LOG_TARGET, %received_report_count, flush_count = %reports.len(), "Flushing rep changes");
 
 				for (reason, count) in message_type_distribution.into_iter() {
-					gum::debug!(target: LOG_TARGET, ?reason, %count, "Report reason distribution");
+					gum::trace!(target: LOG_TARGET, ?reason, %count, "Report reason distribution");
 
 				}
 
