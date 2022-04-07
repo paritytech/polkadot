@@ -149,5 +149,12 @@ sp_api::decl_runtime_apis! {
 		/// Old method to fetch v1 session info.
 		#[changed_in(2)]
 		fn session_info(index: sp_staking::SessionIndex) -> Option<v2::OldV1SessionInfo>;
+
+		/***** STAGING *****/
+
+		/// Returns all onchain disputes.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		fn staging_get_session_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 	}
 }
