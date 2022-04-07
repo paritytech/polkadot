@@ -526,7 +526,7 @@ pub fn run() -> Result<()> {
 				},
 				// NOTE: this allows the Polkadot client to leniently implement
 				// new benchmark commands.
-				#[allow(unreachable_patterns, useless_attribute)]
+				#[allow(unreachable_patterns)]
 				_ => Err(Error::CommandNotImplemented),
 			}
 		},
