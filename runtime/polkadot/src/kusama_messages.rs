@@ -479,6 +479,14 @@ impl MessagesConfig<crate::WithKusamaMessagesInstance> for Runtime {
 	}
 }
 
+impl pallet_bridge_messages::WeightInfoExt
+	for crate::weights::pallet_bridge_messages::WeightInfo<Runtime>
+{
+	fn expected_extra_storage_proof_size() -> u32 {
+		bp_kusama::EXTRA_STORAGE_PROOF_SIZE
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

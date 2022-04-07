@@ -1423,7 +1423,7 @@ pub type WithPolkadotMessagesInstance = ();
 
 impl pallet_bridge_messages::Config<WithPolkadotMessagesInstance> for Runtime {
 	type Event = Event;
-	type WeightInfo = weights::pallet_bridge_messages::MillauWeight<Runtime>;
+	type WeightInfo = weights::pallet_bridge_messages::WeightInfo<Runtime>;
 	type Parameter = polkadot_messages::WithPolkadotMessageBridgeParameter;
 	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
 	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;

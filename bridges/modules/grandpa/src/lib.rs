@@ -36,8 +36,6 @@
 // Runtime-generated enums
 #![allow(clippy::large_enum_variant)]
 
-use crate::weights::WeightInfo;
-
 use bp_header_chain::{justification::GrandpaJustification, InitializationData};
 use bp_runtime::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};
 use finality_grandpa::voter_set::VoterSet;
@@ -58,6 +56,7 @@ pub mod benchmarking;
 
 // Re-export in crate namespace for `construct_runtime!`
 pub use pallet::*;
+pub use weights::WeightInfo;
 
 /// Block number of the bridged chain.
 pub type BridgedBlockNumber<T, I> = BlockNumberOf<<T as Config<I>>::BridgedChain>;
