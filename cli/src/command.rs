@@ -226,13 +226,12 @@ macro_rules! unwrap_client {
 		match $client.as_ref() {
 			#[cfg(feature = "polkadot-native")]
 			polkadot_client::Client::Polkadot($client) => $code,
+			#[cfg(feature = "polkadot-native")]
+			polkadot_client::Client::Rococo($client) => $code,
 			#[cfg(feature = "westend-native")]
 			polkadot_client::Client::Westend($client) => $code,
 			#[cfg(feature = "kusama-native")]
 			polkadot_client::Client::Kusama($client) => $code,
-			// The `polkadot-native` is needed to make cumulus build.
-			#[cfg(any(feature = "rococo-native", feature = "polkadot-native"))]
-			polkadot_client::Client::Rococo($client) => $code,
 		}
 	};
 }
