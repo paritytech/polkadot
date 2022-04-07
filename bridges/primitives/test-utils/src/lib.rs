@@ -20,7 +20,6 @@
 
 use bp_header_chain::justification::GrandpaJustification;
 use codec::Encode;
-use sp_application_crypto::TryFrom;
 use sp_finality_grandpa::{AuthorityId, AuthoritySignature, AuthorityWeight, SetId};
 use sp_runtime::traits::{Header as HeaderT, One, Zero};
 use sp_std::prelude::*;

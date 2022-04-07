@@ -20,7 +20,6 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
-	convert::TryFrom,
 	pin::Pin,
 	time::Duration,
 };
@@ -490,6 +489,8 @@ impl RequestChunksFromValidators {
 			}
 		}
 
+		let _recovery_timer = metrics.time_full_recovery();
+
 		loop {
 			if self.is_unavailable(&params) {
 				gum::debug!(
@@ -503,10 +504,11 @@ impl RequestChunksFromValidators {
 					"Data recovery is not possible",
 				);
 
+				metrics.on_recovery_failed();
+
 				return Err(RecoveryError::Unavailable)
 			}
 
-			let recovery_possible = metrics.time_erasure_recovery_becomes_possible();
 			self.launch_parallel_requests(params, sender).await;
 			self.wait_for_chunks(params).await;
 
@@ -514,7 +516,6 @@ impl RequestChunksFromValidators {
 			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
 			// return Err(RecoveryError::Invalid)
 			if self.received_chunks.len() >= params.threshold {
-				drop(recovery_possible);
 				let recovery_duration = metrics.time_erasure_recovery();
 
 				return match polkadot_erasure_coding::reconstruct_v1(
@@ -533,6 +534,7 @@ impl RequestChunksFromValidators {
 								erasure_root = ?params.erasure_root,
 								"Data recovery complete",
 							);
+							metrics.on_recovery_succeeded();
 
 							Ok(data)
 						} else {
@@ -543,6 +545,7 @@ impl RequestChunksFromValidators {
 								erasure_root = ?params.erasure_root,
 								"Data recovery - root mismatch",
 							);
+							metrics.on_recovery_invalid();
 
 							Err(RecoveryError::Invalid)
 						}
@@ -556,12 +559,11 @@ impl RequestChunksFromValidators {
 							?err,
 							"Data recovery error ",
 						);
+						metrics.on_recovery_invalid();
 
 						Err(RecoveryError::Invalid)
 					},
 				}
-			} else {
-				recovery_possible.map(|rp| rp.stop_and_discard());
 			}
 		}
 	}
@@ -637,6 +639,8 @@ impl<S: SubsystemSender> RecoveryTask<S> {
 				},
 			}
 		}
+
+		self.params.metrics.on_recovery_started();
 
 		loop {
 			// These only fail if we cannot reach the underlying subsystem, which case there is nothing

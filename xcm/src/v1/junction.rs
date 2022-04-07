@@ -19,7 +19,6 @@
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
 use crate::v0::Junction as Junction0;
 use alloc::vec::Vec;
-use core::convert::TryFrom;
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
