@@ -300,6 +300,10 @@ enum Solver {
 		#[clap(long, default_value = "10")]
 		iterations: usize,
 	},
+	MMS {
+		#[clap(long, default_value = "10")]
+		iterations: usize,
+	},
 }
 
 /// Submission strategy to use.
@@ -494,7 +498,7 @@ where
 	T: EPM::Config,
 	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
 {
-	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
+	use frame_election_provider_support::{PhragMMS, SequentialPhragmen, MMS};
 
 	match solver {
 		Solver::SeqPhragmen { iterations } => {
@@ -513,6 +517,13 @@ where
 			mine_solution::<
 				T,
 				PhragMMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
+			>(ext, do_feasibility)
+		},
+		Solver::MMS { iterations } => {
+			BalanceIterations::set(*iterations);
+			mine_solution::<
+				T,
+				MMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
 			>(ext, do_feasibility)
 		},
 	}
