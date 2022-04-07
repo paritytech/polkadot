@@ -257,19 +257,35 @@ impl futures::Future for WorkerHandle {
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		let me = self.project();
+		let pid = me.child.id();
+
 		match futures::ready!(AsyncRead::poll_read(me.stdout, cx, &mut *me.drop_box)) {
 			Ok(0) => {
 				// 0 means `EOF` means the child was terminated. Resolve.
+				gum::debug!(target: LOG_TARGET, ?pid, "execution worker has terminated normally",);
 				Poll::Ready(())
 			},
 			Ok(_bytes_read) => {
 				// weird, we've read something. Pretend that never happened and reschedule ourselves.
+				let real_output = String::from_utf8_lossy(&me.drop_box[.._bytes_read]);
+				gum::debug!(
+					target: LOG_TARGET,
+					?pid,
+					"execution worker has terminated and returned output: {}",
+					real_output,
+				);
 				cx.waker().wake_by_ref();
 				Poll::Pending
 			},
-			Err(_) => {
+			Err(e) => {
 				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted. This
 				// leaves us with a legit errors which we suppose were due to termination.
+				gum::debug!(
+					target: LOG_TARGET,
+					?pid,
+					"execution worker has terminated with an error: {}",
+					e
+				);
 				Poll::Ready(())
 			},
 		}
