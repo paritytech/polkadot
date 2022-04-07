@@ -26,6 +26,7 @@ offchain-primitives = { package = "sp-offchain", git = "https://github.com/parit
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { package = "sp-arithmetic", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -55,7 +56,6 @@ pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -161,6 +161,7 @@ std = [
 	"pallet-vesting/std",
 	"pallet-babe/std",
 	"pallet-xcm/std",
+	"sp-mmr-primitives/std",
 	"sp-runtime/std",
 	"sp-staking/std",
 	"frame-system/std",
@@ -177,7 +178,6 @@ std = [
 	"sp-npos-elections/std",
 	"beefy-primitives/std",
 	"kusama-runtime-constants/std",
-	"pallet-mmr-primitives/std",
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",

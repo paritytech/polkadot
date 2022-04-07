@@ -54,7 +54,6 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Other
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

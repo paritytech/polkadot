@@ -474,6 +474,7 @@ dependencies = [
  "sp-consensus",
  "sp-core",
  "sp-keystore",
+ "sp-mmr-primitives",
  "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -3482,7 +3483,6 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -3524,6 +3524,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-npos-elections",
  "sp-offchain",
  "sp-runtime",
@@ -5142,7 +5143,6 @@ dependencies = [
  "log",
  "pallet-beefy",
  "pallet-mmr",
- "pallet-mmr-primitives",
  "pallet-session",
  "parity-scale-codec",
  "scale-info",
@@ -5445,27 +5445,11 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "pallet-mmr-primitives",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
  "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-mmr-primitives"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#1dd1f2125c2936b006c85699433c3942c80d09fd"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-core",
+ "sp-mmr-primitives",
  "sp-runtime",
  "sp-std",
 ]
@@ -5478,12 +5462,12 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
  "jsonrpc-derive",
- "pallet-mmr-primitives",
  "parity-scale-codec",
  "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",
+ "sp-mmr-primitives",
  "sp-runtime",
 ]
 
@@ -6408,7 +6392,6 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "kusama-runtime",
- "pallet-mmr-primitives",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-core-primitives",
@@ -6431,6 +6414,7 @@ dependencies = [
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -7255,7 +7239,6 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -7295,6 +7278,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-npos-elections",
  "sp-offchain",
  "sp-runtime",
@@ -7458,7 +7442,6 @@ dependencies = [
  "lru 0.7.4",
  "pallet-babe",
  "pallet-im-online",
- "pallet-mmr-primitives",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-db",
@@ -7657,7 +7640,6 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
- "pallet-mmr-primitives",
  "pallet-nicks",
  "pallet-offences",
  "pallet-session",
@@ -7688,6 +7670,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -8454,7 +8437,6 @@ dependencies = [
  "pallet-indices",
  "pallet-membership",
  "pallet-mmr",
- "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-offences",
  "pallet-proxy",
@@ -8483,6 +8465,7 @@ dependencies = [
  "sp-core",
  "sp-inherents",
  "sp-io",
+ "sp-mmr-primitives",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -10451,6 +10434,20 @@ source = "git+https://github.com/paritytech/substrate?branch=master#1dd1f2125c29
 dependencies = [
  "thiserror",
  "zstd",
+]
+
+[[package]]
+name = "sp-mmr-primitives"
+version = "4.0.0-dev"
+dependencies = [
+ "log",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-core",
+ "sp-debug-derive",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -12432,7 +12429,6 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -12474,6 +12470,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-npos-elections",
  "sp-offchain",
  "sp-runtime",
