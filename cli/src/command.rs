@@ -230,7 +230,8 @@ macro_rules! unwrap_client {
 			polkadot_client::Client::Westend($client) => $code,
 			#[cfg(feature = "kusama-native")]
 			polkadot_client::Client::Kusama($client) => $code,
-			// Rococo is always enabled?
+			// The `polkadot-native` is needed to make cumulus build.
+			#[cfg(any(feature = "rococo-native", feature = "polkadot-native"))]
 			polkadot_client::Client::Rococo($client) => $code,
 		}
 	};
