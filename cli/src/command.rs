@@ -230,7 +230,8 @@ macro_rules! unwrap_client {
 			polkadot_client::Client::Westend($client) => $code,
 			#[cfg(feature = "kusama-native")]
 			polkadot_client::Client::Kusama($client) => $code,
-
+			#[cfg(feature = "rococo-native")]
+			polkadot_client::Client::Rococo($client) => $code,
 			#[allow(unreachable_patterns)]
 			_ => Err(Error::CommandNotImplemented),
 		}
