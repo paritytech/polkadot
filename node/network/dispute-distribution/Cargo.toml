@@ -20,10 +20,10 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
 fatality = "0.0.6"
-lru = "0.7.3"
+lru = "0.7.4"
 
 [dev-dependencies]
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }

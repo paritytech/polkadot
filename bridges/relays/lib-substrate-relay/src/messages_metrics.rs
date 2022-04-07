@@ -32,7 +32,7 @@ use relay_utils::metrics::{
 };
 use sp_core::storage::StorageData;
 use sp_runtime::{FixedPointNumber, FixedU128};
-use std::{convert::TryFrom, fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData};
 
 /// Name of the `NextFeeMultiplier` storage value within the transaction payment pallet.
 const NEXT_FEE_MULTIPLIER_VALUE_NAME: &str = "NextFeeMultiplier";

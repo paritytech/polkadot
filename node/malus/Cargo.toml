@@ -26,7 +26,7 @@ polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
 color-eyre = { version = "0.6.1", default-features = false }
 assert_matches = "1.5"
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 clap = { version = "3.1", features = ["derive"] }
 futures = "0.3.21"
