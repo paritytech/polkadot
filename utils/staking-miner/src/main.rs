@@ -48,6 +48,7 @@ use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
+use subxt::{ClientBuilder, DefaultConfig, PairSigner, SubstrateExtrinsicParams};
 use tracing_subscriber::{fmt, EnvFilter};
 
 use std::{ops::Deref, sync::Arc};
@@ -59,6 +60,11 @@ pub(crate) enum AnyRuntime {
 }
 
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
+
+#[subxt::subxt(runtime_metadata_path = "metadata.scale")]
+pub mod runtime {}
+
+pub type Runtime = runtime::RuntimeApi<DefaultConfig, SubstrateExtrinsicParams<DefaultConfig>>;
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
@@ -336,7 +342,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into())
+			return Err(s.into());
 		};
 		Ok(res)
 	}
@@ -529,7 +535,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -586,6 +592,13 @@ async fn main() {
 	let Opt { uri, seed_or_path, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
+	let api: Runtime = subxt::ClientBuilder::new()
+		.set_url(uri.clone())
+		.build()
+		.await
+		.unwrap()
+		.to_runtime_api();
+
 	let rpc = loop {
 		match SharedRpcClient::new(&uri).await {
 			Ok(client) => break client,
@@ -600,78 +613,123 @@ async fn main() {
 		}
 	};
 
-	let chain: String = rpc.system_chain().await.expect("system_chain infallible; qed.");
-	match chain.to_lowercase().as_str() {
-		"polkadot" | "development" => {
-			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
-			);
-			sub_tokens::dynamic::set_name("DOT");
-			sub_tokens::dynamic::set_decimal_points(10_000_000_000);
-			// safety: this program will always be single threaded, thus accessing global static is
-			// safe.
-			unsafe {
-				RUNTIME = AnyRuntime::Polkadot;
-			}
-		},
-		"kusama" | "kusama-dev" => {
-			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormatRegistry::KusamaAccount.into(),
-			);
-			sub_tokens::dynamic::set_name("KSM");
-			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
-			// safety: this program will always be single threaded, thus accessing global static is
-			// safe.
-			unsafe {
-				RUNTIME = AnyRuntime::Kusama;
-			}
-		},
-		"westend" => {
-			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
-			);
-			sub_tokens::dynamic::set_name("WND");
-			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
-			// safety: this program will always be single threaded, thus accessing global static is
-			// safe.
-			unsafe {
-				RUNTIME = AnyRuntime::Westend;
-			}
-		},
-		_ => {
-			eprintln!("unexpected chain: {:?}", chain);
-			return
-		},
-	}
-	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
+	let signer = signer_uri_from_string::<DefaultConfig, _>(&seed_or_path);
 
-	any_runtime_unit! {
-		check_versions::<Runtime>(&rpc).await
+	match command {
+		Command::Monitor(cmd) => {
+			monitor_cmd(rpc, api, cmd, signer).await;
+		},
+		_ => panic!("oo"),
 	};
 
-	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&seed_or_path, &rpc)
-			.await
-			.expect("Provided account is invalid, terminating.")
-	};
+	//log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+}
 
-	let outcome = any_runtime! {
-		match command {
-			Command::Monitor(cmd) => monitor_cmd(rpc, cmd, signer_account).await
-				.map_err(|e| {
-					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
-				}),
-			Command::DryRun(cmd) => dry_run_cmd(rpc, cmd, signer_account).await
-				.map_err(|e| {
-					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
-				}),
-			Command::EmergencySolution(cmd) => emergency_solution_cmd(rpc, cmd).await
-				.map_err(|e| {
-					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
-				}),
+async fn monitor_cmd<T: subxt::Config, P: subxt::sp_core::Pair>(
+	rpc: SharedRpcClient,
+	api: Runtime,
+	config: MonitorConfig,
+	signer: PairSigner<T, P>,
+) -> Result<(), ()> {
+	let heads_subscription = || {
+		if config.listen == "head" {
+			rpc.subscribe_new_heads()
+		} else {
+			rpc.subscribe_finalized_heads()
 		}
 	};
-	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+
+	let mut subscription = heads_subscription().await.map_err(|_| ())?;
+	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+
+	loop {
+		let at = tokio::select! {
+			maybe_rp = subscription.next() => {
+				match maybe_rp {
+					Some(Ok(r)) => r,
+					// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
+					Some(Err(crate::error::RpcError::SubscriptionClosed(reason))) => {
+						log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated: {:?}. Retrying..", reason);
+						subscription = heads_subscription().await.map_err(|_| ())?;
+						continue;
+					}
+					Some(Err(e)) => {
+						log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
+						return Err(());
+					}
+					// The subscription was dropped, should only happen if:
+					//	- the connection was closed.
+					//	- the subscription could not keep up with the server.
+					None => {
+						log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated. Retrying..");
+						subscription = heads_subscription().await?;
+						continue
+					}
+				}
+			},
+			maybe_err = rx.recv() => {
+				match maybe_err {
+					Some(err) => return Err(err),
+					None => unreachable!("at least one sender kept in the main loop should always return Some; qed"),
+				}
+			}
+		};
+
+		// Spawn task and non-recoverable errors are sent back to the main task
+		// such as if the connection has been closed.
+		/*tokio::spawn(send_and_watch_extrinsic(
+			rpc.clone(),
+			tx.clone(),
+			at,
+			signer.clone(),
+			config.clone(),
+		));*/
+	}
+}
+
+/// Construct extrinsic at given block and watch it.
+async fn send_and_watch_extrinsic<T: subxt::Config, P: subxt::sp_core::Pair>(
+	rpc: SharedRpcClient,
+	tx: tokio::sync::mpsc::UnboundedSender<()>,
+	at: Header,
+	signer: PairSigner<T, P>,
+	config: MonitorConfig,
+) {
+	async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, ()>>) -> Result<T, ()> {
+		match handle.await {
+			Ok(Ok(result)) => Ok(result),
+			Ok(Err(err)) => Err(err),
+			Err(err) => panic!("tokio spawn task failed; kill task: {:?}", err),
+		}
+	}
+}
+
+/// Read the signer account's URI
+fn signer_uri_from_string<T: subxt::Config, P: subxt::sp_core::Pair>(
+	mut seed_or_path: &str,
+) -> PairSigner<T, P> {
+	seed_or_path = seed_or_path.trim();
+
+	let seed = match std::fs::read(seed_or_path) {
+		Ok(s) => String::from_utf8(s).unwrap(),
+		Err(_) => seed_or_path.to_string(),
+	};
+	let seed = seed.trim();
+
+	let pair = Pair::from_string(seed, None)?;
+
+	PairSigner::new(pair)
+	/*let _info = get_account_info::<T>(client, &account, None)
+		.await?
+		.ok_or(Error::<T>::AccountDoesNotExists)?;
+	log::info!(
+		target: LOG_TARGET,
+		"loaded account {:?}, free: {:?}, info: {:?}",
+		&account,
+		Token::from(_info.data.free),
+		_info
+	);*/
+	//Ok(Signer { account, pair })
 }
 
 #[cfg(test)]
