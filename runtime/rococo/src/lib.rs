@@ -684,7 +684,7 @@ impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
 	type Hash = MmrHash;
-	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
+	type OnNewRoot = ();
 	type WeightInfo = ();
 	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
 }
@@ -1397,6 +1397,10 @@ sp_api::impl_runtime_apis! {
 			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
 			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
 			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
+		}
+
+		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Ok(Mmr::mmr_root())
 		}
 	}
 

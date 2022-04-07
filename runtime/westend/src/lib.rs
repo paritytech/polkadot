@@ -1344,6 +1344,11 @@ sp_api::impl_runtime_apis! {
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::Verify)
 		}
+
+		fn mmr_root() -> Result<Hash, mmr::Error> {
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
