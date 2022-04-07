@@ -415,6 +415,8 @@ async fn run(
 			},
 		}
 	}
+
+	gum::debug!(target: LOG_TARGET, "PVF event loop is terminated",);
 }
 
 async fn handle_to_host(
@@ -645,6 +647,7 @@ async fn handle_prepare_done(
 		gum::debug!(
 			target: LOG_TARGET,
 			?artifact_id,
+			?pending_len,
 			"Start to execute PVF to prepare an artifact",
 		);
 
@@ -687,7 +690,14 @@ async fn send_execute(
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	to_queue: execute::ToQueue,
 ) -> Result<(), Fatal> {
-	execute_queue.send(to_queue).await.map_err(|_| Fatal)
+	execute_queue.send(to_queue).await.map_err(|e| {
+		gum::debug!(
+			target: LOG_TARGET,
+			error = ?e,
+			"Failed to send execution request",
+		);
+		Fatal
+	})
 }
 
 async fn handle_cleanup_pulse(
