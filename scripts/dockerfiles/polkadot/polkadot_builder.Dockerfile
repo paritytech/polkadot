@@ -1,10 +1,10 @@
 # This is the build stage for Polkadot. Here we create the binary in a temporary image.
 FROM docker.io/paritytech/ci-linux:production as builder
-
+ARG BUILD_FLAGS=""
 WORKDIR /polkadot
 COPY . /polkadot
 
-RUN cargo build --locked --release
+RUN cargo build --locked --release $BUILD_FLAGS
 
 # This is the 2nd stage: a very small image where we copy the Polkadot binary."
 FROM docker.io/library/ubuntu:20.04
