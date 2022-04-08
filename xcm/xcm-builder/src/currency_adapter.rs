@@ -152,6 +152,26 @@ impl<
 		Ok(())
 	}
 
+	fn can_withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
+		log::trace!(target: "xcm::currency_adapter", "can_withdraw_asset what: {:?}, who: {:?}", what, who);
+		// Check we handle this asset.
+		let amount: Currency::Balance =
+			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
+		let who =
+			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
+		let new_balance = Currency::free_balance(&who)
+			.checked_sub(&amount)
+			.ok_or(XcmError::NotWithdrawable)?;
+		Currency::ensure_can_withdraw(
+			&who,
+			amount,
+			WithdrawReasons::TRANSFER,
+			new_balance,
+		)
+		.map_err(|_| XcmError::NotWithdrawable)?;
+		Ok(())
+	}
+
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "withdraw_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.

@@ -67,6 +67,13 @@ pub trait TransactAsset {
 		Err(XcmError::Unimplemented)
 	}
 
+	/// Ensure that `withdraw_asset` will result in `Ok`.
+	///
+	/// When composed as a tuple, all type-items are called and at least one must result in `Ok`.
+	fn can_withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
+
 	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn,
 	/// which should always be equal to `_what`.
 	///
@@ -159,6 +166,22 @@ impl TransactAsset for Tuple {
 		Err(XcmError::AssetNotFound)
 	}
 
+	fn can_withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
+		for_tuples!( #(
+			match Tuple::can_withdraw_asset(what, who) {
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
+				r => return r,
+			}
+		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::can_withdraw_asset",
+			"asset not found: what: {:?}, who: {:?}",
+			what,
+			who,
+		);
+		Err(XcmError::AssetNotFound)
+	}
+
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::withdraw_asset(what, who) {
@@ -215,6 +238,10 @@ mod tests {
 			Err(XcmError::AssetNotFound)
 		}
 
+		fn can_withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+			Err(XcmError::AssetNotFound)
+		}
+
 		fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
 			Err(XcmError::AssetNotFound)
 		}
@@ -238,6 +265,10 @@ mod tests {
 			Err(XcmError::Overflow)
 		}
 
+		fn can_withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+			Err(XcmError::Overflow)
+		}
+
 		fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
 			Err(XcmError::Overflow)
 		}
@@ -258,6 +289,10 @@ mod tests {
 		}
 
 		fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+			Ok(())
+		}
+
+		fn can_withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
 			Ok(())
 		}
 
