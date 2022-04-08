@@ -6682,6 +6682,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-runtime",
+ "thiserror",
  "tracing-gum",
 ]
 
