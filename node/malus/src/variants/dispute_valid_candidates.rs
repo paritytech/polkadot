@@ -34,12 +34,7 @@ use polkadot_cli::{
 
 // Filter wrapping related types.
 use super::common::{FakeCandidateValidation, FakeCandidateValidationError};
-use crate::{interceptor::*, shared::MALUS, variants::ReplaceValidationResult};
-
-// Import extra types relevant to the particular subsystem.
-use polkadot_node_subsystem::messages::{
-	ApprovalDistributionMessage, CandidateBackingMessage, DisputeCoordinatorMessage,
-};
+use crate::{interceptor::*, variants::ReplaceValidationResult};
 
 use std::sync::Arc;
 
@@ -50,7 +45,7 @@ pub struct DisputeAncestorOptions {
 	/// Malicious candidate validation subsystem configuration. When enabled, node PVF execution is skipped
 	/// during backing and/or approval and it's result can by specified by this option and `--fake-validation-error`
 	/// for invalid candidate outcomes.
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::Disabled)]
+	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::BackingAndApprovalInvalid)]
 	pub fake_validation: FakeCandidateValidation,
 
 	/// Applies only when `--fake-validation` is configured to reject candidates as invalid. It allows
@@ -60,59 +55,6 @@ pub struct DisputeAncestorOptions {
 
 	#[clap(flatten)]
 	pub cmd: RunCmd,
-}
-
-/// Replace outgoing approval messages with disputes.
-#[derive(Clone, Debug)]
-struct ReplaceApprovalsWithDisputes;
-
-impl<Sender> MessageInterceptor<Sender> for ReplaceApprovalsWithDisputes
-where
-	Sender: overseer::SubsystemSender<CandidateBackingMessage> + Clone + Send + 'static,
-{
-	type Message = CandidateBackingMessage;
-
-	fn intercept_incoming(
-		&self,
-		_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
-		Some(msg)
-	}
-
-	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
-		match msg {
-			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(
-				_,
-			)) => {
-				// drop the message on the floor
-				None
-			},
-			AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
-				candidate_receipt,
-				session,
-				..
-			}) => {
-				gum::info!(
-					target: MALUS,
-					para_id = ?candidate_receipt.descriptor.para_id,
-					?candidate_hash,
-					"Disputing candidate",
-				);
-				// this would also dispute candidates we were not assigned to approve
-				Some(AllMessages::DisputeCoordinator(
-					DisputeCoordinatorMessage::IssueLocalStatement(
-						session,
-						candidate_hash,
-						candidate_receipt,
-						false,
-					),
-				))
-			},
-			msg => Some(msg),
-		}
-	}
 }
 
 pub(crate) struct DisputeValidCandidates {
@@ -138,7 +80,6 @@ impl OverseerGen for DisputeValidCandidates {
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		let spawner = args.spawner.clone();
-		let backing_filter = ReplaceApprovalsWithDisputes;
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
@@ -146,7 +87,6 @@ impl OverseerGen for DisputeValidCandidates {
 		);
 
 		prepared_overseer_builder(args)?
-			.replace_candidate_backing(move |cb| InterceptedSubsystem::new(cb, backing_filter))
 			.replace_candidate_validation(move |cv_subsystem| {
 				InterceptedSubsystem::new(cv_subsystem, validation_filter)
 			})
