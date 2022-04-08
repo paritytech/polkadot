@@ -48,7 +48,7 @@ use polkadot_primitives::v2::{
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	metrics::Metrics,
-	real::{scraping::OnChainVotesSigningContext, DisputeCoordinatorSubsystem},
+	real::DisputeCoordinatorSubsystem,
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
 	LOG_TARGET,
 };
@@ -119,7 +119,7 @@ impl Initialized {
 		mut ctx: Context,
 		mut backend: B,
 		mut participations: Vec<(ParticipationPriority, ParticipationRequest)>,
-		mut votes: Vec<OnChainVotesSigningContext>,
+		mut votes: Vec<ScrapedOnChainVotes>,
 		mut first_leaf: Option<ActivatedLeaf>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
@@ -157,7 +157,7 @@ impl Initialized {
 		ctx: &mut Context,
 		backend: &mut B,
 		participations: &mut Vec<(ParticipationPriority, ParticipationRequest)>,
-		on_chain_votes: &mut Vec<OnChainVotesSigningContext>,
+		on_chain_votes: &mut Vec<ScrapedOnChainVotes>,
 		first_leaf: &mut Option<ActivatedLeaf>,
 		clock: &dyn Clock,
 	) -> Result<()>
@@ -173,14 +173,12 @@ impl Initialized {
 		{
 			let mut overlay_db = OverlayedBackend::new(backend);
 			for votes in on_chain_votes.drain(..) {
-				let relay_parent = votes.relay_parent;
 				let _ = self
 					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
 					.await
 					.map_err(|error| {
 						gum::warn!(
 							target: LOG_TARGET,
-							?relay_parent,
 							?error,
 							"Skipping scraping block due to error",
 						);
@@ -304,12 +302,10 @@ impl Initialized {
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
 			for votes in on_chain_votes {
-				let relay_parent = votes.relay_parent;
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
 						gum::warn!(
 							target: LOG_TARGET,
-							?relay_parent,
 							?error,
 							"Skipping scraping block due to error",
 						);
@@ -328,13 +324,10 @@ impl Initialized {
 		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-		new_votes: OnChainVotesSigningContext,
+		votes: ScrapedOnChainVotes,
 		now: u64,
 	) -> Result<()> {
-		let OnChainVotesSigningContext {
-			votes: ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes },
-			relay_parent,
-		} = new_votes;
+		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
 		if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
 			return Ok(())
@@ -360,6 +353,7 @@ impl Initialized {
 		// Scraped on-chain backing votes for the candidates with
 		// the new active leaf as if we received them via gossip.
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
+			let relay_parent = candidate_receipt.descriptor.relay_parent;
 			let candidate_hash = candidate_receipt.hash();
 			let statements = backers
 				.into_iter()
@@ -441,7 +435,7 @@ impl Initialized {
 					} else {
 						gum::warn!(
 								target: LOG_TARGET,
-								?relay_parent,
+								?candidate_hash,
 								?session,
 								"Could not retrieve session info from rolling session window for recently concluded dispute");
 						return None
@@ -453,7 +447,7 @@ impl Initialized {
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
-								?relay_parent,
+								?candidate_hash,
 								?session,
 								"Missing public key for validator {:?} that participated in concluded dispute",
 								&validator_index);
@@ -488,14 +482,12 @@ impl Initialized {
 			match import_result {
 				ImportStatementsResult::ValidImport => gum::trace!(
 					target: LOG_TARGET,
-					?relay_parent,
 					?candidate_hash,
 					?session,
 					"Imported statement of concluded dispute from on-chain"
 				),
 				ImportStatementsResult::InvalidImport => gum::warn!(
 					target: LOG_TARGET,
-					?relay_parent,
 					?candidate_hash,
 					?session,
 					"Attempted import of on-chain statement of concluded dispute failed"

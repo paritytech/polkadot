@@ -70,14 +70,6 @@ pub struct ChainScraper {
 	last_observed_blocks: LruCache<Hash, ()>,
 }
 
-#[derive(Debug)]
-pub struct OnChainVotesSigningContext {
-	/// Actual votes data as scraped from chain.
-	pub votes: ScrapedOnChainVotes,
-	/// Relay parent that was used as signing context for signing backing votes.
-	pub relay_parent: Hash,
-}
-
 impl ChainScraper {
 	/// Limits the number of ancestors received for a single request.
 	pub(crate) const ANCESTRY_CHUNK_SIZE: u32 = 10;
@@ -92,7 +84,7 @@ impl ChainScraper {
 	pub async fn new<Sender: SubsystemSender>(
 		sender: &mut Sender,
 		initial_head: ActivatedLeaf,
-	) -> Result<(Self, Vec<OnChainVotesSigningContext>)> {
+	) -> Result<(Self, Vec<ScrapedOnChainVotes>)> {
 		let mut s = Self {
 			included_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
@@ -119,7 +111,7 @@ impl ChainScraper {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> crate::error::Result<Vec<OnChainVotesSigningContext>> {
+	) -> crate::error::Result<Vec<ScrapedOnChainVotes>> {
 		let activated = match update.activated.as_ref() {
 			Some(activated) => activated,
 			None => return Ok(Vec::new()),
@@ -130,25 +122,23 @@ impl ChainScraper {
 			.get_unfinalized_block_ancestors(sender, activated.hash, activated.number)
 			.await?;
 
+		gum::info!("After getting ancestors!");
+
 		// Ancestors block numbers are consecutive in the descending order.
 		let earliest_block_number = activated.number - ancestors.len() as u32;
 		let block_numbers = (earliest_block_number..=activated.number).rev();
 
-		let oldest_ancestor = *ancestors.last().unwrap_or(&activated.hash);
 		let block_hashes = std::iter::once(activated.hash).chain(ancestors);
-		let relay_parents = {
-			let parent_oldest = get_block_ancestors(sender, oldest_ancestor, 1).await?;
-			block_hashes.clone().skip(1).chain(parent_oldest)
-		};
+
+		gum::info!("After getting relay parents!");
 
 		let mut on_chain_votes = Vec::new();
-		for ((block_number, block_hash), relay_parent) in
-			block_numbers.zip(block_hashes).zip(relay_parents)
+		for (block_number, block_hash) in block_numbers.zip(block_hashes)
 		{
 			self.process_candidate_events(sender, block_number, block_hash).await?;
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
-				on_chain_votes.push(OnChainVotesSigningContext { votes, relay_parent });
+				on_chain_votes.push(votes);
 			}
 		}
 

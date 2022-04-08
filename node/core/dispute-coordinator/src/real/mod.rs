@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,
 };
-use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair};
+use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair, ScrapedOnChainVotes};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},
@@ -51,7 +51,6 @@ use fatality::Split;
 
 use self::{
 	participation::{ParticipationPriority, ParticipationRequest},
-	scraping::OnChainVotesSigningContext,
 	spam_slots::{SpamSlots, UnconfirmedDisputes},
 };
 
@@ -181,7 +180,7 @@ impl DisputeCoordinatorSubsystem {
 	) -> FatalResult<
 		Option<(
 			Vec<(ParticipationPriority, ParticipationRequest)>,
-			Vec<OnChainVotesSigningContext>,
+			Vec<ScrapedOnChainVotes>,
 			ActivatedLeaf,
 			Initialized,
 			B,
@@ -255,7 +254,7 @@ impl DisputeCoordinatorSubsystem {
 		clock: &dyn Clock,
 	) -> Result<(
 		Vec<(ParticipationPriority, ParticipationRequest)>,
-		Vec<OnChainVotesSigningContext>,
+		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
 	)>
