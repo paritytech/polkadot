@@ -39,7 +39,7 @@ done < "${runtime}_pallets"
 rm "${runtime}_pallets"
 
 # Benchmark base weights
-./target/production/polkadot benchmark-overhead \
+! ./target/production/polkadot benchmark overhead \
   --chain="${runtime}-dev" \
   --execution=wasm \
   --wasm-execution=compiled \
