@@ -955,7 +955,7 @@ async fn handle_actions(
 					candidate_receipt,
 					session,
 					statements: vec![(dispute_statement, validator_index)],
-					None,
+					pending_confirmation: None,
 				})
 				.await;
 			},

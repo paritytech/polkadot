@@ -897,7 +897,7 @@ impl CandidateBackingJob {
 					candidate_receipt,
 					session: self.session_index,
 					statements: vec![(dispute_statement, validator_index)],
-					None,
+					pending_confirmation: None,
 				})
 				.await;
 		}
