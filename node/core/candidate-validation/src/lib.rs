@@ -41,7 +41,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
@@ -134,11 +134,10 @@ where
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
-					descriptor,
+					candidate_receipt,
 					pov,
 					timeout,
 					response_sender,
-					commitments_hash,
 				) => {
 					let bg = {
 						let mut sender = ctx.sender().clone();
@@ -150,11 +149,10 @@ where
 							let res = validate_from_chain_state(
 								&mut sender,
 								validation_host,
-								descriptor,
+								candidate_receipt,
 								pov,
 								timeout,
 								&metrics,
-								commitments_hash,
 							)
 							.await;
 
@@ -168,11 +166,10 @@ where
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
 					validation_code,
-					descriptor,
+					candidate_receipt,
 					pov,
 					timeout,
 					response_sender,
-					commitments_hash,
 				) => {
 					let bg = {
 						let metrics = metrics.clone();
@@ -184,11 +181,10 @@ where
 								validation_host,
 								persisted_validation_data,
 								validation_code,
-								descriptor,
+								candidate_receipt,
 								pov,
 								timeout,
 								&metrics,
-								commitments_hash,
 							)
 							.await;
 
@@ -442,18 +438,17 @@ where
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
 	validation_host: ValidationHost,
-	descriptor: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
-	commitments_hash: Hash,
 ) -> Result<ValidationResult, ValidationFailed>
 where
 	Sender: SubsystemSender,
 {
 	let mut new_sender = sender.clone();
 	let (validation_data, validation_code) =
-		match find_validation_data(&mut new_sender, &descriptor).await? {
+		match find_validation_data(&mut new_sender, &candidate_receipt.descriptor).await? {
 			Some((validation_data, validation_code)) => (validation_data, validation_code),
 			None => return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)),
 		};
@@ -462,25 +457,28 @@ where
 		validation_host,
 		validation_data,
 		validation_code,
-		descriptor.clone(),
+		candidate_receipt.clone(),
 		pov,
 		timeout,
 		metrics,
-		commitments_hash,
 	)
 	.await;
 
 	if let Ok(ValidationResult::Valid(ref outputs, _)) = validation_result {
 		// If validation produces new commitments we consider the candidate invalid.
-		if commitments_hash != outputs.hash() {
+		if candidate_receipt.commitments_hash != outputs.hash() {
 			return Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))
 		}
 
 		let (tx, rx) = oneshot::channel();
 		match runtime_api_request(
 			sender,
-			descriptor.relay_parent,
-			RuntimeApiRequest::CheckValidationOutputs(descriptor.para_id, outputs.clone(), tx),
+			candidate_receipt.descriptor.relay_parent,
+			RuntimeApiRequest::CheckValidationOutputs(
+				candidate_receipt.descriptor.para_id,
+				outputs.clone(),
+				tx,
+			),
 			rx,
 		)
 		.await
@@ -499,11 +497,10 @@ async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
-	descriptor: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
-	commitments_hash: Hash,
 ) -> Result<ValidationResult, ValidationFailed> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
@@ -511,12 +508,12 @@ async fn validate_candidate_exhaustive(
 	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
-		para_id = ?descriptor.para_id,
+		para_id = ?candidate_receipt.descriptor.para_id,
 		"About to validate a candidate.",
 	);
 
 	if let Err(e) = perform_basic_checks(
-		&descriptor,
+		&candidate_receipt.descriptor,
 		persisted_validation_data.max_pov_size,
 		&*pov,
 		&validation_code_hash,
@@ -582,7 +579,7 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 
 		Ok(res) =>
-			if res.head_data.hash() != descriptor.para_head {
+			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
 			} else {
 				let outputs = CandidateCommitments {
@@ -593,7 +590,7 @@ async fn validate_candidate_exhaustive(
 					processed_downward_messages: res.processed_downward_messages,
 					hrmp_watermark: res.hrmp_watermark,
 				};
-				if commitments_hash != outputs.hash() {
+				if candidate_receipt.commitments_hash != outputs.hash() {
 					// If validation produced a new set of commitments, we treat the candidate as invalid.
 					Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))
 				} else {

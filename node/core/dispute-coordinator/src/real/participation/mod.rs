@@ -362,11 +362,10 @@ async fn participate(
 			CandidateValidationMessage::ValidateFromExhaustive(
 				available_data.validation_data,
 				validation_code,
-				req.candidate_receipt().descriptor.clone(),
+				req.candidate_receipt().clone(),
 				available_data.pov,
 				APPROVAL_EXECUTION_TIMEOUT,
 				validation_tx,
-				req.candidate_receipt().commitments_hash,
 			)
 			.into(),
 		)

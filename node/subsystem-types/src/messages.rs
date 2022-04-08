@@ -39,13 +39,13 @@ use polkadot_node_primitives::{
 	SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState, GroupIndex,
+	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -126,20 +126,18 @@ pub enum CandidateValidationMessage {
 	///
 	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
-	/// of the `CandidateDescriptor`.
+	/// of the `CandidateReceipt`.
 	///
 	/// This will also perform checking of validation outputs against the acceptance criteria.
 	///
 	/// If there is no state available which can provide this data or the core for
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
-		CandidateDescriptor,
+		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-		/// Original commitments hash
-		Hash,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
@@ -153,13 +151,11 @@ pub enum CandidateValidationMessage {
 	ValidateFromExhaustive(
 		PersistedValidationData,
 		ValidationCode,
-		CandidateDescriptor,
+		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-		/// Commitments hash
-		Hash,
 	),
 	/// Try to compile the given validation code and send back
 	/// the outcome.
@@ -178,8 +174,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
 			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
 		}
 	}

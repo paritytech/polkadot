@@ -16,24 +16,22 @@
 
 //! Implements common code for nemesis. Currently, only `FakeValidationResult`
 //! interceptor is implemented.
-
-#![allow(missing_docs)]
-
 use crate::{
 	interceptor::*,
 	shared::{MALICIOUS_POV, MALUS},
 };
 
 use polkadot_node_core_candidate_validation::find_validation_data;
-use polkadot_node_primitives::{InvalidCandidate, PoV, ValidationResult};
+use polkadot_node_primitives::{InvalidCandidate, ValidationResult};
 use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
 
-use polkadot_primitives::v2::{CandidateCommitments, CandidateDescriptor, PersistedValidationData};
+use polkadot_primitives::v2::{
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
+};
 
 use polkadot_cli::service::SpawnNamed;
 
 use futures::channel::oneshot;
-use std::sync::Arc;
 
 #[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
 #[clap(rename_all = "kebab-case")]
@@ -130,7 +128,6 @@ where
 	pub fn send_validation_response<Sender>(
 		&self,
 		candidate_descriptor: CandidateDescriptor,
-		pov: Arc<PoV>,
 		subsystem_sender: Sender,
 		response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	) where
@@ -160,7 +157,7 @@ where
 			}),
 		);
 		let (validation_data, _) = receiver.recv().unwrap();
-		create_validation_response(validation_data, candidate_descriptor, pov, response_sender);
+		create_validation_response(validation_data, candidate_descriptor, response_sender);
 	}
 }
 
@@ -180,18 +177,20 @@ pub fn create_fake_candidate_commitments(
 // Create and send validation response. This function needs the persistent validation data.
 fn create_validation_response(
 	persisted_validation_data: PersistedValidationData,
-	candidate_descriptor: CandidateDescriptor,
-	_pov: Arc<PoV>,
+	descriptor: CandidateDescriptor,
 	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 ) {
-	let result = Ok(ValidationResult::Valid(
-		create_fake_candidate_commitments(&persisted_validation_data),
-		persisted_validation_data,
-	));
+	let commitments = create_fake_candidate_commitments(&persisted_validation_data);
+
+	// Craft the new malicious candidate.
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
+
+	let result = Ok(ValidationResult::Valid(commitments, persisted_validation_data));
 
 	gum::debug!(
 		target: MALUS,
-		para_id = ?candidate_descriptor.para_id,
+		para_id = ?candidate_receipt.descriptor.para_id,
+		candidate_hash = ?candidate_receipt.hash(),
 		"ValidationResult: {:?}",
 		&result
 	);
@@ -199,7 +198,6 @@ fn create_validation_response(
 	response_sender.send(result).unwrap();
 }
 
-// TODO: Only fake validation for `MALICIOUS_POV`, otherwise behave normally.
 impl<Sender, Spawner> MessageInterceptor<Sender> for ReplaceValidationResult<Spawner>
 where
 	Sender: overseer::SubsystemSender<CandidateValidationMessage>
@@ -223,11 +221,10 @@ where
 					CandidateValidationMessage::ValidateFromExhaustive(
 						validation_data,
 						validation_code,
-						descriptor,
+						candidate_receipt,
 						pov,
 						timeout,
 						sender,
-						commitments_hash,
 					),
 			} => {
 				match self.fake_validation {
@@ -239,15 +236,18 @@ where
 								msg: CandidateValidationMessage::ValidateFromExhaustive(
 									validation_data,
 									validation_code,
-									descriptor,
+									candidate_receipt,
 									pov,
 									timeout,
 									sender,
-									commitments_hash,
 								),
 							})
 						}
-						create_validation_response(validation_data, descriptor, pov, sender);
+						create_validation_response(
+							validation_data,
+							candidate_receipt.descriptor,
+							sender,
+						);
 						None
 					},
 					FakeCandidateValidation::ApprovalInvalid |
@@ -255,9 +255,9 @@ where
 						let validation_result =
 							ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
 
-						gum::info!(
+						gum::debug!(
 							target: MALUS,
-							para_id = ?descriptor.para_id,
+							para_id = ?candidate_receipt.descriptor.para_id,
 							"ValidateFromExhaustive result: {:?}",
 							&validation_result
 						);
@@ -269,11 +269,10 @@ where
 						msg: CandidateValidationMessage::ValidateFromExhaustive(
 							validation_data,
 							validation_code,
-							descriptor,
+							candidate_receipt,
 							pov,
 							timeout,
 							sender,
-							commitments_hash,
 						),
 					}),
 				}
@@ -281,11 +280,10 @@ where
 			FromOverseer::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromChainState(
-						descriptor,
+						candidate_receipt,
 						pov,
 						timeout,
 						response_sender,
-						commitments_hash,
 					),
 			} => {
 				match self.fake_validation {
@@ -295,17 +293,15 @@ where
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOverseer::Communication {
 								msg: CandidateValidationMessage::ValidateFromChainState(
-									descriptor,
+									candidate_receipt,
 									pov,
 									timeout,
 									response_sender,
-									commitments_hash,
 								),
 							})
 						}
 						self.send_validation_response(
-							descriptor,
-							pov,
+							candidate_receipt.descriptor,
 							subsystem_sender.clone(),
 							response_sender,
 						);
@@ -315,9 +311,9 @@ where
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
 						let validation_result =
 							ValidationResult::Invalid(self.fake_validation_error.clone().into());
-						gum::info!(
+						gum::debug!(
 							target: MALUS,
-							para_id = ?descriptor.para_id,
+							para_id = ?candidate_receipt.descriptor.para_id,
 							"ValidateFromChainState result: {:?}",
 							&validation_result
 						);
@@ -328,11 +324,10 @@ where
 					},
 					_ => Some(FromOverseer::Communication {
 						msg: CandidateValidationMessage::ValidateFromChainState(
-							descriptor,
+							candidate_receipt,
 							pov,
 							timeout,
 							response_sender,
-							commitments_hash,
 						),
 					}),
 				}

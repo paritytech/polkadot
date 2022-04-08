@@ -90,7 +90,7 @@ where
 			FromOverseer::Communication {
 				msg: CandidateBackingMessage::Second(relay_parent, candidate, _pov),
 			} => {
-				gum::info!(
+				gum::debug!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					?relay_parent,
@@ -106,14 +106,14 @@ where
 					"malus-get-validation-data",
 					Some("malus"),
 					Box::pin(async move {
-						gum::info!(target: MALUS, "Requesting validators");
+						gum::trace!(target: MALUS, "Requesting validators");
 						let n_validators = request_validators(relay_parent, &mut new_sender)
 							.await
 							.await
 							.unwrap()
 							.unwrap()
 							.len();
-						gum::info!(target: MALUS, "Validators {}", n_validators);
+						gum::trace!(target: MALUS, "Validators {}", n_validators);
 						match find_validation_data(&mut new_sender, &_candidate.descriptor()).await
 						{
 							Ok(Some((validation_data, validation_code))) => {
@@ -134,7 +134,7 @@ where
 				let validation_code_hash = validation_code.hash();
 				let validation_data_relay_parent_number = validation_data.relay_parent_number;
 
-				gum::info!(
+				gum::trace!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					?relay_parent,
@@ -193,7 +193,7 @@ where
 				};
 				let malicious_candidate_hash = malicious_candidate.hash();
 
-				gum::info!(
+				gum::debug!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					?malicious_candidate_hash,

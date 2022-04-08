@@ -41,8 +41,8 @@ use polkadot_node_subsystem_util::{
 	request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_subsystem::{
@@ -378,19 +378,17 @@ async fn request_pov(
 
 async fn request_candidate_validation(
 	sender: &mut JobSender<impl SubsystemSender>,
-	candidate: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
-	commitments_hash: Hash,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
-			candidate,
+			candidate_receipt,
 			pov,
 			BACKING_EXECUTION_TIMEOUT,
 			tx,
-			commitments_hash,
 		))
 		.await;
 
@@ -452,21 +450,13 @@ async fn validate_and_make_available(
 		},
 	};
 
-	let expected_commitments_hash = candidate.commitments_hash;
-
 	let v = {
 		let _span = span.as_ref().map(|s| {
 			s.child("request-validation")
 				.with_pov(&pov)
 				.with_para_id(candidate.descriptor().para_id)
 		});
-		request_candidate_validation(
-			&mut sender,
-			candidate.descriptor.clone(),
-			pov.clone(),
-			expected_commitments_hash,
-		)
-		.await?
+		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
 	};
 
 	let res = match v {
