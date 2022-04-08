@@ -105,7 +105,7 @@ struct Queue {
 	metrics: Metrics,
 
 	/// The receiver that receives messages to the pool.
-	to_queue_rx: mpsc::Receiver<ToQueue>,
+	to_queue_rx: mpsc::UnboundedReceiver<ToQueue>,
 
 	program_path: PathBuf,
 	spawn_timeout: Duration,
@@ -122,7 +122,7 @@ impl Queue {
 		program_path: PathBuf,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
-		to_queue_rx: mpsc::Receiver<ToQueue>,
+		to_queue_rx: mpsc::UnboundedReceiver<ToQueue>,
 	) -> Self {
 		Self {
 			metrics,
@@ -158,6 +158,7 @@ impl Queue {
 					}
 				}
 				ev = self.mux.select_next_some() => handle_mux(&mut self, ev).await,
+				complete => break,
 			}
 
 			gum::debug!(
@@ -362,8 +363,8 @@ pub fn start(
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
-) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
-	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
+) -> (mpsc::UnboundedSender<ToQueue>, impl Future<Output = ()>) {
+	let (to_queue_tx, to_queue_rx) = mpsc::unbounded();
 	let run = Queue::new(metrics, program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
 	(to_queue_tx, run)
 }

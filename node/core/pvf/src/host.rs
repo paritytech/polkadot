@@ -275,7 +275,7 @@ struct Inner {
 	to_prepare_queue_tx: mpsc::Sender<prepare::ToQueue>,
 	from_prepare_queue_rx: mpsc::UnboundedReceiver<prepare::FromQueue>,
 
-	to_execute_queue_tx: mpsc::Sender<execute::ToQueue>,
+	to_execute_queue_tx: mpsc::UnboundedSender<execute::ToQueue>,
 	to_sweeper_tx: mpsc::Sender<PathBuf>,
 
 	awaiting_prepare: AwaitingPrepare,
@@ -423,7 +423,7 @@ async fn handle_to_host(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
+	execute_queue: &mut mpsc::UnboundedSender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
@@ -486,7 +486,7 @@ async fn handle_execute_pvf(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
+	execute_queue: &mut mpsc::UnboundedSender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
 	pvf: Pvf,
 	execution_timeout: Duration,
@@ -583,7 +583,7 @@ async fn handle_heads_up(
 async fn handle_prepare_done(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
+	execute_queue: &mut mpsc::UnboundedSender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
 	from_queue: prepare::FromQueue,
 ) -> Result<(), Fatal> {
@@ -687,7 +687,7 @@ async fn send_prepare(
 }
 
 async fn send_execute(
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
+	execute_queue: &mut mpsc::UnboundedSender<execute::ToQueue>,
 	to_queue: execute::ToQueue,
 ) -> Result<(), Fatal> {
 	execute_queue.send(to_queue).await.map_err(|e| {
