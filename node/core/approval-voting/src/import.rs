@@ -993,7 +993,7 @@ pub(crate) mod tests {
 
 				let info = imported_block_info(&mut ctx, env, hash, &header).await;
 
-				assert_matches!(info, Err(ImportedBlockInfoError::SessionInfoUnavailable));
+				assert_matches!(info, Err(ImportedBlockInfoError::BlockFromAncientSession));
 			})
 		};
 
