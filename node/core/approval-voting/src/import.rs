@@ -106,8 +106,7 @@ enum ImportedBlockInfoError {
 	VrfInfoUnavailable,
 }
 
-// Computes information about the imported block. Returns `None` if the info couldn't be extracted -
-// failure to communicate with overseer,
+/// Computes information about the imported block. Returns an error if the info couldn't be extracted.
 async fn imported_block_info(
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	env: ImportedBlockInfoEnv<'_>,
