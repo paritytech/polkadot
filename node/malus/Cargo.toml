@@ -2,7 +2,7 @@
 name = "polkadot-test-malus"
 description = "Misbehaving nodes for local testnets, system and Simnet tests."
 license = "GPL-3.0-only"
-version = "0.9.17"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 readme = "README.md"
@@ -13,7 +13,7 @@ name = "malus"
 path = "src/malus.rs"
 
 [dependencies]
-polkadot-cli = { path = "../../cli", default-features = false, features = ["cli", "malus", "polkadot-native"] }
+polkadot-cli = { path = "../../cli", features = [ "malus", "rococo-native", "kusama-native", "westend-native", "polkadot-native" ] }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
@@ -24,14 +24,14 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
-color-eyre = { version = "0.6.0", default-features = false }
+color-eyre = { version = "0.6.1", default-features = false }
 assert_matches = "1.5"
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 clap = { version = "3.1", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../gum/" }
 
 [features]
 default = []

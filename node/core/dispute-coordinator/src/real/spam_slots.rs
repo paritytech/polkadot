@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use polkadot_primitives::v1::{CandidateHash, SessionIndex, ValidatorIndex};
+use polkadot_primitives::v2::{CandidateHash, SessionIndex, ValidatorIndex};
 
 use crate::real::LOG_TARGET;
 
@@ -64,14 +64,14 @@ impl SpamSlots {
 		let mut slots: HashMap<(SessionIndex, ValidatorIndex), SpamCount> = HashMap::new();
 		for ((session, _), validators) in unconfirmed_disputes.iter() {
 			for validator in validators {
-				let e = slots.entry((*session, *validator)).or_default();
-				*e += 1;
-				if *e > MAX_SPAM_VOTES {
-					tracing::debug!(
+				let spam_vote_count = slots.entry((*session, *validator)).or_default();
+				*spam_vote_count += 1;
+				if *spam_vote_count > MAX_SPAM_VOTES {
+					gum::debug!(
 						target: LOG_TARGET,
 						?session,
 						?validator,
-						count = ?e,
+						count = ?spam_vote_count,
 						"Import exceeded spam slot for validator"
 					);
 				}
@@ -93,8 +93,8 @@ impl SpamSlots {
 		candidate: CandidateHash,
 		validator: ValidatorIndex,
 	) -> bool {
-		let c = self.slots.entry((session, validator)).or_default();
-		if *c >= MAX_SPAM_VOTES {
+		let spam_vote_count = self.slots.entry((session, validator)).or_default();
+		if *spam_vote_count >= MAX_SPAM_VOTES {
 			return false
 		}
 		let validators = self.unconfirmed.entry((session, candidate)).or_default();
@@ -103,7 +103,7 @@ impl SpamSlots {
 			// We only increment spam slots once per candidate, as each validator has to provide an
 			// opposing vote for sending out its own vote. Therefore, receiving multiple votes for
 			// a single candidate is expected and should not get punished here.
-			*c += 1;
+			*spam_vote_count += 1;
 		}
 
 		true
@@ -118,8 +118,8 @@ impl SpamSlots {
 		if let Some(validators) = self.unconfirmed.remove(key) {
 			let (session, _) = key;
 			for validator in validators {
-				if let Some(c) = self.slots.remove(&(*session, validator)) {
-					let new = c - 1;
+				if let Some(spam_vote_count) = self.slots.remove(&(*session, validator)) {
+					let new = spam_vote_count - 1;
 					if new > 0 {
 						self.slots.insert((*session, validator), new);
 					}

@@ -1,9 +1,7 @@
 #!/bin/bash
 set -xeu
 
-sleep 60
-curl -v http://millau-node-bob:9933/health
-curl -v http://rialto-node-bob:9933/health
+sleep 15
 
 MESSAGE_LANE=${MSG_EXCHANGE_GEN_LANE:-00000000}
 

@@ -16,19 +16,16 @@
 
 //! Helper functions and tools to generate mock data useful for testing this subsystem.
 
-use std::{convert::TryFrom, sync::Arc};
+use std::sync::Arc;
 
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
-use polkadot_primitives::{
-	v1::{
-		CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-		GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData,
-		ValidatorIndex,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
+	ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_collator, dummy_collator_signature, dummy_hash, dummy_validation_code,

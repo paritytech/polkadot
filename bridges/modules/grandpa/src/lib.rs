@@ -45,7 +45,7 @@ use frame_support::{ensure, fail};
 use frame_system::{ensure_signed, RawOrigin};
 use sp_finality_grandpa::{ConsensusLog, GRANDPA_ENGINE_ID};
 use sp_runtime::traits::{BadOrigin, Header as HeaderT, Zero};
-use sp_std::{boxed::Box, convert::TryInto};
+use sp_std::boxed::Box;
 
 #[cfg(test)]
 mod mock;
@@ -300,7 +300,7 @@ pub mod pallet {
 	/// runtime methods may still be used to do that (i.e. democracy::referendum to update halt
 	/// flag directly or call the `halt_operations`).
 	#[pallet::storage]
-	pub(super) type PalletOwner<T: Config<I>, I: 'static = ()> =
+	pub type PalletOwner<T: Config<I>, I: 'static = ()> =
 		StorageValue<_, T::AccountId, OptionQuery>;
 
 	/// If true, all pallet transactions are failed immediately.
@@ -627,7 +627,10 @@ mod tests {
 		JustificationGeneratorParams, ALICE, BOB,
 	};
 	use codec::Encode;
-	use frame_support::{assert_err, assert_noop, assert_ok, weights::PostDispatchInfo};
+	use frame_support::{
+		assert_err, assert_noop, assert_ok, storage::generator::StorageValue,
+		weights::PostDispatchInfo,
+	};
 	use sp_runtime::{Digest, DigestItem, DispatchError};
 
 	fn initialize_substrate_bridge() {
@@ -1145,5 +1148,18 @@ mod tests {
 				"First header should be pruned."
 			);
 		})
+	}
+
+	#[test]
+	fn storage_keys_computed_properly() {
+		assert_eq!(
+			IsHalted::<TestRuntime>::storage_value_final_key().to_vec(),
+			bp_header_chain::storage_keys::is_halted_key("Grandpa").0,
+		);
+
+		assert_eq!(
+			BestFinalized::<TestRuntime>::storage_value_final_key().to_vec(),
+			bp_header_chain::storage_keys::best_finalized_hash_key("Grandpa").0,
+		);
 	}
 }

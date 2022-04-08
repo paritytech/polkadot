@@ -22,7 +22,7 @@ use frame_support::{
 	traits::fungible::{Inspect, Mutate},
 };
 use sp_runtime::traits::{Bounded, Zero};
-use sp_std::{convert::TryInto, prelude::*, vec};
+use sp_std::{prelude::*, vec};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, TransactAsset};
 
@@ -105,6 +105,25 @@ benchmarks_instance_pallet! {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
 		// TODO: Check sender queue is not empty. #4426
+	}
+
+	reserve_asset_deposited {
+		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
+			.ok_or(BenchmarkError::Skip)?;
+
+		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
+
+		let mut executor = new_executor::<T>(trusted_reserve);
+		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm).map_err(|_| {
+			BenchmarkError::Override(
+				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+			)
+		})?;
+	} verify {
+		assert!(executor.holding.ensure_contains(&assets).is_ok());
 	}
 
 	receive_teleported_asset {

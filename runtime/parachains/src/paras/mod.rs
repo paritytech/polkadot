@@ -111,12 +111,9 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::{
-	v1::{
-		ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
-		ValidationCode, ValidationCodeHash, ValidatorSignature,
-	},
-	v2::PvfCheckStatement,
+use primitives::v2::{
+	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
+	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
@@ -124,7 +121,7 @@ use sp_runtime::{
 	traits::{AppVerify, One},
 	DispatchResult, SaturatedConversion,
 };
-use sp_std::{cmp, convert::TryInto, mem, prelude::*};
+use sp_std::{cmp, mem, prelude::*};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -387,7 +384,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 
 	/// Returns `None` if the quorum is not reached, or the direction of the decision.
 	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
-		let q_threshold = primitives::v1::supermajority_threshold(n_validators);
+		let q_threshold = primitives::v2::supermajority_threshold(n_validators);
 		// NOTE: counting the reject votes is deliberately placed first. This is to err on the safe.
 		if self.votes_reject.count_ones() >= q_threshold {
 			Some(PvfCheckOutcome::Rejected)
@@ -407,6 +404,12 @@ pub trait WeightInfo {
 	fn force_queue_action() -> Weight;
 	fn add_trusted_validation_code(c: u32) -> Weight;
 	fn poke_unused_validation_code() -> Weight;
+
+	fn include_pvf_check_statement_finalize_upgrade_accept() -> Weight;
+	fn include_pvf_check_statement_finalize_upgrade_reject() -> Weight;
+	fn include_pvf_check_statement_finalize_onboarding_accept() -> Weight;
+	fn include_pvf_check_statement_finalize_onboarding_reject() -> Weight;
+	fn include_pvf_check_statement() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -431,6 +434,22 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn poke_unused_validation_code() -> Weight {
 		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_upgrade_accept() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_upgrade_reject() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_onboarding_accept() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement_finalize_onboarding_reject() -> Weight {
+		Weight::MAX
+	}
+	fn include_pvf_check_statement() -> Weight {
+		// This special value is to distinguish from the finalizing variants above in tests.
+		Weight::MAX - 1
 	}
 }
 
@@ -858,12 +877,23 @@ pub mod pallet {
 
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
-		#[pallet::weight(Weight::MAX)]
+		#[pallet::weight(
+			sp_std::cmp::max(
+				sp_std::cmp::max(
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept(),
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject(),
+				),
+				sp_std::cmp::max(
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept(),
+					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject(),
+				)
+			)
+		)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
 			stmt: PvfCheckStatement,
 			signature: ValidatorSignature,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
 			// Make sure that PVF pre-checking is enabled.
@@ -934,13 +964,17 @@ pub mod pallet {
 						Self::enact_pvf_rejected(&stmt.subject, active_vote.causes);
 					},
 				}
-			} else {
-				// No quorum has been achieved. So just store the updated state back into the
-				// storage.
-				PvfActiveVoteMap::<T>::insert(&stmt.subject, active_vote);
-			}
 
-			Ok(())
+				// No weight refund since this statement was the last one and lead to finalization.
+				Ok(().into())
+			} else {
+				// No quorum has been achieved.
+				//
+				// - So just store the updated state back into the storage.
+				// - Only charge weight for simple vote inclusion.
+				PvfActiveVoteMap::<T>::insert(&stmt.subject, active_vote);
+				Ok(Some(<T as Config>::WeightInfo::include_pvf_check_statement()).into())
+			}
 		}
 	}
 

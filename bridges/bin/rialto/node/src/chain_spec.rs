@@ -16,7 +16,7 @@
 
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use bp_rialto::derive_account_from_millau_id;
-use polkadot_primitives::v1::{AssignmentId, ValidatorId};
+use polkadot_primitives::v2::{AssignmentId, ValidatorId};
 use rialto_runtime::{
 	AccountId, BabeConfig, BalancesConfig, BeefyConfig, BridgeMillauMessagesConfig,
 	ConfigurationConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys, Signature,
@@ -30,7 +30,8 @@ use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
+pub type ChainSpec =
+	sc_service::GenericChainSpec<GenesisConfig, polkadot_service::chain_spec::Extensions>;
 
 /// The chain specification option. This is expected to come in from the CLI and
 /// is little more than one of a number of alternatives which can easily be converted
@@ -96,23 +97,16 @@ impl Alternative {
 					testnet_genesis(
 						vec![get_authority_keys_from_seed("Alice")],
 						get_account_id_from_seed::<sr25519::Public>("Alice"),
-						vec![
-							get_account_id_from_seed::<sr25519::Public>("Alice"),
-							get_account_id_from_seed::<sr25519::Public>("Bob"),
-							get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Bob"),
-							)),
-						],
+						endowed_accounts(),
 						true,
 					)
 				},
 				vec![],
 				None,
 				None,
-				properties,
 				None,
+				properties,
+				Default::default(),
 			),
 			Alternative::LocalTestnet => ChainSpec::from_genesis(
 				"Rialto Local",
@@ -128,59 +122,68 @@ impl Alternative {
 							get_authority_keys_from_seed("Eve"),
 						],
 						get_account_id_from_seed::<sr25519::Public>("Alice"),
-						vec![
-							get_account_id_from_seed::<sr25519::Public>("Alice"),
-							get_account_id_from_seed::<sr25519::Public>("Bob"),
-							get_account_id_from_seed::<sr25519::Public>("Charlie"),
-							get_account_id_from_seed::<sr25519::Public>("Dave"),
-							get_account_id_from_seed::<sr25519::Public>("Eve"),
-							get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-							get_account_id_from_seed::<sr25519::Public>("George"),
-							get_account_id_from_seed::<sr25519::Public>("Harry"),
-							get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-							get_account_id_from_seed::<sr25519::Public>("George//stash"),
-							get_account_id_from_seed::<sr25519::Public>("Harry//stash"),
-							get_account_id_from_seed::<sr25519::Public>("MillauMessagesOwner"),
-							get_account_id_from_seed::<sr25519::Public>("WithMillauTokenSwap"),
-							pallet_bridge_messages::relayer_fund_account_id::<
-								bp_rialto::AccountId,
-								bp_rialto::AccountIdConverter,
-							>(),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Alice"),
-							)),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Bob"),
-							)),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Charlie"),
-							)),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Dave"),
-							)),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Eve"),
-							)),
-							derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
-								get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-							)),
-						],
+						endowed_accounts(),
 						true,
 					)
 				},
 				vec![],
 				None,
 				None,
-				properties,
 				None,
+				properties,
+				Default::default(),
 			),
 		}
 	}
+}
+
+/// We're using the same set of endowed accounts on all Millau chains (dev/local) to make
+/// sure that all accounts, required for bridge to be functional (e.g. relayers fund account,
+/// accounts used by relayers in our test deployments, accounts used for demonstration
+/// purposes), are all available on these chains.
+fn endowed_accounts() -> Vec<AccountId> {
+	vec![
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		get_account_id_from_seed::<sr25519::Public>("Bob"),
+		get_account_id_from_seed::<sr25519::Public>("Charlie"),
+		get_account_id_from_seed::<sr25519::Public>("Dave"),
+		get_account_id_from_seed::<sr25519::Public>("Eve"),
+		get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+		get_account_id_from_seed::<sr25519::Public>("George"),
+		get_account_id_from_seed::<sr25519::Public>("Harry"),
+		get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+		get_account_id_from_seed::<sr25519::Public>("George//stash"),
+		get_account_id_from_seed::<sr25519::Public>("Harry//stash"),
+		get_account_id_from_seed::<sr25519::Public>("MillauMessagesOwner"),
+		get_account_id_from_seed::<sr25519::Public>("WithMillauTokenSwap"),
+		pallet_bridge_messages::relayer_fund_account_id::<
+			bp_rialto::AccountId,
+			bp_rialto::AccountIdConverter,
+		>(),
+		derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+		)),
+		derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+		)),
+		derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Charlie"),
+		)),
+		derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Dave"),
+		)),
+		derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Eve"),
+		)),
+		derive_account_from_millau_id(bp_runtime::SourceAccount::Account(
+			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+		)),
+	]
 }
 
 fn session_keys(
@@ -247,25 +250,20 @@ fn testnet_genesis(
 		// (see /node/service/src/chain_spec.rs:default_parachains_host_configuration)
 		configuration: ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 1u32,
-				validation_upgrade_delay: 1,
+				validation_upgrade_cooldown: 2u32,
+				validation_upgrade_delay: 2,
 				code_retention_period: 1200,
-				max_code_size: polkadot_primitives::v1::MAX_CODE_SIZE,
-				max_pov_size: polkadot_primitives::v1::MAX_POV_SIZE,
+				max_code_size: polkadot_primitives::v2::MAX_CODE_SIZE,
+				max_pov_size: polkadot_primitives::v2::MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
 				group_rotation_frequency: 20,
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				max_upward_queue_count: 8,
 				max_upward_queue_size: 1024 * 1024,
-				max_downward_message_size: 1024,
-				// this is approximatelly 4ms.
-				//
-				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
-				// an import since that's a made up number and should be replaced with a constant
-				// obtained by benchmarking anyway.
-				ump_service_total_weight: 4 * 1_000_000_000,
-				max_upward_message_size: 1024 * 1024,
+				max_downward_message_size: 1024 * 1024,
+				ump_service_total_weight: 100_000_000_000,
+				max_upward_message_size: 50 * 1024,
 				max_upward_message_num_per_candidate: 5,
 				hrmp_sender_deposit: 0,
 				hrmp_recipient_deposit: 0,
@@ -283,6 +281,7 @@ fn testnet_genesis(
 				needed_approvals: 2,
 				relay_vrf_modulo_samples: 2,
 				zeroth_delay_tranche_width: 0,
+				minimum_validation_upgrade_delay: 5,
 				..Default::default()
 			},
 		},

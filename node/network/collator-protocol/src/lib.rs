@@ -17,7 +17,8 @@
 //! The Collator Protocol allows collators and validators talk to each other.
 //! This subsystem implements both sides of the collator protocol.
 
-#![deny(missing_docs, unused_crate_dependencies)]
+#![deny(missing_docs)]
+#![deny(unused_crate_dependencies)]
 #![recursion_limit = "256"]
 
 use std::time::Duration;
@@ -30,7 +31,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::CollatorPair;
+use polkadot_primitives::v2::CollatorPair;
 
 use polkadot_subsystem::{
 	errors::SubsystemError,
@@ -39,7 +40,6 @@ use polkadot_subsystem::{
 };
 
 mod error;
-use error::{FatalResult, Result};
 
 mod collator_side;
 mod validator_side;
@@ -98,7 +98,7 @@ impl CollatorProtocolSubsystem {
 		Self { protocol_side }
 	}
 
-	async fn run<Context>(self, ctx: Context) -> FatalResult<()>
+	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError>
 	where
 		Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -133,7 +133,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext,
 {
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		rep = ?rep,
 		peer_id = %peer,

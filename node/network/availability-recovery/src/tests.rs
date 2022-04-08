@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{convert::TryFrom, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future};
@@ -30,7 +30,7 @@ use sc_network::config::RequestResponseConfig;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use polkadot_subsystem::{
 	jaeger,
@@ -134,7 +134,7 @@ async fn overseer_send(
 	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 	msg: AvailabilityRecoveryMessage,
 ) {
-	tracing::trace!(msg = ?msg, "sending message");
+	gum::trace!(msg = ?msg, "sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -145,9 +145,9 @@ async fn overseer_send(
 async fn overseer_recv(
 	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 ) -> AllMessages {
-	tracing::trace!("waiting for message ...");
+	gum::trace!("waiting for message ...");
 	let msg = overseer.recv().timeout(TIMEOUT).await.expect("TIMEOUT is enough to recv.");
-	tracing::trace!(msg = ?msg, "received message");
+	gum::trace!(msg = ?msg, "received message");
 	msg
 }
 
