@@ -17,7 +17,7 @@
 //! Adapters to work with `frame_support::traits::Currency` through XCM.
 
 use frame_support::traits::{ExistenceRequirement::AllowDeath, Get, WithdrawReasons};
-use sp_runtime::traits::{CheckedSub, SaturatedConversion};
+use sp_runtime::traits::CheckedSub;
 use sp_std::{marker::PhantomData, result};
 use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result, XcmContext};
 use xcm_executor::{
@@ -174,6 +174,7 @@ impl<
 		asset: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
+		_context: &XcmContext,
 	) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "internal_transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
 		let amount = Matcher::matches_fungible(asset).ok_or(Error::AssetNotFound)?;

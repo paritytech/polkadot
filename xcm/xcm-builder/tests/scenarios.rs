@@ -75,13 +75,16 @@ fn transfer_asset_works() {
 	kusama_like_with_balances(balances).execute_with(|| {
 		let amount = REGISTER_AMOUNT;
 		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![TransferAsset {
+			assets: (Here, amount).into(),
+			beneficiary: AccountId32 { network: None, id: bob.clone().into() }.into(),
+		}]);
+		let hash = fake_message_hash(&message);
 		// Use `execute_xcm_in_credit` here to pass through the barrier
 		let r = XcmExecutor::<XcmConfig>::execute_xcm_in_credit(
-			AccountId32 { network: NetworkId::Any, id: ALICE.into() },
-			Xcm(vec![TransferAsset {
-				assets: (Here, amount).into(),
-				beneficiary: AccountId32 { network: NetworkId::Any, id: bob.clone().into() }.into(),
-			}]),
+			AccountId32 { network: None, id: ALICE.into() },
+			message,
+			hash,
 			weight,
 			weight,
 		);
