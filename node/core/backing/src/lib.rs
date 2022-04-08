@@ -491,7 +491,7 @@ async fn validate_and_make_available(
 				},
 			}
 		},
-		ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch) => {
+		ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch) => {
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			gum::warn!(
 				target: LOG_TARGET,

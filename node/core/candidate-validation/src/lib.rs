@@ -467,7 +467,7 @@ where
 	if let Ok(ValidationResult::Valid(ref outputs, _)) = validation_result {
 		// If validation produces new commitments we consider the candidate invalid.
 		if candidate_receipt.commitments_hash != outputs.hash() {
-			return Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))
+			return Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
 		}
 
 		let (tx, rx) = oneshot::channel();
@@ -592,7 +592,7 @@ async fn validate_candidate_exhaustive(
 				};
 				if candidate_receipt.commitments_hash != outputs.hash() {
 					// If validation produced a new set of commitments, we treat the candidate as invalid.
-					Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))
+					Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
 				} else {
 					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 				}

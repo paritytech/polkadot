@@ -122,7 +122,7 @@ pub async fn participation_full_happy_path(
 		CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx, commitments_hash)
 		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 			if expected_commitments_hash != commitments_hash {
-				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))).unwrap();
+				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))).unwrap();
 			} else {
 				tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
 			}
@@ -466,7 +466,7 @@ fn cast_invalid_vote_if_commitments_dont_match() {
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx, _)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::ComittmentsHashMismatch))).unwrap();
+				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))).unwrap();
 			},
 			"overseer did not receive candidate validation message",
 		);
