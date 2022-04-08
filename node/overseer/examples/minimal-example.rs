@@ -33,7 +33,7 @@ use polkadot_overseer::{
 	gen::{FromOverseer, SpawnedSubsystem},
 	AllMessages, HeadSupportsParachains, OverseerSignal, SubsystemError,
 };
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::v2::{CandidateReceipt, Hash};
 
 struct AlwaysSupportsParachains;
 impl HeadSupportsParachains for AlwaysSupportsParachains {
@@ -73,12 +73,16 @@ impl Subsystem1 {
 			Delay::new(Duration::from_secs(1)).await;
 			let (tx, _) = oneshot::channel();
 
+			let candidate_receipt = CandidateReceipt {
+				descriptor: dummy_candidate_descriptor(dummy_hash()),
+				commitments_hash: Hash::zero(),
+			};
+
 			let msg = CandidateValidationMessage::ValidateFromChainState(
-				dummy_candidate_descriptor(dummy_hash()),
+				candidate_receipt,
 				PoV { block_data: BlockData(Vec::new()) }.into(),
 				Default::default(),
 				tx,
-				Hash::zero(),
 			);
 			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg))
 				.await;
