@@ -457,7 +457,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(
+					Config::AssetTransactor::transfer_asset(
 						&asset,
 						origin,
 						&beneficiary,
@@ -470,7 +470,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(asset, origin, &dest, &self.context)?;
+					Config::AssetTransactor::transfer_asset(asset, origin, &dest, &self.context)?;
 				}
 				let reanchor_context = Config::UniversalLocation::get();
 				assets

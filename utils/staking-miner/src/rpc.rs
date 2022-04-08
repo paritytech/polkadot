@@ -72,17 +72,17 @@ pub trait RpcApi {
 	///
 	/// See [`TransactionStatus`](sc_transaction_pool_api::TransactionStatus) for details on
 	/// transaction life cycle.
-	//
-	// TODO: https://github.com/paritytech/jsonrpsee/issues/698.
 	#[subscription(
 		name = "author_submitAndWatchExtrinsic" => "author_extrinsicUpdate",
-		item = TransactionStatus<Hash, Hash>,
+		unsubscribe = "author_unwatchExtrinsic",
+		item = TransactionStatus<Hash, Hash>
 	)]
 	fn watch_extrinsic(&self, bytes: &Bytes) -> RpcResult<()>;
 
 	/// New head subscription.
 	#[subscription(
 		name = "chain_subscribeNewHeads" => "newHead",
+		unsubscribe = "chain_unsubscribeNewHeads",
 		item = Header
 	)]
 	fn subscribe_new_heads(&self) -> RpcResult<()>;
@@ -90,6 +90,7 @@ pub trait RpcApi {
 	/// Finalized head subscription.
 	#[subscription(
 		name = "chain_subscribeFinalizedHeads" => "chain_finalizedHead",
+		unsubscribe = "chain_unsubscribeFinalizedHeads",
 		item = Header
 	)]
 	fn subscribe_finalized_heads(&self) -> RpcResult<()>;

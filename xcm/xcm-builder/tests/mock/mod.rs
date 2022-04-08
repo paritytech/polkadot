@@ -135,13 +135,15 @@ parameter_types! {
 pub type SovereignAccountOf =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
-pub type LocalAssetTransactor = XcmCurrencyAdapter<
+pub type LocalCurrencyAdapter = XcmCurrencyAdapter<
 	Balances,
 	IsConcrete<KsmLocation>,
 	SovereignAccountOf,
 	AccountId,
 	CheckAccount,
 >;
+
+pub type LocalAssetTransactor = (LocalCurrencyAdapter,);
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
