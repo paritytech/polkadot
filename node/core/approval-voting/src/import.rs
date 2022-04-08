@@ -947,7 +947,7 @@ pub(crate) mod tests {
 	}
 
 	#[test]
-	fn imported_block_info_fails_if_unknown_session() {
+	fn imported_block_info_fails_if_ancient_session() {
 		let pool = TaskExecutor::new();
 		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
