@@ -162,13 +162,8 @@ impl<
 		let new_balance = Currency::free_balance(&who)
 			.checked_sub(&amount)
 			.ok_or(XcmError::NotWithdrawable)?;
-		Currency::ensure_can_withdraw(
-			&who,
-			amount,
-			WithdrawReasons::TRANSFER,
-			new_balance,
-		)
-		.map_err(|_| XcmError::NotWithdrawable)?;
+		Currency::ensure_can_withdraw(&who, amount, WithdrawReasons::TRANSFER, new_balance)
+			.map_err(|_| XcmError::NotWithdrawable)?;
 		Ok(())
 	}
 
