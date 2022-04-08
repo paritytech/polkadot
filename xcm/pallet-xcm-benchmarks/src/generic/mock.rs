@@ -20,7 +20,7 @@ use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
 	parameter_types,
-	traits::{Everything, Nothing, OriginTrait},
+	traits::{Everything, OriginTrait},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -29,7 +29,9 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::{
-	test_utils::{Assets, TestAssetExchanger, TestAssetTrap, TestSubscriptionService},
+	test_utils::{
+		Assets, TestAssetExchanger, TestAssetTrap, TestSubscriptionService, TestUniversalAliases,
+	},
 	AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
@@ -125,7 +127,7 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	// No bridges yet...
 	type MessageExporter = ();
-	type UniversalAliases = Nothing;
+	type UniversalAliases = TestUniversalAliases;
 }
 
 impl crate::Config for Test {

@@ -493,6 +493,17 @@ benchmarks! {
 		assert_eq!(executor.holding(), &want.into());
 	}
 
+	universal_origin {
+		let mut executor = new_executor::<T>(Here.into_location());
+
+		let instruction = Instruction::UniversalOrigin(GlobalConsensus(ByGenesis([0; 32])));
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.origin(), &Some((Parent, GlobalConsensus(ByGenesis([0; 32]))).into()));
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),

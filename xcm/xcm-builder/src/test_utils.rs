@@ -19,7 +19,7 @@
 use frame_support::{
 	dispatch::Weight,
 	parameter_types,
-	traits::{CrateVersion, PalletInfoData, PalletsInfoAccess},
+	traits::{Contains, CrateVersion, PalletInfoData, PalletsInfoAccess},
 };
 use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
@@ -128,5 +128,12 @@ impl PalletsInfoAccess for TestPalletsInfo {
 			module_name: "pallet_balances",
 			crate_version: CrateVersion { major: 1, minor: 42, patch: 69 },
 		});
+	}
+}
+
+pub struct TestUniversalAliases;
+impl Contains<(MultiLocation, Junction)> for TestUniversalAliases {
+	fn contains(aliases: &(MultiLocation, Junction)) -> bool {
+		&aliases.0 == &Here.into_location() && &aliases.1 == &GlobalConsensus(ByGenesis([0; 32]))
 	}
 }
