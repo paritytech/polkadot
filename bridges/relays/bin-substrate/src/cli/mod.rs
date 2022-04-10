@@ -16,8 +16,6 @@
 
 //! Deal with CLI args of substrate-to-substrate relay.
 
-use std::convert::TryInto;
-
 use codec::{Decode, Encode};
 use relay_substrate_client::ChainRuntimeVersion;
 use sp_runtime::app_crypto::Ss58Codec;
