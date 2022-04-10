@@ -1541,7 +1541,7 @@ impl State {
 				{
 					// Retry sending to all peers.
 					for (_, knowledge) in block_entry.known_by.iter_mut() {
-						knowledge.sent = Default::default();
+						knowledge.sent = HashMap::new();
 					}
 
 					true
