@@ -469,7 +469,7 @@ impl State {
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				let session = topology.session;
-				self.handle_new_session_topology(ctx, session, SessionTopology::from(topology))
+				self.handle_new_session_topology(ctx, metrics, session, SessionTopology::from(topology))
 					.await;
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
@@ -625,13 +625,14 @@ impl State {
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		metrics: &Metrics,
 		session: SessionIndex,
 		topology: SessionTopology,
 	) {
 		self.topologies.insert_topology(session, topology);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
 
-		adjust_required_routing_and_propagate(
+		let new_session_topology_stats = adjust_required_routing_and_propagate(
 			ctx,
 			&mut self.blocks,
 			&self.topologies,
@@ -643,6 +644,8 @@ impl State {
 			},
 		)
 		.await;
+
+		metrics.note_new_topology_stats(new_session_topology_stats);
 	}
 
 	async fn process_incoming_peer_message(
@@ -1052,6 +1055,8 @@ impl State {
 			}
 		}
 
+		let mut stats = SentMessagesStats::default();
+
 		if !peers.is_empty() {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -1062,6 +1067,8 @@ impl State {
 				"Sending an assignment to peers",
 			);
 
+			stats.assignments += peers.len();
+			stats.assignment_packets += peers.len();
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1070,6 +1077,8 @@ impl State {
 			))
 			.await;
 		}
+
+		metrics.note_basic_circulation_stats(stats);
 	}
 
 	async fn import_and_circulate_approval(
@@ -1313,6 +1322,8 @@ impl State {
 			}
 		}
 
+		let mut stats = SentMessagesStats::default();
+
 		if !peers.is_empty() {
 			let approvals = vec![vote];
 			gum::trace!(
@@ -1324,6 +1335,8 @@ impl State {
 				"Sending an approval to peers",
 			);
 
+			stats.assignments += peers.len();
+			stats.assignment_packets += peers.len();
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1332,6 +1345,8 @@ impl State {
 			))
 			.await;
 		}
+
+		metrics.note_basic_circulation_stats(stats);
 	}
 
 	async fn unify_with_peer(
@@ -1444,7 +1459,10 @@ impl State {
 			}
 		}
 
+		let mut stats = SentMessagesStats::default();
+
 		if !assignments_to_send.is_empty() {
+			stats.note_assignments_packet(assignments_to_send.len());
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1455,6 +1473,7 @@ impl State {
 		}
 
 		if !approvals_to_send.is_empty() {
+			stats.note_approvals_packet(approvals_to_send.len());
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1463,6 +1482,8 @@ impl State {
 			))
 			.await;
 		}
+
+		metrics.note_unify_with_peer_stats(stats);
 	}
 
 	async fn enable_aggression(
@@ -1486,7 +1507,7 @@ impl State {
 			return
 		}
 
-		adjust_required_routing_and_propagate(
+		let resend_stats = adjust_required_routing_and_propagate(
 			ctx,
 			&mut self.blocks,
 			&self.topologies,
@@ -1504,9 +1525,19 @@ impl State {
 						knowledge.sent = Default::default();
 					}
 
-					return true
+					true
+				} else {
+					false
 				}
+			},
+			|_, _, _| { }
+		).await;
 
+		let aggression_stats = adjust_required_routing_and_propagate(
+			ctx,
+			&mut self.blocks,
+			&self.topologies,
+			|block_entry| {
 				// Ramp up aggression only for the very oldest block(s).
 				// Approval voting can get stuck on a single block preventing
 				// its descendants from being finalized. Waste minimal bandwidth
@@ -1543,6 +1574,29 @@ impl State {
 			},
 		)
 		.await;
+
+		metrics.note_resend_stats(resend_stats);
+		metrics.note_aggression_stats(aggression_stats);
+	}
+}
+
+#[derive(Default)]
+struct SentMessagesStats {
+	assignments: usize,
+	approvals: usize,
+	assignment_packets: usize,
+	approval_packets: usize,
+}
+
+impl SentMessagesStats {
+	fn note_assignments_packet(&mut self, assignments: usize) {
+		self.assignment_packets += 1;
+		self.assignments += assignments;
+	}
+
+	fn note_approvals_packet(&mut self, approvals: usize) {
+		self.approval_packets += 1;
+		self.approvals += approvals;
 	}
 }
 
@@ -1565,7 +1619,9 @@ async fn adjust_required_routing_and_propagate(
 	topologies: &SessionTopologies,
 	block_filter: impl Fn(&mut BlockEntry) -> bool,
 	routing_modifier: impl Fn(&mut RequiredRouting, bool, &ValidatorIndex),
-) {
+) -> SentMessagesStats {
+	let mut stats = SentMessagesStats::default();
+
 	let mut peer_assignments = HashMap::new();
 	let mut peer_approvals = HashMap::new();
 
@@ -1645,6 +1701,7 @@ async fn adjust_required_routing_and_propagate(
 	// Send messages in accumulated packets, assignments preceding approvals.
 
 	for (peer, assignments_packet) in peer_assignments {
+		stats.note_assignments_packet(assignments_packet.len());
 		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 			vec![peer],
 			protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1655,6 +1712,7 @@ async fn adjust_required_routing_and_propagate(
 	}
 
 	for (peer, approvals_packet) in peer_approvals {
+		stats.note_approvals_packet(approvals_packet.len());
 		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 			vec![peer],
 			protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1663,6 +1721,8 @@ async fn adjust_required_routing_and_propagate(
 		))
 		.await;
 	}
+
+	stats
 }
 
 /// Modify the reputation of a peer based on its behavior.
