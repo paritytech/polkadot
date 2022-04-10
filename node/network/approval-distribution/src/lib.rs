@@ -1462,6 +1462,13 @@ impl State {
 		let mut stats = SentMessagesStats::default();
 
 		if !assignments_to_send.is_empty() {
+			gum::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				num = assignments_to_send.len(),
+				"Sending assignments to unified peer",
+			);
+
 			stats.note_assignments_packet(assignments_to_send.len());
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
@@ -1473,6 +1480,14 @@ impl State {
 		}
 
 		if !approvals_to_send.is_empty() {
+			gum::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				num = approvals_to_send.len(),
+				"Sending approvals to unified peer",
+			);
+
+
 			stats.note_approvals_packet(approvals_to_send.len());
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
