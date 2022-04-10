@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::metrics::{prometheus, Metrics as MetricsTrait};
 use super::SentMessagesStats;
+use polkadot_node_subsystem_util::metrics::{prometheus, Metrics as MetricsTrait};
 
 /// Approval Distribution metrics.
 #[derive(Default, Clone)]
@@ -154,11 +154,19 @@ fn note_sent_message_stats(
 	message_counters: &prometheus::CounterVec<prometheus::U64>,
 	packet_counters: &prometheus::CounterVec<prometheus::U64>,
 ) {
-	message_counters.with_label_values(&["assignments"]).inc_by(stats.assignments as u64);
-	message_counters.with_label_values(&["approvals"]).inc_by(stats.approvals as u64);
+	message_counters
+		.with_label_values(&["assignments"])
+		.inc_by(stats.assignments as u64);
+	message_counters
+		.with_label_values(&["approvals"])
+		.inc_by(stats.approvals as u64);
 
-	packet_counters.with_label_values(&["assignments"]).inc_by(stats.assignment_packets as u64);
-	packet_counters.with_label_values(&["approvals"]).inc_by(stats.approval_packets as u64);
+	packet_counters
+		.with_label_values(&["assignments"])
+		.inc_by(stats.assignment_packets as u64);
+	packet_counters
+		.with_label_values(&["approvals"])
+		.inc_by(stats.approval_packets as u64);
 }
 
 impl MetricsTrait for Metrics {

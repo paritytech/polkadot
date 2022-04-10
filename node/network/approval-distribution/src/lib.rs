@@ -475,8 +475,13 @@ impl State {
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				let session = topology.session;
-				self.handle_new_session_topology(ctx, metrics, session, SessionTopology::from(topology))
-					.await;
+				self.handle_new_session_topology(
+					ctx,
+					metrics,
+					session,
+					SessionTopology::from(topology),
+				)
+				.await;
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view, rng).await;
@@ -1491,7 +1496,6 @@ impl State {
 				"Sending approvals to unified peer",
 			);
 
-
 			stats.note_approvals_packet(approvals_to_send.len());
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
@@ -1549,8 +1553,9 @@ impl State {
 					false
 				}
 			},
-			|_, _, _| { }
-		).await;
+			|_, _, _| {},
+		)
+		.await;
 
 		let aggression_stats = adjust_required_routing_and_propagate(
 			ctx,
