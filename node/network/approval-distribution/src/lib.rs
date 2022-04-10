@@ -223,6 +223,12 @@ impl Default for AggressionConfig {
 	}
 }
 
+#[derive(PartialEq)]
+enum Resend {
+	Yes,
+	No,
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -617,8 +623,7 @@ impl State {
 			}
 		}
 
-		// 'true' means trigger re-send of messages in old blocks.
-		self.enable_aggression(ctx, true, metrics).await;
+		self.enable_aggression(ctx, Resend::Yes, metrics).await;
 	}
 
 	async fn handle_new_session_topology(
@@ -812,8 +817,7 @@ impl State {
 
 		// If a block was finalized, this means we may need to move our aggression
 		// forward to the now oldest block(s).
-		// 'false' means don't trigger re-send of messages in old blocks.
-		self.enable_aggression(ctx, false, metrics).await;
+		self.enable_aggression(ctx, Resend::No, metrics).await;
 	}
 
 	async fn import_and_circulate_assignment(
@@ -1505,7 +1509,7 @@ impl State {
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
-		do_resend: bool,
+		resend: Resend,
 		metrics: &Metrics,
 	) {
 		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
@@ -1529,7 +1533,7 @@ impl State {
 			|block_entry| {
 				let block_age = max_age - block_entry.number;
 
-				if do_resend &&
+				if resend == Resend::Yes &&
 					config
 						.resend_unfinalized_period
 						.as_ref()
