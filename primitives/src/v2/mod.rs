@@ -176,6 +176,12 @@ pub mod well_known_keys {
 	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
 	//
 
+	/// The current epoch index.
+	///
+	/// The storage item should be access as a `u64` encoded value.
+	pub const EPOCH_INDEX: &[u8] =
+		&hex!["1cb6f36e027abb2091cfb5110ab5087f38316cbf8fa0da822a20ac1c55bf1be3"];
+
 	/// The current relay chain block randomness
 	///
 	/// The storage item should be accessed as a `schnorrkel::Randomness` encoded value.
