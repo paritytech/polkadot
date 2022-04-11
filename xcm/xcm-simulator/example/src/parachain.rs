@@ -320,7 +320,7 @@ pub mod mock_msg_queue {
 						Outcome::Incomplete(w, e) => (Ok(w), Event::Fail(Some(hash), e)),
 					}
 				},
-				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
+				Err(_e) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
 			};
 			Self::deposit_event(event);
 			result
@@ -363,7 +363,7 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::InvalidFormat(id));
 					},
 					Ok(versioned) => match Xcm::try_from(versioned) {
-						Err(()) => Self::deposit_event(Event::UnsupportedVersion(id)),
+						Err(_e) => Self::deposit_event(Event::UnsupportedVersion(id)),
 						Ok(x) => {
 							let outcome = T::XcmExecutor::execute_xcm(Parent, x.clone(), id, limit);
 							<ReceivedDmp<T>>::append(x);
