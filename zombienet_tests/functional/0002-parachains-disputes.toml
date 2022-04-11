@@ -18,40 +18,40 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "alice"
-  command = "malus dispute-ancestor --fake-validation approval-invalid -lparachain=debug,MALUS=trace"
-  extra_args = [ "--alice", "-lparachain=debug" ]
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  extra = [ "--alice", " -lparachain=debug,MALUS=trace" ]
 
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "bob"
-  command = "malus dispute-ancestor --fake-validation approval-invalid -lparachain=debug,MALUS=trace"
-  extra_args = [ "--bob", "-lparachain=debug"]
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  extra_args = [ "--bob", "-lparachain=debug,MALUS=trace"]
   
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "charlie"
-  command = "malus dispute-ancestor --fake-validation approval-invalid -lparachain=debug,MALUS=trace"
-  extra_args = [ "--charlie", "-lparachain=debug" ]
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  args = [ "--charlie", "-lparachain=debug,MALUS=trace" ]
 
   [[relaychain.nodes]]
   name = "dave"
-  extra_args = [ "--dave", "-lparachain=debug"]
+  args = [ "--dave", "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "ferdie"
-  extra_args = [ "--ferdie", "-lparachain=debug" ]
+  args = [ "--ferdie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "eve"
-  extra_args = [ "--eve", "-lparachain=debug"]
+  args = [ "--eve", "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "one"
-  extra_args = [ "--one", "-lparachain=debug" ]
+  args = [ "--one", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "two"
-  extra_args = [ "--two", "-lparachain=debug"]
+  args = [ "--two", "-lparachain=debug"]
 
 {% for id in range(2000,2004) %}
 [[parachains]]

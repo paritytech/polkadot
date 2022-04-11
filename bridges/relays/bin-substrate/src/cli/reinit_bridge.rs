@@ -36,7 +36,6 @@ use relay_substrate_client::{
 	SyncHeader, TransactionEra, TransactionSignScheme, UnsignedTransaction,
 };
 use sp_core::{Bytes, Pair};
-use std::convert::{TryFrom, TryInto};
 use structopt::StructOpt;
 use strum::{EnumString, EnumVariantNames, VariantNames};
 use substrate_relay_helper::{

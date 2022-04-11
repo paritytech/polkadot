@@ -8,11 +8,11 @@ command = "polkadot"
 
   [[relaychain.nodes]]
   name = "alice"
-  extra_args = [ "--alice", "-lruntime=debug,parachain=trace" ]
+  args = [ "--alice", "-lruntime=debug,parachain=trace" ]
 
   [[relaychain.nodes]]
   name = "bob"
-  extra_args = [ "--bob", "-lruntime=debug,parachain=trace" ]
+  args = [ "--bob", "-lruntime=debug,parachain=trace" ]
 
 [[parachains]]
 id = 100

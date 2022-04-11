@@ -27,14 +27,14 @@ bob: parachain 2001 is registered within 30 seconds
 charlie: parachain 2002 is registered within 30 seconds
 dave: parachain 2003 is registered within 30 seconds
 
-alice: reports peers count is at least 11 within 15 seconds
-bob: reports peers count is at least 11 within 15 seconds
-charlie: reports peers count is at least 11 within 15 seconds
-dave: reports peers count is at least 11 within 15 seconds
-ferdie: reports peers count is at least 1 within 15 seconds
-eve: reports peers count is at least 11 within 15 seconds
-one: reports peers count is at least 11 within 15 seconds
-two: reports peers count is at least 11 within 15 seconds
+alice: reports peers count is at least 11 within 20 seconds
+bob: reports peers count is at least 11 within 20 seconds
+charlie: reports peers count is at least 11 within 20 seconds
+dave: reports peers count is at least 11 within 20 seconds
+ferdie: reports peers count is at least 1 within 20 seconds
+eve: reports peers count is at least 11 within 20 seconds
+one: reports peers count is at least 11 within 20 seconds
+two: reports peers count is at least 11 within 20 seconds
 
 # Ensure parachains made progress.
 alice: parachain 2000 block height is at least 10 within 200 seconds

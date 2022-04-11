@@ -61,7 +61,6 @@ use sp_core::{traits::SpawnNamed, ByteArray};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use std::{
 	collections::{hash_map::Entry, HashMap},
-	convert::TryFrom,
 	fmt,
 	marker::Unpin,
 	pin::Pin,
