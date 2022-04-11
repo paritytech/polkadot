@@ -896,7 +896,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn staging_get_session_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			staging_runtime_impl::get_session_disputes::<Runtime>()
+			polkadot_runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 	}
 
