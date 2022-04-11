@@ -7,6 +7,7 @@ bootnode = true
   needed_approvals = 7
 
 [relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
 chain_spec_command = "../polkadot/target/testnet/polkadot build-spec --chain rococo-local"
 default_command = "../polkadot/target/testnet/polkadot"
@@ -17,23 +18,25 @@ requests = { memory = "2G", cpu = "1" }
 
   [[relaychain.node_groups]]
   name = "honest-validator"
-  command = "../polkadot/target/testnet/polkadot -lparachain=debug"
-  count = 11
+  command = "polkadot -lparachain=debug"
+  count = 10
 
   [[relaychain.node_groups]]
+  image = "{{MALUS_IMAGE}}"
   name = "malus-validator"
-  command = "../polkadot/target/testnet/malus suggest-garbage-candidate -lparachain=debug,MALUS=trace"
-  count = 5
+  command = "malus suggest-garbage-candidate -lparachain=debug,MALUS=trace"
+  count = 3
  
 {% for id in range(2000,2004) %}
 [[parachains]]
 id = {{id}}
 addToGenesis = true
-genesis_state_generator = "../polkadot/target/testnet/undying-collator export-genesis-state --pov-size={{25000*(id-1999)}} --pvf-complexity={{id - 1999}}"
+genesis_state_generator = "undying-collator export-genesis-state --pov-size={{10000*(id-1999)}} --pvf-complexity={{id - 1999}}"
     [parachains.collator]
+    image = "{{COL_IMAGE}}"
     name = "collator"
-    command = "../polkadot/target/testnet/undying-collator"
-    args = ["-lparachain=debug", "--pov-size={{25000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
+    command = "undying-collator"
+    args = ["-lparachain=debug", "--pov-size={{10000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
 {% endfor %}
 
 [types.Header]
