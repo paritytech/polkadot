@@ -579,6 +579,7 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+	type OnStakerSlash = ();
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }

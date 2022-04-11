@@ -347,6 +347,7 @@ impl pallet_staking::Config for Runtime {
 	// to bags-list is a no-op, but the storage version will be updated.
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+	type OnStakerSlash = ();
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = ();
 }

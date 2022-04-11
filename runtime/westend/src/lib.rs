@@ -466,8 +466,39 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+	type OnStakerSlash = ();
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
+}
+
+pub struct BalanceToU256;
+impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
+	fn convert(n: Balance) -> sp_core::U256 {
+		n.into()
+	}
+}
+
+pub struct U256ToBalance;
+impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
+	fn convert(n: sp_core::U256) -> Balance {
+		n.try_into().unwrap_or(Balance::MAX)
+	}
+}
+
+parameter_types! {
+	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+}
+
+impl pallet_nomination_pools::Config for Runtime {
+	type Event = Event;
+	type WeightInfo = ();
+	type Currency = Balances;
+	type BalanceToU256 = BalanceToU256;
+	type U256ToBalance = U256ToBalance;
+	type StakingInterface = Staking;
+	type PostUnbondingPoolsWindow = frame_support::traits::ConstU32<4>;
+	type MaxMetadataLen = frame_support::traits::ConstU32<256>;
+	type PalletId = PoolsPalletId;
 }
 
 parameter_types! {
@@ -1027,6 +1058,9 @@ construct_runtime! {
 		// Provides a semi-sorted list of nominators for staking.
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 25,
 
+		// Nomination pools for staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>} = 29,
+
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
@@ -1140,6 +1174,7 @@ mod benches {
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
 		[pallet_multisig, Multisig]
+		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
@@ -1493,6 +1528,7 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
@@ -1516,6 +1552,7 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
