@@ -9381,6 +9381,7 @@ dependencies = [
  "sc-offchain",
  "sc-rpc",
  "sc-rpc-server",
+ "sc-sysinfo",
  "sc-telemetry",
  "sc-tracing",
  "sc-transaction-pool",
@@ -9447,6 +9448,22 @@ dependencies = [
  "sp-blockchain",
  "sp-runtime",
  "thiserror",
+]
+
+[[package]]
+name = "sc-sysinfo"
+version = "6.0.0-dev"
+dependencies = [
+ "futures 0.3.21",
+ "libc",
+ "log",
+ "rand 0.7.3",
+ "rand_pcg",
+ "regex",
+ "sc-telemetry",
+ "serde",
+ "serde_json",
+ "sp-core",
 ]
 
 [[package]]
