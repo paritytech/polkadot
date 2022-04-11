@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This variant of Malus backs/approves all malicious candidates crafted by
-//! `suggest-garbage-candidate` variant and behaves honestly wrt other
+//! `suggest-garbage-candidate` variant and behaves honestly with other
 //! candidates.
 
 use polkadot_cli::{
