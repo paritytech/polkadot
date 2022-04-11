@@ -205,7 +205,9 @@ impl From<SendError> for Error {
 
 pub type Result = result::Result<(), Error>;
 
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo, frame_support::PalletError)]
+#[derive(
+	Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo, frame_support::PalletError,
+)]
 pub enum ConversionError {
 	AssetIdLengthExceeded,
 	BadMonikerLength,

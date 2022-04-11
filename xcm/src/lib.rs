@@ -47,7 +47,9 @@ pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 /// A version of XCM.
 pub type Version = u32;
 
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo, frame_support::PalletError)]
+#[derive(
+	Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo, frame_support::PalletError,
+)]
 pub enum VersionedConversionError {
 	#[codec(index = 0)]
 	UnsupportedVersion,
