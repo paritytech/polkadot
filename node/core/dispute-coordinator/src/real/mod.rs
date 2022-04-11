@@ -27,7 +27,6 @@
 use std::{collections::HashSet, sync::Arc};
 
 use futures::FutureExt;
-use kvdb::KeyValueDB;
 
 use sc_keystore::LocalKeystore;
 
@@ -36,8 +35,10 @@ use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
+use polkadot_node_subsystem_util::{
+	database::Database, rolling_session_window::RollingSessionWindow,
+};
+use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},
@@ -100,7 +101,7 @@ mod tests;
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
 	config: Config,
-	store: Arc<dyn KeyValueDB>,
+	store: Arc<dyn Database>,
 	keystore: Arc<LocalKeystore>,
 	metrics: Metrics,
 }
@@ -139,7 +140,7 @@ where
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(
-		store: Arc<dyn KeyValueDB>,
+		store: Arc<dyn Database>,
 		config: Config,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
@@ -193,7 +194,7 @@ impl DisputeCoordinatorSubsystem {
 			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
 				Ok(Some(update)) => update,
 				Ok(None) => {
-					tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+					gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 					return Ok(None)
 				},
 				Err(e) => {
@@ -266,11 +267,7 @@ impl DisputeCoordinatorSubsystem {
 				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
 			Err(e) => {
-				tracing::error!(
-					target: LOG_TARGET,
-					"Failed initial load of recent disputes: {:?}",
-					e
-				);
+				gum::error!(target: LOG_TARGET, "Failed initial load of recent disputes: {:?}", e);
 				return Err(e.into())
 			},
 		};
@@ -284,7 +281,7 @@ impl DisputeCoordinatorSubsystem {
 					Ok(Some(votes)) => votes.into(),
 					Ok(None) => continue,
 					Err(e) => {
-						tracing::error!(
+						gum::error!(
 							target: LOG_TARGET,
 							"Failed initial load of candidate votes: {:?}",
 							e
@@ -295,7 +292,7 @@ impl DisputeCoordinatorSubsystem {
 
 			let validators = match rolling_session_window.session_info(session) {
 				None => {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						session,
 						"Missing info for session which has an active dispute",
@@ -400,7 +397,7 @@ where
 			// hour old database state, we should rather cancel contained oneshots and delay
 			// finality until we are fully functional.
 			{
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?msg,
 					"Received msg before first active leaves update. This is not expected - message will be dropped."

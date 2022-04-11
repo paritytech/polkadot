@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashSet, convert::TryFrom};
+use std::collections::HashSet;
 
 pub use sc_network::{PeerId, ReputationChange};
 
 use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]

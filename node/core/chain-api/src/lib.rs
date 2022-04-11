@@ -38,7 +38,7 @@ use sc_client_api::AuxStore;
 use sp_blockchain::HeaderBackend;
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{Block, BlockId};
+use polkadot_primitives::v2::{Block, BlockId};
 use polkadot_subsystem::{
 	messages::ChainApiMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError, SubsystemResult,
@@ -129,7 +129,7 @@ where
 				},
 				ChainApiMessage::Ancestors { hash, k, response_channel } => {
 					let _timer = subsystem.metrics.time_ancestors();
-					tracing::span!(tracing::Level::TRACE, "ChainApiMessage::Ancestors", subsystem=LOG_TARGET, hash=%hash, k=k);
+					gum::trace!(target: LOG_TARGET, hash=%hash, k=k, "ChainApiMessage::Ancestors");
 
 					let mut hash = hash;
 

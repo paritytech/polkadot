@@ -14,48 +14,84 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{chain::Chain, client::Client};
+use crate::{chain::Chain, client::Client, Error as SubstrateError};
 
 use async_std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use codec::Decode;
+use num_traits::One;
 use relay_utils::metrics::{
 	metric_name, register, F64SharedRef, Gauge, Metric, PrometheusError, Registry,
 	StandaloneMetric, F64,
 };
-use sp_core::storage::StorageKey;
-use sp_runtime::{traits::UniqueSaturatedInto, FixedPointNumber};
-use std::time::Duration;
+use sp_core::storage::{StorageData, StorageKey};
+use sp_runtime::{traits::UniqueSaturatedInto, FixedPointNumber, FixedU128};
+use std::{marker::PhantomData, time::Duration};
 
 /// Storage value update interval (in blocks).
 const UPDATE_INTERVAL_IN_BLOCKS: u32 = 5;
 
-/// Metric that represents fixed-point runtime storage value as float gauge.
-#[derive(Clone, Debug)]
-pub struct FloatStorageValueMetric<C: Chain, T: Clone> {
-	client: Client<C>,
-	storage_key: StorageKey,
-	maybe_default_value: Option<T>,
-	metric: Gauge<F64>,
-	shared_value_ref: F64SharedRef,
+/// Fied-point storage value and the way it is decoded from the raw storage value.
+pub trait FloatStorageValue: 'static + Clone + Send + Sync {
+	/// Type of the value.
+	type Value: FixedPointNumber;
+	/// Try to decode value from the raw storage value.
+	fn decode(
+		&self,
+		maybe_raw_value: Option<StorageData>,
+	) -> Result<Option<Self::Value>, SubstrateError>;
 }
 
-impl<C: Chain, T: Decode + FixedPointNumber> FloatStorageValueMetric<C, T> {
+/// Implementation of `FloatStorageValue` that expects encoded `FixedU128` value and returns `1` if
+/// value is missing from the storage.
+#[derive(Clone, Debug, Default)]
+pub struct FixedU128OrOne;
+
+impl FloatStorageValue for FixedU128OrOne {
+	type Value = FixedU128;
+
+	fn decode(
+		&self,
+		maybe_raw_value: Option<StorageData>,
+	) -> Result<Option<Self::Value>, SubstrateError> {
+		maybe_raw_value
+			.map(|raw_value| {
+				FixedU128::decode(&mut &raw_value.0[..])
+					.map_err(SubstrateError::ResponseParseFailed)
+					.map(Some)
+			})
+			.unwrap_or_else(|| Ok(Some(FixedU128::one())))
+	}
+}
+
+/// Metric that represents fixed-point runtime storage value as float gauge.
+#[derive(Clone, Debug)]
+pub struct FloatStorageValueMetric<C: Chain, V: FloatStorageValue> {
+	value_converter: V,
+	client: Client<C>,
+	storage_key: StorageKey,
+	metric: Gauge<F64>,
+	shared_value_ref: F64SharedRef,
+	_phantom: PhantomData<V>,
+}
+
+impl<C: Chain, V: FloatStorageValue> FloatStorageValueMetric<C, V> {
 	/// Create new metric.
 	pub fn new(
+		value_converter: V,
 		client: Client<C>,
 		storage_key: StorageKey,
-		maybe_default_value: Option<T>,
 		name: String,
 		help: String,
 	) -> Result<Self, PrometheusError> {
 		let shared_value_ref = Arc::new(RwLock::new(None));
 		Ok(FloatStorageValueMetric {
+			value_converter,
 			client,
 			storage_key,
-			maybe_default_value,
 			metric: Gauge::new(metric_name(None, &name), help)?,
 			shared_value_ref,
+			_phantom: Default::default(),
 		})
 	}
 
@@ -65,20 +101,14 @@ impl<C: Chain, T: Decode + FixedPointNumber> FloatStorageValueMetric<C, T> {
 	}
 }
 
-impl<C: Chain, T> Metric for FloatStorageValueMetric<C, T>
-where
-	T: 'static + Decode + Send + Sync + FixedPointNumber,
-{
+impl<C: Chain, V: FloatStorageValue> Metric for FloatStorageValueMetric<C, V> {
 	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
 		register(self.metric.clone(), registry).map(drop)
 	}
 }
 
 #[async_trait]
-impl<C: Chain, T> StandaloneMetric for FloatStorageValueMetric<C, T>
-where
-	T: 'static + Decode + Send + Sync + FixedPointNumber,
-{
+impl<C: Chain, V: FloatStorageValue> StandaloneMetric for FloatStorageValueMetric<C, V> {
 	fn update_interval(&self) -> Duration {
 		C::AVERAGE_BLOCK_INTERVAL * UPDATE_INTERVAL_IN_BLOCKS
 	}
@@ -86,16 +116,18 @@ where
 	async fn update(&self) {
 		let value = self
 			.client
-			.storage_value::<T>(self.storage_key.clone(), None)
+			.raw_storage_value(self.storage_key.clone(), None)
 			.await
-			.map(|maybe_storage_value| {
-				maybe_storage_value.or(self.maybe_default_value).map(|storage_value| {
-					storage_value.into_inner().unique_saturated_into() as f64 /
-						T::DIV.unique_saturated_into() as f64
+			.and_then(|maybe_storage_value| {
+				self.value_converter.decode(maybe_storage_value).map(|maybe_fixed_point_value| {
+					maybe_fixed_point_value.map(|fixed_point_value| {
+						fixed_point_value.into_inner().unique_saturated_into() as f64 /
+							V::Value::DIV.unique_saturated_into() as f64
+					})
 				})
 			})
-			.map_err(drop);
-		relay_utils::metrics::set_gauge_value(&self.metric, value);
+			.map_err(|e| e.to_string());
+		relay_utils::metrics::set_gauge_value(&self.metric, value.clone());
 		*self.shared_value_ref.write().await = value.ok().and_then(|x| x);
 	}
 }

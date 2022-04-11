@@ -29,8 +29,8 @@ use futures::{
 	future::{self, BoxFuture},
 };
 
-use kvdb::KeyValueDB;
 use parity_scale_codec::Encode;
+use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
@@ -54,13 +54,10 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::{
-	v1::{
-		BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash,
-		HashT, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SigningContext,
-		ValidatorId, ValidatorIndex,
-	},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, HashT,
+	Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	SigningContext, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -83,7 +80,7 @@ fn make_keystore(seeds: impl Iterator<Item = String>) -> LocalKeystore {
 
 	for s in seeds {
 		store
-			.sr25519_generate_new(polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID, Some(&s))
+			.sr25519_generate_new(polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID, Some(&s))
 			.unwrap();
 	}
 
@@ -125,7 +122,7 @@ struct TestState {
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	master_keystore: Arc<sc_keystore::LocalKeystore>,
 	subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 	config: Config,
 	clock: MockClock,
 	headers: HashMap<Hash, Header>,
@@ -166,7 +163,9 @@ impl Default for TestState {
 		let subsystem_keystore =
 			make_keystore(vec![Sr25519Keyring::Alice.to_seed()].into_iter()).into();
 
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = kvdb_memorydb::create(1);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db = Arc::new(db);
 		let config = Config { col_data: 0 };
 
 		TestState {
@@ -408,8 +407,9 @@ where
 async fn participation_with_distribution(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate_hash: &CandidateHash,
+	expected_commitments_hash: Hash,
 ) {
-	participation_full_happy_path(virtual_overseer).await;
+	participation_full_happy_path(virtual_overseer, expected_commitments_hash).await;
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::DisputeDistribution(
@@ -427,7 +427,6 @@ fn make_valid_candidate_receipt() -> CandidateReceipt {
 }
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
-	// Commitments hash will be 0, which is not correct:
 	dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()))
 }
 
@@ -594,7 +593,12 @@ fn dispute_gets_confirmed_via_participation() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash1).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash1,
+				candidate_receipt1.commitments_hash,
+			)
+			.await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -943,7 +947,12 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1225,7 +1234,12 @@ fn finality_votes_ignore_disputed_candidates() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1297,7 +1311,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
@@ -1323,7 +1337,12 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			let mut statements = Vec::new();
 			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
@@ -1417,7 +1436,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
@@ -1443,7 +1462,12 @@ fn concluded_supermajority_for_non_active_after_time() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			let mut statements = Vec::new();
 			// -2: 1 for already imported vote and one for local vote (which is valid).
@@ -1515,7 +1539,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
@@ -1544,7 +1568,13 @@ fn concluded_supermajority_against_non_active_after_time() {
 				ImportStatementsResult::ValidImport => {}
 			);
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			// Use a different expected commitments hash to ensure the candidate validation returns invalid.
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				CandidateCommitments::default().hash(),
+			)
+			.await;
 
 			let mut statements = Vec::new();
 			// minus 2, because of local vote and one previously imported invalid vote.
@@ -1581,7 +1611,6 @@ fn concluded_supermajority_against_non_active_after_time() {
 					.await;
 
 				assert!(rx.await.unwrap().is_empty());
-
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
@@ -1673,7 +1702,12 @@ fn resume_dispute_without_local_statement() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
 
 			let valid_vote0 = test_state
 				.issue_explicit_statement_with_index(0, candidate_hash, session, true)

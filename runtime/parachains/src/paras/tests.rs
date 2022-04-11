@@ -17,10 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::{
-	v0::PARACHAIN_KEY_TYPE_ID,
-	v1::{BlockNumber, ValidatorId},
-};
+use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -116,7 +113,7 @@ fn check_code_is_not_stored(validation_code: &ValidationCode) {
 /// An utility for checking that certain events were deposited.
 struct EventValidator {
 	events:
-		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v1::Hash>>,
+		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v2::Hash>>,
 }
 
 impl EventValidator {
@@ -1280,7 +1277,8 @@ fn pvf_check_submit_vote() {
 			<Paras as ValidateUnsigned>::validate_unsigned(TransactionSource::InBlock, &call)
 				.map(|_| ());
 		let dispatch_result =
-			Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone());
+			Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone())
+				.map(|_| ());
 
 		(validate_unsigned, dispatch_result)
 	};
@@ -1375,6 +1373,69 @@ fn pvf_check_submit_vote() {
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckSubjectInvalid);
+	});
+}
+
+#[test]
+fn include_pvf_check_statement_refunds_weight() {
+	let a = ParaId::from(111);
+	let old_code: ValidationCode = vec![1, 2, 3].into();
+	let new_code: ValidationCode = vec![3, 2, 1].into();
+
+	let paras = vec![(
+		a,
+		ParaGenesisArgs {
+			parachain: false,
+			genesis_head: Default::default(),
+			validation_code: old_code,
+		},
+	)];
+
+	let genesis_config = MockGenesisConfig {
+		paras: GenesisConfig { paras, ..Default::default() },
+		configuration: crate::configuration::GenesisConfig {
+			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	new_test_ext(genesis_config).execute_with(|| {
+		// At this point `a` is already onboarded. Run to block 1 performing session change at
+		// the end of block #0.
+		run_to_block(2, Some(vec![1]));
+
+		// Relay parent of the block that schedules the upgrade.
+		const RELAY_PARENT: BlockNumber = 1;
+		// Expected current session index.
+		const EXPECTED_SESSION: SessionIndex = 1;
+
+		Paras::schedule_code_upgrade(a, new_code.clone(), RELAY_PARENT, &Configuration::config());
+
+		let mut stmts = IntoIterator::into_iter([0, 1, 2, 3])
+			.map(|i| {
+				let stmt = PvfCheckStatement {
+					accept: true,
+					subject: new_code.hash(),
+					session_index: EXPECTED_SESSION,
+					validator_index: (i as u32).into(),
+				};
+				let sig = VALIDATORS[i].sign(&stmt.signing_payload());
+				(stmt, sig)
+			})
+			.collect::<Vec<_>>();
+		let last_one = stmts.pop().unwrap();
+
+		// Verify that just vote submission is priced accordingly.
+		for (stmt, sig) in stmts {
+			let r = Paras::include_pvf_check_statement(None.into(), stmt, sig.into()).unwrap();
+			assert_eq!(r.actual_weight, Some(TestWeightInfo::include_pvf_check_statement()));
+		}
+
+		// Verify that the last statement is priced maximally.
+		let (stmt, sig) = last_one;
+		let r = Paras::include_pvf_check_statement(None.into(), stmt, sig.into()).unwrap();
+		assert_eq!(r.actual_weight, None);
 	});
 }
 
@@ -1545,7 +1606,7 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 
 #[test]
 fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(2020);
 
@@ -1561,7 +1622,7 @@ fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
 
 #[test]
 fn verify_upgrade_restriction_signal_is_externally_accessible() {
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(2020);
 

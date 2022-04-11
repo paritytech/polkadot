@@ -1,8 +1,7 @@
 #!/bin/bash
 set -xeu
 
-sleep 20
-curl -v http://millau-node-alice:9933/health
+sleep 15
 
 # //Dave is signing Millau -> Rialto message-send transactions, which are causing problems.
 #
