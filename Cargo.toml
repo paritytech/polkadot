@@ -203,6 +203,7 @@ sp-inherents ={path = "/Users/skunert/work/repos/substrate/primitives/inherents"
 sp-database ={path = "/Users/skunert/work/repos/substrate/primitives/database" }
 sp-rpc ={path = "/Users/skunert/work/repos/substrate/primitives/rpc" }
 substrate-test-runtime ={path = "/Users/skunert/work/repos/substrate/test-utils/runtime" }
+beefy-primitives ={path = "/Users/skunert/work/repos/substrate/primitives/beefy" }
 frame-system ={path = "/Users/skunert/work/repos/substrate/frame/system" }
 frame-system-rpc-runtime-api ={path = "/Users/skunert/work/repos/substrate/frame/system/rpc/runtime-api" }
 pallet-babe ={path = "/Users/skunert/work/repos/substrate/frame/babe" }
@@ -217,8 +218,8 @@ sp-consensus-babe ={path = "/Users/skunert/work/repos/substrate/primitives/conse
 sp-consensus-slots ={path = "/Users/skunert/work/repos/substrate/primitives/consensus/slots" }
 sp-consensus-vrf ={path = "/Users/skunert/work/repos/substrate/primitives/consensus/vrf" }
 frame-election-provider-support ={path = "/Users/skunert/work/repos/substrate/frame/election-provider-support" }
+frame-election-provider-solution-type ={path = "/Users/skunert/work/repos/substrate/frame/election-provider-support/solution-type" }
 sp-npos-elections ={path = "/Users/skunert/work/repos/substrate/primitives/npos-elections" }
-sp-npos-elections-solution-type ={path = "/Users/skunert/work/repos/substrate/primitives/npos-elections/solution-type" }
 substrate-test-utils ={path = "/Users/skunert/work/repos/substrate/test-utils" }
 substrate-test-utils-derive ={path = "/Users/skunert/work/repos/substrate/test-utils/derive" }
 sc-service ={path = "/Users/skunert/work/repos/substrate/client/service" }
@@ -260,6 +261,7 @@ sc-cli ={path = "/Users/skunert/work/repos/substrate/client/cli" }
 node-template-runtime ={path = "/Users/skunert/work/repos/substrate/bin/node-template/runtime" }
 frame-executive ={path = "/Users/skunert/work/repos/substrate/frame/executive" }
 frame-system-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/system/benchmarking" }
+frame-try-runtime ={path = "/Users/skunert/work/repos/substrate/frame/try-runtime" }
 pallet-aura ={path = "/Users/skunert/work/repos/substrate/frame/aura" }
 pallet-grandpa ={path = "/Users/skunert/work/repos/substrate/frame/grandpa" }
 pallet-randomness-collective-flip ={path = "/Users/skunert/work/repos/substrate/frame/randomness-collective-flip" }
@@ -275,11 +277,13 @@ sc-network-test ={path = "/Users/skunert/work/repos/substrate/client/network/tes
 sc-finality-grandpa ={path = "/Users/skunert/work/repos/substrate/client/finality-grandpa" }
 sc-network-gossip ={path = "/Users/skunert/work/repos/substrate/client/network-gossip" }
 substrate-frame-rpc-system ={path = "/Users/skunert/work/repos/substrate/utils/frame/rpc/system" }
+try-runtime-cli ={path = "/Users/skunert/work/repos/substrate/utils/frame/try-runtime/cli" }
+remote-externalities ={path = "/Users/skunert/work/repos/substrate/utils/frame/remote-externalities" }
+pallet-elections-phragmen ={path = "/Users/skunert/work/repos/substrate/frame/elections-phragmen" }
 substrate-build-script-utils ={path = "/Users/skunert/work/repos/substrate/utils/build-script-utils" }
 node-bench ={path = "/Users/skunert/work/repos/substrate/bin/node/bench" }
 node-primitives ={path = "/Users/skunert/work/repos/substrate/bin/node/primitives" }
 node-runtime ={path = "/Users/skunert/work/repos/substrate/bin/node/runtime" }
-frame-try-runtime ={path = "/Users/skunert/work/repos/substrate/frame/try-runtime" }
 pallet-asset-tx-payment ={path = "/Users/skunert/work/repos/substrate/frame/transaction-payment/asset-tx-payment" }
 pallet-assets ={path = "/Users/skunert/work/repos/substrate/frame/assets" }
 pallet-authority-discovery ={path = "/Users/skunert/work/repos/substrate/frame/authority-discovery" }
@@ -298,7 +302,6 @@ pallet-scheduler ={path = "/Users/skunert/work/repos/substrate/frame/scheduler" 
 pallet-preimage ={path = "/Users/skunert/work/repos/substrate/frame/preimage" }
 pallet-democracy ={path = "/Users/skunert/work/repos/substrate/frame/democracy" }
 pallet-election-provider-multi-phase ={path = "/Users/skunert/work/repos/substrate/frame/election-provider-multi-phase" }
-pallet-elections-phragmen ={path = "/Users/skunert/work/repos/substrate/frame/elections-phragmen" }
 pallet-gilt ={path = "/Users/skunert/work/repos/substrate/frame/gilt" }
 pallet-identity ={path = "/Users/skunert/work/repos/substrate/frame/identity" }
 pallet-im-online ={path = "/Users/skunert/work/repos/substrate/frame/im-online" }
@@ -316,10 +319,13 @@ pallet-recovery ={path = "/Users/skunert/work/repos/substrate/frame/recovery" }
 pallet-referenda ={path = "/Users/skunert/work/repos/substrate/frame/referenda" }
 pallet-session-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/session/benchmarking" }
 pallet-society ={path = "/Users/skunert/work/repos/substrate/frame/society" }
+pallet-state-trie-migration ={path = "/Users/skunert/work/repos/substrate/frame/state-trie-migration" }
+substrate-state-trie-migration-rpc ={path = "/Users/skunert/work/repos/substrate/utils/frame/rpc/state-trie-migration-rpc" }
 pallet-tips ={path = "/Users/skunert/work/repos/substrate/frame/tips" }
 pallet-transaction-storage ={path = "/Users/skunert/work/repos/substrate/frame/transaction-storage" }
 pallet-uniques ={path = "/Users/skunert/work/repos/substrate/frame/uniques" }
 pallet-vesting ={path = "/Users/skunert/work/repos/substrate/frame/vesting" }
+pallet-whitelist ={path = "/Users/skunert/work/repos/substrate/frame/whitelist" }
 node-testing ={path = "/Users/skunert/work/repos/substrate/bin/node/testing" }
 node-executor ={path = "/Users/skunert/work/repos/substrate/bin/node/executor" }
 node-cli ={path = "/Users/skunert/work/repos/substrate/bin/node/cli" }
@@ -334,14 +340,11 @@ sc-finality-grandpa-rpc ={path = "/Users/skunert/work/repos/substrate/client/fin
 sc-sync-state-rpc ={path = "/Users/skunert/work/repos/substrate/client/sync-state-rpc" }
 sc-authority-discovery ={path = "/Users/skunert/work/repos/substrate/client/authority-discovery" }
 sc-consensus-uncles ={path = "/Users/skunert/work/repos/substrate/client/consensus/uncles" }
-try-runtime-cli ={path = "/Users/skunert/work/repos/substrate/utils/frame/try-runtime/cli" }
-remote-externalities ={path = "/Users/skunert/work/repos/substrate/utils/frame/remote-externalities" }
 sc-service-test ={path = "/Users/skunert/work/repos/substrate/client/service/test" }
 substrate-frame-cli ={path = "/Users/skunert/work/repos/substrate/utils/frame/frame-utilities-cli" }
 chain-spec-builder ={path = "/Users/skunert/work/repos/substrate/bin/utils/chain-spec-builder" }
 subkey ={path = "/Users/skunert/work/repos/substrate/bin/utils/subkey" }
 beefy-gadget ={path = "/Users/skunert/work/repos/substrate/client/beefy" }
-beefy-primitives ={path = "/Users/skunert/work/repos/substrate/primitives/beefy" }
 beefy-gadget-rpc ={path = "/Users/skunert/work/repos/substrate/client/beefy/rpc" }
 sc-consensus-manual-seal ={path = "/Users/skunert/work/repos/substrate/client/consensus/manual-seal" }
 sc-consensus-pow ={path = "/Users/skunert/work/repos/substrate/client/consensus/pow" }
@@ -352,6 +355,7 @@ pallet-bags-list-remote-tests ={path = "/Users/skunert/work/repos/substrate/fram
 pallet-beefy ={path = "/Users/skunert/work/repos/substrate/frame/beefy" }
 pallet-beefy-mmr ={path = "/Users/skunert/work/repos/substrate/frame/beefy-mmr" }
 beefy-merkle-tree ={path = "/Users/skunert/work/repos/substrate/frame/beefy-mmr/primitives" }
+frame-election-solution-type-fuzzer ={path = "/Users/skunert/work/repos/substrate/frame/election-provider-support/solution-type/fuzzer" }
 pallet-example-basic ={path = "/Users/skunert/work/repos/substrate/frame/examples/basic" }
 pallet-example-offchain-worker ={path = "/Users/skunert/work/repos/substrate/frame/examples/offchain-worker" }
 pallet-example-parallel ={path = "/Users/skunert/work/repos/substrate/frame/examples/parallel" }
