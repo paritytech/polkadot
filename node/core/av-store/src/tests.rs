@@ -16,8 +16,6 @@
 
 use super::*;
 
-use std::convert::TryFrom;
-
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
@@ -26,7 +24,7 @@ use parking_lot::Mutex;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::{database::Database, TimeoutExt};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
 	PersistedValidationData, ValidatorId,
 };
@@ -146,7 +144,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: AvailabilityStoreMessage) {
-	tracing::trace!(meg = ?msg, "sending message");
+	gum::trace!(meg = ?msg, "sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -159,7 +157,7 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 		.await
 		.expect(&format!("{:?} is more than enough to receive messages", TIMEOUT));
 
-	tracing::trace!(msg = ?msg, "received message");
+	gum::trace!(msg = ?msg, "received message");
 
 	msg
 }
@@ -168,7 +166,7 @@ async fn overseer_recv_with_timeout(
 	overseer: &mut VirtualOverseer,
 	timeout: Duration,
 ) -> Option<AllMessages> {
-	tracing::trace!("waiting for message...");
+	gum::trace!("waiting for message...");
 	overseer.recv().timeout(timeout).await
 }
 

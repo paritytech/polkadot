@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
+use polkadot_primitives::v2::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
@@ -95,6 +95,7 @@ pub struct FullDeps<C, P, SC, B> {
 /// Instantiate all RPC extensions.
 pub fn create_full<C, P, SC, B>(
 	deps: FullDeps<C, P, SC, B>,
+	backend: Arc<B>,
 ) -> Result<RpcExtension, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>
@@ -131,6 +132,10 @@ where
 		subscription_executor,
 		finality_provider,
 	} = grandpa;
+
+	io.extend_with(substrate_state_trie_migration_rpc::StateMigrationApi::to_delegate(
+		substrate_state_trie_migration_rpc::MigrationRpc::new(client.clone(), backend, deny_unsafe),
+	));
 
 	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
 	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone())));

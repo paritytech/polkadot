@@ -16,13 +16,13 @@
 
 //! Deal with CLI args of substrate-to-substrate relay.
 
-use std::convert::TryInto;
-
-use bp_messages::LaneId;
 use codec::{Decode, Encode};
-use frame_support::weights::Weight;
+use relay_substrate_client::ChainRuntimeVersion;
 use sp_runtime::app_crypto::Ss58Codec;
 use structopt::{clap::arg_enum, StructOpt};
+use strum::{EnumString, EnumVariantNames};
+
+use bp_messages::LaneId;
 
 pub(crate) mod bridge;
 pub(crate) mod encode_call;
@@ -33,6 +33,7 @@ pub(crate) mod send_message;
 mod derive_account;
 mod init_bridge;
 mod register_parachain;
+mod reinit_bridge;
 mod relay_headers;
 mod relay_headers_and_messages;
 mod relay_messages;
@@ -69,6 +70,11 @@ pub enum Command {
 	///
 	/// Sends initialization transaction to bootstrap the bridge with current finalized block data.
 	InitBridge(init_bridge::InitBridge),
+	/// Reinitialize on-chain bridge pallet with current header data.
+	///
+	/// Sends all missing mandatory headers to bootstrap the bridge with current finalized block
+	/// data.
+	ReinitBridge(reinit_bridge::ReinitBridge),
 	/// Send custom message over the bridge.
 	///
 	/// Allows interacting with the bridge by sending messages over `Messages` component.
@@ -124,6 +130,7 @@ impl Command {
 			Self::RelayMessages(arg) => arg.run().await?,
 			Self::RelayHeadersAndMessages(arg) => arg.run().await?,
 			Self::InitBridge(arg) => arg.run().await?,
+			Self::ReinitBridge(arg) => arg.run().await?,
 			Self::SendMessage(arg) => arg.run().await?,
 			Self::EncodeCall(arg) => arg.run().await?,
 			Self::EncodeMessage(arg) => arg.run().await?,
@@ -238,7 +245,7 @@ impl AccountId {
 ///
 /// Used to abstract away CLI commands.
 pub trait CliChain: relay_substrate_client::Chain {
-	/// Chain's current version of the runtime.
+	/// Current version of the chain runtime, known to relay.
 	const RUNTIME_VERSION: sp_version::RuntimeVersion;
 
 	/// Crypto KeyPair type used to send messages.
@@ -258,9 +265,6 @@ pub trait CliChain: relay_substrate_client::Chain {
 	fn encode_message(
 		message: crate::cli::encode_message::MessagePayload,
 	) -> anyhow::Result<Self::MessagePayload>;
-
-	/// Maximal extrinsic weight (from the runtime).
-	fn max_extrinsic_weight() -> Weight;
 }
 
 /// Lane id.
@@ -368,6 +372,17 @@ where
 	}
 }
 
+#[doc = "Runtime version params."]
+#[derive(StructOpt, Debug, PartialEq, Eq, Clone, Copy, EnumString, EnumVariantNames)]
+pub enum RuntimeVersionType {
+	/// Auto query version from chain
+	Auto,
+	/// Custom `spec_version` and `transaction_version`
+	Custom,
+	/// Read version from bundle dependencies directly.
+	Bundle,
+}
+
 /// Create chain-specific set of configuration objects: connection parameters,
 /// signing parameters and bridge initialization parameters.
 #[macro_export]
@@ -381,11 +396,28 @@ macro_rules! declare_chain_options {
 				#[structopt(long, default_value = "127.0.0.1")]
 				pub [<$chain_prefix _host>]: String,
 				#[doc = "Connect to " $chain " node websocket server at given port."]
-				#[structopt(long)]
+				#[structopt(long, default_value = "9944")]
 				pub [<$chain_prefix _port>]: u16,
 				#[doc = "Use secure websocket connection."]
 				#[structopt(long)]
 				pub [<$chain_prefix _secure>]: bool,
+				#[doc = "Custom runtime version"]
+				#[structopt(flatten)]
+				pub [<$chain_prefix _runtime_version>]: [<$chain RuntimeVersionParams>],
+			}
+
+			#[doc = $chain " runtime version params."]
+			#[derive(StructOpt, Debug, PartialEq, Eq, Clone, Copy)]
+			pub struct [<$chain RuntimeVersionParams>] {
+				#[doc = "The type of runtime version for chain " $chain]
+				#[structopt(long, default_value = "Bundle")]
+				pub [<$chain_prefix _version_mode>]: RuntimeVersionType,
+				#[doc = "The custom sepc_version for chain " $chain]
+				#[structopt(long)]
+				pub [<$chain_prefix _spec_version>]: Option<u32>,
+				#[doc = "The custom transaction_version for chain " $chain]
+				#[structopt(long)]
+				pub [<$chain_prefix _transaction_version>]: Option<u32>,
 			}
 
 			#[doc = $chain " signing params."]
@@ -501,17 +533,81 @@ macro_rules! declare_chain_options {
 			}
 
 			impl [<$chain ConnectionParams>] {
+				/// Returns `true` if version guard can be started.
+				///
+				/// There's no reason to run version guard when version mode is set to `Auto`. It can
+				/// lead to relay shutdown when chain is upgraded, even though we have explicitly
+				/// said that we don't want to shutdown.
+				#[allow(dead_code)]
+				pub fn can_start_version_guard(&self) -> bool {
+					self.[<$chain_prefix _runtime_version>].[<$chain_prefix _version_mode>] != RuntimeVersionType::Auto
+				}
+
 				/// Convert connection params into Substrate client.
 				pub async fn to_client<Chain: CliChain>(
 					&self,
 				) -> anyhow::Result<relay_substrate_client::Client<Chain>> {
+					let chain_runtime_version = self
+						.[<$chain_prefix _runtime_version>]
+						.into_runtime_version(Some(Chain::RUNTIME_VERSION))?;
 					Ok(relay_substrate_client::Client::new(relay_substrate_client::ConnectionParams {
 						host: self.[<$chain_prefix _host>].clone(),
 						port: self.[<$chain_prefix _port>],
 						secure: self.[<$chain_prefix _secure>],
+						chain_runtime_version,
 					})
 					.await
 					)
+				}
+
+				/// Return selected `chain_spec` version.
+				///
+				/// This function only connects to the node if version mode is set to `Auto`.
+				#[allow(dead_code)]
+				pub async fn selected_chain_spec_version<Chain: CliChain>(
+					&self,
+				) -> anyhow::Result<u32> {
+					let chain_runtime_version = self
+						.[<$chain_prefix _runtime_version>]
+						.into_runtime_version(Some(Chain::RUNTIME_VERSION))?;
+					Ok(match chain_runtime_version {
+						ChainRuntimeVersion::Auto => self
+							.to_client::<Chain>()
+							.await?
+							.simple_runtime_version()
+							.await?
+							.0,
+						ChainRuntimeVersion::Custom(spec_version, _) => spec_version,
+					})
+				}
+			}
+
+			impl [<$chain RuntimeVersionParams>] {
+				/// Converts self into `ChainRuntimeVersion`.
+				pub fn into_runtime_version(
+					self,
+					bundle_runtime_version: Option<sp_version::RuntimeVersion>,
+				) -> anyhow::Result<ChainRuntimeVersion> {
+					Ok(match self.[<$chain_prefix _version_mode>] {
+						RuntimeVersionType::Auto => ChainRuntimeVersion::Auto,
+						RuntimeVersionType::Custom => {
+							let except_spec_version = self.[<$chain_prefix _spec_version>]
+								.ok_or_else(|| anyhow::Error::msg(format!("The {}-spec-version is required when choose custom mode", stringify!($chain_prefix))))?;
+							let except_transaction_version = self.[<$chain_prefix _transaction_version>]
+								.ok_or_else(|| anyhow::Error::msg(format!("The {}-transaction-version is required when choose custom mode", stringify!($chain_prefix))))?;
+							ChainRuntimeVersion::Custom(
+								except_spec_version,
+								except_transaction_version
+							)
+						},
+						RuntimeVersionType::Bundle => match bundle_runtime_version {
+							Some(runtime_version) => ChainRuntimeVersion::Custom(
+								runtime_version.spec_version,
+								runtime_version.transaction_version
+							),
+							None => ChainRuntimeVersion::Auto
+						},
+					})
 				}
 			}
 		}
@@ -525,8 +621,9 @@ declare_chain_options!(Parachain, parachain);
 
 #[cfg(test)]
 mod tests {
-	use sp_core::Pair;
 	use std::str::FromStr;
+
+	use sp_core::Pair;
 
 	use super::*;
 

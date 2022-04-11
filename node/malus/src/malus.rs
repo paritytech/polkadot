@@ -16,7 +16,7 @@
 
 //! A malus or nemesis node launch code.
 
-use clap::{ArgEnum, Parser};
+use clap::Parser;
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
 
@@ -37,7 +37,7 @@ enum NemesisVariant {
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor(RunCmd),
+	DisputeAncestor(DisputeAncestorOptions),
 
 	#[allow(missing_docs)]
 	#[clap(name = "prepare-worker", hide = true)]
@@ -48,24 +48,11 @@ enum NemesisVariant {
 	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
-#[derive(ArgEnum, Clone, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
-pub enum FakeCandidateValidation {
-	Invalid,
-	// TODO: impl Valid.
-}
-
 #[derive(Debug, Parser)]
 #[allow(missing_docs)]
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
-
-	#[clap(long, arg_enum, ignore_case = true)]
-	pub fake_backing_validation: Option<FakeCandidateValidation>,
-
-	#[clap(long, arg_enum, ignore_case = true)]
-	pub fake_approval_validation: Option<FakeCandidateValidation>,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -79,13 +66,10 @@ impl MalusCli {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
 			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(cmd) => polkadot_cli::run_node(
-				run_cmd(cmd),
-				DisputeValidCandidates::new(
-					self.fake_backing_validation,
-					self.fake_approval_validation,
-				),
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper)?,
+			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				DisputeValidCandidates::new(opts),
 			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
@@ -138,7 +122,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.base.bob);
+			assert!(run.cmd.base.bob);
 		});
 	}
 }

@@ -40,8 +40,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
+use polkadot_primitives::v2::{
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
@@ -134,7 +134,7 @@ where
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
-					descriptor,
+					candidate_receipt,
 					pov,
 					timeout,
 					response_sender,
@@ -149,7 +149,7 @@ where
 							let res = validate_from_chain_state(
 								&mut sender,
 								validation_host,
-								descriptor,
+								candidate_receipt,
 								pov,
 								timeout,
 								&metrics,
@@ -166,7 +166,7 @@ where
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
 					validation_code,
-					descriptor,
+					candidate_receipt,
 					pov,
 					timeout,
 					response_sender,
@@ -181,7 +181,7 @@ where
 								validation_host,
 								persisted_validation_data,
 								validation_code,
-								descriptor,
+								candidate_receipt,
 								pov,
 								timeout,
 								&metrics,
@@ -242,13 +242,13 @@ where
 	receiver
 		.await
 		.map_err(|_| {
-			tracing::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
+			gum::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
 
 			RuntimeRequestFailed
 		})
 		.and_then(|res| {
 			res.map_err(|e| {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
 					err = ?e,
@@ -295,7 +295,7 @@ where
 				// during pre-checking voting the relay-chain will pin the code. In case the code
 				// actually is not there, we issue failed since this looks more like a bug. This
 				// leads to us abstaining.
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?relay_parent,
 					?validation_code_hash,
@@ -311,7 +311,7 @@ where
 	) {
 		Ok(code) => Pvf::from_code(code.into_owned()),
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
+			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
 		},
 	};
@@ -413,10 +413,32 @@ where
 	AssumptionCheckOutcome::DoesNotMatch
 }
 
+/// Returns validation data for a given candidate.
+pub async fn find_validation_data<Sender>(
+	sender: &mut Sender,
+	descriptor: &CandidateDescriptor,
+) -> Result<Option<(PersistedValidationData, ValidationCode)>, ValidationFailed>
+where
+	Sender: SubsystemSender,
+{
+	match find_assumed_validation_data(sender, &descriptor).await {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
+			Ok(Some((validation_data, validation_code))),
+		AssumptionCheckOutcome::DoesNotMatch => {
+			// If neither the assumption of the occupied core having the para included or the assumption
+			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
+			// is not based on the relay parent and is thus invalid.
+			Ok(None)
+		},
+		AssumptionCheckOutcome::BadRequest =>
+			Err(ValidationFailed("Assumption Check: Bad request".into())),
+	}
+}
+
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
 	validation_host: ValidationHost,
-	descriptor: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
@@ -424,25 +446,18 @@ async fn validate_from_chain_state<Sender>(
 where
 	Sender: SubsystemSender,
 {
+	let mut new_sender = sender.clone();
 	let (validation_data, validation_code) =
-		match find_assumed_validation_data(sender, &descriptor).await {
-			AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
-				(validation_data, validation_code),
-			AssumptionCheckOutcome::DoesNotMatch => {
-				// If neither the assumption of the occupied core having the para included or the assumption
-				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-				// is not based on the relay parent and is thus invalid.
-				return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
-			},
-			AssumptionCheckOutcome::BadRequest =>
-				return Err(ValidationFailed("Assumption Check: Bad request".into())),
+		match find_validation_data(&mut new_sender, &candidate_receipt.descriptor).await? {
+			Some((validation_data, validation_code)) => (validation_data, validation_code),
+			None => return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)),
 		};
 
 	let validation_result = validate_candidate_exhaustive(
 		validation_host,
 		validation_data,
 		validation_code,
-		descriptor.clone(),
+		candidate_receipt.clone(),
 		pov,
 		timeout,
 		metrics,
@@ -450,11 +465,20 @@ where
 	.await;
 
 	if let Ok(ValidationResult::Valid(ref outputs, _)) = validation_result {
+		// If validation produces new commitments we consider the candidate invalid.
+		if candidate_receipt.commitments_hash != outputs.hash() {
+			return Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
+		}
+
 		let (tx, rx) = oneshot::channel();
 		match runtime_api_request(
 			sender,
-			descriptor.relay_parent,
-			RuntimeApiRequest::CheckValidationOutputs(descriptor.para_id, outputs.clone(), tx),
+			candidate_receipt.descriptor.relay_parent,
+			RuntimeApiRequest::CheckValidationOutputs(
+				candidate_receipt.descriptor.para_id,
+				outputs.clone(),
+				tx,
+			),
 			rx,
 		)
 		.await
@@ -473,7 +497,7 @@ async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
-	descriptor: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
@@ -481,15 +505,15 @@ async fn validate_candidate_exhaustive(
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
-		para_id = ?descriptor.para_id,
+		para_id = ?candidate_receipt.descriptor.para_id,
 		"About to validate a candidate.",
 	);
 
 	if let Err(e) = perform_basic_checks(
-		&descriptor,
+		&candidate_receipt.descriptor,
 		persisted_validation_data.max_pov_size,
 		&*pov,
 		&validation_code_hash,
@@ -503,7 +527,7 @@ async fn validate_candidate_exhaustive(
 	) {
 		Ok(code) => code,
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			gum::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
 
 			// If the validation code is invalid, the candidate certainly is.
 			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
@@ -514,7 +538,7 @@ async fn validate_candidate_exhaustive(
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
 			Err(e) => {
-				tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+				gum::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
 
 				// If the PoV is invalid, the candidate certainly is.
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
@@ -533,7 +557,7 @@ async fn validate_candidate_exhaustive(
 		.await;
 
 	if let Err(ref e) = result {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			error = ?e,
 			"Failed to validate candidate",
@@ -555,7 +579,7 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 
 		Ok(res) =>
-			if res.head_data.hash() != descriptor.para_head {
+			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
 			} else {
 				let outputs = CandidateCommitments {
@@ -566,7 +590,12 @@ async fn validate_candidate_exhaustive(
 					processed_downward_messages: res.processed_downward_messages,
 					hrmp_watermark: res.hrmp_watermark,
 				};
-				Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+				if candidate_receipt.commitments_hash != outputs.hash() {
+					// If validation produced a new set of commitments, we treat the candidate as invalid.
+					Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
+				} else {
+					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+				}
 			},
 	}
 }

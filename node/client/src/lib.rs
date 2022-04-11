@@ -19,19 +19,20 @@
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
-use polkadot_primitives::{
-	v1::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
-	v2::ParachainHost,
+use polkadot_primitives::v2::{
+	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;
-use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
+use sp_api::{CallApiAt, Encode, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockStatus;
+use sp_core::Pair;
+use sp_keyring::Sr25519Keyring;
 use sp_runtime::{
 	generic::{BlockId, SignedBlock},
 	traits::{BlakeTwo256, Block as BlockT},
-	Justifications,
+	Justifications, OpaqueExtrinsic,
 };
 use sp_storage::{ChildInfo, StorageData, StorageKey};
 use std::sync::Arc;
@@ -567,4 +568,223 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 			}
 		}
 	}
+}
+
+/// Provides a `SignedPayload` for any runtime.
+///
+/// Should only be used for benchmarking as it is not tested for regular usage.
+///
+/// The first code block should set up all variables that are needed to create the
+/// `SignedPayload`. The second block can make use of the `SignedPayload`.
+///
+/// This is not done as a trait function since the return type depends on the runtime.
+/// This macro therefore uses the same approach as [`with_client!`].
+macro_rules! with_signed_payload {
+	{
+		$self:ident,
+		{
+			$extra:ident,
+			$client:ident,
+			$raw_payload:ident
+		},
+		{
+			$( $setup:tt )*
+		},
+		(
+			$period:expr,
+			$current_block:expr,
+			$nonce:expr,
+			$tip:expr,
+			$call:expr,
+			$genesis:expr
+		),
+		{
+			$( $usage:tt )*
+		}
+	} => {
+		match $self {
+			#[cfg(feature = "polkadot")]
+			Self::Polkadot($client) => {
+				use polkadot_runtime as runtime;
+
+				$( $setup )*
+
+				let $extra: runtime::SignedExtra = (
+					frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+					frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+					frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+					frame_system::CheckGenesis::<runtime::Runtime>::new(),
+					frame_system::CheckMortality::<runtime::Runtime>::from(sp_runtime::generic::Era::mortal(
+						$period,
+						$current_block,
+					)),
+					frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+					frame_system::CheckWeight::<runtime::Runtime>::new(),
+					pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
+					polkadot_runtime_common::claims::PrevalidateAttests::<runtime::Runtime>::new(),
+				);
+
+				let $raw_payload = runtime::SignedPayload::from_raw(
+					$call.clone(),
+					$extra.clone(),
+					(
+						(),
+						runtime::VERSION.spec_version,
+						runtime::VERSION.transaction_version,
+						$genesis.clone(),
+						$genesis,
+						(),
+						(),
+						(),
+						(),
+					),
+				);
+
+				$( $usage )*
+			},
+			#[cfg(feature = "westend")]
+			Self::Westend($client) => {
+				use westend_runtime as runtime;
+
+				$( $setup )*
+
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
+
+				$( $usage )*
+			},
+			#[cfg(feature = "kusama")]
+			Self::Kusama($client) => {
+				use kusama_runtime as runtime;
+
+				$( $setup )*
+
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
+
+				$( $usage )*
+			},
+			#[cfg(feature = "rococo")]
+			Self::Rococo($client) => {
+				use rococo_runtime as runtime;
+
+				$( $setup )*
+
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
+
+				$( $usage )*
+			},
+		}
+	}
+}
+
+/// Generates a `SignedPayload` for the Kusama, Westend and Rococo runtime.
+///
+/// Should only be used for benchmarking as it is not tested for regular usage.
+#[allow(unused_macros)]
+macro_rules! signed_payload {
+	(
+	$extra:ident, $raw_payload:ident,
+	(
+		$period:expr,
+		$current_block:expr,
+		$nonce:expr,
+		$tip:expr,
+		$call:expr,
+		$genesis:expr
+	)
+	) => {
+		let $extra: runtime::SignedExtra = (
+			frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+			frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+			frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+			frame_system::CheckGenesis::<runtime::Runtime>::new(),
+			frame_system::CheckMortality::<runtime::Runtime>::from(
+				sp_runtime::generic::Era::mortal($period, $current_block),
+			),
+			frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+			frame_system::CheckWeight::<runtime::Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
+		);
+
+		let $raw_payload = runtime::SignedPayload::from_raw(
+			$call.clone(),
+			$extra.clone(),
+			(
+				(),
+				runtime::VERSION.spec_version,
+				runtime::VERSION.transaction_version,
+				$genesis.clone(),
+				$genesis,
+				(),
+				(),
+				(),
+			),
+		);
+	};
+}
+
+impl frame_benchmarking_cli::ExtrinsicBuilder for Client {
+	fn remark(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+		with_signed_payload! {
+			self,
+			{extra, client, raw_payload},
+			{
+				// First the setup code to init all the variables that are needed
+				// to build the signed extras.
+				use runtime::{Call, SystemCall};
+
+				let call = Call::System(SystemCall::remark { remark: vec![] });
+				let bob = Sr25519Keyring::Bob.pair();
+
+				let period = polkadot_runtime_common::BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
+
+				let current_block = 0;
+				let tip = 0;
+				let genesis = client.usage_info().chain.best_hash;
+			},
+			(period, current_block, nonce, tip, call, genesis),
+			/* The SignedPayload is generated here */
+			{
+				// Use the payload to generate a signature.
+				let signature = raw_payload.using_encoded(|payload| bob.sign(payload));
+
+				let ext = runtime::UncheckedExtrinsic::new_signed(
+					call,
+					sp_runtime::AccountId32::from(bob.public()).into(),
+					polkadot_core_primitives::Signature::Sr25519(signature.clone()),
+					extra,
+				);
+				Ok(ext.into())
+			}
+		}
+	}
+}
+
+/// Generates inherent data for benchmarking Polkadot, Kusama, Westend and Rococo.
+///
+/// Not to be used outside of benchmarking since it returns mocked values.
+pub fn benchmark_inherent_data(
+	header: polkadot_core_primitives::Header,
+) -> std::result::Result<sp_inherents::InherentData, sp_inherents::Error> {
+	use sp_inherents::InherentDataProvider;
+	let mut inherent_data = sp_inherents::InherentData::new();
+
+	// Assume that all runtimes have the `timestamp` pallet.
+	let d = std::time::Duration::from_millis(0);
+	let timestamp = sp_timestamp::InherentDataProvider::new(d.into());
+	timestamp.provide_inherent_data(&mut inherent_data)?;
+
+	let para_data = polkadot_primitives::v2::InherentData {
+		bitfields: Vec::new(),
+		backed_candidates: Vec::new(),
+		disputes: Vec::new(),
+		parent_header: header,
+	};
+
+	polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::from_data(para_data)
+		.provide_inherent_data(&mut inherent_data)?;
+
+	Ok(inherent_data)
 }

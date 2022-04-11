@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 use crate::real::LOG_TARGET;
 
@@ -266,7 +266,7 @@ async fn participate(
 
 	let available_data = match recover_available_data_rx.await {
 		Err(oneshot::Canceled) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"`Oneshot` got cancelled when recovering available data {:?}",
 				req.candidate_hash(),
@@ -298,7 +298,7 @@ async fn participate(
 	{
 		Ok(Some(code)) => code,
 		Ok(None) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Validation code unavailable for code hash {:?} in the state of block {:?}",
 				req.candidate_receipt().descriptor.validation_code_hash,
@@ -309,7 +309,7 @@ async fn participate(
 			return
 		},
 		Err(err) => {
-			tracing::warn!(target: LOG_TARGET, ?err, "Error when fetching validation code.");
+			gum::warn!(target: LOG_TARGET, ?err, "Error when fetching validation code.");
 			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 			return
 		},
@@ -333,14 +333,14 @@ async fn participate(
 
 	match store_available_data_rx.await {
 		Err(oneshot::Canceled) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"`Oneshot` got cancelled when storing available data {:?}",
 				req.candidate_hash(),
 			);
 		},
 		Ok(Err(err)) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?err,
 				"Failed to store available data for candidate {:?}",
@@ -362,7 +362,7 @@ async fn participate(
 			CandidateValidationMessage::ValidateFromExhaustive(
 				available_data.validation_data,
 				validation_code,
-				req.candidate_receipt().descriptor.clone(),
+				req.candidate_receipt().clone(),
 				available_data.pov,
 				APPROVAL_EXECUTION_TIMEOUT,
 				validation_tx,
@@ -375,7 +375,7 @@ async fn participate(
 	// the validation and if valid, whether the commitments hash matches
 	match validation_rx.await {
 		Err(oneshot::Canceled) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"`Oneshot` got cancelled when validating candidate {:?}",
 				req.candidate_hash(),
@@ -384,7 +384,7 @@ async fn participate(
 			return
 		},
 		Ok(Err(err)) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Candidate {:?} validation failed with: {:?}",
 				req.candidate_hash(),
@@ -393,8 +393,9 @@ async fn participate(
 
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
+
 		Ok(Ok(ValidationResult::Invalid(invalid))) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Candidate {:?} considered invalid: {:?}",
 				req.candidate_hash(),
@@ -403,19 +404,8 @@ async fn participate(
 
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
-		Ok(Ok(ValidationResult::Valid(commitments, _))) => {
-			if commitments.hash() != req.candidate_receipt().commitments_hash {
-				tracing::warn!(
-					target: LOG_TARGET,
-					expected = ?req.candidate_receipt().commitments_hash,
-					got = ?commitments.hash(),
-					"Candidate is valid but commitments hash doesn't match",
-				);
-
-				send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
-			} else {
-				send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
-			}
+		Ok(Ok(ValidationResult::Valid(_, _))) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
 		},
 	}
 }
@@ -427,7 +417,7 @@ async fn send_result(
 	outcome: ParticipationOutcome,
 ) {
 	if let Err(err) = sender.feed(WorkerMessage::from_request(req, outcome)).await {
-		tracing::error!(
+		gum::error!(
 			target: LOG_TARGET,
 			?err,
 			"Sending back participation result failed. Dispute coordinator not working properly!"

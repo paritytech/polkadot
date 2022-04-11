@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.17"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -63,13 +63,13 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.21"
 hex-literal = "0.3.4"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../gum/" }
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 kvdb = "0.11.0"
-kvdb-rocksdb = { version = "0.15.1", optional = true }
-parity-db = { version = "0.3.8", optional = true }
-async-trait = "0.1.52"
+kvdb-rocksdb = { version = "0.15.2", optional = true }
+parity-db = { version = "0.3.9", optional = true }
+async-trait = "0.1.53"
 lru = "0.7"
 
 # Polkadot
@@ -124,7 +124,7 @@ polkadot-statement-distribution = { path = "../network/statement-distribution", 
 polkadot-test-client = { path = "../test/client" }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.9.0"
-log = "0.4.14"
+log = "0.4.16"
 assert_matches = "1.5.0"
 
 [features]

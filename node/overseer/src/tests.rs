@@ -28,9 +28,9 @@ use polkadot_node_subsystem_types::{
 	messages::{NetworkBridgeEvent, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_primitives::v1::{
-	CandidateHash, CollatorPair, InvalidDisputeStatementKind, ValidDisputeStatementKind,
-	ValidatorIndex,
+use polkadot_primitives::v2::{
+	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind,
+	ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{
@@ -108,9 +108,14 @@ where
 				let mut c: usize = 0;
 				loop {
 					if c < 10 {
+						let candidate_receipt = CandidateReceipt {
+							descriptor: dummy_candidate_descriptor(dummy_hash()),
+							commitments_hash: Hash::zero(),
+						};
+
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
-							dummy_candidate_descriptor(dummy_hash()),
+							candidate_receipt,
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
@@ -792,8 +797,13 @@ where
 fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
+	let candidate_receipt = CandidateReceipt {
+		descriptor: dummy_candidate_descriptor(dummy_hash()),
+		commitments_hash: Hash::zero(),
+	};
+
 	CandidateValidationMessage::ValidateFromChainState(
-		dummy_candidate_descriptor(dummy_hash()),
+		candidate_receipt,
 		pov,
 		Duration::default(),
 		sender,
