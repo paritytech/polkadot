@@ -24,7 +24,7 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.node_groups]]
   image = "{{MALUS_IMAGE}}"
   name = "malus-validator"
-  command = "malus suggest-garbage-candidate -lparachain=debug,MALUS=trace"
+  command = "malus suggest-garbage-candidate"
   args = ["-lparachain=debug,MALUS=trace"]
   count = 3
  
