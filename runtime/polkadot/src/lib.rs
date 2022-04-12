@@ -474,8 +474,6 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type System = Runtime;
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
-	type VotersBound = MaxElectingVoters;
-	type TargetsBound = MaxElectableTargets;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
 }
 
@@ -501,7 +499,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
+	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -583,7 +581,7 @@ impl pallet_staking::Config for Runtime {
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = onchain::BoundedExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;

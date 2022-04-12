@@ -324,8 +324,6 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type System = Runtime;
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
-	type VotersBound = MaxAuthorities;
-	type TargetsBound = MaxAuthorities;
 	type WeightInfo = ();
 }
 
@@ -348,8 +346,8 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider = onchain::BoundedExecution<OnChainSeqPhragmen>;
-	type GenesisElectionProvider = onchain::BoundedExecution<OnChainSeqPhragmen>;
+	type ElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
