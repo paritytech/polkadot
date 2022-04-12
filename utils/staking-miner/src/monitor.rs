@@ -219,6 +219,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			// Run the calls in parallel and return once all has completed or any failed.
 			if let Err(err) = tokio::try_join!(flatten(signed_phase_fut), flatten(no_prev_sol_fut)) {
 				log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
+
+				if matches!(err, StakingMinerError::RpcHelperError(_)) || matches!(err, StakingMinerError::JsonRpsee(_)) {
+					let _ = tx.send(err.into());
+				}
+
 				return;
 			}
 
@@ -226,6 +231,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				Ok(ext) => ext,
 				Err(err) => {
 					log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
+					let _ = tx.send(err);
 					return;
 				}
 			};
