@@ -71,7 +71,10 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::v2::{Block, BlockId, BlockNumber, Hash, ParachainHost};
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{Block, BlockId, BlockNumber, Hash},
+};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use polkadot_node_network_protocol::v1 as protocol_v1;
