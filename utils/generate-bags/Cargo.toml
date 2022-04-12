@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 clap = { version = "3.1", features = ["derive"] }
 
-generate-bags = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+generate-bags = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 
 westend-runtime = { path = "../../runtime/westend" }
 kusama-runtime = { path = "../../runtime/kusama" }

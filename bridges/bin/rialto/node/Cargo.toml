@@ -28,51 +28,51 @@ rialto-runtime = { path = "../runtime" }
 
 # Substrate Dependencies
 
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-node-inspect = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+node-inspect = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-cli = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "oty-boxed-events" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-authorship = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 
 # Polkadot Dependencies
 
@@ -82,8 +82,8 @@ polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", 
 polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false, features = [ "full-node", "polkadot-native" ] }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 
 [features]
 default = []

@@ -10,13 +10,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "2.0.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

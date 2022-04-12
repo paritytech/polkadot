@@ -9,9 +9,9 @@ edition = "2021"
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 paste = "1.0.7"
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 
 xcm = { path = "../" }
 xcm-executor = { path = "../xcm-executor" }

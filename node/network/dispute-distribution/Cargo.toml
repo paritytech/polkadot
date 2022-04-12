@@ -15,9 +15,9 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 thiserror = "1.0.30"
 fatality = "0.0.6"
 lru = "0.7.5"
@@ -25,9 +25,9 @@ lru = "0.7.5"
 [dev-dependencies]
 async-trait = "0.1.53"
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 lazy_static = "1.4.0"

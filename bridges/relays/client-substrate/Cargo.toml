@@ -28,21 +28,21 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
 
 #[dev-dependencies]
 futures = "0.3.7"
