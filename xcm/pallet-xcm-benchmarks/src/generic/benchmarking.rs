@@ -25,7 +25,7 @@ use xcm::{
 	latest::{prelude::*, MaybeErrorCode, MultiAssets},
 	DoubleEncoded,
 };
-use xcm_executor::ExecutorError;
+use xcm_executor::{ExecutorError, FeesMode};
 
 benchmarks! {
 	report_holding {
@@ -502,6 +502,18 @@ benchmarks! {
 		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.origin(), &Some((Parent, GlobalConsensus(ByGenesis([0; 32]))).into()));
+	}
+
+	set_fees_mode {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_fees_mode(FeesMode { jit_withdraw: false });
+
+		let instruction = Instruction::SetFeesMode { jit_withdraw: true };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.fees_mode(), &FeesMode { jit_withdraw: true });
 	}
 
 	impl_benchmark_test_suite!(
