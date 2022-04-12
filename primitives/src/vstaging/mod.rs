@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,26 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#[test]
-#[rustversion::attr(not(stable), ignore)]
-fn ui_compile_fail() {
-	// Only run the ui tests when `RUN_UI_TESTS` is set.
-	if std::env::var("RUN_UI_TESTS").is_err() {
-		return
-	}
+//! Staging Primitives.
 
-	let t = trybuild::TestCases::new();
-	t.compile_fail("tests/ui/err-*.rs");
-}
-
-#[test]
-#[rustversion::attr(not(stable), ignore)]
-fn ui_pass() {
-	// Only run the ui tests when `RUN_UI_TESTS` is set.
-	if std::env::var("RUN_UI_TESTS").is_err() {
-		return
-	}
-
-	let t = trybuild::TestCases::new();
-	t.pass("tests/ui/ok-*.rs");
-}
+// Put any primitives used by staging API functions here

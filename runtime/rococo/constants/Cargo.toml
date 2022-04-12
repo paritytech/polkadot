@@ -1,6 +1,6 @@
 [package]
 name = "rococo-runtime-constants"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
