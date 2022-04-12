@@ -71,6 +71,17 @@ pub trait TransactAsset {
 		Err(XcmError::Unimplemented)
 	}
 
+	/// Ensure that `withdraw_asset` will result in `Ok`.
+	///
+	/// When composed as a tuple, all type-items are called and at least one must result in `Ok`.
+	fn can_withdraw_asset(
+		_what: &MultiAsset,
+		_who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
+	) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
+
 	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn,
 	/// which should always be equal to `_what`.
 	///
@@ -175,6 +186,27 @@ impl TransactAsset for Tuple {
 		Err(XcmError::AssetNotFound)
 	}
 
+	fn can_withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		maybe_context: Option<&XcmContext>,
+	) -> XcmResult {
+		for_tuples!( #(
+			match Tuple::can_withdraw_asset(what, who, maybe_context) {
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
+				r => return r,
+			}
+		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::can_withdraw_asset",
+			"asset not found: what: {:?}, who: {:?}, maybe_context: {:?}",
+			what,
+			who,
+			maybe_context,
+		);
+		Err(XcmError::AssetNotFound)
+	}
+
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
@@ -246,6 +278,14 @@ mod tests {
 			Err(XcmError::AssetNotFound)
 		}
 
+		fn can_withdraw_asset(
+			_what: &MultiAsset,
+			_who: &MultiLocation,
+			_context: Option<&XcmContext>,
+		) -> XcmResult {
+			Err(XcmError::AssetNotFound)
+		}
+
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
@@ -282,6 +322,14 @@ mod tests {
 			Err(XcmError::Overflow)
 		}
 
+		fn can_withdraw_asset(
+			_what: &MultiAsset,
+			_who: &MultiLocation,
+			_context: Option<&XcmContext>,
+		) -> XcmResult {
+			Err(XcmError::Overflow)
+		}
+
 		fn withdraw_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
@@ -314,6 +362,14 @@ mod tests {
 			_what: &MultiAsset,
 			_who: &MultiLocation,
 			_context: &XcmContext,
+		) -> XcmResult {
+			Ok(())
+		}
+
+		fn can_withdraw_asset(
+			_what: &MultiAsset,
+			_who: &MultiLocation,
+			_context: Option<&XcmContext>,
 		) -> XcmResult {
 			Ok(())
 		}

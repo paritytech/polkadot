@@ -148,6 +148,26 @@ impl<
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
 
+	fn can_withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
+	) -> XcmResult {
+		log::trace!(
+			target: "xcm::fungibles_adapter",
+			"can_withdraw_asset what: {:?}, who: {:?}",
+			what, who,
+		);
+		// Check we handle this asset.
+		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
+		let who = AccountIdConverter::convert_ref(who)
+			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		Assets::can_withdraw(asset_id, &who, amount)
+			.into_result()
+			.map_err(|_| XcmError::NotWithdrawable)?;
+		Ok(())
+	}
+
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
@@ -228,6 +248,21 @@ impl<
 			CheckAsset,
 			CheckingAccount,
 		>::deposit_asset(what, who, context)
+	}
+
+	fn can_withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		maybe_context: Option<&XcmContext>,
+	) -> XcmResult {
+		FungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::can_withdraw_asset(what, who, maybe_context)
 	}
 
 	fn withdraw_asset(
