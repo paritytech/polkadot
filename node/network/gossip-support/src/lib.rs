@@ -515,6 +515,8 @@ where
 	let random_seed = {
 		let (tx, rx) = oneshot::channel();
 
+		// TODO https://github.com/paritytech/polkadot/issues/5316:
+		// get the random seed from the `SessionInfo` instead.
 		ctx.send_message(RuntimeApiMessage::Request(
 			relay_parent,
 			RuntimeApiRequest::CurrentBabeEpoch(tx),
