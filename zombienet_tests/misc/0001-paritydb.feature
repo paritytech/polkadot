@@ -61,21 +61,17 @@ validator-7: reports peers count is at least 19 within 20 seconds
 validator-8: reports peers count is at least 19 within 20 seconds
 validator-9: reports peers count is at least 19 within 20 seconds
 
-# Wait for progress.
-sleep 120 seconds
-
-# Ensure parachains made progress.
-validator-0: parachain 2000 block height is at least 10 within 30 seconds
-validator-0: parachain 2001 block height is at least 10 within 30 seconds
-validator-0: parachain 2002 block height is at least 10 within 30 seconds
-validator-0: parachain 2003 block height is at least 10 within 30 seconds
-validator-0: parachain 2004 block height is at least 10 within 30 seconds
-validator-0: parachain 2005 block height is at least 10 within 30 seconds
-validator-0: parachain 2006 block height is at least 10 within 30 seconds
-validator-0: parachain 2007 block height is at least 10 within 30 seconds
-validator-0: parachain 2008 block height is at least 10 within 30 seconds
-validator-0: parachain 2009 block height is at least 10 within 30 seconds
-
+# Ensure parachains made some progress.
+validator-0: parachain 2000 block height is at least 3 within 30 seconds
+validator-0: parachain 2001 block height is at least 3 within 30 seconds
+validator-0: parachain 2002 block height is at least 3 within 30 seconds
+validator-0: parachain 2003 block height is at least 3 within 30 seconds
+validator-0: parachain 2004 block height is at least 3 within 30 seconds
+validator-0: parachain 2005 block height is at least 3 within 30 seconds
+validator-0: parachain 2006 block height is at least 3 within 30 seconds
+validator-0: parachain 2007 block height is at least 3 within 30 seconds
+validator-0: parachain 2008 block height is at least 3 within 30 seconds
+validator-0: parachain 2009 block height is at least 3 within 30 seconds
 
 # Check lag - approval
 validator-0: reports polkadot_parachain_approval_checking_finality_lag is 0
@@ -90,13 +86,14 @@ validator-8: reports polkadot_parachain_approval_checking_finality_lag is 0
 validator-9: reports polkadot_parachain_approval_checking_finality_lag is 0
 
 # Check lag - dispute conclusion
-validator-0: reports polkadot_parachain_disputes_finality_lag is 0
-validator-1: reports polkadot_parachain_disputes_finality_lag is 0
-validator-2: reports polkadot_parachain_disputes_finality_lag is 0
-validator-3: reports polkadot_parachain_disputes_finality_lag is 0
-validator-4: reports polkadot_parachain_disputes_finality_lag is 0
-validator-5: reports polkadot_parachain_disputes_finality_lag is 0
-validator-6: reports polkadot_parachain_disputes_finality_lag is 0
-validator-7: reports polkadot_parachain_disputes_finality_lag is 0
-validator-8: reports polkadot_parachain_disputes_finality_lag is 0
-validator-9: reports polkadot_parachain_disputes_finality_lag is 0
+validator-0: reports parachain_candidate_disputes_total is 0
+validator-1: reports parachain_candidate_disputes_total is 0
+validator-2: reports parachain_candidate_disputes_total is 0
+validator-3: reports parachain_candidate_disputes_total is 0
+validator-4: reports parachain_candidate_disputes_total is 0
+validator-5: reports parachain_candidate_disputes_total is 0
+validator-6: reports parachain_candidate_disputes_total is 0
+validator-7: reports parachain_candidate_disputes_total is 0
+validator-8: reports parachain_candidate_disputes_total is 0
+validator-9: reports parachain_candidate_disputes_total is 0
+
