@@ -30,7 +30,7 @@
 //! On the other hand a staging function's name should be prefixed with
 //! `staging_` like this:
 //! ```ignore
-//! fn staging_get_session_disputes() -> Vec<(vstaging::SessionIndex, vstaging::CandidateHash, vstaging::DisputeState<vstaging::BlockNumber>)>;
+//! fn staging_get_disputes() -> Vec<(vstaging::SessionIndex, vstaging::CandidateHash, vstaging::DisputeState<vstaging::BlockNumber>)>;
 //! ```
 //!
 //! How a staging function becomes stable?
@@ -153,8 +153,7 @@ sp_api::decl_runtime_apis! {
 		/***** STAGING *****/
 
 		/// Returns all onchain disputes.
-		///
-		/// NOTE: This function is only available since parachain host version 2.
-		fn staging_get_session_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+		/// This is a staging method! Do not use on production runtimes!
+		fn staging_get_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 	}
 }
