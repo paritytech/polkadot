@@ -254,7 +254,7 @@ impl<
 		what: &MultiAsset,
 		who: &MultiLocation,
 		maybe_context: Option<&XcmContext>,
-	) -> Result {
+	) -> XcmResult {
 		FungiblesMutateAdapter::<
 			Assets,
 			Matcher,
