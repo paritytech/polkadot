@@ -21,8 +21,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
-mod mock;
-#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "std")]
@@ -31,7 +29,7 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	LocationInverter, ParentIsPreset, SiblingParachainConvertsVia,
+	ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
@@ -42,30 +40,41 @@ pub use origin_conversion::{
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
 
+mod asset_conversion;
+pub use asset_conversion::{AsPrefixedGeneralIndex, ConvertedAbstractId, ConvertedConcreteId};
+#[allow(deprecated)]
+pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
+
 mod barriers;
 pub use barriers::{
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit,
+	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
 mod fungibles_adapter;
-pub use fungibles_adapter::{
-	AsPrefixedGeneralIndex, ConvertedAbstractAssetId, ConvertedConcreteAssetId, FungiblesAdapter,
-	FungiblesMutateAdapter, FungiblesTransferAdapter,
+pub use fungibles_adapter::{FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter};
+
+mod nonfungibles_adapter;
+pub use nonfungibles_adapter::{
+	NonFungiblesAdapter, NonFungiblesMutateAdapter, NonFungiblesTransferAdapter,
 };
 
 mod weight;
-#[allow(deprecated)]
-pub use weight::FixedRateOfConcreteFungible;
 pub use weight::{
 	FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents, WeightInfoBounds,
 };
 
-mod matches_fungible;
-pub use matches_fungible::{IsAbstract, IsConcrete};
+mod matches_token;
+pub use matches_token::{IsAbstract, IsConcrete};
 
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
+
+mod universal_exports;
+pub use universal_exports::{
+	ExporterFor, LocalUnpaidExporter, NetworkExportTable, SovereignPaidRemoteExporter,
+	UnpaidRemoteExporter,
+};

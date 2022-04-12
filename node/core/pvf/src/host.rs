@@ -344,7 +344,7 @@ async fn run(
 			},
 			() = cleanup_pulse.select_next_some() => {
 				// `select_next_some` because we don't expect this to fail, but if it does, we
-				// still don't fail. The tradeoff is that the compiled cache will start growing
+				// still don't fail. The trade-off is that the compiled cache will start growing
 				// in size. That is, however, rather a slow process and hopefully the operator
 				// will notice it.
 

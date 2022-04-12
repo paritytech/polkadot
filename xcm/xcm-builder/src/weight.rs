@@ -127,62 +127,6 @@ impl TakeRevenue for () {
 	fn take_revenue(_revenue: MultiAsset) {}
 }
 
-/// Simple fee calculator that requires payment in a single concrete fungible at a fixed rate.
-///
-/// The constant `Get` type parameter should be the concrete fungible ID and the amount of it required for
-/// one second of weight.
-#[deprecated = "Use `FixedRateOfFungible` instead"]
-pub struct FixedRateOfConcreteFungible<T: Get<(MultiLocation, u128)>, R: TakeRevenue>(
-	Weight,
-	u128,
-	PhantomData<(T, R)>,
-);
-#[allow(deprecated)]
-impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
-	for FixedRateOfConcreteFungible<T, R>
-{
-	fn new() -> Self {
-		Self(0, 0, PhantomData)
-	}
-
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
-		log::trace!(
-			target: "xcm::weight",
-			"FixedRateOfConcreteFungible::buy_weight weight: {:?}, payment: {:?}",
-			weight, payment,
-		);
-		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
-		let unused =
-			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
-		self.0 = self.0.saturating_add(weight);
-		self.1 = self.1.saturating_add(amount);
-		Ok(unused)
-	}
-
-	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
-		log::trace!(target: "xcm::weight", "FixedRateOfConcreteFungible::refund_weight weight: {:?}", weight);
-		let (id, units_per_second) = T::get();
-		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
-		self.0 -= weight;
-		self.1 = self.1.saturating_sub(amount);
-		if amount > 0 {
-			Some((Concrete(id), amount).into())
-		} else {
-			None
-		}
-	}
-}
-#[allow(deprecated)]
-impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcreteFungible<T, R> {
-	fn drop(&mut self) {
-		if self.1 > 0 {
-			R::take_revenue((Concrete(T::get().0), self.1).into());
-		}
-	}
-}
-
 /// Simple fee calculator that requires payment in a single fungible at a fixed rate.
 ///
 /// The constant `Get` type parameter should be the fungible ID and the amount of it required for

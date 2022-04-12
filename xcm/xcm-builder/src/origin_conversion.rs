@@ -177,7 +177,7 @@ impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 }
 
 pub struct SignedAccountId32AsNative<Network, Origin>(PhantomData<(Network, Origin)>);
-impl<Network: Get<NetworkId>, Origin: OriginTrait> ConvertOrigin<Origin>
+impl<Network: Get<Option<NetworkId>>, Origin: OriginTrait> ConvertOrigin<Origin>
 	for SignedAccountId32AsNative<Network, Origin>
 where
 	Origin::AccountId: From<[u8; 32]>,
@@ -196,15 +196,14 @@ where
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, network }) },
-			) if matches!(network, NetworkId::Any) || network == Network::get() =>
-				Ok(Origin::signed(id.into())),
+			) if matches!(network, None) || network == Network::get() => Ok(Origin::signed(id.into())),
 			(_, origin) => Err(origin),
 		}
 	}
 }
 
 pub struct SignedAccountKey20AsNative<Network, Origin>(PhantomData<(Network, Origin)>);
-impl<Network: Get<NetworkId>, Origin: OriginTrait> ConvertOrigin<Origin>
+impl<Network: Get<Option<NetworkId>>, Origin: OriginTrait> ConvertOrigin<Origin>
 	for SignedAccountKey20AsNative<Network, Origin>
 where
 	Origin::AccountId: From<[u8; 20]>,
@@ -223,8 +222,7 @@ where
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::AccountKey20 { key, network }) },
-			) if (matches!(network, NetworkId::Any) || network == Network::get()) =>
-				Ok(Origin::signed(key.into())),
+			) if (matches!(network, None) || network == Network::get()) => Ok(Origin::signed(key.into())),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -265,7 +263,7 @@ where
 pub struct SignedToAccountId32<Origin, AccountId, Network>(
 	PhantomData<(Origin, AccountId, Network)>,
 );
-impl<Origin: OriginTrait + Clone, AccountId: Into<[u8; 32]>, Network: Get<NetworkId>>
+impl<Origin: OriginTrait + Clone, AccountId: Into<[u8; 32]>, Network: Get<Option<NetworkId>>>
 	Convert<Origin, MultiLocation> for SignedToAccountId32<Origin, AccountId, Network>
 where
 	Origin::PalletsOrigin: From<SystemRawOrigin<AccountId>>

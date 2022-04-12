@@ -14,6 +14,7 @@ frame-support = { default-features = false, branch = "master", git = "https://gi
 frame-system = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-runtime = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-std = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
+sp-io = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
 frame-benchmarking = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
@@ -23,7 +24,6 @@ log = "0.4.16"
 pallet-balances = { branch = "master", git = "https://github.com/paritytech/substrate" }
 pallet-assets = { branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-core = { branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-io = { branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-tracing = { branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
@@ -40,6 +40,8 @@ std = [
 	"frame-benchmarking/std",
 	"frame-support/std",
 	"frame-system/std",
+	"sp-io/std",
 	"sp-runtime/std",
-	"sp-std/std"
+	"sp-std/std",
+	"xcm-executor/std"
 ]

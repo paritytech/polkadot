@@ -160,6 +160,7 @@ MQC/SM
 msg
 multisig/S
 multivalidator/SM
+mutators
 mutex
 natively
 NFA
@@ -215,6 +216,7 @@ proxy/G
 proxying
 PRs
 PVF/S
+querier
 README/MS
 redhat/M
 register/CD
@@ -247,6 +249,7 @@ SS58
 SSL
 startup/MS
 stateful
+Statemine
 str
 struct/MS
 subcommand/SM
@@ -282,6 +285,7 @@ UDP
 UI
 unassign
 unconcluded
+unexpectable
 unfinalize/B
 unfinalized
 union/MSG
