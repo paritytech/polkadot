@@ -16,6 +16,7 @@
 
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
+	iter,
 	pin::Pin,
 	time::Duration,
 };
@@ -50,7 +51,7 @@ use polkadot_subsystem::{
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
 };
 
-use super::LOG_TARGET;
+use super::{LOG_TARGET, NEXT_GROUP_PRECONNECT_WINDOW};
 use crate::error::{log_error, Error, FatalError, Result};
 use fatality::Split;
 
@@ -269,6 +270,21 @@ struct WaitingCollationFetches {
 type ActiveCollationFetches =
 	FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
 
+/// Core assignment type for a given relay parent.
+#[derive(Debug, Copy, Clone)]
+enum AssignmentType {
+	/// Current assignment refers to a common case of candidate being
+	/// backed in the child of relay parent. In particular, the core of
+	/// our parachain should be scheduled.
+	Current,
+	/// Lookahead assignment defines validators group for candidates being
+	/// backed in the grandchild of relay parent, therefore based on the child.
+	/// The core is expected to be occupied.
+	///
+	/// **Important note**: parathread cores very well may happen to be free.
+	Lookahead,
+}
+
 struct State {
 	/// Our network peer id.
 	local_peer_id: PeerId,
@@ -397,23 +413,31 @@ where
 
 	// Determine which core the para collated-on is assigned to.
 	// If it is not scheduled then ignore the message.
-	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
-		Some(core) => core,
-		None => {
-			gum::warn!(
-				target: LOG_TARGET,
-				para_id = %id,
-				?relay_parent,
-				"looks like no core is assigned to {} at {}", id, relay_parent,
-			);
+	let (our_core, num_cores) =
+		match determine_core(ctx, id, relay_parent, AssignmentType::Current).await? {
+			Some(core) => core,
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					para_id = %id,
+					?relay_parent,
+					"looks like no core is assigned to {} at {}", id, relay_parent,
+				);
 
-			return Ok(())
-		},
-	};
+				return Ok(())
+			},
+		};
 
 	// Determine the group on that core.
-	let current_validators =
-		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
+	let current_validators = determine_our_validators(
+		ctx,
+		runtime,
+		our_core,
+		num_cores,
+		relay_parent,
+		AssignmentType::Current,
+	)
+	.await?;
 
 	if current_validators.validators.is_empty() {
 		gum::warn!(
@@ -464,6 +488,7 @@ async fn determine_core<Context>(
 	ctx: &mut Context,
 	para_id: ParaId,
 	relay_parent: Hash,
+	assignment_type: AssignmentType,
 ) -> Result<Option<(CoreIndex, usize)>>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -472,10 +497,15 @@ where
 	let cores = get_availability_cores(ctx, relay_parent).await?;
 
 	for (idx, core) in cores.iter().enumerate() {
-		if let CoreState::Scheduled(occupied) = core {
-			if occupied.para_id == para_id {
-				return Ok(Some(((idx as u32).into(), cores.len())))
-			}
+		let core_para_id = match (assignment_type, core) {
+			(AssignmentType::Current, CoreState::Scheduled(core)) => core.para_id,
+			(AssignmentType::Lookahead, CoreState::Occupied(core)) =>
+				core.candidate_descriptor.para_id,
+			_ => continue,
+		};
+
+		if core_para_id == para_id {
+			return Ok(Some(((idx as u32).into(), cores.len())))
 		}
 	}
 
@@ -491,13 +521,15 @@ struct GroupValidators {
 
 /// Figure out current group of validators assigned to the para being collated on.
 ///
-/// Returns [`ValidatorId`]'s of current group as determined based on the `relay_parent`.
+/// Returns [`ValidatorId`]'s of current (or the next, depending on assignment type)
+/// group as determined based on the `relay_parent`.
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
+	assignment_type: AssignmentType,
 ) -> Result<GroupValidators>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -513,15 +545,34 @@ where
 	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
 
 	let current_group_index = rotation_info.group_for_core(core_index, cores);
-	let current_validators = groups
-		.get(current_group_index.0 as usize)
-		.map(|v| v.as_slice())
-		.unwrap_or_default();
+
+	let preconnect_group_index = match assignment_type {
+		AssignmentType::Current => None,
+		AssignmentType::Lookahead => {
+			let next_rotation_at = rotation_info.next_rotation_at();
+			if next_rotation_at.saturating_sub(rotation_info.now) <= NEXT_GROUP_PRECONNECT_WINDOW {
+				let next_rotation_info = rotation_info.bump_rotation();
+				// Returns wrong validators group on session boundaries.
+				// In this case the peer set will be updated on `DistributeCollation`.
+				Some(next_rotation_info.group_for_core(core_index, cores))
+					.filter(|idx| *idx != current_group_index)
+			} else {
+				None
+			}
+		},
+	};
+
+	let current_validators = preconnect_group_index
+		.into_iter()
+		.chain(iter::once(current_group_index))
+		.map(|group_index| {
+			groups.get(group_index.0 as usize).map(|v| v.as_slice()).unwrap_or_default()
+		})
+		.flatten();
 
 	let validators = &info.discovery_keys;
 
-	let current_validators =
-		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
+	let current_validators = current_validators.map(|i| validators[i.0 as usize].clone()).collect();
 
 	let current_validators = GroupValidators { validators: current_validators };
 
@@ -567,6 +618,50 @@ where
 		failed,
 	})
 	.await;
+}
+
+/// Discover and connect to a set of validators in advance. Should only be issued
+/// if the collator is aware of its assignment on the child of the given relay parent.\
+/// Connects to both current and the next group if the block is
+/// [close](NEXT_GROUP_PRECONNECT_WINDOW) to the group rotation boundary.
+async fn preconnect<Context>(
+	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
+	para_id: ParaId,
+	relay_parent: Hash,
+) -> Result<()>
+where
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+{
+	let (our_core, num_cores) =
+		match determine_core(ctx, para_id, relay_parent, AssignmentType::Lookahead).await? {
+			Some(core) => core,
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					para_id = %para_id,
+					?relay_parent,
+					"Preconnect failed: no occupied core found for the para"
+				);
+
+				return Ok(())
+			},
+		};
+
+	let validators_group = determine_our_validators(
+		ctx,
+		runtime,
+		our_core,
+		num_cores,
+		relay_parent,
+		AssignmentType::Lookahead,
+	)
+	.await?;
+
+	connect_to_validators(ctx, validators_group.validators.into_iter().collect()).await;
+
+	Ok(())
 }
 
 /// Advertise collation to the given `peer`.
@@ -698,6 +793,22 @@ where
 				);
 			}
 		},
+		Connect(relay_parent) => {
+			let para_id = if let Some(para_id) = state.collating_on {
+				para_id
+			} else {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Connect message while not collating on any parachain",
+				);
+				return Ok(())
+			};
+
+			log_error(
+				preconnect(ctx, runtime, para_id, relay_parent).await,
+				"Failed to pre-connect to validators"
+			)?;
+		}
 		_ => {},
 	}
 

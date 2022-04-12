@@ -31,7 +31,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::v2::{BlockNumber, CollatorPair};
 
 use polkadot_subsystem::{
 	errors::SubsystemError,
@@ -45,6 +45,8 @@ mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
+
+const NEXT_GROUP_PRECONNECT_WINDOW: BlockNumber = 1;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
