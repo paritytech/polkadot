@@ -35,7 +35,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> TokenStream {
 		.into_iter()
 		.filter(|ssf| !ssf.no_dispatch)
 		.filter(|ssf| !ssf.wip)
-		.map(|ssf| ssf.consumes.clone())
+		.map(|ssf| ssf.message_to_consume.clone())
 		.collect::<Vec<Path>>();
 
 	let mut ts = TokenStream::new();
@@ -49,7 +49,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> TokenStream {
 						extern_msg
 							// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
 							// TODO do not require this to be hardcoded, either externalize or ...
-							// https://github.com/paritytech/polkadot/issues/3427
+							// <https://github.com/paritytech/polkadot/issues/3427>
 							.focus()
 							.ok()
 							.map(|event| {

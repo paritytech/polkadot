@@ -312,7 +312,7 @@ pub struct SubsystemMeterReadouts {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 ///
-/// `M` here is the inner message type, and _not_ the generated `enum AllMessages`.
+/// `M` here is the inner message type, and _not_ the generated `enum AllMessages` or `#message_wrapper` type.
 pub struct SubsystemInstance<Message, Signal> {
 	/// Send sink for `Signal`s to be sent to a subsystem.
 	pub tx_signal: crate::metered::MeteredSender<Signal>,
@@ -365,11 +365,10 @@ pub trait SubsystemContext: Send + 'static {
 	type Message: std::fmt::Debug + Send + 'static;
 	/// And the same for signals.
 	type Signal: std::fmt::Debug + Send + 'static;
-	/// The overarching all messages `enum`.
-	/// In some cases can be identical to `Self::Message`.
-	type AllMessages: From<Self::Message> + Send + 'static;
+	/// The overarching messages `enum` for this particular subsystem.
+	type OutgoingMessages: Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
-	type Sender: SubsystemSender<Self::AllMessages> + Send + 'static;
+	type Sender: SubsystemSender<Self::OutgoingMessages> + Send + 'static;
 	/// The error type.
 	type Error: ::std::error::Error + ::std::convert::From<OverseerError> + Sync + Send + 'static;
 
@@ -402,7 +401,7 @@ pub trait SubsystemContext: Send + 'static {
 		Self::AllMessages: From<X>,
 		X: Send,
 	{
-		self.sender().send_message(<Self::AllMessages>::from(msg)).await
+		self.sender().send_message(<Self::Outgoing>::from(msg)).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
@@ -410,7 +409,7 @@ pub trait SubsystemContext: Send + 'static {
 	where
 		T: IntoIterator<Item = X> + Send,
 		T::IntoIter: Send,
-		Self::AllMessages: From<X>,
+		Self::OutgoingMessages: From<X>,
 		X: Send,
 	{
 		self.sender()
@@ -421,7 +420,7 @@ pub trait SubsystemContext: Send + 'static {
 	/// Send a message using the unbounded connection.
 	fn send_unbounded_message<X>(&mut self, msg: X)
 	where
-		Self::AllMessages: From<X>,
+		Self::OutgoingMessages: From<X>,
 		X: Send,
 	{
 		self.sender().send_unbounded_message(Self::AllMessages::from(msg))

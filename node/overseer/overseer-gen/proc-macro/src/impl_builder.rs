@@ -103,7 +103,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		info.subsystems().iter().filter(|ssf| !ssf.wip).enumerate().map(|(idx, ssf)| {
 			let field_name = &ssf.name;
 			let field_type = &ssf.generic;
-			let subsystem_consumes = &ssf.consumes;
+			let subsystem_consumes = &ssf.message_to_consume;
 			// Remove state generic for the item to be replaced. It sufficient to know `field_type` for
 			// that since we always move from `Init<#field_type>` to `Init<NEW>`.
 			let impl_subsystem_state_generics = recollect_without_idx(&subsystem_passthrough_state_generics[..], idx);
@@ -155,6 +155,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							signal_capacity: self.signal_capacity,
 						}
 					}
+
 					/// Specify the the initialization function for a subsystem
 					pub fn #field_name_with<'a, F>(self, subsystem_init_fn: F ) ->
 						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_state_generics, )*>

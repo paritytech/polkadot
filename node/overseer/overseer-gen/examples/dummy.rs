@@ -10,6 +10,7 @@ pub struct AwesomeSubSys;
 
 impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for AwesomeSubSys {
 	fn start(self, _ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem<Yikes> {
+		self.spawn(async move { ctx.send_message(Plinko).await });
 		unimplemented!("starting yay!")
 	}
 }
@@ -19,6 +20,7 @@ pub struct GoblinTower;
 
 impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
 	fn start(self, _ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem<Yikes> {
+		self.spawn(async move { ctx.send_message(MsgStrukt).await });
 		unimplemented!("welcum")
 	}
 }
@@ -90,10 +92,18 @@ impl NetworkMsg {
 
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
 struct Xxx<T> {
-	#[subsystem(MsgStrukt)]
+	#[subsystem(
+		handles: MsgStrukt,
+		sends: Plinko
+	)]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(no_dispatch, blocking, Plinko)]
+	#[subsystem(no_dispatch, blocking,
+		handles: [Plinko],
+		sends: [
+			MsgStruckt
+		])
+	]
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,

@@ -14,25 +14,88 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Ident;
+use syn::{Ident, Path, Result};
 
 use super::*;
 
-/// Implement a builder pattern for the `Overseer`-type,
-/// which acts as the gateway to constructing the overseer.
-pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
-	let overseer_name = info.overseer_name.clone();
-	let subsystem_sender_name =
-		Ident::new(&(overseer_name.to_string() + "SubsystemSender"), overseer_name.span());
-	let subsystem_ctx_name =
-		Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
-	let consumes = &info.consumes();
-	let signal = &info.extern_signal_ty;
-	let wrapper_message = &info.message_wrapper;
-	let error_ty = &info.extern_error_ty;
+pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
+	let mut ts = TokenStream::new();
+
+	let span = info.overseer_name.span();
+	let all_messages_wrapper = info.message_wrapper;
 	let support_crate = info.support_crate_name();
 
+	for ssf in info.subsystems() {
+		let subsystem_name = ssf.name.to_string();
+		let subsystem_sender_name = Ident::new(&(subsystem_name + "SubsystemSender"), span);
+		let subsystem_ctx_name = Ident::new(&(subsystem_name + "SubsystemContext"), span);
+
+		let outgoing_wrapper = Ident::new(&(subsystem_name + "OutgoingMessages"), span);
+
+		ts.extend(impl_wrapper_enum(&outgoing_wrapper, ssf.messages_to_send.as_slice())?);
+		ts.extend(impl_subsystem_sender(
+			ssf,
+			&all_messages_wrapper,
+			support_crate,
+			&outgoing_wrapper,
+			&subsystem_sender_name,
+			&subsystem_ctx_name,
+		));
+		ts.extend(impl_subsystem_context(
+			info,
+			&outgoing_wrapper,
+			&subsystem_sender_name,
+			&subsystem_ctx_name,
+		));
+	}
+	Ok(ts)
+}
+
+/// Generates the wrapper type enum, no bells or whistles.
+pub(crate) fn impl_wrapper_enum(wrapper: &Ident, message_types: &[Path]) -> Result<TokenStream> {
+	// The message types are path based, each of them must finish with a type
+	// and as such we do this upfront.
+	let variants: Vec<_> = Result::from_iter(message_types.into_iter().map(|path| {
+		let x = path
+			.segments
+			.last()
+			.ok_or_else(|| {
+				syn::Error::new(wrapper.span(), "Path is empty, but it must end with an identifier")
+			})
+			.map(|segment| segment.ident);
+		x
+	}))?;
+	let ts = quote! {
+		#[allow(missing_docs)]
+		#[derive(Clone)]
+		pub enum #wrapper {
+			#(
+				#variants ( #message_types ),
+			)*
+		}
+
+		#(
+			impl ::std::convert::From< #message_types > for #wrapper {
+				fn from(message: #message_types) -> Self {
+					#wrapper :: #variants ( message )
+				}
+			}
+		)*
+	};
+
+	Ok(ts)
+}
+
+pub(crate) fn impl_subsystem_sender(
+	ssf: &SubSysField,
+	wrapper_message: &Ident,
+	support_crate: &TokenStream,
+	outgoing_wrapper: &Ident,
+	subsystem_sender_name: &Ident,
+	subsystem_ctx_name: &Ident,
+) -> TokenStream {
 	let ts = quote! {
 		/// Connector to send messages towards all subsystems,
 		/// while tracking the which signals where already received.
@@ -43,57 +106,98 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			/// Systemwide tick for which signals were received by all subsystems.
 			signals_received: SignalsReceived,
 		}
+	};
 
-		/// implementation for wrapping message type...
-		#[#support_crate ::async_trait]
-		impl SubsystemSender< #wrapper_message > for #subsystem_sender_name {
-			async fn send_message(&mut self, msg: #wrapper_message) {
-				self.channels.send_and_log_error(self.signals_received.load(), msg).await;
-			}
-
-			async fn send_messages<T>(&mut self, msgs: T)
-			where
-				T: IntoIterator<Item = #wrapper_message> + Send,
-				T::IntoIter: Send,
-			{
-				// This can definitely be optimized if necessary.
-				for msg in msgs {
-					self.send_message(msg).await;
-				}
-			}
-
-			fn send_unbounded_message(&mut self, msg: #wrapper_message) {
-				self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
-			}
-		}
-
-		// ... but also implement for all individual messages to avoid
-		// the necessity for manual wrapping, and do the conversion
-		// based on the generated `From::from` impl for the individual variants.
+	// Implement for all individual messages to avoid
+	// the necessity for manual wrapping, and to limit what a subsystem
+	// can actually send. This allows the generation of _the_ graph.
+	let sends = &ssf.messages_to_send;
+	ts.extend(quote!{
 		#(
-		#[#support_crate ::async_trait]
-		impl SubsystemSender< #consumes > for #subsystem_sender_name {
-			async fn send_message(&mut self, msg: #consumes) {
-				self.channels.send_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg )).await;
-			}
+			#[#support_crate ::async_trait]
+			impl SubsystemSender< #sends > for #subsystem_sender_name {
+				async fn send_message(&mut self, msg: #sends) {
+					self.channels.send_and_log_error(
+						self.signals_received.load(),
+						#wrapper_message ::from ( msg )
+					).await;
+				}
 
-			async fn send_messages<T>(&mut self, msgs: T)
-			where
-				T: IntoIterator<Item = #consumes> + Send,
-				T::IntoIter: Send,
-			{
-				// This can definitely be optimized if necessary.
-				for msg in msgs {
-					self.send_message(msg).await;
+				async fn send_messages<T>(&mut self, msgs: T)
+				where
+					T: IntoIterator<Item = #sends> + Send,
+					T::IntoIter: Send,
+				{
+					// TODO This can definitely be optimized if necessary.
+					for msg in msgs {
+						self.send_message(msg).await;
+					}
+				}
+
+				fn send_unbounded_message(&mut self, msg: #sends) {
+					self.channels.send_unbounded_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg ));
 				}
 			}
+			)*
+		});
 
-			fn send_unbounded_message(&mut self, msg: #consumes) {
-				self.channels.send_unbounded_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg ));
+	// Create the same for a wrapping enum:
+	//
+	// 1. subsystem specific `*OutgoingMessages`-type
+	// 2. overseer-global-`AllMessages`-type
+	let wrapped = |wrapper: &Ident| {
+		quote! {
+			/// implementation for wrapping message type...
+			#[#support_crate ::async_trait]
+			impl SubsystemSender< #wrapper > for #subsystem_sender_name {
+				async fn send_message(&mut self, msg: #wrapper) {
+					self.channels.send_and_log_error(self.signals_received.load(), msg).await;
+				}
+
+				async fn send_messages<T>(&mut self, msgs: T)
+				where
+					T: IntoIterator<Item = #wrapper> + Send,
+					T::IntoIter: Send,
+				{
+					// This can definitely be optimized if necessary.
+					for msg in msgs {
+						self.send_message(msg).await;
+					}
+				}
+
+				fn send_unbounded_message(&mut self, msg: #wrapper) {
+					self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
+				}
 			}
 		}
-		)*
+	};
 
+	// Allow the `#wrapper_message` to be sent as well.
+	ts.extend(wrapped(&outgoing_wrapper));
+
+	// TODO FIXME
+	let inconsequent = true;
+	if inconsequent {
+		ts.extend(wrapped(wrapper_message));
+	}
+
+	ts
+}
+
+/// Implement a builder pattern for the `Overseer`-type,
+/// which acts as the gateway to constructing the overseer.
+pub(crate) fn impl_subsystem_context(
+	info: &OverseerInfo,
+	outgoing_messages: &Ident,
+	subsystem_sender_name: &Ident,
+	subsystem_ctx_name: &Ident,
+) -> TokenStream {
+	let signal = &info.extern_signal_ty;
+	let message_wrapper = &info.message_wrapper;
+	let error_ty = &info.extern_error_ty;
+	let support_crate = info.support_crate_name();
+
+	let ts = quote! {
 		/// A context type that is given to the [`Subsystem`] upon spawning.
 		/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 		/// or to spawn it's [`SubsystemJob`]s.
@@ -147,13 +251,13 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		#[#support_crate ::async_trait]
 		impl<M: std::fmt::Debug + Send + 'static> #support_crate ::SubsystemContext for #subsystem_ctx_name<M>
 		where
-			#subsystem_sender_name: #support_crate ::SubsystemSender< #wrapper_message >,
-			#wrapper_message: From<M>,
+			#subsystem_sender_name: #support_crate ::SubsystemSender< #outgoing_messages >,
+			#outgoing_messages: From<M>,
 		{
 			type Message = M;
 			type Signal = #signal;
 			type Sender = #subsystem_sender_name;
-			type AllMessages = #wrapper_message;
+			type OutgoingMessages = #outgoing_messages;
 			type Error = #error_ty;
 
 			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<M, #signal>>, ()> {

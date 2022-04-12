@@ -21,7 +21,7 @@ use super::*;
 
 /// Generates the wrapper type enum.
 pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
-	let consumes = info.consumes();
+	let consumes = info.any_message();
 	let consumes_variant = info.variant_names();
 
 	let outgoing = &info.outgoing_ty;

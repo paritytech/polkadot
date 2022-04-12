@@ -20,6 +20,7 @@ use syn::{
 	parse::{Parse, ParseStream},
 	punctuated::Punctuated,
 	spanned::Spanned,
+	token::Bracket,
 	AttrStyle, Attribute, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result,
 	Token, Type, Visibility,
 };
@@ -30,6 +31,8 @@ mod kw {
 	syn::custom_keyword!(wip);
 	syn::custom_keyword!(no_dispatch);
 	syn::custom_keyword!(blocking);
+	syn::custom_keyword!(consumes);
+	syn::custom_keyword!(sends);
 }
 
 #[derive(Clone, Debug)]
@@ -43,6 +46,10 @@ enum SubSysAttrItem {
 	/// External messages should not be - after being converted -
 	/// be dispatched to the annotated subsystem.
 	NoDispatch(kw::no_dispatch),
+	/// Message to be sent by this subsystem.
+	Sends(Sends),
+	/// Message to be consumed by this subsystem.
+	Consumes(Consumes),
 }
 
 impl Parse for SubSysAttrItem {
@@ -54,6 +61,10 @@ impl Parse for SubSysAttrItem {
 			Self::Blocking(input.parse::<kw::blocking>()?)
 		} else if lookahead.peek(kw::no_dispatch) {
 			Self::NoDispatch(input.parse::<kw::no_dispatch>()?)
+		} else if lookahead.peek(kw::consumes) {
+			Self::Consumes(input.parse::<Consumes>()?)
+		} else if lookahead.peek(kw::sends) {
+			Self::Sends(input.parse::<Sends>()?)
 		} else {
 			return Err(lookahead.error())
 		})
@@ -72,6 +83,12 @@ impl ToTokens for SubSysAttrItem {
 			Self::NoDispatch(no_dispatch) => {
 				quote! { #no_dispatch }
 			},
+			Self::Sends(_) => {
+				quote! {}
+			},
+			Self::Consumes(_) => {
+				quote! {}
+			},
 		};
 		tokens.extend(ts.into_iter());
 	}
@@ -87,8 +104,10 @@ pub(crate) struct SubSysField {
 	/// which is also used `#wrapper_message :: #variant` variant
 	/// part.
 	pub(crate) generic: Ident,
-	/// Type to be consumed by the subsystem.
-	pub(crate) consumes: Path,
+	/// Type of message to be consumed by the subsystem.
+	pub(crate) message_to_consume: Path,
+	/// Types of messages to be sent by the subsystem.
+	pub(crate) messages_to_send: Vec<Path>,
 	/// If `no_dispatch` is present, if the message is incoming via
 	/// an `extern` `Event`, it will not be dispatched to all subsystems.
 	pub(crate) no_dispatch: bool,
@@ -115,6 +134,15 @@ macro_rules! extract_variant {
 	($unique:expr, $variant:ident ; err = $err:expr) => {
 		extract_variant!($unique, $variant).ok_or_else(|| Error::new(Span::call_site(), $err))
 	};
+	($unique:expr, $variant:ident take) => {
+		$unique.values().find_map(|item| {
+			if let SubSysAttrItem::$variant(value) = item {
+				Some(value.clone())
+			} else {
+				None
+			}
+		})
+	};
 	($unique:expr, $variant:ident) => {
 		$unique.values().find_map(|item| {
 			if let SubSysAttrItem::$variant(_) = item {
@@ -126,6 +154,46 @@ macro_rules! extract_variant {
 	};
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct Sends {
+	pub(crate) keyword_sends: kw::sends,
+	pub(crate) colon: Token![:],
+	pub(crate) bracket: Bracket,
+	pub(crate) sends: Punctuated<Path, Token![,]>,
+}
+
+impl Parse for Sends {
+	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+		let content;
+		Ok(Self {
+			keyword_sends: input.parse()?,
+			colon: input.parse()?,
+			bracket: syn::bracketed!(content in input),
+			sends: Punctuated::parse_terminated(&mut content)?,
+		})
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Consumes {
+	pub(crate) keyword_consumes: kw::consumes,
+	pub(crate) colon: Token![:],
+	pub(crate) bracket: Bracket,
+	pub(crate) consumes: Punctuated<Path, Token![,]>,
+}
+
+impl Parse for Consumes {
+	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+		let content;
+		Ok(Self {
+			keyword_consumes: input.parse()?,
+			colon: input.parse()?,
+			bracket: syn::bracketed!(content in input),
+			consumes: Punctuated::parse_terminated(&mut content)?,
+		})
+	}
+}
+
 pub(crate) struct SubSystemTags {
 	#[allow(dead_code)]
 	pub(crate) attrs: Vec<Attribute>,
@@ -134,12 +202,17 @@ pub(crate) struct SubSystemTags {
 	/// The subsystem is in progress, only generate the `Wrapper` variant, but do not forward messages
 	/// and also not include the subsystem in the list of subsystems.
 	pub(crate) wip: bool,
+	/// If there are blocking components in the subsystem and hence it should be
+	/// spawned on a dedicated thread pool for such subssytems.
 	pub(crate) blocking: bool,
-	pub(crate) consumes: Path,
+	/// The message type being consumed by the subsystem.
+	pub(crate) consumes: Option<Consumes>,
+	pub(crate) sends: Option<Sends>,
 }
 
 impl Parse for SubSystemTags {
 	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+		let span = input.span();
 		let attrs = Attribute::parse_outer(input)?;
 
 		let input = input;
@@ -154,29 +227,36 @@ impl Parse for SubSystemTags {
 
 		assert!(items.empty_or_trailing(), "Always followed by the message type to consume. qed");
 
-		let consumes = content.parse::<Path>()?;
-
 		let mut unique = HashMap::<
 			std::mem::Discriminant<SubSysAttrItem>,
 			SubSysAttrItem,
 			RandomState,
 		>::default();
+
 		for item in items {
 			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
-				let mut e = Error::new(
-					item.span(),
-					format!("Duplicate definition of subsystem attribute found"),
-				);
+				let mut e =
+					Error::new(item.span(), "Duplicate definition of subsystem attribute found");
 				e.combine(Error::new(first.span(), "previously defined here."));
 				return Err(e)
 			}
+		}
+
+		// A subsystem makes no sense if not one of them is provided
+		let sends = extract_variant!(unique, Sends take);
+		let consumes = extract_variant!(unique, Consumes take);
+		if sends.is_none() && consumes.is_none() {
+			return Err(Error::new(
+				span,
+				"Must have at least one of `consumes: [..]` and `sends: [..]`.",
+			))
 		}
 
 		let no_dispatch = extract_variant!(unique, NoDispatch; default = false);
 		let blocking = extract_variant!(unique, Blocking; default = false);
 		let wip = extract_variant!(unique, Wip; default = false);
 
-		Ok(Self { attrs, no_dispatch, blocking, consumes, wip })
+		Ok(Self { attrs, no_dispatch, blocking, wip, sends, consumes })
 	}
 }
 
@@ -220,7 +300,7 @@ pub(crate) struct OverseerInfo {
 	pub(crate) extern_network_ty: Option<Path>,
 
 	/// Type of messages that are sent to an external subsystem.
-	/// Merely here to be included during generation of `message_wrapper` type.
+	/// Merely here to be included during generation of `#message_wrapper` type.
 	pub(crate) outgoing_ty: Option<Path>,
 
 	/// Incoming event type from the outer world, commonly from the network.
@@ -297,8 +377,8 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
-	pub(crate) fn consumes(&self) -> Vec<Path> {
-		self.subsystems.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>()
+	pub(crate) fn any_message(&self) -> Vec<Path> {
+		self.subsystems.iter().map(|ssf| ssf.message_to_consume).collect::<Vec<_>>()
 	}
 
 	pub(crate) fn channel_names_without_wip(&self, suffix: &'static str) -> Vec<Ident> {
@@ -313,7 +393,7 @@ impl OverseerInfo {
 		self.subsystems
 			.iter()
 			.filter(|ssf| !ssf.wip)
-			.map(|ssf| ssf.consumes.clone())
+			.map(|ssf| ssf.message_to_consume.clone())
 			.collect::<Vec<_>>()
 	}
 }
@@ -365,11 +445,19 @@ impl OverseerGuts {
 				let variant: SubSystemTags = syn::parse2(attr_tokens.clone())?;
 				consumes_paths.push(variant.consumes);
 
+				let mut sends_paths = Vec::with_capacity(attrs.len());
+				let attr_tokens = attr_tokens.clone();
+				let variant: SubSystemTags = syn::parse2(attr_tokens.clone())?;
+				sends_paths.push(variant.consumes);
+
 				let field_ty = try_type_to_path(ty, span)?;
 				let generic = field_ty
 					.get_ident()
 					.ok_or_else(|| {
-						Error::new(field_ty.span(), "Must be an identifier, not a path.")
+						Error::new(
+							field_ty.span(),
+							"Must be an identifier, not a path. It will be used as a generic.",
+						)
 					})?
 					.clone();
 				if let Some(previous) = unique_subsystem_idents.get(&generic) {
@@ -385,7 +473,8 @@ impl OverseerGuts {
 				subsystems.push(SubSysField {
 					name: ident,
 					generic,
-					consumes: consumes_paths[0].clone(),
+					message_to_consume: consumes_paths[0].clone(),
+					messages_to_send: send_paths,
 					no_dispatch: variant.no_dispatch,
 					wip: variant.wip,
 					blocking: variant.blocking,
