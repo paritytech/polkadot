@@ -338,8 +338,6 @@ fn setting_pending_config_members() {
 			minimum_validation_upgrade_delay: 20,
 		};
 
-		assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
-
 		Configuration::set_validation_upgrade_cooldown(
 			Origin::root(),
 			new_config.validation_upgrade_cooldown,
