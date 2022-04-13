@@ -18,14 +18,14 @@ bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

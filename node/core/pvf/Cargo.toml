@@ -23,15 +23,15 @@ parity-scale-codec = { version = "3.1.2", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

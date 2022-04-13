@@ -18,8 +18,8 @@ bp-runtime = { path = "../../primitives/runtime" }
 
 # Substrate Dependencies
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }

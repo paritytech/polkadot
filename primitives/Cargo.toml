@@ -8,24 +8,24 @@ edition = "2021"
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 scale-info = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-boxed-events" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 hex-literal = "0.3.4"
 parity-util-mem = { version = "0.11.0", default-features = false, optional = true }
 

@@ -18,11 +18,11 @@ bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-boxed-events" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 assert_matches = "1.5"

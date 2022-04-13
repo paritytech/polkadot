@@ -18,15 +18,15 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 
 [dev-dependencies]
 kvdb-memorydb = "0.11.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 

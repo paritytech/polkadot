@@ -173,12 +173,14 @@ fn open_channel_works() {
 		Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
 		Hrmp::assert_storage_consistency_exhaustive();
 		assert!(System::events().iter().any(|record| record.event ==
-			MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8).into())));
+			MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
 
 		Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
 		Hrmp::assert_storage_consistency_exhaustive();
-		assert!(System::events().iter().any(|record| record.event ==
-			MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b).into())));
+		assert!(System::events()
+			.iter()
+			.any(|record| record.event ==
+				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
 
 		// Advance to a block 6, but without session change. That means that the channel has
 		// not been created yet.
@@ -221,7 +223,7 @@ fn close_channel_works() {
 		assert!(!channel_exists(para_a, para_b));
 		Hrmp::assert_storage_consistency_exhaustive();
 		assert!(System::events().iter().any(|record| record.event ==
-			MockEvent::Hrmp(Event::ChannelClosed(para_b, channel_id.clone()).into())));
+			MockEvent::Hrmp(Event::ChannelClosed(para_b, channel_id.clone()))));
 	});
 }
 

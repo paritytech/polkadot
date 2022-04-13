@@ -29,4 +29,4 @@ bp-runtime = { path = "../../primitives/runtime" }
 
 # Substrate dependencies
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }

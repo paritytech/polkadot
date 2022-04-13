@@ -18,8 +18,8 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -12,6 +12,6 @@ thiserror = "1.0.30"
 async-trait = "0.1.53"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-primitives = { path = "../../../primitives" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-boxed-events" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -638,7 +638,6 @@ mod tests {
 							TEST_SPEC_VERSION,
 							BAD_SPEC_VERSION
 						)
-						.into()
 					),
 					topics: vec![],
 				}],
@@ -678,7 +677,6 @@ mod tests {
 							call_weight,
 							7,
 						)
-						.into()
 					),
 					topics: vec![],
 				}],
@@ -718,7 +716,6 @@ mod tests {
 							SOURCE_CHAIN_ID,
 							id
 						)
-						.into()
 					),
 					topics: vec![],
 				}],
@@ -744,10 +741,10 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageRejected(SOURCE_CHAIN_ID, id)
-							.into()
-					),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageRejected(
+						SOURCE_CHAIN_ID,
+						id
+					)),
 					topics: vec![],
 				}],
 			);
@@ -785,7 +782,6 @@ mod tests {
 							SOURCE_CHAIN_ID,
 							id
 						)
-						.into()
 					),
 					topics: vec![],
 				}],
@@ -824,7 +820,6 @@ mod tests {
 							SOURCE_CHAIN_ID,
 							id
 						)
-						.into()
 					),
 					topics: vec![],
 				}],
@@ -865,7 +860,6 @@ mod tests {
 							)),
 							TEST_WEIGHT,
 						)
-						.into()
 					),
 					topics: vec![],
 				}],
@@ -898,14 +892,11 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageDispatched(
-							SOURCE_CHAIN_ID,
-							id,
-							Ok(())
-						)
-						.into()
-					),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+						SOURCE_CHAIN_ID,
+						id,
+						Ok(())
+					)),
 					topics: vec![],
 				}],
 			);
@@ -935,14 +926,11 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageDispatched(
-							SOURCE_CHAIN_ID,
-							id,
-							Err(sp_runtime::DispatchError::BadOrigin)
-						)
-						.into()
-					),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+						SOURCE_CHAIN_ID,
+						id,
+						Err(sp_runtime::DispatchError::BadOrigin)
+					)),
 					topics: vec![],
 				}],
 			);
@@ -972,14 +960,11 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageDispatched(
-							SOURCE_CHAIN_ID,
-							id,
-							Ok(())
-						)
-						.into()
-					),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+						SOURCE_CHAIN_ID,
+						id,
+						Ok(())
+					)),
 					topics: vec![],
 				}],
 			);
@@ -1009,14 +994,11 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageDispatched(
-							SOURCE_CHAIN_ID,
-							id,
-							Ok(())
-						)
-						.into()
-					),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+						SOURCE_CHAIN_ID,
+						id,
+						Ok(())
+					)),
 					topics: vec![],
 				}],
 			);
@@ -1046,14 +1028,11 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageDispatched(
-							SOURCE_CHAIN_ID,
-							id,
-							Ok(())
-						)
-						.into()
-					),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+						SOURCE_CHAIN_ID,
+						id,
+						Ok(())
+					)),
 					topics: vec![],
 				}],
 			);

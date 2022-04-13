@@ -1142,9 +1142,7 @@ mod tests {
 			System::<TestRuntime>::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: TestEvent::Messages(
-					Event::MessageAccepted(TEST_LANE_ID, message_nonce).into()
-				),
+				event: TestEvent::Messages(Event::MessageAccepted(TEST_LANE_ID, message_nonce)),
 				topics: vec![],
 			}],
 		);
@@ -1187,9 +1185,10 @@ mod tests {
 			System::<TestRuntime>::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: TestEvent::Messages(
-					Event::MessagesDelivered(TEST_LANE_ID, DeliveredMessages::new(1, true),).into()
-				),
+				event: TestEvent::Messages(Event::MessagesDelivered(
+					TEST_LANE_ID,
+					DeliveredMessages::new(1, true),
+				)),
 				topics: vec![],
 			}],
 		);
@@ -1290,7 +1289,7 @@ mod tests {
 				System::<TestRuntime>::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: TestEvent::Messages(Event::ParameterUpdated(parameter).into()),
+					event: TestEvent::Messages(Event::ParameterUpdated(parameter)),
 					topics: vec![],
 				}],
 			);
@@ -1314,7 +1313,7 @@ mod tests {
 				System::<TestRuntime>::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: TestEvent::Messages(Event::ParameterUpdated(parameter).into()),
+					event: TestEvent::Messages(Event::ParameterUpdated(parameter)),
 					topics: vec![],
 				}],
 			);
