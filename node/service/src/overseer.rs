@@ -34,7 +34,7 @@ use polkadot_overseer::{
 	Overseer, OverseerConnector, OverseerHandle,
 };
 
-use polkadot_primitives::v2::ParachainHost;
+use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;

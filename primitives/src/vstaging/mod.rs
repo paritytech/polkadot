@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,19 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot types shared between the runtime and the Node-side code.
+//! Staging Primitives.
 
-#![warn(missing_docs)]
-#![cfg_attr(not(feature = "std"), no_std)]
-
-// `v2` is currently the latest stable version of the runtime API.
-pub mod v2;
-
-// The 'staging' version is special - while other versions are set in stone,
-// the staging version is malleable. Once it's released, it gets the next
-// version number.
-pub mod vstaging;
-
-// `runtime_api` contains the actual API implementation. It contains stable and
-// unstable functions.
-pub mod runtime_api;
+// Put any primitives used by staging API functions here

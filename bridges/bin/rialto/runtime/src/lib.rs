@@ -731,7 +731,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl polkadot_primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl polkadot_primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<polkadot_primitives::v2::ValidatorId> {
 			polkadot_runtime_parachains::runtime_api_impl::v2::validators::<Runtime>()
 		}
