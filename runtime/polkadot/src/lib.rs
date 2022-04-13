@@ -1922,13 +1922,13 @@ sp_api::impl_runtime_apis! {
 
 	impl mmr::MmrApi<Block, Hash> for Runtime {
 		fn generate_proof(_leaf_index: u64)
-			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::BatchProof<Hash>), mmr::Error>
 		{
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::GenerateProof)
 		}
 
-		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::BatchProof<Hash>)
 			-> Result<(), mmr::Error>
 		{
 			// dummy implementation due to lack of MMR pallet.
@@ -1938,7 +1938,7 @@ sp_api::impl_runtime_apis! {
 		fn verify_proof_stateless(
 			_root: Hash,
 			_leaf: mmr::EncodableOpaqueLeaf,
-			_proof: mmr::Proof<Hash>
+			_proof: mmr::BatchProof<Hash>
 		) -> Result<(), mmr::Error> {
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::Verify)
@@ -1948,9 +1948,9 @@ sp_api::impl_runtime_apis! {
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::GenerateProof)
 		}
-		
+
 		fn generate_batch_proof(_leaf_indices: Vec<u64>)
-			-> Result<(Vec<(mmr::EncodableOpaqueLeaf, u64)>, mmr::BatchProof<Hash>), mmr::Error>
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
 		{
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::GenerateProof)
