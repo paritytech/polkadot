@@ -17,7 +17,7 @@
 //! Polkadot Jaeger span definitions.
 //!
 //! ```rust
-//! # use polkadot_primitives::v1::{CandidateHash, Hash};
+//! # use polkadot_primitives::v2::{CandidateHash, Hash};
 //! # fn main() {
 //! use polkadot_node_jaeger as jaeger;
 //!
@@ -51,7 +51,7 @@
 //! over the course of a function, for this purpose use the non-consuming
 //! `fn` variants, i.e.
 //! ```rust
-//! # use polkadot_primitives::v1::{CandidateHash, Hash};
+//! # use polkadot_primitives::v2::{CandidateHash, Hash};
 //! # fn main() {
 //! # use polkadot_node_jaeger as jaeger;
 //!
@@ -85,7 +85,7 @@
 
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::PoV;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex,
 };
 use sc_network::PeerId;
@@ -174,9 +174,13 @@ pub(crate) type TraceIdentifier = u128;
 /// A helper to convert the hash to the fixed size representation
 /// needed for jaeger.
 #[inline]
-fn hash_to_identifier(hash: Hash) -> TraceIdentifier {
+pub fn hash_to_trace_identifier(hash: Hash) -> TraceIdentifier {
 	let mut buf = [0u8; 16];
 	buf.copy_from_slice(&hash.as_ref()[0..16]);
+	// The slice bytes are copied in reading order, so if interpreted
+	// in string form by a human, that means lower indices have higher
+	// values and hence corresponds to BIG endian ordering of the individual
+	// bytes.
 	u128::from_be_bytes(buf) as TraceIdentifier
 }
 
@@ -193,13 +197,13 @@ pub trait LazyIdent {
 
 impl<'a> LazyIdent for &'a [u8] {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(BlakeTwo256::hash_of(self))
+		hash_to_trace_identifier(BlakeTwo256::hash_of(self))
 	}
 }
 
 impl LazyIdent for &PoV {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(self.hash())
+		hash_to_trace_identifier(self.hash())
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -209,7 +213,7 @@ impl LazyIdent for &PoV {
 
 impl LazyIdent for Hash {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(*self)
+		hash_to_trace_identifier(*self)
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -219,7 +223,7 @@ impl LazyIdent for Hash {
 
 impl LazyIdent for &Hash {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(**self)
+		hash_to_trace_identifier(**self)
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
@@ -229,17 +233,26 @@ impl LazyIdent for &Hash {
 
 impl LazyIdent for CandidateHash {
 	fn eval(&self) -> TraceIdentifier {
-		hash_to_identifier(self.0)
+		hash_to_trace_identifier(self.0)
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
 		span.add_string_fmt_debug_tag("candidate-hash", &self.0);
+		// A convenience for usage with the grafana tempo UI,
+		// not a technical requirement. It merely provides an easy anchor
+		// where the true trace identifier of the span is not based on
+		// a candidate hash (which it should be!), but is required to
+		// continue investigating.
+		span.add_string_tag("traceID", self.eval().to_string());
 	}
 }
 
 impl Span {
 	/// Creates a new span builder based on anything that can be lazily evaluated
 	/// to and identifier.
+	///
+	/// Attention: The primary identifier will be used for identification
+	/// and as such should be
 	pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
 		let mut span = INSTANCE
 			.read_recursive()
@@ -412,6 +425,14 @@ impl Span {
 			_ => false,
 		}
 	}
+
+	/// Obtain the trace identifier for this set of spans.
+	pub fn trace_id(&self) -> Option<TraceIdentifier> {
+		match self {
+			Span::Enabled(inner) => Some(inner.trace_id().get()),
+			_ => None,
+		}
+	}
 }
 
 impl std::fmt::Debug for Span {
@@ -433,5 +454,48 @@ impl From<Option<mick_jaeger::Span>> for Span {
 impl From<mick_jaeger::Span> for Span {
 	fn from(src: mick_jaeger::Span) -> Self {
 		Self::Enabled(src)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::Jaeger;
+
+	// make sure to not use `::repeat_*()` based samples, since this does not verify endianness
+	const RAW: [u8; 32] = [
+		0xFF, 0xAA, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x78, 0x89, 0x9A, 0xAB, 0xBC, 0xCD, 0xDE,
+		0xEF, 0x00, 0x01, 0x02, 0x03, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+		0x0E, 0x0F,
+	];
+
+	#[test]
+	fn hash_derived_identifier_is_leading_16bytes() {
+		let candidate_hash = dbg!(Hash::from(&RAW));
+		let trace_id = dbg!(hash_to_trace_identifier(candidate_hash));
+		for (idx, (a, b)) in candidate_hash
+			.as_bytes()
+			.iter()
+			.take(16)
+			.zip(trace_id.to_be_bytes().iter())
+			.enumerate()
+		{
+			assert_eq!(*a, *b, "Index [{}] does not match: {} != {}", idx, a, b);
+		}
+	}
+
+	#[test]
+	fn extra_tags_do_not_change_trace_id() {
+		Jaeger::test_setup();
+		let candidate_hash = dbg!(Hash::from(&RAW));
+		let trace_id = hash_to_trace_identifier(candidate_hash);
+
+		let span = Span::new(candidate_hash, "foo");
+
+		assert_eq!(span.trace_id(), Some(trace_id));
+
+		let span = span.with_int_tag("tag", 7i64);
+
+		assert_eq!(span.trace_id(), Some(trace_id));
 	}
 }

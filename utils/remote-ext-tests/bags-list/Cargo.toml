@@ -1,22 +1,22 @@
 [package]
 name = "remote-ext-tests-bags-list"
-version = "0.9.13"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-polkadot-runtime = { version = "0.9.13", path = "../../../runtime/polkadot" }
-kusama-runtime = { version = "0.9.13", path = "../../../runtime/kusama" }
-westend-runtime = { version = "0.9.13", path = "../../../runtime/westend" }
-polkadot-runtime-constants = { version = "0.9.13", path = "../../../runtime/polkadot/constants" }
-kusama-runtime-constants = { version = "0.9.13", path = "../../../runtime/kusama/constants" }
-westend-runtime-constants = { version = "0.9.13", path = "../../../runtime/westend/constants" }
+polkadot-runtime = { path = "../../../runtime/polkadot" }
+kusama-runtime = { path = "../../../runtime/kusama" }
+westend-runtime = { path = "../../../runtime/westend" }
+polkadot-runtime-constants = { path = "../../../runtime/polkadot/constants" }
+kusama-runtime-constants = { path = "../../../runtime/kusama/constants" }
+westend-runtime-constants = { path = "../../../runtime/westend/constants" }
 
 pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-clap = { version = "3.0", features = ["derive"] }
-log = "0.4.14"
-tokio = { version = "1", features = ["macros"] }
+clap = { version = "3.1", features = ["derive"] }
+log = "0.4.16"
+tokio = { version = "1.17.0", features = ["macros"] }

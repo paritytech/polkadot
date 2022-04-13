@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, AllMessages, HeadSupportsParachains, MetricsTrait, Overseer,
-	OverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	prometheus::Registry, AllMessages, HeadSupportsParachains, InitializedOverseerBuilder,
+	MetricsTrait, Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
@@ -43,7 +43,7 @@ where
 					Err(_) => return Ok(()),
 					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(overseer_msg) => {
-						tracing::debug!(
+						gum::debug!(
 							target: "dummy-subsystem",
 							"Discarding a message sent from overseer {:?}",
 							overseer_msg
@@ -66,7 +66,7 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 	supports_parachains: SupportsParachains,
 	registry: Option<&'a Registry>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		SupportsParachains,
 		DummySubsystem,
@@ -107,7 +107,7 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	subsystem: Sub,
 	registry: Option<&'a Registry>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		SupportsParachains,
 		Sub,

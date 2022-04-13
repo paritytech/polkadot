@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -34,7 +34,7 @@ pub use sp_consensus_babe::{
 };
 pub use sp_core::traits::SpawnNamed;
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
@@ -75,6 +75,11 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// blocks that pass backing are considerd executable by approval checkers or
 /// dispute participants.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// Linked to `MAX_FINALITY_LAG` in relay chain selection,
+/// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
+/// `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`
+pub const MAX_FINALITY_LAG: u32 = 500;
 
 /// Type of a session window size.
 ///
@@ -231,6 +236,8 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
+	/// Validation has generated different candidate commitments.
+	CommitmentsHashMismatch,
 }
 
 /// Result of the validation of the candidate.
@@ -257,6 +264,29 @@ impl PoV {
 	}
 }
 
+/// A type that represents a maybe compressed [`PoV`].
+#[derive(Clone, Encode, Decode)]
+#[cfg(not(target_os = "unknown"))]
+pub enum MaybeCompressedPoV {
+	/// A raw [`PoV`], aka not compressed.
+	Raw(PoV),
+	/// The given [`PoV`] is already compressed.
+	Compressed(PoV),
+}
+
+#[cfg(not(target_os = "unknown"))]
+impl MaybeCompressedPoV {
+	/// Convert into a compressed [`PoV`].
+	///
+	/// If `self == Raw` it is compressed using [`maybe_compress_pov`].
+	pub fn into_compressed(self) -> PoV {
+		match self {
+			Self::Raw(raw) => maybe_compress_pov(raw),
+			Self::Compressed(compressed) => compressed,
+		}
+	}
+}
+
 /// The output of a collator.
 ///
 /// This differs from `CandidateCommitments` in two ways:
@@ -264,7 +294,8 @@ impl PoV {
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
-pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
+#[cfg(not(target_os = "unknown"))]
+pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The horizontal messages sent by the parachain.
@@ -274,7 +305,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
 	/// Proof to verify the state transition of the parachain.
-	pub proof_of_validity: PoV,
+	pub proof_of_validity: MaybeCompressedPoV,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
@@ -283,6 +314,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 
 /// Signal that is being returned when a collation was seconded by a validator.
 #[derive(Debug)]
+#[cfg(not(target_os = "unknown"))]
 pub struct CollationSecondedSignal {
 	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].
 	pub relay_parent: Hash,
@@ -293,6 +325,7 @@ pub struct CollationSecondedSignal {
 }
 
 /// Result of the [`CollatorFn`] invocation.
+#[cfg(not(target_os = "unknown"))]
 pub struct CollationResult {
 	/// The collation that was build.
 	pub collation: Collation,
@@ -304,6 +337,7 @@ pub struct CollationResult {
 	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
+#[cfg(not(target_os = "unknown"))]
 impl CollationResult {
 	/// Convert into the inner values.
 	pub fn into_inner(
@@ -319,6 +353,7 @@ impl CollationResult {
 /// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
 ///
 /// Returns an optional [`CollationResult`].
+#[cfg(not(target_os = "unknown"))]
 pub type CollatorFn = Box<
 	dyn Fn(
 			Hash,
@@ -329,6 +364,7 @@ pub type CollatorFn = Box<
 >;
 
 /// Configuration for the collation generator
+#[cfg(not(target_os = "unknown"))]
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
@@ -338,6 +374,7 @@ pub struct CollationGenerationConfig {
 	pub para_id: ParaId,
 }
 
+#[cfg(not(target_os = "unknown"))]
 impl std::fmt::Debug for CollationGenerationConfig {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "CollationGenerationConfig {{ ... }}")
@@ -371,8 +408,8 @@ impl Proof {
 	}
 }
 
+/// Possible errors when converting from `Vec<Vec<u8>>` into [`Proof`].
 #[derive(thiserror::Error, Debug)]
-///
 pub enum MerkleProofError {
 	#[error("Merkle max proof depth exceeded {0} > {} .", MERKLE_PROOF_MAX_DEPTH)]
 	/// This error signifies that the Proof length exceeds the trie's max depth

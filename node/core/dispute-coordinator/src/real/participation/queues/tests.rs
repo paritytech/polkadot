@@ -16,11 +16,11 @@
 
 use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
-use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_primitives::v2::{BlockNumber, Hash};
 
 use crate::real::ordering::CandidateComparator;
 
-use super::{Error, ParticipationRequest, Queues};
+use super::{ParticipationRequest, QueueError, Queues};
 
 /// Make a `ParticipationRequest` based on the given commitments hash.
 fn make_participation_request(hash: Hash) -> ParticipationRequest {
@@ -64,9 +64,9 @@ fn ordering_works_as_expected() {
 	queue.queue(None, req5.clone()).unwrap();
 	assert_matches!(
 		queue.queue(Some(make_dummy_comparator(&req_prio_full, 3)), req_prio_full),
-		Err(Error::PriorityFull)
+		Err(QueueError::PriorityFull)
 	);
-	assert_matches!(queue.queue(None, req_full), Err(Error::BestEffortFull));
+	assert_matches!(queue.queue(None, req_full), Err(QueueError::BestEffortFull));
 
 	assert_eq!(queue.dequeue(), Some(req_prio));
 	assert_eq!(queue.dequeue(), Some(req_prio_2));

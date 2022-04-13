@@ -34,58 +34,9 @@ mod error;
 /// Status tracking of disputes (`DisputeStatus`).
 mod status;
 
-/// Dummy implementation.
-mod dummy;
 /// The real implementation.
 mod real;
 
-use kvdb::KeyValueDB;
-use metrics::Metrics;
-use polkadot_node_subsystem::{
-	messages::DisputeCoordinatorMessage, overseer, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
-};
-use sc_keystore::LocalKeystore;
-use std::sync::Arc;
-
-pub use self::real::Config;
-
 pub(crate) const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
-/// The disputes coordinator subsystem, abstracts `dummy` and `real` implementations.
-pub enum DisputeCoordinatorSubsystem {
-	Dummy(dummy::DisputeCoordinatorSubsystem),
-	Real(real::DisputeCoordinatorSubsystem),
-}
-
-impl DisputeCoordinatorSubsystem {
-	/// Create a new dummy instance.
-	pub fn dummy() -> Self {
-		DisputeCoordinatorSubsystem::Dummy(dummy::DisputeCoordinatorSubsystem::new())
-	}
-
-	/// Create a new instance of the subsystem.
-	pub fn new(
-		store: Arc<dyn KeyValueDB>,
-		config: real::Config,
-		keystore: Arc<LocalKeystore>,
-		metrics: Metrics,
-	) -> Self {
-		DisputeCoordinatorSubsystem::Real(real::DisputeCoordinatorSubsystem::new(
-			store, config, keystore, metrics,
-		))
-	}
-}
-
-impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
-where
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-{
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		match self {
-			DisputeCoordinatorSubsystem::Dummy(dummy) => dummy.start(ctx),
-			DisputeCoordinatorSubsystem::Real(real) => real.start(ctx),
-		}
-	}
-}
+pub use self::real::{Config, DisputeCoordinatorSubsystem};

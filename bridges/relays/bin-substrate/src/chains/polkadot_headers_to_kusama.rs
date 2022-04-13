@@ -16,95 +16,52 @@
 
 //! Polkadot-to-Kusama headers sync entrypoint.
 
-use codec::Encode;
-use sp_core::{Bytes, Pair};
-
-use bp_header_chain::justification::GrandpaJustification;
-use relay_kusama_client::{Kusama, SigningParams as KusamaSigningParams};
-use relay_polkadot_client::{Polkadot, SyncHeader as PolkadotSyncHeader};
-use relay_substrate_client::{Client, TransactionSignScheme, UnsignedTransaction};
-use relay_utils::metrics::MetricsParams;
-use substrate_relay_helper::finality_pipeline::{
-	SubstrateFinalitySyncPipeline, SubstrateFinalityToSubstrate,
-};
+use async_trait::async_trait;
+use relay_kusama_client::Kusama;
+use substrate_relay_helper::{finality_pipeline::SubstrateFinalitySyncPipeline, TransactionParams};
 
 /// Maximal saturating difference between `balance(now)` and `balance(now-24h)` to treat
 /// relay as gone wild.
 ///
 /// Actual value, returned by `maximal_balance_decrease_per_day_is_sane` test is approximately 0.001
-/// KSM, but let's round up to 0.1 KSM here.
-pub(crate) const MAXIMAL_BALANCE_DECREASE_PER_DAY: bp_polkadot::Balance = 100_000_000_000;
+/// KSM, and initial value of this constant was rounded up to 0.1 KSM. But for actual Kusama <>
+/// Polkadot deployment we'll be using the same account for delivering finality (free for mandatory
+/// headers) and messages. It means that we can't predict maximal loss. But to protect funds against
+/// relay/deployment issues, let's limit it so something that is much larger than this estimation -
+/// e.g. to 2 KSM.
+// TODO: https://github.com/paritytech/parity-bridges-common/issues/1307
+pub(crate) const MAXIMAL_BALANCE_DECREASE_PER_DAY: bp_kusama::Balance = 2 * 1_000_000_000_000;
 
-/// Polkadot-to-Kusama finality sync pipeline.
-pub(crate) type FinalityPipelinePolkadotFinalityToKusama =
-	SubstrateFinalityToSubstrate<Polkadot, Kusama, KusamaSigningParams>;
-
+/// Description of Polkadot -> Kusama finalized headers bridge.
 #[derive(Clone, Debug)]
-pub(crate) struct PolkadotFinalityToKusama {
-	finality_pipeline: FinalityPipelinePolkadotFinalityToKusama,
-}
+pub struct PolkadotFinalityToKusama;
+substrate_relay_helper::generate_mocked_submit_finality_proof_call_builder!(
+	PolkadotFinalityToKusama,
+	PolkadotFinalityToKusamaCallBuilder,
+	relay_kusama_client::runtime::Call::BridgePolkadotGrandpa,
+	relay_kusama_client::runtime::BridgePolkadotGrandpaCall::submit_finality_proof
+);
 
-impl PolkadotFinalityToKusama {
-	pub fn new(target_client: Client<Kusama>, target_sign: KusamaSigningParams) -> Self {
-		Self {
-			finality_pipeline: FinalityPipelinePolkadotFinalityToKusama::new(
-				target_client,
-				target_sign,
-			),
-		}
-	}
-}
-
+#[async_trait]
 impl SubstrateFinalitySyncPipeline for PolkadotFinalityToKusama {
-	type FinalitySyncPipeline = FinalityPipelinePolkadotFinalityToKusama;
-
-	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str =
-		bp_polkadot::BEST_FINALIZED_POLKADOT_HEADER_METHOD;
-
+	type SourceChain = relay_polkadot_client::Polkadot;
 	type TargetChain = Kusama;
 
-	fn customize_metrics(params: MetricsParams) -> anyhow::Result<MetricsParams> {
-		crate::chains::add_polkadot_kusama_price_metrics::<Self::FinalitySyncPipeline>(params)
-	}
+	type SubmitFinalityProofCallBuilder = PolkadotFinalityToKusamaCallBuilder;
+	type TransactionSignScheme = Kusama;
 
-	fn start_relay_guards(&self) {
-		relay_substrate_client::guard::abort_on_spec_version_change(
-			self.finality_pipeline.target_client.clone(),
-			bp_kusama::VERSION.spec_version,
-		);
-		relay_substrate_client::guard::abort_when_account_balance_decreased(
-			self.finality_pipeline.target_client.clone(),
-			self.transactions_author(),
+	async fn start_relay_guards(
+		target_client: &relay_substrate_client::Client<Kusama>,
+		transaction_params: &TransactionParams<sp_core::sr25519::Pair>,
+		enable_version_guard: bool,
+	) -> relay_substrate_client::Result<()> {
+		substrate_relay_helper::finality_guards::start::<Kusama, Kusama>(
+			target_client,
+			transaction_params,
+			enable_version_guard,
 			MAXIMAL_BALANCE_DECREASE_PER_DAY,
-		);
-	}
-
-	fn transactions_author(&self) -> bp_kusama::AccountId {
-		(*self.finality_pipeline.target_sign.public().as_array_ref()).into()
-	}
-
-	fn make_submit_finality_proof_transaction(
-		&self,
-		era: bp_runtime::TransactionEraOf<Kusama>,
-		transaction_nonce: bp_runtime::IndexOf<Kusama>,
-		header: PolkadotSyncHeader,
-		proof: GrandpaJustification<bp_polkadot::Header>,
-	) -> Bytes {
-		let call = relay_kusama_client::runtime::Call::BridgePolkadotGrandpa(
-			relay_kusama_client::runtime::BridgePolkadotGrandpaCall::submit_finality_proof(
-				Box::new(header.into_inner()),
-				proof,
-			),
-		);
-		let genesis_hash = *self.finality_pipeline.target_client.genesis_hash();
-		let transaction = Kusama::sign_transaction(
-			genesis_hash,
-			&self.finality_pipeline.target_sign,
-			era,
-			UnsignedTransaction::new(call, transaction_nonce),
-		);
-
-		Bytes(transaction.encode())
+		)
+		.await
 	}
 }
 

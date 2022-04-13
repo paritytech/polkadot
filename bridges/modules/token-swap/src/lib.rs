@@ -70,16 +70,18 @@ use bp_runtime::{messages::DispatchFeePayment, ChainId};
 use bp_token_swap::{
 	RawBridgedTransferCall, TokenSwap, TokenSwapCreation, TokenSwapState, TokenSwapType,
 };
-use codec::Encode;
+use codec::{Decode, Encode};
 use frame_support::{
 	fail,
 	traits::{Currency, ExistenceRequirement},
 	weights::PostDispatchInfo,
+	RuntimeDebug,
 };
+use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{Convert, Saturating};
-use sp_std::boxed::Box;
+use sp_std::{boxed::Box, marker::PhantomData};
 use weights::WeightInfo;
 
 pub use weights_ext::WeightInfoExt;
@@ -97,6 +99,21 @@ pub use pallet::*;
 
 /// Name of the `PendingSwaps` storage map.
 pub const PENDING_SWAPS_MAP_NAME: &str = "PendingSwaps";
+
+/// Origin for the token swap pallet.
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
+pub enum RawOrigin<AccountId, I> {
+	/// The call is originated by the token swap account.
+	TokenSwap {
+		/// Id of the account that has started the swap.
+		source_account_at_this_chain: AccountId,
+		/// Id of the account that holds the funds during this swap. The message fee is paid from
+		/// this account funds.
+		swap_account_at_this_chain: AccountId,
+	},
+	/// Dummy to manage the fact we have instancing.
+	_Phantom(PhantomData<I>),
+}
 
 // comes from #[pallet::event]
 #[allow(clippy::unused_unit)]
@@ -126,6 +143,7 @@ pub mod pallet {
 		type OutboundMessageLaneId: Get<LaneId>;
 		/// Messages bridge with Bridged chain.
 		type MessagesBridge: MessagesBridge<
+			Self::Origin,
 			Self::AccountId,
 			<Self::ThisCurrency as Currency<Self::AccountId>>::Balance,
 			MessagePayloadOf<Self, I>,
@@ -182,6 +200,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T, I = ()>(PhantomData<(T, I)>);
 
 	#[pallet::hooks]
@@ -191,6 +210,7 @@ pub mod pallet {
 	impl<T: Config<I>, I: 'static> Pallet<T, I>
 	where
 		BridgedAccountPublicOf<T, I>: Parameter,
+		Origin<T, I>: Into<T::Origin>,
 	{
 		/// Start token swap procedure.
 		///
@@ -312,7 +332,11 @@ pub mod pallet {
 				// `Currency::transfer` call on the bridged chain, but no checks are made - it is
 				// the transaction submitter to ensure it is valid.
 				let send_message_result = T::MessagesBridge::send_message(
-					bp_messages::source_chain::Sender::from(Some(swap_account.clone())),
+					RawOrigin::TokenSwap {
+						source_account_at_this_chain: swap.source_account_at_this_chain.clone(),
+						swap_account_at_this_chain: swap_account.clone(),
+					}
+					.into(),
 					T::OutboundMessageLaneId::get(),
 					bp_message_dispatch::MessagePayload {
 						spec_version: bridged_chain_spec_version,
@@ -515,6 +539,10 @@ pub mod pallet {
 		InvalidClaimant,
 	}
 
+	/// Origin for the token swap pallet.
+	#[pallet::origin]
+	pub type Origin<T, I = ()> = RawOrigin<<T as frame_system::Config>::AccountId, I>;
+
 	/// Pending token swaps states.
 	#[pallet::storage]
 	pub type PendingSwaps<T: Config<I>, I: 'static = ()> =
@@ -639,7 +667,7 @@ pub mod pallet {
 mod tests {
 	use super::*;
 	use crate::mock::*;
-	use frame_support::{assert_noop, assert_ok};
+	use frame_support::{assert_noop, assert_ok, storage::generator::StorageMap};
 
 	const CAN_START_BLOCK_NUMBER: u64 = 10;
 	const CAN_CLAIM_BLOCK_NUMBER: u64 = CAN_START_BLOCK_NUMBER + 1;
@@ -687,7 +715,7 @@ mod tests {
 
 	fn start_test_swap() {
 		assert_ok!(Pallet::<TestRuntime>::create_swap(
-			Origin::signed(THIS_CHAIN_ACCOUNT),
+			mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 			test_swap(),
 			Box::new(TokenSwapCreation {
 				target_public_at_bridged_chain: bridged_chain_account_public(),
@@ -712,7 +740,7 @@ mod tests {
 		run_test(|| {
 			assert_noop!(
 				Pallet::<TestRuntime>::create_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT + 1),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT + 1),
 					test_swap(),
 					Box::new(test_swap_creation()),
 				),
@@ -728,7 +756,7 @@ mod tests {
 			swap.source_balance_at_this_chain = ExistentialDeposit::get() - 1;
 			assert_noop!(
 				Pallet::<TestRuntime>::create_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 					swap,
 					Box::new(test_swap_creation()),
 				),
@@ -744,7 +772,7 @@ mod tests {
 			swap.source_balance_at_this_chain = THIS_CHAIN_ACCOUNT_BALANCE + 1;
 			assert_noop!(
 				Pallet::<TestRuntime>::create_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 					swap,
 					Box::new(test_swap_creation()),
 				),
@@ -762,7 +790,7 @@ mod tests {
 			swap_creation.bridged_currency_transfer = transfer;
 			assert_noop!(
 				Pallet::<TestRuntime>::create_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 					test_swap(),
 					Box::new(swap_creation),
 				),
@@ -775,14 +803,14 @@ mod tests {
 	fn create_swap_fails_if_swap_is_active() {
 		run_test(|| {
 			assert_ok!(Pallet::<TestRuntime>::create_swap(
-				Origin::signed(THIS_CHAIN_ACCOUNT),
+				mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 				test_swap(),
 				Box::new(test_swap_creation()),
 			));
 
 			assert_noop!(
 				Pallet::<TestRuntime>::create_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 					test_swap(),
 					Box::new(test_swap_creation()),
 				),
@@ -797,7 +825,7 @@ mod tests {
 			frame_system::Pallet::<TestRuntime>::set_block_number(CAN_START_BLOCK_NUMBER + 1);
 			assert_noop!(
 				Pallet::<TestRuntime>::create_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 					test_swap(),
 					Box::new(test_swap_creation()),
 				),
@@ -811,7 +839,7 @@ mod tests {
 		run_test(|| {
 			frame_system::Pallet::<TestRuntime>::set_block_number(CAN_START_BLOCK_NUMBER);
 			assert_ok!(Pallet::<TestRuntime>::create_swap(
-				Origin::signed(THIS_CHAIN_ACCOUNT),
+				mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 				test_swap(),
 				Box::new(test_swap_creation()),
 			));
@@ -825,7 +853,7 @@ mod tests {
 			frame_system::Pallet::<TestRuntime>::reset_events();
 
 			assert_ok!(Pallet::<TestRuntime>::create_swap(
-				Origin::signed(THIS_CHAIN_ACCOUNT),
+				mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 				test_swap(),
 				Box::new(test_swap_creation()),
 			));
@@ -857,7 +885,7 @@ mod tests {
 		run_test(|| {
 			assert_noop!(
 				Pallet::<TestRuntime>::claim_swap(
-					Origin::signed(
+					mock::Origin::signed(
 						1 + target_account_at_this_chain::<TestRuntime, ()>(&test_swap())
 					),
 					test_swap(),
@@ -874,7 +902,9 @@ mod tests {
 
 			assert_noop!(
 				Pallet::<TestRuntime>::claim_swap(
-					Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
+					mock::Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(
+						&test_swap()
+					)),
 					test_swap(),
 				),
 				Error::<TestRuntime, ()>::SwapIsPending
@@ -889,7 +919,9 @@ mod tests {
 
 			assert_noop!(
 				Pallet::<TestRuntime>::claim_swap(
-					Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
+					mock::Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(
+						&test_swap()
+					)),
 					test_swap(),
 				),
 				Error::<TestRuntime, ()>::SwapIsFailed
@@ -902,7 +934,9 @@ mod tests {
 		run_test(|| {
 			assert_noop!(
 				Pallet::<TestRuntime>::claim_swap(
-					Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
+					mock::Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(
+						&test_swap()
+					)),
 					test_swap(),
 				),
 				Error::<TestRuntime, ()>::SwapIsInactive
@@ -918,7 +952,9 @@ mod tests {
 
 			assert_noop!(
 				Pallet::<TestRuntime>::claim_swap(
-					Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
+					mock::Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(
+						&test_swap()
+					)),
 					test_swap(),
 				),
 				Error::<TestRuntime, ()>::FailedToTransferFromSwapAccount
@@ -936,7 +972,9 @@ mod tests {
 
 			assert_noop!(
 				Pallet::<TestRuntime>::claim_swap(
-					Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
+					mock::Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(
+						&test_swap()
+					)),
 					test_swap(),
 				),
 				Error::<TestRuntime, ()>::SwapIsTemporaryLocked
@@ -954,7 +992,7 @@ mod tests {
 			frame_system::Pallet::<TestRuntime>::reset_events();
 
 			assert_ok!(Pallet::<TestRuntime>::claim_swap(
-				Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
+				mock::Origin::signed(target_account_at_this_chain::<TestRuntime, ()>(&test_swap())),
 				test_swap(),
 			));
 
@@ -990,7 +1028,7 @@ mod tests {
 
 			assert_noop!(
 				Pallet::<TestRuntime>::cancel_swap(
-					Origin::signed(THIS_CHAIN_ACCOUNT + 1),
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT + 1),
 					test_swap()
 				),
 				Error::<TestRuntime, ()>::MismatchedSwapSourceOrigin
@@ -1004,7 +1042,10 @@ mod tests {
 			start_test_swap();
 
 			assert_noop!(
-				Pallet::<TestRuntime>::cancel_swap(Origin::signed(THIS_CHAIN_ACCOUNT), test_swap()),
+				Pallet::<TestRuntime>::cancel_swap(
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
+					test_swap()
+				),
 				Error::<TestRuntime, ()>::SwapIsPending
 			);
 		});
@@ -1017,7 +1058,10 @@ mod tests {
 			receive_test_swap_confirmation(true);
 
 			assert_noop!(
-				Pallet::<TestRuntime>::cancel_swap(Origin::signed(THIS_CHAIN_ACCOUNT), test_swap()),
+				Pallet::<TestRuntime>::cancel_swap(
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
+					test_swap()
+				),
 				Error::<TestRuntime, ()>::SwapIsConfirmed
 			);
 		});
@@ -1027,7 +1071,10 @@ mod tests {
 	fn cancel_swap_fails_if_swap_is_inactive() {
 		run_test(|| {
 			assert_noop!(
-				Pallet::<TestRuntime>::cancel_swap(Origin::signed(THIS_CHAIN_ACCOUNT), test_swap()),
+				Pallet::<TestRuntime>::cancel_swap(
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
+					test_swap()
+				),
 				Error::<TestRuntime, ()>::SwapIsInactive
 			);
 		});
@@ -1044,7 +1091,10 @@ mod tests {
 			);
 
 			assert_noop!(
-				Pallet::<TestRuntime>::cancel_swap(Origin::signed(THIS_CHAIN_ACCOUNT), test_swap()),
+				Pallet::<TestRuntime>::cancel_swap(
+					mock::Origin::signed(THIS_CHAIN_ACCOUNT),
+					test_swap()
+				),
 				Error::<TestRuntime, ()>::FailedToTransferFromSwapAccount
 			);
 		});
@@ -1060,7 +1110,7 @@ mod tests {
 			frame_system::Pallet::<TestRuntime>::reset_events();
 
 			assert_ok!(Pallet::<TestRuntime>::cancel_swap(
-				Origin::signed(THIS_CHAIN_ACCOUNT),
+				mock::Origin::signed(THIS_CHAIN_ACCOUNT),
 				test_swap()
 			));
 
@@ -1129,5 +1179,13 @@ mod tests {
 				Some(TokenSwapState::Confirmed)
 			);
 		});
+	}
+
+	#[test]
+	fn storage_keys_computed_properly() {
+		assert_eq!(
+			PendingSwaps::<TestRuntime>::storage_map_final_key(test_swap_hash()),
+			bp_token_swap::storage_keys::pending_swaps_key("TokenSwap", test_swap_hash()).0,
+		);
 	}
 }

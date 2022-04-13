@@ -17,10 +17,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // RuntimeApi generated functions
 #![allow(clippy::too_many_arguments)]
-// Runtime-generated DecodeLimit::decode_all_With_depth_limit
-#![allow(clippy::unnecessary_mut_passed)]
 
-use bp_messages::{LaneId, MessageDetails, MessageNonce, UnrewardedRelayersState};
+use bp_messages::{LaneId, MessageDetails, MessageNonce};
 use bp_runtime::Chain;
 use frame_support::{
 	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, IdentityFee, Weight},
@@ -30,7 +28,7 @@ use frame_system::limits;
 use sp_core::Hasher as HasherT;
 use sp_runtime::{
 	traits::{BlakeTwo256, Convert, IdentifyAccount, Verify},
-	MultiSignature, MultiSigner, Perbill,
+	FixedU128, MultiSignature, MultiSigner, Perbill,
 };
 use sp_std::prelude::*;
 
@@ -59,11 +57,11 @@ pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
 /// Represents the portion of a block that will be used by Normal extrinsics.
 pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
-/// Maximal number of unrewarded relayer entries at inbound lane.
-pub const MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE: MessageNonce = 128;
+/// Maximal number of unrewarded relayer entries in Rialto confirmation transaction.
+pub const MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX: MessageNonce = 1024;
 
-/// Maximal number of unconfirmed messages at inbound lane.
-pub const MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE: MessageNonce = 128;
+/// Maximal number of unconfirmed messages in Rialto confirmation transaction.
+pub const MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX: MessageNonce = 1024;
 
 /// Weight of single regular message delivery transaction on Rialto chain.
 ///
@@ -94,7 +92,7 @@ pub const MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT: Weight = 2_000_000
 /// chain. Don't put too much reserve there, because it is used to **decrease**
 /// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery
 /// transactions cheaper.
-pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
+pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 700_000_000;
 
 /// The target length of a session (how often authorities change) on Rialto measured in of number of
 /// blocks.
@@ -171,6 +169,17 @@ impl Chain for Rialto {
 	type Balance = Balance;
 	type Index = Index;
 	type Signature = Signature;
+
+	fn max_extrinsic_size() -> u32 {
+		*BlockLength::get().max.get(DispatchClass::Normal)
+	}
+
+	fn max_extrinsic_weight() -> Weight {
+		BlockWeights::get()
+			.get(DispatchClass::Normal)
+			.max_extrinsic
+			.unwrap_or(Weight::MAX)
+	}
 }
 
 /// Convert a 256-bit hash into an AccountId.
@@ -215,21 +224,13 @@ frame_support::parameter_types! {
 		.build_or_panic();
 }
 
-/// Get the maximum weight (compute time) that a Normal extrinsic on the Millau chain can use.
-pub fn max_extrinsic_weight() -> Weight {
-	BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.unwrap_or(Weight::MAX)
-}
+/// Name of the With-Rialto GRANDPA pallet instance that is deployed at bridged chains.
+pub const WITH_RIALTO_GRANDPA_PALLET_NAME: &str = "BridgeRialtoGrandpa";
+/// Name of the With-Rialto messages pallet instance that is deployed at bridged chains.
+pub const WITH_RIALTO_MESSAGES_PALLET_NAME: &str = "BridgeRialtoMessages";
 
-/// Get the maximum length in bytes that a Normal extrinsic on the Millau chain requires.
-pub fn max_extrinsic_size() -> u32 {
-	*BlockLength::get().max.get(DispatchClass::Normal)
-}
-
-/// Name of the With-Millau messages pallet instance in the Rialto runtime.
-pub const WITH_MILLAU_MESSAGES_PALLET_NAME: &str = "BridgeMillauMessages";
+/// Name of the Millau->Rialto (actually KSM->DOT) conversion rate stored in the Rialto runtime.
+pub const MILLAU_TO_RIALTO_CONVERSION_RATE_PARAMETER_NAME: &str = "MillauToRialtoConversionRate";
 
 /// Name of the parachain registrar pallet in the Rialto runtime.
 pub const PARAS_REGISTRAR_PALLET_NAME: &str = "Registrar";
@@ -246,22 +247,6 @@ pub const TO_RIALTO_ESTIMATE_MESSAGE_FEE_METHOD: &str =
 	"ToRialtoOutboundLaneApi_estimate_message_delivery_and_dispatch_fee";
 /// Name of the `ToRialtoOutboundLaneApi::message_details` runtime method.
 pub const TO_RIALTO_MESSAGE_DETAILS_METHOD: &str = "ToRialtoOutboundLaneApi_message_details";
-/// Name of the `ToRialtoOutboundLaneApi::latest_generated_nonce` runtime method.
-pub const TO_RIALTO_LATEST_GENERATED_NONCE_METHOD: &str =
-	"ToRialtoOutboundLaneApi_latest_generated_nonce";
-/// Name of the `ToRialtoOutboundLaneApi::latest_received_nonce` runtime method.
-pub const TO_RIALTO_LATEST_RECEIVED_NONCE_METHOD: &str =
-	"ToRialtoOutboundLaneApi_latest_received_nonce";
-
-/// Name of the `FromRialtoInboundLaneApi::latest_received_nonce` runtime method.
-pub const FROM_RIALTO_LATEST_RECEIVED_NONCE_METHOD: &str =
-	"FromRialtoInboundLaneApi_latest_received_nonce";
-/// Name of the `FromRialtoInboundLaneApi::latest_onfirmed_nonce` runtime method.
-pub const FROM_RIALTO_LATEST_CONFIRMED_NONCE_METHOD: &str =
-	"FromRialtoInboundLaneApi_latest_confirmed_nonce";
-/// Name of the `FromRialtoInboundLaneApi::unrewarded_relayers_state` runtime method.
-pub const FROM_RIALTO_UNREWARDED_RELAYERS_STATE: &str =
-	"FromRialtoInboundLaneApi_unrewarded_relayers_state";
 
 sp_api::decl_runtime_apis! {
 	/// API for querying information about the finalized Rialto headers.
@@ -271,8 +256,6 @@ sp_api::decl_runtime_apis! {
 	pub trait RialtoFinalityApi {
 		/// Returns number and hash of the best finalized header known to the bridge module.
 		fn best_finalized() -> (BlockNumber, Hash);
-		/// Returns true if the header is known to the runtime.
-		fn is_known_header(hash: Hash) -> bool;
 	}
 
 	/// Outbound message lane API for messages that are sent to Rialto chain.
@@ -292,6 +275,7 @@ sp_api::decl_runtime_apis! {
 		fn estimate_message_delivery_and_dispatch_fee(
 			lane_id: LaneId,
 			payload: OutboundPayload,
+			rialto_to_this_conversion_rate: Option<FixedU128>,
 		) -> Option<OutboundMessageFee>;
 		/// Returns dispatch weight, encoded payload size and delivery+dispatch fee of all
 		/// messages in given inclusive range.
@@ -303,23 +287,6 @@ sp_api::decl_runtime_apis! {
 			begin: MessageNonce,
 			end: MessageNonce,
 		) -> Vec<MessageDetails<OutboundMessageFee>>;
-		/// Returns nonce of the latest message, received by bridged chain.
-		fn latest_received_nonce(lane: LaneId) -> MessageNonce;
-		/// Returns nonce of the latest message, generated by given lane.
-		fn latest_generated_nonce(lane: LaneId) -> MessageNonce;
-	}
-
-	/// Inbound message lane API for messages sent by Rialto chain.
-	///
-	/// This API is implemented by runtimes that are receiving messages from Rialto chain, not the
-	/// Rialto runtime itself.
-	pub trait FromRialtoInboundLaneApi {
-		/// Returns nonce of the latest message, received by given lane.
-		fn latest_received_nonce(lane: LaneId) -> MessageNonce;
-		/// Nonce of the latest message that has been confirmed to the bridged chain.
-		fn latest_confirmed_nonce(lane: LaneId) -> MessageNonce;
-		/// State of the unrewarded relayers set at given lane.
-		fn unrewarded_relayers_state(lane: LaneId) -> UnrewardedRelayersState;
 	}
 }
 
@@ -331,9 +298,9 @@ mod tests {
 	#[test]
 	fn maximal_account_size_does_not_overflow_constant() {
 		assert!(
-			MAXIMAL_ENCODED_ACCOUNT_ID_SIZE as usize >= AccountId::default().encode().len(),
+			MAXIMAL_ENCODED_ACCOUNT_ID_SIZE as usize >= AccountId::from([0u8; 32]).encode().len(),
 			"Actual maximal size of encoded AccountId ({}) overflows expected ({})",
-			AccountId::default().encode().len(),
+			AccountId::from([0u8; 32]).encode().len(),
 			MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
 		);
 	}

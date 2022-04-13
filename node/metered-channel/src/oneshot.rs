@@ -20,7 +20,6 @@ use std::{
 	ops::Deref,
 	pin::Pin,
 	task::{Context, Poll},
-	time::{Duration, Instant},
 };
 
 use futures::{
@@ -29,6 +28,8 @@ use futures::{
 	prelude::*,
 };
 use futures_timer::Delay;
+
+use crate::{CoarseDuration, CoarseInstant};
 
 /// Provides the reason for termination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,9 +44,9 @@ pub enum Reason {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Measurements {
 	/// Duration between first poll and polling termination.
-	first_poll_till_end: Duration,
+	first_poll_till_end: CoarseDuration,
 	/// Duration starting with creation until polling termination.
-	creation_till_end: Duration,
+	creation_till_end: CoarseDuration,
 	/// Reason for resolving the future.
 	reason: Reason,
 }
@@ -53,13 +54,13 @@ pub struct Measurements {
 impl Measurements {
 	/// Obtain the duration of a finished or canceled
 	/// `oneshot` channel.
-	pub fn duration_since_first_poll(&self) -> &Duration {
+	pub fn duration_since_first_poll(&self) -> &CoarseDuration {
 		&self.first_poll_till_end
 	}
 
 	/// Obtain the duration of a finished or canceled
 	/// `oneshot` channel.
-	pub fn duration_since_creation(&self) -> &Duration {
+	pub fn duration_since_creation(&self) -> &CoarseDuration {
 		&self.creation_till_end
 	}
 
@@ -72,8 +73,8 @@ impl Measurements {
 /// Create a new pair of `OneshotMetered{Sender,Receiver}`.
 pub fn channel<T>(
 	name: &'static str,
-	soft_timeout: Duration,
-	hard_timeout: Duration,
+	soft_timeout: CoarseDuration,
+	hard_timeout: CoarseDuration,
 ) -> (MeteredSender<T>, MeteredReceiver<T>) {
 	let (tx, rx) = oneshot::channel();
 
@@ -87,7 +88,7 @@ pub fn channel<T>(
 			soft_timeout_fut: None,
 			hard_timeout_fut: None,
 			first_poll_timestamp: None,
-			creation_timestamp: Instant::now(),
+			creation_timestamp: CoarseInstant::now(),
 		},
 	)
 }
@@ -97,8 +98,8 @@ pub fn channel<T>(
 pub enum Error {
 	#[error("Oneshot was canceled.")]
 	Canceled(#[source] Canceled, Measurements),
-	#[error("Oneshot did not receive a response within {}", Duration::as_secs_f64(.0))]
-	HardTimeout(Duration, Measurements),
+	#[error("Oneshot did not receive a response within {}", CoarseDuration::as_f64(.0))]
+	HardTimeout(CoarseDuration, Measurements),
 }
 
 impl Measurable for Error {
@@ -113,14 +114,14 @@ impl Measurable for Error {
 /// Oneshot sender, created by [`channel`].
 #[derive(Debug)]
 pub struct MeteredSender<T> {
-	inner: oneshot::Sender<(Instant, T)>,
+	inner: oneshot::Sender<(CoarseInstant, T)>,
 }
 
 impl<T> MeteredSender<T> {
 	/// Send a value.
 	pub fn send(self, t: T) -> Result<(), T> {
 		let Self { inner } = self;
-		inner.send((Instant::now(), t)).map_err(|(_, t)| t)
+		inner.send((CoarseInstant::now(), t)).map_err(|(_, t)| t)
 	}
 
 	/// Poll if the thing is already canceled.
@@ -129,7 +130,7 @@ impl<T> MeteredSender<T> {
 	}
 
 	/// Access the cancellation object.
-	pub fn cancellation(&mut self) -> Cancellation<'_, (Instant, T)> {
+	pub fn cancellation(&mut self) -> Cancellation<'_, (CoarseInstant, T)> {
 		self.inner.cancellation()
 	}
 
@@ -148,16 +149,16 @@ impl<T> MeteredSender<T> {
 #[derive(Debug)]
 pub struct MeteredReceiver<T> {
 	name: &'static str,
-	inner: oneshot::Receiver<(Instant, T)>,
+	inner: oneshot::Receiver<(CoarseInstant, T)>,
 	/// Soft timeout, on expire a warning is printed.
 	soft_timeout_fut: Option<Fuse<Delay>>,
-	soft_timeout: Duration,
+	soft_timeout: CoarseDuration,
 	/// Hard timeout, terminating the sender.
 	hard_timeout_fut: Option<Delay>,
-	hard_timeout: Duration,
+	hard_timeout: CoarseDuration,
 	/// The first time the receiver was polled.
-	first_poll_timestamp: Option<Instant>,
-	creation_timestamp: Instant,
+	first_poll_timestamp: Option<CoarseInstant>,
+	creation_timestamp: CoarseInstant,
 }
 
 impl<T> MeteredReceiver<T> {
@@ -179,7 +180,7 @@ impl<T> MeteredReceiver<T> {
 			},
 			Err(e) => {
 				let measurements = self.create_measurement(
-					self.first_poll_timestamp.unwrap_or_else(|| Instant::now()),
+					self.first_poll_timestamp.unwrap_or_else(|| CoarseInstant::now()),
 					Reason::Cancellation,
 				);
 				Err(Error::Canceled(e, measurements))
@@ -191,8 +192,8 @@ impl<T> MeteredReceiver<T> {
 	/// Helper to create a measurement.
 	///
 	/// `start` determines the first possible time where poll can resolve with `Ready`.
-	fn create_measurement(&self, start: Instant, reason: Reason) -> Measurements {
-		let end = Instant::now();
+	fn create_measurement(&self, start: CoarseInstant, reason: Reason) -> Measurements {
+		let end = CoarseInstant::now();
 		Measurements {
 			// negative values are ok, if `send` was called before we poll for the first time.
 			first_poll_till_end: end - start,
@@ -216,18 +217,18 @@ impl<T> Future for MeteredReceiver<T> {
 		ctx: &mut Context<'_>,
 	) -> Poll<Result<OutputWithMeasurements<T>, Error>> {
 		let first_poll_timestamp =
-			self.first_poll_timestamp.get_or_insert_with(|| Instant::now()).clone();
+			self.first_poll_timestamp.get_or_insert_with(|| CoarseInstant::now()).clone();
 
-		let soft_timeout = self.soft_timeout.clone();
+		let soft_timeout = self.soft_timeout.clone().into();
 		let soft_timeout = self
 			.soft_timeout_fut
 			.get_or_insert_with(move || Delay::new(soft_timeout).fuse());
 
 		if Pin::new(soft_timeout).poll(ctx).is_ready() {
-			tracing::warn!("Oneshot `{name}` exceeded the soft threshold", name = &self.name);
+			gum::warn!("Oneshot `{name}` exceeded the soft threshold", name = &self.name);
 		}
 
-		let hard_timeout = self.hard_timeout.clone();
+		let hard_timeout = self.hard_timeout.clone().into();
 		let hard_timeout =
 			self.hard_timeout_fut.get_or_insert_with(move || Delay::new(hard_timeout));
 
@@ -311,6 +312,7 @@ impl<T> Deref for OutputWithMeasurements<T> {
 mod tests {
 	use assert_matches::assert_matches;
 	use futures::{executor::ThreadPool, task::SpawnExt};
+	use std::time::Duration;
 
 	use super::*;
 
@@ -335,7 +337,7 @@ mod tests {
 		let _ = env_logger::builder().is_test(true).filter_level(LevelFilter::Trace).try_init();
 
 		let pool = ThreadPool::new().unwrap();
-		let (tx, rx) = channel(name, Duration::from_secs(1), Duration::from_secs(3));
+		let (tx, rx) = channel(name, CoarseDuration::from_secs(1), CoarseDuration::from_secs(3));
 		futures::executor::block_on(async move {
 			let handle_receiver = pool.spawn_with_handle(gen_receiver_test(rx)).unwrap();
 			let handle_sender = pool.spawn_with_handle(gen_sender_test(tx)).unwrap();

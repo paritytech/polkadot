@@ -20,13 +20,23 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
-use primitives::v1::{Id as ParaId, UpwardMessage};
-use sp_std::{
-	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
-};
+use primitives::v2::{Id as ParaId, UpwardMessage};
+use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
 
 pub use pallet::*;
+
+/// Maximum value that `config.max_upward_message_size` can be set to
+///
+/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
+/// pallet to check these values before setting.
+pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+#[cfg(test)]
+pub(crate) mod tests;
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///
@@ -86,7 +96,7 @@ fn upward_message_id(data: &[u8]) -> MessageId {
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
 	fn process_upward_message(
 		origin: ParaId,
-		data: &[u8],
+		mut data: &[u8],
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		use parity_scale_codec::DecodeLimit;
@@ -96,29 +106,38 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		};
 
 		let id = upward_message_id(&data[..]);
-		let maybe_msg = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
+		let maybe_msg_and_weight = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
-			&mut &data[..],
+			&mut data,
 		)
-		.map(Xcm::<C::Call>::try_from);
-		match maybe_msg {
+		.map(|xcm| {
+			(
+				Xcm::<C::Call>::try_from(xcm),
+				// NOTE: We are overestimating slightly here.
+				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
+				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
+				// are taking call and control-flow overhead into account twice.
+				<C as Config>::WeightInfo::process_upward_message(data.len() as u32),
+			)
+		});
+		match maybe_msg_and_weight {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
 				Ok(0)
 			},
-			Ok(Err(())) => {
+			Ok((Err(()), weight_used)) => {
 				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
-				Ok(0)
+				Ok(weight_used)
 			},
-			Ok(Ok(xcm_message)) => {
+			Ok((Ok(xcm_message), weight_used)) => {
 				let xcm_junction = Junction::Parachain(origin.into());
 				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
-						let weight_used = outcome.weight_used();
+						let outcome_weight = outcome.weight_used();
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
-						Ok(weight_used)
+						Ok(weight_used.saturating_add(outcome_weight))
 					},
 				}
 			},
@@ -162,6 +181,29 @@ impl fmt::Debug for AcceptanceCheckErr {
 	}
 }
 
+/// Weight information of this pallet.
+pub trait WeightInfo {
+	fn service_overweight() -> Weight;
+	fn process_upward_message(s: u32) -> Weight;
+	fn clean_ump_after_outgoing() -> Weight;
+}
+
+/// fallback implementation
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn service_overweight() -> Weight {
+		Weight::MAX
+	}
+
+	fn process_upward_message(_msg_size: u32) -> Weight {
+		Weight::MAX
+	}
+
+	fn clean_ump_after_outgoing() -> Weight {
+		Weight::MAX
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -189,6 +231,9 @@ pub mod pallet {
 
 		/// Origin which is allowed to execute overweight messages.
 		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -300,7 +345,7 @@ pub mod pallet {
 		///
 		/// Events:
 		/// - `OverweightServiced`: On success.
-		#[pallet::weight(weight_limit.saturating_add(1_000_000))]
+		#[pallet::weight(weight_limit.saturating_add(<T as Config>::WeightInfo::service_overweight()))]
 		pub fn service_overweight(
 			origin: OriginFor<T>,
 			index: OverweightIndex,
@@ -314,7 +359,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
 			Self::deposit_event(Event::OverweightServiced(index, used));
-			Ok(Some(used.saturating_add(1_000_000)).into())
+			Ok(Some(used.saturating_add(<T as Config>::WeightInfo::service_overweight())).into())
 		}
 	}
 }
@@ -333,20 +378,22 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 		outgoing_paras: &[ParaId],
-	) {
-		Self::perform_outgoing_para_cleanup(outgoing_paras);
+	) -> Weight {
+		Self::perform_outgoing_para_cleanup(outgoing_paras)
 	}
 
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
-	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
+		let mut weight: Weight = 0;
 		for outgoing_para in outgoing {
-			Self::clean_ump_after_outgoing(outgoing_para);
+			weight = weight.saturating_add(Self::clean_ump_after_outgoing(outgoing_para));
 		}
+		weight
 	}
 
 	/// Remove all relevant storage items for an outgoing parachain.
-	fn clean_ump_after_outgoing(outgoing_para: &ParaId) {
+	pub(crate) fn clean_ump_after_outgoing(outgoing_para: &ParaId) -> Weight {
 		<Self as Store>::RelayDispatchQueueSize::remove(outgoing_para);
 		<Self as Store>::RelayDispatchQueues::remove(outgoing_para);
 
@@ -363,6 +410,8 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::NextDispatchRoundStartWith::mutate(|v| {
 			*v = v.filter(|p| p == outgoing_para)
 		});
+
+		<T as Config>::WeightInfo::clean_ump_after_outgoing()
 	}
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
@@ -701,344 +750,5 @@ impl NeedsDispatchCursor {
 		let next_one = self.peek();
 		<Pallet<T> as Store>::NextDispatchRoundStartWith::set(next_one);
 		<Pallet<T> as Store>::NeedsDispatch::put(self.needs_dispatch);
-	}
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-	use super::*;
-	use crate::mock::{
-		assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig, Origin,
-		System, Test, Ump,
-	};
-	use frame_support::{assert_noop, assert_ok, weights::Weight};
-	use std::collections::HashSet;
-
-	struct GenesisConfigBuilder {
-		max_upward_message_size: u32,
-		max_upward_message_num_per_candidate: u32,
-		max_upward_queue_count: u32,
-		max_upward_queue_size: u32,
-		ump_service_total_weight: Weight,
-		ump_max_individual_weight: Weight,
-	}
-
-	impl Default for GenesisConfigBuilder {
-		fn default() -> Self {
-			Self {
-				max_upward_message_size: 16,
-				max_upward_message_num_per_candidate: 2,
-				max_upward_queue_count: 4,
-				max_upward_queue_size: 64,
-				ump_service_total_weight: 1000,
-				ump_max_individual_weight: 100,
-			}
-		}
-	}
-
-	impl GenesisConfigBuilder {
-		fn build(self) -> crate::mock::MockGenesisConfig {
-			let mut genesis = default_genesis_config();
-			let config = &mut genesis.configuration.config;
-
-			config.max_upward_message_size = self.max_upward_message_size;
-			config.max_upward_message_num_per_candidate = self.max_upward_message_num_per_candidate;
-			config.max_upward_queue_count = self.max_upward_queue_count;
-			config.max_upward_queue_size = self.max_upward_queue_size;
-			config.ump_service_total_weight = self.ump_service_total_weight;
-			config.ump_max_individual_weight = self.ump_max_individual_weight;
-			genesis
-		}
-	}
-
-	fn default_genesis_config() -> MockGenesisConfig {
-		MockGenesisConfig {
-			configuration: crate::configuration::GenesisConfig {
-				config: crate::configuration::HostConfiguration {
-					max_downward_message_size: 1024,
-					..Default::default()
-				},
-			},
-			..Default::default()
-		}
-	}
-
-	fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
-		let msgs = vec![msg];
-		assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
-		let _ = Ump::receive_upward_messages(para, msgs);
-	}
-
-	fn assert_storage_consistency_exhaustive() {
-		// check that empty queues don't clutter the storage.
-		for (_para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
-			assert!(!queue.is_empty());
-		}
-
-		// actually count the counts and sizes in queues and compare them to the bookkept version.
-		for (para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
-			let (expected_count, expected_size) = <Ump as Store>::RelayDispatchQueueSize::get(para);
-			let (actual_count, actual_size) =
-				queue.into_iter().fold((0, 0), |(acc_count, acc_size), x| {
-					(acc_count + 1, acc_size + x.len() as u32)
-				});
-
-			assert_eq!(expected_count, actual_count);
-			assert_eq!(expected_size, actual_size);
-		}
-
-		// since we wipe the empty queues the sets of paras in queue contents, queue sizes and
-		// need dispatch set should all be equal.
-		let queue_contents_set = <Ump as Store>::RelayDispatchQueues::iter()
-			.map(|(k, _)| k)
-			.collect::<HashSet<ParaId>>();
-		let queue_sizes_set = <Ump as Store>::RelayDispatchQueueSize::iter()
-			.map(|(k, _)| k)
-			.collect::<HashSet<ParaId>>();
-		let needs_dispatch_set =
-			<Ump as Store>::NeedsDispatch::get().into_iter().collect::<HashSet<ParaId>>();
-		assert_eq!(queue_contents_set, queue_sizes_set);
-		assert_eq!(queue_contents_set, needs_dispatch_set);
-
-		// `NextDispatchRoundStartWith` should point into a para that is tracked.
-		if let Some(para) = <Ump as Store>::NextDispatchRoundStartWith::get() {
-			assert!(queue_contents_set.contains(&para));
-		}
-
-		// `NeedsDispatch` is always sorted.
-		assert!(<Ump as Store>::NeedsDispatch::get().windows(2).all(|xs| xs[0] <= xs[1]));
-	}
-
-	#[test]
-	fn dispatch_empty() {
-		new_test_ext(default_genesis_config()).execute_with(|| {
-			assert_storage_consistency_exhaustive();
-
-			// make sure that the case with empty queues is handled properly
-			Ump::process_pending_upward_messages();
-
-			assert_storage_consistency_exhaustive();
-		});
-	}
-
-	#[test]
-	fn dispatch_single_message() {
-		let a = ParaId::from(228);
-		let msg = 1000u32.encode();
-
-		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			queue_upward_msg(a, msg.clone());
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(a, msg)]);
-
-			assert_storage_consistency_exhaustive();
-		});
-	}
-
-	#[test]
-	fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
-		let a = ParaId::from(128);
-		let c = ParaId::from(228);
-		let q = ParaId::from(911);
-
-		let a_msg_1 = (200u32, "a_msg_1").encode();
-		let a_msg_2 = (100u32, "a_msg_2").encode();
-		let c_msg_1 = (300u32, "c_msg_1").encode();
-		let c_msg_2 = (100u32, "c_msg_2").encode();
-		let q_msg = (500u32, "q_msg").encode();
-
-		new_test_ext(
-			GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
-		)
-		.execute_with(|| {
-			queue_upward_msg(q, q_msg.clone());
-			queue_upward_msg(c, c_msg_1.clone());
-			queue_upward_msg(a, a_msg_1.clone());
-			queue_upward_msg(a, a_msg_2.clone());
-
-			assert_storage_consistency_exhaustive();
-
-			// we expect only two first messages to fit in the first iteration.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(a, a_msg_1), (c, c_msg_1)]);
-			assert_storage_consistency_exhaustive();
-
-			queue_upward_msg(c, c_msg_2.clone());
-			assert_storage_consistency_exhaustive();
-
-			// second iteration should process the second message.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(q, q_msg)]);
-			assert_storage_consistency_exhaustive();
-
-			// 3rd iteration.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(a, a_msg_2), (c, c_msg_2)]);
-			assert_storage_consistency_exhaustive();
-
-			// finally, make sure that the queue is empty.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![]);
-			assert_storage_consistency_exhaustive();
-		});
-	}
-
-	#[test]
-	fn dispatch_keeps_message_after_weight_exhausted() {
-		let a = ParaId::from(128);
-
-		let a_msg_1 = (300u32, "a_msg_1").encode();
-		let a_msg_2 = (300u32, "a_msg_2").encode();
-
-		new_test_ext(
-			GenesisConfigBuilder {
-				ump_service_total_weight: 500,
-				ump_max_individual_weight: 300,
-				..Default::default()
-			}
-			.build(),
-		)
-		.execute_with(|| {
-			queue_upward_msg(a, a_msg_1.clone());
-			queue_upward_msg(a, a_msg_2.clone());
-
-			assert_storage_consistency_exhaustive();
-
-			// we expect only one message to fit in the first iteration.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(a, a_msg_1)]);
-			assert_storage_consistency_exhaustive();
-
-			// second iteration should process the remaining message.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(a, a_msg_2)]);
-			assert_storage_consistency_exhaustive();
-
-			// finally, make sure that the queue is empty.
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![]);
-			assert_storage_consistency_exhaustive();
-		});
-	}
-
-	#[test]
-	fn dispatch_correctly_handle_remove_of_latest() {
-		let a = ParaId::from(1991);
-		let b = ParaId::from(1999);
-
-		let a_msg_1 = (300u32, "a_msg_1").encode();
-		let a_msg_2 = (300u32, "a_msg_2").encode();
-		let b_msg_1 = (300u32, "b_msg_1").encode();
-
-		new_test_ext(
-			GenesisConfigBuilder { ump_service_total_weight: 900, ..Default::default() }.build(),
-		)
-		.execute_with(|| {
-			// We want to test here an edge case, where we remove the queue with the highest
-			// para id (i.e. last in the `needs_dispatch` order).
-			//
-			// If the last entry was removed we should proceed execution, assuming we still have
-			// weight available.
-
-			queue_upward_msg(a, a_msg_1.clone());
-			queue_upward_msg(a, a_msg_2.clone());
-			queue_upward_msg(b, b_msg_1.clone());
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(a, a_msg_1), (b, b_msg_1), (a, a_msg_2)]);
-		});
-	}
-
-	#[test]
-	fn verify_relay_dispatch_queue_size_is_externally_accessible() {
-		// Make sure that the relay dispatch queue size storage entry is accessible via well known
-		// keys and is decodable into a (u32, u32).
-
-		use parity_scale_codec::Decode as _;
-		use primitives::v1::well_known_keys;
-
-		let a = ParaId::from(228);
-		let msg = vec![1, 2, 3];
-
-		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			queue_upward_msg(a, msg);
-
-			let raw_queue_size =
-				sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a)).expect(
-					"enqueing a message should create the dispatch queue\
-				and it should be accessible via the well known keys",
-				);
-			let (cnt, size) = <(u32, u32)>::decode(&mut &raw_queue_size[..])
-				.expect("the dispatch queue size should be decodable into (u32, u32)");
-
-			assert_eq!(cnt, 1);
-			assert_eq!(size, 3);
-		});
-	}
-
-	#[test]
-	fn service_overweight_unknown() {
-		// This test just makes sure that 0 is not a valid index and we can use it not worrying in
-		// the next test.
-		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			assert_noop!(
-				Ump::service_overweight(Origin::root(), 0, 1000),
-				Error::<Test>::UnknownMessageIndex
-			);
-		});
-	}
-
-	#[test]
-	fn overweight_queue_works() {
-		let para_a = ParaId::from(2021);
-
-		let a_msg_1 = (301u32, "a_msg_1").encode();
-		let a_msg_2 = (500u32, "a_msg_2").encode();
-		let a_msg_3 = (500u32, "a_msg_3").encode();
-
-		new_test_ext(
-			GenesisConfigBuilder {
-				ump_service_total_weight: 900,
-				ump_max_individual_weight: 300,
-				..Default::default()
-			}
-			.build(),
-		)
-		.execute_with(|| {
-			// HACK: Start with the block number 1. This is needed because should an event be
-			// emitted during the genesis block they will be implicitly wiped.
-			System::set_block_number(1);
-
-			// This one is overweight. However, the weight is plenty and we can afford to execute
-			// this message, thus expect it.
-			queue_upward_msg(para_a, a_msg_1.clone());
-			Ump::process_pending_upward_messages();
-			assert_eq!(take_processed(), vec![(para_a, a_msg_1)]);
-
-			// This is overweight and this message cannot fit into the total weight budget.
-			queue_upward_msg(para_a, a_msg_2.clone());
-			queue_upward_msg(para_a, a_msg_3.clone());
-			Ump::process_pending_upward_messages();
-			assert_last_event(
-				Event::OverweightEnqueued(para_a, upward_message_id(&a_msg_3[..]), 0, 500).into(),
-			);
-
-			// Now verify that if we wanted to service this overweight message with less than enough
-			// weight it will fail.
-			assert_noop!(
-				Ump::service_overweight(Origin::root(), 0, 499),
-				Error::<Test>::WeightOverLimit
-			);
-
-			// ... and if we try to service it with just enough weight it will succeed as well.
-			assert_ok!(Ump::service_overweight(Origin::root(), 0, 500));
-			assert_last_event(Event::OverweightServiced(0, 500).into());
-
-			// ... and if we try to service a message with index that doesn't exist it will error
-			// out.
-			assert_noop!(
-				Ump::service_overweight(Origin::root(), 1, 1000),
-				Error::<Test>::UnknownMessageIndex
-			);
-		});
 	}
 }

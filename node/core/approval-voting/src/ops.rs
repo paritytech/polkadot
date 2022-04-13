@@ -20,12 +20,9 @@
 use polkadot_node_subsystem::SubsystemResult;
 
 use bitvec::order::Lsb0 as BitOrderLsb0;
-use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, GroupIndex, Hash};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, GroupIndex, Hash};
 
-use std::{
-	collections::{hash_map::Entry, BTreeMap, HashMap},
-	convert::Into,
-};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use super::{
 	approval_db::v1::{OurAssignment, StoredBlockRange},
@@ -242,7 +239,7 @@ pub fn add_block_entry(
 						candidate,
 						session,
 						block_assignments: BTreeMap::new(),
-						approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+						approvals: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 					}
 				});
 
@@ -253,7 +250,7 @@ pub fn add_block_entry(
 					backing_group,
 					our_assignment.map(|v| v.into()),
 					None,
-					bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
 					false,
 				),
 			);

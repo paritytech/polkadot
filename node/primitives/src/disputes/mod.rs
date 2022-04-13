@@ -14,15 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::convert::TryInto;
-
 use parity_scale_codec::{Decode, Encode};
 
 use sp_application_crypto::AppKey;
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 
 use super::{Statement, UncheckedSignedFullStatement};
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind, SessionIndex,
 	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };

@@ -39,7 +39,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, CurrentBlockRandomness};
-use primitives::v1::{
+use primitives::v2::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
@@ -81,10 +81,10 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 /// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-pub(crate) struct DisputedBitfield(pub(crate) BitVec<bitvec::order::Lsb0, u8>);
+pub(crate) struct DisputedBitfield(pub(crate) BitVec<u8, bitvec::order::Lsb0>);
 
-impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
-	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
+impl From<BitVec<u8, bitvec::order::Lsb0>> for DisputedBitfield {
+	fn from(inner: BitVec<u8, bitvec::order::Lsb0>) -> Self {
 		Self(inner)
 	}
 }
@@ -93,7 +93,7 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 impl DisputedBitfield {
 	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
-		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
+		Self::from(BitVec::<u8, bitvec::order::Lsb0>::repeat(false, n))
 	}
 }
 
@@ -596,12 +596,14 @@ impl<T: Config> Pallet<T> {
 		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
+		// TODO: Better if we can convert this to `with_transactional` and handle an error if
+		// too many transactional layers are spawned.
 		let (
 			mut backed_candidates,
 			mut bitfields,
 			checked_disputes_sets,
 			checked_disputes_sets_consumed_weight,
-		) = frame_support::storage::with_transaction(|| {
+		) = frame_support::storage::with_transaction_unchecked(|| {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
@@ -964,7 +966,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 		return vec![]
 	}
 
-	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
+	let all_zeros = BitVec::<u8, bitvec::order::Lsb0>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
 		// Find and skip invalid bitfields.

@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        runtime: ["polkadot", "kusama", "westend"]
+        runtime: ["polkadot", "kusama", "westend", "rococo"]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -103,20 +103,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NO_CACHE: 1
           DEBUG: 1
+          ROCOCO_DIGEST: ${{ github.workspace}}/rococo-srtool-json/rococo_srtool_output.json
           WESTEND_DIGEST: ${{ github.workspace}}/westend-srtool-json/westend_srtool_output.json
           KUSAMA_DIGEST: ${{ github.workspace}}/kusama-srtool-json/kusama_srtool_output.json
           POLKADOT_DIGEST: ${{ github.workspace}}/polkadot-srtool-json/polkadot_srtool_output.json
           PRE_RELEASE: ${{ github.event.inputs.pre_release }}
-          HIDE_SRTOOL_ROCOCO: false
         run: |
           find ${{env.GITHUB_WORKSPACE}} -type f -name "*_srtool_output.json"
+          ls -al $ROCOCO_DIGEST
           ls -al $WESTEND_DIGEST
           ls -al $KUSAMA_DIGEST
           ls -al $POLKADOT_DIGEST
 
           cd polkadot/scripts/changelog
 
-          ./bin/changelog
+          ./bin/changelog ${GITHUB_REF}
           ls -al release-notes.md
           ls -al context.json
 
@@ -146,7 +147,7 @@ jobs:
       RUNTIME_DIR: runtime
     strategy:
       matrix:
-        runtime: ["polkadot", "kusama", "westend"]
+        runtime: ["polkadot", "kusama", "westend", "rococo"]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
