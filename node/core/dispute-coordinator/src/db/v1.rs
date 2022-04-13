@@ -276,7 +276,7 @@ mod tests {
 	fn overlay_pre_and_post_commit_consistency() {
 		let mut backend = make_db();
 
-		let mut overlay_db = OverlayedBackend::new(&backend);
+		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
 
 		overlay_db.write_earliest_session(0);
 		overlay_db.write_earliest_session(1);
@@ -367,7 +367,7 @@ mod tests {
 	fn overlay_preserves_candidate_votes_operation_order() {
 		let mut backend = make_db();
 
-		let mut overlay_db = OverlayedBackend::new(&backend);
+		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
 		overlay_db.delete_candidate_votes(1, CandidateHash(Hash::repeat_byte(1)));
 
 		overlay_db.write_candidate_votes(
@@ -394,7 +394,7 @@ mod tests {
 			ParaId::from(1),
 		);
 
-		let mut overlay_db = OverlayedBackend::new(&backend);
+		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
 		overlay_db.write_candidate_votes(
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
@@ -444,7 +444,7 @@ mod tests {
 			invalid: Vec::new(),
 		};
 
-		let mut overlay_db = OverlayedBackend::new(&backend);
+		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
 		overlay_db.write_earliest_session(prev_earliest_session);
 		overlay_db.write_recent_disputes(
 			vec![
@@ -468,7 +468,7 @@ mod tests {
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
 
-		let mut overlay_db = OverlayedBackend::new(&backend);
+		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
 		note_current_session(&mut overlay_db, current_session).unwrap();
 
 		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session));

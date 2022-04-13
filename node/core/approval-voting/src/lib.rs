@@ -724,8 +724,9 @@ where
 		}
 	};
 
+	let mut overlayed_db = OverlayedBackend::new(&mut backend);
+
 	loop {
-		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
@@ -807,9 +808,9 @@ where
 
 		if !overlayed_db.is_empty() {
 			let _timer = subsystem.metrics.time_db_transaction();
-
-			let ops = overlayed_db.into_write_ops();
-			backend.write(ops)?;
+			overlayed_db.flush();
+			// let ops = overlayed_db.into_write_ops();
+			// backend.write(ops)?;
 		}
 	}
 

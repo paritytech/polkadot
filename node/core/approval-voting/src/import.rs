@@ -1155,7 +1155,7 @@ pub(crate) mod tests {
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
 		let db_writer: Arc<dyn Database> = Arc::new(db);
 		let mut db = DbBackend::new(db_writer.clone(), TEST_CONFIG);
-		let mut overlay_db = OverlayedBackend::new(&db);
+		let mut overlay_db = OverlayedBackend::new(&mut db);
 
 		let pool = TaskExecutor::new();
 		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
@@ -1236,7 +1236,7 @@ pub(crate) mod tests {
 
 		let test_fut = {
 			Box::pin(async move {
-				let mut overlay_db = OverlayedBackend::new(&db);
+				let mut overlay_db = OverlayedBackend::new(&mut db);
 				let result = handle_new_head(&mut ctx, &mut state, &mut overlay_db, hash, &Some(1))
 					.await
 					.unwrap();

@@ -1054,10 +1054,11 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 
+			let timer = metrics.time_awaiting_approval_voting();
+
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
-			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {

@@ -65,7 +65,7 @@ pub trait Backend {
 /// write operations which will, when written to the underlying backend, give the same view as the
 /// state of the overlay.
 pub struct OverlayedBackend<'a, B: 'a> {
-	inner: &'a B,
+	inner: &'a mut B,
 
 	// `None` means unchanged.
 	earliest_session: Option<SessionIndex>,
@@ -76,7 +76,7 @@ pub struct OverlayedBackend<'a, B: 'a> {
 }
 
 impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
-	pub fn new(backend: &'a B) -> Self {
+	pub fn new(backend: &'a mut B, metrics: Metrics) -> Self {
 		Self {
 			inner: backend,
 			earliest_session: None,
@@ -90,6 +90,28 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.earliest_session.is_none() &&
 			self.recent_disputes.is_none() &&
 			self.candidate_votes.is_empty()
+	}
+
+	/// Is flush needed ?
+	#[cfg(test)]
+	pub fn needs_flush(&self) -> bool {
+		#[cfg(test)]
+		return !self.is_empty()
+	}
+
+	/// Is flush needed ?
+	#[cfg(not(test))]
+	pub fn needs_flush(&self) -> bool {
+		// Arbitrary value here, just for testing. Should be a good buffer size to see any improvements.
+		return self.candidate_votes.len() > 1000
+	}
+
+	pub fn flush(&mut self) {
+		if self.needs_flush() {
+			let ops = self.into_write_ops();
+			gum::debug!("Flushing db writes");
+			let _ = self.inner.write(ops);
+		}
 	}
 
 	/// Load the earliest session, if any.
@@ -157,23 +179,29 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	/// Transform this backend into a set of write-ops to be written to the inner backend.
-	pub fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
+	pub fn into_write_ops(&mut self) -> impl Iterator<Item = BackendWriteOp> {
 		let earliest_session_ops = self
 			.earliest_session
+			.clone()
 			.map(|s| BackendWriteOp::WriteEarliestSession(s))
 			.into_iter();
 
-		let recent_dispute_ops =
-			self.recent_disputes.map(|d| BackendWriteOp::WriteRecentDisputes(d)).into_iter();
+		let recent_dispute_ops = self
+			.recent_disputes
+			.clone()
+			.map(|d| BackendWriteOp::WriteRecentDisputes(d))
+			.into_iter();
 
-		let candidate_vote_ops =
-			self.candidate_votes
-				.into_iter()
-				.map(|((session, candidate), votes)| match votes {
-					Some(votes) => BackendWriteOp::WriteCandidateVotes(session, candidate, votes),
-					None => BackendWriteOp::DeleteCandidateVotes(session, candidate),
-				});
+		let candidate_vote_ops = self.candidate_votes.clone().into_iter().map(
+			|((session, candidate), votes)| match votes {
+				Some(votes) => BackendWriteOp::WriteCandidateVotes(session, candidate, votes),
+				None => BackendWriteOp::DeleteCandidateVotes(session, candidate),
+			},
+		);
 
+		self.earliest_session = None;
+		self.recent_disputes = None;
+		self.candidate_votes = HashMap::new();
 		earliest_session_ops.chain(recent_dispute_ops).chain(candidate_vote_ops)
 	}
 }

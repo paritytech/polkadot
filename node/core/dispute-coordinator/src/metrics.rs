@@ -74,6 +74,35 @@ impl Metrics {
 			metrics.queued_participations.with_label_values(&["best-effort"]).inc();
 		}
 	}
+
+	/// Time a particular request.
+	pub fn time_request(
+		&self,
+		req: &'static str,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.requests.with_label_values(&[req]).start_timer())
+	}
+
+	/// Time a DB write operation.
+	pub fn time_db_write_operation(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.db_operations.with_label_values(&["write", "flush"]).start_timer()
+		})
+	}
+
+	/// Time a DB read operation.
+	pub fn time_db_read_operation(
+		&self,
+		kind: &str,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.db_operations.with_label_values(&["read", kind]).start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
