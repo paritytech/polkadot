@@ -226,7 +226,7 @@ build-linux-stable:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    RUSTFLAGS: "-Cdebug-assertions=y"
   script:
     - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
     - sccache -s
