@@ -21,8 +21,8 @@ use crate::JaegerError;
 /// A description of an error causing the runtime API request to be unservable.
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum RuntimeApiError {
-	/// The runtime API cannot be executed due to a
-	#[error("The runtime API '{runtime_api_name}' cannot be executed")]
+	/// The runtime API cannot be executed due to a runtime error.
+	#[error("The runtime API '{runtime_api_name}' cannot be executed: {source}")]
 	Execution {
 		/// The runtime API being called
 		runtime_api_name: &'static str,

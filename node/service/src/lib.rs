@@ -54,7 +54,7 @@ pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
-	polkadot_primitives::v2::ParachainHost,
+	polkadot_primitives::runtime_api::ParachainHost,
 	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -512,6 +512,7 @@ where
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
+		let backend = backend.clone();
 
 		move |deny_unsafe,
 		      subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
@@ -541,7 +542,7 @@ where
 				},
 			};
 
-			polkadot_rpc::create_full(deps).map_err(Into::into)
+			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)
 		}
 	};
 
@@ -731,23 +732,16 @@ where
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let disputes_enabled = chain_spec.is_rococo() ||
-		chain_spec.is_kusama() ||
-		chain_spec.is_westend() ||
-		chain_spec.is_versi() ||
-		chain_spec.is_wococo();
-
 	let pvf_checker_enabled = !is_collator.is_collator() && chain_spec.is_versi();
 
 	let select_chain = if requires_overseer_for_chain_sel {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
 
-		SelectRelayChain::new_disputes_aware(
+		SelectRelayChain::new_with_overseer(
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
-			disputes_enabled,
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
@@ -1006,7 +1000,6 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
-					disputes_enabled,
 					pvf_checker_enabled,
 				},
 			)
@@ -1123,6 +1116,7 @@ where
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
+			runtime: client.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
 			signed_commitment_sender: beefy_links.0,
@@ -1132,7 +1126,7 @@ where
 			protocol_name: beefy_protocol_name,
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
+		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.

@@ -16,8 +16,6 @@
 
 use super::*;
 
-use std::convert::TryFrom;
-
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 

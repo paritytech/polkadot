@@ -45,7 +45,7 @@ use frame_support::{ensure, fail};
 use frame_system::{ensure_signed, RawOrigin};
 use sp_finality_grandpa::{ConsensusLog, GRANDPA_ENGINE_ID};
 use sp_runtime::traits::{BadOrigin, Header as HeaderT, Zero};
-use sp_std::{boxed::Box, convert::TryInto};
+use sp_std::boxed::Box;
 
 #[cfg(test)]
 mod mock;

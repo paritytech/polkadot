@@ -21,7 +21,7 @@ use polkadot_test_service::{node_config, run_validator_node, test_prometheus_con
 use primitives::v2::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
 use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
 use sp_keyring::AccountKeyring::*;
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9616;
 

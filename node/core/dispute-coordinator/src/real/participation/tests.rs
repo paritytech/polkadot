@@ -110,7 +110,10 @@ async fn activate_leaf(
 }
 
 /// Full participation happy path as seen via the overseer.
-pub async fn participation_full_happy_path(ctx_handle: &mut VirtualOverseer) {
+pub async fn participation_full_happy_path(
+	ctx_handle: &mut VirtualOverseer,
+	expected_commitments_hash: Hash,
+) {
 	recover_available_data(ctx_handle).await;
 	fetch_validation_code(ctx_handle).await;
 	store_available_data(ctx_handle, true).await;
@@ -118,9 +121,13 @@ pub async fn participation_full_happy_path(ctx_handle: &mut VirtualOverseer) {
 	assert_matches!(
 	ctx_handle.recv().await,
 	AllMessages::CandidateValidation(
-		CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
+		CandidateValidationMessage::ValidateFromExhaustive(_, _, candidate_receipt, _, timeout, tx)
 		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-		tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
+			if expected_commitments_hash != candidate_receipt.commitments_hash {
+				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))).unwrap();
+			} else {
+				tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
+			}
 	},
 	"overseer did not receive candidate validation message",
 	);
@@ -440,7 +447,7 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 }
 
 #[test]
-fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
+fn cast_invalid_vote_if_commitments_dont_match() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
@@ -461,11 +468,7 @@ fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-				let mut commitments = CandidateCommitments::default();
-				// this should lead to a commitments hash mismatch
-				commitments.processed_downward_messages = 42;
-
-				tx.send(Ok(ValidationResult::Valid(commitments, PersistedValidationData::default()))).unwrap();
+				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))).unwrap();
 			},
 			"overseer did not receive candidate validation message",
 		);

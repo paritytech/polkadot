@@ -34,7 +34,7 @@ use polkadot_overseer::{
 	Overseer, OverseerConnector, OverseerHandle,
 };
 
-use polkadot_primitives::v2::ParachainHost;
+use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
@@ -63,6 +63,7 @@ pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
@@ -108,8 +109,6 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
-	/// Enable to disputes.
-	pub disputes_enabled: bool,
 	/// Enable PVF pre-checking
 	pub pvf_checker_enabled: bool,
 }
@@ -138,7 +137,6 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
-		disputes_enabled,
 		pvf_checker_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
@@ -148,7 +146,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
 		CandidateBackingSubsystem<Spawner>,
-		StatementDistributionSubsystem,
+		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
 		BitfieldSigningSubsystem<Spawner>,
@@ -243,7 +241,7 @@ where
 		))
 		.provisioner(ProvisionerSubsystem::new(
 			spawner.clone(),
-			ProvisionerConfig { disputes_enabled },
+			ProvisionerConfig,
 			Metrics::register(registry)?,
 		))
 		.runtime_api(RuntimeApiSubsystem::new(
@@ -255,6 +253,7 @@ where
 			keystore.clone(),
 			statement_req_receiver,
 			Metrics::register(registry)?,
+			rand::rngs::StdRng::from_entropy(),
 		))
 		.approval_distribution(ApprovalDistributionSubsystem::new(Metrics::register(registry)?))
 		.approval_voting(ApprovalVotingSubsystem::with_config(
@@ -269,16 +268,12 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.dispute_coordinator(if disputes_enabled {
-			DisputeCoordinatorSubsystem::new(
-				parachains_db.clone(),
-				dispute_coordinator_config,
-				keystore.clone(),
-				Metrics::register(registry)?,
-			)
-		} else {
-			DisputeCoordinatorSubsystem::dummy()
-		})
+		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
+			parachains_db.clone(),
+			dispute_coordinator_config,
+			keystore.clone(),
+			Metrics::register(registry)?,
+		))
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,

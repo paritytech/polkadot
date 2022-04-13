@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-rpc"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -29,3 +29,4 @@ pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrat
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
