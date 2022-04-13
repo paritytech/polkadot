@@ -596,12 +596,14 @@ impl<T: Config> Pallet<T> {
 		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
+		// TODO: Better if we can convert this to `with_transactional` and handle an error if
+		// too many transactional layers are spawned.
 		let (
 			mut backed_candidates,
 			mut bitfields,
 			checked_disputes_sets,
 			checked_disputes_sets_consumed_weight,
-		) = frame_support::storage::with_transaction(|| {
+		) = frame_support::storage::with_transaction_unchecked(|| {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
