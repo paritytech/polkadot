@@ -69,8 +69,7 @@ impl TestState {
 		let finalized_block_number = 0;
 		let overseer_fut = async {
 			assert_finalized_block_number_request(&mut ctx_handle, finalized_block_number).await;
-			// No requests for ancestors since the block is already finalized.
-			assert_block_ancestors_request(&mut ctx_handle, &chain).await;
+			// No ancestors requests, as list would be empty.
 			assert_candidate_events_request(&mut ctx_handle, &chain).await;
 			assert_chain_vote_request(&mut ctx_handle, &chain).await;
 		};

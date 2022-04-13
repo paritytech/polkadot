@@ -204,7 +204,8 @@ impl ChainScraper {
 
 		let mut ancestors = Vec::new();
 
-		if self.last_observed_blocks.get(&head).is_some() || head_number <= target_ancestor {
+		// If head_number <= target_ancestor + 1 the ancestry will be empty.
+		if self.last_observed_blocks.get(&head).is_some() || head_number <= target_ancestor + 1 {
 			return Ok(ancestors)
 		}
 
