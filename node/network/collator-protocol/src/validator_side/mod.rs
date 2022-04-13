@@ -43,8 +43,11 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_primitives::{PoV, SignedFullStatement};
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v2::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
+};
+use polkadot_primitives::v2::{CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{
@@ -56,7 +59,7 @@ use polkadot_subsystem::{
 
 use crate::error::Result;
 
-use super::{modify_reputation, LOG_TARGET};
+use super::{modify_reputation, LOG_TARGET, NEXT_GROUP_PRECONNECT_WINDOW};
 
 #[cfg(test)]
 mod tests;
@@ -618,6 +621,54 @@ struct State {
 	pending_candidates: HashMap<Hash, CollationEvent>,
 }
 
+/// Returns `true` if there's a leaf in our view close to the next group rotation
+/// and the validator will be assigned to core with a given para id.
+async fn is_preconnect_allowed<Context>(
+	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
+	view: &View,
+	para_id: ParaId,
+) -> Result<bool>
+where
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+{
+	for relay_parent in view.iter() {
+		let rotation_info = get_group_rotation_info(ctx, *relay_parent).await?;
+		let next_rotation_at = rotation_info.next_rotation_at();
+		if next_rotation_at.saturating_sub(rotation_info.now) > NEXT_GROUP_PRECONNECT_WINDOW {
+			continue
+		}
+
+		let session_index =
+			runtime.get_session_index_for_child(ctx.sender(), *relay_parent).await?;
+		let info = runtime
+			.get_session_info_by_index(ctx.sender(), *relay_parent, session_index)
+			.await?;
+		let our_index = match info.validator_info.our_index {
+			Some(idx) => idx,
+			None => continue,
+		};
+
+		let cores = get_availability_cores(ctx, *relay_parent).await?;
+
+		let groups = &info.session_info.validator_groups;
+		let group_idx = polkadot_node_subsystem_util::find_validator_group(groups, our_index);
+		if let Some(group_idx) = group_idx {
+			let next_rotation_info = rotation_info.bump_rotation();
+			let next_core_idx = next_rotation_info.core_for_group(group_idx, cores.len());
+
+			let next_core_para_id =
+				cores.get(next_core_idx.0 as usize).and_then(CoreState::para_id);
+
+			if next_core_para_id == Some(para_id) {
+				return Ok(true)
+			}
+		}
+	}
+	Ok(false)
+}
+
 // O(n) search for collator ID by iterating through the peers map. This should be fast enough
 // unless a large amount of peers is expected.
 fn collator_peer_id(
@@ -825,6 +876,7 @@ async fn request_collation<Context>(
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
+	runtime: &mut RuntimeInfo,
 	origin: PeerId,
 	msg: protocol_v1::CollatorProtocolMessage,
 ) where
@@ -887,6 +939,22 @@ async fn process_incoming_peer_message<Context>(
 
 				peer_data.set_collating(collator_id, para_id);
 			} else {
+				if is_preconnect_allowed(ctx, runtime, &*state.view, para_id)
+					.await
+					.unwrap_or(false)
+				{
+					gum::debug!(
+						target: LOG_TARGET,
+						peer_id = ?origin,
+						?collator_id,
+						?para_id,
+						"Declared as collator for the next rotation",
+					);
+
+					peer_data.set_collating(collator_id, para_id);
+					return
+				}
+
 				gum::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
@@ -1072,6 +1140,7 @@ where
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
+	runtime: &mut RuntimeInfo,
 	keystore: &SyncCryptoStorePtr,
 	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
 ) -> Result<()>
@@ -1100,7 +1169,7 @@ where
 			handle_our_view_change(ctx, state, keystore, view).await?;
 		},
 		PeerMessage(remote, msg) => {
-			process_incoming_peer_message(ctx, state, remote, msg).await;
+			process_incoming_peer_message(ctx, state, runtime, remote, msg).await;
 		},
 	}
 
@@ -1110,6 +1179,7 @@ where
 /// The main message receiver switch.
 async fn process_msg<Context>(
 	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
 	keystore: &SyncCryptoStorePtr,
 	msg: CollatorProtocolMessage,
 	state: &mut State,
@@ -1140,12 +1210,12 @@ async fn process_msg<Context>(
 				target: LOG_TARGET,
 				"Connect message is not expected on the validator side of the protocol",
 			);
-		}
+		},
 		ReportCollator(id) => {
 			report_collator(ctx, &state.peer_data, id).await;
 		},
 		NetworkBridgeUpdateV1(event) => {
-			if let Err(e) = handle_network_msg(ctx, state, keystore, event).await {
+			if let Err(e) = handle_network_msg(ctx, state, runtime, keystore, event).await {
 				gum::warn!(
 					target: LOG_TARGET,
 					err = ?e,
@@ -1227,6 +1297,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	let mut state = State { metrics, ..Default::default() };
+	let mut runtime = RuntimeInfo::new(Some(keystore.clone()));
 
 	let next_inactivity_stream = infinite_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
@@ -1242,6 +1313,7 @@ where
 						gum::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 						process_msg(
 							&mut ctx,
+							&mut runtime,
 							&keystore,
 							msg,
 							&mut state,

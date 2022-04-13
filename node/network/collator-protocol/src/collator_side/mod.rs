@@ -499,8 +499,7 @@ where
 	for (idx, core) in cores.iter().enumerate() {
 		let core_para_id = match (assignment_type, core) {
 			(AssignmentType::Current, CoreState::Scheduled(core)) => core.para_id,
-			(AssignmentType::Lookahead, CoreState::Occupied(core)) =>
-				core.candidate_descriptor.para_id,
+			(AssignmentType::Lookahead, CoreState::Occupied(core)) => core.para_id(),
 			_ => continue,
 		};
 
@@ -806,9 +805,9 @@ where
 
 			log_error(
 				preconnect(ctx, runtime, para_id, relay_parent).await,
-				"Failed to pre-connect to validators"
+				"Failed to pre-connect to validators",
 			)?;
-		}
+		},
 		_ => {},
 	}
 
