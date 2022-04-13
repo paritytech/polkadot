@@ -173,7 +173,7 @@ parameter_types! {
 	pub const MaxBalance: Balance = Balance::max_value();
 }
 pub type TreasurySpender = EitherOf<
-	EnsureRootWithSuccess<AccountId, Balance, MaxBalance>,
+	EnsureRootWithSuccess<AccountId, MaxBalance>,
 	EitherOf<
 		EitherOf<SmallTipper<AccountId>, BigTipper<AccountId>>,
 		EitherOf<
@@ -185,81 +185,238 @@ pub type TreasurySpender = EitherOf<
 
 impl pallet_custom_origins::Config for Runtime {}
 
-use pallet_referenda::Curve;
-const TIP_APP: Curve = Curve::make_linear(10, 28, percent(50));
-const TIP_SUP: Curve = Curve::make_reciprocal(1, 28, percent(4), percent(0));
-const ROOT_APP: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50));
-const ROOT_SUP: Curve = Curve::make_linear(28, 28, percent(0));
-const WHITE_APP: Curve = Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50));
-const WHITE_SUP: Curve = Curve::make_reciprocal(1, 28, percent(20), percent(10));
-const SMALL_APP: Curve = Curve::make_linear(10, 28, percent(50));
-const SMALL_SUP: Curve = Curve::make_reciprocal(8, 28, percent(1), percent(0));
-const MID_APP: Curve = Curve::make_linear(17, 28, percent(50));
-const MID_SUP: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0));
-const BIG_APP: Curve = Curve::make_linear(23, 28, percent(50));
-const BIG_SUP: Curve = Curve::make_reciprocal(16, 28, percent(1), percent(0));
-const HUGE_APP: Curve = Curve::make_linear(28, 28, percent(50));
-const HUGE_SUP: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0));
-const PARAM_APP: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50));
-const PARAM_SUP: Curve = Curve::make_reciprocal(7, 28, percent(10), percent(0));
-const ADMIN_APP: Curve = Curve::make_linear(17, 28, percent(50));
-const ADMIN_SUP: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0));
-
-#[test]
-#[should_panic]
-fn check_curves() {
-	TIP_APP.info(28u32, "Tip Approval");
-	TIP_SUP.info(28u32, "Tip Support");
-	ROOT_APP.info(28u32, "Root Approval");
-	ROOT_SUP.info(28u32, "Root Support");
-	WHITE_APP.info(28u32, "Whitelist Approval");
-	WHITE_SUP.info(28u32, "Whitelist Support");
-	SMALL_APP.info(28u32, "Small Spend Approval");
-	SMALL_SUP.info(28u32, "Small Spend Support");
-	MID_APP.info(28u32, "Mid Spend Approval");
-	MID_SUP.info(28u32, "Mid Spend Support");
-	BIG_APP.info(28u32, "Big Spend Approval");
-	BIG_SUP.info(28u32, "Big Spend Support");
-	HUGE_APP.info(28u32, "Huge Spend Approval");
-	HUGE_SUP.info(28u32, "Huge Spend Support");
-	PARAM_APP.info(28u32, "Mid-tier Parameter Change Approval");
-	PARAM_SUP.info(28u32, "Mid-tier Parameter Change Support");
-	ADMIN_APP.info(28u32, "Admin (e.g. Cancel Slash) Approval");
-	ADMIN_SUP.info(28u32, "Admin (e.g. Cancel Slash) Support");
-	assert!(false);
+const fn percent(x: i32) -> sp_arithmetic::FixedI64 {
+	sp_arithmetic::FixedI64::from_rational(x as u128, 100)
 }
+use pallet_referenda::Curve;
+const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15] = [
+	(
+		0,
+		pallet_referenda::TrackInfo {
+			name: "root",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_reciprocal(4, 28, percent(80), percent(50)),
+			min_support: Curve::make_linear(28, 28, percent(0)),
+		},
+	), (
+		1,
+		pallet_referenda::TrackInfo {
+			name: "staking_admin",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(17, 28, percent(50)),
+			min_support: Curve::make_reciprocal(12, 28, percent(1), percent(0)),
+		},
+	), (
+		2,
+		pallet_referenda::TrackInfo {
+			name: "treasurer",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_reciprocal(4, 28, percent(80), percent(50)),
+			min_support: Curve::make_linear(28, 28, percent(0)),
+		},
+	), (
+		3,
+		pallet_referenda::TrackInfo {
+			name: "fellowship_admin",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(17, 28, percent(50)),
+			min_support: Curve::make_reciprocal(12, 28, percent(1), percent(0)),
+		},
+	), (
+		4,
+		pallet_referenda::TrackInfo {
+			name: "general_admin",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_reciprocal(4, 28, percent(80), percent(50)),
+			min_support: Curve::make_reciprocal(7, 28, percent(10), percent(0)),
+		},
+	), (
+		5,
+		pallet_referenda::TrackInfo {
+			name: "auction_admin",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_reciprocal(4, 28, percent(80), percent(50)),
+			min_support: Curve::make_reciprocal(7, 28, percent(10), percent(0)),
+		},
+	), (
+		6,
+		pallet_referenda::TrackInfo {
+			name: "lease_admin",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(17, 28, percent(50)),
+			min_support: Curve::make_reciprocal(12, 28, percent(1), percent(0)),
+		},
+	), (
+		7,
+		pallet_referenda::TrackInfo {
+			name: "referendum_canceller",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(17, 28, percent(50)),
+			min_support: Curve::make_reciprocal(12, 28, percent(1), percent(0)),
+		},
+	), (
+		8,
+		pallet_referenda::TrackInfo {
+			name: "referendum_killer",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(17, 28, percent(50)),
+			min_support: Curve::make_reciprocal(12, 28, percent(1), percent(0)),
+		},
+	), (
+		9,
+		pallet_referenda::TrackInfo {
+			name: "small_tipper",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(10, 28, percent(50)),
+			min_support: Curve::make_reciprocal(1, 28, percent(4), percent(0)),
+		},
+	), (
+		10,
+		pallet_referenda::TrackInfo {
+			name: "big_tipper",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(10, 28, percent(50)),
+			min_support: Curve::make_reciprocal(8, 28, percent(1), percent(0)),
+		},
+	), (
+		11,
+		pallet_referenda::TrackInfo {
+			name: "small_spender",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(17, 28, percent(50)),
+			min_support: Curve::make_reciprocal(12, 28, percent(1), percent(0)),
+		},
+	), (
+		12,
+		pallet_referenda::TrackInfo {
+			name: "medium_spender",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(23, 28, percent(50)),
+			min_support: Curve::make_reciprocal(16, 28, percent(1), percent(0)),
+		},
+	), (
+		13,
+		pallet_referenda::TrackInfo {
+			name: "big_spender",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_linear(28, 28, percent(50)),
+			min_support: Curve::make_reciprocal(20, 28, percent(1), percent(0)),
+		},
+	), (
+		14,
+		pallet_referenda::TrackInfo {
+			name: "whitelisted_caller",
+			max_deciding: 1,
+			decision_deposit: 10,
+			prepare_period: 4,
+			decision_period: 4,
+			confirm_period: 2,
+			min_enactment_period: 4,
+			min_approval: Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50)),
+			min_support: Curve::make_reciprocal(1, 28, percent(20), percent(10)),
+		},
+	)
+];
 
 pub struct TracksInfo;
 impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
-	type Id = u8;
+	type Id = u16;
 	type Origin = <Origin as frame_support::traits::OriginTrait>::PalletsOrigin;
 	fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
-		static DATA: [(u8, pallet_referenda::TrackInfo<Balance, BlockNumber>); 1] = [(
-			0u8,
-			pallet_referenda::TrackInfo {
-				name: "root",
-				max_deciding: 1,
-				decision_deposit: 10,
-				prepare_period: 4,
-				decision_period: 4,
-				confirm_period: 2,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					begin: Perbill::from_percent(100),
-					delta: Perbill::from_percent(50),
-				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					begin: Perbill::from_percent(100),
-					delta: Perbill::from_percent(100),
-				},
-			},
-		)];
-		&DATA[..]
+		&TRACKS_DATA[..]
 	}
 	fn track_for(id: &Self::Origin) -> Result<Self::Id, ()> {
 		if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
 			match system_origin {
 				frame_system::RawOrigin::Root => Ok(0),
+				_ => Err(()),
+			}
+		} else if let Ok(custom_origin) = pallet_custom_origins::Origin::try_from(id.clone()) {
+			match custom_origin {
+				StakingAdmin => Ok(1),
+				Treasurer => Ok(2),
+				FellowshipAdmin => Ok(3),
+				GeneralAdmin => Ok(4),
+				AuctionAdmin => Ok(5),
+				LeaseAdmin => Ok(6),
+				ReferendumCanceller => Ok(7),
+				ReferendumKiller => Ok(8),
+				SmallTipper => Ok(9),
+				BigTipper => Ok(10),
+				SmallSpender => Ok(11),
+				MediumSpender => Ok(12),
+				BigSpender => Ok(13),
+				WhitelistedCaller => Ok(14),
 				_ => Err(()),
 			}
 		} else {
