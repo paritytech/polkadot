@@ -302,7 +302,7 @@ impl CandidateComparator {
 	/// Create a candidate comparator for a given candidate.
 	///
 	/// Returns:
-	///		Ok(None) in case we could not lookup the candidate's relay parent, returns a
+	///		`Ok(None)` in case we could not lookup the candidate's relay parent, returns a
 	///		`FatalError` in case the chain API call fails with an unexpected error.
 	pub async fn new(
 		sender: &mut impl SubsystemSender,
