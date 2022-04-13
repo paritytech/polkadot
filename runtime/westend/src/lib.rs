@@ -24,7 +24,9 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain::UnboundedExecution, SequentialPhragmen};
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime,
+	pallet_prelude::GetDefault,
+	parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::ConstantMultiplier,
 	PalletId,

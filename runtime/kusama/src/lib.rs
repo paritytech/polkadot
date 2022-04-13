@@ -51,7 +51,9 @@ use frame_election_provider_support::{
 	generate_solution_type, onchain::UnboundedExecution, NposSolution, SequentialPhragmen,
 };
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime,
+	pallet_prelude::GetDefault,
+	parameter_types,
 	traits::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
