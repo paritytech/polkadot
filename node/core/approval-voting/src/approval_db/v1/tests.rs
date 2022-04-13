@@ -104,7 +104,7 @@ fn read_write() {
 		approvals: Default::default(),
 	};
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	overlay_db.write_stored_block_range(range.clone());
 	overlay_db.write_blocks_at_height(1, at_height.clone());
 	overlay_db.write_block_entry(block_entry.clone().into());
@@ -124,7 +124,7 @@ fn read_write() {
 		Some(candidate_entry.into()),
 	);
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	overlay_db.delete_blocks_at_height(1);
 	overlay_db.delete_block_entry(&hash_a);
 	overlay_db.delete_candidate_entry(&candidate_hash);
@@ -174,7 +174,7 @@ fn add_block_entry_works() {
 	new_candidate_info
 		.insert(candidate_hash_a, NewCandidateInfo::new(candidate_receipt_a, GroupIndex(0), None));
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	add_block_entry(&mut overlay_db, block_entry_a.clone().into(), n_validators, |h| {
 		new_candidate_info.get(h).map(|x| x.clone())
 	})
@@ -185,7 +185,7 @@ fn add_block_entry_works() {
 	new_candidate_info
 		.insert(candidate_hash_b, NewCandidateInfo::new(candidate_receipt_b, GroupIndex(1), None));
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	add_block_entry(&mut overlay_db, block_entry_b.clone().into(), n_validators, |h| {
 		new_candidate_info.get(h).map(|x| x.clone())
 	})
@@ -230,7 +230,7 @@ fn add_block_entry_adds_child() {
 
 	let n_validators = 10;
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	add_block_entry(&mut overlay_db, block_entry_a.clone().into(), n_validators, |_| None).unwrap();
 
 	add_block_entry(&mut overlay_db, block_entry_b.clone().into(), n_validators, |_| None).unwrap();
@@ -269,7 +269,7 @@ fn canonicalize_works() {
 
 	let n_validators = 10;
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	overlay_db.write_stored_block_range(StoredBlockRange(1, 5));
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
@@ -349,7 +349,7 @@ fn canonicalize_works() {
 		block_entry_d2.clone(),
 	];
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	for block_entry in blocks {
 		add_block_entry(&mut overlay_db, block_entry.into(), n_validators, |h| {
 			candidate_info.get(h).map(|x| x.clone())
@@ -421,7 +421,7 @@ fn canonicalize_works() {
 		(block_hash_d2, Some(vec![cand_hash_5])),
 	]);
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	canonicalize(&mut overlay_db, 3, block_hash_c1).unwrap();
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
@@ -455,7 +455,7 @@ fn force_approve_works() {
 	let (mut db, store) = make_db();
 	let n_validators = 10;
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	overlay_db.write_stored_block_range(StoredBlockRange(1, 4));
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
@@ -497,7 +497,7 @@ fn force_approve_works() {
 		block_entry_d.clone(),
 	];
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	for block_entry in blocks {
 		add_block_entry(&mut overlay_db, block_entry.into(), n_validators, |h| {
 			candidate_info.get(h).map(|x| x.clone())
@@ -550,7 +550,7 @@ fn load_all_blocks_works() {
 
 	let n_validators = 10;
 
-	let mut overlay_db = OverlayedBackend::new(&db);
+	let mut overlay_db = OverlayedBackend::new(&mut db);
 	add_block_entry(&mut overlay_db, block_entry_a.clone().into(), n_validators, |_| None).unwrap();
 
 	// add C before B to test sorting.

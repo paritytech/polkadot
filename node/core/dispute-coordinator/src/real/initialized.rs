@@ -191,8 +191,9 @@ impl Initialized {
 				.await?;
 		}
 
+		let mut overlay_db = OverlayedBackend::new(backend);
+
 		loop {
-			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
 			let confirm_write =
 				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
@@ -238,10 +239,8 @@ impl Initialized {
 					},
 				};
 
-			if !overlay_db.is_empty() {
-				let ops = overlay_db.into_write_ops();
-				backend.write(ops)?;
-			}
+			overlay_db.flush();
+
 			// even if the changeset was empty,
 			// otherwise the caller will error.
 			confirm_write()?;
