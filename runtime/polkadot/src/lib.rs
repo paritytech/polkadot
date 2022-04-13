@@ -2299,14 +2299,4 @@ mod test {
 			If the limit is too strong, maybe consider increase the limit",
 		);
 	}
-
-	#[test]
-	fn event_size() {
-		let size = core::mem::size_of::<Event>();
-		assert!(
-			size <= 32,
-			"size of Event is more than 32 bytes: \
-		You probably forgot to Box some Events"
-		);
-	}
 }
