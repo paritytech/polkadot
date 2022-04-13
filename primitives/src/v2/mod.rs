@@ -1437,7 +1437,7 @@ impl ValidityAttestation {
 	pub fn to_compact_statement(&self, candidate_hash: CandidateHash) -> CompactStatement {
 		// Explicit and implicit map directly from
 		// `ValidityVote::Valid` and `ValidityVote::Issued`, and hence there is a
-		// `1:1` relationshow which enables the conversion.
+		// `1:1` relationship which enables the conversion.
 		match *self {
 			ValidityAttestation::Implicit(_) => CompactStatement::Seconded(candidate_hash),
 			ValidityAttestation::Explicit(_) => CompactStatement::Valid(candidate_hash),
