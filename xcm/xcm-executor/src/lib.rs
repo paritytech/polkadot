@@ -40,7 +40,7 @@ pub use assets::Assets;
 mod config;
 pub use config::Config;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub struct FeesMode {
 	pub jit_withdraw: bool,
 }

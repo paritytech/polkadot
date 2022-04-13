@@ -179,7 +179,4 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub(crate) fn universal_origin() -> Weight {
 		(2_000_000_000_000 as Weight)
 	}
-	pub(crate) fn set_fees_mode() -> Weight {
-		(2_000_000_000_000 as Weight)
-	}
 }
