@@ -56,29 +56,31 @@ async fn overseer_recv(virtual_overseer: &mut VirtualOverseer) -> AllMessages {
 
 struct TestState {
 	chain: Vec<Hash>,
-	ordering: ChainScraper,
+	scraper: ChainScraper,
 	ctx: TestSubsystemContext<DisputeCoordinatorMessage, TaskExecutor>,
 }
 
 impl TestState {
 	async fn new() -> (Self, VirtualOverseer) {
 		let (mut ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-		let leaf = get_activated_leaf(0);
-		let chain = vec![get_block_number_hash(0)];
+		let chain = vec![get_block_number_hash(0), get_block_number_hash(1)];
+		let leaf = get_activated_leaf(1);
 
 		let finalized_block_number = 0;
 		let overseer_fut = async {
 			assert_finalized_block_number_request(&mut ctx_handle, finalized_block_number).await;
 			// No requests for ancestors since the block is already finalized.
+			assert_block_ancestors_request(&mut ctx_handle, &chain).await;
 			assert_candidate_events_request(&mut ctx_handle, &chain).await;
+			assert_chain_vote_request(&mut ctx_handle, &chain).await;
 		};
 
-		let ordering_provider = join(ChainScraper::new(ctx.sender(), leaf.clone()), overseer_fut)
+		let (scraper, _) = join(ChainScraper::new(ctx.sender(), leaf.clone()), overseer_fut)
 			.await
 			.0
 			.unwrap();
 
-		let test_state = Self { chain, ordering: ordering_provider, ctx };
+		let test_state = Self { chain, scraper, ctx };
 
 		(test_state, ctx_handle)
 	}
@@ -98,10 +100,10 @@ fn next_leaf(chain: &mut Vec<Hash>) -> ActivatedLeaf {
 
 async fn process_active_leaves_update(
 	sender: &mut TestSubsystemSender,
-	ordering: &mut ChainScraper,
+	scraper: &mut ChainScraper,
 	update: ActivatedLeaf,
 ) {
-	ordering
+	scraper
 		.process_active_leaves_update(sender, &ActiveLeavesUpdate::start_work(update))
 		.await
 		.unwrap();
@@ -165,13 +167,14 @@ async fn assert_candidate_events_request(virtual_overseer: &mut VirtualOverseer,
 	);
 }
 
-async fn assert_block_number_request(virtual_overseer: &mut VirtualOverseer, chain: &[Hash]) {
+async fn assert_chain_vote_request(virtual_overseer: &mut VirtualOverseer, _chain: &[Hash]) {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockNumber(relay_parent, tx)) => {
-			let maybe_block_number =
-				chain.iter().position(|hash| *hash == relay_parent).map(|number| number as u32);
-			tx.send(Ok(maybe_block_number)).unwrap();
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_hash,
+			RuntimeApiRequest::FetchOnChainVotes(tx),
+		)) => {
+			tx.send(Ok(None)).unwrap();
 		}
 	);
 }
@@ -210,27 +213,30 @@ async fn overseer_process_active_leaves_update(
 	// Before walking through ancestors provider requests latest finalized block number.
 	assert_finalized_block_number_request(virtual_overseer, finalized_block).await;
 	// Expect block ancestors requests with respect to the ancestry step.
-	for _ in (0..expected_ancestry_len).step_by(ChainScraper::ANCESTRY_CHUNK_SIZE) {
+	for _ in (0..expected_ancestry_len).step_by(ChainScraper::ANCESTRY_CHUNK_SIZE as usize) {
 		assert_block_ancestors_request(virtual_overseer, chain).await;
 	}
 	// For each ancestry and the head return corresponding candidates inclusions.
 	for _ in 0..expected_ancestry_len {
 		assert_candidate_events_request(virtual_overseer, chain).await;
+		assert_chain_vote_request(virtual_overseer, chain).await;
 	}
 }
 
 #[test]
-fn ordering_provider_provides_ordering_when_initialized() {
-	let candidate = make_candidate_receipt(get_block_number_hash(1));
+fn scraper_provides_included_state_when_initialized() {
+	sp_tracing::try_init_simple();
+	let candidate_1 = make_candidate_receipt(get_block_number_hash(1));
+	let candidate_2 = make_candidate_receipt(get_block_number_hash(2));
 	futures::executor::block_on(async {
 		let (state, mut virtual_overseer) = TestState::new().await;
 
-		let TestState { mut chain, mut ordering, mut ctx } = state;
+		let TestState { mut chain, mut scraper, mut ctx } = state;
 
-		let r = ordering.candidate_comparator(ctx.sender(), &candidate).await.unwrap();
-		assert_matches!(r, None);
+		assert!(!scraper.is_candidate_included(&candidate_2.hash()));
+		assert!(scraper.is_candidate_included(&candidate_1.hash()));
 
-		// After next active leaves update we should have a comparator:
+		// After next active leaves update we should see the candidate included.
 		let next_update = next_leaf(&mut chain);
 
 		let finalized_block_number = 0;
@@ -241,30 +247,22 @@ fn ordering_provider_provides_ordering_when_initialized() {
 			finalized_block_number,
 			expected_ancestry_len,
 		);
-		join(process_active_leaves_update(ctx.sender(), &mut ordering, next_update), overseer_fut)
+		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
 			.await;
 
-		let r = join(
-			ordering.candidate_comparator(ctx.sender(), &candidate),
-			assert_block_number_request(&mut virtual_overseer, &chain),
-		)
-		.await
-		.0;
-		assert_matches!(r, Ok(Some(r2)) => {
-			assert_eq!(r2.relay_parent_block_number, 1);
-		});
+		assert!(scraper.is_candidate_included(&candidate_2.hash()));
 	});
 }
 
 #[test]
-fn ordering_provider_requests_candidates_of_leaf_ancestors() {
+fn scraper_requests_candidates_of_leaf_ancestors() {
 	futures::executor::block_on(async {
 		// How many blocks should we skip before sending a leaf update.
 		const BLOCKS_TO_SKIP: usize = 30;
 
 		let (state, mut virtual_overseer) = TestState::new().await;
 
-		let TestState { mut chain, mut ordering, mut ctx } = state;
+		let TestState { mut chain, mut scraper, mut ctx } = state;
 
 		let next_update = (0..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
 
@@ -275,34 +273,26 @@ fn ordering_provider_requests_candidates_of_leaf_ancestors() {
 			finalized_block_number,
 			BLOCKS_TO_SKIP,
 		);
-		join(process_active_leaves_update(ctx.sender(), &mut ordering, next_update), overseer_fut)
+		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
 			.await;
 
 		let next_block_number = next_block_number(&chain);
 		for block_number in 1..next_block_number {
 			let candidate = make_candidate_receipt(get_block_number_hash(block_number));
-			let r = join(
-				ordering.candidate_comparator(ctx.sender(), &candidate),
-				assert_block_number_request(&mut virtual_overseer, &chain),
-			)
-			.await
-			.0;
-			assert_matches!(r, Ok(Some(r2)) => {
-				assert_eq!(r2.relay_parent_block_number, block_number);
-			});
+			assert!(scraper.is_candidate_included(&candidate.hash()));
 		}
 	});
 }
 
 #[test]
-fn ordering_provider_requests_candidates_of_non_cached_ancestors() {
+fn scraper_requests_candidates_of_non_cached_ancestors() {
 	futures::executor::block_on(async {
 		// How many blocks should we skip before sending a leaf update.
 		const BLOCKS_TO_SKIP: &[usize] = &[30, 15];
 
 		let (state, mut virtual_overseer) = TestState::new().await;
 
-		let TestState { mut chain, mut ordering, mut ctx } = state;
+		let TestState { mut chain, scraper: mut ordering, mut ctx } = state;
 
 		let next_update = (0..BLOCKS_TO_SKIP[0]).map(|_| next_leaf(&mut chain)).last().unwrap();
 
@@ -330,16 +320,17 @@ fn ordering_provider_requests_candidates_of_non_cached_ancestors() {
 }
 
 #[test]
-fn ordering_provider_requests_candidates_of_non_finalized_ancestors() {
+fn scraper_requests_candidates_of_non_finalized_ancestors() {
 	futures::executor::block_on(async {
 		// How many blocks should we skip before sending a leaf update.
 		const BLOCKS_TO_SKIP: usize = 30;
 
 		let (state, mut virtual_overseer) = TestState::new().await;
 
-		let TestState { mut chain, mut ordering, mut ctx } = state;
+		let TestState { mut chain, scraper: mut ordering, mut ctx } = state;
 
-		let next_update = (0..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
+		// 1 because `TestState` starts at leaf 1.
+		let next_update = (1..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
 
 		let finalized_block_number = 17;
 		let overseer_fut = overseer_process_active_leaves_update(
