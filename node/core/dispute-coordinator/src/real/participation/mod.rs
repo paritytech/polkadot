@@ -362,7 +362,7 @@ async fn participate(
 			CandidateValidationMessage::ValidateFromExhaustive(
 				available_data.validation_data,
 				validation_code,
-				req.candidate_receipt().descriptor.clone(),
+				req.candidate_receipt().clone(),
 				available_data.pov,
 				APPROVAL_EXECUTION_TIMEOUT,
 				validation_tx,
@@ -393,6 +393,7 @@ async fn participate(
 
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
+
 		Ok(Ok(ValidationResult::Invalid(invalid))) => {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -403,19 +404,8 @@ async fn participate(
 
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
-		Ok(Ok(ValidationResult::Valid(commitments, _))) => {
-			if commitments.hash() != req.candidate_receipt().commitments_hash {
-				gum::warn!(
-					target: LOG_TARGET,
-					expected = ?req.candidate_receipt().commitments_hash,
-					got = ?commitments.hash(),
-					"Candidate is valid but commitments hash doesn't match",
-				);
-
-				send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
-			} else {
-				send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
-			}
+		Ok(Ok(ValidationResult::Valid(_, _))) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
 		},
 	}
 }
