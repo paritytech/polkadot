@@ -1210,7 +1210,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
 					Event::ParaInclusion(ev) => {
-						Some(*ev)
+						Some(ev)
 					}
 					_ => None,
 				}

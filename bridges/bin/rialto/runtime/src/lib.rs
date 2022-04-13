@@ -783,7 +783,7 @@ impl_runtime_apis! {
 			polkadot_runtime_parachains::runtime_api_impl::v2::candidate_events::<Runtime, _>(|ev| {
 				match ev {
 					Event::Inclusion(ev) => {
-						Some(*ev)
+						Some(ev)
 					}
 					_ => None,
 				}
