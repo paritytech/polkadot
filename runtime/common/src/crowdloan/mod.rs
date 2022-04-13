@@ -228,7 +228,7 @@ pub mod pallet {
 	/// Info on all of the funds.
 	#[pallet::storage]
 	#[pallet::getter(fn funds)]
-	pub(super) type Funds<T: Config> = StorageMap<
+	pub(crate) type Funds<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		ParaId,
@@ -826,7 +826,7 @@ mod crypto {
 	use sp_core::ed25519;
 	use sp_io::crypto::{ed25519_generate, ed25519_sign};
 	use sp_runtime::{MultiSignature, MultiSigner};
-	use sp_std::{convert::TryFrom, vec::Vec};
+	use sp_std::vec::Vec;
 
 	pub fn create_ed25519_pubkey(seed: Vec<u8>) -> MultiSigner {
 		ed25519_generate(0.into(), Some(seed)).into()

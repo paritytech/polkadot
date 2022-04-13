@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_support::{RuntimeDebug, StorageHasher};
 use sp_core::{hash::H256, storage::StorageKey};
 use sp_io::hashing::blake2_256;
-use sp_std::{convert::TryFrom, vec, vec::Vec};
+use sp_std::{vec, vec::Vec};
 
 pub use chain::{
 	AccountIdOf, AccountPublicOf, BalanceOf, BlockNumberOf, Chain, EncodedOrDecodedCall, HashOf,

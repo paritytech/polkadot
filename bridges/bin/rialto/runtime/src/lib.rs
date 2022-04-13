@@ -33,7 +33,7 @@ pub mod parachains;
 
 use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
 
-use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion, ValidatorSet};
+use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::{MmrLeafVersion}, ValidatorSet};
 use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
@@ -280,10 +280,12 @@ impl pallet_grandpa::Config for Runtime {
 	type MaxAuthorities = MaxAuthorities;
 }
 
+type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
-	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
 	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
@@ -309,7 +311,7 @@ parameter_types! {
 impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
-	type ParachainHeads = ();
+	type BeefyDataProvider = ();
 }
 
 parameter_types! {
@@ -729,7 +731,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl polkadot_primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl polkadot_primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<polkadot_primitives::v2::ValidatorId> {
 			polkadot_runtime_parachains::runtime_api_impl::v2::validators::<Runtime>()
 		}

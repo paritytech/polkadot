@@ -54,7 +54,7 @@ pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
-	polkadot_primitives::v2::ParachainHost,
+	polkadot_primitives::runtime_api::ParachainHost,
 	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -512,6 +512,7 @@ where
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
+		let backend = backend.clone();
 
 		move |deny_unsafe,
 		      subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
@@ -541,7 +542,7 @@ where
 				},
 			};
 
-			polkadot_rpc::create_full(deps).map_err(Into::into)
+			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)
 		}
 	};
 

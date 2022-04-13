@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use std::convert::TryInto;
 
 #[derive(Clone)]
 struct MetricsInner {

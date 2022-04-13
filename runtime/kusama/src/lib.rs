@@ -23,14 +23,16 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
+	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
+	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -45,12 +47,16 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_election_provider_support::{
+	generate_solution_type, onchain::UnboundedExecution, NposSolution, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
+	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -75,6 +81,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
+pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
@@ -109,7 +116,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9180,
+	spec_version: 9190,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -321,9 +328,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Self>>;
-	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
+	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
@@ -413,7 +420,7 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
-frame_election_provider_support::generate_solution_type!(
+generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution24::<
 		VoterIndex = u32,
@@ -445,9 +452,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
-	type Solver = frame_election_provider_support::SequentialPhragmen<
+	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
 		(),
@@ -546,7 +552,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
-	pub const MaxNominations: u32 = <NposCompactSolution24 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -554,18 +560,13 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
+	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
@@ -1524,27 +1525,27 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		CrowdloanIndexMigration,
+		SlotsCrowdloanIndexMigration,
 		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-pub struct CrowdloanIndexMigration;
-impl OnRuntimeUpgrade for CrowdloanIndexMigration {
+pub struct SlotsCrowdloanIndexMigration;
+impl OnRuntimeUpgrade for SlotsCrowdloanIndexMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
+		slots::migration::slots_crowdloan_index_migration::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
+		slots::migration::slots_crowdloan_index_migration::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
+		slots::migration::slots_crowdloan_index_migration::post_migrate::<Runtime>()
 	}
 }
 
@@ -1664,7 +1665,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
 		}
@@ -1760,6 +1761,10 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
+		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			unimplemented!()
 		}
 	}
 

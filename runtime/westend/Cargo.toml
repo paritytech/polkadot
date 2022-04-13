@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -9,7 +9,7 @@ build = "build.rs"
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.16", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.136", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
@@ -84,7 +84,7 @@ hex-literal = { version = "0.3.4", optional = true }
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
-runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false, features = ["vstaging"] }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }

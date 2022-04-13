@@ -45,11 +45,12 @@ use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash as HashT,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
+	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
@@ -234,9 +235,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
-	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
+	type LengthToFee = frame_support::weights::ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
@@ -318,11 +319,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 }
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
@@ -342,10 +338,14 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
-	type GenesisElectionProvider =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	type ElectionProvider = frame_election_provider_support::onchain::UnboundedExecution<
+		runtime_common::elections::OnChainSeqPhragmen<Self, Staking>,
+	>;
+	type GenesisElectionProvider = frame_election_provider_support::onchain::UnboundedExecution<
+		runtime_common::elections::OnChainSeqPhragmen<Self, Staking>,
+	>;
+	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
+	// to bags-list is a no-op, but the storage version will be updated.
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
@@ -800,7 +800,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			runtime_impl::validators::<Runtime>()
 		}
@@ -851,7 +851,6 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			use core::convert::TryInto;
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 
@@ -894,6 +893,10 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
+		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			polkadot_runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 	}
 

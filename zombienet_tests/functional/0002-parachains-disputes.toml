@@ -19,39 +19,39 @@ requests = { memory = "2G", cpu = "1" }
   image = "{{MALUS_IMAGE}}"
   name = "alice"
   command = "malus dispute-ancestor"
-  extra_args = [ "--alice", "-lparachain=debug" ]
+  args = [ "--alice", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "bob"
   command = "malus dispute-ancestor"
-  extra_args = [ "--bob", "-lparachain=debug"]
-  
+  args = [ "--bob", "-lparachain=debug"]
+
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "charlie"
   command = "malus dispute-ancestor"
-  extra_args = [ "--charlie", "-lparachain=debug" ]
+  args = [ "--charlie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "dave"
-  extra_args = [ "--dave", "-lparachain=debug"]
+  args = [ "--dave", "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "ferdie"
-  extra_args = [ "--ferdie", "-lparachain=debug" ]
+  args = [ "--ferdie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "eve"
-  extra_args = [ "--eve", "-lparachain=debug"]
+  args = [ "--eve", "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "one"
-  extra_args = [ "--one", "-lparachain=debug" ]
+  args = [ "--one", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "two"
-  extra_args = [ "--two", "-lparachain=debug"]
+  args = [ "--two", "-lparachain=debug"]
 
 [[parachains]]
 id = 2000
