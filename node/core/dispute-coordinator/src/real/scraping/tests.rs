@@ -40,6 +40,8 @@ use polkadot_primitives::v2::{
 	GroupIndex, Hash, HashT, HeadData,
 };
 
+use crate::LOG_TARGET;
+
 use super::ChainScraper;
 
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
@@ -69,6 +71,7 @@ impl TestState {
 		let finalized_block_number = 0;
 		let overseer_fut = async {
 			assert_finalized_block_number_request(&mut ctx_handle, finalized_block_number).await;
+			gum::trace!(target: LOG_TARGET, "After assert_finalized_block_number");
 			// No ancestors requests, as list would be empty.
 			assert_candidate_events_request(&mut ctx_handle, &chain).await;
 			assert_chain_vote_request(&mut ctx_handle, &chain).await;
@@ -78,6 +81,7 @@ impl TestState {
 			.await
 			.0
 			.unwrap();
+		gum::trace!(target: LOG_TARGET, "After launching chain scraper");
 
 		let test_state = Self { chain, scraper, ctx };
 
@@ -224,7 +228,6 @@ async fn overseer_process_active_leaves_update(
 
 #[test]
 fn scraper_provides_included_state_when_initialized() {
-	sp_tracing::try_init_simple();
 	let candidate_1 = make_candidate_receipt(get_block_number_hash(1));
 	let candidate_2 = make_candidate_receipt(get_block_number_hash(2));
 	futures::executor::block_on(async {

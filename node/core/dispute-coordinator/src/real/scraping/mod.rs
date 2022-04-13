@@ -122,19 +122,16 @@ impl ChainScraper {
 			.get_unfinalized_block_ancestors(sender, activated.hash, activated.number)
 			.await?;
 
-		gum::info!("After getting ancestors!");
-
 		// Ancestors block numbers are consecutive in the descending order.
 		let earliest_block_number = activated.number - ancestors.len() as u32;
 		let block_numbers = (earliest_block_number..=activated.number).rev();
 
 		let block_hashes = std::iter::once(activated.hash).chain(ancestors);
 
-		gum::info!("After getting relay parents!");
-
 		let mut on_chain_votes = Vec::new();
-		for (block_number, block_hash) in block_numbers.zip(block_hashes)
-		{
+		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
+			gum::trace!(?block_number, ?block_hash, "In ancestor processesing.");
+
 			self.process_candidate_events(sender, block_number, block_hash).await?;
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
@@ -181,6 +178,12 @@ impl ChainScraper {
 				});
 		for receipt in included {
 			let candidate_hash = receipt.hash();
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?block_number,
+				"Processing included event"
+			);
 			self.included_candidates.insert(candidate_hash);
 			self.candidates_by_block_number
 				.entry(block_number)

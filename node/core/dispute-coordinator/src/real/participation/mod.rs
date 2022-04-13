@@ -15,11 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashSet;
+#[cfg(test)]
+use std::time::Duration;
 
 use futures::{
 	channel::{mpsc, oneshot},
 	FutureExt, SinkExt,
 };
+#[cfg(test)]
+use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
@@ -248,6 +252,9 @@ async fn participate(
 	block_hash: Hash,
 	req: ParticipationRequest,
 ) {
+	#[cfg(test)]
+	// Hack for tests, so we get recovery messages not too early.
+	Delay::new(Duration::from_millis(100)).await;
 	// in order to validate a candidate we need to start by recovering the
 	// available data
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();

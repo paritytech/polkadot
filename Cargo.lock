@@ -6807,6 +6807,7 @@ dependencies = [
  "assert_matches",
  "fatality",
  "futures 0.3.21",
+ "futures-timer",
  "kvdb",
  "kvdb-memorydb",
  "lru 0.7.3",

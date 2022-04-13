@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,
 };
-use polkadot_primitives::v2::{ValidatorIndex, ValidatorPair, ScrapedOnChainVotes};
+use polkadot_primitives::v2::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},
@@ -203,10 +203,6 @@ impl DisputeCoordinatorSubsystem {
 					continue
 				},
 			};
-
-			// Before we move to the initialized state we need to check if we got at
-			// least on finality notification to prevent large ancestry block scraping,
-			// when the node is syncing.
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, votes, spam_slots, ordering_provider) = match self
