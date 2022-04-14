@@ -17,7 +17,7 @@
 use proc_macro2::{Span, TokenStream};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
 use syn::{
-	parse::{Parse, ParseStream, ParseBuffer},
+	parse::{Parse, ParseBuffer, ParseStream},
 	punctuated::Punctuated,
 	spanned::Spanned,
 	token::Bracket,
@@ -194,11 +194,7 @@ impl Parse for Consumes {
 				consumes: input.parse()?,
 			}
 		} else {
-			Self {
-				keyword_consumes: None,
-				colon: None,
-				consumes: input.parse()?,
-			}
+			Self { keyword_consumes: None, colon: None, consumes: input.parse()? }
 		})
 	}
 }
@@ -227,7 +223,8 @@ impl Parse for SubSystemAttributes {
 
 		// FIXME assert that it's `subsystem(..)`.
 		// attrs[0].path
-		let items = attrs[0].parse_args_with(Punctuated::<SubSysAttrItem, Token![,]>::parse_terminated)?;
+		let items =
+			attrs[0].parse_args_with(Punctuated::<SubSysAttrItem, Token![,]>::parse_terminated)?;
 
 		let mut unique = HashMap::<
 			std::mem::Discriminant<SubSysAttrItem>,
@@ -380,7 +377,10 @@ impl OverseerInfo {
 	}
 
 	pub(crate) fn any_message(&self) -> Vec<Path> {
-		self.subsystems.iter().map(|ssf| ssf.message_to_consume.clone()).collect::<Vec<_>>()
+		self.subsystems
+			.iter()
+			.map(|ssf| ssf.message_to_consume.clone())
+			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn channel_names_without_wip(&self, suffix: &'static str) -> Vec<Ident> {
@@ -461,18 +461,14 @@ impl OverseerGuts {
 					.clone();
 				// check for unique subsystem name, otherwise we'd create invalid code:
 				if let Some(previous) = unique_subsystem_idents.get(&generic) {
-					let mut e = Error::new(
-						generic.span(),
-						"Duplicate subsystem names",
-					);
+					let mut e = Error::new(generic.span(), "Duplicate subsystem names");
 					e.combine(Error::new(previous.span(), "previously defined here."));
 					return Err(e)
 				}
 				unique_subsystem_idents.insert(generic.clone());
 
-
-				let SubSystemAttributes { no_dispatch, wip, blocking, consumes, sends, .. }
-				 = subsystem_attrs;
+				let SubSystemAttributes { no_dispatch, wip, blocking, consumes, sends, .. } =
+					subsystem_attrs;
 
 				// messages to be sent
 				let sends = if let Some(sends) = sends {
@@ -484,10 +480,7 @@ impl OverseerGuts {
 				let consumes = if let Some(consumes) = consumes {
 					consumes.consumes
 				} else {
-					return Err(Error::new(
-						span,
-						"Must provide exactly one consuming message type",
-					));
+					return Err(Error::new(span, "Must provide exactly one consuming message type"))
 				};
 
 				// TODO move the send and consumes check here
