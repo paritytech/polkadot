@@ -26,6 +26,7 @@ tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/parit
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -52,7 +53,6 @@ pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -119,6 +119,7 @@ std = [
 	"block-builder-api/std",
 	"offchain-primitives/std",
 	"sp-std/std",
+	"sp-mmr-primitives/std",
 	"frame-support/std",
 	"frame-executive/std",
 	"pallet-authority-discovery/std",
@@ -167,7 +168,6 @@ std = [
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
 	"beefy-primitives/std",
-	"pallet-mmr-primitives/std",
 	"frame-election-provider-support/std",
 	"pallet-xcm/std",
 	"xcm/std",

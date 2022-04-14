@@ -40,7 +40,7 @@ use bridge_runtime_common::messages::{
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
-use pallet_mmr_primitives::{
+use sp_mmr_primitives::{
 	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider, Proof as MmrProof,
 };
 use pallet_transaction_payment::{FeeDetails, Multiplier, RuntimeDispatchInfo};
@@ -626,7 +626,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
+	impl sp_mmr_primitives::MmrApi<Block, Hash> for Runtime {
 		fn generate_proof(leaf_index: u64)
 			-> Result<(EncodableOpaqueLeaf, MmrProof<Hash>), MmrError>
 		{

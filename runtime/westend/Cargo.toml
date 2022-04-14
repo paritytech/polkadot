@@ -23,6 +23,7 @@ offchain-primitives = { package = "sp-offchain", git = "https://github.com/parit
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -52,7 +53,6 @@ pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -135,7 +135,6 @@ std = [
 	"pallet-im-online/std",
 	"pallet-indices/std",
 	"pallet-membership/std",
-	"pallet-mmr-primitives/std",
 	"beefy-primitives/std",
 	"pallet-multisig/std",
 	"pallet-nicks/std",
@@ -156,6 +155,7 @@ std = [
 	"pallet-babe/std",
 	"pallet-bags-list/std",
 	"frame-executive/std",
+	"sp-mmr-primitives/std",
 	"sp-runtime/std",
 	"sp-staking/std",
 	"frame-system/std",

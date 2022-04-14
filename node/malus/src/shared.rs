@@ -17,7 +17,7 @@
 use futures::prelude::*;
 use polkadot_node_primitives::SpawnNamed;
 
-pub const MALUS: &str = "MALUS😈😈😈";
+pub const MALUS: &str = "MALUS";
 
 #[allow(unused)]
 pub(crate) const MALICIOUS_POV: &[u8] = "😈😈pov_looks_valid_to_me😈😈".as_bytes();

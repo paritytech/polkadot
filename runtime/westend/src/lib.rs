@@ -32,7 +32,6 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
@@ -58,6 +57,7 @@ use runtime_parachains::{
 };
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
+use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str,
 	curve::PiecewiseLinear,
@@ -1326,7 +1326,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
+	impl mmr::MmrApi<Block, Hash> for Runtime {
 		fn generate_proof(_leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
@@ -1346,6 +1346,11 @@ sp_api::impl_runtime_apis! {
 			_leaf: mmr::EncodableOpaqueLeaf,
 			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
+		}
+
+		fn mmr_root() -> Result<Hash, mmr::Error> {
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::Verify)
 		}
