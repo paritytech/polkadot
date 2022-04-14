@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use parity_scale_codec::{Decode, Encode};
-use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
+use sp_std::{borrow::Borrow, prelude::*, result::Result};
 use xcm::latest::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default

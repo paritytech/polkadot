@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 use parity_scale_codec::Encode;
 

@@ -30,7 +30,7 @@ use bp_runtime::messages::DispatchFeePayment;
 use frame_benchmarking::{account, benchmarks_instance_pallet};
 use frame_support::{traits::Get, weights::Weight};
 use frame_system::RawOrigin;
-use sp_std::{collections::vec_deque::VecDeque, convert::TryInto, ops::RangeInclusive, prelude::*};
+use sp_std::{collections::vec_deque::VecDeque, ops::RangeInclusive, prelude::*};
 
 const SEED: u32 = 0;
 

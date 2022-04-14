@@ -46,8 +46,18 @@ struct MetricsInner {
 	/// The duration between the pure recovery and verification.
 	time_erasure_recovery: Histogram,
 
-	/// The duration between the first request and the time when we have a sufficient number of chunks to recover.
-	time_erasure_recovery_becomes_possible: Histogram,
+	/// Time of a full recovery, including erasure decoding or until we gave
+	/// up.
+	time_full_recovery: Histogram,
+
+	/// Number of full recoveries that have been finished one way or the other.
+	full_recoveries_finished: CounterVec<U64>,
+
+	/// Number of full recoveries that have been started on this subsystem.
+	///
+	/// Note: Those are only recoveries which could not get served locally already - so in other
+	/// words: Only real recoveries.
+	full_recoveries_started: Counter<U64>,
 }
 
 impl Metrics {
@@ -108,13 +118,37 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.time_erasure_recovery.start_timer())
 	}
 
-	/// Get a timer to measure the time duration until a sufficient amount of chunks were available to attempt recovery.
-	pub fn time_erasure_recovery_becomes_possible(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.time_erasure_recovery_becomes_possible.start_timer())
+	/// Get a timer to measure the time of the complete recovery process.
+	pub fn time_full_recovery(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_full_recovery.start_timer())
+	}
+
+	/// A full recovery succeeded.
+	pub fn on_recovery_succeeded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_finished.with_label_values(&["success"]).inc()
+		}
+	}
+
+	/// A full recovery failed (data not available).
+	pub fn on_recovery_failed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_finished.with_label_values(&["failure"]).inc()
+		}
+	}
+
+	/// A full recovery failed (data was recovered, but invalid).
+	pub fn on_recovery_invalid(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_finished.with_label_values(&["invalid"]).inc()
+		}
+	}
+
+	/// A recover was started.
+	pub fn on_recovery_started(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_started.inc()
+		}
 	}
 }
 
@@ -152,11 +186,28 @@ impl metrics::Metrics for Metrics {
 				))?,
 				registry,
 			)?,
-			time_erasure_recovery_becomes_possible: prometheus::register(
+			time_full_recovery: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_availability_recovery_time_erasure_recovery_becomes_possible",
-					"Time spent launching the first request until a sufficient amount of chunks was recovered",
+					"polkadot_parachain_availability_recovery_time_total",
+					"Time a full recovery process took, either until failure or successful erasure decoding.",
 				))?,
+				registry,
+			)?,
+			full_recoveries_finished: prometheus::register(
+				CounterVec::new(
+					Opts::new(
+						"polkadot_parachain_availability_recovery_recoveries_finished",
+						"Total number of recoveries that finished.",
+					),
+					&["result"],
+				)?,
+				registry,
+			)?,
+			full_recoveries_started: prometheus::register(
+				Counter::new(
+					"polkadot_parachain_availability_recovery_recovieries_started",
+					"Total number of started recoveries.",
+				)?,
 				registry,
 			)?,
 		};
