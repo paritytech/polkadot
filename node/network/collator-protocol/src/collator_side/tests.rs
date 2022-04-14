@@ -391,6 +391,7 @@ async fn connect_peer(
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			polkadot_node_network_protocol::ObservedRole::Authority,
+			1,
 			authority_id.map(|v| HashSet::from([v])),
 		)),
 	)

@@ -306,6 +306,7 @@ async fn connect_and_declare_collator(
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			ObservedRole::Full,
+			1,
 			None,
 		)),
 	)
@@ -457,6 +458,7 @@ fn collator_authentication_verification_works() {
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b,
 				ObservedRole::Full,
+				1,
 				None,
 			)),
 		)
@@ -944,6 +946,7 @@ fn disconnect_if_no_declare() {
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b.clone(),
 				ObservedRole::Full,
+				1,
 				None,
 			)),
 		)
@@ -981,6 +984,7 @@ fn disconnect_if_wrong_declare() {
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b.clone(),
 				ObservedRole::Full,
+				1,
 				None,
 			)),
 		)

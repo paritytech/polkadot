@@ -1608,7 +1608,7 @@ async fn handle_network_update(
 	rng: &mut impl rand::Rng,
 ) {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, _, maybe_authority) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			peers.insert(
 				peer,

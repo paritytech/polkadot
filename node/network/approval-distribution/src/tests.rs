@@ -109,6 +109,7 @@ async fn setup_peer_with_view(
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer_id.clone(),
 			ObservedRole::Full,
+			1,
 			None,
 		)),
 	)

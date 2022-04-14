@@ -743,6 +743,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								NetworkBridgeEvent::PeerConnected(
 									peer.clone(),
 									role,
+									1,
 									maybe_authority,
 								),
 								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
@@ -766,6 +767,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								NetworkBridgeEvent::PeerConnected(
 									peer.clone(),
 									role,
+									1,
 									maybe_authority,
 								),
 								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),

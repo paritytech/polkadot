@@ -513,7 +513,7 @@ async fn handle_network_msg<Context>(
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peer, role, _) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, _, _) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			// insert if none already present
 			state.peer_views.entry(peer).or_default();

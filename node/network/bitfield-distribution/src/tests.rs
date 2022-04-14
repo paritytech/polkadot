@@ -538,7 +538,7 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
+			NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, _, None),
 		));
 
 		// make peer b interested

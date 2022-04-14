@@ -40,7 +40,7 @@ use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{
-	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSuppportNetworkMessage,
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSupportNetworkMessage,
 	PeerId,
 };
 use polkadot_node_subsystem::{
@@ -358,9 +358,9 @@ where
 		};
 	}
 
-	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
+	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSupportNetworkMessage>) {
 		match ev {
-			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, _, _, o_authority) => {
 				if let Some(authority_ids) = o_authority {
 					authority_ids.iter().for_each(|a| {
 						self.connected_authorities.insert(a.clone(), peer_id);

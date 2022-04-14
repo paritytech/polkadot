@@ -144,7 +144,7 @@ These updates are posted from the [Network Bridge Subsystem](../node/utility/net
 ```rust
 enum NetworkBridgeEvent<M> {
 	/// A peer with given ID is now connected.
-	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 	/// A peer with given ID is now disconnected.
 	PeerDisconnected(PeerId),
 	/// Our neighbors in the new gossip topology.
