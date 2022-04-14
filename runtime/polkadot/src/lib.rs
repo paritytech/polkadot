@@ -42,9 +42,7 @@ use frame_election_provider_support::{
 	generate_solution_type, onchain::UnboundedExecution, SequentialPhragmen,
 };
 use frame_support::{
-	construct_runtime,
-	pallet_prelude::GetDefault,
-	parameter_types,
+	construct_runtime, parameter_types,
 	traits::{
 		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
@@ -453,7 +451,7 @@ parameter_types! {
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 DOT as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
+	pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// 4 hour session, 1 hour unsigned phase, 32 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 32;
@@ -489,8 +487,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedMaxWeight = Self::MinerMaxWeight;
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
-	type SolutionImprovementThresholdUnsigned = SolutionImprovementThreshold;
-	type SolutionImprovementThresholdSigned = GetDefault;
+	type BetterUnsignedThreshold = BetterUnsignedThreshold;
+	type BetterSignedThreshold = ();
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type OffchainRepeat = OffchainRepeat;
