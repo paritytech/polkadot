@@ -31,6 +31,7 @@ struct MetricsInner {
 	to_subsystem_bounded_tof: prometheus::HistogramVec,
 	to_subsystem_bounded_sent: prometheus::GaugeVec<prometheus::U64>,
 	to_subsystem_bounded_received: prometheus::GaugeVec<prometheus::U64>,
+	to_subsystem_bounded_channel_full: prometheus::GaugeVec<prometheus::U64>,
 
 	to_subsystem_unbounded_tof: prometheus::HistogramVec,
 	to_subsystem_unbounded_sent: prometheus::GaugeVec<prometheus::U64>,
@@ -90,6 +91,11 @@ impl Metrics {
 						.to_subsystem_bounded_received
 						.with_label_values(&[name])
 						.set(readouts.bounded.received as u64);
+
+					metrics
+						.to_subsystem_bounded_channel_full
+						.with_label_values(&[name])
+						.set(readouts.bounded.channel_full_count as u64);
 
 					metrics
 						.to_subsystem_unbounded_sent
@@ -175,6 +181,16 @@ impl MetricsTrait for Metrics {
 					prometheus::Opts::new(
 						"polkadot_parachain_subsystem_bounded_received",
 						"Number of elements received by subsystems' bounded queues",
+					),
+					&["subsystem_name"],
+				)?,
+				registry,
+			)?,
+			to_subsystem_bounded_channel_full: prometheus::register(
+				prometheus::GaugeVec::<prometheus::U64>::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_subsystem_bounded_channel_full",
+						"Number of times we had to wait for the channel to become available",
 					),
 					&["subsystem_name"],
 				)?,

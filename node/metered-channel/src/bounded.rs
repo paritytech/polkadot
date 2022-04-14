@@ -158,13 +158,18 @@ impl<T> MeteredSender<T> {
 	where
 		Self: Unpin,
 	{
-		let msg = self.prepare_with_tof(msg);
-		let fut = self.inner.send(msg);
-		futures::pin_mut!(fut);
-		fut.await.map_err(|e| {
-			self.meter.retract_sent();
-			e
-		})
+		match self.try_send(msg) {
+			Err(e) => {
+				let msg = e.into_inner();
+				let fut = self.inner.send(msg);
+				futures::pin_mut!(fut);
+				fut.await.map_err(|e| {
+					self.meter.retract_sent();
+					e
+				})
+			},
+			Ok(_) => Ok(()),
+		}
 	}
 
 	/// Attempt to send message or fail immediately.
@@ -174,6 +179,7 @@ impl<T> MeteredSender<T> {
 	) -> result::Result<(), mpsc::TrySendError<MaybeTimeOfFlight<T>>> {
 		let msg = self.prepare_with_tof(msg);
 		self.inner.try_send(msg).map_err(|e| {
+			self.meter.note_channel_full();
 			self.meter.retract_sent();
 			e
 		})
