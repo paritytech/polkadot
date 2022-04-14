@@ -24,15 +24,15 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	let mut ts = TokenStream::new();
 
 	let span = info.overseer_name.span();
-	let all_messages_wrapper = info.message_wrapper;
+	let all_messages_wrapper = &info.message_wrapper;
 	let support_crate = info.support_crate_name();
 
 	for ssf in info.subsystems() {
 		let subsystem_name = ssf.name.to_string();
-		let subsystem_sender_name = Ident::new(&(subsystem_name + "SubsystemSender"), span);
-		let subsystem_ctx_name = Ident::new(&(subsystem_name + "SubsystemContext"), span);
+		let subsystem_sender_name = Ident::new(&(subsystem_name.clone() + "SubsystemSender"), span);
+		let subsystem_ctx_name = Ident::new(&(subsystem_name.clone() + "SubsystemContext"), span);
 
-		let outgoing_wrapper = Ident::new(&(subsystem_name + "OutgoingMessages"), span);
+		let outgoing_wrapper = Ident::new(&(subsystem_name.clone() + "OutgoingMessages"), span);
 
 		ts.extend(impl_wrapper_enum(&outgoing_wrapper, ssf.messages_to_send.as_slice())?);
 		ts.extend(impl_subsystem_sender(
@@ -41,7 +41,6 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 			support_crate,
 			&outgoing_wrapper,
 			&subsystem_sender_name,
-			&subsystem_ctx_name,
 		));
 		ts.extend(impl_subsystem_context(
 			info,
@@ -64,7 +63,7 @@ pub(crate) fn impl_wrapper_enum(wrapper: &Ident, message_types: &[Path]) -> Resu
 			.ok_or_else(|| {
 				syn::Error::new(wrapper.span(), "Path is empty, but it must end with an identifier")
 			})
-			.map(|segment| segment.ident);
+			.map(|segment| segment.ident.clone());
 		x
 	}))?;
 	let ts = quote! {
@@ -94,9 +93,8 @@ pub(crate) fn impl_subsystem_sender(
 	support_crate: &TokenStream,
 	outgoing_wrapper: &Ident,
 	subsystem_sender_name: &Ident,
-	subsystem_ctx_name: &Ident,
 ) -> TokenStream {
-	let ts = quote! {
+	let mut ts = quote! {
 		/// Connector to send messages towards all subsystems,
 		/// while tracking the which signals where already received.
 		#[derive(Debug, Clone)]
@@ -193,7 +191,6 @@ pub(crate) fn impl_subsystem_context(
 	subsystem_ctx_name: &Ident,
 ) -> TokenStream {
 	let signal = &info.extern_signal_ty;
-	let message_wrapper = &info.message_wrapper;
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
 

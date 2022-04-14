@@ -33,7 +33,7 @@ where
 	Context: SubsystemContext<
 		Signal = OverseerSignal,
 		Error = SubsystemError,
-		AllMessages = AllMessages,
+		OutgoingMessages = DummySubsystemOutgoingMessages,
 	>,
 {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {

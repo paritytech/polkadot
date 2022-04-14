@@ -26,8 +26,7 @@ mod impl_dispatch;
 mod impl_message_wrapper;
 mod impl_overseer;
 mod impl_subsystem;
-mod parse_attr;
-mod parse_struct;
+mod parse;
 
 use impl_builder::*;
 use impl_channels_out::*;
@@ -35,8 +34,7 @@ use impl_dispatch::*;
 use impl_message_wrapper::*;
 use impl_overseer::*;
 use impl_subsystem::*;
-use parse_attr::*;
-use parse_struct::*;
+use parse::*;
 
 #[cfg(test)]
 mod tests;

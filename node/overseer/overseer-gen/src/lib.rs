@@ -398,10 +398,10 @@ pub trait SubsystemContext: Send + 'static {
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message<X>(&mut self, msg: X)
 	where
-		Self::AllMessages: From<X>,
+		Self::OutgoingMessages: From<X>,
 		X: Send,
 	{
-		self.sender().send_message(<Self::Outgoing>::from(msg)).await
+		self.sender().send_message(<Self::OutgoingMessages>::from(msg)).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
@@ -413,7 +413,7 @@ pub trait SubsystemContext: Send + 'static {
 		X: Send,
 	{
 		self.sender()
-			.send_messages(msgs.into_iter().map(|x| <Self::AllMessages>::from(x)))
+			.send_messages(msgs.into_iter().map(|x| <Self::OutgoingMessages>::from(x)))
 			.await
 	}
 
@@ -423,7 +423,7 @@ pub trait SubsystemContext: Send + 'static {
 		Self::OutgoingMessages: From<X>,
 		X: Send,
 	{
-		self.sender().send_unbounded_message(Self::AllMessages::from(msg))
+		self.sender().send_unbounded_message(Self::OutgoingMessages::from(msg))
 	}
 
 	/// Obtain the sender.
