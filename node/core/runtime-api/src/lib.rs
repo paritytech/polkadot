@@ -23,7 +23,10 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v2::{Block, BlockId, Hash, ParachainHost};
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{Block, BlockId, Hash},
+};
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -291,7 +294,7 @@ where
 			self.waiting_requests.push_back((request, receiver));
 
 			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					"{} runtime API requests waiting to be executed.",
 					self.waiting_requests.len(),
@@ -372,7 +375,7 @@ where
 
 			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
 				.unwrap_or_else(|e| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"cannot query the runtime API version: {}",
 						e,
@@ -380,7 +383,7 @@ where
 					Some(0)
 				})
 				.unwrap_or_else(|| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"no runtime version is reported"
 					);

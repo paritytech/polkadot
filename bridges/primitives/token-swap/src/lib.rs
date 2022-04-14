@@ -16,10 +16,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod storage_keys;
+
 use codec::{Decode, Encode};
 use frame_support::{weights::Weight, RuntimeDebug};
 use scale_info::TypeInfo;
-use sp_core::U256;
+use sp_core::{H256, U256};
+use sp_io::hashing::blake2_256;
 use sp_std::vec::Vec;
 
 /// Pending token swap state.
@@ -83,6 +86,18 @@ pub struct TokenSwap<ThisBlockNumber, ThisBalance, ThisAccountId, BridgedBalance
 	/// Account id of the party acting at the Bridged chain and owning the
 	/// `target_balance_at_bridged_chain`.
 	pub target_account_at_bridged_chain: BridgedAccountId,
+}
+
+impl<ThisBlockNumber, ThisBalance, ThisAccountId, BridgedBalance, BridgedAccountId>
+	TokenSwap<ThisBlockNumber, ThisBalance, ThisAccountId, BridgedBalance, BridgedAccountId>
+where
+	TokenSwap<ThisBlockNumber, ThisBalance, ThisAccountId, BridgedBalance, BridgedAccountId>:
+		Encode,
+{
+	/// Returns hash, used to identify this token swap.
+	pub fn hash(&self) -> H256 {
+		self.using_encoded(blake2_256).into()
+	}
 }
 
 /// SCALE-encoded `Currency::transfer` call on the bridged chain.

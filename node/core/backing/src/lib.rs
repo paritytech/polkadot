@@ -31,8 +31,8 @@ use futures::{
 };
 
 use polkadot_node_primitives::{
-	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
-	BACKING_EXECUTION_TIMEOUT,
+	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
+	ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -41,8 +41,8 @@ use polkadot_node_subsystem_util::{
 	request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_subsystem::{
@@ -50,8 +50,8 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		DisputeCoordinatorMessage, ImportStatementsResult, ProvisionableData, ProvisionerMessage,
-		RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
+		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
+		StatementDistributionMessage, ValidationFailed,
 	},
 	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
@@ -276,7 +276,7 @@ fn table_attested_to_backed(
 			validator_indices.set(position, true);
 			vote_positions.push((orig_idx, position));
 		} else {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				"Logic error: Validity vote from table does not correspond to group",
 			);
@@ -378,14 +378,14 @@ async fn request_pov(
 
 async fn request_candidate_validation(
 	sender: &mut JobSender<impl SubsystemSender>,
-	candidate: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
-			candidate,
+			candidate_receipt,
 			pov,
 			BACKING_EXECUTION_TIMEOUT,
 			tx,
@@ -456,56 +456,52 @@ async fn validate_and_make_available(
 				.with_pov(&pov)
 				.with_para_id(candidate.descriptor().para_id)
 		});
-		request_candidate_validation(&mut sender, candidate.descriptor.clone(), pov.clone()).await?
+		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
 	};
-
-	let expected_commitments_hash = candidate.commitments_hash;
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate.hash(),
 				"Validation successful",
 			);
 
-			// If validation produces a new set of commitments, we vote the candidate as invalid.
-			if commitments.hash() != expected_commitments_hash {
-				tracing::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
-					actual_commitments = ?commitments,
-					"Commitments obtained with validation don't match the announced by the candidate receipt",
-				);
-				Err(candidate)
-			} else {
-				let erasure_valid = make_pov_available(
-					&mut sender,
-					n_validators,
-					pov.clone(),
-					candidate.hash(),
-					validation_data,
-					candidate.descriptor.erasure_root,
-					span.as_ref(),
-				)
-				.await?;
+			let erasure_valid = make_pov_available(
+				&mut sender,
+				n_validators,
+				pov.clone(),
+				candidate.hash(),
+				validation_data,
+				candidate.descriptor.erasure_root,
+				span.as_ref(),
+			)
+			.await?;
 
-				match erasure_valid {
-					Ok(()) => Ok((candidate, commitments, pov.clone())),
-					Err(InvalidErasureRoot) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?candidate.hash(),
-							actual_commitments = ?commitments,
-							"Erasure root doesn't match the announced by the candidate receipt",
-						);
-						Err(candidate)
-					},
-				}
+			match erasure_valid {
+				Ok(()) => Ok((candidate, commitments, pov.clone())),
+				Err(InvalidErasureRoot) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate.hash(),
+						actual_commitments = ?commitments,
+						"Erasure root doesn't match the announced by the candidate receipt",
+					);
+					Err(candidate)
+				},
 			}
 		},
+		ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch) => {
+			// If validation produces a new set of commitments, we vote the candidate as invalid.
+			gum::warn!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation yielded different commitments",
+			);
+			Err(candidate)
+		},
 		ValidationResult::Invalid(reason) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate.hash(),
 				reason = ?reason,
@@ -621,7 +617,7 @@ impl CandidateBackingJob {
 						self.kick_off_validation_work(sender, attesting, c_span).await?
 					}
 				} else {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"AttestNoPoV was triggered without fallback being available."
 					);
@@ -647,13 +643,13 @@ impl CandidateBackingJob {
 			let bg = async move {
 				if let Err(e) = validate_and_make_available(params).await {
 					if let Error::BackgroundValidationMpsc(error) = e {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?error,
 							"Mpsc background validation mpsc died during validation- leaf no longer active?"
 						);
 					} else {
-						tracing::error!(
+						gum::error!(
 							target: LOG_TARGET,
 							"Failed to validate and make available: {:?}",
 							e
@@ -699,7 +695,7 @@ impl CandidateBackingJob {
 
 		span.as_mut().map(|span| span.add_follows_from(parent_span));
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
 			candidate_receipt = ?candidate,
@@ -763,7 +759,7 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			statement = ?statement.payload().to_compact(),
 			validator_index = statement.validator_index().0,
@@ -784,7 +780,7 @@ impl CandidateBackingJob {
 			.dispatch_new_statement_to_dispute_coordinator(sender, candidate_hash, &statement)
 			.await
 		{
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				session_index = ?self.session_index,
 				relay_parent = ?self.parent,
@@ -809,7 +805,7 @@ impl CandidateBackingJob {
 				let span = self.remove_unbacked_span(&candidate_hash);
 
 				if let Some(backed) = table_attested_to_backed(attested, &self.table_context) {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?candidate_hash,
 						relay_parent = ?self.parent,
@@ -891,7 +887,9 @@ impl CandidateBackingJob {
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			// TODO: Log confirmation results in an efficient way:
+			// https://github.com/paritytech/polkadot/issues/5156
+			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 			sender
 				.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
@@ -901,16 +899,6 @@ impl CandidateBackingJob {
 					pending_confirmation,
 				})
 				.await;
-
-			match confirmation_rx.await {
-				Err(oneshot::Canceled) => {
-					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
-				},
-				Ok(ImportStatementsResult::ValidImport) => {},
-				Ok(ImportStatementsResult::InvalidImport) => {
-					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
-				},
-			}
 		}
 
 		Ok(())
@@ -935,7 +923,7 @@ impl CandidateBackingJob {
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						our_assignment = ?self.assignment,
 						collation = ?candidate.descriptor().para_id,
@@ -1006,7 +994,7 @@ impl CandidateBackingJob {
 
 		let descriptor = attesting.candidate.descriptor().clone();
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
 			candidate_receipt = ?attesting.candidate,
@@ -1196,7 +1184,7 @@ impl util::JobTrait for CandidateBackingJob {
 					match $x {
 						Ok(x) => x,
 						Err(e) => {
-							tracing::warn!(
+							gum::warn!(
 								target: LOG_TARGET,
 								err = ?e,
 								"Failed to fetch runtime API data for job",
@@ -1241,7 +1229,7 @@ impl util::JobTrait for CandidateBackingJob {
 					Ok(v) => Some(v),
 					Err(util::Error::NotAValidator) => None,
 					Err(e) => {
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							err = ?e,
 							"Cannot participate in candidate backing",

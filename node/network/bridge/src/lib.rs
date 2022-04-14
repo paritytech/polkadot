@@ -157,6 +157,12 @@ impl Metrics {
 				.set(size as u64)
 		});
 	}
+
+	fn on_report_event(&self) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.report_events.inc()
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -165,6 +171,7 @@ struct MetricsInner {
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
 	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
+	report_events: prometheus::Counter<prometheus::U64>,
 
 	notifications_received: prometheus::CounterVec<prometheus::U64>,
 	notifications_sent: prometheus::CounterVec<prometheus::U64>,
@@ -215,6 +222,13 @@ impl metrics::Metrics for Metrics {
 						"The number of peers that the local node is expected to connect to on a parachain-related peer-set (either including or not including unresolvable authorities, depending on whether `ConnectToValidators` or `ConnectToValidatorsResolved` was used.)",
 					),
 					&["protocol"]
+				)?,
+				registry,
+			)?,
+			report_events: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_network_report_events_total",
+					"The amount of reputation changes issued by subsystems",
 				)?,
 				registry,
 			)?,
@@ -389,7 +403,7 @@ where
 			msg = ctx.recv().fuse() => match msg {
 				Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
 					let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						action = "ActiveLeaves",
 						has_activated = activated.is_some(),
@@ -428,7 +442,7 @@ where
 					}
 				}
 				Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						action = "BlockFinalized"
 					);
@@ -446,17 +460,19 @@ where
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
 						if !rep.is_benefit() {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								?peer,
 								?rep,
 								action = "ReportPeer"
 							);
 						}
+
+						metrics.on_report_event();
 						network_service.report_peer(peer, rep);
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "DisconnectPeer",
 							?peer,
@@ -466,7 +482,7 @@ where
 						network_service.disconnect_peer(peer, peer_set);
 					}
 					NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendValidationMessages",
 							num_messages = 1usize,
@@ -482,7 +498,7 @@ where
 						);
 					}
 					NetworkBridgeMessage::SendValidationMessages(msgs) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendValidationMessages",
 							num_messages = %msgs.len(),
@@ -500,7 +516,7 @@ where
 						}
 					}
 					NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendCollationMessages",
 							num_messages = 1usize,
@@ -516,7 +532,7 @@ where
 						);
 					}
 					NetworkBridgeMessage::SendCollationMessages(msgs) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendCollationMessages",
 							num_messages = %msgs.len(),
@@ -534,7 +550,7 @@ where
 						}
 					}
 					NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "SendRequests",
 							num_requests = %reqs.len(),
@@ -551,7 +567,7 @@ where
 						peer_set,
 						failed,
 					} => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "ConnectToValidators",
 							peer_set = ?peer_set,
@@ -576,7 +592,7 @@ where
 						validator_addrs,
 						peer_set,
 					} => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							action = "ConnectToPeers",
 							peer_set = ?peer_set,
@@ -596,7 +612,7 @@ where
 					NetworkBridgeMessage::NewGossipTopology {
 						our_neighbors,
 					} => {
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							action = "NewGossipTopology",
 							neighbors = our_neighbors.len(),
@@ -656,7 +672,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					if let Some(fallback) = negotiated_fallback {
 						match PeerSet::try_from_protocol_name(&fallback) {
 							None => {
-								tracing::debug!(
+								gum::debug!(
 									target: LOG_TARGET,
 									fallback = &*fallback,
 									?peer,
@@ -668,7 +684,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 							}
 							Some((p2, v2)) => {
 								if p2 != peer_set {
-									tracing::debug!(
+									gum::debug!(
 										target: LOG_TARGET,
 										fallback = &*fallback,
 										fallback_peerset = ?p2,
@@ -688,7 +704,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					}
 				};
 
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					action = "PeerConnected",
 					peer_set = ?peer_set,
@@ -775,7 +791,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					Some(peer_set) => peer_set,
 				};
 
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					action = "PeerDisconnected",
 					peer_set = ?peer_set,
@@ -852,7 +868,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 				let v_messages = match v_messages {
 					Err(rep) => {
-						tracing::debug!(target: LOG_TARGET, action = "ReportPeer");
+						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
 						network_service.report_peer(remote, rep);
 
 						continue
@@ -883,7 +899,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 				let c_messages = match c_messages {
 					Err(rep) => {
-						tracing::debug!(target: LOG_TARGET, action = "ReportPeer");
+						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
 						network_service.report_peer(remote, rep);
 
 						continue
@@ -895,7 +911,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					continue
 				}
 
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					action = "PeerMessages",
 					peer = ?remote,
@@ -996,7 +1012,7 @@ where
 	{
 		Ok(()) => Ok(()),
 		Err(UnexpectedAbort::SubsystemError(err)) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				err = ?err,
 				"Shutting down Network Bridge due to error"
@@ -1008,7 +1024,7 @@ where
 			)))
 		},
 		Err(UnexpectedAbort::EventStreamConcluded) => {
-			tracing::info!(
+			gum::info!(
 				target: LOG_TARGET,
 				"Shutting down Network Bridge: underlying request stream concluded"
 			);

@@ -20,6 +20,7 @@ use crate::{
 	},
 	select_full_bridge,
 };
+use bp_runtime::EncodedOrDecodedCall;
 use frame_support::weights::DispatchInfo;
 use relay_substrate_client::Chain;
 use structopt::StructOpt;
@@ -84,14 +85,11 @@ pub enum Call {
 }
 
 pub trait CliEncodeCall: Chain {
-	/// Maximal size (in bytes) of any extrinsic (from the runtime).
-	fn max_extrinsic_size() -> u32;
-
 	/// Encode a CLI call.
-	fn encode_call(call: &Call) -> anyhow::Result<Self::Call>;
+	fn encode_call(call: &Call) -> anyhow::Result<EncodedOrDecodedCall<Self::Call>>;
 
 	/// Get dispatch info for the call.
-	fn get_dispatch_info(call: &Self::Call) -> anyhow::Result<DispatchInfo>;
+	fn get_dispatch_info(call: &EncodedOrDecodedCall<Self::Call>) -> anyhow::Result<DispatchInfo>;
 }
 
 impl EncodeCall {
@@ -103,7 +101,10 @@ impl EncodeCall {
 			let encoded = HexBytes::encode(&call);
 
 			log::info!(target: "bridge", "Generated {} call: {:#?}", Source::NAME, call);
-			log::info!(target: "bridge", "Weight of {} call: {}", Source::NAME, Source::get_dispatch_info(&call)?.weight);
+			log::info!(target: "bridge", "Weight of {} call: {}", Source::NAME, Source::get_dispatch_info(&call)
+				.map(|dispatch_info| format!("{}", dispatch_info.weight))
+				.unwrap_or_else(|_| "<unknown>".to_string())
+			);
 			log::info!(target: "bridge", "Encoded {} call: {:?}", Source::NAME, encoded);
 
 			Ok(encoded)
@@ -311,8 +312,8 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn should_encode_bridge_send_message_call() {
+	#[async_std::test]
+	async fn should_encode_bridge_send_message_call() {
 		// given
 		let encode_message = SendMessage::from_iter(vec![
 			"send-message",
@@ -328,6 +329,7 @@ mod tests {
 			"remark",
 		])
 		.encode_payload()
+		.await
 		.unwrap();
 
 		let mut encode_call = EncodeCall::from_iter(vec![
@@ -345,7 +347,7 @@ mod tests {
 
 		// then
 		assert!(format!("{:?}", call_hex).starts_with(
-			"0x0f030000000001000000381409000000000001d43593c715fdd31c61141abd04a99fd6822c8558854cc\
+			"0x0f030000000001000000000000000000000001d43593c715fdd31c61141abd04a99fd6822c8558854cc\
 			de39a5684e7a56da27d01d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d01"
 		))
 	}

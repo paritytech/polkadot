@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -75,6 +75,11 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// blocks that pass backing are considerd executable by approval checkers or
 /// dispute participants.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// Linked to `MAX_FINALITY_LAG` in relay chain selection,
+/// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
+/// `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`
+pub const MAX_FINALITY_LAG: u32 = 500;
 
 /// Type of a session window size.
 ///
@@ -231,6 +236,8 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
+	/// Validation has generated different candidate commitments.
+	CommitmentsHashMismatch,
 }
 
 /// Result of the validation of the candidate.

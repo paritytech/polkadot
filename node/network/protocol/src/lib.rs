@@ -282,7 +282,6 @@ impl View {
 /// v1 protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
-	use std::convert::TryFrom;
 
 	use polkadot_primitives::v2::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
@@ -332,19 +331,6 @@ pub mod v1 {
 	}
 
 	impl StatementDistributionMessage {
-		/// Get meta data of the given `StatementDistributionMessage`.
-		pub fn get_metadata(&self) -> StatementMetadata {
-			match self {
-				Self::Statement(relay_parent, statement) => StatementMetadata {
-					relay_parent: *relay_parent,
-					candidate_hash: statement.unchecked_payload().candidate_hash(),
-					signed_by: statement.unchecked_validator_index(),
-					signature: statement.unchecked_signature().clone(),
-				},
-				Self::LargeStatement(metadata) => metadata.clone(),
-			}
-		}
-
 		/// Get fingerprint describing the contained statement uniquely.
 		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
 			match self {

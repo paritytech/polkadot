@@ -2,96 +2,70 @@
 timeout = 1000
 
 [relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
-  max_validators_per_core = 2
-  needed_approvals = 2
+  max_validators_per_core = 5
+  needed_approvals = 8
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
 chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
 default_command = "polkadot"
-  
+
+[relaychain.default_resources]
+limits = { memory = "4G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "alice"
-  command = "malus dispute-ancestor"
-  extra_args = [ "--alice", "-lparachain=debug" ]
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  args = [ "--alice", " -lparachain=debug,MALUS=trace" ]
 
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "bob"
-  command = "malus dispute-ancestor"
-  extra_args = [ "--bob", "-lparachain=debug"]
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  args = [ "--bob", "-lparachain=debug,MALUS=trace"]
   
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "charlie"
-  command = "malus dispute-ancestor"
-  extra_args = [ "--charlie", "-lparachain=debug" ]
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  args = [ "--charlie", "-lparachain=debug,MALUS=trace" ]
 
   [[relaychain.nodes]]
   name = "dave"
-  extra_args = [ "--dave", "-lparachain=debug"]
+  args = [ "--dave", "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "ferdie"
-  extra_args = [ "--ferdie", "-lparachain=debug" ]
+  args = [ "--ferdie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "eve"
-  extra_args = [ "--eve", "-lparachain=debug"]
+  args = [ "--eve", "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "one"
-  extra_args = [ "--one", "-lparachain=debug" ]
+  args = [ "--one", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "two"
-  extra_args = [ "--two", "-lparachain=debug"]
+  args = [ "--two", "-lparachain=debug"]
 
+{% for id in range(2000,2004) %}
 [[parachains]]
-id = 2000
+id = {{id}}
 addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1"
+genesis_state_generator = "undying-collator export-genesis-state --pov-size={{25000*(id-1999)}} --pvf-complexity={{id - 1999}}"
 
   [parachains.collator]
   image = "{{COL_IMAGE}}"
-  name = "collator01"
+  name = "collator"
   command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000", "--pvf-complexity=1", "--parachain-id=2000"]
+  args = ["-lparachain=debug", "--pov-size={{25000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
 
-[[parachains]]
-id = 2001
-addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=2"
-
-  [parachains.collator]
-  image = "{{COL_IMAGE}}"
-  name = "collator02"
-  command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000", "--parachain-id=2001", "--pvf-complexity=2"]
-
-[[parachains]]
-id = 2002
-addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=10"
-
-  [parachains.collator]
-  image = "{{COL_IMAGE}}"
-  name = "collator03"
-  command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000", "--parachain-id=2002", "--pvf-complexity=10"]
-
-[[parachains]]
-id = 2003
-addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size=20000 --pvf-complexity=1000"
-
-  [parachains.collator]
-  image = "{{COL_IMAGE}}"
-  name = "collator04"
-  command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=20000", "--parachain-id=2003", "--pvf-complexity=1000"]
+{% endfor %}
 
 [types.Header]
 number = "u64"

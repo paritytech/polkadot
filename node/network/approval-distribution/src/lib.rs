@@ -35,15 +35,15 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	MIN_GOSSIP_PEERS,
-};
+use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, ValidatorIndex, ValidatorSignature,
 };
-use std::collections::{hash_map, BTreeMap, HashMap, HashSet};
+use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
+
+use self::metrics::Metrics;
+
+mod metrics;
 
 #[cfg(test)]
 mod tests;
@@ -64,6 +64,29 @@ const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
 	metrics: Metrics,
+}
+
+/// Contains recently finalized
+/// or those pruned due to finalization.
+#[derive(Default)]
+struct RecentlyOutdated {
+	buf: VecDeque<Hash>,
+}
+
+impl RecentlyOutdated {
+	fn note_outdated(&mut self, hash: Hash) {
+		const MAX_BUF_LEN: usize = 20;
+
+		self.buf.push_back(hash);
+
+		while self.buf.len() > MAX_BUF_LEN {
+			let _ = self.buf.pop_front();
+		}
+	}
+
+	fn is_recent_outdated(&self, hash: &Hash) -> bool {
+		self.buf.contains(hash)
+	}
 }
 
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
@@ -90,6 +113,9 @@ struct State {
 	/// Track all our neighbors in the current gossip topology.
 	/// We're not necessarily connected to all of them.
 	gossip_peers: HashSet<PeerId>,
+
+	/// Tracks recently finalized blocks.
+	recent_outdated_blocks: RecentlyOutdated,
 }
 
 /// A short description of a validator's assignment or approval.
@@ -206,11 +232,11 @@ impl State {
 		match event {
 			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
-				tracing::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
+				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
 				self.peer_views.entry(peer_id).or_default();
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
-				tracing::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
+				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
 				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
@@ -230,7 +256,7 @@ impl State {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
 			},
 			NetworkBridgeEvent::OurViewChange(view) => {
-				tracing::trace!(target: LOG_TARGET, ?view, "Own view change");
+				gum::trace!(target: LOG_TARGET, ?view, "Own view change");
 				for head in view.iter() {
 					if !self.blocks.contains_key(head) {
 						self.pending_known.entry(*head).or_default();
@@ -240,7 +266,7 @@ impl State {
 				self.pending_known.retain(|h, _| {
 					let live = view.contains(h);
 					if !live {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							block_hash = ?h,
 							"Cleaning up stale pending messages",
@@ -287,13 +313,27 @@ impl State {
 			}
 		}
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			"Got new blocks {:?}",
 			metas.iter().map(|m| (m.hash, m.number)).collect::<Vec<_>>(),
 		);
 
 		{
+			for (peer_id, view) in self.peer_views.iter() {
+				let intersection = view.iter().filter(|h| new_hashes.contains(h));
+				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
+				Self::unify_with_peer(
+					ctx,
+					&self.gossip_peers,
+					metrics,
+					&mut self.blocks,
+					peer_id.clone(),
+					view_intersection,
+				)
+				.await;
+			}
+
 			let pending_now_known = self
 				.pending_known
 				.keys()
@@ -304,7 +344,7 @@ impl State {
 			let to_import = pending_now_known
 				.into_iter()
 				.inspect(|h| {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						block_hash = ?h,
 						"Extracting pending messages for new block"
@@ -315,7 +355,7 @@ impl State {
 				.collect::<Vec<_>>();
 
 			if !to_import.is_empty() {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					num = to_import.len(),
 					"Processing pending assignment/approvals",
@@ -348,20 +388,6 @@ impl State {
 				}
 			}
 		}
-
-		for (peer_id, view) in self.peer_views.iter() {
-			let intersection = view.iter().filter(|h| new_hashes.contains(h));
-			let view_intersection = View::new(intersection.cloned(), view.finalized_number);
-			Self::unify_with_peer(
-				ctx,
-				&self.gossip_peers,
-				metrics,
-				&mut self.blocks,
-				peer_id.clone(),
-				view_intersection,
-			)
-			.await;
-		}
 	}
 
 	async fn process_incoming_peer_message(
@@ -374,7 +400,7 @@ impl State {
 	) {
 		match msg {
 			protocol_v1::ApprovalDistributionMessage::Assignments(assignments) => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					peer_id = %peer_id,
 					num = assignments.len(),
@@ -388,7 +414,7 @@ impl State {
 							assignment.validator,
 						);
 
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							%peer_id,
 							?fingerprint,
@@ -414,7 +440,7 @@ impl State {
 				}
 			},
 			protocol_v1::ApprovalDistributionMessage::Approvals(approvals) => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					peer_id = %peer_id,
 					num = approvals.len(),
@@ -428,7 +454,7 @@ impl State {
 							approval_vote.validator,
 						);
 
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							%peer_id,
 							?fingerprint,
@@ -460,7 +486,7 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
-		tracing::trace!(target: LOG_TARGET, ?view, "Peer view change");
+		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
 		let old_view = self.peer_views.insert(peer_id.clone(), view.clone());
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
@@ -500,12 +526,14 @@ impl State {
 		// split_off returns everything after the given key, including the key
 		let split_point = finalized_number.saturating_add(1);
 		let mut old_blocks = self.blocks_by_number.split_off(&split_point);
+
 		// after split_off old_blocks actually contains new blocks, we need to swap
 		std::mem::swap(&mut self.blocks_by_number, &mut old_blocks);
 
 		// now that we pruned `self.blocks_by_number`, let's clean up `self.blocks` too
-		old_blocks.values().flatten().for_each(|h| {
-			self.blocks.remove(h);
+		old_blocks.values().flatten().for_each(|relay_block| {
+			self.recent_outdated_blocks.note_outdated(*relay_block);
+			self.blocks.remove(relay_block);
 		});
 	}
 
@@ -525,14 +553,16 @@ impl State {
 			Some(entry) => entry,
 			None => {
 				if let Some(peer_id) = source.peer_id() {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?peer_id,
-						?block_hash,
+						hash = ?block_hash,
 						?validator_index,
 						"Unexpected assignment",
 					);
-					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
+						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					}
 				}
 				return
 			},
@@ -548,23 +578,25 @@ impl State {
 				hash_map::Entry::Occupied(mut peer_knowledge) => {
 					let peer_knowledge = peer_knowledge.get_mut();
 					if peer_knowledge.contains(&fingerprint) {
-						if peer_knowledge.received.contains(&fingerprint) {
-							tracing::debug!(
+						// wasn't included before
+						if !peer_knowledge.received.insert(fingerprint.clone()) {
+							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
+								hash = ?block_hash,
 								?fingerprint,
 								"Duplicate assignment",
 							);
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
-						peer_knowledge.received.insert(fingerprint);
 						return
 					}
 				},
 				hash_map::Entry::Vacant(_) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
+						hash = ?block_hash,
 						?fingerprint,
 						"Assignment from a peer is out of view",
 					);
@@ -576,7 +608,7 @@ impl State {
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-					tracing::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known assignment");
+					gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known assignment");
 					peer_knowledge.received.insert(fingerprint.clone());
 				}
 				return
@@ -595,19 +627,13 @@ impl State {
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
-					tracing::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
+					gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
 					return
 				},
 			};
 			drop(timer);
 
-			tracing::trace!(
-				target: LOG_TARGET,
-				?source,
-				?fingerprint,
-				?result,
-				"Checked assignment",
-			);
+			gum::trace!(target: LOG_TARGET, hash = ?block_hash, ?source, ?fingerprint, ?result, "Checked assignment",);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -623,16 +649,18 @@ impl State {
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(fingerprint);
 					}
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
+						hash = ?block_hash,
 						?peer_id,
 						"Got an `AcceptedDuplicate` assignment",
 					);
 					return
 				},
 				AssignmentCheckResult::TooFarInFuture => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
+						hash = ?block_hash,
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
@@ -640,8 +668,9 @@ impl State {
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
-					tracing::info!(
+					gum::info!(
 						target: LOG_TARGET,
+						hash = ?block_hash,
 						?peer_id,
 						%error,
 						"Got a bad assignment from peer",
@@ -653,18 +682,14 @@ impl State {
 		} else {
 			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
 				// if we already imported an assignment, there is no need to distribute it again
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?fingerprint,
 					"Importing locally an already known assignment",
 				);
 				return
 			} else {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?fingerprint,
-					"Importing locally a new assignment",
-				);
+				gum::debug!(target: LOG_TARGET, ?fingerprint, "Importing locally a new assignment",);
 			}
 		}
 
@@ -682,7 +707,7 @@ impl State {
 				});
 			},
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					hash = ?block_hash,
 					?claimed_candidate_index,
@@ -695,7 +720,7 @@ impl State {
 		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
-		let peers = entry
+		let mut peers = entry
 			.known_by
 			.keys()
 			.cloned()
@@ -704,8 +729,7 @@ impl State {
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
 		let gossip_peers = &self.gossip_peers;
-		let peers =
-			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
+		util::choose_random_subset(|e| gossip_peers.contains(e), &mut peers, MIN_GOSSIP_PEERS);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -716,7 +740,7 @@ impl State {
 		}
 
 		if !peers.is_empty() {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
 				?claimed_candidate_index,
@@ -751,7 +775,9 @@ impl State {
 			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
-					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
+						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					}
 				}
 				return
 			},
@@ -769,7 +795,7 @@ impl State {
 			);
 
 			if !entry.knowledge.known_messages.contains(&assignment_fingerprint) {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?peer_id,
 					?fingerprint,
@@ -784,8 +810,8 @@ impl State {
 				hash_map::Entry::Occupied(mut knowledge) => {
 					let peer_knowledge = knowledge.get_mut();
 					if peer_knowledge.contains(&fingerprint) {
-						if peer_knowledge.received.contains(&fingerprint) {
-							tracing::debug!(
+						if !peer_knowledge.received.insert(fingerprint.clone()) {
+							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
 								?fingerprint,
@@ -794,12 +820,11 @@ impl State {
 
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
-						peer_knowledge.received.insert(fingerprint);
 						return
 					}
 				},
 				hash_map::Entry::Vacant(_) => {
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
 						?fingerprint,
@@ -811,7 +836,7 @@ impl State {
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&fingerprint) {
-				tracing::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known approval");
+				gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known approval");
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(fingerprint.clone());
@@ -828,19 +853,13 @@ impl State {
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
-					tracing::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
+					gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
 					return
 				},
 			};
 			drop(timer);
 
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				?fingerprint,
-				?result,
-				"Checked approval",
-			);
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, ?result, "Checked approval",);
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -852,7 +871,7 @@ impl State {
 				},
 				ApprovalCheckResult::Bad(error) => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
-					tracing::info!(
+					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
 						%error,
@@ -864,18 +883,14 @@ impl State {
 		} else {
 			if !entry.knowledge.insert(fingerprint.clone()) {
 				// if we already imported an approval, there is no need to distribute it again
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?fingerprint,
 					"Importing locally an already known approval",
 				);
 				return
 			} else {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?fingerprint,
-					"Importing locally a new approval",
-				);
+				gum::debug!(target: LOG_TARGET, ?fingerprint, "Importing locally a new approval",);
 			}
 		}
 
@@ -902,7 +917,7 @@ impl State {
 					},
 					None => {
 						// this would indicate a bug in approval-voting
-						tracing::warn!(
+						gum::warn!(
 							target: LOG_TARGET,
 							hash = ?block_hash,
 							?candidate_index,
@@ -913,7 +928,7 @@ impl State {
 				}
 			},
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					hash = ?block_hash,
 					?candidate_index,
@@ -927,7 +942,7 @@ impl State {
 		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
-		let peers = entry
+		let mut peers = entry
 			.known_by
 			.keys()
 			.cloned()
@@ -935,8 +950,7 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let gossip_peers = &self.gossip_peers;
-		let peers =
-			util::choose_random_subset(|e| gossip_peers.contains(e), peers, MIN_GOSSIP_PEERS);
+		util::choose_random_subset(|e| gossip_peers.contains(e), &mut peers, MIN_GOSSIP_PEERS);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -948,7 +962,7 @@ impl State {
 
 		let approvals = vec![vote];
 		if !peers.is_empty() {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
 				?candidate_index,
@@ -1004,7 +1018,7 @@ impl State {
 						// This safeguard is needed primarily in case of long finality stalls
 						// so we don't waste time in a loop for every peer.
 						if missing.is_empty() {
-							tracing::trace!(
+							gum::trace!(
 								target: LOG_TARGET,
 								?block,
 								?peer_id,
@@ -1036,7 +1050,7 @@ impl State {
 				util::MIN_GOSSIP_PEERS,
 			);
 		if !lucky {
-			tracing::trace!(target: LOG_TARGET, ?peer_id, "Unlucky peer");
+			gum::trace!(target: LOG_TARGET, ?peer_id, "Unlucky peer");
 			return
 		}
 
@@ -1062,7 +1076,7 @@ impl State {
 				None => continue, // should be unreachable
 			};
 
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				"Sending all assignments and approvals in block {} to peer {}",
 				block,
@@ -1083,7 +1097,7 @@ impl State {
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
 							if !missing.contains(&assignment_fingerprint) {
-								tracing::trace!(
+								gum::trace!(
 									target: LOG_TARGET,
 									?block,
 									?validator_index,
@@ -1123,7 +1137,7 @@ impl State {
 									candidate_index.clone(),
 								));
 							} else {
-								tracing::trace!(
+								gum::trace!(
 									target: LOG_TARGET,
 									?block,
 									?validator_index,
@@ -1142,7 +1156,7 @@ impl State {
 									signature: signature.clone(),
 								});
 							} else {
-								tracing::trace!(
+								gum::trace!(
 									target: LOG_TARGET,
 									?block,
 									?validator_index,
@@ -1157,7 +1171,7 @@ impl State {
 		}
 
 		if !assignments.is_empty() {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				num = assignments.len(),
 				?num_blocks,
@@ -1175,7 +1189,7 @@ impl State {
 		}
 
 		if !approvals.is_empty() {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				num = approvals.len(),
 				?num_blocks,
@@ -1201,7 +1215,7 @@ async fn modify_reputation(
 	peer_id: PeerId,
 	rep: Rep,
 ) {
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		reputation = ?rep,
 		?peer_id,
@@ -1236,73 +1250,76 @@ impl ApprovalDistribution {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
-					tracing::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
 					return
 				},
 			};
 			match message {
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::NetworkBridgeUpdate(event),
-				} => {
-					state.handle_network_msg(&mut ctx, &self.metrics, event).await;
-				},
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::NewBlocks(metas),
-				} => {
-					tracing::debug!(target: LOG_TARGET, "Processing NewBlocks");
-					state.handle_new_blocks(&mut ctx, &self.metrics, metas).await;
-				},
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
-				} => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Distributing our assignment on candidate (block={}, index={})",
-						cert.block_hash,
-						candidate_index,
-					);
-
-					state
-						.import_and_circulate_assignment(
-							&mut ctx,
-							&self.metrics,
-							MessageSource::Local,
-							cert,
-							candidate_index,
-						)
-						.await;
-				},
-				FromOverseer::Communication {
-					msg: ApprovalDistributionMessage::DistributeApproval(vote),
-				} => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Distributing our approval vote on candidate (block={}, index={})",
-						vote.block_hash,
-						vote.candidate_index,
-					);
-
-					state
-						.import_and_circulate_approval(
-							&mut ctx,
-							&self.metrics,
-							MessageSource::Local,
-							vote,
-						)
-						.await;
-				},
+				FromOverseer::Communication { msg } =>
+					Self::handle_incoming(&mut ctx, state, msg, &self.metrics).await,
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					..
 				})) => {
-					tracing::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// handled by NewBlocks
+					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+					// the relay chain blocks relevant to the approval subsystems
+					// are those that are available, but not finalized yet
+					// actived and deactivated heads hence are irrelevant to this subsystem
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					tracing::trace!(target: LOG_TARGET, number = %number, "finalized signal");
+					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
 					state.handle_block_finalized(number);
 				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => return,
 			}
+		}
+	}
+
+	async fn handle_incoming<Context>(
+		ctx: &mut Context,
+		state: &mut State,
+		msg: ApprovalDistributionMessage,
+		metrics: &Metrics,
+	) where
+		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
+	{
+		match msg {
+			ApprovalDistributionMessage::NetworkBridgeUpdate(event) => {
+				state.handle_network_msg(ctx, metrics, event).await;
+			},
+			ApprovalDistributionMessage::NewBlocks(metas) => {
+				state.handle_new_blocks(ctx, metrics, metas).await;
+			},
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our assignment on candidate (block={}, index={})",
+					cert.block_hash,
+					candidate_index,
+				);
+
+				state
+					.import_and_circulate_assignment(
+						ctx,
+						&metrics,
+						MessageSource::Local,
+						cert,
+						candidate_index,
+					)
+					.await;
+			},
+			ApprovalDistributionMessage::DistributeApproval(vote) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our approval vote on candidate (block={}, index={})",
+					vote.block_hash,
+					vote.candidate_index,
+				);
+
+				state
+					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
+					.await;
+			},
 		}
 	}
 }
@@ -1316,110 +1333,5 @@ where
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "approval-distribution-subsystem", future }
-	}
-}
-
-/// Approval Distribution metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-#[derive(Clone)]
-struct MetricsInner {
-	assignments_imported_total: prometheus::Counter<prometheus::U64>,
-	approvals_imported_total: prometheus::Counter<prometheus::U64>,
-	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
-
-	time_unify_with_peer: prometheus::Histogram,
-	time_import_pending_now_known: prometheus::Histogram,
-	time_awaiting_approval_voting: prometheus::Histogram,
-}
-
-impl Metrics {
-	fn on_assignment_imported(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.assignments_imported_total.inc();
-		}
-	}
-
-	fn on_approval_imported(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.approvals_imported_total.inc();
-		}
-	}
-
-	fn on_unify_with_peer(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.unified_with_peer_total.inc();
-		}
-	}
-
-	fn time_unify_with_peer(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.time_unify_with_peer.start_timer())
-	}
-
-	fn time_import_pending_now_known(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.time_import_pending_now_known.start_timer())
-	}
-
-	fn time_awaiting_approval_voting(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.time_awaiting_approval_voting.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			assignments_imported_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_assignments_imported_total",
-					"Number of valid assignments imported locally or from other peers.",
-				)?,
-				registry,
-			)?,
-			approvals_imported_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_approvals_imported_total",
-					"Number of valid approvals imported locally or from other peers.",
-				)?,
-				registry,
-			)?,
-			unified_with_peer_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_unified_with_peer_total",
-					"Number of times `unify_with_peer` is called.",
-				)?,
-				registry,
-			)?,
-			time_unify_with_peer: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_unify_with_peer",
-					"Time spent within fn `unify_with_peer`.",
-				))?,
-				registry,
-			)?,
-			time_import_pending_now_known: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_import_pending_now_known",
-					"Time spent on importing pending assignments and approvals.",
-				))?,
-				registry,
-			)?,
-			time_awaiting_approval_voting: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_awaiting_approval_voting",
-					"Time spent awaiting a reply from the Approval Voting Subsystem.",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
 	}
 }

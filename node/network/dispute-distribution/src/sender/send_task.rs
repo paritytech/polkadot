@@ -159,7 +159,7 @@ impl SendTask {
 	pub fn on_finished_send(&mut self, authority: &AuthorityDiscoveryId, result: TaskResult) {
 		match result {
 			TaskResult::Failed(err) => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?authority,
 					candidate_hash = %self.request.0.candidate_receipt.hash(),
@@ -176,7 +176,7 @@ impl SendTask {
 					None => {
 						// Can happen when a sending became irrelevant while the response was already
 						// queued.
-						tracing::debug!(
+						gum::debug!(
 							target: LOG_TARGET,
 							candidate = ?self.request.0.candidate_receipt.hash(),
 							?authority,
@@ -290,7 +290,7 @@ async fn wait_response_task(
 			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded },
 	};
 	if let Err(err) = tx.feed(msg).await {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			%err,
 			"Failed to notify susystem about dispute sending result."
