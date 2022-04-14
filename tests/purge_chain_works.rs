@@ -39,12 +39,12 @@ async fn purge_chain_rocksdb_works() {
 		.unwrap();
 
 	// Let it produce 1 block.
-	common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await.unwrap();
+	common::wait_n_finalized_blocks(1, Duration::from_secs(60 * 3)).await.unwrap();
 
 	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
 	// Wait for the node to handle it and exit.
-	assert!(common::wait_for(&mut cmd, 30).map(|x| x.success()).unwrap_or_default());
+	assert!(common::wait_for(&mut cmd, 30 * 3).map(|x| x.success()).unwrap_or_default());
 	assert!(tmpdir.path().join("chains/dev").exists());
 	assert!(tmpdir.path().join("chains/dev/db/full").exists());
 	assert!(tmpdir.path().join("chains/dev/db/full/parachains").exists());
