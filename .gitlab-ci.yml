@@ -255,7 +255,7 @@ test-linux-stable:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    RUSTFLAGS: "-Cdebug-assertions=y"
   script:
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
 
@@ -354,7 +354,7 @@ test-node-metrics:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    RUSTFLAGS: "-Cdebug-assertions=y"
   script:
     - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
 
