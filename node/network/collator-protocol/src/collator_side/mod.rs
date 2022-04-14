@@ -688,6 +688,9 @@ where
 			);
 		},
 		NetworkBridgeUpdate(event) => {
+			// We should count only this shoulder in the histogram, as other shoulders are just introducing noise
+			let _ = state.metrics.time_process_msg();
+
 			if let Err(e) = handle_network_msg(ctx, runtime, state, event).await {
 				gum::warn!(
 					target: LOG_TARGET,
