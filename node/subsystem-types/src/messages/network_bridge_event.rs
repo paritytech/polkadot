@@ -25,12 +25,7 @@ use polkadot_primitives::v2::AuthorityDiscoveryId;
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(
-		PeerId,
-		ObservedRole,
-		ProtocolVersion,
-		Option<HashSet<AuthorityDiscoveryId>>,
-	),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
@@ -78,8 +73,17 @@ impl<M> NetworkBridgeEvent<M> {
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
 				NetworkBridgeEvent::PeerMessage(peer.clone(), T::try_from(msg)?),
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref version, ref authority_id) =>
-				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), *version, authority_id.clone()),
+			NetworkBridgeEvent::PeerConnected(
+				ref peer,
+				ref role,
+				ref version,
+				ref authority_id,
+			) => NetworkBridgeEvent::PeerConnected(
+				peer.clone(),
+				role.clone(),
+				*version,
+				authority_id.clone(),
+			),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
 				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
 			NetworkBridgeEvent::NewGossipTopology(ref peers) =>

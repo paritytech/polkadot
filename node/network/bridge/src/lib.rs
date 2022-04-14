@@ -660,7 +660,10 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 			Some(NetworkEvent::SyncConnected { .. }) |
 			Some(NetworkEvent::SyncDisconnected { .. }) => {},
 			Some(NetworkEvent::NotificationStreamOpened {
-				remote: peer, protocol, role, negotiated_fallback,
+				remote: peer,
+				protocol,
+				role,
+				negotiated_fallback,
 			}) => {
 				let role = ObservedRole::from(role);
 				let (peer_set, version) = {
@@ -681,7 +684,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								);
 
 								continue
-							}
+							},
 							Some((p2, v2)) => {
 								if p2 != peer_set {
 									gum::debug!(
@@ -697,7 +700,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								}
 
 								(p2, v2)
-							}
+							},
 						}
 					} else {
 						(peer_set, version)
@@ -1219,9 +1222,10 @@ where
 	I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<protocol_v1::CollationProtocol>| {
-		event.focus().ok().map(|m| {
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::NetworkBridgeUpdate(m))
-		})
+		event
+			.focus()
+			.ok()
+			.map(|m| AllMessages::CollatorProtocol(CollatorProtocolMessage::NetworkBridgeUpdate(m)))
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await

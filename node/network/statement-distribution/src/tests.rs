@@ -1525,7 +1525,12 @@ fn share_prioritizes_backing_group() {
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, 1, None),
+					NetworkBridgeEvent::PeerConnected(
+						peer_bad.clone(),
+						ObservedRole::Full,
+						1,
+						None,
+					),
 				),
 			})
 			.await;
@@ -1957,7 +1962,12 @@ fn handle_multiple_seconded_statements() {
 			handle
 				.send(FromOverseer::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
-						NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+						NetworkBridgeEvent::PeerConnected(
+							peer.clone(),
+							ObservedRole::Full,
+							1,
+							None,
+						),
 					),
 				})
 				.await;

@@ -327,7 +327,11 @@ macro_rules! impl_versioned_try_from {
 
 /// Version-annotated messages used by the bitfield distribution subsystem.
 pub type BitfieldDistributionMessage = Versioned<v1::BitfieldDistributionMessage>;
-impl_versioned_full_protocol_from!(BitfieldDistributionMessage, VersionedValidationProtocol, BitfieldDistribution);
+impl_versioned_full_protocol_from!(
+	BitfieldDistributionMessage,
+	VersionedValidationProtocol,
+	BitfieldDistribution
+);
 impl_versioned_try_from!(
 	VersionedValidationProtocol,
 	BitfieldDistributionMessage,
@@ -336,7 +340,11 @@ impl_versioned_try_from!(
 
 /// Version-annotated messages used by the statement distribution subsystem.
 pub type StatementDistributionMessage = Versioned<v1::StatementDistributionMessage>;
-impl_versioned_full_protocol_from!(StatementDistributionMessage, VersionedValidationProtocol, StatementDistribution);
+impl_versioned_full_protocol_from!(
+	StatementDistributionMessage,
+	VersionedValidationProtocol,
+	StatementDistribution
+);
 impl_versioned_try_from!(
 	VersionedValidationProtocol,
 	StatementDistributionMessage,
@@ -345,7 +353,11 @@ impl_versioned_try_from!(
 
 /// Version-annotated messages used by the approval distribution subsystem.
 pub type ApprovalDistributionMessage = Versioned<v1::ApprovalDistributionMessage>;
-impl_versioned_full_protocol_from!(ApprovalDistributionMessage, VersionedValidationProtocol, ApprovalDistribution);
+impl_versioned_full_protocol_from!(
+	ApprovalDistributionMessage,
+	VersionedValidationProtocol,
+	ApprovalDistribution
+);
 impl_versioned_try_from!(
 	VersionedValidationProtocol,
 	ApprovalDistributionMessage,
@@ -371,7 +383,11 @@ impl<'a> TryFrom<&'a VersionedValidationProtocol> for GossipSupportNetworkMessag
 
 /// Version-annotated messages used by the bitfield distribution subsystem.
 pub type CollatorProtocolMessage = Versioned<v1::CollatorProtocolMessage>;
-impl_versioned_full_protocol_from!(CollatorProtocolMessage, VersionedCollationProtocol, CollatorProtocol);
+impl_versioned_full_protocol_from!(
+	CollatorProtocolMessage,
+	VersionedCollationProtocol,
+	CollatorProtocol
+);
 impl_versioned_try_from!(
 	VersionedCollationProtocol,
 	CollatorProtocolMessage,
