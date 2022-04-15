@@ -25,7 +25,8 @@
 use futures::{channel::oneshot, FutureExt};
 
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
+	self as net_protocol, v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
@@ -63,15 +64,15 @@ struct BitfieldGossipMessage {
 }
 
 impl BitfieldGossipMessage {
-	fn into_validation_protocol(self) -> protocol_v1::ValidationProtocol {
-		protocol_v1::ValidationProtocol::BitfieldDistribution(self.into_network_message())
+	fn into_validation_protocol(self) -> net_protocol::VersionedValidationProtocol {
+		self.into_network_message().into()
 	}
 
-	fn into_network_message(self) -> protocol_v1::BitfieldDistributionMessage {
-		protocol_v1::BitfieldDistributionMessage::Bitfield(
+	fn into_network_message(self) -> net_protocol::BitfieldDistributionMessage {
+		Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
 			self.relay_parent,
 			self.signed_availability.into(),
-		)
+		))
 	}
 }
 
@@ -506,7 +507,7 @@ async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	metrics: &Metrics,
-	bridge_message: NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>,
+	bridge_message: NetworkBridgeEvent<net_protocol::BitfieldDistributionMessage>,
 ) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
@@ -543,7 +544,7 @@ async fn handle_network_msg<Context>(
 			gum::trace!(target: LOG_TARGET, ?new_view, "Our view change");
 			handle_our_view_change(state, new_view);
 		},
-		NetworkBridgeEvent::PeerMessage(remote, message) =>
+		NetworkBridgeEvent::PeerMessage(remote, Versioned::V1(message)) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message).await,
 	}
 }
