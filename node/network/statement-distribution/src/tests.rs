@@ -832,10 +832,10 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							hash_a,
 							statement.clone().into(),
-						),
+						)),
 					),
 				),
 			})
@@ -860,9 +860,9 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
-					),
+					)),
 				)
 			) => {
 				assert_eq!(recipients, vec![peer_b.clone()]);
@@ -1001,7 +1001,12 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None),
+					NetworkBridgeEvent::PeerConnected(
+						peer_bad.clone(),
+						ObservedRole::Full,
+						1,
+						None,
+					),
 				),
 			})
 			.await;
@@ -1071,7 +1076,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
 					),
 				),
 			})
@@ -1107,7 +1114,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_c.clone(),
-						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
 					),
 				),
 			})
@@ -1119,7 +1128,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_bad.clone(),
-						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
 					),
 				),
 			})
@@ -1279,9 +1290,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					mut recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
-					),
+					)),
 				)
 			) => {
 				gum::debug!(
@@ -1540,6 +1551,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
 					),
 				),
@@ -1625,9 +1637,9 @@ fn share_prioritizes_backing_group() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					mut recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
-					),
+					)),
 				)
 			) => {
 				gum::debug!(
@@ -1810,8 +1822,10 @@ fn peer_cant_flood_with_large_statements() {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerMessage(
 							peer_a.clone(),
-							protocol_v1::StatementDistributionMessage::LargeStatement(
-								metadata.clone(),
+							Versioned::V1(
+								protocol_v1::StatementDistributionMessage::LargeStatement(
+									metadata.clone(),
+								),
 							),
 						),
 					),
@@ -2025,10 +2039,10 @@ fn handle_multiple_seconded_statements() {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
-						),
+						)),
 					),
 				),
 			})
@@ -2060,9 +2074,9 @@ fn handle_multiple_seconded_statements() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
-					),
+					)),
 				)
 			) => {
 				assert!(!recipients.contains(&peer_b));
@@ -2077,10 +2091,10 @@ fn handle_multiple_seconded_statements() {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
-						),
+						)),
 					),
 				),
 			})
@@ -2128,10 +2142,10 @@ fn handle_multiple_seconded_statements() {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
-						),
+						)),
 					),
 				),
 			})
@@ -2162,9 +2176,9 @@ fn handle_multiple_seconded_statements() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
-					),
+					)),
 				)
 			) => {
 				assert!(!recipients.contains(&peer_b));
@@ -2179,10 +2193,10 @@ fn handle_multiple_seconded_statements() {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
-						),
+						)),
 					),
 				),
 			})
