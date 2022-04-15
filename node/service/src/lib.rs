@@ -54,7 +54,7 @@ pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
-	polkadot_primitives::v2::ParachainHost,
+	polkadot_primitives::runtime_api::ParachainHost,
 	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -1116,6 +1116,7 @@ where
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
+			runtime: client.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
 			signed_commitment_sender: beefy_links.0,
@@ -1125,7 +1126,7 @@ where
 			protocol_name: beefy_protocol_name,
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
+		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
