@@ -244,6 +244,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::clear_topic()
 	}
 	fn alias_origin(_: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		// XCM Executor does not currently support alias origin operations
+		Weight::MAX
 	}
 }
