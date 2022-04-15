@@ -239,6 +239,9 @@ pub enum Error {
 
 /// Can be called for a `Configuration` to identify which network the configuration targets.
 pub trait IdentifyVariant {
+	/// Returns if this is a configuration for the `Polkadot` network.
+	fn is_polkadot(&self) -> bool;
+
 	/// Returns if this is a configuration for the `Kusama` network.
 	fn is_kusama(&self) -> bool;
 
@@ -259,6 +262,9 @@ pub trait IdentifyVariant {
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
+	fn is_polkadot(&self) -> bool {
+		self.id().starts_with("polkadot") || self.id().starts_with("dot")
+	}
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
@@ -675,7 +681,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	enable_beefy: bool,
+	mut enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
@@ -711,6 +717,13 @@ where
 
 		Some(backoff)
 	};
+	// For now BEEFY is explicitly disabled on non-test chains.
+	if config.chain_spec.is_polkadot() ||
+		config.chain_spec.is_kusama() ||
+		config.chain_spec.is_westend()
+	{
+		enable_beefy = false;
+	}
 
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
@@ -781,7 +794,7 @@ where
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
-	if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
+	if enable_beefy {
 		config
 			.network
 			.extra_sets
@@ -1111,8 +1124,7 @@ where
 	let keystore_opt =
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
-	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) {
+	if enable_beefy {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
