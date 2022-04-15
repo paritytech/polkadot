@@ -42,7 +42,7 @@ use pallet_grandpa::{
 };
 use sp_mmr_primitives::{
 	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider,
-	BatchProof as MmrBatchProof, LeafIndex as MmrLeafIndex
+	BatchProof as MmrBatchProof, Proof as MmrProof, LeafIndex as MmrLeafIndex
 };
 use pallet_transaction_payment::{FeeDetails, Multiplier, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
@@ -630,13 +630,13 @@ impl_runtime_apis! {
 
 	impl sp_mmr_primitives::MmrApi<Block, Hash> for Runtime {
 		fn generate_proof(leaf_index: u64)
-			-> Result<(EncodableOpaqueLeaf, MmrBatchProof<Hash>), MmrError>
+			-> Result<(EncodableOpaqueLeaf, MmrProof<Hash>), MmrError>
 		{
 			Mmr::generate_batch_proof(vec![leaf_index])
-				.map(|(leaves, proof)| (EncodableOpaqueLeaf::from_leaf(leaves[0]), proof))
+				.map(|(leaves, proof)| (EncodableOpaqueLeaf::from_leaf(leaves[0]), proof.into()))
 		}
 
-		fn verify_proof(leaf: EncodableOpaqueLeaf, proof: MmrBatchProof<Hash>)
+		fn verify_proof(leaf: EncodableOpaqueLeaf, proof: MmrProof<Hash>)
 			-> Result<(), MmrError>
 		{
 
@@ -645,16 +645,16 @@ impl_runtime_apis! {
 				.into_opaque_leaf()
 				.try_decode()
 				.ok_or(MmrError::Verify)?;
-			Mmr::verify_leaves(vec![leaf], proof)
+			Mmr::verify_leaves(vec![leaf], proof.into())
 		}
 
 		fn verify_proof_stateless(
 			root: Hash,
 			leaf: EncodableOpaqueLeaf,
-			proof: MmrBatchProof<Hash>
+			proof: MmrProof<Hash>
 		) -> Result<(), MmrError> {
 			let node = DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], proof)
+			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], proof.into())
 		}
 
 		fn generate_batch_proof(leaf_indices: Vec<MmrLeafIndex>)
