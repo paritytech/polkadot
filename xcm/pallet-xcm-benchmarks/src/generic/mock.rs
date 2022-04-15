@@ -30,7 +30,8 @@ use sp_runtime::{
 };
 use xcm_builder::{
 	test_utils::{
-		Assets, TestAssetExchanger, TestAssetTrap, TestSubscriptionService, TestUniversalAliases,
+		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
+		TestUniversalAliases,
 	},
 	AllowUnpaidExecutionFrom,
 };
@@ -118,7 +119,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
-	type AssetLocker = ();
+	type AssetLocker = TestAssetLocker;
 	type AssetExchanger = TestAssetExchanger;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
@@ -171,6 +172,11 @@ impl generic::Config for Test {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
 		Ok((Default::default(), ticket, assets))
+	}
+
+	fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>  {
+		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
+		Ok((Default::default(), Default::default(), assets))
 	}
 }
 

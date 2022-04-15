@@ -516,6 +516,97 @@ benchmarks! {
 		assert_eq!(executor.fees_mode(), &FeesMode { jit_withdraw: true });
 	}
 
+	lock_asset {
+		let (unlocker, owner, asset) = T::unlockable_asset()?;
+
+		let mut executor = new_executor::<T>(owner);
+		executor.set_holding(asset.clone().into());
+
+		let instruction = Instruction::LockAsset { asset, unlocker };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	unlock_asset {
+		use xcm_executor::traits::{AssetLock, Enact};
+
+		let (unlocker, owner, asset) = T::unlockable_asset()?;
+
+		let mut executor = new_executor::<T>(unlocker.clone());
+
+		// We first place the asset in lock first...
+		<T::XcmConfig as xcm_executor::Config>::AssetLocker::prepare_lock(
+			unlocker,
+			asset.clone(),
+			owner.clone(),
+		)
+		.map_err(|_| BenchmarkError::Skip)?
+		.enact()
+		.map_err(|_| BenchmarkError::Skip)?;
+
+		// ... then unlock them with the UnlockAsset instruction.
+		let instruction = Instruction::UnlockAsset { asset, target: owner };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+
+	}
+
+	note_unlockable {
+		use xcm_executor::traits::{AssetLock, Enact};
+
+		let (unlocker, owner, asset) = T::unlockable_asset()?;
+
+		let mut executor = new_executor::<T>(unlocker.clone());
+
+		// We first place the asset in lock first...
+		<T::XcmConfig as xcm_executor::Config>::AssetLocker::prepare_lock(
+			unlocker,
+			asset.clone(),
+			owner.clone(),
+		)
+		.map_err(|_| BenchmarkError::Skip)?
+		.enact()
+		.map_err(|_| BenchmarkError::Skip)?;
+
+		// ... then note them as unlockable with the NoteUnlockable instruction.
+		let instruction = Instruction::NoteUnlockable { asset, owner };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+
+	}
+
+	request_unlock {
+		use xcm_executor::traits::{AssetLock, Enact};
+
+		let (locker, owner, asset) = T::unlockable_asset()?;
+
+		// We first place the asset in lock first...
+		<T::XcmConfig as xcm_executor::Config>::AssetLocker::prepare_lock(
+			locker.clone(),
+			asset.clone(),
+			owner.clone(),
+		)
+		.map_err(|_| BenchmarkError::Skip)?
+		.enact()
+		.map_err(|_| BenchmarkError::Skip)?;
+
+		// ... then request for an unlock with the RequestUnlock instruction.
+		let mut executor = new_executor::<T>(owner);
+		let instruction = Instruction::RequestUnlock { asset, locker };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),

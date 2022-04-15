@@ -223,16 +223,16 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		Weight::MAX // todo fix
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		XcmGeneric::<Runtime>::lock_asset()
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		XcmGeneric::<Runtime>::unlock_asset()
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		XcmGeneric::<Runtime>::note_unlockable()
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		XcmGeneric::<Runtime>::request_unlock()
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
 		XcmGeneric::<Runtime>::set_fees_mode()

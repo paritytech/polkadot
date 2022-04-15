@@ -8,7 +8,7 @@ mod mock;
 pub mod pallet {
 	use frame_benchmarking::BenchmarkError;
 	use frame_support::{dispatch::Dispatchable, pallet_prelude::Encode, weights::GetDispatchInfo};
-	use xcm::latest::{MultiAssets, MultiLocation, Response};
+	use xcm::latest::{MultiAsset, MultiAssets, MultiLocation, Response};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -41,6 +41,9 @@ pub mod pallet {
 
 		/// Return an origin, ticket, and assets that can be trapped and claimed.
 		fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError>;
+
+		/// Return an unlocker, owner and assets that can be locked and unlocked.
+		fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>;
 	}
 
 	#[pallet::pallet]
