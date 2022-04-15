@@ -26,13 +26,14 @@ use futures::{
 use sp_core::Pair;
 
 use polkadot_node_network_protocol::{
+	self as net_protocol,
 	peer_set::PeerSet,
 	request_response::{
 		incoming::{self, OutgoingResponse},
 		v1::{self as request_v1, CollationFetchingRequest, CollationFetchingResponse},
 		IncomingRequest, IncomingRequestReceiver,
 	},
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
+	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
 use polkadot_node_subsystem_util::{
@@ -545,7 +546,7 @@ where
 
 		ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
 			vec![peer],
-			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 		))
 		.await;
 	}
@@ -622,7 +623,7 @@ async fn advertise_collation<Context>(
 
 	ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
 		vec![peer.clone()],
-		protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
 	.await;
 
@@ -931,7 +932,7 @@ async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
-	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
+	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -969,7 +970,7 @@ where
 			gum::trace!(target: LOG_TARGET, ?view, "Own view change");
 			handle_our_view_change(state, view).await?;
 		},
-		PeerMessage(remote, msg) => {
+		PeerMessage(remote, Versioned::V1(msg)) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
 		NewGossipTopology(..) => {

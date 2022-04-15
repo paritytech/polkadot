@@ -427,7 +427,7 @@ async fn expect_declare_msg(
 		AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendCollationMessage(
 				to,
-				protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
 		) => {
 			assert_eq!(to[0], *peer);
@@ -461,7 +461,7 @@ async fn expect_advertise_collation_msg(
 		AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendCollationMessage(
 				to,
-				protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
 		) => {
 			assert_eq!(to[0], *peer);
@@ -827,11 +827,11 @@ fn collators_reject_declare_messages() {
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 				peer.clone(),
-				protocol_v1::CollatorProtocolMessage::Declare(
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					collator_pair2.public(),
 					ParaId::from(5),
 					collator_pair2.sign(b"garbage"),
-				),
+				)),
 			)),
 		)
 		.await;

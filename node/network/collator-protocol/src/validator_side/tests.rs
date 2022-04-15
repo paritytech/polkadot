@@ -316,11 +316,11 @@ async fn connect_and_declare_collator(
 		virtual_overseer,
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 			peer.clone(),
-			protocol_v1::CollatorProtocolMessage::Declare(
+			Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 				collator.public(),
 				para_id,
 				collator.sign(&protocol_v1::declare_signature_payload(&peer)),
-			),
+			)),
 		)),
 	)
 	.await;
@@ -336,7 +336,7 @@ async fn advertise_collation(
 		virtual_overseer,
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 			peer,
-			protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent),
+			Versioned::V1(protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent)),
 		)),
 	)
 	.await;
@@ -469,11 +469,11 @@ fn collator_authentication_verification_works() {
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
-				protocol_v1::CollatorProtocolMessage::Declare(
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					test_state.collators[0].public(),
 					test_state.chain_ids[0],
 					test_state.collators[0].sign(&[42]),
-				),
+				)),
 			)),
 		)
 		.await;
@@ -994,11 +994,11 @@ fn disconnect_if_wrong_declare() {
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
-				protocol_v1::CollatorProtocolMessage::Declare(
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					pair.public(),
 					ParaId::from(69),
 					pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
-				),
+				)),
 			)),
 		)
 		.await;
