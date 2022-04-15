@@ -46,7 +46,7 @@ mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
 
-const NEXT_GROUP_PRECONNECT_WINDOW: BlockNumber = 1;
+const NEXT_GROUP_PRECONNECT_WINDOW: BlockNumber = 2;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
