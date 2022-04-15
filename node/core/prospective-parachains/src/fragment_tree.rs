@@ -296,7 +296,7 @@ impl FragmentTree {
 	/// Create a new [`FragmentTree`] with given scope and populated from the
 	/// storage.
 	pub fn populate(scope: Scope, storage: &CandidateStorage) -> Self {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			relay_parent = ?scope.relay_parent.hash,
 			relay_parent_num = scope.relay_parent.number,
@@ -493,7 +493,7 @@ impl FragmentTree {
 				let child_constraints =
 					match self.scope.base_constraints.apply_modifications(&modifications) {
 						Err(e) => {
-							tracing::debug!(
+							gum::debug!(
 								target: LOG_TARGET,
 								new_parent_head = ?modifications.required_parent,
 								err = ?e,

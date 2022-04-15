@@ -161,7 +161,7 @@ where
 
 		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					block_hash = ?hash,
 					"Failed to get block info for newly activated leaf block."
@@ -190,7 +190,7 @@ where
 				None => {
 					// This indicates a runtime conflict of some kind.
 
-					tracing::debug!(
+					gum::debug!(
 						target: LOG_TARGET,
 						para_id = ?para,
 						relay_parent = ?hash,
@@ -267,7 +267,7 @@ where
 	// Then attempt to add it to all trees.
 	let storage = match view.candidate_storage.get_mut(&para) {
 		None => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				para_id = ?para,
 				candidate_hash = ?candidate.hash(),
@@ -286,7 +286,7 @@ where
 			// hashing but this branch indicates something is seriously wrong elsewhere
 			// so it's doubtful that it would affect debugging.
 
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				para = ?para,
 				"Received seconded candidate had mismatching validation data",
@@ -318,7 +318,7 @@ where
 {
 	let storage = match view.candidate_storage.get_mut(&para) {
 		None => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				para_id = ?para,
 				?candidate_hash,
@@ -331,7 +331,7 @@ where
 	};
 
 	if !storage.contains(&candidate_hash) {
-		tracing::warn!(
+		gum::warn!(
 			target: LOG_TARGET,
 			para_id = ?para,
 			?candidate_hash,
@@ -342,7 +342,7 @@ where
 	}
 
 	if storage.is_backed(&candidate_hash) {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			para_id = ?para,
 			?candidate_hash,
@@ -365,7 +365,7 @@ fn answer_get_backable_candidate(
 ) {
 	let data = match view.active_leaves.get(&relay_parent) {
 		None => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?relay_parent,
 				para_id = ?para,
@@ -380,7 +380,7 @@ fn answer_get_backable_candidate(
 
 	let tree = match data.fragment_trees.get(&para) {
 		None => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?relay_parent,
 				para_id = ?para,
@@ -395,7 +395,7 @@ fn answer_get_backable_candidate(
 
 	let storage = match view.candidate_storage.get(&para) {
 		None => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				para_id = ?para,
@@ -453,7 +453,7 @@ where
 	for hash in hashes {
 		match fetch_block_info(ctx, relay_hash).await? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					relay_hash = ?hash,
 					"Failed to fetch info for hash returned from ancestry.",

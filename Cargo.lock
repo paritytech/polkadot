@@ -6900,7 +6900,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "thiserror",
- "tracing",
+ "tracing-gum",
 ]
 
 [[package]]
