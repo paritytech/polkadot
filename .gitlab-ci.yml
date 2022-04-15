@@ -327,8 +327,8 @@ build-malus:
   script:
     - git clone
         --depth=1
-        --branch=fix
-        https://github.com/joao-paulo-parity/pipeline-scripts
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
     - ./pipeline-scripts/check_dependent_project.sh
         paritytech
         polkadot
