@@ -25,7 +25,9 @@ use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
-	traits::{AssetExchange, AssetLock, ConvertOrigin, Enact, LockError, OnResponse, TransactAsset},
+	traits::{
+		AssetExchange, AssetLock, ConvertOrigin, Enact, LockError, OnResponse, TransactAsset,
+	},
 	Assets, Config,
 };
 
@@ -168,7 +170,9 @@ impl Enact for TestUnlockTicket {
 }
 pub struct TestReduceTicket;
 impl Enact for TestReduceTicket {
-	fn enact(self) -> Result<(), LockError> { Ok(()) }
+	fn enact(self) -> Result<(), LockError> {
+		Ok(())
+	}
 }
 
 pub struct TestAssetLocker;
