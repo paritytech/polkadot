@@ -176,7 +176,9 @@ impl<
 		if CheckAsset::contains(&asset_id) {
 			// This is an asset whose teleports we track.
 			if let Some(checking_account) = CheckingAccount::get() {
-			    	Assets::can_withdraw(asset_id, &checking_account, amount).into_result().map_err(|_| XcmError::NotWithdrawable)?;
+			    	Assets::can_withdraw(asset_id, &checking_account, amount)
+					.into_result()
+					.map_err(|_| XcmError::NotWithdrawable)?;
 			}
 		}
 		Ok(())
