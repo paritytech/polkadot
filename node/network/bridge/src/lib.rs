@@ -27,9 +27,10 @@ use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
+	self as net_protocol,
 	peer_set::{PeerSet, PerPeerSet},
 	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
-	UnifiedReputationChange as Rep, View,
+	UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::gen::{OverseerError, Subsystem};
@@ -488,14 +489,14 @@ where
 							num_messages = 1usize,
 						);
 
-						send_message(
-							&mut network_service,
-							peers,
-							PeerSet::Validation,
-							1, // TODO [now]: constant / SendValidationMessageV1?
-							WireMessage::ProtocolMessage(msg),
-							&metrics,
-						);
+						match msg {
+							Versioned::V1(msg) => send_validation_message_v1(
+								&mut network_service,
+								peers,
+								WireMessage::ProtocolMessage(msg),
+								&metrics,
+							),
+						}
 					}
 					NetworkBridgeMessage::SendValidationMessages(msgs) => {
 						gum::trace!(
@@ -505,14 +506,14 @@ where
 						);
 
 						for (peers, msg) in msgs {
-							send_message(
-								&mut network_service,
-								peers,
-								PeerSet::Validation,
-								1, // TODO [now]
-								WireMessage::ProtocolMessage(msg),
-								&metrics,
-							);
+							match msg {
+								Versioned::V1(msg) => send_validation_message_v1(
+									&mut network_service,
+									peers,
+									WireMessage::ProtocolMessage(msg),
+									&metrics,
+								),
+							}
 						}
 					}
 					NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
@@ -522,14 +523,14 @@ where
 							num_messages = 1usize,
 						);
 
-						send_message(
-							&mut network_service,
-							peers,
-							PeerSet::Collation,
-							1, // TODO [now]
-							WireMessage::ProtocolMessage(msg),
-							&metrics,
-						);
+						match msg {
+							Versioned::V1(msg) => send_collation_message_v1(
+								&mut network_service,
+								peers,
+								WireMessage::ProtocolMessage(msg),
+								&metrics,
+							),
+						}
 					}
 					NetworkBridgeMessage::SendCollationMessages(msgs) => {
 						gum::trace!(
@@ -539,14 +540,14 @@ where
 						);
 
 						for (peers, msg) in msgs {
-							send_message(
-								&mut network_service,
-								peers,
-								PeerSet::Collation,
-								1, // TODO [now]
-								WireMessage::ProtocolMessage(msg),
-								&metrics,
-							);
+							match msg {
+								Versioned::V1(msg) => send_collation_message_v1(
+									&mut network_service,
+									peers,
+									WireMessage::ProtocolMessage(msg),
+									&metrics,
+								),
+							}
 						}
 					}
 					NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
@@ -854,6 +855,8 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				let v_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
+						// TODO [now]: this is wrong. messages are always
+						// received on the 'correct' protocol name, not the negotiated one.
 						let (peer_set, version) = PeerSet::try_from_protocol_name(protocol)?;
 						if peer_set == PeerSet::Validation {
 							if expected_versions[PeerSet::Validation].is_none() {
@@ -885,6 +888,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				let c_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
+						// TODO [now]: also wrong.
 						let (peer_set, version) = PeerSet::try_from_protocol_name(protocol)?;
 
 						if peer_set == PeerSet::Collation {
@@ -925,13 +929,14 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				);
 
 				if !v_messages.is_empty() {
-					let (events, reports) = handle_v1_peer_messages(
-						remote.clone(),
-						PeerSet::Validation,
-						&mut shared.0.lock().validation_peers,
-						v_messages,
-						&metrics,
-					);
+					let (events, reports) =
+						handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
+							remote.clone(),
+							PeerSet::Validation,
+							&mut shared.0.lock().validation_peers,
+							v_messages,
+							&metrics,
+						);
 
 					for report in reports {
 						network_service.report_peer(remote.clone(), report);
@@ -941,13 +946,14 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				}
 
 				if !c_messages.is_empty() {
-					let (events, reports) = handle_v1_peer_messages(
-						remote.clone(),
-						PeerSet::Collation,
-						&mut shared.0.lock().collation_peers,
-						c_messages,
-						&metrics,
-					);
+					let (events, reports) =
+						handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
+							remote.clone(),
+							PeerSet::Collation,
+							&mut shared.0.lock().collation_peers,
+							c_messages,
+							&metrics,
+						);
 
 					for report in reports {
 						network_service.report_peer(remote.clone(), report);
@@ -1107,13 +1113,13 @@ fn update_our_view(
 
 // Handle messages on a specific v1 peer-set. The peer is expected to be connected on that
 // peer-set.
-fn handle_v1_peer_messages<M: Decode>(
+fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 	peer: PeerId,
 	peer_set: PeerSet,
 	peers: &mut HashMap<PeerId, PeerData>,
 	messages: Vec<Bytes>,
 	metrics: &Metrics,
-) -> (Vec<NetworkBridgeEvent<M>>, Vec<Rep>) {
+) -> (Vec<NetworkBridgeEvent<OutMessage>>, Vec<Rep>) {
 	let peer_data = match peers.get_mut(&peer) {
 		None => return (Vec::new(), vec![UNCONNECTED_PEERSET_COST]),
 		Some(d) => d,
@@ -1124,7 +1130,7 @@ fn handle_v1_peer_messages<M: Decode>(
 
 	for message in messages {
 		metrics.on_notification_received(peer_set, peer_data.version, message.len());
-		let message = match WireMessage::decode_all(&mut message.as_ref()) {
+		let message = match WireMessage::<RawMessage>::decode_all(&mut message.as_ref()) {
 			Err(_) => {
 				reports.push(MALFORMED_MESSAGE_COST);
 				continue
@@ -1151,7 +1157,7 @@ fn handle_v1_peer_messages<M: Decode>(
 				}
 			},
 			WireMessage::ProtocolMessage(message) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), message),
+				NetworkBridgeEvent::PeerMessage(peer.clone(), message.into()),
 		})
 	}
 
@@ -1177,21 +1183,21 @@ fn send_collation_message_v1(
 }
 
 async fn dispatch_validation_event_to_all(
-	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	ctx: &mut impl SubsystemSender,
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
-	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
+	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
 	ctx: &mut impl SubsystemSender,
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
 fn dispatch_validation_event_to_all_unbounded(
-	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	ctx: &mut impl SubsystemSender,
 ) {
 	for msg in AllMessages::dispatch_iter(event) {
@@ -1200,7 +1206,7 @@ fn dispatch_validation_event_to_all_unbounded(
 }
 
 fn dispatch_collation_event_to_all_unbounded(
-	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
+	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
 	ctx: &mut impl SubsystemSender,
 ) {
 	if let Some(msg) = event.focus().ok().map(CollatorProtocolMessage::NetworkBridgeUpdate) {
@@ -1210,7 +1216,7 @@ fn dispatch_collation_event_to_all_unbounded(
 
 async fn dispatch_validation_events_to_all<I>(events: I, ctx: &mut impl SubsystemSender)
 where
-	I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
+	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
 	ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
@@ -1218,10 +1224,10 @@ where
 
 async fn dispatch_collation_events_to_all<I>(events: I, ctx: &mut impl SubsystemSender)
 where
-	I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,
+	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>>,
 	I::IntoIter: Send,
 {
-	let messages_for = |event: NetworkBridgeEvent<protocol_v1::CollationProtocol>| {
+	let messages_for = |event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>| {
 		event
 			.focus()
 			.ok()

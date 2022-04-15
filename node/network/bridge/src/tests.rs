@@ -28,7 +28,9 @@ use std::{
 
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
-use polkadot_node_network_protocol::{request_response::outgoing::Requests, view, ObservedRole};
+use polkadot_node_network_protocol::{
+	request_response::outgoing::Requests, view, ObservedRole, Versioned,
+};
 use polkadot_node_subsystem_test_helpers::{
 	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 };
@@ -308,7 +310,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 }
 
 async fn assert_sends_validation_event_to_all(
-	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 ) {
 	// Ordering must match the enum variant order
@@ -343,7 +345,7 @@ async fn assert_sends_validation_event_to_all(
 }
 
 async fn assert_sends_collation_event_to_all(
-	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
+	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
 	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 ) {
 	assert_matches!(
@@ -700,7 +702,7 @@ fn peer_messages_sent_via_overseer() {
 		let approval_distribution_message =
 			protocol_v1::ApprovalDistributionMessage::Approvals(Vec::new());
 
-		let message = protocol_v1::ValidationProtocol::ApprovalDistribution(
+		let message_v1 = protocol_v1::ValidationProtocol::ApprovalDistribution(
 			approval_distribution_message.clone(),
 		);
 
@@ -708,7 +710,7 @@ fn peer_messages_sent_via_overseer() {
 			.peer_message(
 				peer.clone(),
 				PeerSet::Validation,
-				WireMessage::ProtocolMessage(message.clone()).encode(),
+				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
 			)
 			.await;
 
@@ -721,7 +723,7 @@ fn peer_messages_sent_via_overseer() {
 			virtual_overseer.recv().await,
 			AllMessages::ApprovalDistribution(
 				ApprovalDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(p, m)
+					NetworkBridgeEvent::PeerMessage(p, Versioned::V1(m))
 				)
 			) => {
 				assert_eq!(p, peer);
@@ -872,14 +874,14 @@ fn relays_collation_protocol_messages() {
 			sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 		);
 
-		let message =
+		let message_v1 =
 			protocol_v1::CollationProtocol::CollatorProtocol(collator_protocol_message.clone());
 
 		network_handle
 			.peer_message(
 				peer_a.clone(),
 				PeerSet::Collation,
-				WireMessage::ProtocolMessage(message.clone()).encode(),
+				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
 			)
 			.await;
 
@@ -895,7 +897,7 @@ fn relays_collation_protocol_messages() {
 			.peer_message(
 				peer_b.clone(),
 				PeerSet::Collation,
-				WireMessage::ProtocolMessage(message.clone()).encode(),
+				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
 			)
 			.await;
 
@@ -903,7 +905,7 @@ fn relays_collation_protocol_messages() {
 			virtual_overseer.recv().await,
 			AllMessages::CollatorProtocol(
 				CollatorProtocolMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(p, m)
+					NetworkBridgeEvent::PeerMessage(p, Versioned::V1(m))
 				)
 			) => {
 				assert_eq!(p, peer_b);
@@ -1131,7 +1133,7 @@ fn send_messages_to_peers() {
 			let approval_distribution_message =
 				protocol_v1::ApprovalDistributionMessage::Approvals(Vec::new());
 
-			let message = protocol_v1::ValidationProtocol::ApprovalDistribution(
+			let message_v1 = protocol_v1::ValidationProtocol::ApprovalDistribution(
 				approval_distribution_message.clone(),
 			);
 
@@ -1139,7 +1141,7 @@ fn send_messages_to_peers() {
 				.send(FromOverseer::Communication {
 					msg: NetworkBridgeMessage::SendValidationMessage(
 						vec![peer.clone()],
-						message.clone(),
+						Versioned::V1(message_v1.clone()),
 					),
 				})
 				.await;
@@ -1149,7 +1151,7 @@ fn send_messages_to_peers() {
 				NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Validation,
-					WireMessage::ProtocolMessage(message).encode(),
+					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
 			);
 		}
@@ -1163,14 +1165,14 @@ fn send_messages_to_peers() {
 				dummy_collator_signature(),
 			);
 
-			let message =
+			let message_v1 =
 				protocol_v1::CollationProtocol::CollatorProtocol(collator_protocol_message.clone());
 
 			virtual_overseer
 				.send(FromOverseer::Communication {
 					msg: NetworkBridgeMessage::SendCollationMessage(
 						vec![peer.clone()],
-						message.clone(),
+						Versioned::V1(message_v1.clone()),
 					),
 				})
 				.await;
@@ -1180,7 +1182,7 @@ fn send_messages_to_peers() {
 				NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Collation,
-					WireMessage::ProtocolMessage(message).encode(),
+					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
 			);
 		}
