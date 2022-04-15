@@ -154,7 +154,7 @@ impl<
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckAsset: Contains<Assets::AssetId>,
-		CheckingAccount: Get<AccountId>,
+		CheckingAccount: Get<Option<AccountId>>,
 	> TransactAsset
 	for FungiblesMutateAdapter<
 		Assets,
@@ -175,10 +175,11 @@ impl<
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		if CheckAsset::contains(&asset_id) {
 			// This is an asset whose teleports we track.
-			let checking_account = CheckingAccount::get();
-			Assets::can_withdraw(asset_id, &checking_account, amount)
-				.into_result()
-				.map_err(|_| XcmError::NotWithdrawable)?;
+			if let Some(checking_account) = CheckingAccount::get() {
+			    	Assets::can_withdraw(asset_id, &checking_account, amount)
+					.into_result()
+					.map_err(|_| XcmError::NotWithdrawable)?;
+			}
 		}
 		Ok(())
 	}
@@ -191,12 +192,13 @@ impl<
 		);
 		if let Ok((asset_id, amount)) = Matcher::matches_fungibles(what) {
 			if CheckAsset::contains(&asset_id) {
-				let checking_account = CheckingAccount::get();
-				let ok = Assets::burn_from(asset_id, &checking_account, amount).is_ok();
-				debug_assert!(
-					ok,
-					"`can_check_in` must have returned `true` immediately prior; qed"
-				);
+				if let Some(checking_account) = CheckingAccount::get() {
+					let ok = Assets::burn_from(asset_id, &checking_account, amount).is_ok();
+					debug_assert!(
+						ok,
+						"`can_check_in` must have returned `true` immediately prior; qed"
+					);
+				}
 			}
 		}
 	}
@@ -209,9 +211,10 @@ impl<
 		);
 		if let Ok((asset_id, amount)) = Matcher::matches_fungibles(what) {
 			if CheckAsset::contains(&asset_id) {
-				let checking_account = CheckingAccount::get();
-				let ok = Assets::mint_into(asset_id, &checking_account, amount).is_ok();
-				debug_assert!(ok, "`mint_into` cannot generally fail; qed");
+				if let Some(checking_account) = CheckingAccount::get() {
+					let ok = Assets::mint_into(asset_id, &checking_account, amount).is_ok();
+					debug_assert!(ok, "`mint_into` cannot generally fail; qed");
+				}
 			}
 		}
 	}
@@ -263,7 +266,7 @@ impl<
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckAsset: Contains<Assets::AssetId>,
-		CheckingAccount: Get<AccountId>,
+		CheckingAccount: Get<Option<AccountId>>,
 	> TransactAsset
 	for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
 {
