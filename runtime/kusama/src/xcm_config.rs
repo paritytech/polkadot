@@ -106,7 +106,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(1000).into();
+	pub const Statemine: MultiLocation = Parachain(1000).into_location();
 	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
 	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Parachain(1001).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;

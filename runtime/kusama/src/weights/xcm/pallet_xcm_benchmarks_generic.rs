@@ -51,7 +51,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
-	pub(crate) fn query_holding() -> Weight {
+	pub(crate) fn report_holding() -> Weight {
 		(21_822_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
@@ -132,5 +132,70 @@ impl<T: frame_system::Config> WeightInfo<T> {
 		(22_809_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+	}
+	pub(crate) fn burn_asset() -> Weight {
+		(4_910_000 as Weight)
+	}
+	pub(crate) fn expect_asset() -> Weight {
+		(3_488_000 as Weight)
+	}
+	pub(crate) fn expect_origin() -> Weight {
+		(3_400_000 as Weight)
+	}
+	pub(crate) fn expect_error() -> Weight {
+		(3_358_000 as Weight)
+	}
+	// Storage: XcmPallet SupportedVersion (r:1 w:0)
+	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
+	// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
+	pub(crate) fn query_pallet() -> Weight {
+		(21_841_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(5 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+	}
+	pub(crate) fn expect_pallet() -> Weight {
+		(3_716_000 as Weight)
+	}
+	// Storage: XcmPallet SupportedVersion (r:1 w:0)
+	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
+	// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
+	pub(crate) fn report_transact_status() -> Weight {
+		(20_503_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(5 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+	}
+	pub(crate) fn clear_transact_status() -> Weight {
+		(3_270_000 as Weight)
+	}
+	pub(crate) fn set_topic() -> Weight {
+		(3_269_000 as Weight)
+	}
+	pub(crate) fn clear_topic() -> Weight {
+		(3_268_000 as Weight)
+	}
+	pub(crate) fn lock_asset() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
+	pub(crate) fn unlock_asset() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
+	pub(crate) fn note_unlockable() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
+	pub(crate) fn request_unlock() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
+	pub(crate) fn exchange_asset() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
+	pub(crate) fn universal_origin() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
+	pub(crate) fn set_fees_mode() -> Weight {
+		(2_000_000_000_000 as Weight)
 	}
 }

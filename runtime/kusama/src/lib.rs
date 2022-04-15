@@ -2033,6 +2033,11 @@ sp_api::impl_runtime_apis! {
 					(0u64, Response::Version(Default::default()))
 				}
 
+				fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
+					// Kusama doesn't support asset exchanges
+					Err(BenchmarkError::Skip)
+				}
+
 				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Statemine::get())
 				}
@@ -2046,6 +2051,11 @@ sp_api::impl_runtime_apis! {
 					let assets: MultiAssets = (Concrete(KsmLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
+				}
+
+				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
+					// Kusama doesn't support asset locking
+					Err(BenchmarkError::Skip)
 				}
 			}
 

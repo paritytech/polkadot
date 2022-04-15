@@ -75,7 +75,12 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
 	}
-	fn query_response(_query_id: &u64, _response: &Response, _max_weight: &u64) -> Weight {
+	fn query_response(
+		_query_id: &u64,
+		_response: &Response,
+		_max_weight: &u64,
+		_querier: &Option<MultiLocation>,
+	) -> Weight {
 		XcmGeneric::<Runtime>::query_response()
 	}
 	fn transfer_asset(assets: &MultiAssets, _dest: &MultiLocation) -> Weight {
@@ -117,31 +122,22 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	fn descend_origin(_who: &InteriorMultiLocation) -> Weight {
 		XcmGeneric::<Runtime>::descend_origin()
 	}
-	fn report_error(
-		_query_id: &QueryId,
-		_dest: &MultiLocation,
-		_max_response_weight: &u64,
-	) -> Weight {
+	fn report_error(_query_response_info: &QueryResponseInfo) -> Weight {
 		XcmGeneric::<Runtime>::report_error()
 	}
 
-	fn deposit_asset(
-		assets: &MultiAssetFilter,
-		_max_assets: &u32, // TODO use max assets?
-		_dest: &MultiLocation,
-	) -> Weight {
+	fn deposit_asset(assets: &MultiAssetFilter, _dest: &MultiLocation) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_asset())
 	}
 	fn deposit_reserve_asset(
 		assets: &MultiAssetFilter,
-		_max_assets: &u32, // TODO use max assets?
 		_dest: &MultiLocation,
 		_xcm: &Xcm<()>,
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
-	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets) -> Weight {
-		Weight::MAX // todo fix
+	fn exchange_asset(give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
+		give.weigh_multi_assets(XcmGeneric::<Runtime>::exchange_asset())
 	}
 	fn initiate_reserve_withdraw(
 		assets: &MultiAssetFilter,
@@ -157,13 +153,8 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_teleport())
 	}
-	fn query_holding(
-		_query_id: &u64,
-		_dest: &MultiLocation,
-		_assets: &MultiAssetFilter,
-		_max_response_weight: &u64,
-	) -> Weight {
-		XcmGeneric::<Runtime>::query_holding()
+	fn report_holding(_response_info: &QueryResponseInfo, _assets: &MultiAssetFilter) -> Weight {
+		XcmGeneric::<Runtime>::report_holding()
 	}
 	fn buy_execution(_fees: &MultiAsset, _weight_limit: &WeightLimit) -> Weight {
 		XcmGeneric::<Runtime>::buy_execution()
@@ -191,5 +182,66 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	}
 	fn unsubscribe_version() -> Weight {
 		XcmGeneric::<Runtime>::unsubscribe_version()
+	}
+	fn burn_asset(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmGeneric::<Runtime>::burn_asset())
+	}
+	fn expect_asset(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmGeneric::<Runtime>::expect_asset())
+	}
+	fn expect_origin(_origin: &Option<MultiLocation>) -> Weight {
+		XcmGeneric::<Runtime>::expect_origin()
+	}
+	fn expect_error(_error: &Option<(u32, XcmError)>) -> Weight {
+		XcmGeneric::<Runtime>::expect_error()
+	}
+	fn query_pallet(_module_name: &Vec<u8>, _response_info: &QueryResponseInfo) -> Weight {
+		XcmGeneric::<Runtime>::query_pallet()
+	}
+	fn expect_pallet(
+		_index: &u32,
+		_name: &Vec<u8>,
+		_module_name: &Vec<u8>,
+		_crate_major: &u32,
+		_min_crate_minor: &u32,
+	) -> Weight {
+		XcmGeneric::<Runtime>::expect_pallet()
+	}
+	fn report_transact_status(_response_info: &QueryResponseInfo) -> Weight {
+		XcmGeneric::<Runtime>::report_transact_status()
+	}
+	fn clear_transact_status() -> Weight {
+		XcmGeneric::<Runtime>::clear_transact_status()
+	}
+	fn universal_origin(_: &Junction) -> Weight {
+		XcmGeneric::<Runtime>::universal_origin()
+	}
+	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
+		Weight::MAX // todo fix
+	}
+	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
+		XcmGeneric::<Runtime>::lock_asset()
+	}
+	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
+		XcmGeneric::<Runtime>::unlock_asset()
+	}
+	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
+		XcmGeneric::<Runtime>::note_unlockable()
+	}
+	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
+		XcmGeneric::<Runtime>::request_unlock()
+	}
+	fn set_fees_mode(_: &bool) -> Weight {
+		XcmGeneric::<Runtime>::set_fees_mode()
+	}
+	fn set_topic(_topic: &[u8; 32]) -> Weight {
+		XcmGeneric::<Runtime>::set_topic()
+	}
+	fn clear_topic() -> Weight {
+		XcmGeneric::<Runtime>::clear_topic()
+	}
+	fn alias_origin(_: &MultiLocation) -> Weight {
+		// XCM Executor does not currently support alias origin operations
+		Weight::MAX
 	}
 }
