@@ -133,7 +133,7 @@ async fn send_message_from_peer(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
 			peer_id.clone(),
-			msg,
+			Versioned::V1(msg),
 		)),
 	)
 	.await;
@@ -235,9 +235,9 @@ fn try_import_the_same_assignment() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-				)
+				))
 			)) => {
 				assert_eq!(peers.len(), 2);
 				assert_eq!(assignments.len(), 1);
@@ -395,9 +395,9 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-				)
+				))
 			)) => {
 				assert_eq!(peers.len(), 1);
 				assert_eq!(assignments.len(), 1);
@@ -461,9 +461,9 @@ fn import_approval_happy_path() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-				)
+				))
 			)) => {
 				assert_eq!(peers.len(), 2);
 				assert_eq!(assignments.len(), 1);
@@ -497,9 +497,9 @@ fn import_approval_happy_path() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
-				)
+				))
 			)) => {
 				assert_eq!(peers.len(), 1);
 				assert_eq!(approvals.len(), 1);
@@ -713,9 +713,9 @@ fn update_peer_view() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-				)
+				))
 			)) => {
 				assert_eq!(peers.len(), 1);
 				assert_eq!(assignments.len(), 1);
@@ -764,9 +764,9 @@ fn update_peer_view() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-				)
+				))
 			)) => {
 				assert_eq!(peers.len(), 1);
 				assert_eq!(assignments.len(), 1);
@@ -949,9 +949,9 @@ fn sends_assignments_even_when_state_is_approved() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
-				)
+				))
 			)) => {
 				assert_eq!(peers, vec![peer.clone()]);
 				assert_eq!(sent_assignments, assignments);
@@ -962,9 +962,9 @@ fn sends_assignments_even_when_state_is_approved() {
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
-				)
+				))
 			)) => {
 				assert_eq!(peers, vec![peer.clone()]);
 				assert_eq!(sent_approvals, approvals);

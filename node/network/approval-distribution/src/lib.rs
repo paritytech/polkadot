@@ -22,7 +22,8 @@
 
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, View,
+	self as net_protocol, v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, Versioned,
+	View,
 };
 use polkadot_node_primitives::approval::{
 	AssignmentCert, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
@@ -227,7 +228,7 @@ impl State {
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
-		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
+		event: NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>,
 	) {
 		match event {
 			NetworkBridgeEvent::PeerConnected(peer_id, role, _, _) => {
@@ -275,7 +276,7 @@ impl State {
 					live
 				});
 			},
-			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
+			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg).await;
 			},
 		}
@@ -751,9 +752,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
-				),
+				)),
 			))
 			.await;
 		}
@@ -973,9 +974,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
-				),
+				)),
 			))
 			.await;
 		}
@@ -1181,9 +1182,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
-				),
+				)),
 			))
 			.await;
 		}
@@ -1199,9 +1200,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id],
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
-				),
+				)),
 			))
 			.await;
 		}
