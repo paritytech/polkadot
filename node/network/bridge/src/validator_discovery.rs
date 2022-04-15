@@ -78,7 +78,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		//
 		// for peer-set management, the default should be used regardless of
 		// the negotiated version.
-		// TODO [now] : verify
 		if let Err(e) = network_service
 			.set_reserved_peers(peer_set.into_default_protocol_name(), newly_requested)
 			.await
@@ -89,7 +88,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		//
 		// for peer-set management, the default should be used regardless of
 		// the negotiated version.
-		// TODO [now] : verify
 		let _ = network_service
 			.remove_from_peers_set(peer_set.into_default_protocol_name(), peers_to_remove)
 			.await;
