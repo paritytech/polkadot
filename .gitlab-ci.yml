@@ -336,12 +336,13 @@ build-malus:
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
         "$CARGO_UPDATE_CRATES"
+        "$EXTRA_DEPENDENCIES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
-    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
+    EXTRA_DEPENDENCIES: substrate
 
 test-node-metrics:
   stage:                           stage2
