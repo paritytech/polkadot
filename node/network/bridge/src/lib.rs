@@ -922,17 +922,18 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				);
 
 				if !v_messages.is_empty() {
-					let (events, reports) = if expected_versions[PeerSet::Validation] == Some(1) {
-						handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
-							remote.clone(),
-							PeerSet::Validation,
-							&mut shared.0.lock().validation_peers,
-							v_messages,
-							&metrics,
-						)
-					} else {
-						unreachable!("Only version 1 is supported; peer set connection checked above; qed");
-					};
+					let (events, reports) =
+						if expected_versions[PeerSet::Validation] == Some(1) {
+							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
+								remote.clone(),
+								PeerSet::Validation,
+								&mut shared.0.lock().validation_peers,
+								v_messages,
+								&metrics,
+							)
+						} else {
+							unreachable!("Only version 1 is supported; peer set connection checked above; qed");
+						};
 
 					for report in reports {
 						network_service.report_peer(remote.clone(), report);
@@ -942,18 +943,18 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				}
 
 				if !c_messages.is_empty() {
-					let (events, reports) = if expected_versions[PeerSet::Collation] == Some(1) {
-						handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
-							remote.clone(),
-							PeerSet::Collation,
-							&mut shared.0.lock().collation_peers,
-							c_messages,
-							&metrics,
-						)
-					} else {
-						unreachable!("Only version 1 is supported; peer set connection checked above; qed");
-					};
-
+					let (events, reports) =
+						if expected_versions[PeerSet::Collation] == Some(1) {
+							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
+								remote.clone(),
+								PeerSet::Collation,
+								&mut shared.0.lock().collation_peers,
+								c_messages,
+								&metrics,
+							)
+						} else {
+							unreachable!("Only version 1 is supported; peer set connection checked above; qed");
+						};
 
 					for report in reports {
 						network_service.report_peer(remote.clone(), report);
