@@ -74,7 +74,6 @@ const MALFORMED_MESSAGE_COST: Rep = Rep::CostMajor("Malformed Network-bridge mes
 const UNCONNECTED_PEERSET_COST: Rep = Rep::CostMinor("Message sent to un-connected peer-set");
 const MALFORMED_VIEW_COST: Rep = Rep::CostMajor("Malformed view");
 const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
-const WRONG_VERSION_COST: Rep = Rep::CostMajor("Peer sent on intetionally wrong vesrion");
 
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge";
@@ -855,16 +854,12 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				let v_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
-						// TODO [now]: this is wrong. messages are always
-						// received on the 'correct' protocol name, not the negotiated one.
-						let (peer_set, version) = PeerSet::try_from_protocol_name(protocol)?;
+						// version doesn't matter because we always receive on the 'correct'
+						// protocol name, not the negotiated fallback.
+						let (peer_set, _version) = PeerSet::try_from_protocol_name(protocol)?;
 						if peer_set == PeerSet::Validation {
 							if expected_versions[PeerSet::Validation].is_none() {
 								return Some(Err(UNCONNECTED_PEERSET_COST))
-							}
-
-							if Some(version) != expected_versions[PeerSet::Validation] {
-								return Some(Err(WRONG_VERSION_COST))
 							}
 
 							Some(Ok(msg_bytes.clone()))
@@ -888,17 +883,15 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				let c_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
-						// TODO [now]: also wrong.
-						let (peer_set, version) = PeerSet::try_from_protocol_name(protocol)?;
+						// version doesn't matter because we always receive on the 'correct'
+						// protocol name, not the negotiated fallback.
+						let (peer_set, _version) = PeerSet::try_from_protocol_name(protocol)?;
 
 						if peer_set == PeerSet::Collation {
 							if expected_versions[PeerSet::Collation].is_none() {
 								return Some(Err(UNCONNECTED_PEERSET_COST))
 							}
 
-							if Some(version) != expected_versions[PeerSet::Collation] {
-								return Some(Err(WRONG_VERSION_COST))
-							}
 							Some(Ok(msg_bytes.clone()))
 						} else {
 							None
@@ -929,14 +922,17 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				);
 
 				if !v_messages.is_empty() {
-					let (events, reports) =
+					let (events, reports) = if expected_versions[PeerSet::Validation] == Some(1) {
 						handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
 							remote.clone(),
 							PeerSet::Validation,
 							&mut shared.0.lock().validation_peers,
 							v_messages,
 							&metrics,
-						);
+						)
+					} else {
+						unreachable!("Only version 1 is supported; peer set connection checked above; qed");
+					};
 
 					for report in reports {
 						network_service.report_peer(remote.clone(), report);
@@ -946,14 +942,18 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				}
 
 				if !c_messages.is_empty() {
-					let (events, reports) =
+					let (events, reports) = if expected_versions[PeerSet::Collation] == Some(1) {
 						handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
 							remote.clone(),
 							PeerSet::Collation,
 							&mut shared.0.lock().collation_peers,
 							c_messages,
 							&metrics,
-						);
+						)
+					} else {
+						unreachable!("Only version 1 is supported; peer set connection checked above; qed");
+					};
+
 
 					for report in reports {
 						network_service.report_peer(remote.clone(), report);
