@@ -40,8 +40,8 @@ use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{
-	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSupportNetworkMessage,
-	PeerId,
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
+	PeerId, Versioned,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -379,7 +379,7 @@ where
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology(_) => {},
-			NetworkBridgeEvent::PeerMessage(_, v) => {
+			NetworkBridgeEvent::PeerMessage(_, Versioned::V1(v)) => {
 				match v {};
 			},
 		}
