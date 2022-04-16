@@ -282,6 +282,33 @@ enum NodePointer {
 	Storage(usize),
 }
 
+/// Abstraction around `&'a CandidateStorage`.
+trait PopulateFrom<'a> {
+	type ParaChildrenIter: Iterator<Item = &'a CandidateEntry> + 'a;
+
+	fn get(&self, candidate_hash: &CandidateHash) -> Option<&'a CandidateEntry>;
+
+	fn iter_para_children(
+		&self,
+		parent_head_hash: &Hash,
+	) -> Self::ParaChildrenIter;
+}
+
+impl<'a> PopulateFrom<'a> for &'a CandidateStorage {
+	type ParaChildrenIter = Box<dyn Iterator<Item = &'a CandidateEntry> + 'a>;
+
+	fn get(&self, candidate_hash: &CandidateHash) -> Option<&'a CandidateEntry> {
+		CandidateStorage::get(self, candidate_hash)
+	}
+
+	fn iter_para_children(
+		&self,
+		parent_head_hash: &Hash,
+	) -> Self::ParaChildrenIter {
+		Box::new(CandidateStorage::iter_para_children(self, parent_head_hash))
+	}
+}
+
 /// This is a tree of candidates based on some underlying storage of candidates
 /// and a scope.
 pub(crate) struct FragmentTree {
@@ -378,6 +405,10 @@ impl FragmentTree {
 
 	/// Add a candidate and recursively populate from storage.
 	pub(crate) fn add_and_populate(&mut self, hash: CandidateHash, storage: &CandidateStorage) {
+		self.add_and_populate_from(hash, storage);
+	}
+
+	fn add_and_populate_from<'a>(&mut self, hash: CandidateHash, storage: impl PopulateFrom<'a>) {
 		let candidate_entry = match storage.get(&hash) {
 			None => return,
 			Some(e) => e,
@@ -451,7 +482,7 @@ impl FragmentTree {
 		}
 	}
 
-	fn populate_from_bases(&mut self, storage: &CandidateStorage, initial_bases: Vec<NodePointer>) {
+	fn populate_from_bases<'a>(&mut self, storage: impl PopulateFrom<'a>, initial_bases: Vec<NodePointer>) {
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
 
