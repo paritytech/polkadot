@@ -217,22 +217,27 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
 	fn universal_origin(_: &Junction) -> Weight {
-		XcmGeneric::<Runtime>::universal_origin()
+		// Westend does not currently support universal origin operations
+		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
 		Weight::MAX // todo fix
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		XcmGeneric::<Runtime>::lock_asset()
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		XcmGeneric::<Runtime>::unlock_asset()
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		XcmGeneric::<Runtime>::note_unlockable()
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		XcmGeneric::<Runtime>::request_unlock()
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
 		XcmGeneric::<Runtime>::set_fees_mode()
