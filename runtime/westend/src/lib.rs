@@ -1546,8 +1546,8 @@ sp_api::impl_runtime_apis! {
 			impl frame_system_benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
-				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
-				Response,
+				AssetId::*, Fungibility::*, Junction, Junctions::*, MultiAsset, MultiAssets,
+				MultiLocation, Response,
 			};
 			use xcm_config::{Westmint, TokenLocation};
 
@@ -1596,6 +1596,11 @@ sp_api::impl_runtime_apis! {
 
 				fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
 					// Westend doesn't support asset exchanges
+					Err(BenchmarkError::Skip)
+				}
+
+				fn universal_alias() -> Result<Junction, BenchmarkError> {
+					// The XCM executor of Westend doesn't have a configured `UniversalAliases`
 					Err(BenchmarkError::Skip)
 				}
 

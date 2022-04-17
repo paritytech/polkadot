@@ -494,14 +494,18 @@ benchmarks! {
 	}
 
 	universal_origin {
+		let alias = T::universal_alias().map_err(|_| BenchmarkError::Skip)?;
+
 		let mut executor = new_executor::<T>(Here.into_location());
 
-		let instruction = Instruction::UniversalOrigin(GlobalConsensus(ByGenesis([0; 32])));
+		let instruction = Instruction::UniversalOrigin(alias.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
-		assert_eq!(executor.origin(), &Some((Parent, GlobalConsensus(ByGenesis([0; 32]))).into()));
+		use frame_support::traits::Get;
+		let universal_location = <T::XcmConfig as xcm_executor::Config>::UniversalLocation::get();
+		assert_eq!(executor.origin(), &Some(X1(alias).relative_to(&universal_location)));
 	}
 
 	set_fees_mode {

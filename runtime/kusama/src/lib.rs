@@ -2044,6 +2044,11 @@ sp_api::impl_runtime_apis! {
 					Err(BenchmarkError::Skip)
 				}
 
+				fn universal_alias() -> Result<Junction, BenchmarkError> {
+					// The XCM executor of Kusama doesn't have a configured `UniversalAliases`
+					Err(BenchmarkError::Skip)
+				}
+
 				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Statemine::get())
 				}

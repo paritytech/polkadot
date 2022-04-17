@@ -8,7 +8,7 @@ mod mock;
 pub mod pallet {
 	use frame_benchmarking::BenchmarkError;
 	use frame_support::{dispatch::Dispatchable, pallet_prelude::Encode, weights::GetDispatchInfo};
-	use xcm::latest::{MultiAsset, MultiAssets, MultiLocation, Response};
+	use xcm::latest::{Junction, MultiAsset, MultiAssets, MultiLocation, Response};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -28,6 +28,11 @@ pub mod pallet {
 		///
 		/// If set to `None`, benchmarks which rely on an `exchange_asset` will be skipped.
 		fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError>;
+
+		/// A `Junction` that is one of the `UniversalAliases` configured by the XCM executor.
+		///
+		/// If set to `None`, benchmarks which rely on a universal alais will be skipped.
+		fn universal_alias() -> Result<Junction, BenchmarkError>;
 
 		/// The `MultiLocation` used for successful transaction XCMs.
 		///
