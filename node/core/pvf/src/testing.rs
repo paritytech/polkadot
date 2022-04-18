@@ -36,10 +36,14 @@ pub fn validate_candidate(
 
 	let blob = prevalidate(&*code)?;
 	let artifact = prepare(blob)?;
+	let tmpdir = tempfile::tempdir()?;
+	let artifact_path = tmpdir.path().join("blob");
+	std::fs::write(&artifact_path, &artifact)?;
+
 	let executor = TaskExecutor::new()?;
 	let result = unsafe {
 		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`.
-		execute(&artifact, params, executor)?
+		execute(&artifact_path, params, executor)?
 	};
 
 	Ok(result)

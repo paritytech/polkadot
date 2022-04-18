@@ -22,7 +22,10 @@ use sc_executor_common::{
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
-use std::any::{Any, TypeId};
+use std::{
+	any::{Any, TypeId},
+	path::Path,
+};
 
 // Memory configuration
 //
@@ -48,7 +51,9 @@ const CONFIG: Config = Config {
 	semantics: Semantics {
 		extra_heap_pages: EXTRA_HEAP_PAGES,
 
-		fast_instance_reuse: false,
+		instantiation_strategy:
+			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
+
 		// Enable deterministic stack limit to pin down the exact number of items the wasmtime stack
 		// can contain before it traps with stack overflow.
 		//
@@ -100,7 +105,7 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 /// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
 /// to arbitrary code execution.
 pub unsafe fn execute(
-	compiled_artifact: &[u8],
+	compiled_artifact_path: &Path,
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
 ) -> Result<Vec<u8>, sc_executor_common::error::Error> {
@@ -113,7 +118,7 @@ pub unsafe fn execute(
 
 	sc_executor::with_externalities_safe(&mut ext, || {
 		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-			compiled_artifact,
+			compiled_artifact_path,
 			CONFIG,
 		)?;
 		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
