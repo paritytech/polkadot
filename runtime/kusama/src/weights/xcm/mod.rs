@@ -137,7 +137,8 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
 	fn exchange_asset(give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
-		give.weigh_multi_assets(XcmGeneric::<Runtime>::exchange_asset())
+		// Kusama does not currently support exchange asset operations
+		Weight::MAX
 	}
 	fn initiate_reserve_withdraw(
 		assets: &MultiAssetFilter,
