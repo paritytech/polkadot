@@ -191,6 +191,7 @@ struct CandidateEntry {
 }
 
 /// The scope of a [`FragmentTree`].
+#[derive(Debug)]
 pub(crate) struct Scope {
 	para: ParaId,
 	relay_parent: RelayChainBlockInfo,
@@ -697,7 +698,57 @@ impl FragmentNode {
 
 #[cfg(test)]
 mod tests {
-	// TODO [now]: scope rejects ancestors that skip blocks
+	use super::*;
+	use assert_matches::assert_matches;
+	use polkadot_node_subsystem_util::inclusion_emulator::staging::InboundHrmpLimitations;
+
+	#[test]
+	fn scope_rejects_ancestors_that_skip_blocks() {
+		let para_id = ParaId::from(5u32);
+		let relay_parent = RelayChainBlockInfo {
+			number: 10,
+			hash: Hash::repeat_byte(10),
+			storage_root: Hash::repeat_byte(69),
+		};
+
+		let ancestors = vec![
+			RelayChainBlockInfo {
+				number: 8,
+				hash: Hash::repeat_byte(8),
+				storage_root: Hash::repeat_byte(69),
+			},
+		];
+
+		let max_depth = 2;
+		let base_constraints = Constraints {
+			min_relay_parent_number: 8,
+			max_pov_size: 1_000_000,
+			max_code_size: 1_000_000,
+			ump_remaining: 10,
+			ump_remaining_bytes: 1_000,
+			dmp_remaining_messages: 10,
+			hrmp_inbound: InboundHrmpLimitations {
+				valid_watermarks: vec![8, 9],
+			},
+			hrmp_channels_out: HashMap::new(),
+			max_hrmp_num_per_candidate: 0,
+			required_parent: HeadData(vec![1, 2, 3]),
+			validation_code_hash: Hash::repeat_byte(69).into(),
+			upgrade_restriction: None,
+			future_validation_code: None,
+		};
+
+		assert_matches!(
+			Scope::with_ancestors(
+				para_id,
+				relay_parent,
+				base_constraints,
+				max_depth,
+				ancestors,
+			),
+			Err(UnexpectedAncestor)
+		);
+	}
 
 	// TODO [now]: scope rejects ancestor of 0
 
@@ -712,4 +763,10 @@ mod tests {
 	// TODO [now]: add candidate child of root
 
 	// TODO [now]: add candidate child of non-root
+
+	// TODO [now]: hypothetical_depths for existing candidate.
+
+	// TODO [now]: hypothetical_depths for non-existing candidate based on root.
+
+	// TODO [now]: hypothetical_depths for non-existing candidate not based on root.
 }

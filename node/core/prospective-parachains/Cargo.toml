@@ -18,6 +18,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
+assert_matches = "1"
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.
