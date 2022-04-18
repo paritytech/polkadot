@@ -1584,7 +1584,7 @@ impl State {
 			self.blocks.clone(),
 			self.topologies.clone(),
 			|block_entry| {
-				let block_age = max_age - block_entry.number;
+				let block_age = max_age.saturating_sub(block_entry.number);
 
 				if do_resend &&
 					config
