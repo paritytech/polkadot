@@ -139,7 +139,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
-	fn exchange_asset(give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
+	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
 		// Westend does not currently support exchange asset operations
 		Weight::MAX
 	}
