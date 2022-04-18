@@ -765,9 +765,7 @@ impl CandidateBackingJob {
 	) -> Result<Option<TableSummary>, Error> {
 		let para_id = match statement.payload() {
 			Statement::Seconded(ref c) => Some(c.descriptor().para_id),
-			Statement::Valid(h) => {
-				self.table.get_candidate(h).map(|c| c.descriptor().para_id)
-			}
+			Statement::Valid(h) => self.table.get_candidate(h).map(|c| c.descriptor().para_id),
 		};
 
 		gum::debug!(
