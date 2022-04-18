@@ -1960,7 +1960,7 @@ impl ApprovalDistribution {
 			let (proxy_sender, proxy_receiver) = futures::channel::mpsc::channel(1024);
 			let subsystem_sender = ctx.sender().clone();
 			let worker = ApprovalDistributionWorker::new(self.metrics.clone(), proxy_receiver);
-			ctx.spawn(
+			ctx.spawn_blocking(
 				"approval-distribution-worker",
 				Box::pin(worker.run(subsystem_sender, state.clone())),
 			)
