@@ -30,13 +30,14 @@
 //!      for a parachain. Furthermore, a parachain is under no obligation to be acyclic, and this is mostly
 //!      just because it's totally inefficient to enforce it. Practical use-cases are acyclic, but there is
 //!      still more than one way to reach the same head-data.
-//!   2. and candidates only refer to their parent by its head-data.
+//!   2. and candidates only refer to their parent by its head-data. This whole issue could be
+//!      resolved by having candidates reference their parent by candidate hash.
 //!
 //! The implication is that when we receive a candidate receipt, there are actually multiple
 //! possibilities for any candidates between the para-head recorded in the relay parent's state
 //! and the candidate in question.
 //!
-//! This means that our nodes need to handle multiple parents and that depth is an
+//! This means that our candidates need to handle multiple parents and that depth is an
 //! attribute of a node in a tree, not a candidate. Put another way, the same candidate might
 //! have different depths in different parts of the tree.
 //!
@@ -52,7 +53,6 @@
 //! Our assumption is that the amount of candidates and parachains we consider will be reasonably
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
-// TODO [now]: review & update.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
