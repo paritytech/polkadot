@@ -15,6 +15,7 @@
 
 //! A list of the different weight modules for our runtime.
 
+pub mod frame_election_provider_support;
 pub mod frame_system;
 pub mod pallet_bags_list;
 pub mod pallet_balances;
@@ -53,3 +54,4 @@ pub mod runtime_parachains_initializer;
 pub mod runtime_parachains_paras;
 pub mod runtime_parachains_paras_inherent;
 pub mod runtime_parachains_ump;
+pub mod xcm;

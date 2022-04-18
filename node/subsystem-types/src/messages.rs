@@ -39,13 +39,13 @@ use polkadot_node_primitives::{
 	SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState, GroupIndex,
+	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -126,14 +126,14 @@ pub enum CandidateValidationMessage {
 	///
 	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
-	/// of the `CandidateDescriptor`.
+	/// of the `CandidateReceipt`.
 	///
 	/// This will also perform checking of validation outputs against the acceptance criteria.
 	///
 	/// If there is no state available which can provide this data or the core for
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
-		CandidateDescriptor,
+		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
 		Duration,
@@ -151,7 +151,7 @@ pub enum CandidateValidationMessage {
 	ValidateFromExhaustive(
 		PersistedValidationData,
 		ValidationCode,
-		CandidateDescriptor,
+		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
 		Duration,

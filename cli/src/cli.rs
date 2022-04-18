@@ -81,6 +81,7 @@ pub struct ValidationWorkerCommand {
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
+#[cfg_attr(feature = "malus", derive(Clone))]
 pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
