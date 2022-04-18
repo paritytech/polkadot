@@ -57,6 +57,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::LOG_TARGET;
+use bitvec::prelude::*;
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{
 	ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 };
@@ -64,7 +65,6 @@ use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt, Hash, HeadData,
 	Id as ParaId, PersistedValidationData,
 };
-use bitvec::prelude::*;
 
 /// An error indicating that a supplied candidate didn't match the persisted
 /// validation data provided alongside it.
@@ -290,10 +290,7 @@ trait PopulateFrom<'a> {
 
 	fn get(&self, candidate_hash: &CandidateHash) -> Option<&'a CandidateEntry>;
 
-	fn iter_para_children(
-		&self,
-		parent_head_hash: &Hash,
-	) -> Self::ParaChildrenIter;
+	fn iter_para_children(&self, parent_head_hash: &Hash) -> Self::ParaChildrenIter;
 }
 
 impl<'a> PopulateFrom<'a> for &'a CandidateStorage {
@@ -303,10 +300,7 @@ impl<'a> PopulateFrom<'a> for &'a CandidateStorage {
 		CandidateStorage::get(self, candidate_hash)
 	}
 
-	fn iter_para_children(
-		&self,
-		parent_head_hash: &Hash,
-	) -> Self::ParaChildrenIter {
+	fn iter_para_children(&self, parent_head_hash: &Hash) -> Self::ParaChildrenIter {
 		Box::new(CandidateStorage::iter_para_children(self, parent_head_hash))
 	}
 }
@@ -338,11 +332,7 @@ impl FragmentTree {
 			"Instantiating Fragment Tree",
 		);
 
-		let mut tree = FragmentTree {
-			scope,
-			nodes: Vec::new(),
-			candidates: HashMap::new(),
-		};
+		let mut tree = FragmentTree { scope, nodes: Vec::new(), candidates: HashMap::new() };
 
 		tree.populate_from_bases(storage, vec![NodePointer::Root]);
 
@@ -357,7 +347,8 @@ impl FragmentTree {
 
 		let max_depth = self.scope.max_depth;
 
-		self.candidates.entry(candidate_hash)
+		self.candidates
+			.entry(candidate_hash)
 			.or_insert_with(|| bitvec![u16, Msb0; 0; max_depth])
 			.set(node.depth, true);
 
@@ -407,7 +398,7 @@ impl FragmentTree {
 
 	/// Returns an O(n) iterator over the hashes of candidates contained in the
 	/// tree.
-	pub(crate) fn candidates<'a>(&'a self) -> impl Iterator<Item=CandidateHash> + 'a {
+	pub(crate) fn candidates<'a>(&'a self) -> impl Iterator<Item = CandidateHash> + 'a {
 		self.candidates.keys().cloned()
 	}
 
@@ -429,15 +420,16 @@ impl FragmentTree {
 	) -> Vec<usize> {
 		// if known.
 		if let Some(depths) = self.candidates.get(&hash) {
-			return depths.iter_ones().collect();
+			return depths.iter_ones().collect()
 		}
 
 		// if out of scope.
-		let candidate_relay_parent_number = if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
-			info.number
-		} else {
-			return Vec::new();
-		};
+		let candidate_relay_parent_number =
+			if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
+				info.number
+			} else {
+				return Vec::new()
+			};
 
 		let max_depth = self.scope.max_depth;
 		let mut depths = bitvec![u16, Msb0; 0; max_depth];
@@ -445,8 +437,12 @@ impl FragmentTree {
 		// iterate over all nodes < max_depth where parent head-data matches,
 		// relay-parent number is <= candidate, and depth < max_depth.
 		for node in &self.nodes {
-			if node.depth == max_depth { continue }
-			if node.fragment.relay_parent().number > candidate_relay_parent_number { continue }
+			if node.depth == max_depth {
+				continue
+			}
+			if node.fragment.relay_parent().number > candidate_relay_parent_number {
+				continue
+			}
 			if node.head_data_hash == parent_head_data_hash {
 				depths.set(node.depth + 1, true);
 			}
@@ -534,7 +530,11 @@ impl FragmentTree {
 		}
 	}
 
-	fn populate_from_bases<'a>(&mut self, storage: impl PopulateFrom<'a>, initial_bases: Vec<NodePointer>) {
+	fn populate_from_bases<'a>(
+		&mut self,
+		storage: impl PopulateFrom<'a>,
+		initial_bases: Vec<NodePointer>,
+	) {
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
 
@@ -701,8 +701,8 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem_util::inclusion_emulator::staging::InboundHrmpLimitations;
-	use polkadot_primitives_test_helpers as test_helpers;
 	use polkadot_primitives::vstaging::{CandidateCommitments, CandidateDescriptor};
+	use polkadot_primitives_test_helpers as test_helpers;
 
 	#[test]
 	fn scope_rejects_ancestors_that_skip_blocks() {
@@ -713,13 +713,11 @@ mod tests {
 			storage_root: Hash::repeat_byte(69),
 		};
 
-		let ancestors = vec![
-			RelayChainBlockInfo {
-				number: 8,
-				hash: Hash::repeat_byte(8),
-				storage_root: Hash::repeat_byte(69),
-			},
-		];
+		let ancestors = vec![RelayChainBlockInfo {
+			number: 8,
+			hash: Hash::repeat_byte(8),
+			storage_root: Hash::repeat_byte(69),
+		}];
 
 		let max_depth = 2;
 		let base_constraints = Constraints {
@@ -729,9 +727,7 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1_000,
 			dmp_remaining_messages: 10,
-			hrmp_inbound: InboundHrmpLimitations {
-				valid_watermarks: vec![8, 9],
-			},
+			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![8, 9] },
 			hrmp_channels_out: HashMap::new(),
 			max_hrmp_num_per_candidate: 0,
 			required_parent: HeadData(vec![1, 2, 3]),
@@ -741,13 +737,7 @@ mod tests {
 		};
 
 		assert_matches!(
-			Scope::with_ancestors(
-				para_id,
-				relay_parent,
-				base_constraints,
-				max_depth,
-				ancestors,
-			),
+			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
 			Err(UnexpectedAncestor)
 		);
 	}
@@ -761,13 +751,11 @@ mod tests {
 			storage_root: Hash::repeat_byte(69),
 		};
 
-		let ancestors = vec![
-			RelayChainBlockInfo {
-				number: 99999,
-				hash: Hash::repeat_byte(99),
-				storage_root: Hash::repeat_byte(69),
-			},
-		];
+		let ancestors = vec![RelayChainBlockInfo {
+			number: 99999,
+			hash: Hash::repeat_byte(99),
+			storage_root: Hash::repeat_byte(69),
+		}];
 
 		let max_depth = 2;
 		let base_constraints = Constraints {
@@ -777,9 +765,7 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1_000,
 			dmp_remaining_messages: 10,
-			hrmp_inbound: InboundHrmpLimitations {
-				valid_watermarks: vec![8, 9],
-			},
+			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![8, 9] },
 			hrmp_channels_out: HashMap::new(),
 			max_hrmp_num_per_candidate: 0,
 			required_parent: HeadData(vec![1, 2, 3]),
@@ -789,13 +775,7 @@ mod tests {
 		};
 
 		assert_matches!(
-			Scope::with_ancestors(
-				para_id,
-				relay_parent,
-				base_constraints,
-				max_depth,
-				ancestors,
-			),
+			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
 			Err(UnexpectedAncestor)
 		);
 	}
@@ -835,9 +815,7 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1_000,
 			dmp_remaining_messages: 10,
-			hrmp_inbound: InboundHrmpLimitations {
-				valid_watermarks: vec![8, 9],
-			},
+			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![8, 9] },
 			hrmp_channels_out: HashMap::new(),
 			max_hrmp_num_per_candidate: 0,
 			required_parent: HeadData(vec![1, 2, 3]),
@@ -846,13 +824,9 @@ mod tests {
 			future_validation_code: None,
 		};
 
-		let scope = Scope::with_ancestors(
-			para_id,
-			relay_parent,
-			base_constraints,
-			max_depth,
-			ancestors,
-		).unwrap();
+		let scope =
+			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors)
+				.unwrap();
 
 		assert_eq!(scope.ancestors.len(), 2);
 		assert_eq!(scope.ancestors_by_hash.len(), 2);

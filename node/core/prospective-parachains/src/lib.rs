@@ -156,7 +156,8 @@ where
 					required_path,
 					tx,
 				) => answer_get_backable_candidate(&view, relay_parent, para, required_path, tx),
-				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx) => answer_hypothetical_depths_request(&view, request, tx),
+				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx) =>
+					answer_hypothetical_depths_request(&view, request, tx),
 			},
 		}
 	}
@@ -441,12 +442,22 @@ fn answer_hypothetical_depths_request(
 	request: HypotheticalDepthRequest,
 	tx: oneshot::Sender<Vec<usize>>,
 ) {
-	match view.active_leaves.get(&request.fragment_tree_relay_parent).and_then(|l| l.fragment_trees.get(&request.candidate_para)) {
+	match view
+		.active_leaves
+		.get(&request.fragment_tree_relay_parent)
+		.and_then(|l| l.fragment_trees.get(&request.candidate_para))
+	{
 		Some(fragment_tree) => {
-			let depths = fragment_tree.hypothetical_depths(request.candidate_hash, request.parent_head_data_hash, request.candidate_relay_parent);
+			let depths = fragment_tree.hypothetical_depths(
+				request.candidate_hash,
+				request.parent_head_data_hash,
+				request.candidate_relay_parent,
+			);
 			let _ = tx.send(depths);
-		}
-		None => { let _ = tx.send(Vec::new()); }
+		},
+		None => {
+			let _ = tx.send(Vec::new());
+		},
 	}
 }
 
