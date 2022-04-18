@@ -719,6 +719,10 @@ async fn select_disputes(
 	// On chain disputes are fetched for the runtime. We don't want to include disputes the runtime already knows
 	// about in the inherent data.
 	// On error - an empty set is generated which doesn't affect the logic of the function.
+	// This is a staging feature, so if it is not enabled - create an empty HashSet by default. If it is
+	// enabled - the HashSet will be overriden with the on-chain data.
+	let onchain: HashSet<(SessionIndex, CandidateHash)> = HashSet::new();
+	#[cfg(feature = "improved-onchain-disputes-import")]
 	let onchain = onchain_disputes::get_onchain_disputes(sender, leaf.hash.clone())
 		.await
 		.unwrap_or_default();

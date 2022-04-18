@@ -21,3 +21,6 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+
+[features]
+improved-onchain-disputes-import = []
