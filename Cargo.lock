@@ -6901,6 +6901,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "thiserror",
  "tracing-gum",
 ]

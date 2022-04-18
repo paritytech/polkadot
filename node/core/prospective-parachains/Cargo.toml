@@ -19,6 +19,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 assert_matches = "1"
+polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

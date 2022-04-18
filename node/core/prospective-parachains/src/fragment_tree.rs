@@ -701,6 +701,8 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem_util::inclusion_emulator::staging::InboundHrmpLimitations;
+	use polkadot_primitives_test_helpers as test_helpers;
+	use polkadot_primitives::vstaging::{CandidateCommitments, CandidateDescriptor};
 
 	#[test]
 	fn scope_rejects_ancestors_that_skip_blocks() {
@@ -856,7 +858,44 @@ mod tests {
 		assert_eq!(scope.ancestors_by_hash.len(), 2);
 	}
 
-	// TODO [now]: storage sets up links correctly.
+	#[test]
+	fn storage_add_candidate() {
+		let mut storage = CandidateStorage::new();
+		let persisted_validation_data = PersistedValidationData {
+			parent_head: vec![4, 5, 6].into(),
+			relay_parent_number: 8,
+			relay_parent_storage_root: Hash::repeat_byte(69),
+			max_pov_size: 1_000_000,
+		};
+
+		let candidate = CommittedCandidateReceipt {
+			descriptor: CandidateDescriptor {
+				para_id: ParaId::from(5u32),
+				relay_parent: Hash::repeat_byte(69),
+				collator: test_helpers::dummy_collator(),
+				persisted_validation_data_hash: persisted_validation_data.hash(),
+				pov_hash: Hash::repeat_byte(1),
+				erasure_root: Hash::repeat_byte(1),
+				signature: test_helpers::dummy_collator_signature(),
+				para_head: Hash::repeat_byte(1),
+				validation_code_hash: Hash::repeat_byte(1).into(),
+			},
+			commitments: CandidateCommitments {
+				upward_messages: Vec::new(),
+				horizontal_messages: Vec::new(),
+				new_validation_code: None,
+				head_data: vec![1, 2, 3].into(),
+				processed_downward_messages: 0,
+				hrmp_watermark: 10,
+			},
+		};
+		let candidate_hash = candidate.hash();
+		let parent_head_hash = persisted_validation_data.parent_head.hash();
+
+		storage.add_candidate(candidate, persisted_validation_data).unwrap();
+		assert!(storage.contains(&candidate_hash));
+		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
+	}
 
 	// TODO [now]: retain
 
