@@ -40,7 +40,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState, GroupIndex,
+	CandidateIndex, CandidateReceipt, DisputeState, CollatorId, CommittedCandidateReceipt, CoreState, GroupIndex,
 	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData,
 	PvfCheckStatement, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
@@ -693,6 +693,10 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
+	/// Returns all on-chain disputes at given block number.
+	// TODO: Do we need `DisputeState`
+	// TODO: Add staging prefix?
+	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 
 /// A message to the Runtime API subsystem.
