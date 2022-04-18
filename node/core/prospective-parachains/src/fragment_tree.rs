@@ -750,7 +750,111 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: scope rejects ancestor of 0
+	#[test]
+	fn scope_rejects_ancestor_for_0_block() {
+		let para_id = ParaId::from(5u32);
+		let relay_parent = RelayChainBlockInfo {
+			number: 0,
+			hash: Hash::repeat_byte(0),
+			storage_root: Hash::repeat_byte(69),
+		};
+
+		let ancestors = vec![
+			RelayChainBlockInfo {
+				number: 99999,
+				hash: Hash::repeat_byte(99),
+				storage_root: Hash::repeat_byte(69),
+			},
+		];
+
+		let max_depth = 2;
+		let base_constraints = Constraints {
+			min_relay_parent_number: 0,
+			max_pov_size: 1_000_000,
+			max_code_size: 1_000_000,
+			ump_remaining: 10,
+			ump_remaining_bytes: 1_000,
+			dmp_remaining_messages: 10,
+			hrmp_inbound: InboundHrmpLimitations {
+				valid_watermarks: vec![8, 9],
+			},
+			hrmp_channels_out: HashMap::new(),
+			max_hrmp_num_per_candidate: 0,
+			required_parent: HeadData(vec![1, 2, 3]),
+			validation_code_hash: Hash::repeat_byte(69).into(),
+			upgrade_restriction: None,
+			future_validation_code: None,
+		};
+
+		assert_matches!(
+			Scope::with_ancestors(
+				para_id,
+				relay_parent,
+				base_constraints,
+				max_depth,
+				ancestors,
+			),
+			Err(UnexpectedAncestor)
+		);
+	}
+
+	#[test]
+	fn scope_only_takes_ancestors_up_to_min() {
+		let para_id = ParaId::from(5u32);
+		let relay_parent = RelayChainBlockInfo {
+			number: 5,
+			hash: Hash::repeat_byte(0),
+			storage_root: Hash::repeat_byte(69),
+		};
+
+		let ancestors = vec![
+			RelayChainBlockInfo {
+				number: 4,
+				hash: Hash::repeat_byte(4),
+				storage_root: Hash::repeat_byte(69),
+			},
+			RelayChainBlockInfo {
+				number: 3,
+				hash: Hash::repeat_byte(3),
+				storage_root: Hash::repeat_byte(69),
+			},
+			RelayChainBlockInfo {
+				number: 2,
+				hash: Hash::repeat_byte(2),
+				storage_root: Hash::repeat_byte(69),
+			},
+		];
+
+		let max_depth = 2;
+		let base_constraints = Constraints {
+			min_relay_parent_number: 3,
+			max_pov_size: 1_000_000,
+			max_code_size: 1_000_000,
+			ump_remaining: 10,
+			ump_remaining_bytes: 1_000,
+			dmp_remaining_messages: 10,
+			hrmp_inbound: InboundHrmpLimitations {
+				valid_watermarks: vec![8, 9],
+			},
+			hrmp_channels_out: HashMap::new(),
+			max_hrmp_num_per_candidate: 0,
+			required_parent: HeadData(vec![1, 2, 3]),
+			validation_code_hash: Hash::repeat_byte(69).into(),
+			upgrade_restriction: None,
+			future_validation_code: None,
+		};
+
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent,
+			base_constraints,
+			max_depth,
+			ancestors,
+		).unwrap();
+
+		assert_eq!(scope.ancestors.len(), 2);
+		assert_eq!(scope.ancestors_by_hash.len(), 2);
+	}
 
 	// TODO [now]: storage sets up links correctly.
 
