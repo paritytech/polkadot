@@ -64,6 +64,7 @@ use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt, Hash, HeadData,
 	Id as ParaId, PersistedValidationData,
 };
+use bitvec::prelude::*;
 
 /// An error indicating that a supplied candidate didn't match the persisted
 /// validation data provided alongside it.
@@ -317,6 +318,10 @@ pub(crate) struct FragmentTree {
 	// Invariant: a contiguous prefix of the 'nodes' storage will contain
 	// the top-level children.
 	nodes: Vec<FragmentNode>,
+
+	// The candidates stored in this tree, mapped to a bitvec indicating the depths
+	// where the candidate is stored.
+	candidates: HashMap<CandidateHash, BitVec<u16, Msb0>>,
 }
 
 impl FragmentTree {
@@ -332,7 +337,11 @@ impl FragmentTree {
 			"Instantiating Fragment Tree",
 		);
 
-		let mut tree = FragmentTree { scope, nodes: Vec::new() };
+		let mut tree = FragmentTree {
+			scope,
+			nodes: Vec::new(),
+			candidates: HashMap::new(),
+		};
 
 		tree.populate_from_bases(storage, vec![NodePointer::Root]);
 
@@ -344,6 +353,12 @@ impl FragmentTree {
 		let pointer = NodePointer::Storage(self.nodes.len());
 		let parent_pointer = node.parent;
 		let candidate_hash = node.candidate_hash;
+
+		let max_depth = self.scope.max_depth;
+
+		self.candidates.entry(candidate_hash)
+			.or_insert_with(|| bitvec![u16, Msb0; 0; max_depth])
+			.set(node.depth, true);
 
 		match parent_pointer {
 			NodePointer::Storage(ptr) => {
@@ -389,23 +404,59 @@ impl FragmentTree {
 		}
 	}
 
-	/// Returns a set of candidate hashes contained in nodes.
-	///
-	/// This runs in O(n) time in the number of nodes
-	/// and allocates memory.
-	pub(crate) fn candidates(&self) -> HashSet<CandidateHash> {
-		let mut set = HashSet::with_capacity(self.nodes.len());
-
-		for f in &self.nodes {
-			set.insert(f.candidate_hash);
-		}
-
-		set
+	/// Returns an O(n) iterator over the hashes of candidates contained in the
+	/// tree.
+	pub(crate) fn candidates<'a>(&'a self) -> impl Iterator<Item=CandidateHash> + 'a {
+		self.candidates.keys().cloned()
 	}
 
 	/// Add a candidate and recursively populate from storage.
 	pub(crate) fn add_and_populate(&mut self, hash: CandidateHash, storage: &CandidateStorage) {
 		self.add_and_populate_from(hash, storage);
+	}
+
+	/// Returns the hypothetical depths where a candidate with the given hash and parent head data
+	/// would be added to the tree.
+	///
+	/// If the candidate is already known, this returns the actual depths where this
+	/// candidate is part of the tree.
+	pub(crate) fn hypothetical_depths(
+		&self,
+		hash: CandidateHash,
+		parent_head_data_hash: Hash,
+		candidate_relay_parent: Hash,
+	) -> Vec<usize> {
+		// if known.
+		if let Some(depths) = self.candidates.get(&hash) {
+			return depths.iter_ones().collect();
+		}
+
+		// if out of scope.
+		let candidate_relay_parent_number = if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
+			info.number
+		} else {
+			return Vec::new();
+		};
+
+		let max_depth = self.scope.max_depth;
+		let mut depths = bitvec![u16, Msb0; 0; max_depth];
+
+		// iterate over all nodes < max_depth where parent head-data matches,
+		// relay-parent number is <= candidate, and depth < max_depth.
+		for node in &self.nodes {
+			if node.depth == max_depth { continue }
+			if node.fragment.relay_parent().number > candidate_relay_parent_number { continue }
+			if node.head_data_hash == parent_head_data_hash {
+				depths.set(node.depth + 1, true);
+			}
+		}
+
+		// compare against root as well.
+		if self.scope.base_constraints.required_parent.hash() == parent_head_data_hash {
+			depths.set(0, true);
+		}
+
+		depths.iter_ones().collect()
 	}
 
 	fn add_and_populate_from<'a>(&mut self, hash: CandidateHash, storage: impl PopulateFrom<'a>) {
@@ -574,6 +625,8 @@ impl FragmentTree {
 
 					let mut cumulative_modifications = modifications.clone();
 					cumulative_modifications.stack(fragment.constraint_modifications());
+
+					let head_data_hash = fragment.candidate().commitments.head_data.hash();
 					let node = FragmentNode {
 						parent: parent_pointer,
 						fragment,
@@ -582,6 +635,7 @@ impl FragmentTree {
 						depth: child_depth,
 						cumulative_modifications,
 						children: Vec::new(),
+						head_data_hash,
 					};
 
 					self.insert_node(node);
@@ -602,6 +656,7 @@ struct FragmentNode {
 	candidate_hash: CandidateHash,
 	depth: usize,
 	cumulative_modifications: ConstraintModifications,
+	head_data_hash: Hash,
 	children: Vec<(NodePointer, CandidateHash)>,
 }
 

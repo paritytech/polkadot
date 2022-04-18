@@ -6892,6 +6892,7 @@ dependencies = [
 name = "polkadot-node-core-prospective-parachains"
 version = "0.9.16"
 dependencies = [
+ "bitvec 1.0.0",
  "fatality",
  "futures 0.3.21",
  "parity-scale-codec 2.3.1",

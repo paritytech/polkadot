@@ -62,6 +62,21 @@ const MAX_DEPTH: usize = 4;
 // The maximum ancestry we support.
 const MAX_ANCESTRY: usize = 5;
 
+/// A request for the depths a hypothetical candidate would occupy within
+/// some fragment tree.
+pub struct HypotheticalDepthRequest {
+	/// The hash of the potential candidate.
+	pub candidate_hash: CandidateHash,
+	/// The para of the candidate.
+	pub candidate_para: ParaId,
+	/// The hash of the parent head-data of the candidate.
+	pub parent_head_data_hash: Hash,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// The relay-parent of the fragment tree we are comparing to.
+	pub fragment_tree_relay_parent: Hash,
+}
+
 // TODO [now]: add this enum to the broader subsystem types.
 /// Messages sent to the Prospective Parachains subsystem.
 pub enum ProspectiveParachainsMessage {
@@ -75,6 +90,15 @@ pub enum ProspectiveParachainsMessage {
 	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
 	/// if no such candidate exists.
 	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
+	/// Get the hypothetical depths that a candidate with the given properties would
+	/// occupy in the fragment tree for the given relay-parent.
+	///
+	/// If the candidate is already known, this returns the depths the candidate
+	/// occupies.
+	///
+	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
+	/// is unknown.
+	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
 }
 
 struct RelayBlockViewData {
@@ -132,6 +156,7 @@ where
 					required_path,
 					tx,
 				) => answer_get_backable_candidate(&view, relay_parent, para, required_path, tx),
+				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx) => answer_hypothetical_depths_request(&view, request, tx),
 			},
 		}
 	}
@@ -409,6 +434,20 @@ fn answer_get_backable_candidate(
 	};
 
 	let _ = tx.send(tree.select_child(&required_path, |candidate| storage.is_backed(candidate)));
+}
+
+fn answer_hypothetical_depths_request(
+	view: &View,
+	request: HypotheticalDepthRequest,
+	tx: oneshot::Sender<Vec<usize>>,
+) {
+	match view.active_leaves.get(&request.fragment_tree_relay_parent).and_then(|l| l.fragment_trees.get(&request.candidate_para)) {
+		Some(fragment_tree) => {
+			let depths = fragment_tree.hypothetical_depths(request.candidate_hash, request.parent_head_data_hash, request.candidate_relay_parent);
+			let _ = tx.send(depths);
+		}
+		None => { let _ = tx.send(Vec::new()); }
+	}
 }
 
 #[allow(unused)] // TODO [now]
