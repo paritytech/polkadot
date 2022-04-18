@@ -21,7 +21,7 @@
 #![warn(missing_docs)]
 
 use dashmap::DashMap;
-use futures::{channel::oneshot, stream::StreamExt, FutureExt as _};
+use futures::{channel::oneshot, stream::StreamExt, FutureExt as _, SinkExt};
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, View,
 };
@@ -1956,7 +1956,7 @@ impl ApprovalDistribution {
 		// Spawn our workers.
 		for _ in 0..WORKER_COUNT {
 			// Make the proxy pipes.
-			let (proxy_sender, proxy_receiver) = futures::channel::mpsc::channel(10);
+			let (proxy_sender, proxy_receiver) = futures::channel::mpsc::channel(1024);
 			let subsystem_sender = ctx.sender().clone();
 			let worker = ApprovalDistributionWorker::new(self.metrics.clone(), proxy_receiver);
 			ctx.spawn(
@@ -1990,7 +1990,7 @@ impl ApprovalDistribution {
 				},
 			};
 
-			match pool[index % WORKER_COUNT as usize].try_send(message) {
+			match pool[index % WORKER_COUNT as usize].send(message).await {
 				Ok(_) => {},
 				Err(err) => {
 					gum::debug!(target: LOG_TARGET, ?err, "Failed to send a message to a worker");
