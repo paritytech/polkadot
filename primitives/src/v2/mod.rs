@@ -1403,6 +1403,18 @@ pub struct DisputeState<N = BlockNumber> {
 	pub concluded_at: Option<N>,
 }
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for DisputeState {
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		// BitVec is converted to slice to get its size dynamically.
+		// It's equal to calling .capacity() * sizeof::<u8>() but without hardcoding the actual T
+		std::mem::size_of_val(&*self.validators_for) +
+			std::mem::size_of_val(&*self.validators_against) +
+			self.start.size_of(ops) +
+			self.concluded_at.size_of(ops)
+	}
+}
+
 /// Parachains inherent-data passed into the runtime by a block author
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct InherentData<HDR: HeaderT = Header> {
