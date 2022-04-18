@@ -1378,7 +1378,7 @@ sp_api::impl_runtime_apis! {
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
 			Mmr::generate_batch_proof(vec![leaf_index])
-				.map(|(leaves, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaves[0]), proof.into()))
+				.map(|(leaves, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaves[0]), mmr::BatchProof::into_single_leaf_proof(proof)))
 		}
 
 		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<Hash>)
@@ -1389,7 +1389,7 @@ sp_api::impl_runtime_apis! {
 				.into_opaque_leaf()
 				.try_decode()
 				.ok_or(mmr::Error::Verify)?;
-			Mmr::verify_leaves(vec![leaf], proof.into())
+			Mmr::verify_leaves(vec![leaf], mmr::Proof::into_batch_proof(proof))
 		}
 
 		fn verify_proof_stateless(
@@ -1398,7 +1398,7 @@ sp_api::impl_runtime_apis! {
 			proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
 			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], proof.into())
+			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], mmr::Proof::into_batch_proof(proof))
 		}
 
 		fn mmr_root() -> Result<Hash, mmr::Error> {
