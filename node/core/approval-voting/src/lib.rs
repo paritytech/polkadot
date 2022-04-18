@@ -2273,7 +2273,7 @@ async fn launch_approval(
 				CandidateValidationMessage::ValidateFromExhaustive(
 					available_data.validation_data,
 					validation_code,
-					candidate.descriptor.clone(),
+					candidate.clone(),
 					available_data.pov,
 					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,
