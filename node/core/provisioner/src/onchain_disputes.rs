@@ -31,7 +31,7 @@ pub enum GetOnchainDisputesErr {
 	NotSupported,
 }
 
-/// Gets the on-chain disputes at a given block nymber and returns them as a `HashSet` so that searching in them is cheap.
+/// Gets the on-chain disputes at a given block number and returns them as a `HashSet` so that searching in them is cheap.
 pub async fn get_onchain_disputes(
 	sender: &mut impl SubsystemSender,
 	relay_parent: Hash,
