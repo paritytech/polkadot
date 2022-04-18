@@ -20,7 +20,7 @@
 
 use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
 use parity_scale_codec::Encode;
-use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
+use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, Collator, PoV};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
@@ -294,18 +294,40 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				Box::pin(async move {
 					let persisted_validation_data_hash = validation_data.hash();
 
-					let (collation, result_sender) =
-						match (task_config.collator)(relay_parent, &validation_data).await {
-							Some(collation) => collation.into_inner(),
-							None => {
+					let (collation, result_sender) = match Collator::produce_collation(
+						&*task_config.collator,
+						relay_parent,
+						&validation_data,
+					)
+					.await
+					{
+						Some(collation) => collation.into_inner(),
+						None => {
+							gum::debug!(
+								target: LOG_TARGET,
+								para_id = %scheduled_core.para_id,
+								"collator returned no collation on collate",
+							);
+
+							if Collator::is_collating_on_child(&*task_config.collator, relay_parent)
+								.await
+							{
+								let _ = task_sender
+									.send(AllMessages::CollatorProtocol(
+										CollatorProtocolMessage::Connect(relay_parent),
+									))
+									.await;
 								gum::debug!(
 									target: LOG_TARGET,
 									para_id = %scheduled_core.para_id,
-									"collator returned no collation on collate",
+									relay_parent = ?relay_parent,
+									"Sent pre-connect request",
 								);
-								return
-							},
-						};
+							}
+
+							return
+						},
+					};
 
 					// Apply compression to the block data.
 					let pov = {

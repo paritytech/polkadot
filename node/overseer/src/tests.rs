@@ -20,8 +20,8 @@ use std::{collections::HashMap, sync::atomic, task::Poll};
 use ::test_helpers::{dummy_candidate_descriptor, dummy_candidate_receipt, dummy_hash};
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 use polkadot_node_primitives::{
-	BlockData, CollationGenerationConfig, CollationResult, DisputeMessage, InvalidDisputeVote, PoV,
-	UncheckedDisputeMessage, ValidDisputeVote,
+	BlockData, CollationGenerationConfig, CollationResult, Collator, DisputeMessage,
+	InvalidDisputeVote, PoV, UncheckedDisputeMessage, ValidDisputeVote,
 };
 use polkadot_node_subsystem_types::{
 	jaeger,
@@ -29,8 +29,8 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v2::{
-	CandidateHash, CollatorPair, InvalidDisputeStatementKind, ValidDisputeStatementKind,
-	ValidatorIndex,
+	CandidateHash, CollatorPair, InvalidDisputeStatementKind, PersistedValidationData,
+	ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{
@@ -813,21 +813,23 @@ fn test_chain_api_msg() -> ChainApiMessage {
 fn test_collator_generation_msg() -> CollationGenerationMessage {
 	CollationGenerationMessage::Initialize(CollationGenerationConfig {
 		key: CollatorPair::generate().0,
-		collator: Box::new(|_, _| TestCollator.boxed()),
+		collator: Box::new(TestCollator),
 		para_id: Default::default(),
 	})
 }
+
 struct TestCollator;
 
-impl Future for TestCollator {
-	type Output = Option<CollationResult>;
-
-	fn poll(self: Pin<&mut Self>, _cx: &mut futures::task::Context) -> Poll<Self::Output> {
+#[async_trait::async_trait]
+impl Collator for TestCollator {
+	async fn produce_collation(
+		&self,
+		_: Hash,
+		_: &PersistedValidationData,
+	) -> Option<CollationResult> {
 		panic!("at the Disco")
 	}
 }
-
-impl Unpin for TestCollator {}
 
 fn test_collator_protocol_msg() -> CollatorProtocolMessage {
 	CollatorProtocolMessage::CollateOn(Default::default())

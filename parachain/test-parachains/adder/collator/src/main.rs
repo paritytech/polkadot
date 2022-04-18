@@ -21,6 +21,7 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::v2::Id as ParaId;
 use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
+use sc_service::SpawnTaskHandle;
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;
 
@@ -35,13 +36,13 @@ fn main() -> Result<()> {
 
 	match cli.subcommand {
 		Some(cli::Subcommand::ExportGenesisState(_params)) => {
-			let collator = Collator::new();
+			let collator = Collator::<SpawnTaskHandle>::new(None);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
 		},
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
-			let collator = Collator::new();
+			let collator = Collator::<SpawnTaskHandle>::new(None);
 			println!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
 			Ok(())
@@ -59,7 +60,7 @@ fn main() -> Result<()> {
 				match role {
 					Role::Light => Err("Light client not supported".into()),
 					_ => {
-						let collator = Collator::new();
+						let mut collator = Collator::new(None);
 
 						let full_node = polkadot_service::build_full(
 							config,
@@ -72,6 +73,7 @@ fn main() -> Result<()> {
 							polkadot_service::RealOverseerGen,
 						)
 						.map_err(|e| e.to_string())?;
+						collator.set_spawn_handle(full_node.task_manager.spawn_handle());
 						let mut overseer_handle = full_node
 							.overseer_handle
 							.expect("Overseer handle should be initialized for collators");
@@ -90,8 +92,7 @@ fn main() -> Result<()> {
 
 						let config = CollationGenerationConfig {
 							key: collator.collator_key(),
-							collator: collator
-								.create_collation_function(full_node.task_manager.spawn_handle()),
+							collator: Box::new(collator),
 							para_id,
 						};
 						overseer_handle

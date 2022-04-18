@@ -22,10 +22,10 @@
 
 #![deny(missing_docs)]
 
-use std::{pin::Pin, time::Duration};
+use std::time::Duration;
 
+use async_trait::async_trait;
 use bounded_vec::BoundedVec;
-use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -322,7 +322,7 @@ pub struct CollationSecondedSignal {
 	pub statement: SignedFullStatement,
 }
 
-/// Result of the [`CollatorFn`] invocation.
+/// Result of the [`Collator::produce_candidate`] invocation.
 #[cfg(not(target_os = "unknown"))]
 pub struct CollationResult {
 	/// The collation that was build.
@@ -345,21 +345,31 @@ impl CollationResult {
 	}
 }
 
-/// Collation function.
-///
-/// Will be called with the hash of the relay chain block the parachain block should be build on and the
-/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
-///
-/// Returns an optional [`CollationResult`].
+/// A wrapper over a parachain collator.
 #[cfg(not(target_os = "unknown"))]
-pub type CollatorFn = Box<
-	dyn Fn(
-			Hash,
-			&PersistedValidationData,
-		) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
-		+ Send
-		+ Sync,
->;
+#[async_trait]
+pub trait Collator: Send + Sync {
+	/// Collation function.
+	///
+	/// Will be called with the hash of the relay chain block the parachain block should be build on and the
+	/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
+	///
+	/// Returns an optional [`CollationResult`].
+	async fn produce_collation(
+		&self,
+		relay_parent: Hash,
+		validation_data: &PersistedValidationData,
+	) -> Option<CollationResult>;
+
+	/// If a parachain consensus allows it (e.g. AuRa), figure out whether a collator is going to produce a
+	/// candidate on the child of the given relay parent. This allows a node to issue pre-connect requests
+	/// to a validators group.
+	///
+	/// The default implementation works for the rest chains such as PoW and returns `false`.
+	async fn is_collating_on_child(&self, _relay_parent: Hash) -> bool {
+		false
+	}
+}
 
 /// Configuration for the collation generator
 #[cfg(not(target_os = "unknown"))]
@@ -367,7 +377,7 @@ pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
 	/// Collation function. See [`CollatorFn`] for more details.
-	pub collator: CollatorFn,
+	pub collator: Box<dyn Collator>,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }

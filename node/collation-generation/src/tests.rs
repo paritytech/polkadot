@@ -17,13 +17,9 @@
 mod handle_new_activations {
 	use super::super::*;
 	use ::test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
-	use futures::{
-		lock::Mutex,
-		task::{Context as FuturesContext, Poll},
-		Future,
-	};
+	use futures::lock::Mutex;
 	use polkadot_node_primitives::{
-		BlockData, Collation, CollationResult, MaybeCompressedPoV, PoV,
+		BlockData, Collation, CollationResult, Collator, MaybeCompressedPoV, PoV,
 	};
 	use polkadot_node_subsystem::{
 		errors::RuntimeApiError,
@@ -35,7 +31,6 @@ mod handle_new_activations {
 	use polkadot_primitives::v2::{
 		CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 	};
-	use std::pin::Pin;
 
 	fn test_collation() -> Collation {
 		Collation {
@@ -62,14 +57,16 @@ mod handle_new_activations {
 		persisted_validation_data
 	}
 
-	// Box<dyn Future<Output = Collation> + Unpin + Send
 	struct TestCollator;
 
-	impl Future for TestCollator {
-		type Output = Option<CollationResult>;
-
-		fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-			Poll::Ready(Some(CollationResult { collation: test_collation(), result_sender: None }))
+	#[async_trait::async_trait]
+	impl Collator for TestCollator {
+		async fn produce_collation(
+			&self,
+			_: Hash,
+			_: &PersistedValidationData,
+		) -> Option<CollationResult> {
+			Some(CollationResult { collation: test_collation(), result_sender: None })
 		}
 	}
 
@@ -78,7 +75,7 @@ mod handle_new_activations {
 	fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 		Arc::new(CollationGenerationConfig {
 			key: CollatorPair::generate().0,
-			collator: Box::new(|_: Hash, _vd: &PersistedValidationData| TestCollator.boxed()),
+			collator: Box::new(TestCollator),
 			para_id: para_id.into(),
 		})
 	}

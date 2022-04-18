@@ -22,7 +22,7 @@ pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
+use polkadot_node_primitives::{CollationGenerationConfig, Collator};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
 use polkadot_primitives::v2::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
@@ -312,13 +312,14 @@ impl PolkadotTestNode {
 	}
 
 	/// Register the collator functionality in the overseer of this node.
-	pub async fn register_collator(
+	pub async fn register_collator<C: Collator + 'static>(
 		&mut self,
 		collator_key: CollatorPair,
 		para_id: ParaId,
-		collator: CollatorFn,
+		collator: C,
 	) {
-		let config = CollationGenerationConfig { key: collator_key, collator, para_id };
+		let config =
+			CollationGenerationConfig { key: collator_key, collator: Box::new(collator), para_id };
 
 		self.overseer_handle
 			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")

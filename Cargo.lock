@@ -6578,6 +6578,7 @@ dependencies = [
 name = "polkadot-node-collation-generation"
 version = "0.9.19"
 dependencies = [
+ "async-trait",
  "futures 0.3.21",
  "parity-scale-codec",
  "polkadot-erasure-coding",
@@ -6966,6 +6967,7 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.9.19"
 dependencies = [
+ "async-trait",
  "bounded-vec",
  "futures 0.3.21",
  "parity-scale-codec",
@@ -7074,6 +7076,7 @@ name = "polkadot-overseer"
 version = "0.9.19"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "femme",
  "futures 0.3.21",
  "futures-timer",
@@ -11183,6 +11186,7 @@ dependencies = [
 name = "test-parachain-adder-collator"
 version = "0.9.19"
 dependencies = [
+ "async-trait",
  "clap",
  "futures 0.3.21",
  "futures-timer",
@@ -11230,6 +11234,7 @@ dependencies = [
 name = "test-parachain-undying-collator"
 version = "0.9.19"
 dependencies = [
+ "async-trait",
  "clap",
  "futures 0.3.21",
  "futures-timer",

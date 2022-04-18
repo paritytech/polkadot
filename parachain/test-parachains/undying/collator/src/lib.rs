@@ -16,14 +16,15 @@
 
 //! Collator for the `Undying` test parachain.
 
+use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{
-	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, CollatorFn,
-	MaybeCompressedPoV, PoV, Statement,
+	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, MaybeCompressedPoV,
+	PoV, Statement,
 };
-use polkadot_primitives::v2::{CollatorId, CollatorPair, Hash};
+use polkadot_primitives::v2::{CollatorId, CollatorPair, Hash, PersistedValidationData};
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
@@ -158,23 +159,25 @@ impl State {
 	}
 }
 
+#[derive(Clone)]
 /// The collator of the undying parachain.
-pub struct Collator {
+pub struct Collator<S> {
 	state: Arc<Mutex<State>>,
 	key: CollatorPair,
 	seconded_collations: Arc<AtomicU32>,
+	spawner: Option<S>,
 }
 
-impl Default for Collator {
+impl<S: SpawnNamed + Clone> Default for Collator<S> {
 	fn default() -> Self {
-		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY)
+		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY, None)
 	}
 }
 
-impl Collator {
+impl<S: SpawnNamed + Clone> Collator<S> {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
-	pub fn new(pov_size: usize, pvf_complexity: u32) -> Self {
+	pub fn new(pov_size: usize, pvf_complexity: u32, spawner: Option<S>) -> Self {
 		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt().ceil() as usize;
 
 		log::info!(
@@ -190,7 +193,12 @@ impl Collator {
 			state: Arc::new(Mutex::new(State::genesis(graveyard_size, pvf_complexity))),
 			key: CollatorPair::generate().0,
 			seconded_collations: Arc::new(AtomicU32::new(0)),
+			spawner,
 		}
+	}
+
+	pub fn set_spawn_handle(&mut self, spawner: S) {
+		self.spawner.replace(spawner);
 	}
 
 	/// Get the SCALE encoded genesis head of the parachain.
@@ -219,78 +227,69 @@ impl Collator {
 		self.key.public()
 	}
 
-	/// Create the collation function.
+	/// Create the collation.
 	///
 	/// This collation function can be plugged into the overseer to generate collations for the undying parachain.
-	pub fn create_collation_function(
-		&self,
-		spawner: impl SpawnNamed + Clone + 'static,
-	) -> CollatorFn {
+	pub fn create_collation(
+		self,
+		relay_parent: Hash,
+		validation_data: &PersistedValidationData,
+	) -> Option<CollationResult> {
 		use futures::FutureExt as _;
 
-		let state = self.state.clone();
+		let parent =
+			HeadData::decode(&mut &validation_data.parent_head.0[..]).expect("Decodes parent head");
+
+		let (block_data, head_data) = self.state.lock().unwrap().advance(parent);
+
+		log::info!("created a new collation on relay-parent({}): {:?}", relay_parent, head_data,);
+
+		// The pov is the actually the initial state and the transactions.
+		let pov = PoV { block_data: block_data.encode().into() };
+
+		let collation = Collation {
+			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
+			new_validation_code: None,
+			head_data: head_data.encode().into(),
+			proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
+			processed_downward_messages: 0,
+			hrmp_watermark: validation_data.relay_parent_number,
+		};
+
+		log::info!("Raw PoV size for collation: {} bytes", pov.block_data.0.len(),);
+		let compressed_pov = maybe_compress_pov(pov);
+
+		log::info!(
+			"Compressed PoV size for collation: {} bytes",
+			compressed_pov.block_data.0.len(),
+		);
+
+		let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
 		let seconded_collations = self.seconded_collations.clone();
-
-		Box::new(move |relay_parent, validation_data| {
-			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
-				.expect("Decodes parent head");
-
-			let (block_data, head_data) = state.lock().unwrap().advance(parent);
-
-			log::info!(
-				"created a new collation on relay-parent({}): {:?}",
-				relay_parent,
-				head_data,
-			);
-
-			// The pov is the actually the initial state and the transactions.
-			let pov = PoV { block_data: block_data.encode().into() };
-
-			let collation = Collation {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
-				new_validation_code: None,
-				head_data: head_data.encode().into(),
-				proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
-				processed_downward_messages: 0,
-				hrmp_watermark: validation_data.relay_parent_number,
-			};
-
-			log::info!("Raw PoV size for collation: {} bytes", pov.block_data.0.len(),);
-			let compressed_pov = maybe_compress_pov(pov);
-
-			log::info!(
-				"Compressed PoV size for collation: {} bytes",
-				compressed_pov.block_data.0.len(),
-			);
-
-			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
-			let seconded_collations = seconded_collations.clone();
-			spawner.spawn(
-				"undying-collator-seconded",
-				None,
-				async move {
-					if let Ok(res) = recv.await {
-						if !matches!(
-							res.statement.payload(),
-							Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
-						) {
-							log::error!(
-								"Seconded statement should match our collation: {:?}",
-								res.statement.payload()
-							);
-							std::process::exit(-1);
-						}
-
-						seconded_collations.fetch_add(1, Ordering::Relaxed);
+		self.spawner.expect("spawn handle must be set").spawn(
+			"undying-collator-seconded",
+			None,
+			async move {
+				if let Ok(res) = recv.await {
+					if !matches!(
+						res.statement.payload(),
+						Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
+					) {
+						log::error!(
+							"Seconded statement should match our collation: {:?}",
+							res.statement.payload()
+						);
+						std::process::exit(-1);
 					}
-				}
-				.boxed(),
-			);
 
-			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }
-				.boxed()
-		})
+					seconded_collations.fetch_add(1, Ordering::Relaxed);
+				}
+			}
+			.boxed(),
+		);
+
+		Some(CollationResult { collation, result_sender: Some(result_sender) })
 	}
 
 	/// Wait until `blocks` are built and enacted.
@@ -323,6 +322,17 @@ impl Collator {
 	}
 }
 
+#[async_trait]
+impl<S: SpawnNamed + Clone> polkadot_node_primitives::Collator for Collator<S> {
+	async fn produce_collation(
+		&self,
+		relay_parent: Hash,
+		validation_data: &PersistedValidationData,
+	) -> Option<CollationResult> {
+		self.clone().create_collation(relay_parent, validation_data)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -331,11 +341,12 @@ mod tests {
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
 	use polkadot_primitives::v2::{Hash, PersistedValidationData};
 
+	type TestCollator = Collator<sp_core::testing::TaskExecutor>;
+
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
-		let collator = Collator::new(1_000, 1);
-		let collation_function = collator.create_collation_function(spawner);
+		let collator = Collator::new(1_000, 1, Some(spawner.clone()));
 
 		for i in 0..5 {
 			let parent_head =
@@ -346,13 +357,17 @@ mod tests {
 				..Default::default()
 			};
 
-			let collation =
-				block_on(collation_function(Default::default(), &validation_data)).unwrap();
+			let collation = block_on(polkadot_node_primitives::Collator::produce_collation(
+				&collator,
+				Default::default(),
+				&validation_data,
+			))
+			.unwrap();
 			validate_collation(&collator, (*parent_head).clone(), collation.collation);
 		}
 	}
 
-	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
+	fn validate_collation(collator: &TestCollator, parent_head: HeadData, collation: Collation) {
 		use polkadot_node_core_pvf::testing::validate_candidate;
 
 		let block_data = match collation.proof_of_validity {
@@ -388,7 +403,7 @@ mod tests {
 
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
-		let collator = Collator::new(1_000, 1);
+		let collator = TestCollator::new(1_000, 1, None);
 		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
 		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1).0;
@@ -398,7 +413,7 @@ mod tests {
 			assert_eq!(10 + i, head.number);
 		}
 
-		let collator = Collator::new(1_000, 1);
+		let collator = TestCollator::new(1_000, 1, None);
 		let mut second_head = collator
 			.state
 			.lock()

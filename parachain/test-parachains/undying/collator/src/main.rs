@@ -21,6 +21,7 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::v2::Id as ParaId;
 use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
+use sc_service::SpawnTaskHandle;
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_undying_collator::Collator;
 
@@ -34,7 +35,8 @@ fn main() -> Result<()> {
 		Some(cli::Subcommand::ExportGenesisState(params)) => {
 			// `pov_size` and `pvf_complexity` need to match the ones that we start the collator
 			// with.
-			let collator = Collator::new(params.pov_size, params.pvf_complexity);
+			let collator =
+				Collator::<SpawnTaskHandle>::new(params.pov_size, params.pvf_complexity, None);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
@@ -42,7 +44,10 @@ fn main() -> Result<()> {
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
 			// We pass some dummy values for `pov_size` and `pvf_complexity` as these don't
 			// matter for `wasm` export.
-			println!("0x{:?}", HexDisplay::from(&Collator::default().validation_code()));
+			println!(
+				"0x{:?}",
+				HexDisplay::from(&Collator::<SpawnTaskHandle>::default().validation_code())
+			);
 
 			Ok(())
 		},
@@ -59,7 +64,8 @@ fn main() -> Result<()> {
 				match role {
 					Role::Light => Err("Light client not supported".into()),
 					_ => {
-						let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
+						let mut collator =
+							Collator::new(cli.run.pov_size, cli.run.pvf_complexity, None);
 
 						let full_node = polkadot_service::build_full(
 							config,
@@ -72,6 +78,7 @@ fn main() -> Result<()> {
 							polkadot_service::RealOverseerGen,
 						)
 						.map_err(|e| e.to_string())?;
+						collator.set_spawn_handle(full_node.task_manager.spawn_handle());
 						let mut overseer_handle = full_node
 							.overseer_handle
 							.expect("Overseer handle should be initialized for collators");
@@ -89,8 +96,7 @@ fn main() -> Result<()> {
 
 						let config = CollationGenerationConfig {
 							key: collator.collator_key(),
-							collator: collator
-								.create_collation_function(full_node.task_manager.spawn_handle()),
+							collator: Box::new(collator),
 							para_id,
 						};
 						overseer_handle
