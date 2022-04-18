@@ -76,6 +76,7 @@ pub struct ApprovalDistribution {
 	metrics: Metrics,
 }
 
+/// The approval distribution worker
 pub struct ApprovalDistributionWorker {
 	metrics: Metrics,
 	proxy_receiver: futures::channel::mpsc::Receiver<FromOverseer<ApprovalDistributionMessage>>,
