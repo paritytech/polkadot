@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
-use crate::real::LOG_TARGET;
+use crate::LOG_TARGET;
 
 use crate::error::{FatalError, FatalResult, Result};
 

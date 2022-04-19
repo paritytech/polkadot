@@ -60,13 +60,11 @@ use polkadot_primitives::v2::{
 };
 
 use crate::{
+	backend::Backend,
 	metrics::Metrics,
-	real::{
-		backend::Backend,
-		participation::{participation_full_happy_path, participation_missing_availability},
-		Config, DisputeCoordinatorSubsystem,
-	},
+	participation::{participation_full_happy_path, participation_missing_availability},
 	status::{Clock, Timestamp, ACTIVE_DURATION_SECS},
+	Config, DisputeCoordinatorSubsystem,
 };
 
 use super::db::v1::DbBackend;

@@ -48,9 +48,8 @@ use polkadot_primitives::v2::{
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	metrics::Metrics,
-	real::DisputeCoordinatorSubsystem,
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
-	LOG_TARGET,
+	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
 
 use super::{
