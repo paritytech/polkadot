@@ -23,16 +23,16 @@ pallet-bridge-messages = { path = "../messages", default-features = false }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-jsonrpsee-integration-2" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

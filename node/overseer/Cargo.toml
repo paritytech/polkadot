@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 parking_lot = "0.12.0"
@@ -22,7 +22,7 @@ parity-util-mem = { version = "0.11.0", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.2.0"
 assert_matches = "1.4.0"

@@ -10,21 +10,21 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
 xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
-frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
+frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
 xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
 log = "0.4.16"
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-sp-core = { git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-sp-io = { git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
-sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "dp-jsonrpsee-integration-2" }
+pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "master" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
 # temp

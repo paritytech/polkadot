@@ -14,29 +14,29 @@ serde = { version = "1.0.136", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "dp-jsonrpsee-integration-2" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-jsonrpsee-integration-2" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-jsonrpsee-integration-2" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-jsonrpsee-integration-2" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -50,11 +50,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.3.4"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thousands = "0.2.0"
 assert_matches = "1"
 
