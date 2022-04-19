@@ -205,7 +205,21 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
-				CoreState::Occupied(_occupied_core) => {
+				CoreState::Occupied(occupied_core) => {
+					if Collator::is_collating_on_child(&*config.collator, relay_parent).await {
+						let _ = ctx
+							.send_message(AllMessages::CollatorProtocol(
+								CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
+							))
+							.await;
+						gum::debug!(
+							target: LOG_TARGET,
+							para_id = %occupied_core.para_id(),
+							relay_parent = ?relay_parent,
+							"Sent pre-connect request",
+						);
+					}
+
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
 					gum::trace!(
 						target: LOG_TARGET,
@@ -308,23 +322,6 @@ async fn handle_new_activations<Context: SubsystemContext>(
 								para_id = %scheduled_core.para_id,
 								"collator returned no collation on collate",
 							);
-
-							if Collator::is_collating_on_child(&*task_config.collator, relay_parent)
-								.await
-							{
-								let _ = task_sender
-									.send(AllMessages::CollatorProtocol(
-										CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
-									))
-									.await;
-								gum::debug!(
-									target: LOG_TARGET,
-									para_id = %scheduled_core.para_id,
-									relay_parent = ?relay_parent,
-									"Sent pre-connect request",
-								);
-							}
-
 							return
 						},
 					};
