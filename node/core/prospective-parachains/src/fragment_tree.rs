@@ -328,7 +328,7 @@ impl FragmentTree {
 
 		self.candidates
 			.entry(candidate_hash)
-			.or_insert_with(|| bitvec![u16, Msb0; 0; max_depth])
+			.or_insert_with(|| bitvec![u16, Msb0; 0; max_depth + 1])
 			.set(node.depth, true);
 
 		match parent_pointer {
@@ -414,7 +414,7 @@ impl FragmentTree {
 	}
 
 	/// Returns the hypothetical depths where a candidate with the given hash and parent head data
-	/// would be added to the tree.
+	/// would be added to the tree, without applying other candidates recursively on top of it.
 	///
 	/// If the candidate is already known, this returns the actual depths where this
 	/// candidate is part of the tree.
@@ -431,14 +431,16 @@ impl FragmentTree {
 
 		// if out of scope.
 		let candidate_relay_parent_number =
-			if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
+			if self.scope.relay_parent.hash == candidate_relay_parent {
+				self.scope.relay_parent.number
+			} else if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
 				info.number
 			} else {
 				return Vec::new()
 			};
 
 		let max_depth = self.scope.max_depth;
-		let mut depths = bitvec![u16, Msb0; 0; max_depth];
+		let mut depths = bitvec![u16, Msb0; 0; max_depth + 1];
 
 		// iterate over all nodes < max_depth where parent head-data matches,
 		// relay-parent number is <= candidate, and depth < max_depth.
@@ -544,7 +546,7 @@ impl FragmentTree {
 					},
 				};
 
-				if child_depth >= self.scope.max_depth {
+				if child_depth > self.scope.max_depth {
 					continue
 				}
 
@@ -1153,17 +1155,19 @@ mod tests {
 
 		let candidates: Vec<_> = tree.candidates().collect();
 		assert_eq!(candidates.len(), 1);
-		assert_eq!(tree.nodes.len(), max_depth);
+		assert_eq!(tree.nodes.len(), max_depth + 1);
 
 		assert_eq!(tree.nodes[0].parent, NodePointer::Root);
 		assert_eq!(tree.nodes[1].parent, NodePointer::Storage(0));
 		assert_eq!(tree.nodes[2].parent, NodePointer::Storage(1));
 		assert_eq!(tree.nodes[3].parent, NodePointer::Storage(2));
+		assert_eq!(tree.nodes[4].parent, NodePointer::Storage(3));
 
 		assert_eq!(tree.nodes[0].candidate_hash, candidate_a_hash);
 		assert_eq!(tree.nodes[1].candidate_hash, candidate_a_hash);
 		assert_eq!(tree.nodes[2].candidate_hash, candidate_a_hash);
 		assert_eq!(tree.nodes[3].candidate_hash, candidate_a_hash);
+		assert_eq!(tree.nodes[4].candidate_hash, candidate_a_hash);
 	}
 
 	#[test]
@@ -1216,22 +1220,107 @@ mod tests {
 
 		let candidates: Vec<_> = tree.candidates().collect();
 		assert_eq!(candidates.len(), 2);
-		assert_eq!(tree.nodes.len(), max_depth);
+		assert_eq!(tree.nodes.len(), max_depth + 1);
 
 		assert_eq!(tree.nodes[0].parent, NodePointer::Root);
 		assert_eq!(tree.nodes[1].parent, NodePointer::Storage(0));
 		assert_eq!(tree.nodes[2].parent, NodePointer::Storage(1));
 		assert_eq!(tree.nodes[3].parent, NodePointer::Storage(2));
+		assert_eq!(tree.nodes[4].parent, NodePointer::Storage(3));
 
 		assert_eq!(tree.nodes[0].candidate_hash, candidate_a_hash);
 		assert_eq!(tree.nodes[1].candidate_hash, candidate_b_hash);
 		assert_eq!(tree.nodes[2].candidate_hash, candidate_a_hash);
 		assert_eq!(tree.nodes[3].candidate_hash, candidate_b_hash);
+		assert_eq!(tree.nodes[4].candidate_hash, candidate_a_hash);
 	}
 
-	// TODO [now]: hypothetical_depths for existing candidate.
+	#[test]
+	fn hypothetical_depths_known_and_unknown() {
+		let mut storage = CandidateStorage::new();
 
-	// TODO [now]: hypothetical_depths for non-existing candidate based on root.
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
 
-	// TODO [now]: hypothetical_depths for non-existing candidate not based on root.
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(), // input same as output
+			0,
+		);
+		let candidate_a_hash = candidate_a.hash();
+
+		let (pvd_b, candidate_b) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0b].into(),
+			vec![0x0a].into(), // input same as output
+			0,
+		);
+		let candidate_b_hash = candidate_b.hash();
+
+		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+		let relay_parent_a_info = RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		};
+
+		let max_depth = 4;
+		storage.add_candidate(candidate_a, pvd_a).unwrap();
+		storage.add_candidate(candidate_b, pvd_b).unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			max_depth,
+			vec![],
+		)
+		.unwrap();
+		let tree = FragmentTree::populate(scope, &storage);
+
+		let candidates: Vec<_> = tree.candidates().collect();
+		assert_eq!(candidates.len(), 2);
+		assert_eq!(tree.nodes.len(), max_depth + 1);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_a_hash,
+				HeadData::from(vec![0x0a]).hash(),
+				relay_parent_a,
+			),
+			vec![0, 2, 4],
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_b_hash,
+				HeadData::from(vec![0x0b]).hash(),
+				relay_parent_a,
+			),
+			vec![1, 3],
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				CandidateHash(Hash::repeat_byte(21)),
+				HeadData::from(vec![0x0a]).hash(),
+				relay_parent_a,
+			),
+			vec![0, 2, 4],
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				CandidateHash(Hash::repeat_byte(22)),
+				HeadData::from(vec![0x0b]).hash(),
+				relay_parent_a,
+			),
+			vec![1, 3]
+		);
+	}
 }
