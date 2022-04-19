@@ -109,7 +109,7 @@ members = [
 	"parachain/test-parachains/halt",
 	"parachain/test-parachains/undying",
 	"parachain/test-parachains/undying/collator",
-	"utils/staking-miner",
+	# "utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
 ]
