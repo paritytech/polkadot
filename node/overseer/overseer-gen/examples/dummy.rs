@@ -8,8 +8,8 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for AwesomeSubSys {
-	fn start(self, _ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem<Yikes> {
+impl ::polkadot_overseer_gen::Subsystem<SubsystemContext<MsgStrukt>, Yikes> for AwesomeSubSys {
+	fn start(self, ctx: SubsystemContext<MsgStrukt>) -> SpawnedSubsystem<Yikes> {
 		self.spawn(async move { ctx.send_message(Plinko).await });
 		unimplemented!("starting yay!")
 	}
@@ -18,8 +18,8 @@ impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> f
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
-	fn start(self, _ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem<Yikes> {
+impl ::polkadot_overseer_gen::Subsystem<SubsystemContext<Plinko>, Yikes> for GoblinTower {
+	fn start(self, ctx: SubsystemContext<Plinko>) -> SpawnedSubsystem<Yikes> {
 		self.spawn(async move { ctx.send_message(MsgStrukt).await });
 		unimplemented!("welcum")
 	}
@@ -93,16 +93,12 @@ impl NetworkMsg {
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
 struct Xxx<T> {
 	#[subsystem(
-		handles: MsgStrukt,
+		consumes: MsgStrukt,
 		sends: Plinko
 	)]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(no_dispatch, blocking,
-		handles: [Plinko],
-		sends: [
-			MsgStruckt
-		])
+	#[subsystem(no_dispatch, blocking, consumes: Plinko, sends: MsgStruckt)
 	]
 	plinkos: GoblinTower,
 

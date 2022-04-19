@@ -160,18 +160,29 @@ pub(crate) struct Sends {
 	#[allow(dead_code)]
 	pub(crate) colon: Token![:],
 	#[allow(dead_code)]
-	pub(crate) bracket: Bracket,
+	pub(crate) bracket: Option<Bracket>,
 	pub(crate) sends: Punctuated<Path, Token![,]>,
 }
 
 impl Parse for Sends {
 	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
 		let content;
-		Ok(Self {
-			keyword_sends: input.parse()?,
-			colon: input.parse()?,
-			bracket: syn::bracketed!(content in input),
-			sends: Punctuated::parse_terminated(&content)?,
+		let keyword_sends = input.parse()?;
+		let colon = input.parse()?;
+		let (bracket, sends) = if !input.peek(syn::token::Bracket) {
+			let mut sends = Punctuated::new();
+			sends.push_value(input.parse::<Path>()?);
+			(None, sends)
+		} else {
+			let bracket = Some(syn::bracketed!(content in input));
+			let sends = Punctuated::parse_terminated(&content)?;
+			(bracket, sends)
+		};
+	Ok(Self {
+			keyword_sends,
+			colon,
+			bracket,
+			sends,
 		})
 	}
 }

@@ -28,7 +28,7 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	let support_crate = info.support_crate_name();
 
 	for ssf in info.subsystems() {
-		let subsystem_name = ssf.name.to_string();
+		let subsystem_name = ssf.generic.to_string();
 		let subsystem_sender_name = Ident::new(&(subsystem_name.clone() + "SubsystemSender"), span);
 		let subsystem_ctx_name = Ident::new(&(subsystem_name.clone() + "SubsystemContext"), span);
 
@@ -143,18 +143,18 @@ pub(crate) fn impl_subsystem_sender(
 	//
 	// 1. subsystem specific `*OutgoingMessages`-type
 	// 2. overseer-global-`AllMessages`-type
-	let wrapped = |wrapper: &Ident| {
+	let wrapped = |outgoing_wrapper: &Ident| {
 		quote! {
 			/// implementation for wrapping message type...
 			#[#support_crate ::async_trait]
-			impl SubsystemSender< #wrapper > for #subsystem_sender_name {
-				async fn send_message(&mut self, msg: #wrapper) {
+			impl SubsystemSender< #outgoing_wrapper > for #subsystem_sender_name {
+				async fn send_message(&mut self, msg: #outgoing_wrapper) {
 					self.channels.send_and_log_error(self.signals_received.load(), msg).await;
 				}
 
 				async fn send_messages<T>(&mut self, msgs: T)
 				where
-					T: IntoIterator<Item = #wrapper> + Send,
+					T: IntoIterator<Item = #outgoing_wrapper> + Send,
 					T::IntoIter: Send,
 				{
 					// This can definitely be optimized if necessary.
@@ -163,7 +163,7 @@ pub(crate) fn impl_subsystem_sender(
 					}
 				}
 
-				fn send_unbounded_message(&mut self, msg: #wrapper) {
+				fn send_unbounded_message(&mut self, msg: #outgoing_wrapper) {
 					self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
 				}
 			}
