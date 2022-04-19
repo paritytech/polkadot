@@ -1352,7 +1352,7 @@ sp_api::impl_runtime_apis! {
 
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+			Err(mmr::Error::GetRoot)
 		}
 
 		fn generate_batch_proof(_leaf_indices: Vec<u64>)
