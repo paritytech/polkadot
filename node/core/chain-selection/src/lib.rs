@@ -323,9 +323,9 @@ where
 	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let backend = crate::db_backend::v1::DbBackend::new(
+		let backend = db_backend::v1::DbBackend::new(
 			self.db,
-			crate::db_backend::v1::Config { col_data: self.config.col_data },
+			db_backend::v1::Config { col_data: self.config.col_data },
 		);
 
 		SpawnedSubsystem {
@@ -412,7 +412,7 @@ where
 							let _ = tx.send(leaves);
 						}
 						ChainSelectionMessage::BestLeafContaining(required, tx) => {
-							let best_containing = crate::backend::find_best_leaf_containing(
+							let best_containing = backend::find_best_leaf_containing(
 								&*backend,
 								required,
 							)?;
@@ -549,7 +549,7 @@ async fn handle_active_leaf(
 		};
 
 		let reversion_logs = extract_reversion_logs(&header);
-		crate::tree::import_block(
+		tree::import_block(
 			&mut overlay,
 			hash,
 			header.number,
@@ -613,7 +613,7 @@ fn handle_finalized_block(
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
 	let ops =
-		crate::tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
+		tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
 
 	backend.write(ops)
 }
@@ -623,7 +623,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	let ops = {
 		let mut overlay = OverlayedBackend::new(&*backend);
 
-		crate::tree::approve_block(&mut overlay, approved_block)?;
+		tree::approve_block(&mut overlay, approved_block)?;
 
 		overlay.into_write_ops()
 	};
@@ -633,7 +633,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 
 fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Error> {
 	let ops = {
-		let overlay = crate::tree::detect_stagnant(&*backend, now)?;
+		let overlay = tree::detect_stagnant(&*backend, now)?;
 
 		overlay.into_write_ops()
 	};
@@ -653,5 +653,16 @@ async fn load_leaves(
 		Ok(fetch_finalized(ctx).await?.map_or(Vec::new(), |(h, _)| vec![h]))
 	} else {
 		Ok(leaves)
+	}
+}
+
+impl ChainSelectionSubsystem {
+	pub fn revert(&self, hash: Hash) -> Result<(), Error> {
+		let backend_config = db_backend::v1::Config { col_data: self.config.col_data };
+		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), backend_config);
+
+		let ops = tree::revert(&backend, hash)?.into_write_ops();
+
+		backend.write(ops)
 	}
 }
