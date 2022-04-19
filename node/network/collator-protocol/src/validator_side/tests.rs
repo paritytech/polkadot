@@ -31,7 +31,7 @@ use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{
 	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
-	SessionInfo, ValidatorId, ValidatorIndex,
+	ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
@@ -676,23 +676,6 @@ fn preconnect_next_rotation() {
 	// Alice from the group 0 will be assigned to the core with index 2.
 	test_state.group_rotation_info =
 		GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 3, now: 4 };
-	let session_info = SessionInfo {
-		validators: test_state.validator_public.clone(),
-		discovery_keys: Vec::new(),
-		validator_groups: test_state.validator_groups.clone(),
-		assignment_keys: vec![],
-		n_cores: 4,
-		zeroth_delay_tranche_width: 0,
-		relay_vrf_modulo_samples: 0,
-		n_delay_tranches: 0,
-		no_show_slots: 0,
-		needed_approvals: 0,
-		active_validator_indices: vec![],
-		dispute_period: 6,
-		random_seed: [0u8; 32],
-	};
-
-	const SESSION_INDEX: u32 = 0;
 
 	test_harness(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
@@ -716,46 +699,6 @@ fn preconnect_next_rotation() {
 			test_state.chain_ids[1].clone(), // next, not current `para_id`
 		)
 		.await;
-
-		loop {
-			match overseer_recv(&mut virtual_overseer).await {
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::SessionIndexForChild(tx),
-				)) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(Ok(SESSION_INDEX)).unwrap();
-				},
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::SessionInfo(index, tx),
-				)) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					assert_eq!(index, SESSION_INDEX);
-
-					tx.send(Ok(Some(session_info.clone()))).unwrap();
-				},
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::ValidatorGroups(tx),
-				)) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(Ok((
-						test_state.validator_groups.clone(),
-						test_state.group_rotation_info.clone(),
-					)))
-					.unwrap();
-				},
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_,
-					RuntimeApiRequest::AvailabilityCores(tx),
-				)) => {
-					let _ = tx.send(Ok(test_state.cores.clone()));
-					break
-				},
-				other => panic!("Unexpected message received: {:?}", other),
-			}
-		}
 
 		// No collator reports.
 		assert_matches!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await, None);
@@ -1012,9 +955,6 @@ fn disconnect_if_no_declare() {
 #[test]
 fn disconnect_if_wrong_declare() {
 	let test_state = TestState::default();
-	// Modified rotation info with an increased frequency.
-	let rotation_info =
-		GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 10, now: 0 };
 
 	test_harness(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
@@ -1055,23 +995,6 @@ fn disconnect_if_wrong_declare() {
 			)),
 		)
 		.await;
-
-		// When a validator encounters a `Declare` message from a peer collating
-		// on para id it's not assigned to, it will double-check if the group rotation
-		// will happen soon. This response will abort the check due to high rotation
-		// frequency.
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				_,
-				RuntimeApiRequest::ValidatorGroups(tx),
-			)) => {
-				let _ = tx.send(Ok((
-					test_state.validator_groups.clone(),
-					rotation_info,
-				)));
-			}
-		);
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
