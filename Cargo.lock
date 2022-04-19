@@ -1094,16 +1094,16 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.6"
+version = "3.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8c93436c21e4698bacadf42917db28b23017027a4deccb35dbe47a7e7840123"
+checksum = "6aad2534fad53df1cc12519c5cda696dd3e20e6118a027e24054aea14a0bdcbe"
 dependencies = [
  "atty",
  "bitflags",
  "clap_derive",
+ "clap_lex",
  "indexmap",
  "lazy_static",
- "os_str_bytes",
  "strsim",
  "termcolor",
  "textwrap",
@@ -1111,15 +1111,24 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.1.4"
+version = "3.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da95d038ede1a964ce99f49cbe27a7fb538d1da595e4b4f70b8c8f338d17bf16"
+checksum = "a3aab4734e083b809aaf5794e14e756d1c798d2c69c7f7de7a09a2f5214993c1"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "clap_lex"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "189ddd3b5d32a70b35e7686054371742a937b0d99128e76dde6340210e966669"
+dependencies = [
+ "os_str_bytes",
 ]
 
 [[package]]
@@ -1823,9 +1832,9 @@ dependencies = [
 
 [[package]]
 name = "enumflags2"
-version = "0.7.4"
+version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b3ab37dc79652c9d85f1f7b6070d77d321d2467f5fe7b00d6b7a86c57b092ae"
+checksum = "e75d4cd21b95383444831539909fbb14b9dc3fdceb2a6f5d36577329a1f55ccb"
 dependencies = [
  "enumflags2_derive",
 ]
@@ -2599,7 +2608,7 @@ dependencies = [
 [[package]]
 name = "generate-bags"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#0ed8413bdbacfa335ddeb6c824c0028a105445f4"
+source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#5b99226d7babefd796b55cdea4a3d30b81edbd0e"
 dependencies = [
  "chrono",
  "frame-election-provider-support",
@@ -4793,9 +4802,6 @@ name = "os_str_bytes"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e22443d1643a904602595ba1cd8f7d896afe56d26712531c5ff73a15b2fbf64"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "output_vt100"
@@ -4913,7 +4919,7 @@ dependencies = [
 [[package]]
 name = "pallet-bags-list-remote-tests"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#0ed8413bdbacfa335ddeb6c824c0028a105445f4"
+source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#5b99226d7babefd796b55cdea4a3d30b81edbd0e"
 dependencies = [
  "frame-election-provider-support",
  "frame-support",
@@ -8136,7 +8142,7 @@ dependencies = [
 [[package]]
 name = "remote-externalities"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#0ed8413bdbacfa335ddeb6c824c0028a105445f4"
+source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#5b99226d7babefd796b55cdea4a3d30b81edbd0e"
 dependencies = [
  "env_logger 0.9.0",
  "jsonrpsee",
@@ -8394,9 +8400,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.33.7"
+version = "0.33.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "938a344304321a9da4973b9ff4f9f8db9caf4597dfd9dda6a60b523340a0fff0"
+checksum = "03627528abcc4a365554d32a9f3bbf67f7694c102cfeda792dc86a2d6057cc85"
 dependencies = [
  "bitflags",
  "errno",
@@ -10788,7 +10794,7 @@ dependencies = [
 [[package]]
 name = "substrate-build-script-utils"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#0ed8413bdbacfa335ddeb6c824c0028a105445f4"
+source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#5b99226d7babefd796b55cdea4a3d30b81edbd0e"
 dependencies = [
  "platforms",
 ]
@@ -11602,7 +11608,7 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 [[package]]
 name = "try-runtime-cli"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#0ed8413bdbacfa335ddeb6c824c0028a105445f4"
+source = "git+https://github.com/paritytech/substrate?branch=dp-jsonrpsee-integration-2#5b99226d7babefd796b55cdea4a3d30b81edbd0e"
 dependencies = [
  "clap",
  "jsonrpsee",
